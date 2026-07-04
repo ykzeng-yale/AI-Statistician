@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -84,6 +85,79 @@ AUTHOR_DEFINITION_REPAIR_STATUSES = {
 AUTHOR_DEFINITION_MISSING_STATUS = (
     "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN"
 )
+LEAN_DIAGNOSTIC_LOCATION_RE = re.compile(
+    r"^(?P<path>.*?):(?P<line>\d+):(?P<column>\d+):"
+)
+
+
+def _local_lean_diagnostic_source_excerpts(
+    *,
+    artifact_path: str,
+    diagnostics: Sequence[str],
+    context_lines: int = 4,
+    max_excerpts: int = 3,
+) -> list[dict[str, Any]]:
+    """Return small source windows around local Lean diagnostics."""
+
+    excerpts: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, int]] = set()
+    fallback_path = str(artifact_path or "").strip()
+    for diagnostic in diagnostics:
+        diagnostic_text = str(diagnostic or "").strip()
+        if not diagnostic_text:
+            continue
+        match = LEAN_DIAGNOSTIC_LOCATION_RE.match(diagnostic_text)
+        if match is None:
+            continue
+        diagnostic_path = ""
+        line_number = 0
+        column_number = 0
+        diagnostic_path = match.group("path") or ""
+        line_number = int(match.group("line") or 0)
+        column_number = int(match.group("column") or 0)
+        path_candidates = [
+            value
+            for value in (diagnostic_path, fallback_path)
+            if str(value or "").strip()
+        ]
+        if not path_candidates:
+            continue
+        for raw_path in path_candidates:
+            path = Path(str(raw_path or "").strip()).expanduser()
+            if not path.exists():
+                continue
+            key = (str(path), line_number, column_number)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            if not lines:
+                continue
+            center = line_number if line_number > 0 else 1
+            start = max(1, center - context_lines)
+            end = min(len(lines), center + context_lines)
+            numbered = [
+                f"{idx}: {lines[idx - 1]}"
+                for idx in range(start, end + 1)
+            ]
+            excerpts.append(
+                {
+                    "artifact_path": str(path),
+                    "line": line_number,
+                    "column": column_number,
+                    "diagnostic": diagnostic_text,
+                    "source_excerpt": numbered,
+                    "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                    "proof_evidence_boundary": BOUNDARY,
+                }
+            )
+            break
+        if len(excerpts) >= max_excerpts:
+            break
+    return excerpts
 
 
 def run_source_theorem_exact_semantic_definition_lean_repair_executor(
@@ -179,6 +253,14 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
     )
     _write_jsonl(learning_path, learning_rows)
     status_counts = Counter(str(row.get("execution_status", "") or "") for row in results)
+    failure_counts = Counter(
+        str(row.get("failure_classification", "") or "")
+        for row in results
+        if str(row.get("failure_classification", "") or "").strip()
+    )
+    dominant_failure_classification = (
+        failure_counts.most_common(1)[0][0] if failure_counts else ""
+    )
     state, state_reason = _proofengineer_state_from_status_counts(status_counts)
     manifest = {
         "schema_version": 1,
@@ -273,6 +355,8 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
         ),
         "n_lean_environment_repair_tasks": len(environment_repair_tasks),
         "status_counts": dict(sorted(status_counts.items())),
+        "by_failure_classification": dict(sorted(failure_counts.items())),
+        "dominant_failure_classification": dominant_failure_classification,
         "proofengineer_state": state,
         "proofengineer_state_reason": state_reason,
         "source_theorem_kernel_verified": False,
@@ -739,11 +823,16 @@ def _execution_result(
         if checked and candidate_raw_path
         else ""
     )
+    local_lean_diagnostic_source_excerpts = _local_lean_diagnostic_source_excerpts(
+        artifact_path=local_lean_artifact_path,
+        diagnostics=diagnostics,
+    )
     tool_call_trace = _local_lean_tool_call_trace(
         checked=checked,
         compiled=compiled,
         returncode=returncode,
         diagnostics=diagnostics,
+        diagnostic_source_excerpts=local_lean_diagnostic_source_excerpts,
         failure_classification=failure_classification,
         lean_command=effective_lean_command,
         lean_project=effective_lean_project,
@@ -854,6 +943,9 @@ def _execution_result(
         "local_lean_compiled": compiled,
         "local_lean_returncode": int(returncode),
         "local_lean_diagnostics": list(diagnostics[:40]),
+        "local_lean_diagnostic_source_excerpts": (
+            local_lean_diagnostic_source_excerpts
+        ),
         "executed_tools": executed_tools,
         "tool_call_trace": tool_call_trace,
         "failure_classification": failure_classification,
@@ -883,6 +975,7 @@ def _local_lean_tool_call_trace(
     compiled: bool,
     returncode: int,
     diagnostics: Sequence[str],
+    diagnostic_source_excerpts: Sequence[Mapping[str, Any]],
     failure_classification: str,
     lean_command: Sequence[str],
     lean_project: Path | None,
@@ -907,6 +1000,9 @@ def _local_lean_tool_call_trace(
             "returncode": int(returncode),
             "timeout_seconds": int(lean_timeout),
             "diagnostics_excerpt": list(diagnostics[:12]),
+            "diagnostic_source_excerpts": [
+                dict(row) for row in diagnostic_source_excerpts[:3]
+            ],
             "proof_evidence_status": PROOF_EVIDENCE_STATUS,
             "proof_evidence_boundary": BOUNDARY,
         }
@@ -1681,6 +1777,11 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
         "local_lean_returncode": int(row.get("local_lean_returncode", 0) or 0),
         "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
+        "local_lean_diagnostic_source_excerpts": [
+            dict(value)
+            for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
+            if isinstance(value, Mapping)
+        ][:3],
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "recommended_next_action": str(row.get("recommended_next_action", "") or ""),
         "candidate_repair_feedback": _current_candidate_repair_feedback(row),
@@ -1723,6 +1824,11 @@ def _current_candidate_repair_feedback(row: Mapping[str, Any]) -> dict[str, Any]
 
     feedback = dict(row.get("candidate_repair_feedback", {}) or {})
     diagnostics = list(row.get("local_lean_diagnostics", []) or [])[:12]
+    diagnostic_source_excerpts = [
+        dict(value)
+        for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
+        if isinstance(value, Mapping)
+    ][:3]
     checked = bool(row.get("local_lean_checked", False))
     failure_classification = str(row.get("failure_classification", "") or "")
     recommended_next_action = str(row.get("recommended_next_action", "") or "")
@@ -1753,6 +1859,8 @@ def _current_candidate_repair_feedback(row: Mapping[str, Any]) -> dict[str, Any]
     )
     if checked or diagnostics:
         feedback["local_lean_diagnostics"] = diagnostics
+    if diagnostic_source_excerpts:
+        feedback["local_lean_diagnostic_source_excerpts"] = diagnostic_source_excerpts
     if failure_classification:
         feedback["failure_classification"] = failure_classification
     if recommended_next_action:
@@ -2002,6 +2110,15 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("source_lean_repair_task_id", "") or ""
         ),
         "runtime_queue_status": str(row.get("runtime_queue_status", "") or ""),
+        "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
+        "local_lean_diagnostic_source_excerpts": [
+            dict(value)
+            for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
+            if isinstance(value, Mapping)
+        ][:3],
+        "candidate_repair_feedback": dict(
+            row.get("candidate_repair_feedback", {}) or {}
+        ),
         **_exact_semantic_definition_context(row),
         "candidate_definition_request": dict(
             row.get("candidate_definition_request", {}) or {}
@@ -2030,6 +2147,17 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "required_output_artifacts": list(
                 row.get("required_output_artifacts", []) or []
             ),
+            "local_lean_diagnostics": list(
+                row.get("local_lean_diagnostics", []) or []
+            )[:12],
+            "local_lean_diagnostic_source_excerpts": [
+                dict(value)
+                for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
+                if isinstance(value, Mapping)
+            ][:3],
+            "candidate_repair_feedback": dict(
+                row.get("candidate_repair_feedback", {}) or {}
+            ),
             "source_theorem_kernel_verified": False,
         },
         "target_behavior": (
@@ -2043,9 +2171,10 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
 
 def _classify_local_lean_failure(diagnostics: Sequence[str]) -> str:
     text = "\n".join(str(value) for value in diagnostics)
+    lowered = text.lower()
     if (
         "Could not resolve host" in text
-        or "failed to clone" in text.lower()
+        or "failed to clone" in lowered
         or "external command 'git' exited" in text
         or "no previous manifest, creating one from scratch" in text
         and "cloning https://" in text
@@ -2057,8 +2186,23 @@ def _classify_local_lean_failure(diagnostics: Sequence[str]) -> str:
         return "lean_import_environment_missing"
     if "unknown module prefix" in text or "No directory" in text and ".olean" in text:
         return "lean_import_environment_missing"
-    if "timed out" in text:
+    if "timed out" in lowered:
         return "local_lean_timeout"
+    if "failed to synthesize instance" in lowered or "synthinstancefailed" in lowered:
+        return "local_lean_typeclass_synthesis_failed"
+    if "invalid field" in lowered or "environment does not contain" in lowered:
+        return "local_lean_invalid_field"
+    if (
+        "unknown constant" in lowered
+        or "unknown identifier" in lowered
+        or "unknown declaration" in lowered
+        or "unknown namespace" in lowered
+    ):
+        return "local_lean_unknown_identifier"
+    if "application type mismatch" in lowered or "type mismatch" in lowered:
+        return "local_lean_type_mismatch"
+    if "expected token" in lowered or "unexpected token" in lowered:
+        return "local_lean_parse_error"
     if text.strip():
         return "local_lean_failed_unclassified"
     return ""
@@ -2175,7 +2319,14 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "executed_tools": list(row.get("executed_tools", []) or []),
         "tool_call_trace": list(row.get("tool_call_trace", []) or []),
+        "local_lean_checked": bool(row.get("local_lean_checked", False)),
         "local_lean_compiled": local_lean_compiled,
+        "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
+        "local_lean_diagnostic_source_excerpts": [
+            dict(value)
+            for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
+            if isinstance(value, Mapping)
+        ][:3],
         "semantic_definition_import_candidate_ready": import_candidate_ready,
         "semantic_definition_typechecked_candidate_review_ready": (
             typechecked_candidate_review_ready
@@ -2254,6 +2405,11 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "local_lean_diagnostics": list(
                 row.get("local_lean_diagnostics", []) or []
             )[:12],
+            "local_lean_diagnostic_source_excerpts": [
+                dict(value)
+                for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
+                if isinstance(value, Mapping)
+            ][:3],
             "executed_tools": list(row.get("executed_tools", []) or []),
             "tool_call_trace": list(row.get("tool_call_trace", []) or []),
             "failure_classification": str(row.get("failure_classification", "") or ""),

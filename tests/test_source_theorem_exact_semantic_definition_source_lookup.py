@@ -427,6 +427,151 @@ def test_exact_semantic_definition_source_lookup_prefers_rank_quantile_import_ov
     )
 
 
+def test_exact_semantic_definition_source_lookup_demotes_weak_contextual_declarations(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "StatInference"
+    source_root.mkdir()
+    (source_root / "FiniteCellCoverage.lean").write_text(
+        "\n".join(
+            [
+                "-- split coverage sample context from an unrelated Wald module",
+                "theorem finiteScoreCellWeightedSampleCoverage : True := by trivial",
+                "def PATEFiniteScoreCellWaldBridgeOfAbsoluteCoverage := True",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    queue.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+                ),
+                "work_order_id": (
+                    "source_theorem_exact_semantic_definition_work_order:"
+                    "rank_uniformity_block"
+                ),
+                "question_id": "conformal_prediction_coverage",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "rank_uniformity_block",
+                "replacement_strategy": (
+                    "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
+                ),
+                "search_targets": [
+                    "rank",
+                    "uniformity",
+                    "split",
+                    "conformal",
+                    "finite",
+                    "sample",
+                    "coverage",
+                    "exchangeable",
+                ],
+                "semantic_alignment_blockers": [
+                    "rank uniformity under exchangeability is still unlocated"
+                ],
+                "proof_evidence_status": (
+                    "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+        max_hits_per_work_order=3,
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert lookup_rows[0]["lookup_status"] == "CANDIDATE_SOURCE_REFERENCES_FOUND"
+    assert lookup_rows[0]["candidate_source_declarations"] == []
+    assert lookup_rows[0]["candidate_source_references"]
+    declaration_references = [
+        hit
+        for hit in lookup_rows[0]["candidate_source_references"]
+        if hit["candidate_kind"] == "lean_declaration"
+    ]
+    assert declaration_references
+    assert {
+        hit["source_semantic_review_status"]
+        for hit in declaration_references
+    } == {"SEMANTIC_REVIEW_REQUIRED_WEAK_CONTEXTUAL_DECLARATION_MATCH"}
+    assert all(
+        hit["semantic_import_candidate_allowed"] is False
+        for hit in declaration_references
+    )
+
+
+def test_exact_semantic_definition_source_lookup_allows_exact_target_alias_declaration(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "StatInference"
+    source_root.mkdir()
+    (source_root / "SplitConformal.lean").write_text(
+        "theorem split_conformal_finite_sample_coverage : True := by trivial\n",
+        encoding="utf-8",
+    )
+    queue.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+                ),
+                "work_order_id": (
+                    "source_theorem_exact_semantic_definition_work_order:"
+                    "coverage_event_bridge_block"
+                ),
+                "question_id": "conformal_prediction_coverage",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "coverage_event_bridge_block",
+                "replacement_strategy": (
+                    "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
+                ),
+                "search_targets": [
+                    "coverage",
+                    "event",
+                    "bridge",
+                    "split_conformal_finite_sample_coverage",
+                ],
+                "proof_evidence_status": (
+                    "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+        max_hits_per_work_order=1,
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert lookup_rows[0]["lookup_status"] == "CANDIDATE_SOURCE_DECLARATIONS_FOUND"
+    assert len(lookup_rows[0]["candidate_source_declarations"]) == 1
+    assert lookup_rows[0]["candidate_source_declarations"][0][
+        "semantic_import_candidate_allowed"
+    ] is True
+
+
 def test_typechecked_candidate_lookup_exports_review_candidate_next_step(
     tmp_path: Path,
 ) -> None:
@@ -2178,6 +2323,8 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     assert manifest["n_review_packets"] == 1
     assert manifest["n_semantically_approved_review_packets"] == 0
     assert manifest["n_blocked_review_packets"] == 1
+    assert manifest["n_blocked_review_learning_rows"] == 1
+    assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0
     assert manifest["proof_body_recheck_blocked"] is True
     blocked = [
@@ -2191,6 +2338,52 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     ]
     assert manifest["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
+    )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert learning_rows[0]["learning_task"] == (
+        "source_theorem_exact_semantic_definition_typechecked_review_blocked"
+    )
+    assert learning_rows[0]["work_order_id"] == learning_rows[0][
+        "blocker_feedback_id"
+    ]
+    assert learning_rows[0]["input_summary"]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+    )
+    assert learning_rows[0]["proof_body_recheck_blockers"] == [
+        "source_theorem_ready_for_exact_proof_body_false",
+        "semantic_review_required_before_proof_body",
+    ]
+    assert learning_rows[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert learning_rows[0]["failure_classification"] == (
+        "semantic_definition_review_blocked"
+    )
+    assert learning_rows[0]["proof_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_BLOCKED_NOT_PROOF_EVIDENCE"
+    )
+    memory = _load_runtime_learning_memory(
+        [Path(manifest["runtime_learning_rows_jsonl"])],
+        max_rows=10,
+    )
+    repairs = _runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+    assert len(repairs) == 1
+    assert repairs[0]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+    )
+    assert repairs[0]["failure_classification"] == (
+        "semantic_definition_review_blocked"
+    )
+    assert repairs[0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
 
 
@@ -2252,6 +2445,7 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
         manifest["n_llm_semantic_review_packets_requiring_verifier_gate"] == 1
     )
     assert manifest["n_blocked_review_packets"] == 1
+    assert manifest["n_blocked_review_learning_rows"] == 0
     assert manifest["n_verifier_gate_work_orders"] == 1
     assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0

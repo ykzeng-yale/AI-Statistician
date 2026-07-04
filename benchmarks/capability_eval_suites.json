@@ -302,6 +302,42 @@
       "honesty_boundary": "Static fixture plumbing does not count as Formalizer/ProofEngineer capability; local Lean compile verifies only the exact generated helper candidate, not source theorem proof and not semantic faithfulness."
     },
     {
+      "id": "S11b_live_pseudo_formal_block_verifier",
+      "name": "Live Pseudo-Formal BlockVerifier Suite",
+      "capability": "Claude/OpenAI-driven PF/BV BlockVerifier turns independent pseudo-formal block-verification requests into validated non-proof runtime feedback rows",
+      "primary_artifacts": [
+        "runs/pseudo_formal_block_verifier_component_gate/pseudo_formal_block_verifier_component_gate_manifest.json",
+        "runs/research_agent_runtime_audit/research_agent_runtime_audit_manifest.json"
+      ],
+      "recommended_commands": [
+        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --run-pseudo-formal-block-verifier-eval --pseudo-formal-block-verifier-eval-provider same --out runs/live_integrated_agent_runtime_capability_eval",
+        "python3 -m ai_statistician.cli pseudo-formal-block-verifier-component-gate --runtime-learning-jsonl runs/live_integrated_agent_runtime_capability_eval/runtime_learning_rows.jsonl --provider anthropic --out runs/pseudo_formal_block_verifier_component_gate"
+      ],
+      "release_floor": [
+        "provider is anthropic or openai, not static",
+        "prompt-packet export finds at least one independent pseudo-formal block-verification request row",
+        "live LLM BlockVerifier response generation returns at least one valid response",
+        "response validation emits at least one runtime learning row with non-proof PF/BV feedback boundary",
+        "accepted pseudo-formal blocks are not counted as Lean/AXLE kernel evidence"
+      ],
+      "current_status": "live Anthropic Claude Haiku evidence present in runs/pseudo_formal_block_verifier_component_gate_live_main_worker_cli_probe: the standalone PF/BV component gate produced one prompt packet, one valid BlockVerifier response, and one validated non-proof runtime learning row from a live backend",
+      "current_live_evidence": {
+        "manifest": "runs/pseudo_formal_block_verifier_component_gate_live_main_worker_cli_probe/pseudo_formal_block_verifier_component_gate_manifest.json",
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "live_generator": true,
+        "static_or_fixture_only": false,
+        "capability_evidence_ok": true,
+        "n_prompt_packets": 1,
+        "n_valid_responses": 1,
+        "n_runtime_learning_rows": 1,
+        "n_accepted_blocks": 1,
+        "n_failed_blocks": 0,
+        "proof_evidence_status": "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+      },
+      "honesty_boundary": "PF/BV feedback can smooth formalizer routing and error localization, but accepted blocks are non-proof verifier feedback until exact target obligations are replayed and verified by Lean/AXLE."
+    },
+    {
       "id": "S12_live_architect_research_path_policy",
       "name": "Live Architect Research-Path Policy Suite",
       "capability": "Claude/OpenAI ArchitectCoordinator emits valid evidence contracts and chooses proof-first, simulation-first, or optional research paths across representative statistical tasks",
@@ -343,7 +379,7 @@
         "runs/live_capability_eval_conformal_20260622_formalizer_import_suggestion_resume_verify_runtime_audit_after_repair_sequence_gate/research_agent_runtime_audit_manifest.json"
       ],
       "recommended_commands": [
-        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --architect-coordinator-provider same --simulation-engineer-provider same --algorithm-engineer-provider same --formalizer-provider same --critic-evaluator-provider same --local-lean --formalizer-candidate-local-lean --theorem-closure-proofengineer-bridge --theorem-closure-proofengineer-local-lean --source-semantic-proofengineer-bridge --source-semantic-proofengineer-local-lean --source-theorem-promotion-proofengineer-bridge --source-theorem-promotion-proofengineer-local-lean --source-theorem-formal-environment-proofengineer-bridge --source-theorem-formal-environment-proofengineer-signature-probes --source-theorem-formal-environment-proofengineer-execute-proof-body --source-theorem-formal-environment-proofengineer-proof-body-local-lean --source-theorem-proof-body-adapter-proofengineer-bridge --source-theorem-proof-body-adapter-proofengineer-local-lean --source-to-bridge-premise-derivation-proofengineer-bridge --source-to-bridge-premise-derivation-proofengineer-local-lean --source-theorem-exact-semantic-definition-source-lookup --source-theorem-exact-semantic-definition-proofengineer-bridge --source-theorem-exact-semantic-definition-lean-repair-executor --source-theorem-exact-semantic-definition-lean-repair-executor-local-lean --source-theorem-exact-semantic-definition-lean-environment-repair-executor --source-theorem-exact-semantic-definition-closure-review --source-theorem-exact-semantic-definition-candidate-synthesis --source-theorem-exact-semantic-definition-candidate-synthesis-local-lean --source-theorem-exact-semantic-definition-source-root legacy_sources/emperical_process_lean --out runs/live_integrated_agent_runtime_capability_eval"
+        "python3 -m ai_statistician.cli research-agent-runtime --capability-eval --provider anthropic --architect-coordinator-provider same --simulation-engineer-provider same --algorithm-engineer-provider same --formalizer-provider same --critic-evaluator-provider same --local-lean --formalizer-candidate-local-lean --run-pseudo-formal-block-verifier-eval --pseudo-formal-block-verifier-eval-provider same --theorem-closure-proofengineer-bridge --theorem-closure-proofengineer-local-lean --source-semantic-proofengineer-bridge --source-semantic-proofengineer-local-lean --source-theorem-promotion-proofengineer-bridge --source-theorem-promotion-proofengineer-local-lean --source-theorem-formal-environment-proofengineer-bridge --source-theorem-formal-environment-proofengineer-signature-probes --source-theorem-formal-environment-proofengineer-execute-proof-body --source-theorem-formal-environment-proofengineer-proof-body-local-lean --source-theorem-proof-body-adapter-proofengineer-bridge --source-theorem-proof-body-adapter-proofengineer-local-lean --source-to-bridge-premise-derivation-proofengineer-bridge --source-to-bridge-premise-derivation-proofengineer-local-lean --source-theorem-exact-semantic-definition-source-lookup --source-theorem-exact-semantic-definition-proofengineer-bridge --source-theorem-exact-semantic-definition-lean-repair-executor --source-theorem-exact-semantic-definition-lean-repair-executor-local-lean --source-theorem-exact-semantic-definition-lean-environment-repair-executor --source-theorem-exact-semantic-definition-closure-review --source-theorem-exact-semantic-definition-candidate-synthesis --source-theorem-exact-semantic-definition-candidate-synthesis-local-lean --source-theorem-exact-semantic-definition-source-root legacy_sources/emperical_process_lean --out runs/live_integrated_agent_runtime_capability_eval"
       ],
       "release_floor": [
         "runtime_evaluation_mode is capability_eval",
@@ -352,23 +388,51 @@
         "generated algorithm code has a local fail-then-pass repair sequence",
         "generated simulation code has a local fail-then-pass repair sequence",
         "Formalizer/ProofEngineer generated Lean candidate is checked locally",
+        "attached internal PF/BV BlockVerifier component gate has live capability evidence, prompt packets, valid responses, validated non-proof runtime learning rows, and source runtime-learning lineage checked to the current runtime output",
         "internal ProofEngineer handoffs run or are explicitly not required",
         "static replay, no-Architect routing, registered-template-only success, and manual path override do not count",
         "pseudo-formal/block-verification routing rows preserve PF+BV method lineage and remain non-proof bridge-verification feedback",
         "source theorem proof is claimed only when exact local Lean/AXLE source-theorem verification succeeds"
       ],
-      "current_status": "latest inspected runtime audit is a capacity gap: generated algorithm/simulation and Formalizer local Lean feedback are present, but ArchitectCoordinator is disabled in that audited run, no generated algorithm repair sequence was observed, formal gaps remain, and full source theorem proof is absent",
+      "current_status": "live integrated runtime evidence at 78/96 in runs/main_worker_s13_pf_bv_runtime_gate_resume_probe_20260704/audit_after_pf_exact_visibility_recompute: Architect, TheoryDeveloper, SimulationEngineer, AlgorithmEngineer, FormalizerProofEngineer theory-trace handoff, live Formalizer PF/BV proposal, attached PF/BV live component evidence, and retrospectively recovered PF/BV exact semantic-definition work orders are present; not ready because the integrated Formalizer/ProofEngineer loop still has no local Lean candidate check or proof-state/tool-call feedback, and the recovered PF/BV exact-definition work orders have not reached the exact-definition source lookup/review loop",
       "current_live_evidence": {
-        "manifest": "runs/live_capability_eval_conformal_20260622_formalizer_import_suggestion_resume_verify_runtime_audit_after_repair_sequence_gate/research_agent_runtime_audit_manifest.json",
+        "manifest": "runs/main_worker_s13_pf_bv_runtime_gate_resume_probe_20260704/audit_after_pf_exact_visibility_recompute/research_agent_runtime_audit_manifest.json",
         "capability_ready_for_full_ai_statistician": false,
-        "n_requirements": 42,
-        "n_passed": 33,
-        "n_failed": 9,
-        "architect_coordinator_enabled": false,
+        "n_requirements": 96,
+        "n_passed": 78,
+        "n_failed": 18,
+        "component_calibration_ready": true,
+        "architect_coordinator_enabled": true,
+        "architect_problem_analysis_present": true,
+        "dynamic_stat_knowledge_bank_planned": true,
+        "literature_fair_comparison_planned": true,
         "generated_algorithm_code_executed": true,
         "generated_simulation_code_executed": true,
-        "formalizer_lean_candidate_local_check_attempted": true,
-        "full_frontier_theorem_kernel_proved": false
+        "formalizer_lean_candidate_local_check_attempted": false,
+        "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok": true,
+        "internal_pseudo_formal_block_verifier_eval_live_generator": true,
+        "internal_pseudo_formal_block_verifier_eval_static_or_fixture_only": false,
+        "internal_pseudo_formal_block_verifier_eval_prompt_packets": 1,
+        "internal_pseudo_formal_block_verifier_eval_valid_responses": 1,
+        "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows": 1,
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok": true,
+        "full_frontier_theorem_kernel_proved": false,
+        "downstream_theory_trace_consuming_subsystems": [
+          "AlgorithmEngineer",
+          "FormalizerProofEngineer",
+          "SimulationEngineer"
+        ],
+        "downstream_theory_trace_aligned_subsystems": [
+          "AlgorithmEngineer",
+          "FormalizerProofEngineer",
+          "SimulationEngineer"
+        ],
+        "llm_formalizer_proofengineer_proposal_observed": true,
+        "runtime_pseudo_formal_block_routing_contract_complete": true,
+        "runtime_pseudo_formal_exact_semantic_definition_work_orders": 2,
+        "runtime_pseudo_formal_exact_semantic_definition_work_orders_manifest": 0,
+        "runtime_pseudo_formal_exact_semantic_definition_manifest_stale": true,
+        "runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": false
       },
       "honesty_boundary": "This is the integrated live runtime gate. Passing S10, S11, and S12 separately does not imply S13 passes; S13 is still capability evidence, not theorem proof unless the exact source theorem is kernel verified."
     }
@@ -381,6 +445,7 @@
     "S7_feedback_loop_repair_with_seeded_failures",
     "S10_live_coding_agent_generated_repair",
     "S11_live_formalizer_lean_candidate_repair",
+    "S11b_live_pseudo_formal_block_verifier",
     "S12_live_architect_research_path_policy",
     "S13_live_integrated_agent_runtime_capability"
   ]

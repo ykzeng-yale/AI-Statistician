@@ -17,6 +17,8 @@ from .model_backend import (
     is_live_generator_backend,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
+    PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
@@ -24,6 +26,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+    PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
@@ -77,6 +80,9 @@ from .research_agent_runtime import (
     _runtime_research_path_execution_summary,
     _runtime_source_theorem_target_bound_kernel_evidence_summary,
     _runtime_source_theorem_formal_environment_work_order_rows,
+    _runtime_pseudo_formal_work_order_rows_from_formalizer,
+    _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders,
+    _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows,
     _normalize_source_to_bridge_metadata_authoring_request_row,
 )
 from .task_family import (
@@ -115,6 +121,9 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
 FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID = "formal_gap:gap_planner_handoff"
 FORMAL_GAP_PLANNER_HANDOFF_TRIGGER = "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
 FULL_LIVE_RERUN_MIN_ITERATIONS = 16
+ARCHITECT_DEFERRED_META_RESOLUTION_REQUIREMENT_ID = (
+    "architect_deferred_meta_capability_gaps_resolved"
+)
 FORMAL_GAP_PLANNER_EXECUTABLE_CONTEXT_FIELD_ALIASES = {
     "handoff_id": (
         "handoff_id",
@@ -159,6 +168,144 @@ def _compact_string_list(values: Any) -> list[str]:
         if text:
             compacted.append(text)
     return list(dict.fromkeys(compacted))
+
+
+def _runtime_learning_candidate_materialization_summary(
+    learning_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    materialization_failures = {
+        "source_theorem_candidate_materialization_required",
+        "source_theorem_candidate_artifact_missing",
+    }
+    target_names: list[str] = []
+    target_ids: list[str] = []
+    statuses: list[str] = []
+    contracts: list[str] = []
+    triggers: list[str] = []
+    n_required = 0
+    n_exact_proof_body_feedback = 0
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        learning_task = str(
+            row.get("learning_task", "")
+            or input_summary.get("learning_task", "")
+            or ""
+        ).strip()
+        failure = str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ).strip()
+        runtime_queue_status = str(
+            row.get("runtime_queue_status", "")
+            or input_summary.get("runtime_queue_status", "")
+            or ""
+        ).strip()
+        trigger = str(
+            row.get("trigger", "") or input_summary.get("trigger", "") or ""
+        ).strip()
+        required = bool(
+            row.get("candidate_materialization_required", False)
+            or input_summary.get("candidate_materialization_required", False)
+            or failure in materialization_failures
+            or runtime_queue_status
+            == "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+            or trigger == "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+        )
+        if not required:
+            continue
+        n_required += 1
+        if learning_task == "exact_source_theorem_proof_body_execution_feedback":
+            n_exact_proof_body_feedback += 1
+        target_names.extend(
+            _compact_string_list(
+                [
+                    row.get("target_theorem_name", ""),
+                    input_summary.get("target_theorem_name", ""),
+                    row.get("expected_target_lean_declaration", ""),
+                    input_summary.get("expected_target_lean_declaration", ""),
+                ]
+            )
+        )
+        target_ids.extend(_compact_string_list(row.get("target_ids", [])))
+        target_ids.extend(_compact_string_list(input_summary.get("target_ids", [])))
+        target_ids.extend(
+            _compact_string_list(row.get("target_theorem_goal_ids", []))
+        )
+        target_ids.extend(
+            _compact_string_list(input_summary.get("target_theorem_goal_ids", []))
+        )
+        provenance = row.get("source_theorem_target_provenance", {})
+        if not isinstance(provenance, Mapping):
+            provenance = input_summary.get("source_theorem_target_provenance", {})
+        if isinstance(provenance, Mapping):
+            target_ids.extend(
+                _compact_string_list(
+                    [
+                        provenance.get("source_theorem_goal_id", ""),
+                        provenance.get("target_lean_declaration", ""),
+                    ]
+                )
+            )
+        statuses.extend(
+            _compact_string_list(row.get("candidate_materialization_statuses", []))
+        )
+        statuses.extend(
+            _compact_string_list(
+                input_summary.get("candidate_materialization_statuses", [])
+            )
+        )
+        statuses.extend(
+            _compact_string_list([runtime_queue_status, failure])
+        )
+        contracts.extend(
+            _compact_string_list(
+                [
+                    row.get("candidate_materialization_contract", ""),
+                    input_summary.get("candidate_materialization_contract", ""),
+                    row.get("recommended_next_action", ""),
+                    row.get("acceptance_gate", ""),
+                ]
+            )
+        )
+        triggers.extend(_compact_string_list([trigger]))
+    return {
+        "source": "runtime_learning_rows",
+        "source_theorem_candidate_materialization_required": n_required > 0,
+        "n_source_theorem_candidate_materialization_required_learning_rows": (
+            n_required
+        ),
+        "n_source_theorem_candidate_materialization_required_exact_proof_body_feedback_rows": (
+            n_exact_proof_body_feedback
+        ),
+        "source_theorem_candidate_materialization_required_target_names": (
+            target_names[:12]
+        ),
+        "source_theorem_candidate_materialization_required_target_ids": (
+            target_ids[:12]
+        ),
+        "source_theorem_candidate_materialization_required_statuses": (
+            statuses[:12]
+        ),
+        "source_theorem_candidate_materialization_contract": (
+            contracts[0] if contracts else ""
+        ),
+        "source_theorem_candidate_materialization_triggers": triggers[:12],
+        "proof_evidence_status": (
+            "RUNTIME_LEARNING_CANDIDATE_MATERIALIZATION_SUMMARY_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This summary is recomputed from runtime learning rows. It routes "
+            "candidate materialization work and is not source-theorem proof "
+            "evidence, kernel evidence, or verifier evidence."
+        ),
+    }
 
 
 def _payload_distinct_task_family_count(payload: Mapping[str, Any]) -> int:
@@ -322,6 +469,79 @@ def _runtime_source_theorem_formal_environment_work_order_recompute_summary(
             "per-question result artifacts using the current AgentRuntime routing "
             "logic. It does not imply that the bridge ran in the audited runtime, "
             "and it is not proof evidence."
+        ),
+    }
+
+
+def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summary(
+    *,
+    result_paths: list[Path],
+    manifest: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        if isinstance(payload, Mapping):
+            results.append(dict(payload))
+    pseudo_formal_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        results
+    )
+    rows = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+            pseudo_formal_rows
+        )
+    )
+    manifest_count = int(
+        manifest.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    effective_count = max(manifest_count, len(rows))
+    target_ids: list[str] = []
+    placeholder_symbols: list[str] = []
+    proof_statuses: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        for value in _compact_string_list(row.get("target_ids", [])):
+            target_ids.append(value)
+        placeholder = str(row.get("placeholder_symbol", "") or "").strip()
+        if placeholder:
+            placeholder_symbols.append(placeholder)
+        proof_status = str(row.get("proof_evidence_status", "") or "").strip()
+        if proof_status:
+            proof_statuses.append(proof_status)
+    return {
+        "artifact_kind": (
+            "RuntimePseudoFormalExactSemanticDefinitionWorkOrderRecomputeSummary"
+        ),
+        "source": "result_artifacts_recomputed",
+        "n_recomputed_work_orders": len(rows),
+        "n_manifest_work_orders": manifest_count,
+        "n_effective_work_orders": effective_count,
+        "manifest_stale": len(rows) != manifest_count,
+        "n_pseudo_formal_work_order_rows": len(pseudo_formal_rows),
+        "target_ids": list(dict.fromkeys(target_ids)),
+        "placeholder_symbols": list(dict.fromkeys(placeholder_symbols)),
+        "proof_evidence_statuses": list(dict.fromkeys(proof_statuses)),
+        "manifest_snapshot": {
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": manifest_count,
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders": int(
+                manifest.get(
+                    "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+                    0,
+                )
+                or 0
+            ),
+        },
+        "boundary": (
+            "This audit recomputes PF/BV-origin exact semantic-definition work "
+            "orders from per-question result artifacts using the current "
+            "AgentRuntime routing logic. It is routing/authoring evidence only, "
+            "not Lean/AXLE theorem proof evidence."
         ),
     }
 
@@ -2305,6 +2525,38 @@ def _rows_with_manifest_task_family_backfill(
     return backfilled, n_backfilled
 
 
+def _runtime_cross_task_theorem_family_rows(
+    rows: list["RuntimeAuditRow"],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        out.append(
+            {
+                "question_id": row.question_id,
+                "task_family": row.task_family,
+                "task_family_explicit": is_explicit_task_family(row.task_family),
+                "full_frontier_theorem_proved": row.full_frontier_theorem_proved,
+                "full_frontier_target_bound_kernel_verified": (
+                    row.full_frontier_target_bound_kernel_verified
+                ),
+                "n_formal_gaps": row.n_formal_gaps,
+                "full_frontier_current_target_ids": list(
+                    row.full_frontier_current_target_ids
+                )[:8],
+                "full_frontier_theorem_kernel_verified_target_ids": list(
+                    row.full_frontier_kernel_verified_target_ids
+                )[:8],
+                "full_frontier_kernel_verified_matching_target_ids": list(
+                    row.full_frontier_kernel_verified_matching_target_ids
+                )[:8],
+                "proof_evidence_status": (
+                    "CROSS_TASK_THEOREM_FAMILY_ROW_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+    return out
+
+
 FORMALIZER_INTEGRATED_PROOF_COUNT_KEYS = (
     "n_llm_formalizer_proof_engineer_proposals",
     "n_live_llm_formalizer_proof_engineer_proposals",
@@ -2553,11 +2805,22 @@ class RuntimeAuditRow:
     n_architect_initial_routing_decisions: int
     architect_initial_routing_selected_subsystems: tuple[str, ...]
     architect_initial_routing_requested_subsystems: tuple[str, ...]
+    architect_initial_routing_deferred_meta_capability_gap_owners: tuple[str, ...]
+    architect_initial_routing_deferred_meta_capability_gap_requirement_ids: tuple[
+        str,
+        ...,
+    ]
     n_architect_initial_routing_prerequisite_theory: int
     n_critic_reroutes: int
     n_lean_lsp_mcp_live_calls: int
     has_runtime_learning_memory_input: bool
     has_runtime_capability_gap_routing_input: bool
+    runtime_capability_gap_routing_input_requirement_ids: tuple[str, ...]
+    runtime_capability_gap_routing_input_priority_pinned_requirement_ids: tuple[
+        str,
+        ...,
+    ]
+    runtime_capability_gap_routing_input_owner_subsystems: tuple[str, ...]
     has_kernel_verified_theorem_reduction_closure_memory: bool
     has_source_theorem_semantic_primitive_target_mode: bool
     has_problem_analysis: bool
@@ -2571,6 +2834,8 @@ def audit_research_agent_runtime(
     out_dir: Path | None = None,
     *,
     post_runtime_exact_semantic_definition_authoring_worker_manifest: Path | None = None,
+    post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest: Path | None = None,
+    post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest: Path | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     manifest_path = runtime_dir / "research_agent_runtime_manifest.json"
@@ -2700,13 +2965,73 @@ def audit_research_agent_runtime(
             errors=errors,
         )
     )
+    exact_semantic_definition_authoring_retry_task_audit_export_source = (
+        "runtime_artifact_copy"
+        if exact_semantic_definition_authoring_retry_task_rows
+        else ""
+    )
+    exact_semantic_definition_authoring_retry_task_audit_export_rows = list(
+        exact_semantic_definition_authoring_retry_task_rows
+    )
+    if not exact_semantic_definition_authoring_retry_task_audit_export_rows:
+        exact_semantic_definition_authoring_retry_task_audit_export_rows = (
+            _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+                [row for row in learning_rows if isinstance(row, dict)]
+            )
+        )
+        if exact_semantic_definition_authoring_retry_task_audit_export_rows:
+            exact_semantic_definition_authoring_retry_task_audit_export_source = (
+                "learning_memory_recovery"
+            )
+    exact_semantic_definition_authoring_retry_task_audit_export_path = (
+        str(
+            out_dir
+            / "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export.jsonl"
+        )
+        if out_dir is not None
+        and exact_semantic_definition_authoring_retry_task_audit_export_rows
+        else ""
+    )
     post_runtime_exact_semantic_definition_authoring_worker = (
         _post_runtime_exact_semantic_definition_authoring_worker_summary(
             manifest_path=post_runtime_exact_semantic_definition_authoring_worker_manifest,
             runtime_authoring_task_rows=[
                 *exact_semantic_definition_authoring_task_rows,
                 *exact_semantic_definition_authoring_retry_task_rows,
+                *exact_semantic_definition_authoring_retry_task_audit_export_rows,
             ],
+            errors=errors,
+        )
+    )
+    expected_post_runtime_authoring_worker_manifest = (
+        post_runtime_exact_semantic_definition_authoring_worker_manifest
+        if post_runtime_exact_semantic_definition_authoring_worker["lineage_ok"]
+        else None
+    )
+    post_runtime_exact_semantic_definition_authoring_candidate_materializer = (
+        _post_runtime_exact_semantic_definition_authoring_candidate_materializer_summary(
+            manifest_path=(
+                post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest
+            ),
+            expected_authoring_worker_manifest=(
+                expected_post_runtime_authoring_worker_manifest
+            ),
+            errors=errors,
+        )
+    )
+    expected_post_runtime_materializer_manifest = (
+        post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest
+        if post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+            "lineage_ok"
+        ]
+        else None
+    )
+    post_runtime_exact_semantic_definition_materialized_lean_repair_executor = (
+        _post_runtime_exact_semantic_definition_materialized_lean_repair_executor_summary(
+            manifest_path=(
+                post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest
+            ),
+            expected_materializer_manifest=expected_post_runtime_materializer_manifest,
             errors=errors,
         )
     )
@@ -2761,6 +3086,17 @@ def audit_research_agent_runtime(
     runtime_learning_memory_rows_loaded = int(
         runtime_input_context.get("runtime_learning_memory_rows_loaded", 0) or 0
     )
+    runtime_learning_memory_rows_seen = int(
+        runtime_input_context.get(
+            "runtime_learning_memory_rows_seen",
+            runtime_learning_memory_rows_loaded,
+        )
+        or 0
+    )
+    runtime_learning_memory_retention_policy = str(
+        runtime_input_context.get("runtime_learning_memory_retention_policy", "")
+        or ""
+    )
     runtime_learning_memory_supplied = (
         runtime_input_context.get("runtime_learning_memory_supplied") is True
     )
@@ -2768,6 +3104,77 @@ def audit_research_agent_runtime(
         runtime_input_context.get("runtime_capability_gap_routing_rows_loaded", 0)
         or 0
     )
+    runtime_capability_gap_routing_rows_seen = int(
+        runtime_input_context.get(
+            "runtime_capability_gap_routing_rows_seen",
+            runtime_capability_gap_routing_rows_loaded,
+        )
+        or 0
+    )
+    runtime_capability_gap_routing_retention_policy = str(
+        runtime_input_context.get(
+            "runtime_capability_gap_routing_retention_policy",
+            "",
+        )
+        or ""
+    )
+    runtime_capability_gap_routing_retention_selection_counts = (
+        runtime_input_context.get(
+            "runtime_capability_gap_routing_retention_selection_counts",
+            {},
+        )
+    )
+    if not isinstance(
+        runtime_capability_gap_routing_retention_selection_counts,
+        Mapping,
+    ):
+        runtime_capability_gap_routing_retention_selection_counts = {}
+    runtime_capability_gap_routing_rows_missing_retention_selection = int(
+        runtime_input_context.get(
+            "runtime_capability_gap_routing_rows_missing_retention_selection",
+            0,
+        )
+        or 0
+    )
+    runtime_capability_gap_routing_rows_missing_retention_selection_boundary = int(
+        runtime_input_context.get(
+            "runtime_capability_gap_routing_rows_missing_retention_selection_boundary",
+            0,
+        )
+        or 0
+    )
+    runtime_capability_gap_routing_requirement_ids = tuple(
+        _compact_string_list(
+            runtime_input_context.get(
+                "runtime_capability_gap_routing_requirement_ids",
+                [],
+            )
+        )
+    )
+    runtime_capability_gap_routing_priority_pinned_requirement_ids = tuple(
+        _compact_string_list(
+            runtime_input_context.get(
+                "runtime_capability_gap_routing_priority_pinned_requirement_ids",
+                [],
+            )
+        )
+    )
+    raw_runtime_capability_gap_routing_owner_subsystems = runtime_input_context.get(
+        "runtime_capability_gap_routing_owner_subsystems",
+        {},
+    )
+    if isinstance(raw_runtime_capability_gap_routing_owner_subsystems, Mapping):
+        runtime_capability_gap_routing_owner_subsystems = tuple(
+            dict.fromkeys(
+                str(owner).strip()
+                for owner in raw_runtime_capability_gap_routing_owner_subsystems
+                if str(owner).strip()
+            )
+        )
+    else:
+        runtime_capability_gap_routing_owner_subsystems = tuple(
+            _compact_string_list(raw_runtime_capability_gap_routing_owner_subsystems)
+        )
     runtime_capability_gap_routing_supplied = (
         runtime_input_context.get("runtime_capability_gap_routing_supplied") is True
     )
@@ -2869,6 +3276,12 @@ def audit_research_agent_runtime(
             learning_rows=learning_rows,
         )
     )
+    formalization_manifest_rows = (
+        _runtime_formalization_manifest_rows_from_result_paths(
+            result_paths=result_paths,
+            errors=errors,
+        )
+    )
     runtime_pseudo_formal_block_routing_contract_summary = (
         _runtime_pseudo_formal_block_routing_contract_audit_summary(
             pending_memory_rows=(
@@ -2878,6 +3291,7 @@ def audit_research_agent_runtime(
             ),
             learning_rows=learning_rows,
             agenda_rows=agenda_rows,
+            formalization_manifests=formalization_manifest_rows,
         )
     )
     runtime_progress_export_summary = _runtime_progress_export_audit_summary(
@@ -3014,6 +3428,13 @@ def audit_research_agent_runtime(
             errors=errors,
         )
     )
+    runtime_pseudo_formal_exact_semantic_definition_work_order_summary = (
+        _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summary(
+            result_paths=result_paths,
+            manifest=manifest,
+            errors=errors,
+        )
+    )
     source_theorem_formal_environment_bridge_ran = bool(
         manifest.get("source_theorem_formal_environment_proofengineer_bridge_ran", False)
     ) or bool(
@@ -3080,11 +3501,52 @@ def audit_research_agent_runtime(
         )
         else {}
     )
+    attached_pseudo_formal_block_verifier_eval = (
+        dict(manifest.get("internal_pseudo_formal_block_verifier_eval", {}) or {})
+        if isinstance(
+            manifest.get("internal_pseudo_formal_block_verifier_eval", {}),
+            Mapping,
+        )
+        else {}
+    )
     attached_coding_agent_repair_summary = _runtime_component_gate_summary(
         attached_coding_agent_repair_eval
     )
     attached_formalizer_repair_summary = _runtime_component_gate_summary(
         attached_formalizer_repair_eval
+    )
+    attached_pseudo_formal_block_verifier_summary = _runtime_component_gate_summary(
+        attached_pseudo_formal_block_verifier_eval
+    )
+    attached_pseudo_formal_block_verifier_source_runtime_learning_paths = (
+        _compact_string_list(
+            attached_pseudo_formal_block_verifier_eval.get(
+                "source_runtime_learning_jsonl_paths",
+                manifest.get(
+                    "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_paths",
+                    [],
+                ),
+            )
+        )
+    )
+    attached_pseudo_formal_block_verifier_source_runtime_learning_lineage_reference_dir = str(
+        attached_pseudo_formal_block_verifier_eval.get(
+            "source_runtime_learning_lineage_reference_dir",
+            manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_reference_dir",
+                "",
+            ),
+        )
+        or ""
+    )
+    attached_pseudo_formal_block_verifier_source_runtime_learning_lineage_ok = bool(
+        attached_pseudo_formal_block_verifier_eval.get(
+            "source_runtime_learning_lineage_ok",
+            manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok",
+                False,
+            ),
+        )
     )
     attached_formalizer_proof_state_counts = (
         attached_formalizer_repair_eval.get("prior_feedback_proof_state_counts", {})
@@ -3144,12 +3606,107 @@ def audit_research_agent_runtime(
         if attached_formalizer_prior_feedback_lsp_trace_ready
         else 0
     )
+    runtime_learning_candidate_materialization_summary = (
+        _runtime_learning_candidate_materialization_summary(learning_rows)
+    )
+    source_candidate_materialization_target_names = _compact_string_list(
+        [
+            *(
+                manifest.get(
+                    "source_theorem_candidate_materialization_required_target_names",
+                    [],
+                )
+                or []
+            ),
+            *(
+                runtime_learning_candidate_materialization_summary.get(
+                    "source_theorem_candidate_materialization_required_target_names",
+                    [],
+                )
+                or []
+            ),
+        ]
+    )
+    source_candidate_materialization_target_ids = _compact_string_list(
+        [
+            *(
+                manifest.get(
+                    "source_theorem_candidate_materialization_required_target_ids",
+                    [],
+                )
+                or []
+            ),
+            *(
+                runtime_learning_candidate_materialization_summary.get(
+                    "source_theorem_candidate_materialization_required_target_ids",
+                    [],
+                )
+                or []
+            ),
+        ]
+    )
+    source_candidate_materialization_statuses = _compact_string_list(
+        [
+            *(
+                manifest.get(
+                    "source_theorem_candidate_materialization_required_statuses",
+                    [],
+                )
+                or []
+            ),
+            *(
+                runtime_learning_candidate_materialization_summary.get(
+                    "source_theorem_candidate_materialization_required_statuses",
+                    [],
+                )
+                or []
+            ),
+        ]
+    )
+    source_candidate_materialization_contract = str(
+        manifest.get("source_theorem_candidate_materialization_contract", "")
+        or runtime_learning_candidate_materialization_summary.get(
+            "source_theorem_candidate_materialization_contract",
+            "",
+        )
+        or ""
+    )
+    exact_proof_body_repair_target_names = _compact_string_list(
+        [
+            *(manifest.get("source_theorem_exact_proof_body_repair_target_names", []) or []),
+            *source_candidate_materialization_target_names,
+        ]
+    )
+    exact_proof_body_repair_target_ids = _compact_string_list(
+        [
+            *(manifest.get("source_theorem_exact_proof_body_repair_target_ids", []) or []),
+            *source_candidate_materialization_target_ids,
+        ]
+    )
     payload: dict[str, Any] = {
         "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
         "runtime_learning_rows_jsonl": str(learning_path),
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl": (
+            exact_semantic_definition_authoring_retry_task_audit_export_path
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available": bool(
+            exact_semantic_definition_authoring_retry_task_audit_export_rows
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_n_tasks": len(
+            exact_semantic_definition_authoring_retry_task_audit_export_rows
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_source": (
+            exact_semantic_definition_authoring_retry_task_audit_export_source
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_boundary": (
+            "Audit-exported exact semantic-definition authoring retry tasks are "
+            "post-runtime work-order recovery metadata only. They are not proof "
+            "evidence, not local Lean typecheck evidence, not source theorem "
+            "proof, and not full frontier theorem evidence."
+        ),
         "runtime_resume_manifest_has_pending_task": (
             runtime_resume_manifest_has_pending_task
         ),
@@ -3257,6 +3814,13 @@ def audit_research_agent_runtime(
         ),
         "runtime_research_path_manifest_stale": bool(
             runtime_research_path_control["runtime_research_path_manifest_stale"]
+        ),
+        "runtime_research_path_manifest_stale_boundary": (
+            "When per-result artifacts are available, recomputed current-artifact "
+            "Architect control is authoritative for propagation. A stale runtime "
+            "manifest research-path snapshot remains an audit diagnostic and is "
+            "not proof evidence or, by itself, evidence that current Architect "
+            "control failed."
         ),
         "runtime_research_path_manifest_snapshot": (
             runtime_research_path_control["runtime_research_path_manifest_snapshot"]
@@ -3367,6 +3931,26 @@ def audit_research_agent_runtime(
         ),
         "n_rows_task_family_backfilled_from_manifest": (
             n_rows_task_family_backfilled_from_manifest
+        ),
+        "runtime_cross_task_theorem_family_rows": (
+            _runtime_cross_task_theorem_family_rows(rows)
+        ),
+        "n_runtime_cross_task_theorem_family_rows": len(rows),
+        "n_runtime_cross_task_theorem_family_rows_with_explicit_family": sum(
+            1 for row in rows if is_explicit_task_family(row.task_family)
+        ),
+        "n_runtime_cross_task_theorem_family_rows_with_target_bound_kernel": sum(
+            1 for row in rows if row.full_frontier_target_bound_kernel_verified
+        ),
+        "n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps": sum(
+            1 for row in rows if row.n_formal_gaps > 0
+        ),
+        "runtime_cross_task_theorem_family_boundary": (
+            "Cross-task theorem family rows are audit and routing metadata for "
+            "Architect capability selection. They summarize per-question family "
+            "coverage and target-bound kernel status; they are not proof "
+            "evidence and cannot certify a theorem without the referenced "
+            "kernel verifier artifacts."
         ),
         "question_ids_with_full_frontier_theorem_proved": sorted(
             {
@@ -3955,6 +4539,16 @@ def audit_research_agent_runtime(
                 "n_runtime_pseudo_formal_block_routing_rows"
             ]
         ),
+        "n_runtime_pseudo_formal_block_routing_effective_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_effective_rows"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_diagnostic_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_diagnostic_rows"
+            ]
+        ),
         "n_runtime_pseudo_formal_block_routing_agenda_rows": int(
             runtime_pseudo_formal_block_routing_contract_summary[
                 "n_runtime_pseudo_formal_block_routing_agenda_rows"
@@ -3968,6 +4562,86 @@ def audit_research_agent_runtime(
         "n_runtime_pseudo_formal_block_routing_pending_memory_rows": int(
             runtime_pseudo_formal_block_routing_contract_summary[
                 "n_runtime_pseudo_formal_block_routing_pending_memory_rows"
+            ]
+        ),
+        "n_runtime_pseudo_formal_structural_decomposition_requests": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_structural_decomposition_requests"
+            ]
+        ),
+        "n_runtime_pseudo_formal_independent_block_verification_requests": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_independent_block_verification_requests"
+            ]
+        ),
+        "n_runtime_pseudo_formalization_required_formalization_manifests": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formalization_required_formalization_manifests"
+            ]
+        ),
+        "n_runtime_pseudo_formalization_required_missing_routing_rows": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formalization_required_missing_routing_rows"
+            ]
+        ),
+        "runtime_pseudo_formalization_required_manifest_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formalization_required_manifest_ids"
+            ]
+        ),
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+            ]
+        ),
+        "runtime_pseudo_formalization_routed_manifest_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formalization_routed_manifest_ids"
+            ]
+        ),
+        "runtime_pseudo_formalization_effective_routed_manifest_ids": list(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formalization_effective_routed_manifest_ids"
+            ]
+        ),
+        "n_runtime_pseudo_formalization_routed_manifests": len(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formalization_routed_manifest_ids"
+            ]
+        ),
+        "n_runtime_pseudo_formalization_effective_routed_manifests": len(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formalization_effective_routed_manifest_ids"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_row_kinds": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_row_kinds"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_diagnostic_row_kinds"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_effective_channels": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_effective_channels"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_diagnostic_channels": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_diagnostic_channels"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_effective_target_lanes": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_effective_target_lanes"
+            ]
+        ),
+        "runtime_pseudo_formal_block_routing_diagnostic_target_lanes": dict(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "runtime_pseudo_formal_block_routing_diagnostic_target_lanes"
             ]
         ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_lane": int(
@@ -4010,14 +4684,44 @@ def audit_research_agent_runtime(
                 "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status"
             ]
         ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind"
+            ]
+        ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": int(
             runtime_pseudo_formal_block_routing_contract_summary[
                 "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
             ]
         ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+            ]
+        ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": int(
             runtime_pseudo_formal_block_routing_contract_summary[
                 "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality"
+            ]
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality": int(
+            runtime_pseudo_formal_block_routing_contract_summary[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality"
             ]
         ),
         "runtime_pseudo_formal_block_routing_channels": dict(
@@ -4958,6 +5662,71 @@ def audit_research_agent_runtime(
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": (
             attached_formalizer_prior_feedback_executed_tool_calls
         ),
+        "internal_pseudo_formal_block_verifier_eval_attached": bool(
+            attached_pseudo_formal_block_verifier_eval
+        ),
+        "internal_pseudo_formal_block_verifier_eval_manifest_path": str(
+            attached_pseudo_formal_block_verifier_eval.get("manifest_path", "") or ""
+        ),
+        "internal_pseudo_formal_block_verifier_eval_provider_name": str(
+            attached_pseudo_formal_block_verifier_summary["provider_name"]
+        ),
+        "internal_pseudo_formal_block_verifier_eval_backend_provider_name": str(
+            attached_pseudo_formal_block_verifier_summary["backend_provider_name"]
+        ),
+        "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names": list(
+            attached_pseudo_formal_block_verifier_summary[
+                "component_backend_provider_names"
+            ]
+        ),
+        "internal_pseudo_formal_block_verifier_eval_live_generator": bool(
+            attached_pseudo_formal_block_verifier_summary["live_generator"]
+        ),
+        "internal_pseudo_formal_block_verifier_eval_static_or_fixture_only": bool(
+            attached_pseudo_formal_block_verifier_summary["static_or_fixture_only"]
+        ),
+        "internal_pseudo_formal_block_verifier_eval_fixture_plumbing_ok": bool(
+            attached_pseudo_formal_block_verifier_eval.get(
+                "fixture_plumbing_ok", False
+            )
+        ),
+        "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok": bool(
+            attached_pseudo_formal_block_verifier_summary["capability_evidence_ok"]
+        ),
+        "internal_pseudo_formal_block_verifier_eval_prompt_packets": int(
+            attached_pseudo_formal_block_verifier_eval.get("n_prompt_packets", 0)
+            or 0
+        ),
+        "internal_pseudo_formal_block_verifier_eval_valid_responses": int(
+            attached_pseudo_formal_block_verifier_eval.get("n_valid_responses", 0)
+            or 0
+        ),
+        "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows": int(
+            attached_pseudo_formal_block_verifier_eval.get(
+                "n_runtime_learning_rows", 0
+            )
+            or 0
+        ),
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_paths": list(
+            attached_pseudo_formal_block_verifier_source_runtime_learning_paths
+        ),
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_path_count": len(
+            attached_pseudo_formal_block_verifier_source_runtime_learning_paths
+        ),
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_reference_dir": (
+            attached_pseudo_formal_block_verifier_source_runtime_learning_lineage_reference_dir
+        ),
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok": bool(
+            attached_pseudo_formal_block_verifier_source_runtime_learning_lineage_ok
+        ),
+        "internal_pseudo_formal_block_verifier_eval_accepted_blocks": int(
+            attached_pseudo_formal_block_verifier_eval.get("n_accepted_blocks", 0)
+            or 0
+        ),
+        "internal_pseudo_formal_block_verifier_eval_failed_blocks": int(
+            attached_pseudo_formal_block_verifier_eval.get("n_failed_blocks", 0)
+            or 0
+        ),
         "n_llm_formalizer_proof_engineer_proposals": _proof_summary_count(
             derived_runtime_proof_summary,
             "n_llm_formalizer_proof_engineer_proposals",
@@ -5120,6 +5889,33 @@ def audit_research_agent_runtime(
                 0,
             )
             or 0
+        ),
+        "source_semantic_proofengineer_bridge_requested": bool(
+            manifest.get("source_semantic_proofengineer_bridge_requested", False)
+        ),
+        "source_semantic_proofengineer_bridge_ran": bool(
+            manifest.get("source_semantic_proofengineer_bridge_ran", False)
+        ),
+        "source_semantic_proofengineer_bridge_skipped_reason": str(
+            manifest.get("source_semantic_proofengineer_bridge_skipped_reason", "")
+            or ""
+        ),
+        "source_semantic_proofengineer_bridge_runtime_learning_ready": bool(
+            manifest.get(
+                "source_semantic_proofengineer_bridge_runtime_learning_ready",
+                False,
+            )
+        ),
+        "source_semantic_proofengineer_bridge_n_kernel_verified_registered_candidates": int(
+            manifest.get(
+                "source_semantic_proofengineer_bridge_n_kernel_verified_registered_candidates",
+                0,
+            )
+            or 0
+        ),
+        "source_semantic_proofengineer_bridge_proof_evidence_status": str(
+            manifest.get("source_semantic_proofengineer_bridge_proof_evidence_status", "")
+            or ""
         ),
         "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready": bool(
             manifest.get(
@@ -5317,11 +6113,96 @@ def audit_research_agent_runtime(
                 or 0
             ),
         ),
+        "runtime_learning_candidate_materialization_summary": (
+            runtime_learning_candidate_materialization_summary
+        ),
+        "source_theorem_candidate_materialization_required": bool(
+            manifest.get("source_theorem_candidate_materialization_required", False)
+            or runtime_learning_candidate_materialization_summary.get(
+                "source_theorem_candidate_materialization_required",
+                False,
+            )
+        ),
+        "n_source_theorem_candidate_materialization_required_learning_rows": int(
+            runtime_learning_candidate_materialization_summary.get(
+                "n_source_theorem_candidate_materialization_required_learning_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_source_theorem_candidate_materialization_required_exact_proof_body_feedback_rows": int(
+            runtime_learning_candidate_materialization_summary.get(
+                "n_source_theorem_candidate_materialization_required_exact_proof_body_feedback_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_candidate_materialization_required_target_names": list(
+            source_candidate_materialization_target_names
+        ),
+        "source_theorem_candidate_materialization_required_target_ids": list(
+            source_candidate_materialization_target_ids
+        ),
+        "source_theorem_candidate_materialization_required_statuses": list(
+            source_candidate_materialization_statuses
+        ),
+        "source_theorem_candidate_materialization_contract": (
+            source_candidate_materialization_contract
+        ),
+        "source_theorem_exact_proof_body_repair_required": bool(
+            manifest.get("source_theorem_exact_proof_body_repair_required", False)
+        ),
+        "source_theorem_exact_proof_body_repair_target_names": list(
+            exact_proof_body_repair_target_names[:8]
+        ),
+        "source_theorem_exact_proof_body_repair_target_ids": list(
+            exact_proof_body_repair_target_ids[:8]
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_ran": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_n_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_n_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_n_ready",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_requested": bool(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_requested",
+                False,
+            )
+        ),
         "source_theorem_exact_proof_body_repair_executor_ran": bool(
             manifest.get("source_theorem_exact_proof_body_repair_executor_ran", False)
         ),
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": int(
             manifest.get("source_theorem_exact_proof_body_repair_executor_n_result_rows", 0)
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled",
+                0,
+            )
             or 0
         ),
         "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": int(
@@ -5534,12 +6415,37 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal": int(
+            manifest.get(
+                "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
         "n_runtime_source_theorem_exact_semantic_definition_work_orders": int(
             manifest.get(
                 "n_runtime_source_theorem_exact_semantic_definition_work_orders",
                 0,
             )
             or 0
+        ),
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": int(
+            runtime_pseudo_formal_exact_semantic_definition_work_order_summary[
+                "n_effective_work_orders"
+            ]
+        ),
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal_manifest": int(
+            runtime_pseudo_formal_exact_semantic_definition_work_order_summary[
+                "n_manifest_work_orders"
+            ]
+        ),
+        "runtime_pseudo_formal_exact_semantic_definition_work_order_summary": (
+            runtime_pseudo_formal_exact_semantic_definition_work_order_summary
+        ),
+        "runtime_pseudo_formal_exact_semantic_definition_manifest_stale": bool(
+            runtime_pseudo_formal_exact_semantic_definition_work_order_summary[
+                "manifest_stale"
+            ]
         ),
         "source_theorem_exact_semantic_definition_source_lookup_required": bool(
             manifest.get(
@@ -5657,6 +6563,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_total_results": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_total_results",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked",
@@ -5664,9 +6577,30 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_compiled": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_compiled",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_compiled",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_tool_calls": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_tool_calls",
                 0,
             )
             or 0
@@ -5771,6 +6705,19 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_tasks_required": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_tasks_required",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_authoring_repair_tasks_required",
@@ -5782,6 +6729,13 @@ def audit_research_agent_runtime(
                 "source_theorem_exact_semantic_definition_authoring_retry_worker_ran",
                 False,
             )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason": str(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason",
+                "",
+            )
+            or ""
         ),
         "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": str(
             manifest.get(
@@ -5957,6 +6911,161 @@ def audit_research_agent_runtime(
         ),
         "post_runtime_exact_semantic_definition_authoring_worker_boundary": str(
             post_runtime_exact_semantic_definition_authoring_worker["boundary"]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_attached": bool(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "attached"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok": bool(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "lineage_ok"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_match": str(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "lineage_match"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest_path": str(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "manifest_path"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_source_authoring_worker_manifest": str(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "source_authoring_worker_manifest"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_ran": bool(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "ran"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": int(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "n_candidate_packets"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": int(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "n_materialized_lean_repair_tasks"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked": int(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "n_local_lean_checked"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_runtime_learning_rows": int(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "n_runtime_learning_rows"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_proof_evidence_status": str(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "proof_evidence_status"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_boundary": str(
+            post_runtime_exact_semantic_definition_authoring_candidate_materializer[
+                "boundary"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_attached": bool(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "attached"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok": bool(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "lineage_ok"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_match": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "lineage_match"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest_path": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "manifest_path"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_source_materializer_manifest": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "source_materializer_manifest"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_ran": bool(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "ran"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_results": int(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "n_results"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": int(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "n_local_lean_checked"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_compiled": int(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "n_local_lean_compiled"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows": int(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "n_runtime_learning_rows"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets": int(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "n_typechecked_candidate_review_packets"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_by_failure_classification": dict(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "by_failure_classification"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_dominant_failure_classification": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "dominant_failure_classification"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_semantic_definition_kernel_verified": bool(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "semantic_definition_kernel_verified"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_source_theorem_kernel_verified": bool(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "source_theorem_kernel_verified"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proofengineer_state": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "proofengineer_state"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proofengineer_state_reason": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "proofengineer_state_reason"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proof_evidence_status": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "proof_evidence_status"
+            ]
+        ),
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_boundary": str(
+            post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
+                "boundary"
+            ]
         ),
         "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran": bool(
             manifest.get(
@@ -6263,9 +7372,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows",
                 0,
             )
             or 0
@@ -6372,9 +7495,29 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_results": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_results",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_compiled": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_compiled",
                 0,
             )
             or 0
@@ -6453,9 +7596,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows",
                 0,
             )
             or 0
@@ -6583,9 +7740,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_review_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_review_learning_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows",
                 0,
             )
             or 0
@@ -7426,6 +8597,33 @@ def audit_research_agent_runtime(
                 ).items()
             )
         ),
+        "n_architect_initial_routing_deferred_meta_capability_gaps": sum(
+            len(
+                row.architect_initial_routing_deferred_meta_capability_gap_requirement_ids
+                or row.architect_initial_routing_deferred_meta_capability_gap_owners
+            )
+            for row in rows
+        ),
+        "architect_initial_routing_deferred_meta_capability_gap_owners": dict(
+            sorted(
+                Counter(
+                    owner
+                    for row in rows
+                    for owner in (
+                        row.architect_initial_routing_deferred_meta_capability_gap_owners
+                    )
+                ).items()
+            )
+        ),
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": list(
+            dict.fromkeys(
+                requirement_id
+                for row in rows
+                for requirement_id in (
+                    row.architect_initial_routing_deferred_meta_capability_gap_requirement_ids
+                )
+            )
+        ),
         "n_results_with_runtime_learning_memory_input": sum(
             1 for row in rows if row.has_runtime_learning_memory_input
         ),
@@ -7439,9 +8637,66 @@ def audit_research_agent_runtime(
             1 for row in rows if row.has_source_theorem_semantic_primitive_target_mode
         ),
         "n_runtime_learning_memory_input_rows": runtime_learning_memory_rows_loaded,
+        "n_runtime_learning_memory_input_rows_seen": runtime_learning_memory_rows_seen,
+        "runtime_learning_memory_input_retention_policy": (
+            runtime_learning_memory_retention_policy
+        ),
         "runtime_learning_memory_input_supplied": runtime_learning_memory_supplied,
         "n_runtime_capability_gap_routing_input_rows": (
             runtime_capability_gap_routing_rows_loaded
+        ),
+        "n_runtime_capability_gap_routing_input_rows_seen": (
+            runtime_capability_gap_routing_rows_seen
+        ),
+        "runtime_capability_gap_routing_input_retention_policy": (
+            runtime_capability_gap_routing_retention_policy
+        ),
+        "runtime_capability_gap_routing_input_retention_selection_counts": dict(
+            sorted(
+                (
+                    str(key),
+                    _safe_int(value),
+                )
+                for key, value in (
+                    runtime_capability_gap_routing_retention_selection_counts.items()
+                )
+            )
+        ),
+        "runtime_capability_gap_routing_input_requirement_ids": list(
+            dict.fromkeys(
+                requirement_id
+                for row in rows
+                for requirement_id in (
+                    row.runtime_capability_gap_routing_input_requirement_ids
+                )
+                if requirement_id
+            )
+        ),
+        "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": list(
+            dict.fromkeys(
+                requirement_id
+                for row in rows
+                for requirement_id in (
+                    row.runtime_capability_gap_routing_input_priority_pinned_requirement_ids
+                )
+                if requirement_id
+            )
+        ),
+        "runtime_capability_gap_routing_input_owner_subsystems": dict(
+            sorted(
+                Counter(
+                    owner
+                    for row in rows
+                    for owner in row.runtime_capability_gap_routing_input_owner_subsystems
+                    if owner
+                ).items()
+            )
+        ),
+        "n_runtime_capability_gap_routing_input_rows_missing_retention_selection": (
+            runtime_capability_gap_routing_rows_missing_retention_selection
+        ),
+        "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": (
+            runtime_capability_gap_routing_rows_missing_retention_selection_boundary
         ),
         "runtime_capability_gap_routing_input_supplied": (
             runtime_capability_gap_routing_supplied
@@ -7672,6 +8927,18 @@ def audit_research_agent_runtime(
     payload["source_theorem_proof_body_result_row_count"] = (
         _payload_source_theorem_proof_body_result_row_count(payload)
     )
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_post_runtime_worker_command"
+    ] = _exact_semantic_authoring_worker_recovery_command(payload)
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_post_runtime_materializer_command"
+    ] = _exact_semantic_authoring_materializer_recovery_command(payload)
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_post_runtime_lean_repair_command"
+    ] = _exact_semantic_authoring_lean_repair_recovery_command(payload)
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_post_runtime_audit_command"
+    ] = _exact_semantic_authoring_post_runtime_audit_recovery_command(payload)
     capability_scorecard = _runtime_capability_scorecard(payload)
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
@@ -7702,6 +8969,13 @@ def audit_research_agent_runtime(
     )
     payload["n_runtime_capability_scorecard_failed_rows"] = int(
         capability_gap_routing_summary["n_runtime_capability_scorecard_failed_rows"]
+    )
+    payload[
+        "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id"
+    ] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id"
+        ]
     )
     payload["n_runtime_capability_gap_routing_rows"] = int(
         capability_gap_routing_summary["n_runtime_capability_gap_routing_rows"]
@@ -7791,7 +9065,8 @@ def audit_research_agent_runtime(
         "original goal: live Architect orchestration, executable algorithm feedback, "
         "live Lean LSP/MCP proof-state interaction, aggregate primary/retry/late "
         "exact semantic-definition authoring with live backend provenance whenever "
-        "authoring is required, real kernel evidence, and no remaining full-theorem "
+        "authoring is required, zero unresolved AgentRuntime/Architect deferred "
+        "meta capability gaps, real kernel evidence, and no remaining full-theorem "
         "formal gaps. Attached component calibration is reported separately and "
         "does not substitute for integrated readiness."
     )
@@ -7799,6 +9074,16 @@ def audit_research_agent_runtime(
         out_dir.mkdir(parents=True, exist_ok=True)
         manifest_out = out_dir / "research_agent_runtime_audit_manifest.json"
         report_out = out_dir / "research_agent_runtime_audit.md"
+        if (
+            exact_semantic_definition_authoring_retry_task_audit_export_rows
+            and exact_semantic_definition_authoring_retry_task_audit_export_path
+        ):
+            _write_jsonl(
+                Path(
+                    exact_semantic_definition_authoring_retry_task_audit_export_path
+                ),
+                exact_semantic_definition_authoring_retry_task_audit_export_rows,
+            )
         capability_gap_routing_out = Path(
             str(payload["runtime_capability_gap_routing_jsonl"])
         )
@@ -7933,6 +9218,9 @@ def _runtime_architect_initial_routing_summary_from_results(
             "n_architect_initial_routing_prerequisite_theory",
             "architect_initial_routing_selected_subsystems",
             "architect_initial_routing_requested_subsystems",
+            "n_architect_initial_routing_deferred_meta_capability_gaps",
+            "architect_initial_routing_deferred_meta_capability_gap_owners",
+            "architect_initial_routing_deferred_meta_capability_gap_requirement_ids",
         )
         if key in manifest
     }
@@ -7944,6 +9232,9 @@ def _runtime_architect_initial_routing_summary_from_results(
             "n_architect_initial_routing_prerequisite_theory",
             "architect_initial_routing_selected_subsystems",
             "architect_initial_routing_requested_subsystems",
+            "n_architect_initial_routing_deferred_meta_capability_gaps",
+            "architect_initial_routing_deferred_meta_capability_gap_owners",
+            "architect_initial_routing_deferred_meta_capability_gap_requirement_ids",
         )
     }
     summary_stale = bool(manifest_summary) and manifest_summary != summary
@@ -8431,6 +9722,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     has_runtime_capability_gap_routing_input = (
         _trace_has_runtime_capability_gap_routing_input(traces)
     )
+    runtime_capability_gap_routing_input_identity = (
+        _trace_runtime_capability_gap_routing_input_identity(traces)
+    )
     architect_initial_routing_errors = _architect_initial_routing_record_errors(
         architect_initial_routing_records
     )
@@ -8455,6 +9749,28 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             if str(row.get("requested_subsystem", "") or "").strip()
         )
     )
+    deferred_meta_gap_owners: list[str] = []
+    deferred_meta_gap_requirement_ids: list[str] = []
+    for row in architect_initial_routing_records:
+        deferred = (
+            row.get("deferred_meta_capability_gap", {})
+            if isinstance(row.get("deferred_meta_capability_gap", {}), Mapping)
+            else {}
+        )
+        requirement_id = str(
+            row.get("deferred_meta_capability_gap_requirement_id", "")
+            or deferred.get("requirement_id", "")
+            or ""
+        ).strip()
+        owner = str(
+            row.get("deferred_meta_capability_gap_owner", "")
+            or deferred.get("requested_next_owner_subsystem", "")
+            or ""
+        ).strip()
+        if requirement_id:
+            deferred_meta_gap_requirement_ids.append(requirement_id)
+        if owner:
+            deferred_meta_gap_owners.append(owner)
     has_problem_analysis = _trace_has_architect_runtime_field(traces, "problem_analysis")
     has_stat_knowledge_bank_plan = _trace_has_architect_runtime_field(traces, "stat_knowledge_bank_plan")
     has_literature_fair_comparison_plan = _trace_has_architect_runtime_field(
@@ -8601,6 +9917,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         architect_initial_routing_requested_subsystems=(
             architect_initial_routing_requested_subsystems
         ),
+        architect_initial_routing_deferred_meta_capability_gap_owners=tuple(
+            dict.fromkeys(deferred_meta_gap_owners)
+        ),
+        architect_initial_routing_deferred_meta_capability_gap_requirement_ids=tuple(
+            dict.fromkeys(deferred_meta_gap_requirement_ids)
+        ),
         n_architect_initial_routing_prerequisite_theory=sum(
             1
             for row in architect_initial_routing_records
@@ -8611,6 +9933,17 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         has_runtime_learning_memory_input=has_runtime_learning_memory_input,
         has_runtime_capability_gap_routing_input=(
             has_runtime_capability_gap_routing_input
+        ),
+        runtime_capability_gap_routing_input_requirement_ids=(
+            runtime_capability_gap_routing_input_identity["requirement_ids"]
+        ),
+        runtime_capability_gap_routing_input_priority_pinned_requirement_ids=(
+            runtime_capability_gap_routing_input_identity[
+                "priority_pinned_requirement_ids"
+            ]
+        ),
+        runtime_capability_gap_routing_input_owner_subsystems=(
+            runtime_capability_gap_routing_input_identity["owner_subsystems"]
         ),
         has_kernel_verified_theorem_reduction_closure_memory=(
             has_kernel_verified_theorem_reduction_closure_memory
@@ -9236,6 +10569,12 @@ def _runtime_architect_initial_routing_evidence(payload: Mapping[str, Any]) -> s
         f"{payload.get('architect_initial_routing_selected_subsystems')} "
         "requested="
         f"{payload.get('architect_initial_routing_requested_subsystems')}"
+        " deferred_meta_gaps="
+        f"{payload.get('n_architect_initial_routing_deferred_meta_capability_gaps')} "
+        "deferred_meta_owners="
+        f"{payload.get('architect_initial_routing_deferred_meta_capability_gap_owners')} "
+        "deferred_meta_requirements="
+        f"{payload.get('architect_initial_routing_deferred_meta_capability_gap_requirement_ids')}"
     )
 
 
@@ -9247,6 +10586,272 @@ def _runtime_architect_initial_routing_blocker(payload: Mapping[str, Any]) -> st
         "not exported and audited for every result; rerun with "
         "ArchitectInitialRoutingDecision preserved in trace context or "
         "Architect observation payload."
+    )
+
+
+def _runtime_architect_deferred_meta_capability_gaps_visible(
+    payload: Mapping[str, Any],
+) -> bool:
+    count = int(
+        payload.get("n_architect_initial_routing_deferred_meta_capability_gaps", 0)
+        or 0
+    )
+    if count <= 0:
+        return True
+    owners = payload.get(
+        "architect_initial_routing_deferred_meta_capability_gap_owners",
+        {},
+    )
+    requirement_ids = payload.get(
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids",
+        [],
+    )
+    return bool(owners) and bool(_compact_string_list(requirement_ids))
+
+
+def _runtime_architect_deferred_meta_capability_gaps_evidence(
+    payload: Mapping[str, Any],
+) -> str:
+    return (
+        "n_architect_initial_routing_deferred_meta_capability_gaps="
+        f"{payload.get('n_architect_initial_routing_deferred_meta_capability_gaps')} "
+        "owners="
+        f"{payload.get('architect_initial_routing_deferred_meta_capability_gap_owners')} "
+        "requirement_ids="
+        f"{payload.get('architect_initial_routing_deferred_meta_capability_gap_requirement_ids')}"
+    )
+
+
+def _runtime_architect_deferred_meta_capability_gaps_blocker(
+    payload: Mapping[str, Any],
+) -> str:
+    if _runtime_architect_deferred_meta_capability_gaps_visible(payload):
+        return ""
+    return (
+        "ArchitectInitialRoutingDecision deferred an AgentRuntime/Architect "
+        "control-plane capability gap, but the audit did not expose its owner "
+        "and requirement_id at top level; rerun with deferred meta-gap counters "
+        "preserved so runtime harness debt cannot be mistaken for resolved "
+        "worker-executable science work."
+    )
+
+
+def _runtime_architect_deferred_meta_capability_gaps_resolved(
+    payload: Mapping[str, Any],
+) -> bool:
+    return (
+        int(
+            payload.get(
+                "n_architect_initial_routing_deferred_meta_capability_gaps",
+                0,
+            )
+            or 0
+        )
+        <= 0
+    )
+
+
+def _runtime_architect_deferred_meta_capability_gaps_resolution_blocker(
+    payload: Mapping[str, Any],
+) -> str:
+    if _runtime_architect_deferred_meta_capability_gaps_resolved(payload):
+        return ""
+    count = int(
+        payload.get("n_architect_initial_routing_deferred_meta_capability_gaps", 0)
+        or 0
+    )
+    return (
+        f"{count} deferred AgentRuntime/Architect control-plane capability gap(s) "
+        "remain unresolved. Visible meta-gap telemetry is audit integrity only; "
+        "close these AgentRuntimeOrchestrator/ArchitectCoordinator obligations "
+        "and rerun so n_architect_initial_routing_deferred_meta_capability_gaps=0 "
+        "before claiming full integrated runtime readiness."
+    )
+
+
+def _runtime_capability_gap_routing_input_retention_ok(
+    payload: Mapping[str, Any],
+) -> bool:
+    if payload.get("runtime_capability_gap_routing_input_supplied") is not True:
+        return True
+    rows_loaded = int(
+        payload.get("n_runtime_capability_gap_routing_input_rows", 0) or 0
+    )
+    rows_seen = int(
+        payload.get(
+            "n_runtime_capability_gap_routing_input_rows_seen",
+            rows_loaded,
+        )
+        or 0
+    )
+    if rows_seen <= rows_loaded:
+        return True
+    return (
+        str(
+            payload.get("runtime_capability_gap_routing_input_retention_policy", "")
+            or ""
+        )
+        == "priority_pinned_latest_rows"
+    )
+
+
+def _runtime_capability_gap_routing_input_retention_evidence(
+    payload: Mapping[str, Any],
+) -> str:
+    return (
+        "supplied="
+        f"{payload.get('runtime_capability_gap_routing_input_supplied')} "
+        "rows_loaded="
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows')} "
+        "rows_seen="
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows_seen')} "
+        "retention_policy="
+        f"{payload.get('runtime_capability_gap_routing_input_retention_policy')} "
+        "results_with_input="
+        f"{payload.get('n_results_with_runtime_capability_gap_routing_input')}"
+    )
+
+
+def _runtime_capability_gap_routing_input_retention_blocker(
+    payload: Mapping[str, Any],
+) -> str:
+    if _runtime_capability_gap_routing_input_retention_ok(payload):
+        return ""
+    return (
+        "capability-gap routing input was truncated without the "
+        "priority_pinned_latest_rows policy; a follow-up runtime may silently "
+        "drop older high-impact scorecard obligations before Architect sees them"
+    )
+
+
+def _runtime_capability_gap_routing_input_retention_selection_ok(
+    payload: Mapping[str, Any],
+) -> bool:
+    if payload.get("runtime_capability_gap_routing_input_supplied") is not True:
+        return True
+    rows_loaded = _safe_int(
+        payload.get("n_runtime_capability_gap_routing_input_rows", 0)
+    )
+    if rows_loaded <= 0:
+        return True
+    rows_seen = _safe_int(
+        payload.get(
+            "n_runtime_capability_gap_routing_input_rows_seen",
+            rows_loaded,
+        )
+    )
+    retention_policy = str(
+        payload.get("runtime_capability_gap_routing_input_retention_policy", "")
+        or ""
+    )
+    selection_required = (
+        rows_seen > rows_loaded or retention_policy == "priority_pinned_latest_rows"
+    )
+    if not selection_required:
+        return True
+    missing_selection = _safe_int(
+        payload.get(
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection",
+            0,
+        )
+    )
+    missing_boundary = _safe_int(
+        payload.get(
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary",
+            0,
+        )
+    )
+    selection_counts = payload.get(
+        "runtime_capability_gap_routing_input_retention_selection_counts",
+        {},
+    )
+    n_selected = 0
+    if isinstance(selection_counts, Mapping):
+        n_selected = sum(_safe_int(value) for value in selection_counts.values())
+    return (
+        missing_selection == 0
+        and missing_boundary == 0
+        and n_selected >= rows_loaded
+    )
+
+
+def _runtime_capability_gap_routing_input_retention_selection_evidence(
+    payload: Mapping[str, Any],
+) -> str:
+    return (
+        "supplied="
+        f"{payload.get('runtime_capability_gap_routing_input_supplied')} "
+        "rows_loaded="
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows')} "
+        "rows_seen="
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows_seen')} "
+        "retention_policy="
+        f"{payload.get('runtime_capability_gap_routing_input_retention_policy')} "
+        "selection_counts="
+        f"{payload.get('runtime_capability_gap_routing_input_retention_selection_counts')} "
+        "missing_selection="
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows_missing_retention_selection')} "
+        "missing_boundary="
+        f"{payload.get('n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary')}"
+    )
+
+
+def _runtime_capability_gap_routing_input_retention_selection_blocker(
+    payload: Mapping[str, Any],
+) -> str:
+    if _runtime_capability_gap_routing_input_retention_selection_ok(payload):
+        return ""
+    return (
+        "capability-gap routing rows reached RuntimeInputContextSummary without "
+        "row-level retention_selection and non-evidence boundary metadata; "
+        "Architect cannot tell whether visible obligations are priority-pinned, "
+        "latest context, or backfill in a compressed routing view"
+    )
+
+
+def _runtime_architect_deferred_meta_gap_resolution_replay_priority_pinned(
+    payload: Mapping[str, Any],
+) -> bool:
+    if _runtime_architect_deferred_meta_capability_gaps_resolved(payload):
+        return True
+    priority_pinned_requirement_ids = _compact_string_list(
+        payload.get("runtime_capability_gap_routing_input_priority_pinned_requirement_ids")
+    )
+    return (
+        ARCHITECT_DEFERRED_META_RESOLUTION_REQUIREMENT_ID
+        in priority_pinned_requirement_ids
+    )
+
+
+def _runtime_architect_deferred_meta_gap_resolution_replay_evidence(
+    payload: Mapping[str, Any],
+) -> str:
+    return (
+        "n_architect_initial_routing_deferred_meta_capability_gaps="
+        f"{payload.get('n_architect_initial_routing_deferred_meta_capability_gaps')} "
+        "priority_pinned_requirement_ids="
+        f"{payload.get('runtime_capability_gap_routing_input_priority_pinned_requirement_ids')} "
+        "routing_input_requirement_ids="
+        f"{payload.get('runtime_capability_gap_routing_input_requirement_ids')} "
+        "retention_policy="
+        f"{payload.get('runtime_capability_gap_routing_input_retention_policy')}"
+    )
+
+
+def _runtime_architect_deferred_meta_gap_resolution_replay_blocker(
+    payload: Mapping[str, Any],
+) -> str:
+    if _runtime_architect_deferred_meta_gap_resolution_replay_priority_pinned(
+        payload
+    ):
+        return ""
+    return (
+        "the Architect deferred-meta resolution scorecard row is still open, "
+        f"but {ARCHITECT_DEFERRED_META_RESOLUTION_REQUIREMENT_ID!r} was not "
+        "priority-pinned in runtime_capability_gap_routing input; replay the "
+        "previous capability-gap routing JSONL with priority_pinned_latest_rows "
+        "so the next Architect turn cannot lose the runtime/Architect "
+        "control-plane repair obligation"
     )
 
 
@@ -9286,10 +10891,40 @@ def _runtime_scorecard_gaps_from_scorecard(
             continue
         if row.get("passed") is True:
             continue
-        blocker = str(row.get("blocker", "")).strip()
-        if blocker:
-            gaps.append(blocker)
+        gaps.append(_runtime_failed_scorecard_blocker(row))
     return gaps
+
+
+def _runtime_failed_scorecard_blocker(row: Mapping[str, Any]) -> str:
+    blocker = str(row.get("blocker", "") or "").strip()
+    if blocker:
+        return blocker
+    requirement_id = str(row.get("requirement_id", "") or "").strip()
+    if requirement_id:
+        return (
+            f"capability scorecard requirement {requirement_id!r} failed "
+            "without blocker text"
+        )
+    return "capability scorecard row failed without requirement_id or blocker text"
+
+
+_MISSING_SCORECARD_REQUIREMENT_ID_PREFIX = "missing_requirement_id_row_"
+
+
+def _runtime_scorecard_row_requirement_id(
+    row: Mapping[str, Any],
+    *,
+    row_index: int | None = None,
+) -> tuple[str, bool]:
+    requirement_id = str(row.get("requirement_id", "") or "").strip()
+    if requirement_id:
+        return requirement_id, False
+    suffix = str(row_index) if row_index is not None else "unknown"
+    return f"{_MISSING_SCORECARD_REQUIREMENT_ID_PREFIX}{suffix}", True
+
+
+def _runtime_scorecard_requirement_id_is_synthetic(requirement_id: str) -> bool:
+    return requirement_id.startswith(_MISSING_SCORECARD_REQUIREMENT_ID_PREFIX)
 
 
 def _runtime_capability_gap_default_owner(
@@ -9297,6 +10932,8 @@ def _runtime_capability_gap_default_owner(
     scope: str,
 ) -> str:
     requirement = requirement_id.lower()
+    if "deferred_meta" in requirement:
+        return "AgentRuntimeOrchestrator"
     if scope == "component_calibration":
         if "formalizer" in requirement or "lean" in requirement or "prover" in requirement:
             return "FormalizationEvaluator"
@@ -9335,6 +10972,11 @@ def _runtime_capability_gap_default_target_behavior(
     requirement_id: str,
     blocker: str,
 ) -> str:
+    if _runtime_scorecard_requirement_id_is_synthetic(requirement_id):
+        return (
+            "Repair the capability scorecard producer so the failed row has a "
+            "stable requirement_id, then rerun the capability-gap routing audit."
+        )
     defaults = {
         "runtime_marked_capability_eval": (
             "Rerun the runtime in capability-eval mode with the full-live preset "
@@ -9353,6 +10995,23 @@ def _runtime_capability_gap_default_target_behavior(
             "Resume or rerun through ArchitectCoordinator so research path, "
             "evidence contract, and downstream task routing originate from the "
             "architect agent."
+        ),
+        "architect_deferred_meta_capability_gaps_visible": (
+            "Expose deferred AgentRuntime/Architect control-plane capability "
+            "gaps from ArchitectInitialRoutingDecision at top level with owner "
+            "and requirement_id, while routing only worker-executable obligations "
+            "to science subsystems."
+        ),
+        "architect_deferred_meta_capability_gaps_resolved": (
+            "Close deferred AgentRuntime/Architect control-plane capability gaps "
+            "as runtime or ArchitectCoordinator work, not as ProofEngineer/"
+            "FormalizationEvaluator science tasks, then rerun the integrated "
+            "capability gate."
+        ),
+        "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": (
+            "Replay prior capability-gap routing rows into the follow-up runtime "
+            "with architect_deferred_meta_capability_gaps_resolved retained as a "
+            "priority-pinned control-plane obligation for AgentRuntimeOrchestrator."
         ),
         "algorithm_sandbox_executed": (
             "Drive the AlgorithmEngineer to generate and execute a sandboxed "
@@ -9421,10 +11080,11 @@ def _runtime_capability_gap_routing_rows(
         scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
         if scope == "component_calibration" and not include_component_calibration:
             continue
-        requirement_id = str(row.get("requirement_id", "") or "").strip()
-        if not requirement_id:
-            continue
-        blocker = str(row.get("blocker", "") or "").strip()
+        requirement_id, missing_requirement_id = _runtime_scorecard_row_requirement_id(
+            row,
+            row_index=index,
+        )
+        blocker = _runtime_failed_scorecard_blocker(row)
         evidence = str(row.get("evidence", "") or "").strip()
         owner = str(row.get("next_owner_subsystem", "") or "").strip()
         if not owner:
@@ -9437,10 +11097,37 @@ def _runtime_capability_gap_routing_rows(
             )
         success_metric = str(row.get("success_metric", "") or "").strip()
         if not success_metric:
-            success_metric = (
-                f"capability_scorecard.rows[{requirement_id}].passed=true in a "
-                "follow-up audit with the same or broader target scope"
-            )
+            if _runtime_scorecard_requirement_id_is_synthetic(requirement_id):
+                success_metric = (
+                    "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id=0 "
+                    "and the formerly malformed failed scorecard row has a stable "
+                    "requirement_id in the follow-up audit"
+                )
+            elif requirement_id == "architect_deferred_meta_capability_gaps_visible":
+                success_metric = (
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0 "
+                    "or both architect_initial_routing_deferred_meta_capability_gap_owners "
+                    "and architect_initial_routing_deferred_meta_capability_gap_requirement_ids "
+                    "are nonempty"
+                )
+            elif requirement_id == "architect_deferred_meta_capability_gaps_resolved":
+                success_metric = (
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0"
+                )
+            elif (
+                requirement_id
+                == "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+            ):
+                success_metric = (
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0 "
+                    "or architect_deferred_meta_capability_gaps_resolved appears in "
+                    "runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+                )
+            else:
+                success_metric = (
+                    f"capability_scorecard.rows[{requirement_id}].passed=true in a "
+                    "follow-up audit with the same or broader target scope"
+                )
         proof_evidence_status = str(
             row.get("proof_evidence_status", "") or ""
         ).strip()
@@ -9477,8 +11164,21 @@ def _runtime_capability_gap_routing_rows(
                 "recommended_capability_eval_command": recommended_command,
                 "blocker": blocker,
                 "evidence": evidence,
+                "scorecard_payload": _runtime_capability_gap_scorecard_payload(
+                    row,
+                    payload=payload,
+                    requirement_id=requirement_id,
+                    source_scorecard_row_index=index,
+                    source_scorecard_row_missing_requirement_id=(
+                        missing_requirement_id
+                    ),
+                ),
                 "proof_evidence_status": proof_evidence_status,
                 "routing_boundary": routing_boundary,
+                "source_scorecard_row_index": index,
+                "source_scorecard_row_missing_requirement_id": (
+                    missing_requirement_id
+                ),
                 "source_artifact_kind": str(
                     scorecard.get("artifact_kind", "RuntimeCapabilityScorecard")
                     or "RuntimeCapabilityScorecard"
@@ -9503,6 +11203,433 @@ def _runtime_capability_gap_routing_rows(
     return routing_rows
 
 
+def _runtime_capability_gap_scorecard_payload(
+    row: Mapping[str, Any],
+    *,
+    payload: Mapping[str, Any],
+    requirement_id: str | None = None,
+    source_scorecard_row_index: int | None = None,
+    source_scorecard_row_missing_requirement_id: bool = False,
+) -> dict[str, Any]:
+    requirement_id = (
+        str(requirement_id or "").strip()
+        or str(row.get("requirement_id", "") or "").strip()
+    )
+    scorecard_row = {
+        key: _runtime_capability_gap_json_safe(value)
+        for key, value in row.items()
+        if key
+        in {
+            "requirement_id",
+            "scope",
+            "passed",
+            "evidence",
+            "blocker",
+            "next_owner_subsystem",
+            "target_behavior",
+            "success_metric",
+            "recommended_capability_eval_command",
+        }
+    }
+    if requirement_id and not str(scorecard_row.get("requirement_id", "") or "").strip():
+        scorecard_row["requirement_id"] = requirement_id
+    if source_scorecard_row_index is not None:
+        scorecard_row["source_scorecard_row_index"] = source_scorecard_row_index
+    if source_scorecard_row_missing_requirement_id:
+        scorecard_row["source_scorecard_row_missing_requirement_id"] = True
+    if row.get("passed") is not True and not str(
+        scorecard_row.get("blocker", "") or ""
+    ).strip():
+        scorecard_row["blocker"] = _runtime_failed_scorecard_blocker(row)
+    audit_metrics = _runtime_capability_gap_audit_metrics(
+        requirement_id=requirement_id,
+        payload=payload,
+    )
+    result = {
+        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+        "requirement_id": requirement_id,
+        "scorecard_row": scorecard_row,
+        "audit_metrics": audit_metrics,
+        "proof_evidence_status": "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE",
+        "boundary": (
+            "This payload is a compact copy of failed scorecard diagnostics for "
+            "routing and prompt context. It is not proof, simulation, generated-code, "
+            "verifier, or capability evidence."
+        ),
+    }
+    return result
+
+
+def _runtime_capability_gap_audit_metrics(
+    *,
+    requirement_id: str,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    prefixes_by_requirement = {
+        "runtime_pseudo_formal_block_routing_contract_complete": (
+            "n_runtime_pseudo_formal",
+            "runtime_pseudo_formal",
+        ),
+        "runtime_learning_rows_contract_complete": (
+            "n_runtime_learning",
+            "runtime_learning",
+        ),
+        "runtime_next_action_agenda_contract_complete": (
+            "n_runtime_next_action",
+            "runtime_next_action",
+        ),
+        "runtime_capability_gap_routing_contract_complete": (
+            "n_runtime_capability_gap_routing",
+            "runtime_capability_gap_routing",
+        ),
+        "runtime_capability_gap_routing_input_retention_audited": (
+            "n_runtime_capability_gap_routing_input",
+            "runtime_capability_gap_routing_input",
+        ),
+        "runtime_capability_gap_routing_input_retention_selection_visible": (
+            "n_runtime_capability_gap_routing_input",
+            "runtime_capability_gap_routing_input",
+        ),
+        "architect_deferred_meta_capability_gaps_visible": (
+            "n_architect_initial_routing_deferred_meta",
+            "architect_initial_routing_deferred_meta",
+        ),
+        "architect_deferred_meta_capability_gaps_resolved": (
+            "n_architect_initial_routing_deferred_meta",
+            "architect_initial_routing_deferred_meta",
+        ),
+        "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": (
+            "n_architect_initial_routing_deferred_meta",
+            "architect_initial_routing_deferred_meta",
+            "n_runtime_capability_gap_routing_input",
+            "runtime_capability_gap_routing_input",
+        ),
+        "cross_task_full_theorem_generalization_demonstrated": (
+            "n_distinct_task_families",
+            "n_task_families",
+            "task_families",
+            "runtime_cross_task_theorem_family",
+        ),
+        "source_theorem_exact_proof_body_candidate_materialized": (
+            "source_theorem_candidate_materialization",
+            "source_theorem_exact_proof_body_repair",
+            "source_theorem_proof_body",
+            "source_theorem_formal_environment_proof_body_executor",
+        ),
+        "source_theorem_signature_probe_reached_proof_body": (
+            "source_theorem_proof_body",
+            "source_theorem_exact_proof_body_repair_executor",
+            "source_theorem_formal_environment_proof_body_executor",
+        ),
+        "source_theorem_proof_body_local_lean_gate_requested": (
+            "source_theorem_proof_body",
+            "source_theorem_exact_proof_body_repair_executor",
+            "source_theorem_formal_environment_proof_body_executor",
+        ),
+        "no_formal_gaps_remaining": (
+            "n_formal_gaps",
+            "has_formal_gaps",
+            "n_runtime_pseudo_formal",
+            "runtime_pseudo_formal",
+        ),
+        "full_frontier_theorem_kernel_proved": (
+            "n_full_frontier",
+            "full_frontier",
+            "n_source_theorem_target_bound",
+            "source_theorem_current_target",
+            "source_theorem_kernel_verified",
+        ),
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped": (
+            "n_source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_late_authoring",
+            "post_runtime_exact_semantic_definition_authoring",
+        ),
+        "exact_semantic_definition_authoring_worker_live_attempted": (
+            "n_source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_late_authoring",
+            "post_runtime_exact_semantic_definition_authoring",
+        ),
+        "exact_semantic_definition_authoring_candidate_verifier_checked": (
+            "n_source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_late_authoring",
+            "source_theorem_exact_semantic_definition_materialized",
+            "post_runtime_exact_semantic_definition_authoring",
+        ),
+    }
+    exact_keys_by_requirement = {
+        "runtime_capability_gap_routing_input_retention_audited": (
+            "n_results_with_runtime_capability_gap_routing_input",
+        ),
+        "runtime_capability_gap_routing_input_retention_selection_visible": (
+            "n_results_with_runtime_capability_gap_routing_input",
+        ),
+        "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": (
+            "n_results_with_runtime_capability_gap_routing_input",
+            "runtime_capability_gap_routing_input_requirement_ids",
+            "runtime_capability_gap_routing_input_priority_pinned_requirement_ids",
+            "runtime_capability_gap_routing_input_owner_subsystems",
+        ),
+        "cross_task_full_theorem_generalization_demonstrated": (
+            "question_ids",
+            "n_distinct_question_ids",
+            "question_ids_with_full_frontier_theorem_proved",
+            "n_question_ids_with_full_frontier_theorem_proved",
+            "task_families_with_full_frontier_theorem_proved",
+            "n_task_families_with_full_frontier_theorem_proved",
+            "task_families_with_full_frontier_target_bound_kernel_verified",
+            "n_task_families_with_full_frontier_target_bound_kernel_verified",
+            "runtime_cross_task_theorem_family_rows",
+            "runtime_cross_task_theorem_family_boundary",
+        ),
+        "source_theorem_exact_proof_body_candidate_materialized": (
+            "source_theorem_candidate_materialization_required",
+            "n_source_theorem_candidate_materialization_required_learning_rows",
+            "n_source_theorem_candidate_materialization_required_exact_proof_body_feedback_rows",
+            "source_theorem_candidate_materialization_required_target_names",
+            "source_theorem_candidate_materialization_required_target_ids",
+            "source_theorem_candidate_materialization_required_statuses",
+            "source_theorem_candidate_materialization_contract",
+            "source_theorem_exact_proof_body_repair_required",
+            "source_theorem_exact_proof_body_repair_target_names",
+            "source_theorem_exact_proof_body_repair_target_ids",
+            "source_theorem_exact_proof_body_repair_execution_queue_ran",
+            "source_theorem_exact_proof_body_repair_execution_queue_n_rows",
+            "source_theorem_exact_proof_body_repair_execution_queue_n_ready",
+            "source_theorem_exact_proof_body_repair_executor_requested",
+            "source_theorem_exact_proof_body_repair_executor_ran",
+            "source_theorem_exact_proof_body_repair_executor_n_result_rows",
+            "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+            "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
+            "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
+            "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets",
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_n_review_typechecked_candidate_packets_with_semantic_review_decision",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_packets",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required",
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows",
+        ),
+        "source_theorem_signature_probe_reached_proof_body": (
+            "source_theorem_proof_body_goal_reached_evidence_count",
+            "source_theorem_proof_body_result_row_count",
+            "source_theorem_exact_proof_body_repair_executor_n_result_rows",
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
+            "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
+            "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+            "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+            "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled",
+            "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+            "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+            "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+        ),
+        "source_theorem_proof_body_local_lean_gate_requested": (
+            "source_theorem_formal_environment_proof_body_executor_local_lean_requested",
+            "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+            "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled",
+            "source_theorem_candidate_materialization_required",
+            "source_theorem_exact_proof_body_repair_execution_queue_n_rows",
+            "source_theorem_exact_proof_body_repair_execution_queue_n_ready",
+            "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+            "source_theorem_proof_body_result_row_count",
+            "source_theorem_proof_body_goal_reached_evidence_count",
+        ),
+        "no_formal_gaps_remaining": (
+            "n_formal_gaps",
+            "has_formal_gaps",
+            "runtime_cross_task_theorem_family_rows",
+            "runtime_cross_task_theorem_family_boundary",
+            "n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps",
+        ),
+        "full_frontier_theorem_kernel_proved": (
+            "n_full_frontier_theorem_proved",
+            "n_full_frontier_target_bound_kernel_verified",
+            "full_frontier_current_target_ids",
+            "full_frontier_theorem_kernel_verified_target_ids",
+            "full_frontier_kernel_verified_matching_target_ids",
+            "n_source_theorem_target_bound_kernel_verified",
+            "source_theorem_current_target_ids",
+            "source_theorem_kernel_verified_target_ids",
+            "source_theorem_kernel_verified_matching_target_ids",
+        ),
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped": (
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_n_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_source",
+            "source_theorem_exact_semantic_definition_authoring_worker_required",
+            "source_theorem_exact_semantic_definition_authoring_worker_requested",
+            "source_theorem_exact_semantic_definition_authoring_worker_ran",
+            "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_required",
+            "source_theorem_exact_semantic_definition_authoring_retry_n_tasks",
+            "source_theorem_exact_semantic_definition_authoring_repair_tasks_required",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_ran",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_worker_attached",
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_worker_manifest_path",
+            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
+            "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_attached",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest_path",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_attached",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest_path",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "post_runtime_exact_semantic_definition_authoring_worker_boundary",
+        ),
+        "exact_semantic_definition_authoring_worker_live_attempted": (
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_n_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_source",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_worker_command",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_materializer_command",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_lean_repair_command",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_audit_command",
+            "source_theorem_exact_semantic_definition_authoring_worker_required",
+            "source_theorem_exact_semantic_definition_authoring_worker_requested",
+            "source_theorem_exact_semantic_definition_authoring_worker_ran",
+            "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason",
+            "source_theorem_exact_semantic_definition_authoring_worker_dry_run",
+            "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode",
+            "source_theorem_exact_semantic_definition_authoring_worker_provider_name",
+            "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_required",
+            "source_theorem_exact_semantic_definition_authoring_retry_n_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted",
+            "post_runtime_exact_semantic_definition_authoring_worker_attached",
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted",
+        ),
+        "exact_semantic_definition_authoring_candidate_verifier_checked": (
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_materializer_command",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_lean_repair_command",
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_audit_command",
+            "post_runtime_exact_semantic_definition_authoring_worker_attached",
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_attached",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_proof_evidence_status",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_attached",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_results",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_compiled",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_source_theorem_kernel_verified",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proofengineer_state",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proof_evidence_status",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran",
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
+            "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+        ),
+    }
+    prefixes = prefixes_by_requirement.get(requirement_id, ())
+    if not prefixes:
+        compact_requirement = requirement_id.removesuffix("_complete")
+        tokens = [token for token in compact_requirement.split("_") if token]
+        if len(tokens) >= 3:
+            prefixes = ("_".join(tokens[:3]),)
+    exact_keys = exact_keys_by_requirement.get(requirement_id, ())
+    metrics: dict[str, Any] = {}
+    for key in exact_keys:
+        if key not in payload:
+            continue
+        metrics[key] = _runtime_capability_gap_json_safe(payload.get(key))
+        if len(metrics) >= 48:
+            return metrics
+    for key, value in payload.items():
+        if not isinstance(key, str):
+            continue
+        if key in metrics:
+            continue
+        if (
+            key not in exact_keys
+            and prefixes
+            and not any(key.startswith(prefix) for prefix in prefixes)
+        ):
+            continue
+        metrics[key] = _runtime_capability_gap_json_safe(value)
+        if len(metrics) >= 48:
+            break
+    return metrics
+
+
+def _runtime_capability_gap_json_safe(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        text = str(value)
+        return text[:1000] if isinstance(value, str) else value
+    if isinstance(value, Mapping):
+        return {
+            str(key): _runtime_capability_gap_json_safe(nested)
+            for key, nested in list(value.items())[:20]
+        }
+    if isinstance(value, (list, tuple)):
+        return [_runtime_capability_gap_json_safe(item) for item in list(value)[:20]]
+    return str(value)[:1000]
+
+
 def _runtime_capability_gap_routing_contract_summary(
     *,
     scorecard: Mapping[str, Any],
@@ -9510,12 +11637,26 @@ def _runtime_capability_gap_routing_contract_summary(
 ) -> dict[str, Any]:
     scorecard_rows = scorecard.get("rows", []) if isinstance(scorecard, Mapping) else []
     failed_keys: set[tuple[str, str]] = set()
-    for row in scorecard_rows:
+    missing_scorecard_requirement_id = 0
+    issues: list[dict[str, Any]] = []
+    for row_index, row in enumerate(scorecard_rows, start=1):
         if not isinstance(row, Mapping) or row.get("passed") is True:
             continue
-        requirement_id = str(row.get("requirement_id", "") or "").strip()
-        if not requirement_id:
-            continue
+        requirement_id, missing_requirement_id = _runtime_scorecard_row_requirement_id(
+            row,
+            row_index=row_index,
+        )
+        if missing_requirement_id:
+            missing_scorecard_requirement_id += 1
+            _append_handoff_issue(
+                issues,
+                issue="runtime_capability_scorecard_failed_row_missing_requirement_id",
+                trace_index=row_index - 1,
+                detail=(
+                    "failed scorecard row has no stable requirement_id; "
+                    f"using diagnostic routing id {requirement_id!r}"
+                ),
+            )
         scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
         failed_keys.add((scope, requirement_id))
 
@@ -9528,7 +11669,6 @@ def _runtime_capability_gap_routing_contract_summary(
     missing_success = 0
     missing_command = 0
     missing_boundary = 0
-    issues: list[dict[str, Any]] = []
     owners: Counter[str] = Counter()
     scopes: Counter[str] = Counter()
     for row_index, row in enumerate(routing_rows):
@@ -9644,6 +11784,7 @@ def _runtime_capability_gap_routing_contract_summary(
     complete = (
         not missing_rows
         and not extra_rows
+        and missing_scorecard_requirement_id == 0
         and duplicate_keys == 0
         and missing_schema == 0
         and wrong_artifact_kind == 0
@@ -9657,6 +11798,9 @@ def _runtime_capability_gap_routing_contract_summary(
         "artifact_kind": "RuntimeCapabilityGapRoutingContractAudit",
         "runtime_capability_gap_routing_contract_complete": complete,
         "n_runtime_capability_scorecard_failed_rows": len(failed_keys),
+        "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id": (
+            missing_scorecard_requirement_id
+        ),
         "n_runtime_capability_gap_routing_rows": len(routing_rows),
         "n_runtime_capability_gap_routing_missing_rows": len(missing_rows),
         "n_runtime_capability_gap_routing_extra_rows": len(extra_rows),
@@ -11079,11 +13223,43 @@ def _runtime_pending_task_memory_rows(payload: Mapping[str, Any]) -> list[Any]:
     return list(rows) if isinstance(rows, list) else []
 
 
+def _runtime_formalization_manifest_rows_from_result_paths(
+    *,
+    result_paths: list[Path],
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact_id, artifact in artifacts.items():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+            ):
+                continue
+            row = dict(artifact)
+            row["_result_path"] = str(path)
+            row["_artifact_id"] = str(artifact_id)
+            rows.append(row)
+    return rows
+
+
 def _runtime_pseudo_formal_block_routing_contract_audit_summary(
     *,
     agenda_rows: list[Any],
     learning_rows: list[Any] | None = None,
     pending_memory_rows: list[Any] | None = None,
+    formalization_manifests: list[Any] | None = None,
 ) -> dict[str, Any]:
     row_sources: list[tuple[str, list[Any]]] = [
         ("runtime_next_action_agenda", agenda_rows),
@@ -11093,10 +13269,24 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         row_sources.append(("runtime_pending_task_memory", pending_memory_rows))
 
     channel_counts: Counter[str] = Counter()
+    effective_channel_counts: Counter[str] = Counter()
+    diagnostic_channel_counts: Counter[str] = Counter()
     lane_counts: Counter[str] = Counter()
+    effective_lane_counts: Counter[str] = Counter()
+    diagnostic_lane_counts: Counter[str] = Counter()
+    row_kind_counts: Counter[str] = Counter()
+    diagnostic_row_kind_counts: Counter[str] = Counter()
     work_order_ids: set[str] = set()
     source_block_ids: set[str] = set()
     target_ids: set[str] = set()
+    routed_formalization_manifest_ids: set[str] = set()
+    effective_routed_formalization_manifest_ids: set[str] = set()
+    effective_rows = 0
+    diagnostic_rows = 0
+    structural_decomposition_requests = 0
+    independent_block_verification_requests = 0
+    required_manifest_ids: set[str] = set()
+    required_manifest_ids_declared_missing: set[str] = set()
     missing_lane = 0
     invalid_lane = 0
     missing_work_order_id = 0
@@ -11105,10 +13295,33 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
     missing_target_identity = 0
     missing_routing = 0
     missing_queue_status = 0
+    missing_row_kind = 0
     missing_method_lineage = 0
+    missing_scope_parent = 0
+    invalid_scope_parent = 0
+    missing_inherited_scope = 0
     missing_or_wrong_nonproof_boundary = 0
+    missing_or_invalid_structural_quality = 0
     missing_or_invalid_bv_quality = 0
     issues: list[dict[str, Any]] = []
+
+    for index, manifest in enumerate(formalization_manifests or []):
+        if not isinstance(manifest, Mapping):
+            continue
+        if manifest.get("pseudo_formalization_required") is not True:
+            continue
+        manifest_id = str(
+            manifest.get("manifest_id", "")
+            or manifest.get("_artifact_id", "")
+            or f"formalization_manifest[{index}]"
+        )
+        required_manifest_ids.add(manifest_id)
+        if (
+            manifest.get("pseudo_formalization_required_missing_work_order_rows")
+            is True
+            or manifest.get("pseudo_formalization_required_satisfied") is False
+        ):
+            required_manifest_ids_declared_missing.add(manifest_id)
 
     for channel, rows in row_sources:
         for index, row in enumerate(rows):
@@ -11130,6 +13343,44 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
             if source_block_id:
                 source_block_ids.add(source_block_id)
             target_ids.update(_runtime_pseudo_formal_block_routing_target_ids(row))
+            row_manifest_ids = (
+                _runtime_pseudo_formal_block_routing_formalization_manifest_ids(row)
+            )
+            routed_formalization_manifest_ids.update(row_manifest_ids)
+            pseudo_formal_row_kind = str(
+                _runtime_route_row_field(
+                    row,
+                    "row_kind",
+                    "pseudo_formal_row_kind",
+                )
+                or ""
+            )
+            row_kind_counts[pseudo_formal_row_kind or "unknown"] += 1
+            if (
+                pseudo_formal_row_kind
+                == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND
+            ):
+                structural_decomposition_requests += 1
+            if (
+                pseudo_formal_row_kind
+                == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+            ):
+                independent_block_verification_requests += 1
+            if (
+                pseudo_formal_row_kind
+                not in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS
+            ):
+                effective_rows += 1
+                effective_channel_counts[channel] += 1
+                if lane:
+                    effective_lane_counts[lane] += 1
+                effective_routed_formalization_manifest_ids.update(row_manifest_ids)
+            else:
+                diagnostic_rows += 1
+                diagnostic_channel_counts[channel] += 1
+                diagnostic_row_kind_counts[pseudo_formal_row_kind] += 1
+                if lane:
+                    diagnostic_lane_counts[lane] += 1
 
             if "target_lane" in missing_fields:
                 missing_lane += 1
@@ -11154,6 +13405,8 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
                 missing_routing += 1
             if "runtime_queue_status" in missing_fields:
                 missing_queue_status += 1
+            if "row_kind" in missing_fields:
+                missing_row_kind += 1
             if any(
                 field in missing_fields
                 for field in (
@@ -11162,6 +13415,18 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
                 )
             ):
                 missing_method_lineage += 1
+            if "scope_parent_id" in missing_fields:
+                missing_scope_parent += 1
+            if any(
+                field in missing_fields
+                for field in (
+                    "scope_parent_id_self",
+                    "scope_parent_depth_not_deeper",
+                )
+            ):
+                invalid_scope_parent += 1
+            if "inherited_scope" in missing_fields:
+                missing_inherited_scope += 1
             if any(
                 field in missing_fields
                 for field in (
@@ -11175,10 +13440,26 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
             if any(
                 field in missing_fields
                 for field in (
+                    "structural_quality",
+                    "structural_quality_not_good_pf",
+                    "structural_decomposition_request_missing_issues",
+                )
+            ):
+                missing_or_invalid_structural_quality += 1
+            if any(
+                field in missing_fields
+                for field in (
                     "block_depth",
                     "dependency_scope",
+                    "scope_parent_id",
                     "bv_calibration",
                     "faithfulness_repair_status",
+                    "block_verification_input_premises",
+                    "block_verification_input_proof_text",
+                    "block_verification_dependency_statement_context",
+                    "block_verifier_prompt_packets_command",
+                    "block_verifier_llm_response_command",
+                    "block_verifier_response_validation_command",
                 )
             ):
                 missing_or_invalid_bv_quality += 1
@@ -11201,6 +13482,27 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
                 )
 
     total_rows = sum(channel_counts.values())
+    required_missing_manifest_ids = sorted(
+        manifest_id
+        for manifest_id in required_manifest_ids
+        if manifest_id not in effective_routed_formalization_manifest_ids
+        or manifest_id in required_manifest_ids_declared_missing
+    )
+    if required_missing_manifest_ids:
+        issues.append(
+            {
+                "issue": "pseudo_formalization_required_but_no_routed_rows",
+                "manifest_ids": required_missing_manifest_ids[:20],
+                "missing_fields": ["required_pseudo_formal_routing_rows"],
+                "detail": (
+                    "RuntimeFormalizationManifest declared PF/BV required, "
+                    "but no effective agenda, learning, or pending-memory PF/BV "
+                    "row carried that formalization manifest id. Blocked or "
+                    "pending pseudo-formal rows are diagnostics, not required "
+                    "PF/BV activation satisfaction."
+                ),
+            }
+        )
     complete = (
         missing_lane == 0
         and invalid_lane == 0
@@ -11210,14 +13512,22 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         and missing_target_identity == 0
         and missing_routing == 0
         and missing_queue_status == 0
+        and missing_row_kind == 0
         and missing_method_lineage == 0
+        and missing_scope_parent == 0
+        and invalid_scope_parent == 0
+        and missing_inherited_scope == 0
         and missing_or_wrong_nonproof_boundary == 0
+        and missing_or_invalid_structural_quality == 0
         and missing_or_invalid_bv_quality == 0
+        and not required_missing_manifest_ids
     )
     return {
         "artifact_kind": "RuntimePseudoFormalBlockRoutingContractAudit",
         "runtime_pseudo_formal_block_routing_contract_complete": complete,
         "n_runtime_pseudo_formal_block_routing_rows": total_rows,
+        "n_runtime_pseudo_formal_block_routing_effective_rows": effective_rows,
+        "n_runtime_pseudo_formal_block_routing_diagnostic_rows": diagnostic_rows,
         "n_runtime_pseudo_formal_block_routing_agenda_rows": channel_counts[
             "runtime_next_action_agenda"
         ],
@@ -11227,6 +13537,36 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         "n_runtime_pseudo_formal_block_routing_pending_memory_rows": channel_counts[
             "runtime_pending_task_memory"
         ],
+        "n_runtime_pseudo_formal_structural_decomposition_requests": (
+            structural_decomposition_requests
+        ),
+        "n_runtime_pseudo_formal_independent_block_verification_requests": (
+            independent_block_verification_requests
+        ),
+        "n_runtime_pseudo_formalization_required_formalization_manifests": len(
+            required_manifest_ids
+        ),
+        "n_runtime_pseudo_formalization_required_missing_routing_rows": len(
+            required_missing_manifest_ids
+        ),
+        "runtime_pseudo_formalization_required_manifest_ids": sorted(
+            required_manifest_ids
+        ),
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids": (
+            required_missing_manifest_ids
+        ),
+        "runtime_pseudo_formalization_routed_manifest_ids": sorted(
+            routed_formalization_manifest_ids
+        ),
+        "runtime_pseudo_formalization_effective_routed_manifest_ids": sorted(
+            effective_routed_formalization_manifest_ids
+        ),
+        "n_runtime_pseudo_formalization_routed_manifests": len(
+            routed_formalization_manifest_ids
+        ),
+        "n_runtime_pseudo_formalization_effective_routed_manifests": len(
+            effective_routed_formalization_manifest_ids
+        ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_lane": missing_lane,
         "n_runtime_pseudo_formal_block_routing_rows_invalid_lane": invalid_lane,
         "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id": (
@@ -11247,11 +13587,26 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": (
             missing_queue_status
         ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind": (
+            missing_row_kind
+        ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": (
             missing_method_lineage
         ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": (
+            missing_scope_parent
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": (
+            invalid_scope_parent
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": (
+            missing_inherited_scope
+        ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": (
             missing_or_wrong_nonproof_boundary
+        ),
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality": (
+            missing_or_invalid_structural_quality
         ),
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality": (
             missing_or_invalid_bv_quality
@@ -11259,8 +13614,26 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
         "runtime_pseudo_formal_block_routing_channels": dict(
             sorted(channel_counts.items())
         ),
+        "runtime_pseudo_formal_block_routing_effective_channels": dict(
+            sorted(effective_channel_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_diagnostic_channels": dict(
+            sorted(diagnostic_channel_counts.items())
+        ),
         "runtime_pseudo_formal_block_routing_target_lanes": dict(
             sorted(lane_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_effective_target_lanes": dict(
+            sorted(effective_lane_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_diagnostic_target_lanes": dict(
+            sorted(diagnostic_lane_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_row_kinds": dict(
+            sorted(row_kind_counts.items())
+        ),
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds": dict(
+            sorted(diagnostic_row_kind_counts.items())
         ),
         "runtime_pseudo_formal_block_routing_work_order_ids": sorted(
             work_order_ids
@@ -11275,8 +13648,9 @@ def _runtime_pseudo_formal_block_routing_contract_audit_summary(
             "and repair-planning memory only. They must preserve lane, source "
             "block, source anchors, work-order identity, queue status, and the "
             "PF+BV method lineage plus pseudo-formal non-proof boundary and "
-            "block-depth/dependency-scope/calibration metadata before AgentRuntime "
-            "reuses them as Formalizer/RAG/source-to-bridge work."
+            "Good-PF structural-quality, block-depth/scope-parent/"
+            "dependency-scope/calibration metadata "
+            "before AgentRuntime reuses them as Formalizer/RAG/source-to-bridge work."
         ),
     }
 
@@ -11332,6 +13706,8 @@ def _runtime_pseudo_formal_block_routing_missing_fields(
         missing.append("acceptance_gate")
     if not _runtime_route_row_field(row, "runtime_queue_status"):
         missing.append("runtime_queue_status")
+    if not _runtime_route_row_field(row, "row_kind", "pseudo_formal_row_kind"):
+        missing.append("row_kind")
     if _runtime_route_row_field(row, "pseudo_formal_method_contract_id") != (
         PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
     ):
@@ -11357,6 +13733,116 @@ def _runtime_pseudo_formal_block_routing_missing_fields(
         dependency_scope = PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
     if dependency_scope not in VALID_DEPENDENCY_SCOPES:
         missing.append("dependency_scope")
+    if "scope_parent_id" not in row and "scope_parent_id" not in input_summary:
+        missing.append("scope_parent_id")
+    scope_parent_id = _runtime_route_row_field(row, "scope_parent_id") or str(
+        input_summary.get("scope_parent_id", "") or ""
+    )
+    source_block_id = _runtime_route_row_field(
+        row,
+        "source_block_id",
+        "placeholder_symbol",
+    )
+    if scope_parent_id and source_block_id and scope_parent_id == source_block_id:
+        missing.append("scope_parent_id_self")
+    if scope_parent_id and block_depth <= 1:
+        missing.append("scope_parent_depth_not_deeper")
+    inherited_scope = row.get("inherited_scope", [])
+    if not isinstance(inherited_scope, list) or not inherited_scope:
+        inherited_scope = input_summary.get("inherited_scope", [])
+    if scope_parent_id and not (
+        isinstance(inherited_scope, list)
+        and any(str(value).strip() for value in inherited_scope)
+    ):
+        missing.append("inherited_scope")
+    row_kind = _runtime_route_row_field(row, "row_kind", "pseudo_formal_row_kind") or str(
+        input_summary.get("row_kind", "") or ""
+    )
+    structural_quality = row.get("structural_quality", {})
+    if not isinstance(structural_quality, Mapping) or not structural_quality:
+        structural_quality = input_summary.get("structural_quality", {})
+    structural_issues = row.get("structural_quality_issues", [])
+    if not isinstance(structural_issues, list) or not structural_issues:
+        structural_issues = input_summary.get("structural_quality_issues", [])
+    if not isinstance(structural_quality, Mapping) or "all_ok" not in structural_quality:
+        missing.append("structural_quality")
+    elif row_kind == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND:
+        if not (
+            isinstance(structural_issues, list)
+            and any(str(value).strip() for value in structural_issues)
+        ):
+            missing.append("structural_decomposition_request_missing_issues")
+    elif structural_quality.get("all_ok") is not True:
+        missing.append("structural_quality_not_good_pf")
+    if row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
+        if "source_block_premises" not in row and "source_block_premises" not in input_summary:
+            missing.append("block_verification_input_premises")
+        if (
+            "source_block_proof_text" not in row
+            and "source_block_proof_text" not in input_summary
+        ):
+            missing.append("block_verification_input_proof_text")
+        dependency_context = row.get("dependency_statement_context", [])
+        if not isinstance(dependency_context, list) or not dependency_context:
+            dependency_context = input_summary.get("dependency_statement_context", [])
+        dependency_ids = row.get("dependency_ids", [])
+        if not isinstance(dependency_ids, list) or not dependency_ids:
+            dependency_ids = input_summary.get("dependency_ids", [])
+        if (
+            "dependency_statement_context" not in row
+            and "dependency_statement_context" not in input_summary
+        ) or (
+            isinstance(dependency_ids, list)
+            and any(str(value).strip() for value in dependency_ids)
+            and not (
+                isinstance(dependency_context, list)
+                and any(isinstance(value, Mapping) for value in dependency_context)
+            )
+        ):
+            missing.append("block_verification_dependency_statement_context")
+        worker = row.get("pseudo_formal_block_verifier_worker", {})
+        if not isinstance(worker, Mapping) or not worker:
+            worker = input_summary.get("pseudo_formal_block_verifier_worker", {})
+        if not isinstance(worker, Mapping):
+            worker = {}
+        recommended_commands = row.get("recommended_commands", [])
+        if not isinstance(recommended_commands, list) or not recommended_commands:
+            recommended_commands = input_summary.get("recommended_commands", [])
+        command_text = "\n".join(
+            str(value)
+            for value in recommended_commands
+            if str(value).strip()
+        )
+        component_gate_command = str(worker.get("component_gate_command", "") or "")
+        if (
+            "pseudo-formal-block-verifier-component-gate"
+            not in component_gate_command
+            and "pseudo-formal-block-verifier-component-gate" not in command_text
+        ):
+            missing.append("block_verifier_component_gate_command")
+        prompt_command = str(worker.get("prompt_packets_command", "") or "")
+        response_command = str(
+            worker.get("response_validation_command", "") or ""
+        )
+        if (
+            "pseudo-formal-block-verifier-prompt-packets" not in prompt_command
+            and "pseudo-formal-block-verifier-prompt-packets" not in command_text
+        ):
+            missing.append("block_verifier_prompt_packets_command")
+        llm_response_command = str(worker.get("llm_response_command", "") or "")
+        if (
+            "pseudo-formal-block-verifier-llm-responses"
+            not in llm_response_command
+            and "pseudo-formal-block-verifier-llm-responses" not in command_text
+        ):
+            missing.append("block_verifier_llm_response_command")
+        if (
+            "pseudo-formal-block-verifier-response-validation"
+            not in response_command
+            and "pseudo-formal-block-verifier-response-validation"
+            not in command_text
+        ):
+            missing.append("block_verifier_response_validation_command")
     bv_calibration = row.get("bv_calibration", {})
     if not isinstance(bv_calibration, Mapping) or not bv_calibration:
         bv_calibration = input_summary.get("bv_calibration", {})
@@ -11407,6 +13893,25 @@ def _runtime_pseudo_formal_block_routing_work_order_id(row: Mapping[str, Any]) -
         "pseudo_formal_work_order_id",
         "work_order_id",
     )
+
+
+def _runtime_pseudo_formal_block_routing_formalization_manifest_ids(
+    row: Mapping[str, Any],
+) -> set[str]:
+    values: set[str] = set()
+    input_summary = _runtime_row_input_summary(row)
+    for source in (row, input_summary):
+        for key in (
+            "source_formalization_manifest_id",
+            "formalization_manifest_id",
+        ):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                values.add(value)
+        items = source.get("source_formalization_manifest_ids", [])
+        if isinstance(items, list):
+            values.update(str(item).strip() for item in items if str(item).strip())
+    return values
 
 
 def _runtime_pseudo_formal_block_routing_target_ids(row: Mapping[str, Any]) -> set[str]:
@@ -12509,6 +15014,53 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     proof_body_result_row_count = _payload_source_theorem_proof_body_result_row_count(
         payload
     )
+    exact_proof_body_repair_required = bool(
+        payload.get("source_theorem_exact_proof_body_repair_required", False)
+    )
+    exact_proof_body_repair_queue_ran = (
+        payload.get("source_theorem_exact_proof_body_repair_execution_queue_ran")
+        is True
+    )
+    exact_proof_body_repair_queue_rows = int(
+        payload.get("source_theorem_exact_proof_body_repair_execution_queue_n_rows", 0)
+        or 0
+    )
+    exact_proof_body_repair_queue_ready = int(
+        payload.get("source_theorem_exact_proof_body_repair_execution_queue_n_ready", 0)
+        or 0
+    )
+    exact_proof_body_candidate_required = bool(
+        exact_proof_body_repair_required
+        or exact_proof_body_repair_queue_ran
+        or exact_proof_body_repair_queue_rows > 0
+        or payload.get("source_theorem_candidate_materialization_required") is True
+        or payload.get("source_theorem_exact_proof_body_repair_executor_requested")
+        is True
+    )
+    exact_proof_body_candidate_ready = bool(
+        not exact_proof_body_candidate_required
+        or exact_proof_body_repair_queue_ready > 0
+        or proof_body_goal_reached_count > 0
+        or source_theorem_kernel_count > 0
+    )
+    exact_proof_body_materialization_blocking = bool(
+        payload.get("source_theorem_candidate_materialization_required") is True
+        and exact_proof_body_repair_queue_ready <= 0
+        and (
+            exact_proof_body_repair_required
+            or exact_proof_body_repair_queue_rows > 0
+            or str(
+                payload.get(
+                    "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+                    "",
+                )
+                or ""
+            )
+            == "source_theorem_candidate_materialization_required"
+        )
+        and proof_body_goal_reached_count <= 0
+        and source_theorem_kernel_count <= 0
+    )
     architect_orchestration_executed = _runtime_architect_orchestration_executed(
         payload
     )
@@ -12526,6 +15078,34 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     architect_initial_routing_blocker = _runtime_architect_initial_routing_blocker(
         payload
+    )
+    architect_deferred_meta_gaps_visible = (
+        _runtime_architect_deferred_meta_capability_gaps_visible(payload)
+    )
+    architect_deferred_meta_gaps_evidence = (
+        _runtime_architect_deferred_meta_capability_gaps_evidence(payload)
+    )
+    architect_deferred_meta_gaps_blocker = (
+        _runtime_architect_deferred_meta_capability_gaps_blocker(payload)
+    )
+    architect_deferred_meta_gaps_resolved = (
+        _runtime_architect_deferred_meta_capability_gaps_resolved(payload)
+    )
+    architect_deferred_meta_gaps_resolution_blocker = (
+        _runtime_architect_deferred_meta_capability_gaps_resolution_blocker(
+            payload
+        )
+    )
+    architect_deferred_meta_gap_resolution_replay_priority_pinned = (
+        _runtime_architect_deferred_meta_gap_resolution_replay_priority_pinned(
+            payload
+        )
+    )
+    architect_deferred_meta_gap_resolution_replay_evidence = (
+        _runtime_architect_deferred_meta_gap_resolution_replay_evidence(payload)
+    )
+    architect_deferred_meta_gap_resolution_replay_blocker = (
+        _runtime_architect_deferred_meta_gap_resolution_replay_blocker(payload)
     )
     integrated_algorithm_repair_sequences = int(
         payload.get(
@@ -12769,6 +15349,58 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and attached_formalizer_lean_lsp_mcp_tool_calls > 0
         and attached_formalizer_executed_tool_calls
         >= attached_formalizer_lean_lsp_mcp_tool_calls
+    )
+    attached_pseudo_formal_source = _runtime_attached_component_gate_source(
+        payload,
+        "internal_pseudo_formal_block_verifier_eval",
+    )
+    attached_pseudo_formal_summary = _runtime_component_gate_summary(
+        attached_pseudo_formal_source
+    )
+    attached_pseudo_formal_prompt_packets = int(
+        payload.get("internal_pseudo_formal_block_verifier_eval_prompt_packets", 0)
+        or 0
+    )
+    attached_pseudo_formal_valid_responses = int(
+        payload.get("internal_pseudo_formal_block_verifier_eval_valid_responses", 0)
+        or 0
+    )
+    attached_pseudo_formal_runtime_learning_rows = int(
+        payload.get(
+            "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows",
+            0,
+        )
+        or 0
+    )
+    attached_pseudo_formal_source_runtime_learning_paths = _compact_string_list(
+        attached_pseudo_formal_source.get(
+            "source_runtime_learning_jsonl_paths",
+            [],
+        )
+    )
+    attached_pseudo_formal_source_runtime_learning_path_count = int(
+        attached_pseudo_formal_source.get(
+            "source_runtime_learning_jsonl_path_count",
+            attached_pseudo_formal_source.get(
+                "n_source_runtime_learning_jsonl_paths",
+                len(attached_pseudo_formal_source_runtime_learning_paths),
+            ),
+        )
+        or 0
+    )
+    attached_pseudo_formal_source_runtime_learning_lineage_ok = bool(
+        attached_pseudo_formal_source.get(
+            "source_runtime_learning_lineage_ok",
+            False,
+        )
+    )
+    attached_pseudo_formal_live_gate_passed = (
+        bool(attached_pseudo_formal_summary["capability_evidence_ok"])
+        and attached_pseudo_formal_prompt_packets > 0
+        and attached_pseudo_formal_valid_responses > 0
+        and attached_pseudo_formal_runtime_learning_rows > 0
+        and attached_pseudo_formal_source_runtime_learning_path_count > 0
+        and attached_pseudo_formal_source_runtime_learning_lineage_ok
     )
     integrated_lean_lsp_mcp_live_calls = (
         _payload_integrated_lean_lsp_mcp_live_calls(payload)
@@ -13215,7 +15847,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     runtime_gap_planner_live_route_revision_feedback_path_complete = (
         runtime_gap_planner_live_response_present > 0
         and runtime_gap_planner_live_target_replay_route_revision_proposals > 0
-        and runtime_gap_planner_live_route_revision_feedback_recorded > 0
+        and runtime_gap_planner_live_target_replay_proof_items > 0
+        and runtime_gap_planner_live_target_replay_proof_responses > 0
+        and runtime_gap_planner_live_target_replay_contract_ok
+        >= runtime_gap_planner_live_target_replay_proof_items
         and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
     )
     runtime_gap_planner_live_followthrough_complete = (
@@ -13235,10 +15870,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and runtime_gap_planner_live_target_replay_proof_responses > 0
             and runtime_gap_planner_live_target_replay_contract_ok
             >= runtime_gap_planner_live_target_replay_proof_items
-            and runtime_gap_planner_live_target_replay_awaiting <= 0
             and runtime_gap_planner_live_target_replay_route_revision_feedback_complete
             and (
-                runtime_gap_planner_live_contract_response_path_complete
+                (
+                    runtime_gap_planner_live_contract_response_path_complete
+                    and runtime_gap_planner_live_target_replay_awaiting <= 0
+                )
                 or runtime_gap_planner_live_route_revision_feedback_path_complete
             )
         )
@@ -13385,6 +16022,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_blocked_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_bridge_packets = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_candidate_review_proofengineer_bridge_n_review_typechecked_candidate_packets",
@@ -13409,6 +16060,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     materialized_typechecked_review_blocked_packets = int(
         payload.get(
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_packets",
+            0,
+        )
+        or 0
+    )
+    materialized_typechecked_review_blocked_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows",
+            0,
+        )
+        or 0
+    )
+    materialized_typechecked_review_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows",
             0,
         )
         or 0
@@ -13447,6 +16112,82 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    late_typechecked_review_blocked_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_review_learning_rows",
+            0,
+        )
+        or 0
+    )
+    late_typechecked_review_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_typechecked_review_packets = (
+        primary_typechecked_review_packets
+        + primary_materialized_typechecked_review_packets
+        + late_materialized_typechecked_review_packets
+        + late_typechecked_review_packets
+    )
+    exact_semantic_typechecked_review_blocked_packets = (
+        primary_typechecked_review_blocked_packets
+        + materialized_typechecked_review_blocked_packets
+        + late_typechecked_review_blocked_packets
+    )
+    exact_semantic_typechecked_review_blocked_learning_rows = (
+        primary_typechecked_review_blocked_learning_rows
+        + materialized_typechecked_review_blocked_learning_rows
+        + late_typechecked_review_blocked_learning_rows
+    )
+    exact_semantic_typechecked_review_learning_rows = (
+        primary_typechecked_review_learning_rows
+        + materialized_typechecked_review_learning_rows
+        + late_typechecked_review_learning_rows
+    )
+    exact_semantic_typechecked_review_verifier_gate_work_orders = (
+        primary_typechecked_review_verifier_gate_work_orders
+        + materialized_typechecked_review_verifier_gate_work_orders
+        + late_typechecked_review_verifier_gate_work_orders
+    )
+    exact_semantic_typechecked_review_recheck_rows = (
+        primary_typechecked_review_recheck_rows
+        + materialized_typechecked_review_recheck_rows
+        + late_typechecked_review_recheck_rows
+    )
+    exact_proof_body_gate_status_counts = payload.get(
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+        {},
+    )
+    if not isinstance(exact_proof_body_gate_status_counts, Mapping):
+        exact_proof_body_gate_status_counts = {}
+    exact_proof_body_executor_semantic_review_blocked = bool(
+        any(
+            str(status)
+            in {
+                "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+                "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+            }
+            and _safe_int(count) > 0
+            for status, count in exact_proof_body_gate_status_counts.items()
+        )
+    )
+    exact_proof_body_candidate_queue_blocking = bool(
+        exact_proof_body_candidate_required
+        and exact_proof_body_repair_queue_ready <= 0
+        and proof_body_goal_reached_count <= 0
+        and source_theorem_kernel_count <= 0
+    )
+    exact_proof_body_candidate_semantic_review_blocked = bool(
+        exact_proof_body_candidate_queue_blocking
+        and (
+            exact_semantic_typechecked_review_blocked_packets > 0
+            or exact_semantic_typechecked_review_verifier_gate_work_orders > 0
+            or exact_proof_body_executor_semantic_review_blocked
+        )
     )
     exact_semantic_typechecked_review_visible = (
         _exact_semantic_typechecked_review_visible_scorecard_passed(
@@ -13694,6 +16435,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    pseudo_formal_exact_semantic_work_orders = int(
+        payload.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
     exact_semantic_source_lookup_required_value = payload.get(
         "source_theorem_exact_semantic_definition_source_lookup_required"
     )
@@ -13731,6 +16479,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    pseudo_formal_exact_semantic_source_lookup_consumed = (
+        pseudo_formal_exact_semantic_work_orders <= 0
+        or (
+            exact_semantic_source_lookup_required_present
+            and exact_semantic_source_lookup_required
+            and exact_semantic_source_lookup_ran
+            and (
+                exact_semantic_source_lookup_learning_rows > 0
+                or exact_semantic_bridge_review_packets > 0
+            )
+        )
     )
     exact_semantic_bridge_required_value = payload.get(
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
@@ -13777,6 +16537,34 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_lean_repair_total_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_total_results",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_materialized_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_results",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_post_runtime_materialized_results = int(
+        payload.get(
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_results",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_chain_results = max(
+        exact_semantic_lean_repair_results,
+        exact_semantic_lean_repair_total_results,
+        exact_semantic_lean_repair_results
+        + exact_semantic_lean_repair_materialized_results
+        + exact_semantic_lean_repair_post_runtime_materialized_results,
+    )
     exact_semantic_lean_repair_local_lean_requested = (
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested"
@@ -13790,12 +16578,47 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_lean_repair_total_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_checked",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_materialized_local_lean_checked = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+        )
+    )
+    exact_semantic_lean_repair_chain_local_lean_checked = max(
+        exact_semantic_lean_repair_local_lean_checked,
+        exact_semantic_lean_repair_total_local_lean_checked,
+        exact_semantic_lean_repair_local_lean_checked
+        + exact_semantic_lean_repair_materialized_local_lean_checked,
+    )
     exact_semantic_lean_repair_typechecked_review_packets = int(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets",
             0,
         )
         or 0
+    )
+    exact_semantic_lean_repair_materialized_typechecked_review_packets = sum(
+        int(payload.get(key, 0) or 0)
+        for key in (
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+        )
+    )
+    exact_semantic_lean_repair_chain_typechecked_review_packets = (
+        exact_semantic_lean_repair_typechecked_review_packets
+        + exact_semantic_lean_repair_materialized_typechecked_review_packets
     )
     exact_semantic_lean_repair_handoff_required = (
         exact_semantic_lean_repair_tasks > 0
@@ -13935,6 +16758,33 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    pseudo_formal_semantic_work_orders = int(
+        payload.get(
+            "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    source_semantic_bridge_proof_status = str(
+        payload.get("source_semantic_proofengineer_bridge_proof_evidence_status", "")
+        or ""
+    )
+    source_semantic_bridge_boundary_preserved = (
+        source_semantic_bridge_proof_status
+        in {
+            "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT",
+            "KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT_PRESENT",
+            "SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_NOT_SOURCE_THEOREM_PROOF",
+        }
+    )
+    pseudo_formal_semantic_bridge_consumed = (
+        pseudo_formal_semantic_work_orders <= 0
+        or (
+            payload.get("source_semantic_proofengineer_bridge_requested") is True
+            and payload.get("source_semantic_proofengineer_bridge_ran") is True
+            and source_semantic_bridge_boundary_preserved
+        )
     )
     post_executor_semantic_next_action_rows = int(
         runtime_next_action_generated_queue_names.get(
@@ -14333,6 +17183,121 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "architect_deferred_meta_capability_gaps_visible",
+            architect_deferred_meta_gaps_visible,
+            architect_deferred_meta_gaps_evidence,
+            architect_deferred_meta_gaps_blocker,
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Expose deferred AgentRuntime/Architect control-plane "
+                    "capability gaps from ArchitectInitialRoutingDecision at "
+                    "top level with owner and requirement_id, while routing only "
+                    "worker-executable obligations to science subsystems."
+                ),
+                success_metric=(
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0 "
+                    "or both architect_initial_routing_deferred_meta_capability_gap_owners "
+                    "and architect_initial_routing_deferred_meta_capability_gap_requirement_ids "
+                    "are nonempty"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "architect_deferred_meta_capability_gaps_resolved",
+            architect_deferred_meta_gaps_resolved,
+            architect_deferred_meta_gaps_evidence,
+            architect_deferred_meta_gaps_resolution_blocker,
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "Close deferred AgentRuntime/Architect control-plane "
+                    "capability gaps as runtime or ArchitectCoordinator work, "
+                    "not as ProofEngineer/FormalizationEvaluator science tasks, "
+                    "then rerun the integrated capability gate."
+                ),
+                success_metric=(
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned",
+            architect_deferred_meta_gap_resolution_replay_priority_pinned,
+            architect_deferred_meta_gap_resolution_replay_evidence,
+            architect_deferred_meta_gap_resolution_replay_blocker,
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "When an Architect/Runtime deferred-meta resolution gap remains "
+                    "open, replay the previous capability-gap routing JSONL into the "
+                    "follow-up runtime and keep "
+                    "architect_deferred_meta_capability_gaps_resolved in the "
+                    "priority-pinned selection so Architect cannot lose the "
+                    "control-plane repair obligation."
+                ),
+                success_metric=(
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0 "
+                    "or architect_deferred_meta_capability_gaps_resolved appears in "
+                    "runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "runtime_capability_gap_routing_input_retention_audited",
+            _runtime_capability_gap_routing_input_retention_ok(payload),
+            _runtime_capability_gap_routing_input_retention_evidence(payload),
+            _runtime_capability_gap_routing_input_retention_blocker(payload),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "When replaying runtime_capability_gap_routing.jsonl into "
+                    "a follow-up run, preserve rows_seen and retention_policy in "
+                    "RuntimeInputContextSummary and use priority-pinned retention "
+                    "whenever max rows truncates the prior scorecard obligations."
+                ),
+                success_metric=(
+                    "runtime_capability_gap_routing_input_supplied=false or "
+                    "n_runtime_capability_gap_routing_input_rows_seen <= "
+                    "n_runtime_capability_gap_routing_input_rows, or "
+                    "runtime_capability_gap_routing_input_retention_policy="
+                    "priority_pinned_latest_rows"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "runtime_capability_gap_routing_input_retention_selection_visible",
+            _runtime_capability_gap_routing_input_retention_selection_ok(payload),
+            _runtime_capability_gap_routing_input_retention_selection_evidence(
+                payload
+            ),
+            _runtime_capability_gap_routing_input_retention_selection_blocker(
+                payload
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "When capability-gap routing context is compacted for a "
+                    "follow-up run, annotate every retained row with "
+                    "retention_selection plus a non-evidence boundary before "
+                    "Architect consumes the compressed obligation view."
+                ),
+                success_metric=(
+                    "runtime_capability_gap_routing_input_supplied=false or "
+                    "n_runtime_capability_gap_routing_input_rows_missing_retention_selection=0 "
+                    "and n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary=0 "
+                    "with runtime_capability_gap_routing_input_retention_selection_counts "
+                    "covering all loaded routing rows whenever the context is truncated "
+                    "or priority_pinned_latest_rows is active"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "architect_research_path_control_propagated",
             _runtime_research_path_control_scorecard_passed(payload),
             (
@@ -14357,13 +17322,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "runtime_research_path_execution_summary_source="
-                    "result_artifacts_recomputed, "
-                    "runtime_research_path_manifest_stale=false, "
+                    "result_artifacts_recomputed and "
                     "runtime_research_path_control_propagated=true with zero "
                     "current artifacts missing runtime_architect_control, zero "
                     "trace produced_artifact_ids missing from the blackboard, "
                     "and zero policy/path mismatches in "
-                    "runtime_research_path_execution_summary"
+                    "runtime_research_path_execution_summary; stale manifest "
+                    "snapshots are reported as diagnostics when recomputed "
+                    "current artifacts are complete"
                 ),
             ),
         ),
@@ -15664,12 +18630,28 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "pf_bv_rows="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows')} "
+                "effective_rows="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_effective_rows')} "
+                "diagnostic_rows="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_diagnostic_rows')} "
                 "agenda="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_agenda_rows')} "
                 "learning="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_learning_rows')} "
                 "pending_memory="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_pending_memory_rows')} "
+                "structural_decomposition_requests="
+                f"{payload.get('n_runtime_pseudo_formal_structural_decomposition_requests')} "
+                "independent_bv_requests="
+                f"{payload.get('n_runtime_pseudo_formal_independent_block_verification_requests')} "
+                "required_manifests="
+                f"{payload.get('n_runtime_pseudo_formalization_required_formalization_manifests')} "
+                "required_missing_routing="
+                f"{payload.get('n_runtime_pseudo_formalization_required_missing_routing_rows')} "
+                "routed_manifests="
+                f"{payload.get('n_runtime_pseudo_formalization_routed_manifests')} "
+                "effective_routed_manifests="
+                f"{payload.get('n_runtime_pseudo_formalization_effective_routed_manifests')} "
                 "missing_lane="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_lane')} "
                 "invalid_lane="
@@ -15686,14 +18668,40 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_routing')} "
                 "missing_queue="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_queue_status')} "
+                "missing_row_kind="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_row_kind')} "
                 "missing_method_lineage="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage')} "
+                "missing_scope_parent="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent')} "
+                "invalid_scope_parent="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent')} "
+                "missing_inherited_scope="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope')} "
                 "bad_boundary="
                 f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary')} "
+                "bad_structural_quality="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality')} "
+                "bad_bv_quality="
+                f"{payload.get('n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality')} "
                 "lanes="
                 f"{payload.get('runtime_pseudo_formal_block_routing_target_lanes')} "
+                "effective_lanes="
+                f"{payload.get('runtime_pseudo_formal_block_routing_effective_target_lanes')} "
+                "diagnostic_lanes="
+                f"{payload.get('runtime_pseudo_formal_block_routing_diagnostic_target_lanes')} "
+                "row_kinds="
+                f"{payload.get('runtime_pseudo_formal_block_routing_row_kinds')} "
+                "diagnostic_row_kinds="
+                f"{payload.get('runtime_pseudo_formal_block_routing_diagnostic_row_kinds')} "
                 "work_orders="
                 f"{payload.get('runtime_pseudo_formal_block_routing_work_order_ids')} "
+                "required_missing_manifests="
+                f"{payload.get('runtime_pseudo_formalization_required_missing_routing_manifest_ids')} "
+                "routed_manifest_ids="
+                f"{payload.get('runtime_pseudo_formalization_routed_manifest_ids')} "
+                "effective_routed_manifest_ids="
+                f"{payload.get('runtime_pseudo_formalization_effective_routed_manifest_ids')} "
                 "issues="
                 f"{payload.get('runtime_pseudo_formal_block_routing_contract_issues')}"
             ),
@@ -15712,14 +18720,71 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "anchors, source_pseudo_formal_work_order_id or equivalent "
                     "work_order_id, target identity, runtime_queue_status, "
                     "owner/action/acceptance gate, PF+BV method contract id, "
-                    "PF+BV pipeline stage, and the pseudo-formal "
-                    "not-proof-evidence boundary."
+                    "PF+BV pipeline stage, scope_parent_id/inherited_scope "
+                    "scope-forest continuity, and the pseudo-formal "
+                    "not-proof-evidence boundary. Required PF/BV activation is "
+                    "satisfied only by effective routed rows, not blocked, "
+                    "pending, or quarantine diagnostics."
                 ),
                 success_metric=(
                     "runtime_pseudo_formal_block_routing_contract_complete=true "
-                    "with empty issues and zero missing/invalid lane, work order, "
-                    "source block, source anchor, target identity, routing, "
-                    "queue status, method-lineage, or non-proof boundary rows"
+                    "with empty issues, zero PF-required manifests missing "
+                    "effective routing rows, nonzero effective routed manifests "
+                    "for required PF/BV runs, explicit effective-vs-diagnostic "
+                    "row counts/row kinds, and zero missing/invalid lane, "
+                    "work order, source block, source anchor, target identity, "
+                    "routing, queue status, row kind, method-lineage, scope "
+                    "parent, inherited scope, or non-proof boundary rows"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "pseudo_formal_block_verifier_component_gate",
+            attached_pseudo_formal_live_gate_passed,
+            (
+                "attached_component_capability="
+                f"{attached_pseudo_formal_summary['capability_evidence_ok']} "
+                "attached_live_generator="
+                f"{attached_pseudo_formal_summary['live_generator']} "
+                "attached_static_or_fixture_only="
+                f"{attached_pseudo_formal_summary['static_or_fixture_only']} "
+                "attached_provider="
+                f"{attached_pseudo_formal_summary['provider_name']} "
+                "attached_backend_provider="
+                f"{attached_pseudo_formal_summary['backend_provider_name']} "
+                "attached_prompt_packets="
+                f"{attached_pseudo_formal_prompt_packets} "
+                "attached_valid_responses="
+                f"{attached_pseudo_formal_valid_responses} "
+                "attached_runtime_learning_rows="
+                f"{attached_pseudo_formal_runtime_learning_rows} "
+                "attached_source_runtime_learning_paths="
+                f"{attached_pseudo_formal_source_runtime_learning_path_count} "
+                "attached_source_runtime_learning_lineage_ok="
+                f"{attached_pseudo_formal_source_runtime_learning_lineage_ok}"
+            ),
+            (
+                "attached live pseudo-formal BlockVerifier calibration did not "
+                "execute the prompt-packet, live LLM response, and response-"
+                "validation chain with lineage-checked validated non-proof runtime "
+                "feedback rows from the current AgentRuntime output"
+            ),
+            scope="component_calibration",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Run the attached live PF/BV BlockVerifier component gate "
+                    "on independent pseudo-formal block-verification request rows "
+                    "and feed validated non-proof feedback rows back into runtime "
+                    "learning memory."
+                ),
+                success_metric=(
+                    "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true "
+                    "with prompt_packets>0, valid_responses>0, and "
+                    "runtime_learning_rows>0 from a live Anthropic/OpenAI backend, "
+                    "plus source_runtime_learning_lineage_ok=true for the current "
+                    "runtime output"
                 ),
             ),
         ),
@@ -16187,6 +19252,98 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "source_theorem_exact_proof_body_candidate_materialized",
+            exact_proof_body_candidate_ready,
+            (
+                "required="
+                f"{exact_proof_body_candidate_required} "
+                "repair_required="
+                f"{payload.get('source_theorem_exact_proof_body_repair_required')} "
+                "queue_ran="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_ran')} "
+                "queue_rows="
+                f"{exact_proof_body_repair_queue_rows} "
+                "queue_ready="
+                f"{exact_proof_body_repair_queue_ready} "
+                "targets="
+                f"{payload.get('source_theorem_exact_proof_body_repair_target_names')} "
+                "dominant_failure="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_dominant_failure_classification')} "
+                "semantic_review_blocked="
+                f"{exact_proof_body_candidate_semantic_review_blocked} "
+                "semantic_review_packets="
+                f"{exact_semantic_typechecked_review_packets} "
+                "semantic_review_blocked_packets="
+                f"{exact_semantic_typechecked_review_blocked_packets} "
+                "semantic_review_blocked_learning_rows="
+                f"{exact_semantic_typechecked_review_blocked_learning_rows} "
+                "semantic_verifier_gate_work_orders="
+                f"{exact_semantic_typechecked_review_verifier_gate_work_orders} "
+                "semantic_review_learning_rows="
+                f"{exact_semantic_typechecked_review_learning_rows} "
+                "semantic_recheck_execution_rows="
+                f"{exact_semantic_typechecked_review_recheck_rows}"
+            ),
+            (
+                (
+                    "exact source-theorem candidate reached a typechecked "
+                    "semantic-definition review path, but semantic review or "
+                    "the verifier gate did not approve an executable proof-body "
+                    "recheck queue row"
+                )
+                if exact_proof_body_candidate_semantic_review_blocked
+                else (
+                    "exact source-theorem proof-body repair was required or "
+                    "queued, but no queue row had an executable target declaration, "
+                    "signature probe artifact, and live proof-body location"
+                )
+            ),
+            next_owner_subsystem=(
+                "Formalizer/ProofEngineer"
+                if exact_proof_body_candidate_semantic_review_blocked
+                else "FormalizationEvaluator"
+            ),
+            target_behavior=(
+                (
+                    "Complete semantic-faithfulness review or verifier-gate "
+                    "checking for the typechecked exact semantic-definition "
+                    "candidate, then emit approved proof-body recheck execution "
+                    "rows before rerunning the exact proof-body executor."
+                )
+                if exact_proof_body_candidate_semantic_review_blocked
+                else (
+                    "Materialize an exact source-theorem Lean candidate for each "
+                    "queued proof-body repair target, including "
+                    "target_lean_declaration, signature_probe_artifact_path, and "
+                    "a live proof-body location before the exact proof-body "
+                    "executor runs."
+                )
+            ),
+            success_metric=(
+                (
+                    "typechecked exact semantic-definition review produces "
+                    "approved proof-body recheck execution rows or verifier-gate "
+                    "work-order evidence, then the exact proof-body executor "
+                    "records proof_body_goal_reached evidence; no proof evidence "
+                    "is claimed until local Lean/AXLE verifies the exact theorem"
+                )
+                if exact_proof_body_candidate_semantic_review_blocked
+                else (
+                    "source_theorem_exact_proof_body_repair_execution_queue_n_ready>0 "
+                    "or source_theorem_proof_body_goal_reached_evidence_count>0 "
+                    "for the current exact proof-body repair target, with no "
+                    "proof evidence claimed until local Lean/AXLE verifies the "
+                    "exact theorem"
+                )
+            ),
+            proof_evidence_status="CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
+            routing_boundary=(
+                "This row is a prerequisite routing gate for candidate "
+                "materialization. A ready queue row is not proof evidence; it only "
+                "permits the exact proof-body executor to run a local Lean/AXLE check."
+            ),
+        ),
+        _scorecard_row(
             "source_theorem_signature_probe_reached_proof_body",
             proof_body_goal_reached_count > 0,
             (
@@ -16343,6 +19500,91 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "source-theorem semantic primitive reroute work orders were "
                 "emitted but not paired with generated next-action agenda "
                 "handoffs"
+            ),
+        ),
+        _scorecard_row(
+            "pseudo_formal_semantic_primitives_reach_source_semantic_bridge",
+            pseudo_formal_semantic_bridge_consumed,
+            (
+                "pseudo_formal_semantic_work_orders="
+                f"{pseudo_formal_semantic_work_orders} "
+                "source_semantic_bridge_requested="
+                f"{payload.get('source_semantic_proofengineer_bridge_requested')} "
+                "source_semantic_bridge_ran="
+                f"{payload.get('source_semantic_proofengineer_bridge_ran')} "
+                "source_semantic_bridge_skipped="
+                f"{payload.get('source_semantic_proofengineer_bridge_skipped_reason')} "
+                "source_semantic_bridge_runtime_learning_ready="
+                f"{payload.get('source_semantic_proofengineer_bridge_runtime_learning_ready')} "
+                "source_semantic_bridge_kernel_registered_candidates="
+                f"{payload.get('source_semantic_proofengineer_bridge_n_kernel_verified_registered_candidates')} "
+                "source_semantic_bridge_proof_evidence_status="
+                f"{payload.get('source_semantic_proofengineer_bridge_proof_evidence_status')}"
+            ),
+            (
+                "pseudo-formal source-to-bridge semantic primitive work orders "
+                "were emitted but did not reach the source-semantic "
+                "ProofEngineer bridge with a non-source-theorem-proof evidence "
+                "boundary"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Route pseudo-formal source-to-bridge semantic primitive "
+                    "requirements into the source-semantic ProofEngineer bridge "
+                    "and preserve PF/BV as routing context, not theorem proof "
+                    "evidence."
+                ),
+                success_metric=(
+                    "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal>0 "
+                    "implies source_semantic_proofengineer_bridge_requested=true, "
+                    "source_semantic_proofengineer_bridge_ran=true, and "
+                    "source_semantic_proofengineer_bridge_proof_evidence_status "
+                    "is a semantic-support/not-source-theorem-proof status"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup",
+            pseudo_formal_exact_semantic_source_lookup_consumed,
+            (
+                "pseudo_formal_exact_semantic_work_orders="
+                f"{pseudo_formal_exact_semantic_work_orders} "
+                "total_exact_semantic_work_orders="
+                f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')} "
+                "lookup_required_present="
+                f"{exact_semantic_source_lookup_required_present} "
+                "lookup_required="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
+                "lookup_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
+                "lookup_learning_rows="
+                f"{exact_semantic_source_lookup_learning_rows} "
+                "closure_review_packets="
+                f"{exact_semantic_bridge_review_packets} "
+                "lookup_skipped="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_skipped_reason')}"
+            ),
+            (
+                "pseudo-formal exact semantic-definition work orders were "
+                "emitted but did not reach the exact semantic-definition source "
+                "lookup/review loop as non-proof definition-authoring work"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Route pseudo-formal exact semantic-definition requests into "
+                    "the exact semantic-definition source lookup/review loop while "
+                    "preserving PF/BV as non-proof routing context."
+                ),
+                success_metric=(
+                    "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal>0 "
+                    "implies source_theorem_exact_semantic_definition_source_lookup_required=true, "
+                    "source_theorem_exact_semantic_definition_source_lookup_ran=true, and "
+                    "lookup learning rows or closure review packets are produced"
+                ),
             ),
         ),
         _scorecard_row(
@@ -16550,15 +19792,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 exact_semantic_lean_repair_required_present
                 and exact_semantic_lean_repair_required
                 and exact_semantic_lean_repair_ran
-                and exact_semantic_lean_repair_results > 0
-                and exact_semantic_lean_repair_local_lean_requested
-                and exact_semantic_lean_repair_local_lean_checked > 0
+                and exact_semantic_lean_repair_chain_results > 0
+                and (
+                    exact_semantic_lean_repair_local_lean_requested
+                    or exact_semantic_lean_repair_chain_local_lean_checked > 0
+                    or exact_semantic_lean_repair_chain_typechecked_review_packets > 0
+                )
+                and (
+                    exact_semantic_lean_repair_chain_local_lean_checked > 0
+                    or exact_semantic_lean_repair_chain_typechecked_review_packets
+                    > 0
+                )
             ),
             (
                 "lean_tasks="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks')} "
                 "executor_results="
                 f"{exact_semantic_lean_repair_results} "
+                "total_results="
+                f"{exact_semantic_lean_repair_total_results} "
+                "materialized_results="
+                f"{exact_semantic_lean_repair_materialized_results} "
+                "chain_results="
+                f"{exact_semantic_lean_repair_chain_results} "
                 "handoff_required="
                 f"{exact_semantic_lean_repair_handoff_required} "
                 "required_telemetry_present="
@@ -16573,8 +19829,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')} "
                 "local_lean_checked="
                 f"{exact_semantic_lean_repair_local_lean_checked} "
+                "total_local_lean_checked="
+                f"{exact_semantic_lean_repair_total_local_lean_checked} "
+                "materialized_local_lean_checked="
+                f"{exact_semantic_lean_repair_materialized_local_lean_checked} "
+                "chain_local_lean_checked="
+                f"{exact_semantic_lean_repair_chain_local_lean_checked} "
                 "typechecked_review_packets="
-                f"{exact_semantic_lean_repair_typechecked_review_packets}"
+                f"{exact_semantic_lean_repair_typechecked_review_packets} "
+                "materialized_typechecked_review_packets="
+                f"{exact_semantic_lean_repair_materialized_typechecked_review_packets} "
+                "chain_typechecked_review_packets="
+                f"{exact_semantic_lean_repair_chain_typechecked_review_packets}"
             ),
             (
                 "ProofEngineer bridge produced exact semantic-definition Lean "
@@ -16676,6 +19942,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "sum(primary/retry/late/post-runtime exact semantic-definition authoring "
                     "n_live_llm_attempted)>0"
                 ),
+                recommended_command=(
+                    _exact_semantic_authoring_worker_recovery_command(payload) or None
+                ),
             ),
         ),
         _scorecard_row(
@@ -16705,7 +19974,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "post_runtime_attached="
                 f"{exact_semantic_definition_authoring['post_runtime_attached']} "
                 "post_runtime_lineage_ok="
-                f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']}"
+                f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
+                "post_runtime_materializer_lineage_ok="
+                f"{exact_semantic_definition_authoring['post_runtime_materializer_lineage_ok']} "
+                "post_runtime_lean_repair_lineage_ok="
+                f"{exact_semantic_definition_authoring['post_runtime_lean_repair_lineage_ok']}"
             ),
             (
                 "live exact semantic-definition authoring was recorded, but "
@@ -17109,19 +20382,28 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_proof_body_local_lean_gate_requested",
-            int(
-                payload.get(
-                    "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
-                    0,
+            (
+                int(
+                    payload.get(
+                        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+                        0,
+                    )
+                    or 0
                 )
-                or 0
-            )
-            > 0,
+                > 0
+                or exact_proof_body_materialization_blocking
+            ),
             (
                 "local_lean_requested="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')} "
                 "local_lean_checked="
-                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')}"
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')} "
+                "candidate_materialization_blocking="
+                f"{exact_proof_body_materialization_blocking} "
+                "queue_ready="
+                f"{exact_proof_body_repair_queue_ready} "
+                "dominant_failure="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_dominant_failure_classification')}"
             ),
             (
                 "exact source-theorem proof-body executor did not record an "
@@ -17322,6 +20604,12 @@ def _scorecard_telemetry_keys_present(
     keys: Sequence[str],
 ) -> bool:
     return all(key in payload and payload.get(key) is not None for key in keys)
+
+
+def _scorecard_string_set(value: Any) -> set[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return set()
+    return {str(item).strip() for item in value if str(item).strip()}
 
 
 def _scorecard_issue_list_empty(payload: Mapping[str, Any], key: str) -> bool:
@@ -17645,6 +20933,12 @@ def _runtime_pseudo_formal_block_routing_contract_scorecard_passed(
 ) -> bool:
     count_keys = (
         "n_runtime_pseudo_formal_block_routing_rows",
+        "n_runtime_pseudo_formal_block_routing_effective_rows",
+        "n_runtime_pseudo_formal_block_routing_diagnostic_rows",
+        "n_runtime_pseudo_formal_structural_decomposition_requests",
+        "n_runtime_pseudo_formal_independent_block_verification_requests",
+        "n_runtime_pseudo_formalization_required_formalization_manifests",
+        "n_runtime_pseudo_formalization_required_missing_routing_rows",
         "n_runtime_pseudo_formal_block_routing_rows_missing_lane",
         "n_runtime_pseudo_formal_block_routing_rows_invalid_lane",
         "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id",
@@ -17653,12 +20947,28 @@ def _runtime_pseudo_formal_block_routing_contract_scorecard_passed(
         "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity",
         "n_runtime_pseudo_formal_block_routing_rows_missing_routing",
         "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind",
         "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent",
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope",
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality",
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality",
     )
     telemetry_keys = (
         "runtime_pseudo_formal_block_routing_contract_complete",
         "runtime_pseudo_formal_block_routing_contract_issues",
+        "runtime_pseudo_formal_block_routing_effective_target_lanes",
+        "runtime_pseudo_formal_block_routing_diagnostic_target_lanes",
+        "runtime_pseudo_formal_block_routing_row_kinds",
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds",
+        "runtime_pseudo_formalization_required_manifest_ids",
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids",
+        "runtime_pseudo_formalization_routed_manifest_ids",
+        "runtime_pseudo_formalization_effective_routed_manifest_ids",
+        "n_runtime_pseudo_formalization_routed_manifests",
+        "n_runtime_pseudo_formalization_effective_routed_manifests",
         *count_keys,
     )
     if not any(key in payload for key in telemetry_keys):
@@ -17672,9 +20982,81 @@ def _runtime_pseudo_formal_block_routing_contract_scorecard_passed(
         "runtime_pseudo_formal_block_routing_contract_issues",
     ):
         return False
+    if _safe_int(payload.get("n_runtime_pseudo_formal_block_routing_rows")) != (
+        _safe_int(payload.get("n_runtime_pseudo_formal_block_routing_effective_rows"))
+        + _safe_int(payload.get("n_runtime_pseudo_formal_block_routing_diagnostic_rows"))
+    ):
+        return False
+    if (
+        _safe_int(payload.get("n_runtime_pseudo_formal_block_routing_rows")) > 0
+        and not all(
+            key in payload
+            for key in (
+                "runtime_pseudo_formal_block_routing_effective_target_lanes",
+                "runtime_pseudo_formal_block_routing_diagnostic_target_lanes",
+                "runtime_pseudo_formal_block_routing_row_kinds",
+                "runtime_pseudo_formal_block_routing_diagnostic_row_kinds",
+            )
+        )
+    ):
+        return False
+    required_manifests = _safe_int(
+        payload.get("n_runtime_pseudo_formalization_required_formalization_manifests")
+    )
+    required_manifest_ids = _scorecard_string_set(
+        payload.get("runtime_pseudo_formalization_required_manifest_ids")
+    )
+    manifest_required = (
+        required_manifests > 0
+        or bool(required_manifest_ids)
+        or _safe_int(
+            payload.get("n_runtime_pseudo_formalization_required_missing_routing_rows")
+        )
+        > 0
+    )
+    if manifest_required:
+        manifest_keys = (
+            "runtime_pseudo_formalization_required_manifest_ids",
+            "runtime_pseudo_formalization_required_missing_routing_manifest_ids",
+            "runtime_pseudo_formalization_routed_manifest_ids",
+            "runtime_pseudo_formalization_effective_routed_manifest_ids",
+            "n_runtime_pseudo_formalization_routed_manifests",
+            "n_runtime_pseudo_formalization_effective_routed_manifests",
+        )
+        if not _scorecard_telemetry_keys_present(payload, manifest_keys):
+            return False
+        missing_manifest_ids = _scorecard_string_set(
+            payload.get(
+                "runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+            )
+        )
+        routed_manifest_ids = _scorecard_string_set(
+            payload.get("runtime_pseudo_formalization_routed_manifest_ids")
+        )
+        effective_routed_manifest_ids = _scorecard_string_set(
+            payload.get("runtime_pseudo_formalization_effective_routed_manifest_ids")
+        )
+        effective_routed_manifests = _safe_int(
+            payload.get("n_runtime_pseudo_formalization_effective_routed_manifests")
+        )
+        routed_manifests = _safe_int(
+            payload.get("n_runtime_pseudo_formalization_routed_manifests")
+        )
+        if missing_manifest_ids:
+            return False
+        if len(required_manifest_ids) != required_manifests:
+            return False
+        if routed_manifests != len(routed_manifest_ids):
+            return False
+        if effective_routed_manifests != len(effective_routed_manifest_ids):
+            return False
+        if not required_manifest_ids.issubset(effective_routed_manifest_ids):
+            return False
+        if not effective_routed_manifest_ids.issubset(routed_manifest_ids):
+            return False
     return all(
         _safe_int(payload.get(key)) == 0
-        for key in count_keys[1:]
+        for key in count_keys[6:]
     )
 
 
@@ -17685,8 +21067,6 @@ def _runtime_research_path_control_scorecard_passed(payload: Mapping[str, Any]) 
         payload.get("runtime_research_path_execution_summary_source")
         != "result_artifacts_recomputed"
     ):
-        return False
-    if payload.get("runtime_research_path_manifest_stale") is not False:
         return False
     summary = payload.get("runtime_research_path_execution_summary", {})
     if not isinstance(summary, Mapping):
@@ -18001,12 +21381,17 @@ def _scorecard_row(
     **routing: Any,
 ) -> dict[str, Any]:
     scope = str(routing.pop("scope", "integrated_runtime") or "integrated_runtime")
+    blocker_text = str(blocker or "").strip()
+    if not passed and not blocker_text:
+        blocker_text = _runtime_failed_scorecard_blocker(
+            {"requirement_id": requirement_id}
+        )
     row = {
         "requirement_id": requirement_id,
         "scope": scope,
         "passed": bool(passed),
         "evidence": evidence,
-        "blocker": "" if passed else blocker,
+        "blocker": "" if passed else blocker_text,
     }
     if routing and not bool(passed):
         row.update(routing)
@@ -18084,6 +21469,193 @@ def _capability_gap_routing_command_args(payload: Mapping[str, Any]) -> str:
     )
 
 
+def _full_live_explicit_capability_args() -> str:
+    args = [
+        "--local-lean",
+        "--formalizer-candidate-lean-lsp-mcp",
+        "--formalization-gap-planner-live-route-planner",
+        "--theorem-closure-proofengineer-bridge",
+        "--theorem-closure-proofengineer-local-lean",
+        "--source-semantic-proofengineer-bridge",
+        "--source-semantic-proofengineer-local-lean",
+        "--source-theorem-promotion-proofengineer-bridge",
+        "--source-theorem-promotion-proofengineer-local-lean",
+        "--source-theorem-formal-environment-proofengineer-bridge",
+        "--source-theorem-formal-environment-proofengineer-signature-probes",
+        "--source-theorem-formal-environment-proofengineer-execute-proof-body",
+        "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
+        "--source-theorem-proof-body-adapter-proofengineer-bridge",
+        "--source-theorem-proof-body-adapter-proofengineer-local-lean",
+        "--source-to-bridge-premise-derivation-proofengineer-bridge",
+        "--source-to-bridge-premise-derivation-proofengineer-local-lean",
+        "--source-theorem-exact-semantic-definition-source-lookup",
+        "--source-theorem-exact-semantic-definition-proofengineer-bridge",
+        "--source-theorem-exact-semantic-definition-lean-repair-executor",
+        "--source-theorem-exact-semantic-definition-lean-repair-executor-local-lean",
+        "--source-theorem-exact-semantic-definition-lean-environment-repair-executor",
+        "--source-theorem-exact-semantic-definition-closure-review",
+        "--source-theorem-exact-semantic-definition-candidate-synthesis",
+        "--source-theorem-exact-semantic-definition-candidate-synthesis-local-lean",
+        "--source-theorem-exact-semantic-definition-authoring-worker",
+        "--source-theorem-exact-semantic-definition-authoring-worker-allow-external-export",
+        "--source-theorem-exact-semantic-definition-authoring-worker-external-export-mode",
+        "full",
+    ]
+    lean_project = Path("legacy_sources/emperical_process_lean")
+    if lean_project.exists():
+        args.extend(["--lean-project", str(lean_project)])
+    source_root = Path("legacy_sources/ai_statistician")
+    if source_root.exists():
+        args.extend(
+            [
+                "--source-theorem-exact-semantic-definition-source-root",
+                str(source_root),
+            ]
+        )
+    return " " + " ".join(shlex.quote(arg) for arg in args)
+
+
+def _exact_semantic_authoring_audit_export_path(payload: Mapping[str, Any]) -> str:
+    return str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl",
+            "",
+        )
+        or ""
+    ).strip()
+
+
+def _exact_semantic_authoring_recovery_base_dir(
+    payload: Mapping[str, Any],
+) -> Path:
+    export_path = _exact_semantic_authoring_audit_export_path(payload)
+    if export_path:
+        return Path(export_path).parent
+    runtime_dir = str(payload.get("runtime_dir", "") or "").strip()
+    if runtime_dir:
+        return Path(runtime_dir).with_name(f"{Path(runtime_dir).name}_post_runtime_authoring")
+    return Path("runs/main_worker_post_runtime_exact_semantic_authoring")
+
+
+def _exact_semantic_authoring_worker_recovery_manifest_path(
+    payload: Mapping[str, Any],
+) -> Path:
+    return (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_authoring_worker"
+        / "source_theorem_exact_semantic_definition_authoring_worker_manifest.json"
+    )
+
+
+def _exact_semantic_authoring_materializer_recovery_manifest_path(
+    payload: Mapping[str, Any],
+) -> Path:
+    return (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_authoring_candidate_materializer"
+        / "source_theorem_exact_semantic_definition_authoring_candidate_materializer_manifest.json"
+    )
+
+
+def _exact_semantic_authoring_worker_recovery_command(
+    payload: Mapping[str, Any],
+) -> str:
+    export_path = _exact_semantic_authoring_audit_export_path(payload)
+    if not export_path:
+        return ""
+    worker_out = (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_authoring_worker"
+    )
+    return (
+        ".venv/bin/python -m ai_statistician.cli "
+        "source-theorem-exact-semantic-definition-authoring-worker "
+        f"--authoring-tasks-jsonl {shlex.quote(export_path)} "
+        "--provider anthropic "
+        "--allow-external-export "
+        "--external-export-mode full "
+        "--max-tasks 1 "
+        f"--out {shlex.quote(str(worker_out))}"
+    )
+
+
+def _exact_semantic_authoring_materializer_recovery_command(
+    payload: Mapping[str, Any],
+) -> str:
+    export_path = _exact_semantic_authoring_audit_export_path(payload)
+    if not export_path:
+        return ""
+    materializer_out = (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_authoring_candidate_materializer"
+    )
+    worker_manifest = _exact_semantic_authoring_worker_recovery_manifest_path(payload)
+    return (
+        ".venv/bin/python -m ai_statistician.cli "
+        "source-theorem-exact-semantic-definition-authoring-candidate-materialize "
+        f"--authoring-worker-manifest {shlex.quote(str(worker_manifest))} "
+        f"--out {shlex.quote(str(materializer_out))}"
+    )
+
+
+def _exact_semantic_authoring_lean_repair_recovery_command(
+    payload: Mapping[str, Any],
+) -> str:
+    export_path = _exact_semantic_authoring_audit_export_path(payload)
+    if not export_path:
+        return ""
+    materializer_manifest = (
+        _exact_semantic_authoring_materializer_recovery_manifest_path(payload)
+    )
+    executor_out = (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_materialized_lean_repair_executor"
+    )
+    return (
+        ".venv/bin/python -m ai_statistician.cli "
+        "source-theorem-exact-semantic-definition-lean-repair-executor "
+        f"--materializer-manifest {shlex.quote(str(materializer_manifest))} "
+        "--source-root legacy_sources/ai_statistician "
+        "--local-lean "
+        "--lean-project legacy_sources/emperical_process_lean "
+        f"--out {shlex.quote(str(executor_out))}"
+    )
+
+
+def _exact_semantic_authoring_post_runtime_audit_recovery_command(
+    payload: Mapping[str, Any],
+) -> str:
+    export_path = _exact_semantic_authoring_audit_export_path(payload)
+    if not export_path:
+        return ""
+    runtime_dir = str(payload.get("runtime_dir", "") or "").strip()
+    if not runtime_dir:
+        return ""
+    audit_out = (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_authoring_attached_audit"
+    )
+    worker_manifest = _exact_semantic_authoring_worker_recovery_manifest_path(payload)
+    materializer_manifest = _exact_semantic_authoring_materializer_recovery_manifest_path(
+        payload
+    )
+    lean_repair_manifest = (
+        _exact_semantic_authoring_recovery_base_dir(payload)
+        / "post_runtime_exact_semantic_definition_materialized_lean_repair_executor"
+        / "source_theorem_exact_semantic_definition_lean_repair_executor_manifest.json"
+    )
+    return (
+        ".venv/bin/python -m ai_statistician.cli research-agent-runtime-audit "
+        f"--runtime-dir {shlex.quote(runtime_dir)} "
+        f"--post-runtime-exact-semantic-definition-authoring-worker-manifest {shlex.quote(str(worker_manifest))} "
+        "--post-runtime-exact-semantic-definition-authoring-candidate-materializer-manifest "
+        f"{shlex.quote(str(materializer_manifest))} "
+        "--post-runtime-exact-semantic-definition-materialized-lean-repair-executor-manifest "
+        f"{shlex.quote(str(lean_repair_manifest))} "
+        f"--out {shlex.quote(str(audit_out))}"
+    )
+
+
 def _capability_resume_command(
     payload: Mapping[str, Any],
     *,
@@ -18103,6 +21675,7 @@ def _capability_resume_command(
         "--capability-eval "
         "--capability-eval-preset full-live "
         "--resume-through-architect "
+        f"{_full_live_explicit_capability_args()} "
         f"--max-iterations {max_iterations} "
         f"{_capability_gap_routing_command_args(payload)} "
         f"--out {shlex.quote(out_arg)}"
@@ -18143,6 +21716,7 @@ def _capability_full_live_rerun_command(
         "--provider anthropic "
         "--capability-eval "
         "--capability-eval-preset full-live "
+        f"{_full_live_explicit_capability_args()} "
         f"--max-iterations {effective_max_iterations} "
         "--formalization-gap-planner-live-max-handoffs 1 "
         "--formalization-gap-planner-live-max-route-requests-per-handoff 1"
@@ -18171,6 +21745,7 @@ def _runtime_resume_scorecard_routing(
     owner: str,
     target_behavior: str,
     success_metric: str,
+    recommended_command: str | None = None,
     max_iterations: int = 8,
 ) -> dict[str, Any]:
     return {
@@ -18179,7 +21754,9 @@ def _runtime_resume_scorecard_routing(
         "recommended_capability_eval_command": _capability_feedback_command(
             payload,
             max_iterations=max_iterations,
-        ),
+        )
+        if recommended_command is None
+        else recommended_command,
         "success_metric": success_metric,
         "proof_evidence_status": "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
         "routing_boundary": (
@@ -18231,6 +21808,55 @@ def _trace_has_runtime_capability_gap_routing_input(traces: list[Any]) -> bool:
         ):
             return True
     return False
+
+
+def _trace_runtime_capability_gap_routing_input_identity(
+    traces: list[Any],
+) -> dict[str, object]:
+    requirement_ids: list[str] = []
+    priority_pinned_requirement_ids: list[str] = []
+    owner_subsystems: list[str] = []
+    for trace in traces:
+        if not isinstance(trace, Mapping):
+            continue
+        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+        context = (
+            inputs.get("architect_context", {})
+            if isinstance(inputs.get("architect_context"), Mapping)
+            else {}
+        )
+        routing = context.get("runtime_capability_gap_routing", {})
+        if not (
+            isinstance(routing, Mapping)
+            and routing.get("artifact_kind") == "RuntimeCapabilityGapRoutingContext"
+        ):
+            continue
+        rows = routing.get("rows", [])
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            requirement_id = str(row.get("requirement_id", "") or "").strip()
+            owner = str(row.get("next_owner_subsystem", "") or "").strip()
+            if requirement_id:
+                requirement_ids.append(requirement_id)
+            if owner:
+                owner_subsystems.append(owner)
+            if (
+                str(row.get("retention_selection", "") or "").strip()
+                == "priority_pinned"
+                and requirement_id
+            ):
+                priority_pinned_requirement_ids.append(requirement_id)
+    return {
+        "requirement_ids": tuple(dict.fromkeys(requirement_ids)),
+        "priority_pinned_requirement_ids": tuple(
+            dict.fromkeys(priority_pinned_requirement_ids)
+        ),
+        "owner_subsystems": tuple(owner_subsystems),
+    }
 
 
 def _trace_architect_initial_routing_records(
@@ -18314,6 +21940,74 @@ def _architect_initial_routing_record_errors(
             errors.append(
                 f"Architect initial routing decision {index} missing orchestration boundary"
             )
+        capability_requirement_id = str(
+            record.get("capability_gap_requirement_id", "") or ""
+        ).strip()
+        scorecard_payload = record.get("capability_gap_scorecard_payload")
+        if capability_requirement_id and not isinstance(scorecard_payload, Mapping):
+            errors.append(
+                f"Architect initial routing decision {index} missing "
+                "capability gap scorecard payload"
+            )
+        if isinstance(scorecard_payload, Mapping):
+            if (
+                scorecard_payload.get("proof_evidence_status")
+                != "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+            ):
+                errors.append(
+                    f"Architect initial routing decision {index} has invalid "
+                    "capability gap scorecard proof boundary"
+                )
+            scorecard_boundary = str(scorecard_payload.get("boundary", "") or "")
+            if (
+                "routing" not in scorecard_boundary
+                or "not" not in scorecard_boundary
+                or "evidence" not in scorecard_boundary
+            ):
+                errors.append(
+                    f"Architect initial routing decision {index} missing "
+                    "capability gap scorecard boundary"
+                )
+        deferred_meta_gap = record.get("deferred_meta_capability_gap")
+        if isinstance(deferred_meta_gap, Mapping):
+            if (
+                deferred_meta_gap.get("artifact_kind")
+                != "ArchitectDeferredMetaCapabilityGap"
+            ):
+                errors.append(
+                    f"Architect initial routing decision {index} has invalid "
+                    "deferred meta capability gap artifact_kind"
+                )
+            if (
+                deferred_meta_gap.get("proof_evidence_status")
+                != "ARCHITECT_META_CAPABILITY_GAP_NOT_PROOF_EVIDENCE"
+            ):
+                errors.append(
+                    f"Architect initial routing decision {index} has invalid "
+                    "deferred meta capability gap proof boundary"
+                )
+            deferred_boundary = str(deferred_meta_gap.get("boundary", "") or "")
+            if (
+                "control-plane" not in deferred_boundary
+                or "does not execute" not in deferred_boundary
+                or "prove" not in deferred_boundary
+            ):
+                errors.append(
+                    f"Architect initial routing decision {index} missing "
+                    "deferred meta capability gap boundary"
+                )
+            if not str(
+                deferred_meta_gap.get("requested_next_owner_subsystem", "") or ""
+            ).strip():
+                errors.append(
+                    f"Architect initial routing decision {index} missing "
+                    "deferred meta capability gap owner"
+                )
+            if not str(deferred_meta_gap.get("requirement_id", "") or "").strip():
+                errors.append(
+                    f"Architect initial routing decision {index} missing "
+                    "deferred meta capability gap requirement_id"
+                )
     return errors
 
 
@@ -18321,13 +22015,42 @@ def _trace_has_architect_runtime_field(traces: list[Any], field: str) -> bool:
     for trace in traces:
         if not isinstance(trace, Mapping):
             continue
-        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
-        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
-        context = inputs.get("architect_context", {}) if isinstance(inputs.get("architect_context"), Mapping) else {}
-        plan = context.get("architect_runtime_plan", {})
-        if not isinstance(plan, Mapping):
+        candidate_contexts: list[Mapping[str, Any]] = []
+        for task_key in ("task", "next_task"):
+            task = (
+                trace.get(task_key, {})
+                if isinstance(trace.get(task_key), Mapping)
+                else {}
+            )
+            inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+            context = (
+                inputs.get("architect_context", {})
+                if isinstance(inputs.get("architect_context"), Mapping)
+                else {}
+            )
+            if context:
+                candidate_contexts.append(context)
+        for observation in trace.get("observations", []) or []:
+            if not isinstance(observation, Mapping):
+                continue
+            payload = (
+                observation.get("payload", {})
+                if isinstance(observation.get("payload"), Mapping)
+                else {}
+            )
+            if payload:
+                candidate_contexts.append(payload)
+        for context in candidate_contexts:
+            if _architect_runtime_field_present(context, field):
+                return True
+    return False
+
+
+def _architect_runtime_field_present(context: Mapping[str, Any], field: str) -> bool:
+    for source in (context, context.get("architect_runtime_plan", {})):
+        if not isinstance(source, Mapping):
             continue
-        value = plan.get(field)
+        value = source.get(field)
         if value not in ({}, [], "", None):
             return True
     return False
@@ -18613,6 +22336,282 @@ def _post_runtime_exact_semantic_definition_authoring_worker_summary(
     return summary
 
 
+def _post_runtime_exact_semantic_definition_authoring_candidate_materializer_empty_summary(
+    *,
+    attached: bool = False,
+    manifest_path: Path | None = None,
+) -> dict[str, Any]:
+    return {
+        "attached": attached,
+        "lineage_ok": False,
+        "lineage_match": "",
+        "manifest_path": str(manifest_path or ""),
+        "source_authoring_worker_manifest": "",
+        "ran": False,
+        "n_candidate_packets": 0,
+        "n_materialized_lean_repair_tasks": 0,
+        "n_local_lean_checked": 0,
+        "n_runtime_learning_rows": 0,
+        "proof_evidence_status": "",
+        "boundary": (
+            "Post-runtime exact semantic-definition candidate materializer "
+            "attachments are lineage-checked materialization evidence only. "
+            "They are not proof evidence, not local Lean typecheck evidence, "
+            "and not source theorem proof."
+        ),
+    }
+
+
+def _post_runtime_manifest_source_matches(
+    *,
+    manifest_path: Path,
+    raw_source_path: object,
+    expected_path: Path | None,
+) -> tuple[bool, str]:
+    if expected_path is None:
+        return False, ""
+    raw_text = str(raw_source_path or "").strip()
+    if not raw_text:
+        return False, ""
+    source_path = _resolve_path(manifest_path.parent, raw_text)
+    try:
+        if source_path.resolve(strict=False) == expected_path.resolve(strict=False):
+            return True, str(source_path)
+    except OSError:
+        pass
+    return False, str(source_path)
+
+
+def _post_runtime_exact_semantic_definition_authoring_candidate_materializer_summary(
+    *,
+    manifest_path: Path | None,
+    expected_authoring_worker_manifest: Path | None,
+    errors: list[str],
+) -> dict[str, Any]:
+    if manifest_path is None:
+        return (
+            _post_runtime_exact_semantic_definition_authoring_candidate_materializer_empty_summary()
+        )
+    summary = (
+        _post_runtime_exact_semantic_definition_authoring_candidate_materializer_empty_summary(
+            attached=True,
+            manifest_path=manifest_path,
+        )
+    )
+    manifest = _load_json(manifest_path, errors)
+    if not manifest:
+        return summary
+    artifact_kind = str(manifest.get("artifact_kind", "") or "")
+    expected_kind = (
+        "SourceTheoremExactSemanticDefinitionAuthoringCandidateMaterializerManifest"
+    )
+    if artifact_kind != expected_kind:
+        errors.append(
+            "post-runtime exact semantic-definition authoring candidate "
+            f"materializer manifest has artifact_kind={artifact_kind!r}; "
+            f"expected {expected_kind!r}: {manifest_path}"
+        )
+        return summary
+    lineage_ok, lineage_match = _post_runtime_manifest_source_matches(
+        manifest_path=manifest_path,
+        raw_source_path=manifest.get("source_authoring_worker_manifest", ""),
+        expected_path=expected_authoring_worker_manifest,
+    )
+    if not lineage_ok:
+        errors.append(
+            "post-runtime exact semantic-definition authoring candidate "
+            "materializer manifest does not point at the attached authoring "
+            f"worker manifest: {manifest_path}"
+        )
+    learning_rows_path = _resolve_path(
+        manifest_path.parent,
+        manifest.get("runtime_learning_rows_jsonl", ""),
+    )
+    learning_rows = (
+        _load_jsonl(learning_rows_path, errors, required=True)
+        if lineage_ok and str(manifest.get("runtime_learning_rows_jsonl", "") or "")
+        else []
+    )
+    summary.update(
+        {
+            "lineage_ok": bool(lineage_ok),
+            "lineage_match": lineage_match,
+            "source_authoring_worker_manifest": str(
+                manifest.get("source_authoring_worker_manifest", "") or ""
+            ),
+            "ran": bool(
+                lineage_ok
+                and (
+                    _safe_int(manifest.get("n_materialization_rows", 0)) > 0
+                    or _safe_int(manifest.get("n_candidate_packets", 0)) > 0
+                )
+            ),
+            "n_candidate_packets": (
+                _safe_int(manifest.get("n_candidate_packets", 0))
+                if lineage_ok
+                else 0
+            ),
+            "n_materialized_lean_repair_tasks": (
+                _safe_int(manifest.get("n_materialized_lean_repair_tasks", 0))
+                if lineage_ok
+                else 0
+            ),
+            "n_local_lean_checked": (
+                _safe_int(manifest.get("n_local_lean_checked", 0))
+                if lineage_ok
+                else 0
+            ),
+            "n_runtime_learning_rows": len(learning_rows) if lineage_ok else 0,
+            "proof_evidence_status": str(
+                manifest.get("proof_evidence_status", "") or ""
+            ),
+        }
+    )
+    return summary
+
+
+def _post_runtime_exact_semantic_definition_materialized_lean_repair_executor_empty_summary(
+    *,
+    attached: bool = False,
+    manifest_path: Path | None = None,
+) -> dict[str, Any]:
+    return {
+        "attached": attached,
+        "lineage_ok": False,
+        "lineage_match": "",
+        "manifest_path": str(manifest_path or ""),
+        "source_materializer_manifest": "",
+        "ran": False,
+        "n_results": 0,
+        "n_local_lean_checked": 0,
+        "n_local_lean_compiled": 0,
+        "n_runtime_learning_rows": 0,
+        "n_typechecked_candidate_review_packets": 0,
+        "by_failure_classification": {},
+        "dominant_failure_classification": "",
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proofengineer_state": "",
+        "proofengineer_state_reason": "",
+        "proof_evidence_status": "",
+        "boundary": (
+            "Post-runtime exact semantic-definition materialized Lean repair "
+            "executor attachments are lineage-checked local Lean diagnostics "
+            "only. They are not source theorem proof or full frontier theorem "
+            "evidence unless a later verifier records source-theorem kernel "
+            "verification."
+        ),
+    }
+
+
+def _post_runtime_exact_semantic_definition_materialized_lean_repair_executor_summary(
+    *,
+    manifest_path: Path | None,
+    expected_materializer_manifest: Path | None,
+    errors: list[str],
+) -> dict[str, Any]:
+    if manifest_path is None:
+        return (
+            _post_runtime_exact_semantic_definition_materialized_lean_repair_executor_empty_summary()
+        )
+    summary = (
+        _post_runtime_exact_semantic_definition_materialized_lean_repair_executor_empty_summary(
+            attached=True,
+            manifest_path=manifest_path,
+        )
+    )
+    manifest = _load_json(manifest_path, errors)
+    if not manifest:
+        return summary
+    artifact_kind = str(manifest.get("artifact_kind", "") or "")
+    expected_kind = "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest"
+    if artifact_kind != expected_kind:
+        errors.append(
+            "post-runtime exact semantic-definition materialized Lean repair "
+            f"executor manifest has artifact_kind={artifact_kind!r}; "
+            f"expected {expected_kind!r}: {manifest_path}"
+        )
+        return summary
+    lineage_ok, lineage_match = _post_runtime_manifest_source_matches(
+        manifest_path=manifest_path,
+        raw_source_path=manifest.get("source_materializer_manifest", ""),
+        expected_path=expected_materializer_manifest,
+    )
+    if not lineage_ok:
+        errors.append(
+            "post-runtime exact semantic-definition materialized Lean repair "
+            "executor manifest does not point at the attached materializer "
+            f"manifest: {manifest_path}"
+        )
+    learning_rows_path = _resolve_path(
+        manifest_path.parent,
+        manifest.get("runtime_learning_rows_jsonl", ""),
+    )
+    learning_rows = (
+        _load_jsonl(learning_rows_path, errors, required=True)
+        if lineage_ok and str(manifest.get("runtime_learning_rows_jsonl", "") or "")
+        else []
+    )
+    summary.update(
+        {
+            "lineage_ok": bool(lineage_ok),
+            "lineage_match": lineage_match,
+            "source_materializer_manifest": str(
+                manifest.get("source_materializer_manifest", "") or ""
+            ),
+            "ran": bool(lineage_ok and _safe_int(manifest.get("n_results", 0)) > 0),
+            "n_results": (
+                _safe_int(manifest.get("n_results", 0)) if lineage_ok else 0
+            ),
+            "n_local_lean_checked": (
+                _safe_int(manifest.get("n_local_lean_checked", 0))
+                if lineage_ok
+                else 0
+            ),
+            "n_local_lean_compiled": (
+                _safe_int(manifest.get("n_local_lean_compiled", 0))
+                if lineage_ok
+                else 0
+            ),
+            "n_runtime_learning_rows": len(learning_rows) if lineage_ok else 0,
+            "n_typechecked_candidate_review_packets": (
+                _safe_int(
+                    manifest.get("n_typechecked_candidate_review_packets", 0)
+                )
+                if lineage_ok
+                else 0
+            ),
+            "by_failure_classification": (
+                dict(manifest.get("by_failure_classification", {}) or {})
+                if lineage_ok
+                else {}
+            ),
+            "dominant_failure_classification": (
+                str(manifest.get("dominant_failure_classification", "") or "")
+                if lineage_ok
+                else ""
+            ),
+            "semantic_definition_kernel_verified": bool(
+                lineage_ok
+                and manifest.get("semantic_definition_kernel_verified", False)
+            ),
+            "source_theorem_kernel_verified": bool(
+                lineage_ok and manifest.get("source_theorem_kernel_verified", False)
+            ),
+            "proofengineer_state": str(
+                manifest.get("proofengineer_state", "") or ""
+            ),
+            "proofengineer_state_reason": str(
+                manifest.get("proofengineer_state_reason", "") or ""
+            ),
+            "proof_evidence_status": str(
+                manifest.get("proof_evidence_status", "") or ""
+            ),
+        }
+    )
+    return summary
+
+
 def _resolve_path(base: Path, raw: object) -> Path:
     text = str(raw or "").strip()
     if not text:
@@ -18883,6 +22882,11 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('task_families_with_full_frontier_theorem_proved')}",
         "- target-bound full frontier theorem kernels: "
         f"{payload.get('n_full_frontier_target_bound_kernel_verified')}",
+        "- cross-task theorem family rows / explicit / target-bound / open gaps: "
+        f"{payload.get('n_runtime_cross_task_theorem_family_rows')} / "
+        f"{payload.get('n_runtime_cross_task_theorem_family_rows_with_explicit_family')} / "
+        f"{payload.get('n_runtime_cross_task_theorem_family_rows_with_target_bound_kernel')} / "
+        f"{payload.get('n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps')}",
         f"- result errors: {payload.get('n_result_errors')}",
         "- budgeted continuations contract-ok: "
         f"{payload.get('n_budgeted_continuation_contract_ok')}/"
@@ -18916,9 +22920,29 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- runtime capability gap routing contract complete / rows: "
         f"{payload.get('runtime_capability_gap_routing_contract_complete')} / "
         f"{payload.get('n_runtime_capability_gap_routing_rows')}",
-        "",
-        "## Capability Routing",
     ]
+    cross_task_rows = [
+        row
+        for row in payload.get("runtime_cross_task_theorem_family_rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if cross_task_rows:
+        lines.extend(["", "## Cross-Task Theorem Families"])
+        for row in cross_task_rows[:12]:
+            lines.append(
+                "- "
+                f"{row.get('question_id')}: family={row.get('task_family')} "
+                f"full_theorem={row.get('full_frontier_theorem_proved')} "
+                "target_bound_kernel="
+                f"{row.get('full_frontier_target_bound_kernel_verified')} "
+                f"formal_gaps={row.get('n_formal_gaps')} "
+                "matching_targets="
+                f"{row.get('full_frontier_kernel_verified_matching_target_ids')}"
+            )
+        lines.append(
+            f"Boundary: {payload.get('runtime_cross_task_theorem_family_boundary')}"
+        )
+    lines.extend(["", "## Capability Routing"])
     routed_rows = [
         row
         for row in payload.get("runtime_capability_gap_routing_rows", []) or []
@@ -19071,6 +23095,8 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- runtime capability-gap-routing inputs / rows: "
         f"{payload.get('n_results_with_runtime_capability_gap_routing_input')} / "
         f"{payload.get('n_runtime_capability_gap_routing_input_rows')}",
+        "- runtime capability-gap-routing priority-pinned requirement ids: "
+        f"{payload.get('runtime_capability_gap_routing_input_priority_pinned_requirement_ids')}",
         f"- problem-analysis rows: {payload.get('n_results_with_problem_analysis')}",
         f"- stat-knowledge-bank rows: {payload.get('n_results_with_stat_knowledge_bank_plan')}",
         f"- literature-fair-comparison rows: {payload.get('n_results_with_literature_fair_comparison_plan')}",
@@ -19109,8 +23135,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"post_executor={payload.get('source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified')}",
         "- post-adapter semantic primitive work orders: "
         f"{payload.get('n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_adapter_feedback')}",
+        "- pseudo-formal semantic primitive work orders: "
+        f"{payload.get('n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal')}",
         "- exact semantic-definition work orders: "
         f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')}",
+        "- pseudo-formal exact semantic-definition work orders: "
+        f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal')}",
         "- exact semantic-definition source lookup: "
         f"required={payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
         f"ran={payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
@@ -19132,6 +23162,7 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"failure={payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification')}",
         "- exact semantic-definition late typechecked review: "
         f"primary_materialized_packets={payload.get('source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets')} "
+        f"primary_materialized_failure={payload.get('source_theorem_exact_semantic_definition_materialized_lean_repair_executor_dominant_failure_classification')} "
         f"primary_materialized_required={payload.get('source_theorem_exact_semantic_definition_materialized_candidate_review_required')} "
         f"primary_materialized_bridge_ran={payload.get('source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_ran')} "
         f"primary_materialized_llm_approved={payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_llm_approved_packets')} "

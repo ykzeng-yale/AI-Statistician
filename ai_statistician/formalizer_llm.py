@@ -13,7 +13,10 @@ from .formalizer_repair_policy import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     normalize_pseudo_formal_packet,
+    pseudo_formal_block_work_order_rows,
+    pseudo_formal_routable_work_order_rows,
     pseudo_formalizer_prompt_contract,
     validate_pseudo_formal_packet,
 )
@@ -134,6 +137,10 @@ class LLMFormalizerProofEngineerAgent:
                 environment_feedback or {}
             )
         )
+        requires_pseudo_formalization = _feedback_requires_pseudo_formalization(
+            environment_feedback or {},
+            proof_bank_runtime_memory_summary or {},
+        )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_formalizer_packet(packet)
@@ -149,6 +156,16 @@ class LLMFormalizerProofEngineerAgent:
             if requires_lean_candidate or requires_repeated_syntax_contract:
                 errors.extend(
                     _validate_capability_eval_formalizer_lean_candidate_packet(
+                        packet,
+                        environment_feedback=environment_feedback or {},
+                        proof_bank_runtime_memory_summary=(
+                            proof_bank_runtime_memory_summary or {}
+                        ),
+                    )
+                )
+            if requires_pseudo_formalization:
+                errors.extend(
+                    _validate_required_pseudo_formalization_packet(
                         packet,
                         environment_feedback=environment_feedback or {},
                         proof_bank_runtime_memory_summary=(
@@ -239,6 +256,10 @@ def build_formalizer_prompt(
         proof_bank_runtime_memory_summary or {}
     )
     pseudo_formalization_active = _feedback_suggests_pseudo_formalization(
+        environment_feedback or {},
+        proof_memory_summary,
+    )
+    pseudo_formalization_required = _feedback_requires_pseudo_formalization(
         environment_feedback or {},
         proof_memory_summary,
     )
@@ -420,16 +441,37 @@ def build_formalizer_prompt(
             )
     else:
         lean_candidate_instruction = ""
-    pseudo_formalization_instruction = (
-        "When source theorem proof repair is blocked by missing semantic anchors, missing "
-        "library support, or an overlarge proof step, you may emit pseudo_formal_proof_packets "
-        "following pseudo_formalization_contract. Those packets are decomposition and routing "
-        "artifacts only: they do not satisfy the Lean-candidate gate, cannot claim kernel "
-        "verification, and must route residual blocks through formal_targets, retrieval_queries, "
-        "gap_taxonomy, source_to_bridge candidates/requests, or next_actions. "
-        if pseudo_formalization_active
-        else ""
-    )
+    if pseudo_formalization_required:
+        pseudo_formalization_instruction = (
+            "Source theorem proof-body repair is blocked in the PF/BV activation "
+            "regime: you must emit at least one pseudo_formal_proof_packets entry "
+            "following pseudo_formalization_contract. The packet must decompose the "
+            "blocked proof text into source-anchored blocks, record faithfulness/"
+            "block-verification status, and produce at least one lane-routable "
+            "residual block. Every block must carry a top-level conclusion field "
+            "and at least one source_anchors object. If block_verification.verdict "
+            "is accepted, block_verification.rollout_count must be an integer >= 1; "
+            "otherwise use a valid non-accepted block_verification.verdict value "
+            "such as not_run, unknown, or failed rather than claiming accepted. "
+            "Use needs_review only as a faithfulness_status value, not as a "
+            "block_verification verdict. These packets are decomposition and "
+            "routing artifacts only: "
+            "they do not satisfy the Lean-candidate gate, cannot claim kernel "
+            "verification, and must route residual blocks through formal_targets, "
+            "retrieval_queries, gap_taxonomy, source_to_bridge candidates/requests, "
+            "or next_actions. "
+        )
+    elif pseudo_formalization_active:
+        pseudo_formalization_instruction = (
+            "When source theorem proof repair is blocked by missing semantic anchors, missing "
+            "library support, or an overlarge proof step, you may emit pseudo_formal_proof_packets "
+            "following pseudo_formalization_contract. Those packets are decomposition and routing "
+            "artifacts only: they do not satisfy the Lean-candidate gate, cannot claim kernel "
+            "verification, and must route residual blocks through formal_targets, retrieval_queries, "
+            "gap_taxonomy, source_to_bridge candidates/requests, or next_actions. "
+        )
+    else:
+        pseudo_formalization_instruction = ""
     return (
         "Design formalization and proof-search artifacts for the Formalizer/ProofEngineer subsystem. "
         "Return ONLY compact JSON matching required_output_contract. Keep each list to at most 3 items. "
@@ -1044,6 +1086,193 @@ def _feedback_suggests_pseudo_formalization(
     return False
 
 
+def _feedback_requires_pseudo_formalization(
+    *sources: Mapping[str, Any] | None,
+) -> bool:
+    """Return true only for blockers where PF/BV should be a required repair pass."""
+
+    explicit_flags = (
+        "pseudo_formalization_required",
+        "requires_pseudo_formalization",
+        "requires_pseudo_formal_block_verification",
+        "requires_pf_bv",
+    )
+    required_markers = (
+        "pseudo_formalization_required",
+        "requires_pseudo_formalization",
+        "requires pseudo-formalization",
+        "requires pseudo formalization",
+        "requires pseudo-formal",
+        "requires pf/bv",
+        "pf/bv activation required",
+        "pseudo-formalization activation required",
+        "pseudo formalization activation required",
+        "must emit pseudo_formal_proof_packets",
+        "must emit pseudo-formal proof packets",
+        "exact_semantic_definition_structural_reformulation_required",
+        "source_theorem_exact_semantic_definition_structural_reformulation_required",
+        "pending_exact_semantic_definition_structural_reformulation",
+        "proof_body_reached_semantic_alignment_unreviewed",
+        "proof body reached semantic alignment unreviewed",
+        "proof-body goal reached with semantic blockers",
+        "overlarge proof step requires block verification",
+    )
+    for source in sources:
+        if not isinstance(source, Mapping) or not source:
+            continue
+        nested_sources = [
+            source,
+            source.get("input_summary", {}),
+            source.get("architect_evidence_contract", {}),
+            source.get("runtime_requested_evidence_contract", {}),
+            source.get("proofengineer_repair_context", {}),
+        ]
+        for nested in nested_sources:
+            if not isinstance(nested, Mapping):
+                continue
+            if any(bool(nested.get(flag, False)) for flag in explicit_flags):
+                return True
+        text = json.dumps(_compact_value(source), default=str).lower()
+        if any(marker in text for marker in required_markers):
+            return True
+    return False
+
+
+def _validate_required_pseudo_formalization_packet(
+    packet: Mapping[str, Any],
+    *,
+    environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+) -> list[str]:
+    if not _feedback_requires_pseudo_formalization(
+        environment_feedback or {},
+        proof_bank_runtime_memory_summary or {},
+    ):
+        return []
+    pseudo_packets = [
+        row
+        for row in packet.get("pseudo_formal_proof_packets", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not pseudo_packets:
+        return [
+            "pseudo_formalization_required: proof-body/PF activation feedback "
+            "requires at least one pseudo_formal_proof_packets entry with "
+            "source-anchored blocks, PF/BV method lineage, and non-proof boundary"
+        ]
+    validation_errors: list[str] = []
+    valid_packets: list[Mapping[str, Any]] = []
+    for index, pseudo_packet in enumerate(pseudo_packets):
+        errors = validate_pseudo_formal_packet(pseudo_packet)
+        if errors:
+            validation_errors.append(
+                f"pseudo_formal_proof_packets[{index}] invalid: "
+                + "; ".join(errors[:6])
+            )
+        else:
+            valid_packets.append(pseudo_packet)
+    if not valid_packets:
+        return [
+            "pseudo_formalization_required: no locally valid "
+            "pseudo_formal_proof_packets entry was emitted; "
+            + " | ".join(validation_errors[:3])
+        ]
+    work_order_rows: list[dict[str, Any]] = []
+    for pseudo_packet in valid_packets:
+        work_order_rows.extend(pseudo_formal_block_work_order_rows(pseudo_packet))
+    routable_work_order_rows = pseudo_formal_routable_work_order_rows(
+        work_order_rows
+    )
+    if not routable_work_order_rows:
+        return [
+            "pseudo_formalization_required: valid PF/BV packet did not produce "
+            "any effective lane-routable pseudo-formal work-order rows; blocked "
+            "or pending rows do not satisfy required PF/BV activation. At least "
+            "one block must be faithful BV-accepted for Lean seeding, require "
+            "RAG/library/semantic-definition follow-up, fail BV, need "
+            "faithfulness review, or carry semantic_primitive_requirements"
+        ]
+    required_target_lanes = _required_pseudo_formal_target_lanes(
+        environment_feedback or {},
+        proof_bank_runtime_memory_summary or {},
+    )
+    if required_target_lanes:
+        target_lane_rows = [
+            row
+            for row in routable_work_order_rows
+            if str(row.get("target_lane", "") or "") in required_target_lanes
+            or str(row.get("row_kind", "") or "")
+            == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+        ]
+        if not target_lane_rows:
+            return [
+                "pseudo_formalization_required: valid PF/BV packet produced "
+                "only generic review rows and did not route any effective row "
+                "to required target lanes "
+                + ", ".join(required_target_lanes)
+                + " or to independent block verification"
+            ]
+    return []
+
+
+def _required_pseudo_formal_target_lanes(
+    *sources: Mapping[str, Any],
+) -> tuple[str, ...]:
+    lanes: list[str] = []
+    structural_required = False
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        repair_contract = (
+            source.get("pseudo_formalization_repair_contract", {})
+            if isinstance(
+                source.get("pseudo_formalization_repair_contract", {}),
+                Mapping,
+            )
+            else {}
+        )
+        nested_sources = (
+            source,
+            repair_contract,
+            source.get("input_summary", {}),
+            repair_contract.get("input_summary", {}),
+        )
+        for nested in nested_sources:
+            if not isinstance(nested, Mapping):
+                continue
+            structural_required = structural_required or bool(
+                nested.get(
+                    (
+                        "source_theorem_exact_semantic_definition_"
+                        "structural_reformulation_required"
+                    ),
+                    False,
+                )
+            )
+            for key in (
+                "pseudo_formal_block_routing_target_lanes",
+                "target_lanes",
+            ):
+                value = nested.get(key, [])
+                if isinstance(value, str):
+                    if value.strip():
+                        lanes.append(value.strip())
+                elif isinstance(value, Sequence) and not isinstance(
+                    value,
+                    (bytes, bytearray),
+                ):
+                    lanes.extend(str(item).strip() for item in value if str(item))
+    if structural_required and not lanes:
+        lanes.extend(
+            [
+                "source_theorem_exact_semantic_definition",
+                "lean_rag",
+                "source_to_bridge",
+            ]
+        )
+    return tuple(dict.fromkeys(lane for lane in lanes if lane))
+
+
 def _has_explicit_source_theorem_formal_gap_target(
     formal_targets: Sequence[Mapping[str, Any]],
 ) -> bool:
@@ -1268,6 +1497,17 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
         )
     )
     if not candidate_targets and not source_to_bridge_candidate_targets:
+        if _feedback_requires_pseudo_formalization(
+            environment_feedback or {},
+            proof_bank_runtime_memory_summary or {},
+        ) and not _validate_required_pseudo_formalization_packet(
+            packet,
+            environment_feedback=environment_feedback or {},
+            proof_bank_runtime_memory_summary=(
+                proof_bank_runtime_memory_summary or {}
+            ),
+        ):
+            return []
         if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
             if _has_explicit_source_theorem_formal_gap_target(formal_targets):
                 return []
@@ -1712,16 +1952,17 @@ def _normalize_formalizer_packet(
         body,
         proof_bank_runtime_memory_summary or {},
     )
+    _normalize_pseudo_formal_proof_packets(body)
     _fail_closed_placeholder_lean_candidates(
         body,
         environment_feedback or {},
+        proof_bank_runtime_memory_summary or {},
     )
     _normalize_executable_candidate_expected_statuses(body)
     _normalize_source_theorem_target_shape_drift(
         body,
         environment_feedback or {},
     )
-    _normalize_pseudo_formal_proof_packets(body)
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -2426,8 +2667,25 @@ def _feedback_requests_placeholder_fail_closed(
 def _fail_closed_placeholder_lean_candidates(
     packet: dict[str, Any],
     environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
 ) -> None:
-    if not _feedback_requests_placeholder_fail_closed(environment_feedback):
+    placeholder_fail_closed_requested = _feedback_requests_placeholder_fail_closed(
+        environment_feedback
+    )
+    required_pf_bv_route_available = (
+        _feedback_requires_pseudo_formalization(
+            environment_feedback,
+            proof_bank_runtime_memory_summary or {},
+        )
+        and not _validate_required_pseudo_formalization_packet(
+            packet,
+            environment_feedback=environment_feedback,
+            proof_bank_runtime_memory_summary=(
+                proof_bank_runtime_memory_summary or {}
+            ),
+        )
+    )
+    if not (placeholder_fail_closed_requested or required_pf_bv_route_available):
         return
     converted_targets: list[dict[str, Any]] = []
     for row in packet.get("formal_targets", []) or []:
@@ -4186,6 +4444,24 @@ def _formalizer_mode_specific_instructions(
         or []
         if isinstance(row, Mapping)
     ]
+    pseudo_formal_diagnostic_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "pseudo_formal_block_routing_diagnostic_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    pseudo_formal_independent_bv_feedback_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "pseudo_formal_independent_block_verification_feedback_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
     if proof_memory_summary.get("pseudo_formal_block_routing_active") or pseudo_formal_memory:
         target_lanes = [
             str(value).strip()
@@ -4237,9 +4513,9 @@ def _formalizer_mode_specific_instructions(
             "and pseudo_formal_block_routing_memory before proposing new broad proof "
             "work. These rows decompose blocked proof text into lane-specific tasks; "
             "they are not Lean kernel evidence and do not prove the source theorem. "
-            "Preserve block_depth, statement-level dependency_scope, faithfulness "
-            "repair status, and BV calibration strictness when regenerating or "
-            "rerouting PF/BV packets. "
+            "Preserve block_depth, scope_parent_id scope-inheritance forest, "
+            "statement-level dependency_scope, faithfulness repair status, and "
+            "BV calibration strictness when regenerating or rerouting PF/BV packets. "
             "For target_lane=formal_targets, emit a bounded concrete Lean candidate "
             "for the named block and require local Lean/AXLE replay. For "
             "target_lane=lean_rag, emit retrieval_queries or formal-source grounding "
@@ -4258,6 +4534,125 @@ def _formalizer_mode_specific_instructions(
             instruction += " Target id(s): " + ", ".join(target_ids) + "."
         if work_order_ids:
             instruction += " PF/BV work order(s): " + ", ".join(work_order_ids) + "."
+        instructions.append(instruction)
+    if (
+        proof_memory_summary.get(
+            "pseudo_formal_independent_block_verification_feedback_active"
+        )
+        or pseudo_formal_independent_bv_feedback_memory
+    ):
+        bv_work_order_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_independent_block_verification_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:5]
+        bv_verdicts = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_independent_block_verification_verdicts",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:5]
+        bv_provenances: list[str] = []
+        bv_block_ids: list[str] = []
+        for row in pseudo_formal_independent_bv_feedback_memory:
+            provenance = str(
+                row.get("block_verification_verifier_provenance", "") or ""
+            ).strip()
+            if provenance:
+                bv_provenances.append(provenance)
+            block_id = str(row.get("source_block_id", "") or "").strip()
+            if block_id:
+                bv_block_ids.append(block_id)
+        bv_provenances = list(dict.fromkeys(bv_provenances))[:5]
+        bv_block_ids = list(dict.fromkeys(bv_block_ids))[:5]
+        instruction = (
+            "Independent pseudo-formal block-verifier feedback is available: "
+            "consume proof_bank_runtime_memory_summary."
+            "pseudo_formal_independent_block_verification_feedback_memory as "
+            "calibrated PF/BV feedback over the exact explicit premises, "
+            "statement-only dependency context, conclusion, and local proof text "
+            "used by the verifier. Accepted verdicts may unblock regeneration or "
+            "rerouting of the bounded PF block, but they are not Lean kernel "
+            "evidence. Failed verdicts require repairing, splitting, or rerouting "
+            "the PF block before any downstream Lean/RAG/source-to-bridge lane."
+        )
+        if bv_verdicts:
+            instruction += " BV verdict(s): " + ", ".join(bv_verdicts) + "."
+        if bv_provenances:
+            instruction += (
+                " Independent verifier provenance(s): "
+                + ", ".join(bv_provenances)
+                + "."
+            )
+        if bv_block_ids:
+            instruction += " Source block id(s): " + ", ".join(bv_block_ids) + "."
+        if bv_work_order_ids:
+            instruction += " PF/BV work order(s): " + ", ".join(bv_work_order_ids) + "."
+        instructions.append(instruction)
+    if (
+        proof_memory_summary.get("pseudo_formal_block_routing_diagnostic_active")
+        or pseudo_formal_diagnostic_memory
+    ):
+        diagnostic_lanes = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_block_routing_diagnostic_target_lanes",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        diagnostic_work_order_ids = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "pseudo_formal_block_routing_diagnostic_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:5]
+        diagnostic_row_kinds = []
+        for row in pseudo_formal_diagnostic_memory:
+            row_kind = str(row.get("row_kind", "") or "").strip()
+            if row_kind:
+                diagnostic_row_kinds.append(row_kind)
+            lane = str(row.get("target_lane", "") or "").strip()
+            if lane:
+                diagnostic_lanes.append(lane)
+            work_order_id = str(
+                row.get("source_pseudo_formal_work_order_id", "") or ""
+            ).strip()
+            if work_order_id:
+                diagnostic_work_order_ids.append(work_order_id)
+        diagnostic_lanes = list(dict.fromkeys(diagnostic_lanes))[:5]
+        diagnostic_row_kinds = list(dict.fromkeys(diagnostic_row_kinds))[:5]
+        diagnostic_work_order_ids = list(dict.fromkeys(diagnostic_work_order_ids))[:5]
+        instruction = (
+            "Pseudo-formal/block-verification diagnostic memory is active: prior "
+            "PF/BV rows are not lane-routable and must not be treated as Lean/RAG/"
+            "source-to-bridge work-order activation. Repair the PF/BV packet first: "
+            "resolve packet validation quarantine, missing faithfulness repair, "
+            "pending/failed block verification, or missing accepted BV rollout_count "
+            "before emitting downstream lane work. These diagnostics remain "
+            "non-proof evidence and do not satisfy required PF/BV activation."
+        )
+        if diagnostic_row_kinds:
+            instruction += " Diagnostic row kind(s): " + ", ".join(diagnostic_row_kinds) + "."
+        if diagnostic_lanes:
+            instruction += " Blocked target lane(s): " + ", ".join(diagnostic_lanes) + "."
+        if diagnostic_work_order_ids:
+            instruction += (
+                " Diagnostic PF/BV work order(s): "
+                + ", ".join(diagnostic_work_order_ids)
+                + "."
+            )
         instructions.append(instruction)
     if source_theorem_candidate_materialization_required:
         targets = [
@@ -5353,6 +5748,26 @@ def _formalizer_mode_specific_instructions(
             "theorem-level reduction closure for the listed remaining_theorem_goal_ids."
         )
     if (
+        mode == "source_theorem_exact_semantic_definition_structural_reformulation"
+        or proof_memory_summary.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_required"
+        )
+        or "structural_reformulate_exact_semantic_definition_with_pf_bv"
+        in integration_action
+    ):
+        instructions.append(
+            "For source_theorem_exact_semantic_definition_structural_reformulation, "
+            "treat repeated Lean API/syntax/typeclass hard-negative feedback as a "
+            "semantic-design blocker. You must emit pseudo_formal_proof_packets that "
+            "decompose the exact semantic-definition obligation into source-anchored "
+            "blocks before proposing another Lean definition. Route residual blocks "
+            "through target_lane=source_theorem_exact_semantic_definition, "
+            "target_lane=lean_rag, or target_lane=source_to_bridge as needed. Do not "
+            "directly retry sibling Lean APIs, guessed imports, or previously rejected "
+            "syntax fragments; reformulate around project-verified primitives, explicit "
+            "parameters, or declare the missing semantic primitive/formal library gap."
+        )
+    if (
         mode == "source_theorem_exact_semantic_definition_repair"
         or proof_memory_summary.get("source_theorem_exact_semantic_definition_repair_required")
         or "repair_reviewed_exact_semantic_definitions" in integration_action
@@ -6342,6 +6757,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_candidate_materialization_missing_formal_symbols",
         "source_theorem_candidate_materialization_contract",
         "source_theorem_exact_semantic_definition_repair_required",
+        "source_theorem_exact_semantic_definition_structural_reformulation_required",
+        "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
+        "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
+        "pseudo_formalization_required",
+        "requires_pseudo_formalization",
+        "pseudo_formalization_required_reason",
         "source_theorem_exact_proof_body_repair_required",
         "formalizer_diagnostic_helper_integration_required",
         "formalizer_diagnostic_helper_memory",
@@ -6391,11 +6812,27 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formal_gap_next_action_contract",
         "formal_gap_next_action_diagnostics",
         "pseudo_formal_block_routing_active",
+        "pseudo_formal_block_routing_diagnostic_active",
+        "n_pseudo_formal_block_routing_memory_rows",
+        "n_pseudo_formal_block_routing_effective_memory_rows",
+        "n_pseudo_formal_block_routing_diagnostic_memory_rows",
         "pseudo_formal_block_routing_target_lanes",
+        "pseudo_formal_block_routing_diagnostic_target_lanes",
         "pseudo_formal_block_routing_target_ids",
         "pseudo_formal_block_routing_work_order_ids",
+        "pseudo_formal_block_routing_diagnostic_work_order_ids",
+        "pseudo_formal_independent_block_verification_feedback_active",
+        "pseudo_formal_independent_block_verification_pending",
+        "n_pseudo_formal_independent_block_verification_feedback_rows",
+        "n_pseudo_formal_independent_block_verification_pending_rows",
+        "pseudo_formal_independent_block_verification_work_order_ids",
+        "pseudo_formal_independent_block_verification_verdicts",
+        "pseudo_formal_independent_block_verification_feedback_memory",
+        "pseudo_formal_independent_block_verification_pending_memory",
         "pseudo_formal_block_routing_contract",
+        "pseudo_formal_block_routing_memory_boundary",
         "pseudo_formal_block_routing_memory",
+        "pseudo_formal_block_routing_diagnostic_memory",
         "source_theorem_proof_body_adapter_diagnostics",
         "source_theorem_exact_proof_body_repair_target_names",
         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -6439,6 +6876,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "trigger",
                 "placeholder_symbol",
                 "failure_classification",
+                "structural_reformulation_required",
+                "pseudo_formalization_required",
+                "runtime_queue_status",
+                "source_theorem_exact_semantic_definition_structural_reformulation_route",
                 "definition_contract",
                 "required_next_checks",
                 "source_lookup_hits",
@@ -6583,24 +7024,184 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "block_depth",
                 "dependency_scope",
                 "dependency_ids",
+                "dependency_statement_context",
+                "scope_parent_id",
+                "inherited_scope",
+                "source_block_premises",
+                "source_block_proof_text",
                 "faithfulness_status",
                 "faithfulness_repair_status",
                 "block_verification",
+                "block_verification_verifier_provenance",
+                "block_verification_independent",
+                "independent_block_verification_required",
+                "independent_block_verification_status",
+                "independent_block_verification_completed",
                 "bv_calibration",
                 "source_anchors",
                 "row_kind",
+                "pseudo_formal_routable",
                 "target_lane",
                 "target_ids",
                 "target_theorem_name",
                 "semantic_primitive_id",
                 "reason",
                 "runtime_queue_status",
+                "pseudo_formal_block_verifier_worker",
+                "recommended_commands",
+                "recommended_next_action",
                 "target_behavior",
                 "acceptance_gate",
                 "proof_evidence_status",
                 "proof_evidence_boundary",
             ),
             limit=6,
+        )
+    if isinstance(row.get("pseudo_formal_block_routing_diagnostic_memory"), list):
+        compact["pseudo_formal_block_routing_diagnostic_memory"] = _compact_rows(
+            row.get("pseudo_formal_block_routing_diagnostic_memory", []),
+            keys=(
+                "learning_task",
+                "source_pseudo_formal_work_order_id",
+                "source_agenda_id",
+                "source_formalizer_proposal_id",
+                "source_formalization_manifest_id",
+                "source_packet_id",
+                "source_theorem_id",
+                "source_block_id",
+                "source_block_type",
+                "source_block_conclusion",
+                "block_depth",
+                "dependency_scope",
+                "dependency_ids",
+                "dependency_statement_context",
+                "scope_parent_id",
+                "inherited_scope",
+                "source_block_premises",
+                "source_block_proof_text",
+                "faithfulness_status",
+                "faithfulness_repair_status",
+                "block_verification",
+                "block_verification_verifier_provenance",
+                "block_verification_independent",
+                "independent_block_verification_required",
+                "independent_block_verification_status",
+                "independent_block_verification_completed",
+                "bv_calibration",
+                "source_anchors",
+                "row_kind",
+                "pseudo_formal_routable",
+                "target_lane",
+                "target_ids",
+                "target_theorem_name",
+                "semantic_primitive_id",
+                "reason",
+                "runtime_queue_status",
+                "pseudo_formal_block_verifier_worker",
+                "recommended_commands",
+                "recommended_next_action",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_evidence_status",
+                "proof_evidence_boundary",
+            ),
+            limit=6,
+        )
+    if isinstance(
+        row.get("pseudo_formal_independent_block_verification_feedback_memory"),
+        list,
+    ):
+        compact["pseudo_formal_independent_block_verification_feedback_memory"] = (
+            _compact_rows(
+                row.get(
+                    "pseudo_formal_independent_block_verification_feedback_memory",
+                    [],
+                ),
+                keys=(
+                    "learning_task",
+                    "source_pseudo_formal_work_order_id",
+                    "source_agenda_id",
+                    "source_formalizer_proposal_id",
+                    "source_formalization_manifest_id",
+                    "source_packet_id",
+                    "source_theorem_id",
+                    "source_block_id",
+                    "source_block_type",
+                    "source_block_conclusion",
+                    "block_depth",
+                    "dependency_scope",
+                    "dependency_ids",
+                    "dependency_statement_context",
+                    "scope_parent_id",
+                    "inherited_scope",
+                    "source_block_premises",
+                    "source_block_proof_text",
+                    "faithfulness_status",
+                    "faithfulness_repair_status",
+                    "block_verification",
+                    "block_verification_verifier_provenance",
+                    "block_verification_independent",
+                    "independent_block_verification_required",
+                    "independent_block_verification_status",
+                    "independent_block_verification_completed",
+                    "bv_calibration",
+                    "source_anchors",
+                    "row_kind",
+                    "pseudo_formal_routable",
+                    "target_lane",
+                    "target_ids",
+                    "target_theorem_name",
+                    "reason",
+                    "runtime_queue_status",
+                    "pseudo_formal_block_verifier_worker",
+                    "recommended_commands",
+                    "recommended_next_action",
+                    "target_behavior",
+                    "acceptance_gate",
+                    "proof_evidence_status",
+                    "proof_evidence_boundary",
+                ),
+                limit=6,
+            )
+        )
+    if isinstance(
+        row.get("pseudo_formal_independent_block_verification_pending_memory"),
+        list,
+    ):
+        compact["pseudo_formal_independent_block_verification_pending_memory"] = (
+            _compact_rows(
+                row.get(
+                    "pseudo_formal_independent_block_verification_pending_memory",
+                    [],
+                ),
+                keys=(
+                    "learning_task",
+                    "source_pseudo_formal_work_order_id",
+                    "source_agenda_id",
+                    "source_theorem_id",
+                    "source_block_id",
+                    "source_block_conclusion",
+                    "dependency_statement_context",
+                    "source_block_premises",
+                    "source_block_proof_text",
+                    "block_verification",
+                    "block_verification_verifier_provenance",
+                    "block_verification_independent",
+                    "independent_block_verification_required",
+                    "independent_block_verification_status",
+                    "row_kind",
+                    "target_lane",
+                    "target_ids",
+                    "target_theorem_name",
+                    "runtime_queue_status",
+                    "pseudo_formal_block_verifier_worker",
+                    "recommended_commands",
+                    "recommended_next_action",
+                    "proof_evidence_status",
+                    "proof_evidence_boundary",
+                ),
+                limit=6,
+            )
         )
     if isinstance(row.get("source_to_bridge_metadata_authoring_candidate_requests"), list):
         compact["source_to_bridge_metadata_authoring_candidate_requests"] = (

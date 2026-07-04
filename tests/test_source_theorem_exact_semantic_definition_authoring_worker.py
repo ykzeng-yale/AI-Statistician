@@ -1474,6 +1474,7 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
         ),
         "required_imports": [
             "Mathlib.Data.Set.Basic",
+            "Mathlib.Data.Fin.Basic",
             "import Mathlib.Data.Set.Basic",
         ],
         "binder_usage": [{"name": "hC", "how_used": "semantic anchor"}],

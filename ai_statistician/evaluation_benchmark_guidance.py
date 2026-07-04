@@ -10,6 +10,9 @@ from .fingerprint import stable_hash
 
 
 EVALUATION_BENCHMARK_GUIDANCE_SCHEMA_VERSION = 1
+ARCHITECT_DEFERRED_META_RESOLUTION_REQUIREMENT_ID = (
+    "architect_deferred_meta_capability_gaps_resolved"
+)
 
 
 @dataclass(frozen=True)
@@ -110,10 +113,93 @@ def build_evaluation_benchmark_guidance(
                         "proof_search_retrieval_no_registered_ablation_solved_delta",
                         "research_traces_ok",
                         "research_algorithms_ok",
+                        "research_agent_runtime_exact_semantic_definition_authoring_required",
+                        "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted",
+                        "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materializer_lineage_ok",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_lineage_ok",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state",
+                        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proof_evidence_status",
+                        "research_agent_runtime_architect_deferred_meta_capability_gaps",
+                        "research_agent_runtime_architect_deferred_meta_capability_gap_owners",
+                        "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids",
+                        "research_agent_runtime_architect_deferred_meta_capability_gaps_visible",
+                        "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved",
+                        "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned",
+                        "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_evidence",
+                        "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_blocker",
                         "research_agent_runtime_pseudo_formal_block_routing_contract_complete",
                         "research_agent_runtime_pseudo_formal_block_routing_rows",
+                        "research_agent_runtime_pseudo_formal_block_routing_effective_rows",
+                        "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows",
+                        "research_agent_runtime_pseudo_formal_block_routing_row_kinds",
+                        "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds",
+                        "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes",
+                        "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes",
+                        "research_agent_runtime_pseudo_formalization_required_formalization_manifests",
+                        "research_agent_runtime_pseudo_formalization_required_missing_routing_rows",
+                        "research_agent_runtime_pseudo_formalization_required_manifest_ids",
+                        "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids",
+                        "research_agent_runtime_pseudo_formalization_routed_manifests",
+                        "research_agent_runtime_pseudo_formalization_effective_routed_manifests",
+                        "research_agent_runtime_pseudo_formalization_routed_manifest_ids",
+                        "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids",
                         "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope",
+                        "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind",
                         "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
+                        "pseudo_formal_block_verifier_component_gate_capability_evidence_ok",
+                        "pseudo_formal_block_verifier_component_gate_live_generator",
+                        "pseudo_formal_block_verifier_component_gate_static_or_fixture_only",
+                        "pseudo_formal_block_verifier_component_gate_prompt_packets",
+                        "pseudo_formal_block_verifier_component_gate_valid_responses",
+                        "pseudo_formal_block_verifier_component_gate_runtime_learning_rows",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_live_generator",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_static_or_fixture_only",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count",
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok",
+                        "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders",
+                        "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge",
+                        "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders",
+                        "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup",
+                        "research_agent_runtime_source_semantic_proofengineer_bridge_requested",
+                        "research_agent_runtime_source_semantic_proofengineer_bridge_ran",
+                        "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status",
+                        "research_agent_runtime_formal_gap_planner_handoff_rows",
+                        "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context",
+                        "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete",
+                        "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough",
+                        "research_agent_runtime_formal_gap_planner_live_route_planner_invocations",
+                        "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok",
+                        "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok",
+                        "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_proposals",
+                        "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids",
+                        "research_agent_runtime_capability_gap_routing_input_rows",
+                        "research_agent_runtime_capability_gap_routing_input_rows_seen",
+                        "research_agent_runtime_capability_gap_routing_input_retention_policy",
+                        "research_agent_runtime_capability_gap_routing_input_retention_selection_counts",
+                        "research_agent_runtime_capability_gap_routing_input_requirement_ids",
+                        "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids",
+                        "research_agent_runtime_capability_gap_routing_input_owner_subsystems",
+                        "research_agent_runtime_capability_gap_routing_followup_commands",
+                        "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection",
+                        "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary",
+                        "research_agent_runtime_cross_task_theorem_family_rows",
+                        "research_agent_runtime_cross_task_theorem_family_rows_with_explicit_family",
+                        "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel",
+                        "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps",
                     }
                 },
                 "suite_rows": [asdict(row) for row in suite_rows],
@@ -168,9 +254,57 @@ def _suite_rows(
     runtime_pf_bv_rows = _int(
         counts.get("research_agent_runtime_pseudo_formal_block_routing_rows")
     )
+    runtime_pf_bv_effective_rows = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_effective_rows"
+        )
+    )
+    runtime_pf_bv_diagnostic_rows = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows"
+        )
+    )
     runtime_pf_bv_missing_method_lineage = _int(
         counts.get(
             "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+        )
+    )
+    runtime_pf_bv_missing_scope_parent = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+        )
+    )
+    runtime_pf_bv_invalid_scope_parent = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+        )
+    )
+    runtime_pf_bv_missing_inherited_scope = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+        )
+    )
+    runtime_pf_bv_missing_row_kind = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind"
+        )
+    )
+    runtime_pf_bv_required_manifests = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formalization_required_formalization_manifests"
+        )
+    )
+    runtime_pf_bv_required_missing_routing = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formalization_required_missing_routing_rows"
+        )
+    )
+    runtime_pf_bv_routed_manifests = _int(
+        counts.get("research_agent_runtime_pseudo_formalization_routed_manifests")
+    )
+    runtime_pf_bv_effective_routed_manifests = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formalization_effective_routed_manifests"
         )
     )
     runtime_pf_bv_bad_nonproof_boundary = _int(
@@ -183,35 +317,479 @@ def _suite_rows(
             "research_agent_runtime_pseudo_formal_block_routing_contract_complete"
         )
     )
+    runtime_pf_bv_row_split_keys = (
+        "research_agent_runtime_pseudo_formal_block_routing_effective_rows",
+        "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows",
+        "research_agent_runtime_pseudo_formal_block_routing_row_kinds",
+        "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds",
+        "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes",
+        "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes",
+    )
+    runtime_pf_bv_row_split_present = all(
+        key in counts for key in runtime_pf_bv_row_split_keys
+    )
+    runtime_pf_bv_row_split_ok = (
+        runtime_pf_bv_rows <= 0
+        or (
+            runtime_pf_bv_row_split_present
+            and runtime_pf_bv_effective_rows + runtime_pf_bv_diagnostic_rows
+            == runtime_pf_bv_rows
+        )
+    )
+    runtime_pf_bv_manifest_keys = (
+        "research_agent_runtime_pseudo_formalization_required_manifest_ids",
+        "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids",
+        "research_agent_runtime_pseudo_formalization_routed_manifests",
+        "research_agent_runtime_pseudo_formalization_effective_routed_manifests",
+        "research_agent_runtime_pseudo_formalization_routed_manifest_ids",
+        "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids",
+    )
+    runtime_pf_bv_manifest_telemetry_present = all(
+        key in counts for key in runtime_pf_bv_manifest_keys
+    )
+    runtime_pf_bv_required_manifest_ids = _string_set(
+        counts.get("research_agent_runtime_pseudo_formalization_required_manifest_ids")
+    )
+    runtime_pf_bv_required_missing_manifest_ids = _string_set(
+        counts.get(
+            "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+        )
+    )
+    runtime_pf_bv_effective_routed_manifest_ids = _string_set(
+        counts.get(
+            "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids"
+        )
+    )
+    runtime_pf_bv_routed_manifest_ids = _string_set(
+        counts.get("research_agent_runtime_pseudo_formalization_routed_manifest_ids")
+    )
+    runtime_pf_bv_manifest_required = (
+        runtime_pf_bv_required_manifests > 0
+        or bool(runtime_pf_bv_required_manifest_ids)
+        or runtime_pf_bv_required_missing_routing > 0
+    )
+    runtime_pf_bv_manifest_coverage_ok = (
+        not runtime_pf_bv_manifest_required
+        or (
+            runtime_pf_bv_manifest_telemetry_present
+            and len(runtime_pf_bv_required_manifest_ids)
+            == runtime_pf_bv_required_manifests
+            and not runtime_pf_bv_required_missing_manifest_ids
+            and runtime_pf_bv_routed_manifests
+            == len(runtime_pf_bv_routed_manifest_ids)
+            and runtime_pf_bv_effective_routed_manifests
+            == len(runtime_pf_bv_effective_routed_manifest_ids)
+            and runtime_pf_bv_required_manifest_ids.issubset(
+                runtime_pf_bv_effective_routed_manifest_ids
+            )
+            and runtime_pf_bv_effective_routed_manifest_ids.issubset(
+                runtime_pf_bv_routed_manifest_ids
+            )
+        )
+    )
     runtime_pf_bv_telemetry_present = any(
         key in counts
         for key in (
             "research_agent_runtime_pseudo_formal_block_routing_contract_complete",
             "research_agent_runtime_pseudo_formal_block_routing_rows",
+            *runtime_pf_bv_row_split_keys,
+            "research_agent_runtime_pseudo_formalization_required_formalization_manifests",
+            "research_agent_runtime_pseudo_formalization_required_missing_routing_rows",
+            *runtime_pf_bv_manifest_keys,
             "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage",
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent",
+            "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent",
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope",
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind",
             "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary",
         )
     )
     runtime_pf_bv_contract_ok = (
         not runtime_pf_bv_telemetry_present
-        or runtime_pf_bv_rows == 0
+        or (
+            runtime_pf_bv_rows == 0
+            and runtime_pf_bv_required_missing_routing == 0
+        )
         or (
             runtime_pf_bv_contract_complete
+            and runtime_pf_bv_required_missing_routing == 0
             and runtime_pf_bv_missing_method_lineage == 0
+            and runtime_pf_bv_missing_scope_parent == 0
+            and runtime_pf_bv_invalid_scope_parent == 0
+            and runtime_pf_bv_missing_inherited_scope == 0
+            and runtime_pf_bv_missing_row_kind == 0
             and runtime_pf_bv_bad_nonproof_boundary == 0
+            and runtime_pf_bv_row_split_ok
+            and runtime_pf_bv_manifest_coverage_ok
         )
+    )
+    standalone_pf_bv_component_exercised = bool(
+        artifacts.get("pseudo_formal_block_verifier_component_gate")
+    )
+    runtime_pf_bv_component_exercised = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
+        )
+    )
+    pf_bv_component_prompt_packets = max(
+        _int(counts.get("pseudo_formal_block_verifier_component_gate_prompt_packets")),
+        _int(
+            counts.get(
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets"
+            )
+        ),
+    )
+    pf_bv_component_valid_responses = max(
+        _int(counts.get("pseudo_formal_block_verifier_component_gate_valid_responses")),
+        _int(
+            counts.get(
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses"
+            )
+        ),
+    )
+    pf_bv_component_runtime_learning_rows = max(
+        _int(
+            counts.get(
+                "pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+            )
+        ),
+        _int(
+            counts.get(
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+            )
+        ),
+    )
+    pf_bv_component_accepted_blocks = max(
+        _int(counts.get("pseudo_formal_block_verifier_component_gate_accepted_blocks")),
+        _int(
+            counts.get(
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_accepted_blocks"
+            )
+        ),
+    )
+    pf_bv_component_failed_blocks = max(
+        _int(counts.get("pseudo_formal_block_verifier_component_gate_failed_blocks")),
+        _int(
+            counts.get(
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_failed_blocks"
+            )
+        ),
+    )
+    pf_bv_component_capability_evidence_ok = bool(
+        counts.get("pseudo_formal_block_verifier_component_gate_capability_evidence_ok")
+    ) or bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+        )
+    )
+    pf_bv_component_ok = bool(
+        pf_bv_component_capability_evidence_ok
+        and pf_bv_component_prompt_packets > 0
+        and pf_bv_component_valid_responses > 0
+        and pf_bv_component_runtime_learning_rows > 0
+    )
+    pf_bv_component_issues = tuple(
+        issue
+        for issue in (
+            "no live Claude/OpenAI PF/BV BlockVerifier prompt-response-validation evidence is present"
+            if not pf_bv_component_capability_evidence_ok
+            else "",
+            "PF/BV BlockVerifier gate has no prompt packets"
+            if pf_bv_component_prompt_packets <= 0
+            else "",
+            "PF/BV BlockVerifier gate has no valid responses"
+            if pf_bv_component_valid_responses <= 0
+            else "",
+            "PF/BV BlockVerifier gate has no validated runtime learning rows"
+            if pf_bv_component_runtime_learning_rows <= 0
+            else "",
+        )
+        if issue
+    )
+    runtime_pf_semantic_work_orders = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders"
+        )
+    )
+    runtime_pf_semantic_bridge_consumed = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge",
+            True,
+        )
+    )
+    runtime_pf_semantic_bridge_ok = (
+        runtime_pf_semantic_work_orders <= 0 or runtime_pf_semantic_bridge_consumed
+    )
+    runtime_pf_exact_semantic_work_orders = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders"
+        )
+    )
+    runtime_pf_exact_semantic_source_lookup_consumed = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup",
+            True,
+        )
+    )
+    runtime_pf_exact_semantic_source_lookup_ok = (
+        runtime_pf_exact_semantic_work_orders <= 0
+        or runtime_pf_exact_semantic_source_lookup_consumed
+    )
+    runtime_formal_gap_planner_handoff_rows = _int(
+        counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
+    )
+    runtime_formal_gap_planner_missing_execution_context = _int(
+        counts.get(
+            "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+        )
+    )
+    runtime_formal_gap_planner_context_complete = bool(
+        counts.get(
+            "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete",
+            runtime_formal_gap_planner_handoff_rows <= 0,
+        )
+    )
+    runtime_formal_gap_planner_followthrough = bool(
+        counts.get(
+            "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough",
+            runtime_formal_gap_planner_handoff_rows <= 0,
+        )
+    )
+    runtime_formal_gap_planner_ok = (
+        runtime_formal_gap_planner_handoff_rows <= 0
+        or (
+            runtime_formal_gap_planner_missing_execution_context == 0
+            and runtime_formal_gap_planner_context_complete
+            and runtime_formal_gap_planner_followthrough
+        )
+    )
+    runtime_gap_routing_input_rows = _int(
+        counts.get("research_agent_runtime_capability_gap_routing_input_rows")
+    )
+    runtime_gap_routing_input_rows_seen = _int(
+        counts.get("research_agent_runtime_capability_gap_routing_input_rows_seen")
+    )
+    runtime_gap_routing_input_retention_policy = str(
+        counts.get(
+            "research_agent_runtime_capability_gap_routing_input_retention_policy",
+            "",
+        )
+        or ""
+    )
+    runtime_gap_routing_retention_ok = (
+        runtime_gap_routing_input_rows_seen <= runtime_gap_routing_input_rows
+        or runtime_gap_routing_input_retention_policy == "priority_pinned_latest_rows"
+    )
+    runtime_gap_routing_selection_counts = counts.get(
+        "research_agent_runtime_capability_gap_routing_input_retention_selection_counts",
+        {},
+    )
+    runtime_gap_routing_selected_rows = 0
+    if isinstance(runtime_gap_routing_selection_counts, Mapping):
+        runtime_gap_routing_selected_rows = sum(
+            _int(value) for value in runtime_gap_routing_selection_counts.values()
+        )
+    runtime_gap_routing_missing_selection = _int(
+        counts.get(
+            "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+        )
+    )
+    runtime_gap_routing_missing_selection_boundary = _int(
+        counts.get(
+            "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary"
+        )
+    )
+    runtime_gap_routing_selection_required = (
+        runtime_gap_routing_input_rows_seen > runtime_gap_routing_input_rows
+        or runtime_gap_routing_input_retention_policy == "priority_pinned_latest_rows"
+    )
+    runtime_gap_routing_retention_selection_ok = (
+        not runtime_gap_routing_selection_required
+        or (
+            runtime_gap_routing_missing_selection == 0
+            and runtime_gap_routing_missing_selection_boundary == 0
+            and runtime_gap_routing_selected_rows >= runtime_gap_routing_input_rows
+        )
+    )
+    runtime_deferred_meta_gap_count = _int(
+        counts.get("research_agent_runtime_architect_deferred_meta_capability_gaps")
+    )
+    runtime_deferred_meta_gap_owners = counts.get(
+        "research_agent_runtime_architect_deferred_meta_capability_gap_owners",
+        {},
+    )
+    runtime_deferred_meta_gap_requirement_ids = counts.get(
+        "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids",
+        [],
+    )
+    runtime_deferred_meta_gap_details_present = (
+        runtime_deferred_meta_gap_count <= 0
+        or (
+            isinstance(runtime_deferred_meta_gap_owners, Mapping)
+            and bool(runtime_deferred_meta_gap_owners)
+            and isinstance(runtime_deferred_meta_gap_requirement_ids, (list, tuple))
+            and bool(runtime_deferred_meta_gap_requirement_ids)
+        )
+    )
+    runtime_deferred_meta_gaps_visible = bool(
+        counts.get(
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_visible",
+            runtime_deferred_meta_gap_details_present,
+        )
+    )
+    runtime_deferred_meta_gaps_resolved = bool(
+        counts.get(
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved",
+            runtime_deferred_meta_gap_count <= 0,
+        )
+    )
+    runtime_gap_routing_priority_pinned_requirement_ids = _string_set(
+        counts.get(
+            "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids",
+            [],
+        )
+    )
+    runtime_deferred_meta_gap_resolution_replay_priority_pinned = bool(
+        counts.get(
+            "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned",
+            runtime_deferred_meta_gap_count <= 0
+            or ARCHITECT_DEFERRED_META_RESOLUTION_REQUIREMENT_ID
+            in runtime_gap_routing_priority_pinned_requirement_ids,
+        )
+    )
+    runtime_deferred_meta_gaps_ok = (
+        runtime_deferred_meta_gaps_resolved
+        and runtime_deferred_meta_gaps_visible
+        and runtime_deferred_meta_gap_resolution_replay_priority_pinned
     )
     s13_capability_ready = bool(
         counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician")
+    )
+    runtime_exact_semantic_authoring_required = bool(
+        counts.get("research_agent_runtime_exact_semantic_definition_authoring_required")
+    )
+    runtime_exact_semantic_authoring_live_attempted = _int(
+        counts.get(
+            "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
+        )
+    )
+    runtime_exact_semantic_authoring_post_runtime_local_checked = _int(
+        counts.get(
+            "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked"
+        )
+    )
+    runtime_exact_semantic_authoring_post_runtime_local_compiled = _int(
+        counts.get(
+            "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled"
+        )
+    )
+    runtime_pf_bv_component_attached = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
+        )
+    )
+    runtime_pf_bv_component_capability_evidence_ok = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+        )
+    )
+    runtime_pf_bv_component_prompt_packets = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets"
+        )
+    )
+    runtime_pf_bv_component_valid_responses = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses"
+        )
+    )
+    runtime_pf_bv_component_runtime_learning_rows = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+        )
+    )
+    runtime_pf_bv_component_source_runtime_learning_path_count = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count"
+        )
+    )
+    runtime_pf_bv_component_source_runtime_learning_lineage_ok = bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+        )
+    )
+    runtime_pf_bv_component_ok = bool(
+        runtime_pf_bv_component_attached
+        and runtime_pf_bv_component_capability_evidence_ok
+        and runtime_pf_bv_component_prompt_packets > 0
+        and runtime_pf_bv_component_valid_responses > 0
+        and runtime_pf_bv_component_runtime_learning_rows > 0
+        and runtime_pf_bv_component_source_runtime_learning_path_count > 0
+        and runtime_pf_bv_component_source_runtime_learning_lineage_ok
     )
     s13_issues: list[str] = []
     if not s13_capability_ready:
         s13_issues.append(
             "no single live Architect-orchestrated AgentRuntime run has yet satisfied the full capability scorecard, including aggregate live exact semantic-definition authoring when required"
         )
+    if (
+        not s13_capability_ready
+        and runtime_exact_semantic_authoring_required
+        and runtime_exact_semantic_authoring_live_attempted <= 0
+    ):
+        s13_issues.append(
+            "exact semantic-definition authoring is required but no lineage-checked live LLM attempt is visible to the system audit"
+        )
+    if (
+        not s13_capability_ready
+        and runtime_exact_semantic_authoring_post_runtime_local_checked > 0
+        and runtime_exact_semantic_authoring_post_runtime_local_compiled <= 0
+    ):
+        s13_issues.append(
+            "post-runtime exact semantic-definition candidates reached local Lean but still require Lean repair before proof-body search can resume"
+        )
     if not runtime_pf_bv_contract_ok:
         s13_issues.append(
-            "integrated pseudo-formal/block-verification rows were emitted without complete PF+BV method lineage or non-proof boundary"
+            "integrated pseudo-formal/block-verification routing is incomplete: required PF/BV activations must produce effective routed rows; blocked, pending, or quarantine diagnostics do not satisfy activation, and emitted rows need explicit row kinds, effective/diagnostic split telemetry, complete PF+BV method lineage, scope-parent forest, and non-proof boundary"
+        )
+    if not runtime_pf_semantic_bridge_ok:
+        s13_issues.append(
+            "pseudo-formal source-to-bridge semantic primitive work orders did not reach the source-semantic ProofEngineer bridge with a semantic-support/not-source-theorem-proof boundary"
+        )
+    if not runtime_pf_exact_semantic_source_lookup_ok:
+        s13_issues.append(
+            "pseudo-formal exact semantic-definition work orders did not reach the exact semantic-definition source lookup/review loop as non-proof definition-authoring work"
+        )
+    if not runtime_formal_gap_planner_ok:
+        s13_issues.append(
+            "formal-gap planner handoff rows lost executable target-intake/route-planner/reuse-smoke context or did not produce live route-planner target-prover replay route-revision feedback"
+        )
+    if not runtime_gap_routing_retention_ok:
+        s13_issues.append(
+            "capability-gap routing input was truncated without priority-pinned retention, so older high-impact runtime obligations may not reach the next Architect turn"
+        )
+    if not runtime_gap_routing_retention_selection_ok:
+        s13_issues.append(
+            "capability-gap routing input lacks row-level retention_selection/non-evidence boundary metadata, so Architect cannot distinguish priority-pinned obligations from latest/backfill context in compressed views"
+        )
+    if not runtime_deferred_meta_gaps_visible:
+        s13_issues.append(
+            "AgentRuntime/Architect deferred meta capability gap telemetry is counted but missing owner and requirement visibility, so control-plane debt can disappear from readiness planning"
+        )
+    elif not runtime_deferred_meta_gaps_resolved:
+        s13_issues.append(
+            "unresolved AgentRuntime/Architect control-plane capability gaps remain deferred; close or explicitly re-run them before claiming integrated runtime readiness"
+        )
+    if (
+        runtime_deferred_meta_gaps_visible
+        and not runtime_deferred_meta_gap_resolution_replay_priority_pinned
+    ):
+        s13_issues.append(
+            "unresolved AgentRuntime/Architect control-plane capability gaps are not priority-pinned in capability-gap routing replay, so the next Architect turn may lose the runtime/Architect repair obligation"
+        )
+    if not runtime_pf_bv_component_ok:
+        s13_issues.append(
+            "integrated AgentRuntime has not attached live PF/BV BlockVerifier component-gate evidence with prompt packets, valid responses, validated non-proof runtime learning rows, and source runtime-learning lineage checked to the current runtime output; standalone S11b evidence does not substitute for in-loop calibration"
         )
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -609,6 +1187,76 @@ def _suite_rows(
             ),
         ),
         BenchmarkSuiteGuidanceRow(
+            suite_id="S11b_live_pseudo_formal_block_verifier",
+            exercised=standalone_pf_bv_component_exercised
+            or runtime_pf_bv_component_exercised,
+            status="OK" if pf_bv_component_ok else "CAPACITY_GAP",
+            evidence_paths=(
+                str(artifacts.get("pseudo_formal_block_verifier_component_gate", "")),
+                str(
+                    counts.get(
+                        "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path",
+                        "",
+                    )
+                    or ""
+                ),
+                "runs/pseudo_formal_block_verifier_component_gate/pseudo_formal_block_verifier_component_gate_manifest.json",
+            ),
+            key_counts={
+                "pseudo_formal_block_verifier_component_gate_capability_evidence_ok": counts.get(
+                    "pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+                ),
+                "pseudo_formal_block_verifier_component_gate_live_generator": counts.get(
+                    "pseudo_formal_block_verifier_component_gate_live_generator"
+                ),
+                "pseudo_formal_block_verifier_component_gate_static_or_fixture_only": counts.get(
+                    "pseudo_formal_block_verifier_component_gate_static_or_fixture_only"
+                ),
+                "pseudo_formal_block_verifier_component_gate_prompt_packets": counts.get(
+                    "pseudo_formal_block_verifier_component_gate_prompt_packets"
+                ),
+                "pseudo_formal_block_verifier_component_gate_valid_responses": counts.get(
+                    "pseudo_formal_block_verifier_component_gate_valid_responses"
+                ),
+                "pseudo_formal_block_verifier_component_gate_runtime_learning_rows": counts.get(
+                    "pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+                ),
+                "effective_prompt_packets": pf_bv_component_prompt_packets,
+                "effective_valid_responses": pf_bv_component_valid_responses,
+                "effective_runtime_learning_rows": pf_bv_component_runtime_learning_rows,
+                "effective_accepted_blocks": pf_bv_component_accepted_blocks,
+                "effective_failed_blocks": pf_bv_component_failed_blocks,
+            },
+            honesty_boundary=(
+                "PF/BV decomposes and checks pseudo-formal natural-language "
+                "blocks as verifier feedback. Accepted blocks are still "
+                "non-proof runtime learning rows and cannot count as Lean/AXLE "
+                "kernel evidence or source theorem proof."
+            ),
+            issues=pf_bv_component_issues,
+        ),
+        BenchmarkSuiteGuidanceRow(
             suite_id="S12_live_architect_research_path_policy",
             exercised=bool(artifacts.get("architect_research_path_policy_eval")),
             status="OK"
@@ -655,7 +1303,17 @@ def _suite_rows(
             exercised=bool(counts.get("research_agent_runtime_audit_requested"))
             or bool(artifacts.get("research_agent_runtime_audit")),
             status="OK"
-            if s13_capability_ready and runtime_pf_bv_contract_ok
+            if (
+                s13_capability_ready
+                and runtime_pf_bv_component_ok
+                and runtime_pf_bv_contract_ok
+                and runtime_pf_semantic_bridge_ok
+                and runtime_pf_exact_semantic_source_lookup_ok
+                and runtime_formal_gap_planner_ok
+                and runtime_gap_routing_retention_ok
+                and runtime_gap_routing_retention_selection_ok
+                and runtime_deferred_meta_gaps_ok
+            )
             else "CAPACITY_GAP",
             evidence_paths=(
                 str(artifacts.get("research_agent_runtime_audit", "")),
@@ -686,6 +1344,39 @@ def _suite_rows(
                 "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": counts.get(
                     "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names"
                 ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_attached": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_attached"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_candidate_packets": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_candidate_packets"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materializer_lineage_ok": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materializer_lineage_ok"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_lineage_ok": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_lineage_ok"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state"
+                ),
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proof_evidence_status": counts.get(
+                    "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proof_evidence_status"
+                ),
                 "research_agent_runtime_generated_code_sandbox_executed": counts.get(
                     "research_agent_runtime_generated_code_sandbox_executed"
                 ),
@@ -704,8 +1395,122 @@ def _suite_rows(
                 "research_agent_runtime_full_frontier_theorem_proved": counts.get(
                     "research_agent_runtime_full_frontier_theorem_proved"
                 ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_live_generator": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_live_generator"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_static_or_fixture_only": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_static_or_fixture_only"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_paths": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_paths"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_reference_dir": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_reference_dir"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_accepted_blocks": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_accepted_blocks"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_failed_blocks": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_failed_blocks"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_provider": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_provider"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_backend_provider": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_backend_provider"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path"
+                ),
                 "research_agent_runtime_capability_gaps": counts.get(
                     "research_agent_runtime_capability_gaps"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_rows": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_rows"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_rows_seen": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_rows_seen"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_retention_policy": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_retention_policy"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_retention_selection_counts": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_retention_selection_counts"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_requirement_ids": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_requirement_ids"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_owner_subsystems": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_owner_subsystems"
+                ),
+                "research_agent_runtime_capability_gap_routing_followup_commands": counts.get(
+                    "research_agent_runtime_capability_gap_routing_followup_commands"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+                ),
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": counts.get(
+                    "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gaps": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gaps"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gap_owners": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gap_owners"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_visible": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gaps_visible"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": (
+                    runtime_deferred_meta_gap_resolution_replay_priority_pinned
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_evidence": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_evidence"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_blocker": counts.get(
+                    "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_blocker"
+                ),
+                "research_agent_runtime_cross_task_theorem_family_rows": counts.get(
+                    "research_agent_runtime_cross_task_theorem_family_rows"
+                ),
+                "research_agent_runtime_cross_task_theorem_family_rows_with_explicit_family": counts.get(
+                    "research_agent_runtime_cross_task_theorem_family_rows_with_explicit_family"
+                ),
+                "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel": counts.get(
+                    "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel"
+                ),
+                "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps": counts.get(
+                    "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps"
                 ),
                 "research_agent_runtime_pseudo_formal_block_routing_contract_complete": counts.get(
                     "research_agent_runtime_pseudo_formal_block_routing_contract_complete"
@@ -713,14 +1518,116 @@ def _suite_rows(
                 "research_agent_runtime_pseudo_formal_block_routing_rows": counts.get(
                     "research_agent_runtime_pseudo_formal_block_routing_rows"
                 ),
+                "research_agent_runtime_pseudo_formal_block_routing_effective_rows": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_effective_rows"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_row_kinds": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_row_kinds"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes"
+                ),
+                "research_agent_runtime_pseudo_formalization_required_formalization_manifests": counts.get(
+                    "research_agent_runtime_pseudo_formalization_required_formalization_manifests"
+                ),
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": counts.get(
+                    "research_agent_runtime_pseudo_formalization_required_missing_routing_rows"
+                ),
+                "research_agent_runtime_pseudo_formalization_required_manifest_ids": counts.get(
+                    "research_agent_runtime_pseudo_formalization_required_manifest_ids"
+                ),
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids": counts.get(
+                    "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+                ),
+                "research_agent_runtime_pseudo_formalization_routed_manifests": counts.get(
+                    "research_agent_runtime_pseudo_formalization_routed_manifests"
+                ),
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifests": counts.get(
+                    "research_agent_runtime_pseudo_formalization_effective_routed_manifests"
+                ),
+                "research_agent_runtime_pseudo_formalization_routed_manifest_ids": counts.get(
+                    "research_agent_runtime_pseudo_formalization_routed_manifest_ids"
+                ),
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids": counts.get(
+                    "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids"
+                ),
                 "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": counts.get(
                     "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+                ),
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind": counts.get(
+                    "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind"
                 ),
                 "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": counts.get(
                     "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
                 ),
                 "research_agent_runtime_pseudo_formal_block_routing_issues": counts.get(
                     "research_agent_runtime_pseudo_formal_block_routing_issues"
+                ),
+                "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders": counts.get(
+                    "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders"
+                ),
+                "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge": counts.get(
+                    "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+                ),
+                "research_agent_runtime_source_semantic_proofengineer_bridge_requested": counts.get(
+                    "research_agent_runtime_source_semantic_proofengineer_bridge_requested"
+                ),
+                "research_agent_runtime_source_semantic_proofengineer_bridge_ran": counts.get(
+                    "research_agent_runtime_source_semantic_proofengineer_bridge_ran"
+                ),
+                "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status": counts.get(
+                    "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status"
+                ),
+                "research_agent_runtime_formal_gap_planner_handoff_rows": counts.get(
+                    "research_agent_runtime_formal_gap_planner_handoff_rows"
+                ),
+                "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context": counts.get(
+                    "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+                ),
+                "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete": counts.get(
+                    "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete"
+                ),
+                "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough": counts.get(
+                    "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough"
+                ),
+                "research_agent_runtime_formal_gap_planner_live_route_planner_invocations": counts.get(
+                    "research_agent_runtime_formal_gap_planner_live_route_planner_invocations"
+                ),
+                "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok": counts.get(
+                    "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok"
+                ),
+                "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok": counts.get(
+                    "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok"
+                ),
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_proposals": counts.get(
+                    "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_proposals"
+                ),
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids": counts.get(
+                    "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids"
                 ),
             },
             honesty_boundary=(
@@ -730,7 +1637,15 @@ def _suite_rows(
                 "runtime capability from full theorem proof. Pseudo-formal/"
                 "block-verification rows are bridge-verification and routing "
                 "feedback only; when emitted, they must preserve PF+BV method "
-                "lineage and the non-proof boundary."
+                "lineage, attach the live PF/BV component gate in-loop, reach a "
+                "source-semantic ProofEngineer bridge, and "
+                "retain the non-proof boundary. Formal-gap planner rows are "
+                "route-planning feedback; when staged they must preserve "
+                "executable context and route-revision feedback, not proof "
+                "evidence. Post-runtime exact semantic-definition attachments "
+                "are lineage-checked live handoff and local Lean diagnostic "
+                "evidence only; local Lean failure is a repair signal, not "
+                "source theorem proof."
             ),
             issues=tuple(s13_issues),
         ),
@@ -743,6 +1658,13 @@ def _top_actions(
     counts: Mapping[str, Any],
 ) -> list[dict[str, object]]:
     rows_by_id = {row.suite_id: row for row in suite_rows}
+    s13_followup_command_rows = _command_rows(
+        counts.get(
+            "research_agent_runtime_capability_gap_routing_followup_commands",
+            [],
+        )
+    )
+    s13_followup_commands = _command_strings(s13_followup_command_rows)
     proof_search_frontier_delta = _int(counts.get("proof_search_retrieval_ablation_candidate_delta")) + _int(
         counts.get("proof_search_retrieval_no_registered_ablation_candidate_delta")
     )
@@ -800,15 +1722,17 @@ def _top_actions(
         rows_by_id.get("S13_live_integrated_agent_runtime_capability", None) is not None
         and rows_by_id["S13_live_integrated_agent_runtime_capability"].status != "OK"
     ):
-        actions.append(
-            {
-                "rank": len(actions) + 1,
-                "owner_suite": "S13_live_integrated_agent_runtime_capability",
-                "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
-                "why": "S10/S11/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
-                "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, aggregate primary/retry/late exact semantic-definition authoring n_live_llm_attempted>0 when required, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, and PF+BV method-lineage/non-proof contract complete for any pseudo-formal routing rows.",
-            }
-        )
+        s13_action: dict[str, object] = {
+            "rank": len(actions) + 1,
+            "owner_suite": "S13_live_integrated_agent_runtime_capability",
+            "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, attached PF/BV BlockVerifier calibration, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
+            "why": "S10/S11/S11b/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
+            "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, attached internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, and runtime_learning_rows>0 from a live backend, zero unresolved AgentRuntime/Architect deferred meta capability gaps with owner/requirement telemetry if any are detected, architect_deferred_meta_capability_gaps_resolved priority-pinned in capability-gap replay whenever such a gap remains open, aggregate primary/retry/late/post-runtime exact semantic-definition authoring n_live_llm_attempted>0 when required, post-runtime exact semantic candidates materialized and locally Lean-checked with repair state exposed, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, PF+BV row-kind/effective-vs-diagnostic split/method-lineage/non-proof contract complete for any pseudo-formal routing rows, source-semantic ProofEngineer bridge consumption for pseudo-formal semantic primitive work orders with semantic-support/not-source-theorem-proof status, FormalizationGapPlanner executable handoff context plus live route-planner target-prover route-revision followthrough, and priority_pinned_latest_rows retention plus row-level retention_selection whenever capability-gap routing input is truncated.",
+        }
+        if s13_followup_commands:
+            s13_action["recommended_commands"] = s13_followup_commands
+            s13_action["recommended_command_rows"] = s13_followup_command_rows
+        actions.append(s13_action)
     if (
         rows_by_id.get("S10_live_coding_agent_generated_repair", None) is not None
         and rows_by_id["S10_live_coding_agent_generated_repair"].status != "OK"
@@ -833,6 +1757,19 @@ def _top_actions(
                 "action": "Run the live Formalizer Lean-candidate repair gate with Claude/OpenAI and require local Lean fail-then-pass repair evidence.",
                 "why": "Formalizer/ProofEngineer candidate materialization and local Lean feedback are plumbing unless a live generator repairs a failed candidate into a locally checked one.",
                 "success_metric": "formalizer_lean_candidate_repair_capability_evidence_ok=true with a nonzero repair sequence and local_lean_compiled > 0 from a live provider.",
+            }
+        )
+    if (
+        rows_by_id.get("S11b_live_pseudo_formal_block_verifier", None) is not None
+        and rows_by_id["S11b_live_pseudo_formal_block_verifier"].status != "OK"
+    ):
+        actions.append(
+            {
+                "rank": len(actions) + 1,
+                "owner_suite": "S11b_live_pseudo_formal_block_verifier",
+                "action": "Run the live PF/BV BlockVerifier component gate with Claude/OpenAI and require prompt packets, live verifier responses, and validated non-proof runtime learning rows.",
+                "why": "Pseudo-formal block verification should smooth Formalizer feedback and capability-gap routing, but accepted PF/BV blocks remain verifier feedback unless Lean/AXLE kernel replay proves a target obligation.",
+                "success_metric": "pseudo_formal_block_verifier_component_gate_capability_evidence_ok=true for standalone S11b, or research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, runtime_learning_rows>0, and source_runtime_learning_lineage_ok=true for integrated S13.",
             }
         )
     if (
@@ -898,6 +1835,54 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
             f"   Why: {action.get('why')}  \n"
             f"   Metric: {action.get('success_metric')}"
         )
+        command_rows = _command_rows(action.get("recommended_command_rows", []))
+        if command_rows:
+            for row in command_rows:
+                command = str(row.get("command", "") or "").strip()
+                if not command:
+                    continue
+                requirement_id = str(row.get("requirement_id", "") or "").strip()
+                owner_subsystem = str(row.get("owner_subsystem", "") or "").strip()
+                context = ""
+                if requirement_id or owner_subsystem:
+                    context = (
+                        " ("
+                        + (f"`{requirement_id}`" if requirement_id else "unknown")
+                        + " -> "
+                        + (f"`{owner_subsystem}`" if owner_subsystem else "unknown")
+                        + ")"
+                    )
+                metadata_parts = []
+                scope = str(row.get("scope", "") or "").strip()
+                priority = str(row.get("priority", "") or "").strip()
+                retention_selection = str(
+                    row.get("retention_selection", "") or ""
+                ).strip()
+                proof_evidence_status = str(
+                    row.get("proof_evidence_status", "") or ""
+                ).strip()
+                if scope:
+                    metadata_parts.append(f"scope=`{scope}`")
+                if priority:
+                    metadata_parts.append(f"priority=`{priority}`")
+                if retention_selection:
+                    metadata_parts.append(f"retention=`{retention_selection}`")
+                if proof_evidence_status:
+                    metadata_parts.append(f"evidence_status=`{proof_evidence_status}`")
+                metadata = (
+                    f" [{', '.join(metadata_parts)}]" if metadata_parts else ""
+                )
+                lines.append(f"   Command{context}{metadata}: `{command}`")
+                boundary = str(
+                    row.get("retention_selection_boundary", "")
+                    or row.get("routing_boundary", "")
+                    or ""
+                ).strip()
+                if boundary:
+                    lines.append(f"   Boundary: {boundary}")
+        else:
+            for command in _command_strings(action.get("recommended_commands", [])):
+                lines.append(f"   Command: `{command}`")
     lines.extend(["", "## Honesty Boundaries", ""])
     for boundary in payload.get("honesty_boundaries", []):
         lines.append(f"- {boundary}")
@@ -919,6 +1904,86 @@ def _int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _string_set(value: Any) -> set[str]:
+    if not isinstance(value, (list, tuple, set)):
+        return set()
+    return {str(item).strip() for item in value if str(item).strip()}
+
+
+def _command_strings(value: Any, *, limit: int = 4) -> list[str]:
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    commands: list[str] = []
+    for item in value:
+        if isinstance(item, Mapping):
+            command = str(item.get("command", "") or "").strip()
+        else:
+            command = str(item or "").strip()
+        if command and command not in commands:
+            commands.append(command)
+        if len(commands) >= limit:
+            break
+    return commands
+
+
+def _command_rows(value: Any, *, limit: int = 4) -> list[dict[str, str]]:
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in value:
+        if isinstance(item, Mapping):
+            command = str(item.get("command", "") or "").strip()
+            requirement_id = str(item.get("requirement_id", "") or "").strip()
+            owner_subsystem = str(item.get("owner_subsystem", "") or "").strip()
+            scope = str(item.get("scope", "") or "").strip()
+            priority = str(item.get("priority", "") or "").strip()
+            retention_selection = str(
+                item.get("retention_selection", "") or ""
+            ).strip()
+            retention_selection_boundary = str(
+                item.get("retention_selection_boundary", "") or ""
+            ).strip()
+            proof_evidence_status = str(
+                item.get("proof_evidence_status", "") or ""
+            ).strip()
+            routing_boundary = str(
+                item.get("routing_boundary", "") or ""
+            ).strip()
+        else:
+            command = str(item or "").strip()
+            requirement_id = ""
+            owner_subsystem = ""
+            scope = ""
+            priority = ""
+            retention_selection = ""
+            retention_selection_boundary = ""
+            proof_evidence_status = ""
+            routing_boundary = ""
+        if not command:
+            continue
+        key = (requirement_id, owner_subsystem, command)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "requirement_id": requirement_id,
+                "owner_subsystem": owner_subsystem,
+                "scope": scope,
+                "priority": priority,
+                "retention_selection": retention_selection,
+                "retention_selection_boundary": retention_selection_boundary,
+                "proof_evidence_status": proof_evidence_status,
+                "routing_boundary": routing_boundary,
+                "command": command,
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return rows
 
 
 def _float(value: Any) -> float:

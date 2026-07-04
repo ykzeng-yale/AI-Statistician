@@ -31,11 +31,17 @@ SEMANTIC_DEFINITION_REPAIR_QUEUE_ROW_ARTIFACT_KIND = (
 TYPECHECKED_REVIEW_VERIFIER_GATE_WORK_ORDER_ARTIFACT_KIND = (
     "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
 )
+TYPECHECKED_REVIEW_BLOCKED_LEARNING_ROW_ARTIFACT_KIND = (
+    "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewBlockedLearningRow"
+)
 TYPECHECKED_REVIEW_RECHECK_QUEUE_PROOF_EVIDENCE_STATUS = (
     "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
 )
 TYPECHECKED_REVIEW_VERIFIER_GATE_PROOF_EVIDENCE_STATUS = (
     "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+)
+TYPECHECKED_REVIEW_BLOCKED_PROOF_EVIDENCE_STATUS = (
+    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_BLOCKED_NOT_PROOF_EVIDENCE"
 )
 LEARNING_TASK = "source_theorem_exact_semantic_definition_source_lookup"
 DEFINITION_CLOSURE_LEARNING_TASK = (
@@ -52,6 +58,9 @@ SEMANTIC_DEFINITION_REPAIR_LEARNING_TASK = (
 )
 TYPECHECKED_REVIEW_VERIFIER_GATE_LEARNING_TASK = (
     "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+)
+TYPECHECKED_REVIEW_BLOCKED_LEARNING_TASK = (
+    "source_theorem_exact_semantic_definition_typechecked_review_blocked"
 )
 PROOF_EVIDENCE_STATUS = "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE"
 DEFINITION_CLOSURE_PROOF_EVIDENCE_STATUS = (
@@ -638,6 +647,16 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         if "llm_semantic_review_approved_requires_verifier_recheck_gate"
         in list(row.get("proof_body_recheck_blockers", []) or [])
     ]
+    blocked_review_learning_rows = [
+        _typechecked_review_blocked_learning_row(row)
+        for row in blocked_packets
+        if "llm_semantic_review_approved_requires_verifier_recheck_gate"
+        not in list(row.get("proof_body_recheck_blockers", []) or [])
+    ]
+    runtime_learning_rows = [
+        *blocked_review_learning_rows,
+        *verifier_gate_work_orders,
+    ]
     verifier_gate_work_orders_path = (
         out_dir
         / "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders.jsonl"
@@ -647,7 +666,7 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
     _write_jsonl(queue_path, rows)
     _write_jsonl(blocked_path, blocked_packets)
     _write_jsonl(verifier_gate_work_orders_path, verifier_gate_work_orders)
-    _write_jsonl(learning_path, verifier_gate_work_orders)
+    _write_jsonl(learning_path, runtime_learning_rows)
     manifest = {
         "schema_version": 1,
         "artifact_kind": (
@@ -676,8 +695,9 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
             in list(row.get("proof_body_recheck_blockers", []) or [])
         ),
         "n_blocked_review_packets": len(blocked_packets),
+        "n_blocked_review_learning_rows": len(blocked_review_learning_rows),
         "n_verifier_gate_work_orders": len(verifier_gate_work_orders),
-        "n_runtime_learning_rows": len(verifier_gate_work_orders),
+        "n_runtime_learning_rows": len(runtime_learning_rows),
         "n_source_proof_body_rows": len(source_rows),
         "n_execution_queue_rows": len(rows),
         "n_ready": sum(
@@ -1204,6 +1224,167 @@ def _typechecked_review_packet_as_synthesis_row(row: Mapping[str, Any]) -> dict[
             or ""
         ),
         "semantic_review_status": review_status,
+    }
+
+
+def _typechecked_review_blocked_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
+    nested_mapping = nested if isinstance(nested, Mapping) else {}
+    target = str(row.get("target_theorem_name", "") or "").strip()
+    placeholder = str(row.get("placeholder_symbol", "") or "").strip()
+    candidate_artifact_path = _typechecked_review_candidate_artifact_path_text(row)
+    definition_only_candidate_artifact_path = str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or nested_mapping.get("definition_only_candidate_artifact_path", "")
+        or ""
+    ).strip()
+    blockers = [
+        str(value)
+        for value in row.get("proof_body_recheck_blockers", []) or []
+        if str(value).strip()
+    ]
+    semantic_review_evidence = [
+        str(value)
+        for value in row.get("semantic_review_evidence", []) or []
+        if str(value).strip()
+    ]
+    semantic_alignment_blockers = [
+        str(value)
+        for value in row.get("semantic_alignment_blockers", []) or []
+        if str(value).strip()
+    ]
+    if not semantic_alignment_blockers:
+        semantic_alignment_blockers = list(blockers)
+    required_next_checks = [
+        "obtain explicit semantic review approval for the typechecked exact semantic-definition candidate",
+        "rerun the typechecked review recheck queue only after semantic review clears",
+        "keep the exact source theorem proof-body queue blocked until local Lean/AXLE verifies the theorem",
+    ]
+    if "candidate_artifact_path_missing" in blockers:
+        required_next_checks.insert(
+            1,
+            "materialize or preserve candidate_artifact_path before proof-body recheck",
+        )
+    blocker_feedback_id = (
+        "source_theorem_exact_semantic_definition_typechecked_review_blocked:"
+        + stable_hash(
+            [
+                row.get("review_packet_id", ""),
+                target,
+                placeholder,
+                candidate_artifact_path,
+                definition_only_candidate_artifact_path,
+                blockers,
+            ]
+        )[:20]
+    )
+    input_summary = {
+        "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
+        "source_review_packet_id": str(row.get("review_packet_id", "") or ""),
+        "target_theorem_name": target,
+        "target_ids": _target_ids_from_row(row, fallback_target=target),
+        "placeholder_symbol": placeholder,
+        "candidate_artifact_path": candidate_artifact_path,
+        "definition_only_candidate_artifact_path": (
+            definition_only_candidate_artifact_path
+        ),
+        "local_definition_lean_checked": bool(
+            row.get("local_definition_lean_checked", False)
+            or nested_mapping.get("local_definition_lean_checked", False)
+        ),
+        "local_definition_lean_compiled": bool(
+            row.get("local_definition_lean_compiled", False)
+            or nested_mapping.get("local_definition_lean_compiled", False)
+        ),
+        "semantic_definition_typecheck_evidence_status": str(
+            row.get("semantic_definition_typecheck_evidence_status", "")
+            or nested_mapping.get("semantic_definition_typecheck_evidence_status", "")
+            or ""
+        ),
+        "semantic_review_decision": str(
+            row.get("semantic_review_decision", "") or ""
+        ),
+        "semantic_review_status": str(row.get("semantic_review_status", "") or ""),
+        "semantic_review_evidence": semantic_review_evidence,
+        "semantic_alignment_blockers": semantic_alignment_blockers,
+        "proof_body_recheck_blockers": blockers,
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_kernel_verified": bool(
+            row.get("source_theorem_kernel_verified", False)
+        ),
+        "source_theorem_kernel_evidence_eligible": False,
+        "failure_classification": "semantic_definition_review_blocked",
+        "runtime_queue_status": (
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        ),
+        "definition_candidate_review_mode": (
+            "semantic_review_blocked_existing_candidate"
+        ),
+        "required_next_checks": required_next_checks,
+    }
+    return {
+        "schema_version": 1,
+        "artifact_kind": TYPECHECKED_REVIEW_BLOCKED_LEARNING_ROW_ARTIFACT_KIND,
+        "learning_task": TYPECHECKED_REVIEW_BLOCKED_LEARNING_TASK,
+        "action_type": "repair_reviewed_exact_semantic_definition",
+        "work_order_id": blocker_feedback_id,
+        "blocker_feedback_id": blocker_feedback_id,
+        "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
+        "source_review_packet_id": str(row.get("review_packet_id", "") or ""),
+        "question_id": str(row.get("question_id", "") or ""),
+        "question_title": str(row.get("question_title", "") or ""),
+        "target_theorem_name": target,
+        "target_ids": _target_ids_from_row(row, fallback_target=target),
+        "placeholder_symbol": placeholder,
+        "candidate_artifact_path": candidate_artifact_path,
+        "definition_only_candidate_artifact_path": (
+            definition_only_candidate_artifact_path
+        ),
+        "local_definition_lean_checked": bool(
+            input_summary["local_definition_lean_checked"]
+        ),
+        "local_definition_lean_compiled": bool(
+            input_summary["local_definition_lean_compiled"]
+        ),
+        "semantic_definition_typecheck_evidence_status": str(
+            input_summary["semantic_definition_typecheck_evidence_status"]
+        ),
+        "semantic_review_decision": str(input_summary["semantic_review_decision"]),
+        "semantic_review_status": str(input_summary["semantic_review_status"]),
+        "semantic_review_evidence": semantic_review_evidence,
+        "semantic_alignment_blockers": semantic_alignment_blockers,
+        "semantic_review_required_before_proof_body": True,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_kernel_verified": bool(
+            input_summary["source_theorem_kernel_verified"]
+        ),
+        "source_theorem_kernel_evidence_eligible": False,
+        "proof_body_recheck_blockers": blockers,
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "runtime_queue_status": (
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        ),
+        "failure_classification": "semantic_definition_review_blocked",
+        "definition_candidate_review_mode": (
+            "semantic_review_blocked_existing_candidate"
+        ),
+        "recommended_next_action": (
+            "complete semantic-faithfulness review and candidate materialization for "
+            "this typechecked exact semantic-definition candidate before proof-body "
+            "recheck"
+        ),
+        "required_next_checks": required_next_checks,
+        "acceptance_gate": (
+            "Semantic review must approve the candidate, or emit a verifier-gate "
+            "work order when LLM approval needs local checking; a later exact "
+            "source theorem proof-body run must still kernel-check the target "
+            "declaration before proof evidence is claimed."
+        ),
+        "input_summary": input_summary,
+        "proof_evidence_status": TYPECHECKED_REVIEW_BLOCKED_PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": BOUNDARY,
+        "boundary": BOUNDARY,
     }
 
 
@@ -3632,6 +3813,22 @@ def _source_lookup_semantic_import_review(
     declaration_name = _lean_declaration_name(snippet)
     declaration_name_normalized = _compact_identifier(declaration_name)
     snippet_normalized = _compact_identifier(snippet)
+    if not _source_lookup_declaration_has_exact_or_high_signal_match(
+        hit=hit,
+        normalized_terms=normalized_terms,
+        work_order=work_order,
+    ):
+        return {
+            "semantic_import_candidate_allowed": False,
+            "source_semantic_review_status": (
+                "SEMANTIC_REVIEW_REQUIRED_WEAK_CONTEXTUAL_DECLARATION_MATCH"
+            ),
+            "source_semantic_review_reason": (
+                "declaration matched only broad contextual terms; keep it as "
+                "source/RAG context, but do not treat it as a reviewed exact "
+                "semantic-definition import candidate"
+            ),
+        }
     if primary_normalized == "orderstat":
         incompatible_terms = {
             "samplemean",
@@ -3756,6 +3953,102 @@ def _source_lookup_rank_reason(
     if candidate_kind == "lean_declaration":
         return f"lean_declaration_match_term={match_term}"
     return f"source_reference_match_term={match_term}"
+
+
+_WEAK_CONTEXTUAL_DECLARATION_MATCH_TERMS = frozenset(
+    {
+        "alpha",
+        "bridge",
+        "coverage",
+        "event",
+        "finite",
+        "interval",
+        "prediction",
+        "sample",
+        "samples",
+        "score",
+        "scores",
+        "split",
+    }
+)
+
+
+def _source_lookup_declaration_has_exact_or_high_signal_match(
+    *,
+    hit: Mapping[str, Any],
+    normalized_terms: list[str],
+    work_order: Mapping[str, Any] | None = None,
+) -> bool:
+    snippet = str(hit.get("snippet", "") or "")
+    declaration_name = _lean_declaration_name(snippet)
+    path_stem = Path(str(hit.get("path", "") or "")).stem
+    declaration_context = _compact_identifier(
+        " ".join([declaration_name, path_stem, snippet])
+    )
+    exact_aliases = _source_lookup_exact_aliases(
+        work_order=work_order,
+        normalized_terms=normalized_terms,
+    )
+    if any(alias and alias in declaration_context for alias in exact_aliases):
+        return True
+    high_signal_terms = _source_lookup_high_signal_terms(normalized_terms)
+    line_matched_terms = {
+        str(term).lower()
+        for term in hit.get("matched_terms", []) or []
+        if str(term).strip()
+    }
+    if high_signal_terms & line_matched_terms:
+        return True
+    high_signal_compacts = {
+        _compact_identifier(term)
+        for term in high_signal_terms
+        if _compact_identifier(term)
+    }
+    return any(
+        compact and compact in declaration_context for compact in high_signal_compacts
+    )
+
+
+def _source_lookup_exact_aliases(
+    *,
+    work_order: Mapping[str, Any] | None,
+    normalized_terms: list[str],
+) -> set[str]:
+    aliases: set[str] = set()
+    if isinstance(work_order, Mapping):
+        raw_values: list[Any] = [
+            work_order.get("placeholder_symbol", ""),
+            work_order.get("target_theorem_name", ""),
+            work_order.get("target_lean_declaration", ""),
+            *list(work_order.get("target_ids", []) or []),
+            *list(work_order.get("target_theorem_goal_ids", []) or []),
+        ]
+    else:
+        raw_values = []
+    if normalized_terms:
+        raw_values.append(normalized_terms[0])
+    for value in raw_values:
+        text = str(value or "").strip()
+        compact = _compact_identifier(text)
+        if len(compact) >= 4:
+            aliases.add(compact)
+    return aliases
+
+
+def _source_lookup_high_signal_terms(normalized_terms: list[str]) -> set[str]:
+    terms: set[str] = set()
+    for term in normalized_terms:
+        stripped = str(term or "").lower().strip()
+        if (
+            not stripped
+            or len(stripped) < 4
+            or len(stripped) > 80
+            or stripped in _WEAK_CONTEXTUAL_DECLARATION_MATCH_TERMS
+        ):
+            continue
+        if re.search(r"[a-z]", stripped):
+            terms.add(stripped)
+    return terms
 
 
 def _source_lookup_context_score(

@@ -13,6 +13,31 @@ from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_execut
 )
 
 
+def test_local_lean_failure_classifier_routes_candidate_diagnostics() -> None:
+    classify = executor_module._classify_local_lean_failure
+
+    assert classify(
+        [
+            "candidate.lean:31:25: error(lean.synthInstanceFailed): "
+            "failed to synthesize instance of type class",
+            "  FloorRing ℝ",
+        ]
+    ) == "local_lean_typeclass_synthesis_failed"
+    assert classify(
+        [
+            "candidate.lean:30:33: error(lean.invalidField): "
+            "Invalid field `toNNReal`: The environment does not contain "
+            "`Real.toNNReal`"
+        ]
+    ) == "local_lean_invalid_field"
+    assert classify(
+        [
+            "candidate.lean:30:25: error(lean.unknownIdentifier): "
+            "Unknown constant `Int.floor`"
+        ]
+    ) == "local_lean_unknown_identifier"
+
+
 def _write_lean_repair_tasks(path: Path) -> None:
     rows = [
         {
@@ -1153,7 +1178,9 @@ def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
     assert results[0]["execution_status"] == (
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
     )
-    assert results[0]["failure_classification"] == "local_lean_failed_unclassified"
+    assert results[0]["failure_classification"] == "local_lean_type_mismatch"
+    assert manifest["dominant_failure_classification"] == "local_lean_type_mismatch"
+    assert manifest["by_failure_classification"] == {"local_lean_type_mismatch": 1}
     assert manifest["n_lean_environment_repair_tasks"] == 0
     assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
     assert manifest["n_exact_semantic_definition_authoring_repair_tasks"] == 1
@@ -1189,7 +1216,7 @@ def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
     ] == str(definition_only_candidate)
     assert authoring_tasks[0]["candidate_repair_feedback"][
         "failure_classification"
-    ] == "local_lean_failed_unclassified"
+    ] == "local_lean_type_mismatch"
     assert "application type mismatch" in "\n".join(
         authoring_tasks[0]["candidate_repair_feedback"]["local_lean_diagnostics"]
     )

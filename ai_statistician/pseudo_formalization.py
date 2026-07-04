@@ -39,11 +39,33 @@ PSEUDO_FORMAL_DEFAULT_BLOCK_DEPTH = 1
 PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE = "earlier_block_statement_only"
 PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS = "lean_bridge_conservative"
 PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE = "parallel_pessimistic_aggregation"
+PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND = (
+    "pseudo_formal_independent_block_verification_request"
+)
+PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND = (
+    "pseudo_formal_structural_decomposition_request"
+)
+PSEUDO_FORMAL_FORMALIZER_PROPOSED_BLOCK_VERIFIER_PROVENANCE = "formalizer_proposed"
+PSEUDO_FORMAL_NOT_RUN_BLOCK_VERIFIER_PROVENANCE = "not_run"
+PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES = (
+    "independent_block_verifier",
+    "runtime_block_verifier",
+    "external_block_verifier",
+)
+PSEUDO_FORMAL_MAX_BLOCK_PREMISES = 12
+PSEUDO_FORMAL_MAX_BLOCK_DEPENDENCIES = 8
+PSEUDO_FORMAL_MAX_BLOCK_INHERITED_SCOPE_ITEMS = 8
+PSEUDO_FORMAL_MAX_BLOCK_SOURCE_ANCHORS = 8
+PSEUDO_FORMAL_MAX_BLOCK_CONCLUSION_CHARS = 1600
+PSEUDO_FORMAL_MAX_BLOCK_PROOF_TEXT_CHARS = 6000
+PSEUDO_FORMAL_MAX_BLOCK_LOCAL_CONTEXT_CHARS = 9000
 PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES = (
     "at most four proof-tree layers",
+    "bounded local context per block: concise premises, conclusion, proof, inherited scope, and dependency list",
     "no trivial restatement-only decomposition",
     "dependencies are statement-level citations, not hidden proof-body access",
     "same-level dependency_ids must reference earlier blocks",
+    "scope_parent_id encodes the scope-inheritance forest and references at most one earlier block",
     "assumptions modified from an enclosing context must be restated",
 )
 VALID_DEPENDENCY_SCOPES = (
@@ -172,6 +194,30 @@ VALID_BLOCK_TYPES = (
     "calculation",
     "case",
 )
+BLOCK_TYPE_ALIASES = {
+    "assumption": "fact",
+    "assumption_block": "fact",
+    "hypothesis": "fact",
+    "hypothesis_block": "fact",
+    "premise": "fact",
+    "premise_block": "fact",
+    "theorem_step": "lemma",
+    "lemma_step": "lemma",
+    "proof_step": "lemma",
+    "proof_block": "lemma",
+    "derivation_step": "lemma",
+    "derivation_block": "lemma",
+    "argument_step": "lemma",
+    "conclusion": "claim",
+    "conclusion_block": "claim",
+    "result": "claim",
+    "result_block": "claim",
+    "final_claim": "claim",
+    "definition_block": "definition",
+    "calc_block": "calculation",
+    "calculation_block": "calculation",
+    "case_block": "case",
+}
 VALID_BLOCK_VERDICTS = ("not_run", "accepted", "failed", "unknown")
 VALID_FAITHFULNESS_STATUSES = ("unchecked", "faithful", "unfaithful", "needs_review")
 VALID_LEAN_FEASIBILITY = (
@@ -181,6 +227,18 @@ VALID_LEAN_FEASIBILITY = (
     "needs_semantic_definition",
     "pseudo_only",
     "unknown",
+)
+PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS = (
+    "pseudo_formal_packet_validation_quarantine",
+    "pseudo_formal_block_verification_pending",
+    "pseudo_formal_block_verification_failure_blocked_by_faithfulness",
+    "pseudo_formal_block_verification_failure_blocked_by_independent_bv",
+    "pseudo_formal_lean_candidate_seed_blocked",
+    "pseudo_formal_formal_library_grounding_query_blocked_by_faithfulness",
+    "pseudo_formal_library_gap_blocked_by_faithfulness",
+    "pseudo_formal_exact_semantic_definition_request_blocked_by_faithfulness",
+    "pseudo_formal_nonlean_residual_gap_blocked_by_faithfulness",
+    "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness",
 )
 
 
@@ -218,8 +276,17 @@ def pseudo_formal_verification_method_contract() -> dict[str, Any]:
         "graph_contract": {
             "dependency_graph": "directed_acyclic_graph",
             "scope_inheritance_graph": "forest",
+            "scope_parent_field": "scope_parent_id",
             "dependency_access": "statement_only_no_hidden_proof_body_access",
             "same_level_order_rule": "same-level dependencies must cite earlier blocks",
+            "scope_parent_order_rule": (
+                "scope_parent_id is empty for roots and otherwise references an "
+                "earlier block whose scope is inherited"
+            ),
+            "scope_access": (
+                "block verification may use inherited parent scope plus explicit "
+                "premises, but not hidden proof text from dependencies"
+            ),
             "hoisting_rule": (
                 "any intermediate object needed from another proof body must be "
                 "hoisted into its own block statement before it can be cited"
@@ -231,6 +298,17 @@ def pseudo_formal_verification_method_contract() -> dict[str, Any]:
         ),
         "block_structure_contract": {
             "max_proof_tree_depth": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+            "max_block_premises": PSEUDO_FORMAL_MAX_BLOCK_PREMISES,
+            "max_block_dependencies": PSEUDO_FORMAL_MAX_BLOCK_DEPENDENCIES,
+            "max_block_inherited_scope_items": (
+                PSEUDO_FORMAL_MAX_BLOCK_INHERITED_SCOPE_ITEMS
+            ),
+            "max_block_source_anchors": PSEUDO_FORMAL_MAX_BLOCK_SOURCE_ANCHORS,
+            "max_block_conclusion_chars": PSEUDO_FORMAL_MAX_BLOCK_CONCLUSION_CHARS,
+            "max_block_proof_text_chars": PSEUDO_FORMAL_MAX_BLOCK_PROOF_TEXT_CHARS,
+            "max_block_local_context_chars": (
+                PSEUDO_FORMAL_MAX_BLOCK_LOCAL_CONTEXT_CHARS
+            ),
             "dependency_scopes": list(VALID_DEPENDENCY_SCOPES),
             "rules": list(PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES),
             "default_dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
@@ -332,7 +410,13 @@ def pseudo_formalizer_output_contract() -> dict[str, Any]:
             "premises": ["local premise text or referenced earlier blocks"],
             "conclusion": "single local conclusion",
             "proof_text": "proof body for only this block; use None/empty only when absent",
-            "dependency_ids": ["earlier block ids"],
+            "dependency_ids": [
+                "earlier block ids, plus direct child block ids only when dependency_scope allows"
+            ],
+            "scope_parent_id": "empty for a root block, otherwise one earlier block id",
+            "inherited_scope": [
+                "optional bounded scope text inherited from scope_parent_id"
+            ],
             "source_anchors": [
                 {
                     "kind": "theory_trace|paper|proof_body|theorem_card|other",
@@ -342,6 +426,10 @@ def pseudo_formalizer_output_contract() -> dict[str, Any]:
             ],
             "block_depth": (
                 "1..4 PF tree depth; keep decomposition shallow and nontrivial"
+            ),
+            "structural_quality": (
+                "Good-PF bounded-context audit; all_ok must be true before "
+                "the block can feed Lean/RAG/source-to-bridge lanes"
             ),
             "dependency_scope": list(VALID_DEPENDENCY_SCOPES),
             "semantic_primitive_requirements": ["missing primitive or definition ids"],
@@ -357,9 +445,20 @@ def pseudo_formalizer_output_contract() -> dict[str, Any]:
             "block_verification": {
                 "verdict": list(VALID_BLOCK_VERDICTS),
                 "reason": "short verifier rationale",
+                "verifier_provenance": (
+                    "formalizer_proposed unless produced by a separate "
+                    "independent block-verifier call"
+                ),
+                "independent_verifier": (
+                    "true only for a verifier call independent from the "
+                    "pseudo-formal rewrite generator"
+                ),
                 "strictness_threshold": list(VALID_CALIBRATION_STRICTNESS),
                 "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
-                "rollout_count": "independent BV rollouts used for this report",
+                "rollout_count": (
+                    "independent BV rollouts used for this report; must be at "
+                    "least 1 when verdict=accepted"
+                ),
             },
         },
         "packet_calibration_contract": {
@@ -402,6 +501,7 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
             "conclusion",
             "proof_text",
             "dependency_ids",
+            "scope_parent_id",
             "dependency_scope",
             "source_anchors",
             "lean_feasibility",
@@ -409,10 +509,19 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
             "faithfulness_repair",
             "block_verification",
         ],
-        "dependency_rule": "dependency_ids must reference earlier block ids",
+        "dependency_rule": (
+            "dependency_ids must reference earlier block ids unless "
+            "dependency_scope=direct_child_or_earlier_statement_only, in which "
+            "case a block may also cite its own direct child block statements"
+        ),
+        "scope_parent_rule": (
+            "scope_parent_id must be empty for a root block or reference one earlier "
+            "block; this is the scope-inheritance forest, separate from dependency_ids"
+        ),
         "dependency_scope_rule": (
             "dependencies are statement-level citations under PF/BV scope rules; "
-            "hidden proof-body access must be hoisted into its own block"
+            "hidden proof-body access must be hoisted into its own block; "
+            "same-level dependencies must still cite earlier blocks"
         ),
         "block_structure_rules": list(PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES),
         "max_proof_tree_depth": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
@@ -508,7 +617,21 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
     if not blocks:
         errors.append("blocks must contain at least one pseudo-formal block")
         return sorted(set(errors))
+    scope_parent_by_block_id: dict[str, str] = {}
+    dependency_ids_by_block_id: dict[str, list[str]] = {}
+    for block in blocks:
+        block_id = str(block.get("block_id", "") or "").strip()
+        if not block_id or block_id in scope_parent_by_block_id:
+            continue
+        scope_parent_by_block_id[block_id] = str(
+            block.get(
+                "scope_parent_id",
+                block.get("scope_parent", block.get("parent_block_id", "")),
+            )
+            or ""
+        ).strip()
     seen: set[str] = set()
+    block_depths: dict[str, int] = {}
     for index, block in enumerate(blocks):
         block_id = str(block.get("block_id", "") or "").strip()
         if not block_id:
@@ -541,6 +664,26 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(
                 f"blocks[{index}] unsupported dependency_scope: {dependency_scope}"
             )
+        scope_parent_id = str(block.get("scope_parent_id", "") or "").strip()
+        if scope_parent_id:
+            if scope_parent_id == block_id:
+                errors.append(f"blocks[{index}] scope_parent_id cannot be self")
+            elif scope_parent_id not in seen:
+                errors.append(
+                    "blocks[{}] scope_parent_id must reference an earlier block: "
+                    "{}".format(index, scope_parent_id)
+                )
+            else:
+                parent_depth = block_depths.get(scope_parent_id)
+                if (
+                    block_depth is not None
+                    and parent_depth is not None
+                    and block_depth <= parent_depth
+                ):
+                    errors.append(
+                        f"blocks[{index}] block_depth must be deeper than "
+                        f"scope_parent_id {scope_parent_id}"
+                    )
         if not _as_mapping_rows(block.get("source_anchors")):
             errors.append(f"blocks[{index}] missing source_anchors")
         if bool(block.get("kernel_verified", False)):
@@ -578,15 +721,80 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
         verdict = _block_verdict(block)
         if verdict not in VALID_BLOCK_VERDICTS:
             errors.append(f"blocks[{index}] unsupported block verdict: {verdict}")
-        for dep_id in _string_list(block.get("dependency_ids")):
+        block_verification = (
+            block.get("block_verification", {})
+            if isinstance(block.get("block_verification", {}), Mapping)
+            else {}
+        )
+        block_verification_rollout_count = max(
+            0,
+            _int_or_none(block_verification.get("rollout_count")) or 0,
+        )
+        if verdict == "accepted" and block_verification_rollout_count < 1:
+            errors.append(
+                f"blocks[{index}] accepted block_verification must record "
+                "rollout_count >= 1"
+            )
+        dependency_ids = _string_list(block.get("dependency_ids"))
+        if block_id:
+            dependency_ids_by_block_id[block_id] = dependency_ids
+        for dep_id in dependency_ids:
             if dep_id == block_id:
                 errors.append(f"blocks[{index}] dependency_ids cannot include self")
-            elif dep_id not in seen:
-                errors.append(
-                    f"blocks[{index}] dependency_id must reference an earlier block: {dep_id}"
-                )
+            elif dep_id not in seen and not (
+                dependency_scope == "direct_child_or_earlier_statement_only"
+                and scope_parent_by_block_id.get(dep_id) == block_id
+            ):
+                if dependency_scope == "direct_child_or_earlier_statement_only":
+                    errors.append(
+                        "blocks[{}] dependency_id must reference an earlier "
+                        "block or direct child: {}".format(index, dep_id)
+                    )
+                else:
+                    errors.append(
+                        "blocks[{}] dependency_id must reference an earlier "
+                        "block: {}".format(index, dep_id)
+                    )
         seen.add(block_id)
+        if block_depth is not None:
+            block_depths[block_id] = block_depth
+    cycle_nodes = _pseudo_formal_dependency_cycle_nodes(dependency_ids_by_block_id)
+    if cycle_nodes:
+        errors.append(
+            "dependency graph must be acyclic; cycle includes: "
+            + ", ".join(cycle_nodes)
+        )
     return sorted(set(errors))
+
+
+def _pseudo_formal_dependency_cycle_nodes(
+    dependency_ids_by_block_id: Mapping[str, Sequence[str]],
+) -> list[str]:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    cycle_nodes: set[str] = set()
+
+    def visit(node: str, path: list[str]) -> None:
+        if node in visiting:
+            if node in path:
+                cycle_nodes.update(path[path.index(node) :])
+            else:
+                cycle_nodes.add(node)
+            return
+        if node in visited:
+            return
+        visiting.add(node)
+        path.append(node)
+        for dep_id in dependency_ids_by_block_id.get(node, []):
+            if dep_id in dependency_ids_by_block_id:
+                visit(dep_id, path)
+        path.pop()
+        visiting.remove(node)
+        visited.add(node)
+
+    for block_id in dependency_ids_by_block_id:
+        visit(block_id, [])
+    return sorted(cycle_nodes)
 
 
 def pseudo_formal_block_work_order_rows(packet: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -595,6 +803,105 @@ def pseudo_formal_block_work_order_rows(packet: Mapping[str, Any]) -> list[dict[
     for block in _as_mapping_rows(normalized.get("blocks")):
         rows.extend(_work_order_rows_for_block(normalized, block))
     return rows
+
+
+def pseudo_formal_routable_work_order_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        dict(row)
+        for row in rows
+        if str(row.get("row_kind", "") or "")
+        not in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS
+    ]
+
+
+def pseudo_formal_block_structural_quality(block: Mapping[str, Any]) -> dict[str, Any]:
+    """Measure whether a block is small enough for Good-PF style BV calls."""
+    premises = _string_list(block.get("premises"))
+    dependency_ids = _string_list(block.get("dependency_ids"))
+    inherited_scope = _string_list(block.get("inherited_scope"))
+    source_anchors = _as_mapping_rows(block.get("source_anchors"))
+    conclusion = str(block.get("conclusion", "") or "")
+    proof_text = str(block.get("proof_text", "") or "")
+    premise_chars = sum(len(item) for item in premises)
+    inherited_scope_chars = sum(len(item) for item in inherited_scope)
+    source_anchor_chars = sum(
+        len(str(anchor.get("excerpt", "") or ""))
+        + len(str(anchor.get("id", "") or ""))
+        for anchor in source_anchors
+    )
+    local_context_chars = (
+        premise_chars
+        + len(conclusion)
+        + len(proof_text)
+        + inherited_scope_chars
+        + source_anchor_chars
+    )
+    metrics = {
+        "n_premises": len(premises),
+        "n_dependency_ids": len(dependency_ids),
+        "n_inherited_scope_items": len(inherited_scope),
+        "n_source_anchors": len(source_anchors),
+        "premise_chars": premise_chars,
+        "conclusion_chars": len(conclusion),
+        "proof_text_chars": len(proof_text),
+        "inherited_scope_chars": inherited_scope_chars,
+        "source_anchor_chars": source_anchor_chars,
+        "local_context_chars": local_context_chars,
+    }
+    issues: list[str] = []
+    if len(premises) > PSEUDO_FORMAL_MAX_BLOCK_PREMISES:
+        issues.append(
+            "too_many_premises:"
+            f"{len(premises)}>{PSEUDO_FORMAL_MAX_BLOCK_PREMISES}"
+        )
+    if len(dependency_ids) > PSEUDO_FORMAL_MAX_BLOCK_DEPENDENCIES:
+        issues.append(
+            "too_many_dependency_ids:"
+            f"{len(dependency_ids)}>{PSEUDO_FORMAL_MAX_BLOCK_DEPENDENCIES}"
+        )
+    if len(inherited_scope) > PSEUDO_FORMAL_MAX_BLOCK_INHERITED_SCOPE_ITEMS:
+        issues.append(
+            "too_many_inherited_scope_items:"
+            f"{len(inherited_scope)}>{PSEUDO_FORMAL_MAX_BLOCK_INHERITED_SCOPE_ITEMS}"
+        )
+    if len(source_anchors) > PSEUDO_FORMAL_MAX_BLOCK_SOURCE_ANCHORS:
+        issues.append(
+            "too_many_source_anchors:"
+            f"{len(source_anchors)}>{PSEUDO_FORMAL_MAX_BLOCK_SOURCE_ANCHORS}"
+        )
+    if len(conclusion) > PSEUDO_FORMAL_MAX_BLOCK_CONCLUSION_CHARS:
+        issues.append(
+            "conclusion_too_long:"
+            f"{len(conclusion)}>{PSEUDO_FORMAL_MAX_BLOCK_CONCLUSION_CHARS}"
+        )
+    if len(proof_text) > PSEUDO_FORMAL_MAX_BLOCK_PROOF_TEXT_CHARS:
+        issues.append(
+            "proof_text_too_long:"
+            f"{len(proof_text)}>{PSEUDO_FORMAL_MAX_BLOCK_PROOF_TEXT_CHARS}"
+        )
+    if local_context_chars > PSEUDO_FORMAL_MAX_BLOCK_LOCAL_CONTEXT_CHARS:
+        issues.append(
+            "local_context_too_long:"
+            f"{local_context_chars}>{PSEUDO_FORMAL_MAX_BLOCK_LOCAL_CONTEXT_CHARS}"
+        )
+    return {
+        "all_ok": not issues,
+        "issues": issues,
+        "metrics": metrics,
+        "maxima": {
+            "max_premises": PSEUDO_FORMAL_MAX_BLOCK_PREMISES,
+            "max_dependency_ids": PSEUDO_FORMAL_MAX_BLOCK_DEPENDENCIES,
+            "max_inherited_scope_items": (
+                PSEUDO_FORMAL_MAX_BLOCK_INHERITED_SCOPE_ITEMS
+            ),
+            "max_source_anchors": PSEUDO_FORMAL_MAX_BLOCK_SOURCE_ANCHORS,
+            "max_conclusion_chars": PSEUDO_FORMAL_MAX_BLOCK_CONCLUSION_CHARS,
+            "max_proof_text_chars": PSEUDO_FORMAL_MAX_BLOCK_PROOF_TEXT_CHARS,
+            "max_local_context_chars": PSEUDO_FORMAL_MAX_BLOCK_LOCAL_CONTEXT_CHARS,
+        },
+    }
 
 
 def pseudo_formal_packet_json_schema() -> dict[str, Any]:
@@ -674,6 +981,7 @@ def pseudo_formal_block_json_schema() -> dict[str, Any]:
             "conclusion",
             "proof_text",
             "dependency_ids",
+            "scope_parent_id",
             "dependency_scope",
             "source_anchors",
             "lean_feasibility",
@@ -693,6 +1001,9 @@ def pseudo_formal_block_json_schema() -> dict[str, Any]:
             "conclusion": {"type": "string", "minLength": 1},
             "proof_text": {"type": "string"},
             "dependency_ids": {"type": "array", "items": {"type": "string"}},
+            "scope_parent_id": {"type": "string"},
+            "inherited_scope": {"type": "array", "items": {"type": "string"}},
+            "structural_quality": {"type": "object"},
             "dependency_scope": {
                 "type": "string",
                 "enum": list(VALID_DEPENDENCY_SCOPES),
@@ -728,6 +1039,8 @@ def pseudo_formal_block_json_schema() -> dict[str, Any]:
                         "enum": list(VALID_BLOCK_VERDICTS),
                     },
                     "reason": {"type": "string"},
+                    "verifier_provenance": {"type": "string"},
+                    "independent_verifier": {"type": "boolean"},
                     "strictness_threshold": {
                         "type": "string",
                         "enum": list(VALID_CALIBRATION_STRICTNESS),
@@ -755,6 +1068,7 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
             "target_lane",
             "block_depth",
             "dependency_scope",
+            "scope_parent_id",
             "pseudo_formal_method_contract_id",
             "pseudo_formal_pipeline_stage",
             "proof_evidence_status",
@@ -779,6 +1093,12 @@ def pseudo_formal_work_order_row_json_schema() -> dict[str, Any]:
                 "type": "string",
                 "enum": list(VALID_DEPENDENCY_SCOPES),
             },
+            "dependency_statement_context": {"type": "array"},
+            "scope_parent_id": {"type": "string"},
+            "inherited_scope": {"type": "array", "items": {"type": "string"}},
+            "source_block_premises": {"type": "array", "items": {"type": "string"}},
+            "source_block_proof_text": {"type": "string"},
+            "structural_quality": {"type": "object"},
             "pseudo_formal_method_contract_id": {
                 "type": "string",
                 "const": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
@@ -805,15 +1125,71 @@ def _normalize_block(block: Mapping[str, Any], index: int) -> dict[str, Any]:
     if not str(normalized.get("block_id", "") or "").strip():
         normalized["block_id"] = f"pf_block_{index + 1}"
     normalized["block_id"] = str(normalized["block_id"]).strip()
-    normalized["block_type"] = str(
-        normalized.get("block_type", "claim") or "claim"
-    ).strip()
-    normalized["premises"] = _string_list(normalized.get("premises"))
+    normalized["block_type"] = _normalize_block_type(
+        _first_nonempty_value(normalized, "block_type", "type", default="claim")
+    )
+    normalized["premises"] = _string_list(
+        _first_nonempty_value(
+            normalized,
+            "premises",
+            "assumptions",
+            "hypotheses",
+            "given",
+        )
+    )
     normalized["conclusion"] = str(
-        normalized.get("conclusion", normalized.get("statement", "")) or ""
+        _first_nonempty_value(
+            normalized,
+            "conclusion",
+            "conclusion_text",
+            "statement",
+            "statement_text",
+            "block_statement",
+            "local_statement",
+            "claim",
+            "claim_text",
+            "local_claim",
+            "assertion",
+            "assertion_text",
+            "goal",
+            default="",
+        )
+        or ""
     ).strip()
-    normalized["proof_text"] = str(normalized.get("proof_text", "") or "")
-    normalized["dependency_ids"] = _string_list(normalized.get("dependency_ids"))
+    normalized["proof_text"] = str(
+        _first_nonempty_value(
+            normalized,
+            "proof_text",
+            "proof",
+            "proof_step",
+            "argument",
+            "justification",
+            "rationale",
+            "reasoning",
+            "derivation",
+            "explanation",
+            default="",
+        )
+        or ""
+    )
+    normalized["dependency_ids"] = _string_list(
+        _first_nonempty_value(
+            normalized,
+            "dependency_ids",
+            "dependencies",
+            "depends_on",
+        )
+    )
+    normalized["scope_parent_id"] = str(
+        normalized.get(
+            "scope_parent_id",
+            normalized.get("scope_parent", normalized.get("parent_block_id", "")),
+        )
+        or ""
+    ).strip()
+    normalized["inherited_scope"] = _string_list(
+        normalized.get("inherited_scope", normalized.get("scope_context"))
+    )
     normalized["block_depth"] = _normalize_block_depth(
         normalized.get("block_depth")
     )
@@ -821,17 +1197,36 @@ def _normalize_block(block: Mapping[str, Any], index: int) -> dict[str, Any]:
         normalized.get("dependency_scope")
     )
     normalized["source_anchors"] = _normalize_source_anchors(
-        normalized.get("source_anchors")
+        _first_nonempty_value(
+            normalized,
+            "source_anchors",
+            "source_anchor",
+            "anchors",
+            "source_refs",
+            "source_references",
+            "source_anchor_refs",
+            "source_citations",
+            "citations",
+            "evidence_anchors",
+            "evidence_refs",
+            "source_lines",
+            "source_evidence",
+        )
     )
     normalized["semantic_primitive_requirements"] = _string_list(
-        normalized.get("semantic_primitive_requirements")
+        _first_nonempty_value(
+            normalized,
+            "semantic_primitive_requirements",
+            "semantic_primitives",
+            "required_semantic_primitives",
+        )
     )
     normalized["lean_feasibility"] = str(
         normalized.get("lean_feasibility", "unknown") or "unknown"
     ).strip()
-    normalized["faithfulness_status"] = str(
-        normalized.get("faithfulness_status", "unchecked") or "unchecked"
-    ).strip()
+    normalized["faithfulness_status"] = _normalize_faithfulness_status(
+        normalized.get("faithfulness_status", "unchecked")
+    )
     normalized["faithfulness_repair"] = _normalize_faithfulness_repair(
         normalized.get("faithfulness_repair"),
         faithfulness_status=normalized["faithfulness_status"],
@@ -839,9 +1234,40 @@ def _normalize_block(block: Mapping[str, Any], index: int) -> dict[str, Any]:
     verification = normalized.get("block_verification", {})
     if not isinstance(verification, Mapping):
         verification = {"verdict": str(verification or "unknown")}
+    original_verification_verdict = str(
+        verification.get("verdict", "not_run") or "not_run"
+    ).strip()
+    verification_rollout_count = max(
+        0,
+        _int_or_none(verification.get("rollout_count")) or 0,
+    )
+    verification_verdict = _normalize_block_verdict(original_verification_verdict)
+    block_verification_corrections: list[str] = []
+    if verification_verdict != original_verification_verdict:
+        block_verification_corrections.append(
+            "verdict_normalized:"
+            f"{original_verification_verdict or 'empty'}->{verification_verdict}"
+        )
+    if verification_verdict == "accepted" and verification_rollout_count < 1:
+        verification_verdict = "unknown"
+        block_verification_corrections.append(
+            "accepted_without_rollout_count_downgraded_to_unknown"
+        )
+    verifier_provenance = _normalize_block_verifier_provenance(
+        verification.get(
+            "verifier_provenance",
+            verification.get("verifier_source"),
+        ),
+        verdict=verification_verdict,
+    )
     normalized["block_verification"] = {
-        "verdict": str(verification.get("verdict", "not_run") or "not_run").strip(),
+        "verdict": verification_verdict,
         "reason": str(verification.get("reason", "") or "").strip(),
+        "verifier_provenance": verifier_provenance,
+        "independent_verifier": _block_verification_independent_from_values(
+            verification.get("independent_verifier"),
+            verifier_provenance=verifier_provenance,
+        ),
         "strictness_threshold": _normalize_calibration_strictness(
             verification.get("strictness_threshold")
         ),
@@ -852,10 +1278,34 @@ def _normalize_block(block: Mapping[str, Any], index: int) -> dict[str, Any]:
             )
             or PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE
         ),
-        "rollout_count": max(0, _int_or_none(verification.get("rollout_count")) or 0),
+        "rollout_count": verification_rollout_count,
     }
+    if block_verification_corrections:
+        normalized["block_verification"]["normalizer_corrections"] = (
+            block_verification_corrections
+        )
+    normalized["structural_quality"] = pseudo_formal_block_structural_quality(
+        normalized
+    )
     normalized["kernel_verified"] = False
     return normalized
+
+
+def _first_nonempty_value(
+    row: Mapping[str, Any],
+    *keys: str,
+    default: Any = None,
+) -> Any:
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return default
+
+
+def _normalize_block_type(value: Any) -> str:
+    text = str(value or "claim").strip().lower().replace("-", "_").replace(" ", "_")
+    return BLOCK_TYPE_ALIASES.get(text, text or "claim")
 
 
 def _work_order_rows_for_block(
@@ -866,7 +1316,41 @@ def _work_order_rows_for_block(
     feasibility = str(block.get("lean_feasibility", "unknown") or "unknown")
     verdict = _block_verdict(block)
     faithfulness = str(block.get("faithfulness_status", "unchecked") or "unchecked")
-    if faithfulness in {"unfaithful", "needs_review"}:
+    faithfulness_ready = faithfulness == "faithful"
+    verification = (
+        block.get("block_verification", {})
+        if isinstance(block.get("block_verification", {}), Mapping)
+        else {}
+    )
+    rollout_count = max(0, _int_or_none(verification.get("rollout_count")) or 0)
+    independent_bv_ready = faithfulness_ready and _block_verification_is_independent(
+        block
+    )
+    structural_quality = pseudo_formal_block_structural_quality(block)
+    if not bool(structural_quality.get("all_ok", False)):
+        rows.append(
+            _work_order_row(
+                packet,
+                block,
+                row_kind=PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                reason=(
+                    "pseudo-formal block violates Good-PF bounded-context "
+                    "structure; split or rewrite it before block verification, "
+                    "Lean/RAG, source-to-bridge, or semantic-definition routing"
+                ),
+                extra={
+                    "structural_quality": structural_quality,
+                    "structural_quality_ok": False,
+                    "structural_quality_issues": list(
+                        structural_quality.get("issues", []) or []
+                    ),
+                    "requested_owner_subsystem": "Formalizer/ProofEngineer",
+                },
+            )
+        )
+        return rows
+    if not faithfulness_ready:
         rows.append(
             _work_order_row(
                 packet,
@@ -877,81 +1361,294 @@ def _work_order_rows_for_block(
             )
         )
     if verdict == "failed":
+        if independent_bv_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_block_verification_failure",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    reason=str(
+                        block.get("block_verification", {}).get(
+                            "reason", "block verifier rejected local proof"
+                        )
+                    ),
+                )
+            )
+        elif faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind=(
+                        "pseudo_formal_block_verification_failure"
+                        "_blocked_by_independent_bv"
+                    ),
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    reason=(
+                        "block-verification failure is diagnostic until an "
+                        "independent PF/BV verifier records the failure"
+                    ),
+                    extra={
+                        "blocked_row_kind": (
+                            "pseudo_formal_block_verification_failure"
+                        ),
+                        "blocked_by": (
+                            "independent_block_verification_not_established"
+                        ),
+                    },
+                )
+            )
+        else:
+            rows.append(
+                _faithfulness_blocked_work_order_row(
+                    packet,
+                    block,
+                    blocked_row_kind="pseudo_formal_block_verification_failure",
+                    row_kind=(
+                        "pseudo_formal_block_verification_failure"
+                        "_blocked_by_faithfulness"
+                    ),
+                    reason=(
+                        "block verification failure is not routable as a "
+                        "source-proof gap until the pseudo-formal rewrite is "
+                        f"faithful; faithfulness_status={faithfulness}"
+                    ),
+                )
+            )
+    elif verdict in {"not_run", "unknown"}:
         rows.append(
             _work_order_row(
                 packet,
                 block,
-                row_kind="pseudo_formal_block_verification_failure",
+                row_kind="pseudo_formal_block_verification_pending",
                 target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
-                reason=str(
-                    block.get("block_verification", {}).get(
-                        "reason", "block verifier rejected local proof"
-                    )
+                reason=f"block_verification.verdict={verdict}",
+            )
+        )
+    if faithfulness_ready and not _block_verification_is_independent(block):
+        rows.append(
+            _work_order_row(
+                packet,
+                block,
+                row_kind=PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                reason=(
+                    "run an independent PF/BV block-verifier call for this "
+                    "faithful pseudo-formal block before treating its block "
+                    "verdict as verifier feedback"
                 ),
+                extra={
+                    "requested_owner_subsystem": "BlockVerifier/CalibrationReferee",
+                    "independent_block_verification_required": True,
+                },
             )
         )
     if feasibility == "lean_now":
-        rows.append(
-            _work_order_row(
-                packet,
-                block,
-                row_kind="pseudo_formal_lean_candidate_seed",
-                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
-                reason="block is triaged as Lean-feasible",
+        if (
+            faithfulness == "faithful"
+            and verdict == "accepted"
+            and rollout_count >= 1
+            and independent_bv_ready
+        ):
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_lean_candidate_seed",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+                    reason="faithful BV-accepted block is triaged as Lean-feasible",
+                )
+            )
+        else:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_lean_candidate_seed_blocked",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    reason=(
+                        "Lean candidate seed blocked until faithfulness_status="
+                        "faithful and block_verification.verdict=accepted with "
+                        "rollout_count>=1 from an independent BV verifier"
+                    ),
+                    extra=(
+                        {
+                            "blocked_row_kind": "pseudo_formal_lean_candidate_seed",
+                            "blocked_by": (
+                                "independent_block_verification_not_established"
+                            ),
+                        }
+                        if (
+                            faithfulness_ready
+                            and verdict == "accepted"
+                            and rollout_count >= 1
+                            and not independent_bv_ready
+                        )
+                        else None
+                    ),
             )
         )
     elif feasibility == "needs_rag":
-        rows.append(
-            _work_order_row(
-                packet,
-                block,
-                row_kind="pseudo_formal_formal_library_grounding_query",
-                target_lane=PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
-                reason="block needs target-prover library grounding",
+        if faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_formal_library_grounding_query",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+                    reason="block needs target-prover library grounding",
+                )
             )
-        )
+        else:
+            rows.append(
+                _faithfulness_blocked_work_order_row(
+                    packet,
+                    block,
+                    blocked_row_kind="pseudo_formal_formal_library_grounding_query",
+                    blocked_target_lane=PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+                    row_kind=(
+                        "pseudo_formal_formal_library_grounding_query"
+                        "_blocked_by_faithfulness"
+                    ),
+                    reason="formal library grounding waits for faithful PF rewrite",
+                )
+            )
     elif feasibility == "needs_library":
-        rows.append(
-            _work_order_row(
-                packet,
-                block,
-                row_kind="pseudo_formal_library_gap",
-                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
-                reason="block requires unavailable formal library support",
+        if faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_library_gap",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    reason="block requires unavailable formal library support",
+                )
             )
-        )
+        else:
+            rows.append(
+                _faithfulness_blocked_work_order_row(
+                    packet,
+                    block,
+                    blocked_row_kind="pseudo_formal_library_gap",
+                    row_kind="pseudo_formal_library_gap_blocked_by_faithfulness",
+                    reason="formal library gap waits for faithful PF rewrite",
+                )
+            )
     elif feasibility == "needs_semantic_definition":
-        rows.append(
-            _work_order_row(
-                packet,
-                block,
-                row_kind="pseudo_formal_exact_semantic_definition_request",
-                target_lane=PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
-                reason="block requires exact semantic definitions before Lean replay",
+        if faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_exact_semantic_definition_request",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+                    reason=(
+                        "block requires exact semantic definitions before Lean replay"
+                    ),
+                )
             )
-        )
+        else:
+            rows.append(
+                _faithfulness_blocked_work_order_row(
+                    packet,
+                    block,
+                    blocked_row_kind="pseudo_formal_exact_semantic_definition_request",
+                    blocked_target_lane=(
+                        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                    ),
+                    row_kind=(
+                        "pseudo_formal_exact_semantic_definition_request"
+                        "_blocked_by_faithfulness"
+                    ),
+                    reason=(
+                        "exact semantic-definition authoring waits for faithful "
+                        "PF rewrite"
+                    ),
+                )
+            )
     elif feasibility == "pseudo_only":
-        rows.append(
-            _work_order_row(
-                packet,
-                block,
-                row_kind="pseudo_formal_nonlean_residual_gap",
-                target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
-                reason="block is not currently Lean-realizable",
+        if faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_nonlean_residual_gap",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    reason="block is not currently Lean-realizable",
+                )
             )
-        )
+        else:
+            rows.append(
+                _faithfulness_blocked_work_order_row(
+                    packet,
+                    block,
+                    blocked_row_kind="pseudo_formal_nonlean_residual_gap",
+                    row_kind=(
+                        "pseudo_formal_nonlean_residual_gap"
+                        "_blocked_by_faithfulness"
+                    ),
+                    reason="non-Lean residual classification waits for faithful PF rewrite",
+                )
+            )
     for primitive in _string_list(block.get("semantic_primitive_requirements")):
-        rows.append(
-            _work_order_row(
-                packet,
-                block,
-                row_kind="pseudo_formal_semantic_primitive_request",
-                target_lane=PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
-                reason=f"semantic primitive required: {primitive}",
-                extra={"semantic_primitive": primitive},
+        if faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind="pseudo_formal_semantic_primitive_request",
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                    reason=f"semantic primitive required: {primitive}",
+                    extra={"semantic_primitive": primitive},
+                )
             )
-        )
+        else:
+            rows.append(
+                _faithfulness_blocked_work_order_row(
+                    packet,
+                    block,
+                    blocked_row_kind="pseudo_formal_semantic_primitive_request",
+                    blocked_target_lane=PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                    row_kind=(
+                        "pseudo_formal_semantic_primitive_request"
+                        "_blocked_by_faithfulness"
+                    ),
+                    reason=(
+                        f"semantic primitive request `{primitive}` waits for "
+                        "faithful PF rewrite"
+                    ),
+                    extra={"semantic_primitive": primitive},
+                )
+            )
     return rows
+
+
+def _faithfulness_blocked_work_order_row(
+    packet: Mapping[str, Any],
+    block: Mapping[str, Any],
+    *,
+    blocked_row_kind: str,
+    row_kind: str,
+    reason: str,
+    blocked_target_lane: str = PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+    extra: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "blocked_row_kind": blocked_row_kind,
+        "blocked_target_lane": blocked_target_lane,
+        "blocked_by": "faithfulness_not_established",
+    }
+    if extra:
+        payload.update(dict(extra))
+    return _work_order_row(
+        packet,
+        block,
+        row_kind=row_kind,
+        target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+        reason=reason,
+        extra=payload,
+    )
 
 
 def _work_order_row(
@@ -963,6 +1660,7 @@ def _work_order_row(
     reason: str,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    structural_quality = pseudo_formal_block_structural_quality(block)
     base = {
         "source_packet_id": str(packet.get("packet_id", "") or ""),
         "source_theorem_id": str(packet.get("theorem_id", "") or ""),
@@ -979,6 +1677,19 @@ def _work_order_row(
             or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
         ),
         "dependency_ids": _string_list(block.get("dependency_ids")),
+        "dependency_statement_context": _pseudo_formal_dependency_statement_context(
+            packet,
+            block,
+        ),
+        "scope_parent_id": str(block.get("scope_parent_id", "") or ""),
+        "inherited_scope": _string_list(block.get("inherited_scope")),
+        "source_block_premises": _string_list(block.get("premises")),
+        "source_block_proof_text": str(block.get("proof_text", "") or ""),
+        "structural_quality": structural_quality,
+        "structural_quality_ok": bool(structural_quality.get("all_ok", False)),
+        "structural_quality_issues": list(
+            structural_quality.get("issues", []) or []
+        ),
         "source_anchors": list(_as_mapping_rows(block.get("source_anchors"))),
         "faithfulness_status": str(
             block.get("faithfulness_status", "unchecked") or "unchecked"
@@ -991,6 +1702,11 @@ def _work_order_row(
             ).get("status", "not_required")
             or "not_required"
         ),
+        "lean_feasibility": str(block.get("lean_feasibility", "unknown") or "unknown"),
+        "block_verification_verifier_provenance": _block_verification_provenance(
+            block
+        ),
+        "block_verification_independent": _block_verification_is_independent(block),
         "block_verification": dict(
             block.get("block_verification", {})
             if isinstance(block.get("block_verification", {}), Mapping)
@@ -1030,6 +1746,38 @@ def _work_order_row(
     return base
 
 
+def _pseudo_formal_dependency_statement_context(
+    packet: Mapping[str, Any],
+    block: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    blocks_by_id = {
+        str(candidate.get("block_id", "") or ""): candidate
+        for candidate in _as_mapping_rows(packet.get("blocks"))
+        if str(candidate.get("block_id", "") or "")
+    }
+    context: list[dict[str, str]] = []
+    for dep_id in _string_list(block.get("dependency_ids")):
+        dep = blocks_by_id.get(dep_id)
+        if not isinstance(dep, Mapping):
+            context.append({"block_id": dep_id, "status": "missing"})
+            continue
+        context.append(
+            {
+                "block_id": dep_id,
+                "block_type": str(dep.get("block_type", "") or ""),
+                "conclusion": str(dep.get("conclusion", "") or ""),
+                "dependency_scope": str(
+                    dep.get(
+                        "dependency_scope",
+                        PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+                    )
+                    or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+                ),
+            }
+        )
+    return context
+
+
 def _default_block_structure_contract(
     value: Any | None = None,
 ) -> dict[str, Any]:
@@ -1038,6 +1786,34 @@ def _default_block_structure_contract(
         "max_proof_tree_depth": int(
             _int_or_none(raw.get("max_proof_tree_depth"))
             or PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH
+        ),
+        "max_block_premises": int(
+            _int_or_none(raw.get("max_block_premises"))
+            or PSEUDO_FORMAL_MAX_BLOCK_PREMISES
+        ),
+        "max_block_dependencies": int(
+            _int_or_none(raw.get("max_block_dependencies"))
+            or PSEUDO_FORMAL_MAX_BLOCK_DEPENDENCIES
+        ),
+        "max_block_inherited_scope_items": int(
+            _int_or_none(raw.get("max_block_inherited_scope_items"))
+            or PSEUDO_FORMAL_MAX_BLOCK_INHERITED_SCOPE_ITEMS
+        ),
+        "max_block_source_anchors": int(
+            _int_or_none(raw.get("max_block_source_anchors"))
+            or PSEUDO_FORMAL_MAX_BLOCK_SOURCE_ANCHORS
+        ),
+        "max_block_conclusion_chars": int(
+            _int_or_none(raw.get("max_block_conclusion_chars"))
+            or PSEUDO_FORMAL_MAX_BLOCK_CONCLUSION_CHARS
+        ),
+        "max_block_proof_text_chars": int(
+            _int_or_none(raw.get("max_block_proof_text_chars"))
+            or PSEUDO_FORMAL_MAX_BLOCK_PROOF_TEXT_CHARS
+        ),
+        "max_block_local_context_chars": int(
+            _int_or_none(raw.get("max_block_local_context_chars"))
+            or PSEUDO_FORMAL_MAX_BLOCK_LOCAL_CONTEXT_CHARS
         ),
         "dependency_scope_rule": str(
             raw.get(
@@ -1101,6 +1877,87 @@ def _normalize_calibration_strictness(value: Any) -> str:
     return PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
 
 
+def _normalize_block_verdict(value: Any) -> str:
+    text = str(value or "not_run").strip()
+    normalized = text.lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "": "not_run",
+        "notrun": "not_run",
+        "not_run": "not_run",
+        "not_started": "not_run",
+        "pending": "not_run",
+        "needs_review": "unknown",
+        "needs_bv": "unknown",
+        "requires_review": "unknown",
+        "review": "unknown",
+        "unchecked": "unknown",
+        "unverified": "unknown",
+        "unknown": "unknown",
+        "accept": "accepted",
+        "accepted": "accepted",
+        "pass": "accepted",
+        "passed": "accepted",
+        "valid": "accepted",
+        "reject": "failed",
+        "rejected": "failed",
+        "fail": "failed",
+        "failed": "failed",
+        "invalid": "failed",
+    }
+    candidate = aliases.get(normalized, normalized)
+    return candidate if candidate in VALID_BLOCK_VERDICTS else "unknown"
+
+
+def _normalize_block_verifier_provenance(
+    value: Any,
+    *,
+    verdict: str,
+) -> str:
+    text = str(value or "").strip()
+    if text:
+        return text
+    if verdict in {"not_run", "unknown"}:
+        return PSEUDO_FORMAL_NOT_RUN_BLOCK_VERIFIER_PROVENANCE
+    return PSEUDO_FORMAL_FORMALIZER_PROPOSED_BLOCK_VERIFIER_PROVENANCE
+
+
+def _block_verification_independent_from_values(
+    value: Any,
+    *,
+    verifier_provenance: str,
+) -> bool:
+    if isinstance(value, bool):
+        return value
+    return verifier_provenance in PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES
+
+
+def _block_verification_provenance(block: Mapping[str, Any]) -> str:
+    verification = (
+        block.get("block_verification", {})
+        if isinstance(block.get("block_verification", {}), Mapping)
+        else {}
+    )
+    return _normalize_block_verifier_provenance(
+        verification.get(
+            "verifier_provenance",
+            verification.get("verifier_source"),
+        ),
+        verdict=_block_verdict(block),
+    )
+
+
+def _block_verification_is_independent(block: Mapping[str, Any]) -> bool:
+    verification = (
+        block.get("block_verification", {})
+        if isinstance(block.get("block_verification", {}), Mapping)
+        else {}
+    )
+    return _block_verification_independent_from_values(
+        verification.get("independent_verifier"),
+        verifier_provenance=_block_verification_provenance(block),
+    )
+
+
 def _normalize_faithfulness_repair(
     value: Any,
     *,
@@ -1151,15 +2008,42 @@ def _boundary_corrections(packet: Mapping[str, Any]) -> list[str]:
 
 def _normalize_source_anchors(value: Any) -> list[dict[str, str]]:
     anchors: list[dict[str, str]] = []
+    if isinstance(value, Mapping):
+        value = [value]
+    if isinstance(value, str):
+        value = [value]
     for item in value or []:
         if isinstance(item, Mapping):
-            anchors.append(
-                {
-                    "kind": str(item.get("kind", "other") or "other").strip(),
-                    "id": str(item.get("id", item.get("source_id", "")) or "").strip(),
-                    "excerpt": str(item.get("excerpt", "") or "").strip(),
-                }
-            )
+            anchor = {
+                "kind": str(item.get("kind", "other") or "other").strip(),
+                "id": str(
+                    _first_nonempty_value(
+                        item,
+                        "id",
+                        "source_id",
+                        "anchor_id",
+                        "reference_id",
+                        "artifact_id",
+                        "trace_id",
+                        "lineage_id",
+                        default="",
+                    )
+                    or ""
+                ).strip(),
+                "excerpt": str(
+                    _first_nonempty_value(
+                        item,
+                        "excerpt",
+                        "source_excerpt",
+                        "quote",
+                        "text",
+                        default="",
+                    )
+                    or ""
+                ).strip(),
+            }
+            if anchor["id"] or anchor["excerpt"]:
+                anchors.append(anchor)
         elif str(item or "").strip():
             anchors.append(
                 {
@@ -1169,6 +2053,23 @@ def _normalize_source_anchors(value: Any) -> list[dict[str, str]]:
                 }
             )
     return anchors
+
+
+def _normalize_faithfulness_status(value: Any) -> str:
+    normalized = str(value or "unchecked").strip().lower().replace("-", "_")
+    if normalized in VALID_FAITHFULNESS_STATUSES:
+        return normalized
+    if normalized in {
+        "unverified",
+        "not_verified",
+        "not_run",
+        "unknown",
+        "pending",
+    }:
+        return "unchecked"
+    if normalized in {"review", "needs-review", "needs_review_required"}:
+        return "needs_review"
+    return normalized
 
 
 def _block_verdict(block: Mapping[str, Any]) -> str:

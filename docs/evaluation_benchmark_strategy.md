@@ -1148,6 +1148,41 @@ Lean compiled. It is not full theorem proof evidence. The local kernel evidence
 applies only to the exact generated helper candidate, not to the split conformal
 source theorem or to semantic faithfulness of a paper theorem.
 
+### S11b. Live Pseudo-Formal BlockVerifier Suite
+
+Question answered: can the system use PF/BV as a live verifier-feedback layer
+that decomposes pseudo-formal proof work into independently checked blocks and
+feeds validated, non-proof learning rows back into the runtime?
+
+Sources:
+
+- `research-agent-runtime --run-pseudo-formal-block-verifier-eval`
+- `pseudo-formal-block-verifier-component-gate`
+- `pseudo_formal_block_verifier_component_gate_manifest.json`
+- prompt-packet, LLM response, and response-validation manifests
+
+Current live signal:
+
+- `runs/pseudo_formal_block_verifier_component_gate_live_main_worker_cli_probe/pseudo_formal_block_verifier_component_gate_manifest.json`
+- provider `anthropic`, model `claude-haiku-4-5-20251001`
+- `capability_evidence_ok=true`
+- `n_prompt_packets=1`
+- `n_valid_responses=1`
+- `n_runtime_learning_rows=1`
+- `proof_evidence_status=PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE`
+
+This suite is valuable because it gives the Formalizer/ProofEngineer loop a
+more modular feedback substrate before Lean replay succeeds. The current signal
+is a bounded standalone CLI probe, not an integrated AgentRuntime run. It is not
+a proof gate. Accepted pseudo-formal blocks remain verifier feedback until the
+exact target obligation is replayed and verified by Lean/AXLE.
+
+For integrated S13 readiness, this standalone S11b signal is not enough. The
+AgentRuntime run must attach the PF/BV component gate in-loop and expose source
+runtime-learning JSONL lineage back to the current runtime output, so the
+validated BlockVerifier rows cannot come from an unrelated fixture or standalone
+probe.
+
 ### S12. Live Architect Research-Path Policy Suite
 
 Question answered: can the system's own generator-backed ArchitectCoordinator
@@ -1185,8 +1220,9 @@ Sources:
 - `research-agent-runtime --capability-eval`
 - `research-agent-runtime-audit`
 - runtime manifests, progress, LLM topology, generated-code sandbox results,
-  Formalizer Lean-candidate materialization, aggregate primary/retry/late exact
-  semantic-definition authoring provenance, and ProofEngineer handoff fields
+Formalizer Lean-candidate materialization, PF/BV BlockVerifier calibration,
+aggregate primary/retry/late exact semantic-definition authoring provenance,
+and ProofEngineer handoff fields
 
 Current inspected signal:
 
@@ -1199,9 +1235,9 @@ Current inspected signal:
   algorithm fail-then-pass repair sequence, left formal gaps, and did not prove
   the full source theorem
 
-S13 is the anti-self-deception gate. S10, S11, and S12 are necessary component
-capability checks, but passing them separately does not mean the full system can
-run as an autonomous AI Statistician. Static replay, no-Architect routing,
+S13 is the anti-self-deception gate. S10, S11, S11b, and S12 are necessary
+component capability checks, but passing them separately does not mean the full
+system can run as an autonomous AI Statistician. Static replay, no-Architect routing,
 registered-template-only success, manual path overrides, and one-shot generated
 code execution cannot satisfy S13. S13 is still capability evidence, not theorem
 proof, unless exact local Lean/AXLE source-theorem verification succeeds. When
@@ -1209,7 +1245,11 @@ exact semantic-definition authoring is required, static/replay authoring and
 prompt staging do not satisfy S13; the aggregate primary/retry/late authoring
 path must record a live Claude/OpenAI backend attempt. When PF+BV pseudo-formal
 rows are emitted, they must preserve method lineage and remain bridge-verifier
-routing feedback, not theorem proof evidence.
+routing feedback, not theorem proof evidence. The attached PF/BV component gate
+must also show prompt packets, valid responses, validated non-proof runtime
+learning rows, and source runtime-learning lineage checked to the current
+runtime output; standalone S11b evidence does not substitute for this in-loop
+calibration.
 
 ## Recommended Near-Term Gate
 
@@ -1228,12 +1268,16 @@ For the next development cycle, use this gate stack:
    from a Claude/OpenAI provider.
 7. S11 live Formalizer Lean-candidate repair, requiring a live generator
    fail-then-pass sequence and local Lean compile for the generated candidate.
-8. S12 live Architect research-path policy, requiring required/advisory/optional
+8. S11b live PF/BV BlockVerifier calibration, requiring live prompt packets,
+   valid BlockVerifier responses, and validated non-proof runtime learning rows;
+   S13 additionally requires those rows to be attached in-loop with current
+   runtime source-learning lineage.
+9. S12 live Architect research-path policy, requiring required/advisory/optional
    cases to produce valid evidence contracts and long-horizon planning fields.
-9. S13 live integrated AgentRuntime capability, requiring the full
+10. S13 live integrated AgentRuntime capability, requiring the full
    Architect-driven runtime to combine generated-code repair, generated
-   simulation repair, Formalizer local Lean feedback, runtime learning, and
-   ProofEngineer handoffs in one run.
+   simulation repair, Formalizer local Lean feedback, PF/BV non-proof
+   feedback, runtime learning, and ProofEngineer handoffs in one run.
 
 Do not treat `60/60 frontier_supported` as enough. It is a routing milestone.
 The next real milestone is reducing the 97 missing primitives and raising

@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .llm_json_repair import (
+    PacketValidationError,
+    extract_json_object,
+    generate_validated_json_packet,
+)
 from .model_backend import (
     GeneratorBackend,
     GeneratorRequest,
@@ -17,6 +21,14 @@ from .model_backend import (
     is_live_generator_backend,
     normalize_generator_provider_name,
     resolve_generator_model,
+)
+from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+    PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    pseudo_formal_verification_method_contract,
 )
 from .research_architect import KERNEL_PROOF_BOUNDARY
 from .source_theorem_exact_semantic_definition_lean_repair_executor import (
@@ -56,6 +68,17 @@ MATERIALIZER_PROOF_EVIDENCE_STATUS = (
 EXTERNAL_EXPORT_REVIEW_PROOF_EVIDENCE_STATUS = (
     "EXACT_SEMANTIC_DEFINITION_EXTERNAL_LLM_EXPORT_REVIEW_NOT_PROOF_EVIDENCE"
 )
+STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION = (
+    "exact_semantic_definition_structural_reformulation_required"
+)
+STRUCTURAL_REFORMULATION_QUEUE_STATUS = (
+    "PENDING_EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION"
+)
+AUTHORING_FOLLOWUP_QUEUE_STATUSES = {
+    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY",
+    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR",
+    STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+}
 LEARNING_TASK = "source_theorem_exact_semantic_definition_authoring_worker"
 MATERIALIZER_LEARNING_TASK = (
     "source_theorem_exact_semantic_definition_authoring_candidate_materialization"
@@ -264,8 +287,7 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
             failed_candidate_packet=row,
         )
         for row in candidate_packets
-        if row.get("runtime_queue_status")
-        == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+        if row.get("runtime_queue_status") in AUTHORING_FOLLOWUP_QUEUE_STATUSES
         and str(row.get("source_prompt_packet_id", "") or "") in task_by_prompt_id
         and str(row.get("source_prompt_packet_id", "") or "") in prompt_by_prompt_id
     ]
@@ -371,11 +393,34 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
             1 for row in candidate_packets if not row.get("ok")
         ),
         "n_retryable_authoring_tasks": len(retryable_authoring_tasks),
+        "n_structural_reformulation_required_tasks": sum(
+            1
+            for row in candidate_packets
+            if row.get("runtime_queue_status") == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+        ),
         "n_retryable_provider_failures": sum(
             1
             for row in candidate_packets
             if row.get("failure_classification")
             in {"provider_connection_error", "provider_timeout_error"}
+        ),
+        "runtime_queue_status_counts": dict(
+            sorted(
+                Counter(
+                    str(row.get("runtime_queue_status", "") or "")
+                    for row in candidate_packets
+                    if str(row.get("runtime_queue_status", "") or "").strip()
+                ).items()
+            )
+        ),
+        "failure_classification_counts": dict(
+            sorted(
+                Counter(
+                    str(row.get("failure_classification", "") or "")
+                    for row in candidate_packets
+                    if str(row.get("failure_classification", "") or "").strip()
+                ).items()
+            )
         ),
         "placeholder_symbols": list(
             dict.fromkeys(
@@ -982,32 +1027,194 @@ def _prompt_payload(
 
 
 def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "definition_only_candidate_artifact_path": str(
-            task.get("definition_only_candidate_artifact_path", "") or ""
-        ),
-        "candidate_artifact_path": str(task.get("candidate_artifact_path", "") or ""),
-        "candidate_source_file": str(task.get("candidate_source_file", "") or ""),
-        "candidate_lean_project_hint": str(
-            task.get("candidate_lean_project_hint", "") or ""
-        ),
-        "local_definition_lean_checked": bool(
-            task.get("local_definition_lean_checked", False)
-        ),
-        "local_definition_lean_compiled": bool(
-            task.get("local_definition_lean_compiled", False)
-        ),
-        "local_lean_checked": bool(task.get("local_lean_checked", False)),
-        "local_lean_compiled": bool(task.get("local_lean_compiled", False)),
-        "local_lean_returncode": int(task.get("local_lean_returncode", 0) or 0),
-        "local_lean_diagnostics": list(
-            task.get("local_lean_diagnostics", []) or []
-        )[:12],
-        "failure_classification": str(task.get("failure_classification", "") or ""),
-        "recommended_next_action": str(
-            task.get("recommended_next_action", "") or ""
-        ),
-    }
+    feedback = dict(task.get("candidate_repair_feedback", {}) or {})
+    prior_feedback_sources = _prior_local_lean_feedback_sources(task, feedback)
+    diagnostics = list(task.get("local_lean_diagnostics", []) or [])[:12]
+    diagnostic_source_excerpts = [
+        dict(value)
+        for value in task.get("local_lean_diagnostic_source_excerpts", []) or []
+        if isinstance(value, Mapping)
+    ][:3]
+    current_unknown_identifiers = _lean_unknown_identifiers_from_diagnostics(
+        _string_list(diagnostics)
+    )
+    current_typeclass_failures = _lean_typeclass_failures_from_diagnostics(
+        _string_list(diagnostics)
+    )
+    current_unavailable_imports = _lean_unavailable_imports_from_diagnostics(
+        _string_list(diagnostics)
+    )
+    prior_unknown_identifiers = _dedup_strings(
+        identifier
+        for source in (feedback, *prior_feedback_sources)
+        for key in (
+            "unknown_identifiers_from_prior_checks",
+            "unknown_identifiers_from_last_check",
+            "unknown_identifiers_from_all_checks",
+        )
+        for identifier in _string_list(source.get(key, []))
+    )
+    prior_typeclass_failures = _dedup_mapping_rows(
+        row
+        for source in (feedback, *prior_feedback_sources)
+        for key in (
+            "typeclass_failures_from_prior_checks",
+            "typeclass_failures_from_last_check",
+            "typeclass_failures_from_all_checks",
+        )
+        for row in source.get(key, []) or []
+        if isinstance(row, Mapping)
+    )
+    prior_unavailable_imports = _dedup_strings(
+        module
+        for source in (feedback, *prior_feedback_sources)
+        for key in (
+            "unavailable_imports_from_prior_checks",
+            "unavailable_imports_from_last_check",
+            "unavailable_imports_from_all_checks",
+        )
+        for module in _string_list(source.get(key, []))
+    )
+    prior_diagnostic_source_excerpts = _dedup_mapping_rows(
+        row
+        for source in (feedback, *prior_feedback_sources)
+        for key in (
+            "diagnostic_source_excerpts_history",
+            "diagnostic_source_excerpts",
+            "local_lean_diagnostic_source_excerpts",
+        )
+        for row in source.get(key, []) or []
+        if isinstance(row, Mapping)
+    )
+
+    feedback.update(
+        {
+            "definition_only_candidate_artifact_path": str(
+                task.get("definition_only_candidate_artifact_path", "") or ""
+            ),
+            "candidate_artifact_path": str(task.get("candidate_artifact_path", "") or ""),
+            "candidate_source_file": str(task.get("candidate_source_file", "") or ""),
+            "candidate_lean_project_hint": str(
+                task.get("candidate_lean_project_hint", "") or ""
+            ),
+            "local_definition_lean_checked": bool(
+                task.get("local_definition_lean_checked", False)
+            ),
+            "local_definition_lean_compiled": bool(
+                task.get("local_definition_lean_compiled", False)
+            ),
+            "local_lean_checked": bool(task.get("local_lean_checked", False)),
+            "local_lean_compiled": bool(task.get("local_lean_compiled", False)),
+            "local_lean_returncode": int(task.get("local_lean_returncode", 0) or 0),
+            "local_lean_diagnostics": diagnostics,
+            "local_lean_diagnostic_source_excerpts": diagnostic_source_excerpts,
+            "failure_classification": str(task.get("failure_classification", "") or ""),
+            "recommended_next_action": str(
+                task.get("recommended_next_action", "") or ""
+            ),
+        }
+    )
+    if prior_unknown_identifiers:
+        feedback["unknown_identifiers_from_prior_checks"] = prior_unknown_identifiers
+    all_unknown_identifiers = _dedup_strings(
+        [*prior_unknown_identifiers, *current_unknown_identifiers]
+    )
+    if all_unknown_identifiers:
+        feedback["unknown_identifiers_from_all_checks"] = all_unknown_identifiers
+    if prior_typeclass_failures:
+        feedback["typeclass_failures_from_prior_checks"] = prior_typeclass_failures
+    all_typeclass_failures = _dedup_mapping_rows(
+        [*prior_typeclass_failures, *current_typeclass_failures]
+    )
+    if all_typeclass_failures:
+        feedback["typeclass_failures_from_all_checks"] = all_typeclass_failures
+    if prior_unavailable_imports:
+        feedback["unavailable_imports_from_prior_checks"] = prior_unavailable_imports
+    all_unavailable_imports = _dedup_strings(
+        [*prior_unavailable_imports, *current_unavailable_imports]
+    )
+    if all_unavailable_imports:
+        feedback["unavailable_imports_from_all_checks"] = all_unavailable_imports
+    diagnostic_history = _dedup_mapping_rows(
+        [*prior_diagnostic_source_excerpts, *diagnostic_source_excerpts]
+    )
+    if diagnostic_history:
+        feedback["diagnostic_source_excerpts_history"] = diagnostic_history[:8]
+    return feedback
+
+
+def _prior_local_lean_feedback_sources(
+    task: Mapping[str, Any],
+    feedback: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = []
+    for container in (task, feedback):
+        nested = container.get("local_lean_feedback", {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+        contract = container.get("lean_authoring_environment_contract", {})
+        if isinstance(contract, Mapping):
+            nested = contract.get("local_lean_feedback", {})
+            if isinstance(nested, Mapping):
+                sources.append(nested)
+    return sources
+
+
+def _dedup_strings(values: Any) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(value).strip()
+            for value in values or []
+            if str(value).strip()
+        )
+    )
+
+
+def _dedup_mapping_rows(values: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for value in values or []:
+        if not isinstance(value, Mapping):
+            continue
+        row = dict(value)
+        key = json.dumps(row, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(row)
+    return rows
+
+
+def _lean_parse_error_source_fragments_from_excerpts(
+    excerpts: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    fragments: list[str] = []
+    for row in excerpts:
+        diagnostic = str(row.get("diagnostic", "") or "").lower()
+        if (
+            "expected token" not in diagnostic
+            and "unexpected token" not in diagnostic
+            and "parse" not in diagnostic
+        ):
+            continue
+        try:
+            target_line = int(row.get("line", 0) or 0)
+        except (TypeError, ValueError):
+            target_line = 0
+        for raw_line in row.get("source_excerpt", []) or []:
+            line_text = str(raw_line or "")
+            match = re.match(r"\s*(\d+):\s?(.*)$", line_text)
+            source_line = match.group(2).strip() if match else line_text.strip()
+            if target_line and match and int(match.group(1)) != target_line:
+                continue
+            if not source_line:
+                continue
+            fragments.append(source_line)
+            if ":=" in source_line:
+                rhs = source_line.split(":=", 1)[1].strip()
+                if rhs:
+                    fragments.append(rhs)
+    return _dedup_strings(fragments)
 
 
 def _lean_feedback_contract(task: Mapping[str, Any]) -> dict[str, Any]:
@@ -1015,6 +1222,59 @@ def _lean_feedback_contract(task: Mapping[str, Any]) -> dict[str, Any]:
     diagnostics = _string_list(feedback.get("local_lean_diagnostics", []))[:12]
     local_lean_checked = bool(feedback.get("local_lean_checked", False))
     local_lean_compiled = bool(feedback.get("local_lean_compiled", False))
+    current_unknown_identifiers = _lean_unknown_identifiers_from_diagnostics(
+        diagnostics
+    )
+    prior_unknown_identifiers = _string_list(
+        feedback.get("unknown_identifiers_from_prior_checks", [])
+    )
+    all_unknown_identifiers = _dedup_strings(
+        feedback.get("unknown_identifiers_from_all_checks", [])
+        or [*prior_unknown_identifiers, *current_unknown_identifiers]
+    )
+    current_typeclass_failures = _lean_typeclass_failures_from_diagnostics(
+        diagnostics
+    )
+    prior_typeclass_failures = _dedup_mapping_rows(
+        feedback.get("typeclass_failures_from_prior_checks", [])
+    )
+    all_typeclass_failures = _dedup_mapping_rows(
+        feedback.get("typeclass_failures_from_all_checks", [])
+        or [*prior_typeclass_failures, *current_typeclass_failures]
+    )
+    current_unavailable_imports = _lean_unavailable_imports_from_diagnostics(
+        diagnostics
+    )
+    prior_unavailable_imports = _string_list(
+        feedback.get("unavailable_imports_from_prior_checks", [])
+    )
+    all_unavailable_imports = _dedup_strings(
+        feedback.get("unavailable_imports_from_all_checks", [])
+        or [*prior_unavailable_imports, *current_unavailable_imports]
+    )
+    current_source_excerpts = [
+        dict(row)
+        for row in feedback.get("local_lean_diagnostic_source_excerpts", []) or []
+        if isinstance(row, Mapping)
+    ]
+    diagnostic_history = _dedup_mapping_rows(
+        feedback.get("diagnostic_source_excerpts_history", [])
+        or current_source_excerpts
+    )
+    current_parse_error_fragments = _lean_parse_error_source_fragments_from_excerpts(
+        current_source_excerpts
+    )
+    prior_parse_error_fragments = _string_list(
+        feedback.get("parse_error_source_fragments_from_prior_checks", [])
+    )
+    all_parse_error_fragments = _dedup_strings(
+        feedback.get("parse_error_source_fragments_from_all_checks", [])
+        or [
+            *prior_parse_error_fragments,
+            *_lean_parse_error_source_fragments_from_excerpts(diagnostic_history),
+            *current_parse_error_fragments,
+        ]
+    )
     return {
         "local_lean_feedback_available": bool(local_lean_checked or diagnostics),
         "local_lean_checked": local_lean_checked,
@@ -1026,15 +1286,36 @@ def _lean_feedback_contract(task: Mapping[str, Any]) -> dict[str, Any]:
             feedback.get("recommended_next_action", "") or ""
         ),
         "unknown_identifiers_from_last_check": (
-            _lean_unknown_identifiers_from_diagnostics(diagnostics)
+            current_unknown_identifiers
+        ),
+        "unknown_identifiers_from_prior_checks": prior_unknown_identifiers,
+        "unknown_identifiers_from_all_checks": (
+            all_unknown_identifiers or current_unknown_identifiers
         ),
         "typeclass_failures_from_last_check": (
-            _lean_typeclass_failures_from_diagnostics(diagnostics)
+            current_typeclass_failures
+        ),
+        "typeclass_failures_from_prior_checks": prior_typeclass_failures,
+        "typeclass_failures_from_all_checks": (
+            all_typeclass_failures or current_typeclass_failures
         ),
         "unavailable_imports_from_last_check": (
-            _lean_unavailable_imports_from_diagnostics(diagnostics)
+            current_unavailable_imports
+        ),
+        "unavailable_imports_from_prior_checks": prior_unavailable_imports,
+        "unavailable_imports_from_all_checks": (
+            all_unavailable_imports or current_unavailable_imports
+        ),
+        "parse_error_source_fragments_from_last_check": current_parse_error_fragments,
+        "parse_error_source_fragments_from_prior_checks": prior_parse_error_fragments,
+        "parse_error_source_fragments_from_all_checks": (
+            all_parse_error_fragments or current_parse_error_fragments
         ),
         "diagnostics_excerpt": diagnostics[:6],
+        "diagnostic_source_excerpts": list(
+            feedback.get("local_lean_diagnostic_source_excerpts", []) or []
+        )[:3],
+        "diagnostic_source_excerpts_history": diagnostic_history[:8],
     }
 
 
@@ -1142,6 +1423,8 @@ def _lean_project_identifier_lookup_contract(
             "project_path": project_raw,
             "unknown_identifier_rows": [],
             "identifier_lookup_rows": [],
+            "identifier_reuse_policy": [],
+            "hard_negative_identifier_rows": [],
             "lookup_scope": "not_run_without_unknown_identifiers",
             "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
         }
@@ -1176,11 +1459,18 @@ def _lean_project_identifier_lookup_contract(
             )
             for spec in lookup_specs
         ]
+    identifier_reuse_policy = _identifier_lookup_reuse_policy_rows(rows)
     return {
         "project_identifier_lookup_status": status,
         "project_path": project_raw,
         "unknown_identifier_rows": rows,
         "identifier_lookup_rows": rows,
+        "identifier_reuse_policy": identifier_reuse_policy,
+        "hard_negative_identifier_rows": [
+            row
+            for row in identifier_reuse_policy
+            if row.get("reuse_status") == "must_not_reuse_without_new_local_evidence"
+        ],
         "lookup_scope": (
             "bounded lexical Lean source lookup over the configured project and "
             "Mathlib package; hits are retrieval/context only, not proof evidence"
@@ -1192,7 +1482,8 @@ def _lean_project_identifier_lookup_contract(
 def _lean_identifier_lookup_specs(lean_feedback: Mapping[str, Any]) -> list[dict[str, Any]]:
     specs: list[dict[str, Any]] = []
     for identifier in _string_list(
-        lean_feedback.get("unknown_identifiers_from_last_check", [])
+        lean_feedback.get("unknown_identifiers_from_all_checks", [])
+        or lean_feedback.get("unknown_identifiers_from_last_check", [])
     ):
         specs.append(
             {
@@ -1200,7 +1491,11 @@ def _lean_identifier_lookup_specs(lean_feedback: Mapping[str, Any]) -> list[dict
                 "lookup_reason": "unknown_identifier",
             }
         )
-    for failure in lean_feedback.get("typeclass_failures_from_last_check", []) or []:
+    for failure in (
+        lean_feedback.get("typeclass_failures_from_all_checks", [])
+        or lean_feedback.get("typeclass_failures_from_last_check", [])
+        or []
+    ):
         if not isinstance(failure, Mapping):
             continue
         failed_typeclass = str(failure.get("failed_typeclass", "") or "").strip()
@@ -1383,6 +1678,84 @@ def _identifier_lookup_repair_options(
             ),
         )
     return options
+
+
+def _identifier_lookup_reuse_policy_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    policy_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        identifier = str(
+            row.get("unknown_identifier", "")
+            or row.get("lookup_identifier", "")
+            or ""
+        ).strip()
+        if not identifier:
+            continue
+        lookup_reason = str(row.get("lookup_reason", "") or "unknown_identifier")
+        key = (identifier, lookup_reason)
+        if key in seen:
+            continue
+        seen.add(key)
+        verified_modules = _dedup_strings(row.get("verified_declaration_modules", []))
+        if lookup_reason == "typeclass_synthesis_failure":
+            policy_rows.append(
+                {
+                    "identifier": identifier,
+                    "lookup_reason": lookup_reason,
+                    "reuse_status": "not_instance_evidence",
+                    "verified_declaration_modules": verified_modules,
+                    "must_not_treat_declaration_module_as_instance": True,
+                    "required_action_before_reuse": (
+                        "retrieve and locally verify an actual instance-level "
+                        "repair, or remove/parameterize the operation"
+                    ),
+                    "fallback_action": "return blocked_or_insufficient_context",
+                }
+            )
+            continue
+        if verified_modules:
+            policy_rows.append(
+                {
+                    "identifier": identifier,
+                    "lookup_reason": lookup_reason,
+                    "reuse_status": (
+                        "reuse_requires_verified_declaration_import_and_local_lean_rerun"
+                    ),
+                    "verified_declaration_modules": verified_modules,
+                    "must_import_one_verified_declaration_module_before_reuse": True,
+                    "required_action_before_reuse": (
+                        "add one verified_declaration_module to required_imports "
+                        "and rerun local Lean before semantic review"
+                    ),
+                    "fallback_action": (
+                        "remove or parameterize the dependency if source theorem "
+                        "semantics do not require it"
+                    ),
+                }
+            )
+            continue
+        policy_rows.append(
+            {
+                "identifier": identifier,
+                "lookup_reason": lookup_reason,
+                "reuse_status": "must_not_reuse_without_new_local_evidence",
+                "verified_declaration_modules": [],
+                "must_not_reuse_in_candidate": True,
+                "required_action_before_reuse": (
+                    "obtain a new source lookup hit or local Lean check for this "
+                    "exact identifier before using it again"
+                ),
+                "fallback_action": (
+                    "remove or parameterize the dependency, or return "
+                    "blocked_or_insufficient_context"
+                ),
+            }
+        )
+    return policy_rows
 
 
 def _lean_source_lookup_roots(project: Path) -> list[tuple[Path, Path]]:
@@ -1742,12 +2115,22 @@ def _lean_unknown_identifiers_from_diagnostics(
     patterns = (
         re.compile(
             r"\bUnknown constant\s+[`']?"
-            r"([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)",
+            r"([A-Za-z_][A-Za-z0-9_'?]*(?:\.[A-Za-z_][A-Za-z0-9_'?]*)*)",
             re.IGNORECASE,
         ),
         re.compile(
             r"\bunknown identifier\s+[`']?"
-            r"([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)",
+            r"([A-Za-z_][A-Za-z0-9_'?]*(?:\.[A-Za-z_][A-Za-z0-9_'?]*)*)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bInvalid field\s+[`']?"
+            r"([A-Za-z_][A-Za-z0-9_'?]*(?:\.[A-Za-z_][A-Za-z0-9_'?]*)*)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\benvironment does not contain\s+[`']?"
+            r"([A-Za-z_][A-Za-z0-9_'?]*(?:\.[A-Za-z_][A-Za-z0-9_'?]*)*)",
             re.IGNORECASE,
         ),
     )
@@ -1804,7 +2187,7 @@ def _lean_failed_instance_type_from_diagnostic(
 
 def _lean_typeclass_head(instance_type: str) -> str:
     match = re.search(
-        r"\b([A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*)",
+        r"\b([A-Za-z_][A-Za-z0-9_'?]*(?:\.[A-Za-z_][A-Za-z0-9_'?]*)*)",
         str(instance_type or ""),
     )
     return _lean_diagnostic_token(match.group(1)) if match else ""
@@ -1894,6 +2277,24 @@ def _lean_authoring_environment_contract(
         lean_feedback=lean_feedback,
         import_inventory=import_inventory,
     )
+    identifier_reuse_policy = [
+        dict(row)
+        for row in identifier_lookup.get("identifier_reuse_policy", []) or []
+        if isinstance(row, Mapping)
+    ]
+    hard_negative_identifier_rows = [
+        dict(row)
+        for row in identifier_lookup.get("hard_negative_identifier_rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    identifiers_with_no_verified_declaration_module = [
+        str(row.get("identifier", "") or "").strip()
+        for row in hard_negative_identifier_rows
+        if str(row.get("identifier", "") or "").strip()
+    ]
+    parse_error_source_fragments = _string_list(
+        lean_feedback.get("parse_error_source_fragments_from_all_checks", [])
+    )
     repair_policy = [
         (
             "Treat local Lean diagnostics as hard feedback about the configured "
@@ -1912,12 +2313,12 @@ def _lean_authoring_environment_contract(
             "over replacing it with another unverified identifier/import."
         ),
     ]
-    if lean_feedback["unavailable_imports_from_last_check"]:
+    if lean_feedback["unavailable_imports_from_all_checks"]:
         repair_policy.append(
             (
-                "Imports reported unavailable by the last local Lean check must "
-                "not be reintroduced unless a later verified project inventory "
-                "shows the module exists."
+                "Imports reported unavailable by any prior local Lean check must "
+                "not be reintroduced unless a later verified project inventory shows "
+                "the module exists."
             )
         )
         repair_policy.append(
@@ -1940,11 +2341,11 @@ def _lean_authoring_environment_contract(
                 "source/RAG/local Lean checks."
             )
         )
-    if lean_feedback["typeclass_failures_from_last_check"]:
+    if lean_feedback["typeclass_failures_from_all_checks"]:
         repair_policy.append(
             (
                 "For typeclass synthesis failures, use "
-                "local_lean_feedback.typeclass_failures_from_last_check and "
+                "local_lean_feedback.typeclass_failures_from_all_checks and "
                 "project_identifier_lookup rows with lookup_reason="
                 "typeclass_synthesis_failure. A class declaration lookup is not "
                 "an instance proof; repair by removing/parameterizing the "
@@ -1953,13 +2354,13 @@ def _lean_authoring_environment_contract(
                 "have its own source lookup or local Lean check before use."
             )
         )
-    if lean_feedback["unknown_identifiers_from_last_check"]:
+    if lean_feedback["unknown_identifiers_from_all_checks"]:
         repair_policy.append(
             (
-                "For unknown identifiers, consult project_identifier_lookup "
-                "before adding imports or replacing APIs. Verified declaration "
-                "modules are retrieval targets only; the materialized definition "
-                "must still pass local Lean/AXLE before review."
+                "For identifiers that failed in any prior local Lean check, consult "
+                "project_identifier_lookup before adding imports or replacing APIs. "
+                "Verified declaration modules are retrieval targets only; the "
+                "materialized definition must still pass local Lean/AXLE before review."
             )
         )
         repair_policy.append(
@@ -1971,6 +2372,52 @@ def _lean_authoring_environment_contract(
                 "lookup hit or local Lean check."
             )
         )
+    if hard_negative_identifier_rows:
+        repair_policy.append(
+            (
+                "Identifiers listed in "
+                "hard_local_negative_constraints."
+                "identifiers_with_no_verified_declaration_module have no verified "
+                "declaration module in the current lookup. Do not reuse those "
+                "exact tokens in lean_definition_candidate; remove or parameterize "
+                "the dependency, or return blocked_or_insufficient_context."
+            )
+        )
+    if parse_error_source_fragments:
+        repair_policy.append(
+            (
+                "Fragments listed in hard_local_negative_constraints."
+                "parse_error_source_fragments_must_not_reuse came from local "
+                "Lean parse errors. Do not reuse those exact syntax fragments; "
+                "rewrite with project-verified syntax, remove/parameterize the "
+                "operation, or return blocked_or_insufficient_context."
+            )
+        )
+    structural_reformulation_policy: list[str] = []
+    if (
+        hard_negative_identifier_rows
+        or parse_error_source_fragments
+        or lean_feedback["typeclass_failures_from_all_checks"]
+    ):
+        structural_reformulation_policy = [
+            (
+                "Repeated local Lean API, syntax, or typeclass failures are a "
+                "semantic-design signal, not merely an API-renaming task."
+            ),
+            (
+                "If the exact statistical object still requires order-statistic, "
+                "rounding, indexing, or typeclass infrastructure that is not "
+                "project-verified, reformulate the definition around explicit "
+                "parameters or verified primitives, or return "
+                "blocked_or_insufficient_context with the missing primitive "
+                "named precisely."
+            ),
+            (
+                "A downstream PF/BV structural decomposition may be required to "
+                "split the semantic obligation into source-grounded blocks before "
+                "another Lean candidate is authored."
+            ),
+        ]
     required_anchor_names = [
         str(value).strip()
         for value in candidate_definition_request.get("required_anchor_names", [])
@@ -2038,10 +2485,26 @@ def _lean_authoring_environment_contract(
             ),
         ],
         "local_lean_feedback": lean_feedback,
+        "diagnostic_source_excerpts": list(
+            lean_feedback.get("diagnostic_source_excerpts", []) or []
+        )[:3],
+        "hard_local_negative_constraints": {
+            "unavailable_imports_must_not_reintroduce": list(
+                lean_feedback.get("unavailable_imports_from_all_checks", []) or []
+            ),
+            "identifier_reuse_policy": identifier_reuse_policy,
+            "identifiers_with_no_verified_declaration_module": (
+                identifiers_with_no_verified_declaration_module
+            ),
+            "parse_error_source_fragments_must_not_reuse": (
+                parse_error_source_fragments
+            ),
+        },
         "project_verified_import_inventory": import_inventory,
         "verified_local_project_import_inventory": import_inventory,
         "project_identifier_lookup": identifier_lookup,
         "repair_policy": repair_policy,
+        "structural_reformulation_policy": structural_reformulation_policy,
     }
 
 
@@ -2289,7 +2752,274 @@ def validate_authoring_candidate_packet(packet: Mapping[str, Any]) -> list[str]:
     forbidden_claim = _contains_forbidden_proof_claim(packet)
     if forbidden_claim:
         errors.append(f"packet contains forbidden proof claim: {forbidden_claim}")
+    verified_import_modules = _verified_import_modules_for_candidate_packet(packet)
+    body_imports, _ = _split_leading_import_lines(lean_source)
+    declared_required_imports = _lean_import_modules(
+        packet.get("required_imports", []) or []
+    )
+    missing_declared_imports = [
+        module for module in body_imports if module not in declared_required_imports
+    ]
+    if missing_declared_imports:
+        errors.append(
+            "lean_definition_candidate import declarations must be mirrored in "
+            "required_imports: "
+            + ", ".join(missing_declared_imports[:8])
+        )
+    required_imports = _lean_import_modules(
+        [
+            *declared_required_imports,
+            *body_imports,
+        ]
+    )
+    if verified_import_modules and required_imports:
+        unverified_imports = [
+            module
+            for module in required_imports
+            if module not in verified_import_modules
+        ]
+        if unverified_imports:
+            errors.append(
+                "required_imports include modules not verified by the local "
+                "project inventory or identifier lookup: "
+                + ", ".join(unverified_imports[:8])
+            )
+    unresolved_reused_identifiers = (
+        _unverified_unresolved_identifiers_reused_by_candidate_packet(packet)
+    )
+    if unresolved_reused_identifiers:
+        errors.append(
+            "lean_definition_candidate reuses locally unresolved identifiers "
+            "without a candidate import from verified_declaration_modules; "
+            "remove or parameterize them, or return "
+            "blocked_or_insufficient_context when no verified module exists: "
+            + ", ".join(unresolved_reused_identifiers[:8])
+        )
+    typeclass_failure_reused_identifiers = (
+        _typeclass_failure_identifiers_reused_by_candidate_packet(packet)
+    )
+    if typeclass_failure_reused_identifiers:
+        errors.append(
+            "lean_definition_candidate reuses identifiers from prior "
+            "typeclass-failing source lines without an instance-level repair: "
+            + ", ".join(typeclass_failure_reused_identifiers[:8])
+        )
+    parse_error_fragments = _parse_error_source_fragments_reused_by_candidate_packet(
+        packet
+    )
+    if parse_error_fragments:
+        errors.append(
+            "lean_definition_candidate reuses prior local Lean parse-error "
+            "source fragments without verified syntax repair: "
+            + ", ".join(parse_error_fragments[:6])
+        )
     return sorted(set(errors))
+
+
+def _verified_import_modules_for_candidate_packet(
+    packet: Mapping[str, Any],
+) -> set[str]:
+    contract = packet.get("lean_authoring_environment_contract", {})
+    if not isinstance(contract, Mapping):
+        return set()
+    inventory = contract.get("project_verified_import_inventory", {})
+    if not isinstance(inventory, Mapping):
+        inventory = contract.get("verified_local_project_import_inventory", {})
+    if not isinstance(inventory, Mapping):
+        inventory = {}
+    verified: set[str] = set()
+    for key in (
+        "verified_candidate_import_modules",
+        "verified_import_modules",
+    ):
+        for module in inventory.get(key, []) or []:
+            module_text = str(module or "").strip()
+            if module_text:
+                verified.add(module_text)
+    for row in inventory.get("unavailable_import_repair_rows", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        for module in row.get("verified_exact_or_descendant_modules", []) or []:
+            module_text = str(module or "").strip()
+            if module_text:
+                verified.add(module_text)
+    lookup = contract.get("project_identifier_lookup", {})
+    if isinstance(lookup, Mapping):
+        lookup_rows = [
+            *(lookup.get("identifier_lookup_rows", []) or []),
+            *(lookup.get("unknown_identifier_rows", []) or []),
+        ]
+        typeclass_declaration_modules: set[str] = set()
+        for row in lookup_rows:
+            if not isinstance(row, Mapping):
+                continue
+            if (
+                str(row.get("lookup_reason", "") or "")
+                == "typeclass_synthesis_failure"
+            ):
+                typeclass_declaration_modules.update(
+                    str(module).strip()
+                    for module in row.get("verified_declaration_modules", []) or []
+                    if str(module).strip()
+                )
+                continue
+            for module in row.get("verified_declaration_modules", []) or []:
+                module_text = str(module or "").strip()
+                if module_text:
+                    verified.add(module_text)
+        verified.difference_update(typeclass_declaration_modules)
+    return verified
+
+
+def _unverified_unresolved_identifiers_reused_by_candidate_packet(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    contract = packet.get("lean_authoring_environment_contract", {})
+    if not isinstance(contract, Mapping):
+        return []
+    feedback = contract.get("local_lean_feedback", {})
+    if not isinstance(feedback, Mapping):
+        return []
+    identifiers = [
+        str(value).strip()
+        for value in (
+            feedback.get("unknown_identifiers_from_all_checks", [])
+            or feedback.get("unknown_identifiers_from_last_check", [])
+            or []
+        )
+        if str(value).strip()
+    ]
+    if not identifiers:
+        return []
+    verified_by_identifier: dict[str, set[str]] = {}
+    lookup = contract.get("project_identifier_lookup", {})
+    if isinstance(lookup, Mapping):
+        lookup_rows = [
+            *(lookup.get("identifier_lookup_rows", []) or []),
+            *(lookup.get("unknown_identifier_rows", []) or []),
+        ]
+        for row in lookup_rows:
+            if not isinstance(row, Mapping):
+                continue
+            identifier = str(
+                row.get("unknown_identifier", "")
+                or row.get("lookup_identifier", "")
+                or ""
+            ).strip()
+            if not identifier:
+                continue
+            verified_by_identifier.setdefault(identifier, set()).update(
+                str(module).strip()
+                for module in row.get("verified_declaration_modules", []) or []
+                if str(module).strip()
+            )
+    lean_source = str(packet.get("lean_definition_candidate", "") or "")
+    body_imports, _ = _split_leading_import_lines(lean_source)
+    required_imports = set(
+        _lean_import_modules(
+            [
+                *(packet.get("required_imports", []) or []),
+                *body_imports,
+            ]
+        )
+    )
+    reused: list[str] = []
+    for identifier in identifiers:
+        verified_modules = verified_by_identifier.get(identifier, set())
+        if _lean_source_mentions_unresolved_identifier(lean_source, identifier):
+            if verified_modules and required_imports.intersection(verified_modules):
+                continue
+            reused.append(identifier)
+    return list(dict.fromkeys(reused))
+
+
+def _typeclass_failure_identifiers_reused_by_candidate_packet(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    contract = packet.get("lean_authoring_environment_contract", {})
+    if not isinstance(contract, Mapping):
+        return []
+    feedback = contract.get("local_lean_feedback", {})
+    if not isinstance(feedback, Mapping):
+        return []
+    diagnostic_excerpts = _dedup_mapping_rows(
+        [
+            *(feedback.get("diagnostic_source_excerpts_history", []) or []),
+            *(feedback.get("diagnostic_source_excerpts", []) or []),
+        ]
+    )
+    if not (
+        feedback.get("typeclass_failures_from_all_checks", [])
+        or feedback.get("typeclass_failures_from_last_check", [])
+    ) and not any(
+        "failed to synthesize instance" in str(row.get("diagnostic", "")).lower()
+        for row in diagnostic_excerpts
+        if isinstance(row, Mapping)
+    ):
+        return []
+    candidate_source = str(packet.get("lean_definition_candidate", "") or "")
+    failing_identifiers: list[str] = []
+    for excerpt in diagnostic_excerpts:
+        if not isinstance(excerpt, Mapping):
+            continue
+        diagnostic = str(excerpt.get("diagnostic", "") or "")
+        if "failed to synthesize instance" not in diagnostic.lower():
+            continue
+        line_number = int(excerpt.get("line", 0) or 0)
+        for source_line in excerpt.get("source_excerpt", []) or []:
+            line_text = str(source_line or "")
+            if line_number > 0 and not line_text.startswith(f"{line_number}:"):
+                continue
+            for identifier in _compound_lean_identifiers(line_text):
+                if _lean_source_mentions_unresolved_identifier(
+                    candidate_source,
+                    identifier,
+                ):
+                    failing_identifiers.append(identifier)
+    return list(dict.fromkeys(failing_identifiers))
+
+
+def _parse_error_source_fragments_reused_by_candidate_packet(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    contract = packet.get("lean_authoring_environment_contract", {})
+    if not isinstance(contract, Mapping):
+        return []
+    fragments: list[str] = []
+    hard_constraints = contract.get("hard_local_negative_constraints", {})
+    if isinstance(hard_constraints, Mapping):
+        fragments.extend(
+            _string_list(
+                hard_constraints.get(
+                    "parse_error_source_fragments_must_not_reuse",
+                    [],
+                )
+            )
+        )
+    feedback = contract.get("local_lean_feedback", {})
+    if isinstance(feedback, Mapping):
+        fragments.extend(
+            _string_list(
+                feedback.get("parse_error_source_fragments_from_all_checks", [])
+            )
+        )
+    lean_source = str(packet.get("lean_definition_candidate", "") or "")
+    reused: list[str] = []
+    for fragment in _dedup_strings(fragments):
+        if len(fragment) >= 3 and fragment in lean_source:
+            reused.append(fragment)
+    return reused
+
+
+def _compound_lean_identifiers(text: str) -> list[str]:
+    identifiers = [
+        match.group(1)
+        for match in re.finditer(
+            r"\b([A-Za-z_][A-Za-z0-9_'?]*(?:\.[A-Za-z_][A-Za-z0-9_'?]*)+)",
+            str(text or ""),
+        )
+    ]
+    return list(dict.fromkeys(_lean_diagnostic_token(value) for value in identifiers))
 
 
 def _normalized_semantic_review_decision(value: Any) -> str:
@@ -2441,6 +3171,9 @@ def _normalize_candidate_packet(
         ),
         "candidate_repair_feedback": _candidate_repair_feedback(task),
         **body,
+        "lean_authoring_environment_contract": dict(
+            prompt_packet.get("lean_authoring_environment_contract", {}) or {}
+        ),
         "definition_only_candidate_artifact_path": "",
         "candidate_artifact_path": "",
         "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION",
@@ -2462,17 +3195,45 @@ def _failed_candidate_packet(
     error: Exception,
 ) -> dict[str, Any]:
     failure_classification = _authoring_failure_classification(error)
+    validation_errors = (
+        list(error.errors)
+        if isinstance(error, PacketValidationError)
+        else [f"{type(error).__name__}: {error}"]
+    )
+    repair_history = (
+        list(error.history) if isinstance(error, PacketValidationError) else []
+    )
+    repair_attempts = (
+        int(error.attempts) if isinstance(error, PacketValidationError) else 0
+    )
     runtime_queue_status = (
         "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
         if failure_classification
         in {"provider_connection_error", "provider_timeout_error"}
+        else STRUCTURAL_REFORMULATION_QUEUE_STATUS
+        if failure_classification == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
         else "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
     )
     recommended_next_action = (
         "retry the same exact semantic-definition authoring prompt with the "
         "same provider or an approved fallback provider; no candidate was produced"
         if runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+        else (
+            "route to PF/BV-backed structural reformulation with Lean/RAG/source "
+            "grounding before another exact semantic-definition authoring attempt"
+        )
+        if runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
         else "repair the failed authoring response contract before materialization"
+    )
+    structural_reformulation_route = (
+        _structural_reformulation_route_context(
+            task,
+            prompt_packet=prompt_packet,
+            validation_errors=validation_errors,
+            repair_history=repair_history,
+        )
+        if runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+        else {}
     )
     packet_id = (
         "source_theorem_exact_semantic_definition_authoring_candidate_failed:"
@@ -2526,7 +3287,18 @@ def _failed_candidate_packet(
         "required_imports": [],
         "binder_usage": [],
         "semantic_alignment_notes": [],
-        "known_gaps": [f"{type(error).__name__}: {error}"],
+        "known_gaps": [
+            *(
+                [
+                    "local Lean feedback indicates API/syntax-level repair loop; "
+                    "structural semantic reformulation is required before another "
+                    "authoring pass"
+                ]
+                if structural_reformulation_route
+                else []
+            ),
+            f"{type(error).__name__}: {error}",
+        ],
         "forbidden_shortcuts_absent": False,
         "requires_local_lean_check": True,
         "definition_only_candidate_artifact_path": "",
@@ -2544,7 +3316,15 @@ def _failed_candidate_packet(
         "failure_classification": failure_classification,
         "recommended_next_action": recommended_next_action,
         "ok": False,
-        "validation_errors": [f"{type(error).__name__}: {error}"],
+        "validation_errors": validation_errors,
+        "llm_json_repair_attempts": repair_attempts,
+        "llm_json_repair_history": repair_history,
+        "structural_reformulation_required": bool(structural_reformulation_route),
+        "pseudo_formalization_required": bool(structural_reformulation_route),
+        "requires_pseudo_formalization": bool(structural_reformulation_route),
+        "source_theorem_exact_semantic_definition_structural_reformulation_route": (
+            structural_reformulation_route
+        ),
         "proof_evidence_status": CANDIDATE_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
         "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
@@ -2562,7 +3342,144 @@ def _candidate_definition_request_from_prompt(
     return dict(task.get("candidate_definition_request", {}) or {})
 
 
+def _packet_validation_error_requires_structural_reformulation(
+    error: PacketValidationError,
+) -> bool:
+    errors = [
+        *_string_list(getattr(error, "errors", []) or []),
+        *_validation_history_errors(getattr(error, "history", []) or []),
+    ]
+    return _validation_errors_require_structural_reformulation(errors)
+
+
+def _validation_errors_require_structural_reformulation(
+    errors: Sequence[str],
+) -> bool:
+    markers = (
+        "reuses locally unresolved identifiers",
+        "reuses prior local lean parse-error source fragments",
+        "reuses identifiers from prior typeclass-failing source lines",
+        "must_not_reuse_without_new_local_evidence",
+    )
+    return any(
+        any(marker in str(error or "").lower() for marker in markers)
+        for error in errors
+    )
+
+
+def _validation_history_errors(history: Sequence[Any]) -> list[str]:
+    errors: list[str] = []
+    for row in history or []:
+        if not isinstance(row, Mapping):
+            continue
+        errors.extend(_string_list(row.get("errors", []) or []))
+    return errors
+
+
+def _structural_reformulation_route_context(
+    task: Mapping[str, Any],
+    *,
+    prompt_packet: Mapping[str, Any],
+    validation_errors: Sequence[str],
+    repair_history: Sequence[Any],
+) -> dict[str, Any]:
+    contract = pseudo_formal_verification_method_contract()
+    activation_policy = contract.get("runtime_activation_policy", {})
+    calibration = contract.get("bv_calibration_contract", {})
+    lean_contract = (
+        prompt_packet.get("lean_authoring_environment_contract", {})
+        if isinstance(prompt_packet.get("lean_authoring_environment_contract", {}), Mapping)
+        else {}
+    )
+    lean_feedback = (
+        lean_contract.get("local_lean_feedback", {})
+        if isinstance(lean_contract.get("local_lean_feedback", {}), Mapping)
+        else {}
+    )
+    hard_constraints = (
+        lean_contract.get("hard_local_negative_constraints", {})
+        if isinstance(lean_contract.get("hard_local_negative_constraints", {}), Mapping)
+        else {}
+    )
+    target_lanes = [
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    ]
+    return {
+        "schema_version": 1,
+        "artifact_kind": "ExactSemanticDefinitionStructuralReformulationRoute",
+        "failure_classification": STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+        "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+        "route_reason": (
+            "The candidate repair loop reused local Lean hard-negative API or "
+            "syntax evidence. The next step must reformulate the semantic object "
+            "using source-grounded blocks and project-verified primitives, rather "
+            "than trying adjacent Lean APIs."
+        ),
+        "required_next_owner": "Formalizer/ProofEngineer/CodingAgent",
+        "required_next_action": (
+            "Run a PF/BV-backed structural decomposition of the exact semantic "
+            "definition obligation, retrieve Lean/RAG/source-to-bridge grounding "
+            "for each primitive, then author a smaller definition or declare the "
+            "formal infrastructure gap explicitly."
+        ),
+        "pseudo_formalization_required": True,
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "pseudo_formal_method_contract_id": str(contract.get("contract_id", "") or ""),
+        "pseudo_formal_method_name": str(contract.get("method_name", "") or ""),
+        "pseudo_formal_source_basis": dict(contract.get("source_basis", {}) or {}),
+        "pseudo_formal_acceptance_boundary": str(
+            calibration.get("acceptance_boundary", "") or ""
+        ),
+        "pseudo_formal_forbidden_outputs": list(
+            activation_policy.get("forbidden_outputs", []) or []
+        ),
+        "target_lanes": target_lanes,
+        "target_queue_status_by_lane": {
+            lane: PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE.get(
+                lane,
+                "",
+            )
+            for lane in target_lanes
+        },
+        "candidate_definition_request": _candidate_definition_request_from_prompt(
+            prompt_packet,
+            task=task,
+        ),
+        "local_lean_feedback_summary": {
+            "unknown_identifiers_from_all_checks": _string_list(
+                lean_feedback.get("unknown_identifiers_from_all_checks", [])
+            ),
+            "typeclass_failures_from_all_checks": [
+                dict(row)
+                for row in lean_feedback.get("typeclass_failures_from_all_checks", [])
+                or []
+                if isinstance(row, Mapping)
+            ],
+            "parse_error_source_fragments_from_all_checks": _string_list(
+                lean_feedback.get("parse_error_source_fragments_from_all_checks", [])
+            ),
+        },
+        "hard_local_negative_constraints": dict(hard_constraints),
+        "validation_errors": list(validation_errors),
+        "llm_json_repair_history_errors": _validation_history_errors(repair_history),
+        "proof_evidence_status": CANDIDATE_PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "Structural reformulation routing is orchestration and semantic-audit "
+            "context only. PF/BV outputs may prioritize and decompose work, but "
+            "they do not establish semantic-definition kernel evidence or source "
+            "theorem proof without later local Lean/AXLE replay."
+        ),
+        "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
 def _authoring_failure_classification(error: Exception) -> str:
+    if isinstance(error, PacketValidationError):
+        if _packet_validation_error_requires_structural_reformulation(error):
+            return STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+        return "authoring_candidate_validation_failed"
     name = type(error).__name__.lower()
     text = str(error).lower()
     if "timeout" in name or "timeout" in text or "timed out" in text:
@@ -2620,9 +3537,40 @@ def _retry_authoring_task(
         prompt_packet,
         task=task,
     )
-    retry_task["runtime_queue_status"] = (
-        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+    failed_queue_status = str(
+        failed_candidate_packet.get("runtime_queue_status", "") or ""
     )
+    if failed_queue_status not in AUTHORING_FOLLOWUP_QUEUE_STATUSES:
+        failed_queue_status = "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+    repair_required = (
+        failed_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    structural_reformulation_required = (
+        failed_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    )
+    retry_task["runtime_queue_status"] = failed_queue_status
+    retry_task["authoring_trigger"] = (
+        "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+        if structural_reformulation_required
+        else
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+        if repair_required
+        else "EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY_REQUIRED"
+    )
+    retry_task["repair_of_authoring_candidate_validation_failure"] = repair_required
+    retry_task["structural_reformulation_required"] = (
+        structural_reformulation_required
+    )
+    retry_task["pseudo_formalization_required"] = structural_reformulation_required
+    retry_task["requires_pseudo_formalization"] = structural_reformulation_required
+    if structural_reformulation_required:
+        route = failed_candidate_packet.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_route",
+            {},
+        )
+        retry_task[
+            "source_theorem_exact_semantic_definition_structural_reformulation_route"
+        ] = dict(route) if isinstance(route, Mapping) else {}
     retry_task["source_theorem_kernel_verified"] = False
     retry_task["semantic_definition_kernel_verified"] = False
     retry_task["proof_evidence_status"] = AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS
@@ -2892,6 +3840,20 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
         "runtime_queue_status": str(packet.get("runtime_queue_status", "") or ""),
         "failure_classification": str(packet.get("failure_classification", "") or ""),
         "recommended_next_action": str(packet.get("recommended_next_action", "") or ""),
+        "structural_reformulation_required": bool(
+            packet.get("structural_reformulation_required", False)
+        ),
+        "pseudo_formalization_required": bool(
+            packet.get("pseudo_formalization_required", False)
+            or packet.get("requires_pseudo_formalization", False)
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_route": dict(
+            packet.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_route",
+                {},
+            )
+            or {}
+        ),
         **_exact_semantic_definition_context(packet),
         "candidate_definition_request": dict(
             packet.get("candidate_definition_request", {}) or {}
@@ -2917,6 +3879,13 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
             ),
             "recommended_next_action": str(
                 packet.get("recommended_next_action", "") or ""
+            ),
+            "structural_reformulation_required": bool(
+                packet.get("structural_reformulation_required", False)
+            ),
+            "pseudo_formalization_required": bool(
+                packet.get("pseudo_formalization_required", False)
+                or packet.get("requires_pseudo_formalization", False)
             ),
         },
         "target_behavior": (
@@ -3279,6 +4248,30 @@ def _lean_source_mentions_identifier(lean_source: str, identifier: str) -> bool:
             str(lean_source or ""),
         )
     )
+
+
+def _lean_source_mentions_unresolved_identifier(
+    lean_source: str,
+    identifier: str,
+) -> bool:
+    raw_identifier = str(identifier or "").strip()
+    if not raw_identifier:
+        return False
+    candidates = [raw_identifier]
+    if "." in raw_identifier:
+        short = raw_identifier.rsplit(".", 1)[-1]
+        if short:
+            candidates.append(short)
+    for candidate in dict.fromkeys(candidates):
+        escaped = re.escape(candidate)
+        if not escaped:
+            continue
+        if re.search(
+            rf"(?<![A-Za-z0-9_']){escaped}(?![A-Za-z0-9_'])",
+            str(lean_source or ""),
+        ):
+            return True
+    return False
 
 
 def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, Any]:

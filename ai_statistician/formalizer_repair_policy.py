@@ -30,6 +30,134 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
     FormalizerValidationRepairRule, ...
 ] = (
     FormalizerValidationRepairRule(
+        rule_id="pseudo_formalization_required",
+        violation_family="pseudo_formal_block_verification_contract",
+        trigger_markers=(
+            "pseudo_formalization_required",
+            "requires at least one pseudo_formal_proof_packets",
+            "no locally valid pseudo_formal_proof_packets",
+            "valid pf/bv packet did not produce",
+        ),
+        prompt_directive=(
+            "PF/BV activation is required: emit at least one "
+            "pseudo_formal_proof_packets entry with source-anchored blocks, "
+            "PF/BV method lineage, faithfulness/block-verifier status, and at "
+            "least one lane-routable residual work order. Do not replace this "
+            "with another direct Lean API retry or a FORMAL_GAP-only packet."
+        ),
+        allowed_resolution=(
+            "Produce valid pseudo-formal blocks that route residuals to Lean/RAG, "
+            "source-to-bridge, exact semantic-definition authoring, or formal-gap "
+            "lanes while preserving non-proof boundaries."
+        ),
+        forbidden_resolution=(
+            "Do not satisfy required PF/BV activation with ordinary formal_targets, "
+            "unchecked Lean sketches, broad prose, or pseudo-formal packets that "
+            "produce no lane-routable work-order rows."
+        ),
+    ),
+    FormalizerValidationRepairRule(
+        rule_id="pseudo_formal_blocks_required_when_packet_present",
+        violation_family="pseudo_formal_block_verification_contract",
+        trigger_markers=(
+            "blocks must contain at least one pseudo-formal block",
+            "pseudo_formal_proof_packets",
+        ),
+        prompt_directive=(
+            "If you emit pseudo_formal_proof_packets, every packet must contain "
+            "at least one concrete pseudo-formal block with premises, conclusion, "
+            "proof text, dependency/scope metadata, PF/BV method lineage, and "
+            "non-proof boundary. When PF/BV activation is not required and no "
+            "valid block can be produced, omit the optional packet instead of "
+            "returning an empty PF/BV shell."
+        ),
+        allowed_resolution=(
+            "Emit non-empty source-anchored PF/BV blocks, or leave the optional "
+            "pseudo_formal_proof_packets list empty when the current feedback does "
+            "not require PF/BV activation."
+        ),
+        forbidden_resolution=(
+            "Do not return pseudo-formal packets with an empty blocks list or "
+            "placeholder-only block content."
+        ),
+    ),
+    FormalizerValidationRepairRule(
+        rule_id="pseudo_formal_block_schema_fields",
+        violation_family="pseudo_formal_block_verification_contract",
+        trigger_markers=(
+            "missing conclusion",
+            "missing source_anchors",
+            "unsupported faithfulness_status",
+        ),
+        prompt_directive=(
+            "Repair each pseudo-formal block against the block schema: use a "
+            "top-level conclusion field for the local claim, include at least one "
+            "source_anchors entry pointing to a theory trace/paper/proof-body "
+            "source, and set faithfulness_status to one of lowercase "
+            "`faithful`, `needs_review`, `unfaithful`, or `unchecked`. Do not use "
+            "uppercase statuses such as UNVERIFIED."
+        ),
+        allowed_resolution=(
+            "Return schema-valid blocks with explicit source anchors and a valid "
+            "faithfulness status, or route the block as needs_review/unfaithful "
+            "with faithfulness_repair metadata."
+        ),
+        forbidden_resolution=(
+            "Do not put the conclusion only inside prose, omit source anchors, or "
+            "invent unsupported faithfulness status labels."
+        ),
+    ),
+    FormalizerValidationRepairRule(
+        rule_id="pseudo_formal_block_verification_rollout_count",
+        violation_family="pseudo_formal_block_verification_contract",
+        trigger_markers=(
+            "rollout_count",
+            "accepted block_verification",
+            "block verification",
+        ),
+        prompt_directive=(
+            "When a pseudo-formal block uses "
+            "block_verification.verdict=`accepted`, include "
+            "block_verification.rollout_count as an integer >= 1. If no "
+            "independent BV rollout was actually recorded, use a valid "
+            "non-accepted verdict such as `not_run`, `unknown`, or `failed` "
+            "instead of `accepted`; keep the block's top-level conclusion and "
+            "source_anchors fields intact. Use `needs_review` only as a "
+            "faithfulness_status value, not as a block_verification verdict."
+        ),
+        allowed_resolution=(
+            "Either record rollout_count >= 1 for accepted blocks, or downgrade "
+            "the block verdict to a non-accepted residual route that still "
+            "produces a lane-routable PF/BV work order."
+        ),
+        forbidden_resolution=(
+            "Do not claim an accepted BV block with rollout_count 0/missing, and "
+            "do not repair that error by dropping the block conclusion or source "
+            "anchors."
+        ),
+    ),
+    FormalizerValidationRepairRule(
+        rule_id="pseudo_formal_block_type_normalization",
+        violation_family="pseudo_formal_block_verification_contract",
+        trigger_markers=("unsupported block_type",),
+        prompt_directive=(
+            "Use the pseudo-formal block_type vocabulary: theorem, proposition, "
+            "lemma, claim, fact, definition, calculation, or case. Natural "
+            "decomposition labels such as theorem_step, assumption_block, "
+            "derivation_block, and conclusion_block must be rewritten into that "
+            "vocabulary before returning the packet."
+        ),
+        allowed_resolution=(
+            "Map assumption/premise blocks to fact, derivation/proof/theorem "
+            "steps to lemma or calculation, and final/result blocks to claim "
+            "while keeping source anchors and local conclusions explicit."
+        ),
+        forbidden_resolution=(
+            "Do not invent new block_type labels or hide the block role in prose "
+            "while leaving the schema field invalid."
+        ),
+    ),
+    FormalizerValidationRepairRule(
         rule_id="forbidden_contradiction_shortcut",
         violation_family="proof_shortcut_guardrail",
         trigger_markers=(

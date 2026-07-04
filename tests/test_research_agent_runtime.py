@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import json
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -63,9 +65,13 @@ from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_execut
 )
 from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker import (
     AuthoringWorkerConfig,
+    STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+    STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+    _failed_candidate_packet,
     _is_external_llm_provider,
     _is_live_external_llm_provider_pair,
     run_source_theorem_exact_semantic_definition_authoring_worker,
+    validate_authoring_candidate_packet,
 )
 from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
@@ -98,6 +104,8 @@ from ai_statistician.formalizer_repair_policy import (
 )
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+    PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
@@ -107,8 +115,11 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
     PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+    pseudo_formal_routable_work_order_rows,
 )
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
@@ -192,9 +203,11 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_repair_targets,
     _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_alignment_learning_rows,
     _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders,
+    _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders,
     _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows,
     _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows,
     _runtime_source_theorem_exact_semantic_definition_learning_rows,
+    _typechecked_review_runtime_learning_rows_from_recheck_manifest,
     _exact_semantic_definition_lean_repair_executor_project,
     _dedupe_runtime_next_action_agenda_rows,
     _late_typechecked_candidate_review_unresolved,
@@ -253,11 +266,13 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
     _runtime_learning_rows_contract_audit_summary,
+    _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summary,
     _runtime_pseudo_formal_block_routing_contract_audit_summary,
     _architect_initial_routing_record_errors,
     _runtime_audit_expected_subsystem_sequence,
     _runtime_trace_sequence_has_control_contract,
     _trace_architect_initial_routing_records,
+    _trace_has_architect_runtime_field,
     _payload_distinct_task_family_count,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
@@ -345,6 +360,53 @@ def _structured_theory_packet_fixture(
             "n_assumption_ledger_rows": 2,
             "has_formalization_handoff": True,
         },
+    }
+
+
+def _failed_formalizer_materialization_fixture(
+    manifest_id: str = "formalizer_lean_candidate_materialization:failed",
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": manifest_id,
+        "source_formalizer_packet_id": "formalizer_proposal:failed_candidate",
+        "task_id": "formalize:failed_candidate",
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 0,
+        "n_precheck_rejected": 1,
+        "n_local_lean_checked": 0,
+        "n_local_lean_compiled": 0,
+        "candidate_rows": [
+            {
+                "candidate_id": "bad_helper",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "artifact_path": "",
+                "kernel_check_artifact_path": "",
+                "target_lean_file": "",
+                "target_lean_line": 0,
+                "target_lean_column": 0,
+                "target_lean_declaration": "bad_helper",
+                "lean_source_excerpt": (
+                    "theorem bad_helper (p : Prop) : p := by\n"
+                    "  exact missing_hypothesis\n"
+                ),
+                "precheck_status": "REJECTED_BY_RUNTIME_PRECHECK",
+                "precheck_errors": [
+                    "Lean parser/syntax error: generated candidate is incomplete"
+                ],
+                "local_lean_attempted": False,
+                "local_lean_compiled": False,
+                "local_lean_skipped_reason": (
+                    "candidate_rejected_by_precheck_or_not_materialized"
+                ),
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZER_LEAN_CANDIDATE_REPAIR_REQUIRED_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": runtime_module.KERNEL_PROOF_BOUNDARY,
     }
 
 
@@ -2375,6 +2437,11 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         if artifact.get("artifact_kind")
         == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest"
     )
+    handoff = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationGapPlannerHandoff"
+    )
     assert manifest["live_llm_invoked"] is True
     assert manifest["live_route_planner_all_responses_recorded"] is True
     assert manifest["live_route_planner_target_prover_replay_complete"] is True
@@ -2485,6 +2552,27 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert live_manifest["rows"][0]["context_materialization"][
         "route_revision_overlay_manifest"
     ] == str(prior_overlay_manifest)
+    live_row = live_manifest["rows"][0]
+    live_row_context = live_row["formalization_gap_planner_execution_contexts"][0]
+    assert live_row["target_intake_path"] == handoff["target_intake_path"]
+    assert live_row["llm_route_planner_prompt_cli"] == handoff[
+        "llm_route_planner_prompt_cli"
+    ]
+    assert live_row["llm_route_planner_live_cli"] == handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert live_row["reuse_smoke_cli"] == handoff["reuse_smoke_cli"]
+    assert live_row_context["target_intake_path"] == handoff["target_intake_path"]
+    assert live_row_context["llm_route_planner_prompt_cli"] == handoff[
+        "llm_route_planner_prompt_cli"
+    ]
+    assert live_row_context["llm_route_planner_live_cli"] == handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert live_row_context["reuse_smoke_cli"] == handoff["reuse_smoke_cli"]
+    assert live_row_context["proof_evidence_status"] == (
+        runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+    )
     target_prover_replay = live_manifest["rows"][0]["target_prover_replay"]
     assert target_prover_replay["route_revision_proposals"]
     proposal = target_prover_replay["route_revision_proposals"][0]
@@ -2546,6 +2634,17 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert replay_learning_row["next_owner_subsystem"] == (
         "FormalizationGapPlanner/Formalizer/ProofEngineer"
     )
+    replay_context = replay_learning_row[
+        "formalization_gap_planner_execution_contexts"
+    ][0]
+    assert replay_context["target_intake_path"] == handoff["target_intake_path"]
+    assert replay_context["llm_route_planner_live_cli"] == handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert replay_context["reuse_smoke_cli"] == handoff["reuse_smoke_cli"]
+    assert replay_context["proof_evidence_status"] == (
+        runtime_module.RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+    )
     assert replay_learning_row["runtime_queue_status"] == (
         "PENDING_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_ROUTE_REVISION"
     )
@@ -2576,6 +2675,17 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         target_prover_replay["route_revision_overlay_manifest"]
     )
     assert replay_agenda_row["n_route_revision_overlay_rows"] >= 1
+    agenda_context = replay_agenda_row[
+        "formalization_gap_planner_execution_contexts"
+    ][0]
+    assert agenda_context["target_intake_path"] == handoff["target_intake_path"]
+    assert agenda_context["llm_route_planner_prompt_cli"] == handoff[
+        "llm_route_planner_prompt_cli"
+    ]
+    assert agenda_context["llm_route_planner_live_cli"] == handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert agenda_context["reuse_smoke_cli"] == handoff["reuse_smoke_cli"]
     generated_replay_learning_rows = _runtime_generated_next_action_learning_rows(
         replay_agenda_rows
     )
@@ -2594,6 +2704,24 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert generated_replay_learning_row["input_summary"][
         "n_route_revision_overlay_rows"
     ] >= 1
+    generated_context = generated_replay_learning_row[
+        "formalization_gap_planner_execution_contexts"
+    ][0]
+    assert generated_context["target_intake_path"] == handoff["target_intake_path"]
+    assert generated_context["llm_route_planner_live_cli"] == handoff[
+        "llm_route_planner_live_cli"
+    ]
+    handoff_context_summary = _runtime_formal_gap_planner_handoff_context_audit_summary(
+        agenda_rows=replay_agenda_rows,
+        learning_rows=[*replay_learning_rows, *generated_replay_learning_rows],
+        handoff_artifact_rows=[handoff],
+    )
+    assert (
+        handoff_context_summary[
+            "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+        ]
+        == 0
+    )
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
@@ -4217,13 +4345,20 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
             "b_rank_uniform",
         ],
         "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+        "row_kind": "pseudo_formal_lean_candidate_seed",
         "work_order_id": "pseudo_formal_work_order:rank",
         "pseudo_formal_work_order_id": "pseudo_formal_work_order:rank",
+        "source_formalization_manifest_id": "formalization_manifest:pf-required",
         "source_theorem_id": "split_conformal_finite_sample_coverage",
         "source_block_id": "b_rank_uniform",
         "block_depth": 2,
         "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
         "dependency_ids": ["b_exchangeability"],
+        "scope_parent_id": "b_exchangeability",
+        "inherited_scope": ["exchangeability setup"],
+        "structural_quality": {"all_ok": True, "issues": [], "metrics": {}},
+        "structural_quality_ok": True,
+        "structural_quality_issues": [],
         "faithfulness_status": "faithful",
         "faithfulness_repair_status": "not_required",
         "block_verification": {
@@ -4258,6 +4393,7 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         "schema_version": 1,
         "artifact_kind": "RuntimeLearningRow",
         "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        "row_kind": "pseudo_formal_lean_candidate_seed",
         "pseudo_formal_method_contract_id": (
             PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
         ),
@@ -4276,12 +4412,19 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
             ),
             "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
             "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+            "row_kind": "pseudo_formal_lean_candidate_seed",
             "work_order_id": "pseudo_formal_work_order:rank",
+            "source_formalization_manifest_id": "formalization_manifest:pf-required",
             "source_block_id": "b_rank_uniform",
             "source_theorem_id": "split_conformal_finite_sample_coverage",
             "block_depth": 2,
             "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
             "dependency_ids": ["b_exchangeability"],
+            "scope_parent_id": "b_exchangeability",
+            "inherited_scope": ["exchangeability setup"],
+            "structural_quality": {"all_ok": True, "issues": [], "metrics": {}},
+            "structural_quality_ok": True,
+            "structural_quality_issues": [],
             "faithfulness_status": "faithful",
             "faithfulness_repair_status": "not_required",
             "block_verification": {
@@ -4315,23 +4458,88 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         agenda_rows=[agenda_row],
         learning_rows=[compact_learning_row],
         pending_memory_rows=[compact_learning_row],
+        formalization_manifests=[
+            {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:pf-required",
+                "pseudo_formalization_required": True,
+            }
+        ],
     )
 
     assert summary["runtime_pseudo_formal_block_routing_contract_complete"] is True
     assert summary["n_runtime_pseudo_formal_block_routing_rows"] == 3
+    assert summary["n_runtime_pseudo_formal_block_routing_effective_rows"] == 3
+    assert summary["n_runtime_pseudo_formal_block_routing_diagnostic_rows"] == 0
     assert summary["n_runtime_pseudo_formal_block_routing_agenda_rows"] == 1
     assert summary["n_runtime_pseudo_formal_block_routing_learning_rows"] == 1
     assert summary["n_runtime_pseudo_formal_block_routing_pending_memory_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_structural_decomposition_requests"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_independent_block_verification_requests"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_pseudo_formalization_required_formalization_manifests"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 0
+    )
+    assert summary["runtime_pseudo_formalization_required_manifest_ids"] == [
+        "formalization_manifest:pf-required"
+    ]
+    assert summary["n_runtime_pseudo_formalization_routed_manifests"] == 1
+    assert summary["n_runtime_pseudo_formalization_effective_routed_manifests"] == 1
+    assert summary["runtime_pseudo_formalization_effective_routed_manifest_ids"] == [
+        "formalization_manifest:pf-required"
+    ]
     assert (
         summary[
             "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
         ]
         == 0
     )
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+        ]
+        == 0
+    )
+    assert (
+        summary["n_runtime_pseudo_formal_block_routing_rows_missing_row_kind"]
+        == 0
+    )
     assert summary["runtime_pseudo_formal_block_routing_contract_issues"] == []
     assert summary["runtime_pseudo_formal_block_routing_target_lanes"] == {
         PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS: 3
     }
+    assert summary["runtime_pseudo_formal_block_routing_effective_target_lanes"] == {
+        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS: 3
+    }
+    assert summary["runtime_pseudo_formal_block_routing_diagnostic_target_lanes"] == {}
+    assert summary["runtime_pseudo_formal_block_routing_row_kinds"] == {
+        "pseudo_formal_lean_candidate_seed": 3
+    }
+    assert summary["runtime_pseudo_formal_block_routing_diagnostic_row_kinds"] == {}
     assert summary["runtime_pseudo_formal_block_routing_work_order_ids"] == [
         "pseudo_formal_work_order:rank"
     ]
@@ -4346,6 +4554,47 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         ]["passed"]
         is True
     )
+
+    blocked_diagnostic_row = dict(
+        agenda_row,
+        id="pseudo_formal:formal_targets:rank-blocked",
+        row_kind="pseudo_formal_lean_candidate_seed_blocked",
+    )
+    mixed_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=[agenda_row, blocked_diagnostic_row],
+        learning_rows=[],
+        formalization_manifests=[
+            {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:pf-required",
+                "pseudo_formalization_required": True,
+            }
+        ],
+    )
+    assert mixed_summary["runtime_pseudo_formal_block_routing_contract_complete"] is True
+    assert mixed_summary["n_runtime_pseudo_formal_block_routing_rows"] == 2
+    assert mixed_summary["n_runtime_pseudo_formal_block_routing_effective_rows"] == 1
+    assert mixed_summary["n_runtime_pseudo_formal_block_routing_diagnostic_rows"] == 1
+    assert mixed_summary["runtime_pseudo_formal_block_routing_row_kinds"] == {
+        "pseudo_formal_lean_candidate_seed": 1,
+        "pseudo_formal_lean_candidate_seed_blocked": 1,
+    }
+    assert mixed_summary[
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds"
+    ] == {"pseudo_formal_lean_candidate_seed_blocked": 1}
+    mixed_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(mixed_summary)["rows"]
+    }
+    assert (
+        mixed_scorecard_rows[
+            "runtime_pseudo_formal_block_routing_contract_complete"
+        ]["passed"]
+        is True
+    )
+    assert "diagnostic_rows=1" in mixed_scorecard_rows[
+        "runtime_pseudo_formal_block_routing_contract_complete"
+    ]["evidence"]
 
     broken_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
         agenda_rows=[],
@@ -4392,8 +4641,29 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         ]
         == 1
     )
+    assert (
+        broken_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+        ]
+        == 1
+    )
+    assert (
+        broken_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+        ]
+        == 0
+    )
+    assert (
+        broken_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind"
+        ]
+        == 1
+    )
     assert broken_summary[
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+    ] == 1
+    assert broken_summary[
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality"
     ] == 1
     assert broken_summary[
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality"
@@ -4406,7 +4676,171 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
         "runtime_pseudo_formal_block_routing_contract_complete"
     ]
     assert broken_row["passed"] is False
+    assert "missing_scope_parent=1" in broken_row["evidence"]
+    assert "missing_row_kind=1" in broken_row["evidence"]
+    assert "bad_structural_quality=1" in broken_row["evidence"]
     assert "source-anchored" in broken_row["blocker"]
+
+    invalid_scope_row = dict(
+        agenda_row,
+        id="pseudo_formal:formal_targets:self-scope",
+        block_depth=1,
+        scope_parent_id="b_rank_uniform",
+    )
+    invalid_scope_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=[invalid_scope_row],
+        learning_rows=[],
+    )
+    assert (
+        invalid_scope_summary[
+            "runtime_pseudo_formal_block_routing_contract_complete"
+        ]
+        is False
+    )
+    assert (
+        invalid_scope_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+        ]
+        == 0
+    )
+    assert (
+        invalid_scope_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+        ]
+        == 1
+    )
+    assert invalid_scope_summary[
+        "runtime_pseudo_formal_block_routing_contract_issues"
+    ][0]["missing_fields"] == [
+        "scope_parent_id_self",
+        "scope_parent_depth_not_deeper",
+    ]
+    invalid_scope_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(invalid_scope_summary)["rows"]
+    }
+    invalid_scope_row = invalid_scope_scorecard_rows[
+        "runtime_pseudo_formal_block_routing_contract_complete"
+    ]
+    assert "invalid_scope_parent=1" in invalid_scope_row["evidence"]
+
+    missing_inherited_scope_row = dict(
+        agenda_row,
+        id="pseudo_formal:formal_targets:no-inherited-scope",
+        inherited_scope=[],
+    )
+    missing_inherited_scope_summary = (
+        _runtime_pseudo_formal_block_routing_contract_audit_summary(
+            agenda_rows=[missing_inherited_scope_row],
+            learning_rows=[],
+        )
+    )
+    assert (
+        missing_inherited_scope_summary[
+            "runtime_pseudo_formal_block_routing_contract_complete"
+        ]
+        is False
+    )
+    assert (
+        missing_inherited_scope_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+        ]
+        == 1
+    )
+    assert missing_inherited_scope_summary[
+        "runtime_pseudo_formal_block_routing_contract_issues"
+    ][0]["missing_fields"] == ["inherited_scope"]
+    missing_inherited_scope_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            missing_inherited_scope_summary
+        )["rows"]
+    }
+    missing_inherited_scope_scorecard_row = missing_inherited_scope_scorecard_rows[
+        "runtime_pseudo_formal_block_routing_contract_complete"
+    ]
+    assert "missing_inherited_scope=1" in (
+        missing_inherited_scope_scorecard_row["evidence"]
+    )
+
+    missing_bv_input_row = dict(
+        agenda_row,
+        id="pseudo_formal:formal_gap:missing-bv-input",
+        row_kind=PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+        target_lane="formal_gap",
+        owner_subsystem="BlockVerifier/CalibrationReferee",
+        runtime_queue_status=(
+            PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE["formal_gap"]
+        ),
+    )
+    missing_bv_input_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=[missing_bv_input_row],
+        learning_rows=[],
+    )
+    assert (
+        missing_bv_input_summary[
+            "runtime_pseudo_formal_block_routing_contract_complete"
+        ]
+        is False
+    )
+    assert (
+        missing_bv_input_summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality"
+        ]
+        == 1
+    )
+    assert set(
+        missing_bv_input_summary[
+            "runtime_pseudo_formal_block_routing_contract_issues"
+        ][0]["missing_fields"]
+    ) >= {
+        "block_verification_input_premises",
+        "block_verification_input_proof_text",
+        "block_verification_dependency_statement_context",
+        "block_verifier_component_gate_command",
+        "block_verifier_prompt_packets_command",
+        "block_verifier_llm_response_command",
+        "block_verifier_response_validation_command",
+    }
+
+    required_absent_summary = (
+        _runtime_pseudo_formal_block_routing_contract_audit_summary(
+            agenda_rows=[],
+            learning_rows=[],
+            formalization_manifests=[
+                {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": "formalization_manifest:pf-required-empty",
+                    "pseudo_formalization_required": True,
+                    "pseudo_formalization_required_missing_work_order_rows": True,
+                }
+            ],
+        )
+    )
+    assert (
+        required_absent_summary[
+            "runtime_pseudo_formal_block_routing_contract_complete"
+        ]
+        is False
+    )
+    assert (
+        required_absent_summary[
+            "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 1
+    )
+    assert required_absent_summary[
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+    ] == ["formalization_manifest:pf-required-empty"]
+    required_absent_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(required_absent_summary)["rows"]
+    }
+    required_absent_row = required_absent_rows[
+        "runtime_pseudo_formal_block_routing_contract_complete"
+    ]
+    assert required_absent_row["passed"] is False
+    assert "required_missing_routing=1" in required_absent_row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
@@ -5517,13 +5951,149 @@ def test_runtime_capability_gaps_separate_component_calibration() -> None:
                 "passed": False,
                 "blocker": "attached component calibration missing",
             },
+            {
+                "requirement_id": "integrated_runtime_missing_blocker",
+                "scope": "integrated_runtime",
+                "passed": False,
+                "blocker": "",
+            },
+            {
+                "requirement_id": "component_calibration_missing_blocker",
+                "scope": "component_calibration",
+                "passed": False,
+                "blocker": "",
+            },
         ],
     }
 
-    assert _runtime_capability_gaps_from_scorecard(scorecard) == []
-    assert _runtime_component_calibration_gaps_from_scorecard(scorecard) == [
-        "attached component calibration missing"
+    assert _runtime_capability_gaps_from_scorecard(scorecard) == [
+        "capability scorecard requirement 'integrated_runtime_missing_blocker' failed without blocker text"
     ]
+    assert _runtime_component_calibration_gaps_from_scorecard(scorecard) == [
+        "attached component calibration missing",
+        "capability scorecard requirement 'component_calibration_missing_blocker' failed without blocker text",
+    ]
+
+    routing_rows = _runtime_capability_gap_routing_rows(
+        scorecard,
+        {
+            "runtime_capability_gap_routing_jsonl": (
+                "runs/debug/runtime_capability_gap_routing.jsonl"
+            ),
+        },
+        include_component_calibration=False,
+    )
+
+    assert [row["requirement_id"] for row in routing_rows] == [
+        "integrated_runtime_missing_blocker"
+    ]
+    assert routing_rows[0]["blocker"] == (
+        "capability scorecard requirement 'integrated_runtime_missing_blocker' failed without blocker text"
+    )
+    assert routing_rows[0]["scorecard_payload"]["scorecard_row"]["blocker"] == (
+        "capability scorecard requirement 'integrated_runtime_missing_blocker' failed without blocker text"
+    )
+
+
+def test_runtime_capability_gap_routing_routes_missing_scorecard_requirement_id() -> None:
+    scorecard = {
+        "rows": [
+            {
+                "scope": "integrated_runtime",
+                "passed": False,
+                "blocker": "",
+                "evidence": "synthetic test failed before requirement_id assignment",
+            }
+        ],
+    }
+    payload = {
+        "runtime_capability_gap_routing_jsonl": (
+            "runs/debug/runtime_capability_gap_routing.jsonl"
+        ),
+    }
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+    summary = _runtime_capability_gap_routing_contract_summary(
+        scorecard=scorecard,
+        routing_rows=routing_rows,
+    )
+
+    assert [row["requirement_id"] for row in routing_rows] == [
+        "missing_requirement_id_row_1"
+    ]
+    routing_row = routing_rows[0]
+    assert routing_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    assert routing_row["source_scorecard_row_missing_requirement_id"] is True
+    assert routing_row["scorecard_payload"]["scorecard_row"][
+        "source_scorecard_row_missing_requirement_id"
+    ] is True
+    assert routing_row["scorecard_payload"]["scorecard_row"]["requirement_id"] == (
+        "missing_requirement_id_row_1"
+    )
+    assert "without requirement_id" in routing_row["blocker"]
+    assert "stable requirement_id" in routing_row["target_behavior"]
+    assert "missing_requirement_id=0" in routing_row["success_metric"]
+    assert summary["runtime_capability_gap_routing_contract_complete"] is False
+    assert summary["n_runtime_capability_scorecard_failed_rows"] == 1
+    assert summary["n_runtime_capability_gap_routing_rows"] == 1
+    assert (
+        summary[
+            "n_runtime_capability_gap_routing_scorecard_rows_missing_requirement_id"
+        ]
+        == 1
+    )
+    assert summary["n_runtime_capability_gap_routing_missing_rows"] == 0
+    assert summary["runtime_capability_gap_routing_issues"][0]["issue"] == (
+        "runtime_capability_scorecard_failed_row_missing_requirement_id"
+    )
+
+
+def test_runtime_capability_gap_routing_defaults_deferred_meta_resolution_to_orchestrator() -> None:
+    scorecard = {
+        "rows": [
+            {
+                "requirement_id": "architect_deferred_meta_capability_gaps_resolved",
+                "scope": "integrated_runtime",
+                "passed": False,
+                "blocker": (
+                    "1 deferred AgentRuntime/Architect control-plane capability "
+                    "gap remains unresolved"
+                ),
+                "evidence": (
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=1"
+                ),
+            }
+        ],
+    }
+    payload = {
+        "runtime_capability_gap_routing_jsonl": (
+            "runs/debug/runtime_capability_gap_routing.jsonl"
+        ),
+        "n_architect_initial_routing_deferred_meta_capability_gaps": 1,
+        "architect_initial_routing_deferred_meta_capability_gap_owners": {
+            "AgentRuntimeOrchestrator": 1,
+        },
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": [
+            "runtime_progress_observable"
+        ],
+    }
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+
+    assert len(routing_rows) == 1
+    row = routing_rows[0]
+    assert row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    assert "control-plane capability gaps" in row["target_behavior"]
+    assert "ProofEngineer/FormalizationEvaluator" in row["target_behavior"]
+    assert row["success_metric"] == (
+        "n_architect_initial_routing_deferred_meta_capability_gaps=0"
+    )
+    assert row["scorecard_payload"]["audit_metrics"][
+        "n_architect_initial_routing_deferred_meta_capability_gaps"
+    ] == 1
+    assert row["proof_evidence_status"] == (
+        "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> None:
@@ -5563,6 +6133,16 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
     live_generator_row = rows_by_requirement["live_generator_agents_enabled"]
     assert live_generator_row["artifact_kind"] == "RuntimeCapabilityGapRoutingRow"
     assert live_generator_row["next_owner_subsystem"] == "ArchitectCoordinator"
+    assert live_generator_row["scorecard_payload"]["artifact_kind"] == (
+        "RuntimeCapabilityGapScorecardPayload"
+    )
+    assert live_generator_row["scorecard_payload"]["scorecard_row"][
+        "requirement_id"
+    ] == "live_generator_agents_enabled"
+    assert (
+        live_generator_row["scorecard_payload"]["proof_evidence_status"]
+        == "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+    )
     assert "live Anthropic/OpenAI" in live_generator_row["target_behavior"]
     assert "research-agent-runtime" in live_generator_row[
         "recommended_capability_eval_command"
@@ -5586,6 +6166,670 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
         rows_by_requirement["runtime_progress_observable"]["next_owner_subsystem"]
         == "AgentRuntimeOrchestrator"
     )
+    source_theorem_command = rows_by_requirement[
+        "source_theorem_signature_probe_reached_proof_body"
+    ]["recommended_capability_eval_command"]
+    assert "--source-theorem-promotion-proofengineer-bridge" in source_theorem_command
+    assert (
+        "--source-theorem-formal-environment-proofengineer-execute-proof-body"
+        in source_theorem_command
+    )
+    assert (
+        "--source-theorem-exact-semantic-definition-authoring-worker"
+        in source_theorem_command
+    )
+    assert "--local-lean" in source_theorem_command
+
+    pf_payload = {
+        **payload,
+        "runtime_pseudo_formal_block_routing_contract_complete": False,
+        "n_runtime_pseudo_formal_block_routing_rows": 0,
+        "n_runtime_pseudo_formal_block_routing_effective_rows": 0,
+        "n_runtime_pseudo_formal_block_routing_diagnostic_rows": 0,
+        "n_runtime_pseudo_formal_structural_decomposition_requests": 0,
+        "n_runtime_pseudo_formal_independent_block_verification_requests": 0,
+        "runtime_pseudo_formal_block_routing_effective_target_lanes": {},
+        "runtime_pseudo_formal_block_routing_diagnostic_target_lanes": {},
+        "runtime_pseudo_formal_block_routing_row_kinds": {},
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds": {},
+        "n_runtime_pseudo_formalization_required_formalization_manifests": 1,
+        "n_runtime_pseudo_formalization_required_missing_routing_rows": 1,
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids": [
+            "formalization_manifest:pf-required-empty"
+        ],
+        "runtime_pseudo_formalization_routed_manifest_ids": [
+            "formalization_manifest:pf-required-empty"
+        ],
+        "runtime_pseudo_formalization_effective_routed_manifest_ids": [],
+        "n_runtime_pseudo_formalization_routed_manifests": 1,
+        "n_runtime_pseudo_formalization_effective_routed_manifests": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_lane": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_lane": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_routing": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 1,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality": 0,
+        "runtime_pseudo_formal_block_routing_contract_issues": [
+            {
+                "issue": "pseudo_formalization_required_but_no_routed_rows",
+                "manifest_ids": ["formalization_manifest:pf-required-empty"],
+            }
+        ],
+    }
+    pf_scorecard = _runtime_capability_scorecard(pf_payload)
+    pf_routing_rows = _runtime_capability_gap_routing_rows(
+        pf_scorecard,
+        pf_payload,
+    )
+    pf_row = {
+        row["requirement_id"]: row for row in pf_routing_rows
+    }["runtime_pseudo_formal_block_routing_contract_complete"]
+    pf_metrics = pf_row["scorecard_payload"]["audit_metrics"]
+    assert (
+        pf_metrics["n_runtime_pseudo_formalization_required_missing_routing_rows"]
+        == 1
+    )
+    assert pf_metrics[
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+    ] == ["formalization_manifest:pf-required-empty"]
+    assert (
+        pf_metrics["n_runtime_pseudo_formalization_routed_manifests"] == 1
+    )
+    assert (
+        pf_metrics["n_runtime_pseudo_formalization_effective_routed_manifests"] == 0
+    )
+    assert (
+        pf_metrics["n_runtime_pseudo_formal_block_routing_effective_rows"] == 0
+    )
+    assert (
+        pf_metrics["n_runtime_pseudo_formal_block_routing_diagnostic_rows"] == 0
+    )
+    assert pf_metrics[
+        "runtime_pseudo_formalization_effective_routed_manifest_ids"
+    ] == []
+    assert (
+        pf_metrics[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+        ]
+        == 1
+    )
+    assert "required_missing_routing=1" in pf_row["evidence"]
+    assert "effective_rows=0" in pf_row["evidence"]
+    assert "diagnostic_rows=0" in pf_row["evidence"]
+    assert "structural_decomposition_requests=0" in pf_row["evidence"]
+    assert "independent_bv_requests=0" in pf_row["evidence"]
+    assert "effective_routed_manifests=0" in pf_row["evidence"]
+    assert "effective_routed_manifest_ids=[]" in pf_row["evidence"]
+    assert "missing_inherited_scope=1" in pf_row["evidence"]
+    assert "scope_parent_id/inherited_scope" in pf_row["target_behavior"]
+    assert "scope parent" in pf_row["success_metric"]
+    assert "inherited scope" in pf_row["success_metric"]
+
+    inconsistent_pf_payload = {
+        **payload,
+        "runtime_pseudo_formal_block_routing_contract_complete": True,
+        "n_runtime_pseudo_formal_block_routing_rows": 1,
+        "n_runtime_pseudo_formal_block_routing_effective_rows": 1,
+        "n_runtime_pseudo_formal_block_routing_diagnostic_rows": 0,
+        "n_runtime_pseudo_formal_structural_decomposition_requests": 0,
+        "n_runtime_pseudo_formal_independent_block_verification_requests": 0,
+        "runtime_pseudo_formal_block_routing_effective_target_lanes": {
+            PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS: 1,
+        },
+        "runtime_pseudo_formal_block_routing_diagnostic_target_lanes": {},
+        "runtime_pseudo_formal_block_routing_row_kinds": {
+            "pseudo_formal_lean_candidate_seed": 1,
+        },
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds": {},
+        "n_runtime_pseudo_formalization_required_formalization_manifests": 1,
+        "runtime_pseudo_formalization_required_manifest_ids": [
+            "formalization_manifest:pf-required"
+        ],
+        "n_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids": [],
+        "runtime_pseudo_formalization_routed_manifest_ids": [
+            "formalization_manifest:pf-required"
+        ],
+        "runtime_pseudo_formalization_effective_routed_manifest_ids": [],
+        "n_runtime_pseudo_formalization_routed_manifests": 1,
+        "n_runtime_pseudo_formalization_effective_routed_manifests": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_lane": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_lane": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_work_order_id": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_block_id": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_source_anchors": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_target_identity": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_routing": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_queue_status": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality": 0,
+        "runtime_pseudo_formal_block_routing_contract_issues": [],
+    }
+    inconsistent_pf_scorecard_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(inconsistent_pf_payload)["rows"]
+    }
+    inconsistent_pf_row = inconsistent_pf_scorecard_rows[
+        "runtime_pseudo_formal_block_routing_contract_complete"
+    ]
+    assert inconsistent_pf_row["passed"] is False
+    assert "effective_routed_manifests=0" in inconsistent_pf_row["evidence"]
+    assert "effective_routed_manifest_ids=[]" in inconsistent_pf_row["evidence"]
+
+
+def test_runtime_capability_gap_routing_rows_carry_proof_body_gap_metrics() -> None:
+    payload: dict[str, object] = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_formal_gaps": 3,
+        "has_formal_gaps": True,
+        "source_theorem_proof_body_goal_reached_evidence_count": 0,
+        "source_theorem_proof_body_result_row_count": 2,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 2,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status": {
+            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY": 2,
+        },
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled": 0,
+        "source_theorem_exact_proof_body_repair_required": True,
+        "source_theorem_exact_proof_body_repair_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_execution_queue_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready": 0,
+        "source_theorem_exact_proof_body_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows": 0,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 2,
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": False,
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "n_full_frontier_target_bound_kernel_verified": 0,
+        "full_frontier_current_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "full_frontier_theorem_kernel_verified_target_ids": [],
+        "full_frontier_kernel_verified_matching_target_ids": [],
+        "n_source_theorem_target_bound_kernel_verified": 0,
+        "source_theorem_current_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_kernel_verified_target_ids": [],
+        "source_theorem_kernel_verified_matching_target_ids": [],
+        "runtime_cross_task_theorem_family_rows": [
+            {
+                "question_id": "conformal_prediction_coverage",
+                "task_family": "conformal",
+                "task_family_explicit": True,
+                "full_frontier_theorem_proved": False,
+                "full_frontier_target_bound_kernel_verified": False,
+                "n_formal_gaps": 3,
+                "proof_evidence_status": (
+                    "CROSS_TASK_THEOREM_FAMILY_ROW_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
+        "runtime_cross_task_theorem_family_boundary": (
+            "Cross-task theorem family rows are audit metadata, not proof evidence."
+        ),
+        "n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(scorecard, payload)
+    }
+
+    candidate_metrics = routing_rows[
+        "source_theorem_exact_proof_body_candidate_materialized"
+    ]["scorecard_payload"]["audit_metrics"]
+    candidate_routing_row = routing_rows[
+        "source_theorem_exact_proof_body_candidate_materialized"
+    ]
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_required"
+    ] is True
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_execution_queue_n_rows"
+    ] == 1
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready"
+    ] == 0
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_target_names"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert candidate_metrics[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets"
+    ] == 2
+    assert candidate_metrics[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets"
+    ] == 2
+    assert candidate_metrics[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows"
+    ] == 0
+    assert candidate_routing_row["next_owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert "semantic_review_blocked=True" in candidate_routing_row["evidence"]
+    assert "semantic-faithfulness review" in candidate_routing_row["target_behavior"]
+    assert "not proof evidence" in candidate_routing_row["routing_boundary"]
+
+    proof_body_metrics = routing_rows[
+        "source_theorem_signature_probe_reached_proof_body"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert proof_body_metrics[
+        "source_theorem_proof_body_goal_reached_evidence_count"
+    ] == 0
+    assert proof_body_metrics["source_theorem_proof_body_result_row_count"] == 2
+    assert proof_body_metrics[
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows"
+    ] == 0
+    assert proof_body_metrics[
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification"
+    ] == "source_theorem_semantic_alignment_unreviewed"
+    assert proof_body_metrics[
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked"
+    ] == 0
+
+    local_lean_metrics = routing_rows[
+        "source_theorem_proof_body_local_lean_gate_requested"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert local_lean_metrics[
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+    ] is False
+    assert local_lean_metrics[
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+    ] == 0
+    assert local_lean_metrics[
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked"
+    ] == 0
+
+    formal_gap_metrics = routing_rows["no_formal_gaps_remaining"][
+        "scorecard_payload"
+    ]["audit_metrics"]
+    assert formal_gap_metrics["n_formal_gaps"] == 3
+    assert formal_gap_metrics["has_formal_gaps"] is True
+    assert formal_gap_metrics[
+        "runtime_cross_task_theorem_family_rows"
+    ][0]["question_id"] == "conformal_prediction_coverage"
+    assert "not proof evidence" in formal_gap_metrics[
+        "runtime_cross_task_theorem_family_boundary"
+    ]
+
+    full_frontier_metrics = routing_rows["full_frontier_theorem_kernel_proved"][
+        "scorecard_payload"
+    ]["audit_metrics"]
+    assert full_frontier_metrics["n_full_frontier_theorem_proved"] == 0
+    assert full_frontier_metrics["full_frontier_current_target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert full_frontier_metrics[
+        "full_frontier_kernel_verified_matching_target_ids"
+    ] == []
+    assert full_frontier_metrics["source_theorem_current_target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+
+def test_runtime_capability_gap_routing_rows_carry_exact_semantic_authoring_metrics() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_source_theorem_exact_semantic_definition_authoring_tasks": 3,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_dry_run": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode": (
+            "redacted"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": (
+            "none"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": (
+            ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": (
+            "none"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": (
+            ""
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": 0,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests": 0,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_provider_names": [],
+        "source_theorem_exact_semantic_definition_late_authoring_worker_backend_provider_names": [],
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted": 0,
+        "post_runtime_exact_semantic_definition_authoring_worker_attached": False,
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": False,
+        "post_runtime_exact_semantic_definition_authoring_worker_manifest_path": "",
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets": 0,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets": 0,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 0,
+        "post_runtime_exact_semantic_definition_authoring_worker_boundary": (
+            "post-runtime authoring attachment is not proof evidence"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(scorecard, payload)
+    }
+
+    handoff_metrics = routing_rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert handoff_metrics[
+        "n_source_theorem_exact_semantic_definition_authoring_tasks"
+    ] == 3
+    assert handoff_metrics[
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks"
+    ] == 1
+    assert handoff_metrics[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "authoring_worker_disabled"
+    assert handoff_metrics[
+        "post_runtime_exact_semantic_definition_authoring_worker_attached"
+    ] is False
+
+    live_metrics = routing_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert live_metrics[
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name"
+    ] == "none"
+    assert live_metrics[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
+    ] == 0
+    assert live_metrics[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+    ] == 0
+    assert "not proof evidence" in routing_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["routing_boundary"]
+
+    candidate_payload = dict(payload)
+    candidate_payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_worker_requested": True,
+            "source_theorem_exact_semantic_definition_authoring_worker_ran": True,
+            "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": "",
+            "source_theorem_exact_semantic_definition_authoring_worker_dry_run": False,
+            "source_theorem_exact_semantic_definition_authoring_worker_external_export_mode": (
+                "full"
+            ),
+            "source_theorem_exact_semantic_definition_authoring_worker_provider_name": (
+                "anthropic"
+            ),
+            "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": (
+                "anthropic"
+            ),
+            "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+            "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+            "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 1,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran": False,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": 0,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 0,
+            "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_local_lean_checked": 0,
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 0,
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows": 0,
+        }
+    )
+    candidate_scorecard = _runtime_capability_scorecard(candidate_payload)
+    candidate_routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(
+            candidate_scorecard,
+            candidate_payload,
+        )
+    }
+    verifier_metrics = candidate_routing_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert verifier_metrics[
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_ran"
+    ] is False
+    assert verifier_metrics[
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks"
+    ] == 0
+    assert verifier_metrics[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows"
+    ] == 0
+
+
+def test_runtime_audit_preserves_exact_proof_body_candidate_queue_readiness(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "source_theorem_exact_proof_body_repair_required": True,
+        "source_theorem_exact_proof_body_repair_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_execution_queue_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready": 0,
+        "source_theorem_exact_proof_body_repair_executor_requested": True,
+        "source_theorem_exact_proof_body_repair_executor_ran": True,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_candidate_materialization_required"
+        ),
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    routing_rows = {
+        row["requirement_id"]: row
+        for row in audit["runtime_capability_gap_routing_rows"]
+    }
+    candidate_row = rows["source_theorem_exact_proof_body_candidate_materialized"]
+    candidate_metrics = routing_rows[
+        "source_theorem_exact_proof_body_candidate_materialized"
+    ]["scorecard_payload"]["audit_metrics"]
+
+    assert audit["source_theorem_exact_proof_body_repair_required"] is True
+    assert audit["source_theorem_exact_proof_body_repair_execution_queue_n_rows"] == 1
+    assert audit["source_theorem_exact_proof_body_repair_execution_queue_n_ready"] == 0
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification"
+        ]
+        == "source_theorem_candidate_materialization_required"
+    )
+    assert candidate_row["passed"] is False
+    assert "queue_ready=0" in candidate_row["evidence"]
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready"
+    ] == 0
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_executor_requested"
+    ] is True
+    assert candidate_metrics[
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked"
+    ] == 0
+
+
+def test_runtime_audit_recomputes_candidate_materialization_from_learning_rows(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning_row = {
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "runtime_queue_status": "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION",
+        "failure_classification": "source_theorem_candidate_materialization_required",
+        "candidate_materialization_required": True,
+        "candidate_materialization_statuses": [
+            "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+            "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+        ],
+        "candidate_materialization_contract": (
+            "Materialize exact source-theorem candidate before proof-body execution."
+        ),
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": "learning row is routing feedback, not proof evidence",
+        "input_summary": {
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "failure_classification": (
+                "source_theorem_candidate_materialization_required"
+            ),
+        },
+    }
+    learning.write_text(json.dumps(learning_row, sort_keys=True) + "\n", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "capability_eval",
+        "n_questions": 0,
+        "n_runtime_learning_rows": 1,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    routing_rows = {
+        row["requirement_id"]: row
+        for row in audit["runtime_capability_gap_routing_rows"]
+    }
+    candidate_metrics = routing_rows[
+        "source_theorem_exact_proof_body_candidate_materialized"
+    ]["scorecard_payload"]["audit_metrics"]
+
+    assert audit["source_theorem_candidate_materialization_required"] is True
+    assert (
+        audit["n_source_theorem_candidate_materialization_required_learning_rows"]
+        == 1
+    )
+    assert audit[
+        "n_source_theorem_candidate_materialization_required_exact_proof_body_feedback_rows"
+    ] == 1
+    assert audit[
+        "source_theorem_candidate_materialization_required_target_ids"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert rows["source_theorem_exact_proof_body_candidate_materialized"][
+        "passed"
+    ] is False
+    assert candidate_metrics[
+        "source_theorem_candidate_materialization_required"
+    ] is True
+    assert candidate_metrics[
+        "n_source_theorem_candidate_materialization_required_learning_rows"
+    ] == 1
+    assert "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING" in candidate_metrics[
+        "source_theorem_candidate_materialization_required_statuses"
+    ]
 
 
 def test_runtime_capability_gap_routing_loader_preserves_non_evidence_context(
@@ -5610,6 +6854,33 @@ def test_runtime_capability_gap_routing_loader_preserves_non_evidence_context(
             "evidence": f"evidence {index}",
             "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
             "routing_boundary": "routing only; not proof evidence",
+            "scorecard_payload": {
+                "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                "requirement_id": f"gap_{index}",
+                "scorecard_row": {
+                    "requirement_id": f"gap_{index}",
+                    "evidence": f"evidence {index}",
+                },
+                "audit_metrics": {
+                    "runtime_pseudo_formal_block_routing_contract_complete": False,
+                    **{
+                        (
+                            "n_runtime_pseudo_formal_block_routing_rows_"
+                            f"zero_filler_{filler}"
+                        ): 0
+                        for filler in range(18)
+                    },
+                    "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": index,
+                    "n_runtime_pseudo_formalization_required_missing_routing_rows": index,
+                    "runtime_pseudo_formalization_required_missing_routing_manifest_ids": [
+                        f"formalization_manifest:gap_{index}"
+                    ],
+                },
+                "proof_evidence_status": (
+                    "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                ),
+                "boundary": "scorecard payload routing only; not proof evidence",
+            },
             "fingerprint": f"hash-{index}",
         }
         for index in range(3)
@@ -5624,13 +6895,485 @@ def test_runtime_capability_gap_routing_loader_preserves_non_evidence_context(
     assert context["artifact_kind"] == "RuntimeCapabilityGapRoutingContext"
     assert context["counts"]["rows_seen"] == 3
     assert context["counts"]["rows_loaded"] == 2
-    assert context["counts"]["retention_policy"] == "latest_rows"
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
     assert context["rows"][0]["requirement_id"] == "gap_1"
     assert context["rows"][1]["requirement_id"] == "gap_2"
+    assert context["rows"][0]["retention_selection"] == "latest_backfill"
+    assert context["rows"][1]["retention_selection"] == "priority_pinned"
+    assert "not proof evidence" in context["rows"][0]["retention_selection_boundary"]
     assert context["rows"][0]["proof_evidence_status"] == (
         "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
     )
+    assert context["rows"][0]["scorecard_payload"]["audit_metrics"][
+        "n_runtime_pseudo_formalization_required_missing_routing_rows"
+    ] == 1
+    assert context["rows"][0]["scorecard_payload"]["audit_metrics"][
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+    ] == 1
+    assert context["rows"][1]["scorecard_payload"]["audit_metrics"][
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+    ] == ["formalization_manifest:gap_2"]
+    assert (
+        context["rows"][0]["scorecard_payload"]["proof_evidence_status"]
+        == "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+    )
     assert "not proof evidence" in context["boundary"]
+
+
+def test_runtime_capability_gap_routing_loader_pins_actionable_old_gaps(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": "capability_gap:integrated_runtime:live_lean_lsp_mcp_called",
+            "requirement_id": "live_lean_lsp_mcp_called",
+            "scope": "integrated_runtime",
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "FormalizationEvaluator",
+            "target_behavior": "drive Lean LSP/MCP proof-state diagnostics live",
+            "success_metric": "live_lean_lsp_mcp_called.passed=true",
+            "recommended_capability_eval_command": (
+                "research-agent-runtime --proof-state-provider lean-lsp-mcp"
+            ),
+            "blocker": "integrated runtime did not call Lean LSP/MCP",
+            "evidence": "n_lean_lsp_mcp_live_calls=0",
+            "scorecard_payload": {
+                "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                "requirement_id": "live_lean_lsp_mcp_called",
+                "audit_metrics": {"n_lean_lsp_mcp_live_calls": 0},
+                "proof_evidence_status": (
+                    "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                ),
+                "boundary": "scorecard payload routing only; not proof evidence",
+            },
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not verifier evidence",
+            "fingerprint": "old-critical-formal-gap",
+        },
+        *[
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                "id": f"capability_gap:integrated_runtime:filler_{index}",
+                "requirement_id": f"filler_{index}",
+                "scope": "integrated_runtime",
+                "gap_status": "OPEN",
+                "next_owner_subsystem": "ArchitectCoordinator",
+                "target_behavior": f"resolve filler gap {index}",
+                "success_metric": f"filler_{index}.passed=true",
+                "recommended_capability_eval_command": "research-agent-runtime",
+                "blocker": f"filler blocker {index}",
+                "evidence": f"filler evidence {index}",
+                "proof_evidence_status": (
+                    "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+                ),
+                "routing_boundary": "routing only; not proof evidence",
+                "fingerprint": f"filler-gap-{index}",
+            }
+            for index in range(5)
+        ],
+    ]
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=3)
+
+    loaded_ids = [row["requirement_id"] for row in context["rows"]]
+    assert loaded_ids == [
+        "live_lean_lsp_mcp_called",
+        "filler_3",
+        "filler_4",
+    ]
+    assert context["counts"]["rows_seen"] == 6
+    assert context["counts"]["rows_loaded"] == 3
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert [row["retention_selection"] for row in context["rows"]] == [
+        "priority_pinned",
+        "latest",
+        "latest",
+    ]
+    assert "not proof evidence" in context["rows"][1]["retention_selection_boundary"]
+    assert context["rows"][0]["scorecard_payload"]["proof_evidence_status"] == (
+        "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+    )
+    assert "not proof evidence" in context["boundary"]
+
+
+def test_runtime_capability_gap_routing_loader_balances_priority_rank_and_latest(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": "capability_gap:integrated_runtime:live_lean_lsp_mcp_called",
+            "requirement_id": "live_lean_lsp_mcp_called",
+            "scope": "integrated_runtime",
+            "priority": 1,
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "FormalizationEvaluator",
+            "target_behavior": "drive Lean LSP/MCP proof-state diagnostics live",
+            "success_metric": "live_lean_lsp_mcp_called.passed=true",
+            "recommended_capability_eval_command": (
+                "research-agent-runtime --proof-state-provider lean-lsp-mcp"
+            ),
+            "blocker": "integrated runtime did not call Lean LSP/MCP",
+            "evidence": "n_lean_lsp_mcp_live_calls=0",
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not verifier evidence",
+            "fingerprint": "priority-rank-critical-formal-gap",
+        },
+        *[
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                "id": f"capability_gap:integrated_runtime:filler_{index}",
+                "requirement_id": f"filler_{index}",
+                "scope": "integrated_runtime",
+                "priority": index,
+                "gap_status": "OPEN",
+                "next_owner_subsystem": "ArchitectCoordinator",
+                "target_behavior": f"resolve filler gap {index}",
+                "success_metric": f"filler_{index}.passed=true",
+                "recommended_capability_eval_command": "research-agent-runtime",
+                "blocker": f"filler blocker {index}",
+                "evidence": f"filler evidence {index}",
+                "proof_evidence_status": (
+                    "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+                ),
+                "routing_boundary": "routing only; not proof evidence",
+                "fingerprint": f"priority-rank-filler-gap-{index}",
+            }
+            for index in range(2, 8)
+        ],
+    ]
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=3)
+
+    assert [row["requirement_id"] for row in context["rows"]] == [
+        "live_lean_lsp_mcp_called",
+        "filler_2",
+        "filler_7",
+    ]
+    assert context["counts"]["rows_seen"] == 7
+    assert context["counts"]["rows_loaded"] == 3
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert [row["retention_selection"] for row in context["rows"]] == [
+        "priority_pinned",
+        "priority_pinned",
+        "latest",
+    ]
+    assert "not proof evidence" in context["rows"][2]["retention_selection_boundary"]
+    assert "not proof evidence" in context["boundary"]
+
+
+def test_runtime_capability_gap_routing_loader_pins_exact_candidate_materialization(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    rows: list[dict[str, object]] = []
+    for index in range(1, 31):
+        row = {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": f"capability_gap:integrated_runtime:filler_{index}",
+            "requirement_id": f"filler_{index}",
+            "scope": "integrated_runtime",
+            "priority": index,
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "ArchitectCoordinator",
+            "target_behavior": f"resolve filler gap {index}",
+            "success_metric": f"filler_{index}.passed=true",
+            "recommended_capability_eval_command": "research-agent-runtime",
+            "blocker": f"filler blocker {index}",
+            "evidence": f"filler evidence {index}",
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not proof evidence",
+            "fingerprint": f"candidate-retention-filler-{index}",
+        }
+        if index == 20:
+            row.update(
+                {
+                    "id": (
+                        "capability_gap:integrated_runtime:"
+                        "source_theorem_exact_proof_body_candidate_materialized"
+                    ),
+                    "requirement_id": (
+                        "source_theorem_exact_proof_body_candidate_materialized"
+                    ),
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": (
+                        "materialize exact source theorem candidate and "
+                        "signature probe before proof-body execution"
+                    ),
+                    "success_metric": (
+                        "source_theorem_exact_proof_body_repair_execution_queue_n_ready>0"
+                    ),
+                    "blocker": (
+                        "no executable target declaration, signature probe, or "
+                        "live proof-body location"
+                    ),
+                    "evidence": (
+                        "queue_rows=1 queue_ready=0 "
+                        "dominant_failure=source_theorem_candidate_materialization_required"
+                    ),
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": (
+                            "source_theorem_exact_proof_body_candidate_materialized"
+                        ),
+                        "audit_metrics": {
+                            "source_theorem_candidate_materialization_required": True,
+                            "n_source_theorem_candidate_materialization_required_learning_rows": 100,
+                            "source_theorem_candidate_materialization_required_target_ids": [
+                                "split_conformal_finite_sample_coverage"
+                            ],
+                            "source_theorem_exact_proof_body_repair_execution_queue_n_ready": 0,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": "scorecard payload routing only; not proof evidence",
+                    },
+                    "fingerprint": "candidate-materialization-retention",
+                }
+            )
+        rows.append(row)
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=10)
+
+    loaded_ids = [row["requirement_id"] for row in context["rows"]]
+    assert "source_theorem_exact_proof_body_candidate_materialized" in loaded_ids
+    candidate_row = next(
+        row
+        for row in context["rows"]
+        if row["requirement_id"]
+        == "source_theorem_exact_proof_body_candidate_materialized"
+    )
+    assert candidate_row["retention_selection"] == "priority_pinned"
+    assert candidate_row["scorecard_payload"]["audit_metrics"][
+        "n_source_theorem_candidate_materialization_required_learning_rows"
+    ] == 100
+    assert "filler_20" not in loaded_ids
+    assert context["counts"]["rows_seen"] == 30
+    assert context["counts"]["rows_loaded"] == 10
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert "not proof evidence" in candidate_row["retention_selection_boundary"]
+
+
+def test_runtime_capability_gap_routing_loader_pins_exact_semantic_authoring(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    rows: list[dict[str, object]] = []
+    for index in range(1, 31):
+        row = {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": f"capability_gap:integrated_runtime:filler_{index}",
+            "requirement_id": f"filler_{index}",
+            "scope": "integrated_runtime",
+            "priority": index,
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "ArchitectCoordinator",
+            "target_behavior": f"resolve filler gap {index}",
+            "success_metric": f"filler_{index}.passed=true",
+            "recommended_capability_eval_command": "research-agent-runtime",
+            "blocker": f"filler blocker {index}",
+            "evidence": f"filler evidence {index}",
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not proof evidence",
+            "fingerprint": f"exact-semantic-retention-filler-{index}",
+        }
+        if index == 20:
+            row.update(
+                {
+                    "id": (
+                        "capability_gap:integrated_runtime:"
+                        "exact_semantic_definition_authoring_worker_live_attempted"
+                    ),
+                    "requirement_id": (
+                        "exact_semantic_definition_authoring_worker_live_attempted"
+                    ),
+                    "priority": 75,
+                    "next_owner_subsystem": "Formalizer/ProofEngineer",
+                    "target_behavior": (
+                        "run exact semantic-definition authoring with a live "
+                        "provider, then materialize and verify candidates"
+                    ),
+                    "success_metric": (
+                        "sum(primary/retry/late/post-runtime exact semantic-"
+                        "definition authoring n_live_llm_attempted)>0"
+                    ),
+                    "blocker": (
+                        "retry authoring tasks exist but the live authoring "
+                        "worker did not run"
+                    ),
+                    "evidence": (
+                        "authoring_tasks=4 retry_required=True "
+                        "live_llm_attempted=0"
+                    ),
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": (
+                            "exact_semantic_definition_authoring_worker_live_attempted"
+                        ),
+                        "audit_metrics": {
+                            "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+                            "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+                            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": 0,
+                            "post_runtime_exact_semantic_definition_authoring_worker_attached": False,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": "scorecard payload routing only; not proof evidence",
+                    },
+                    "fingerprint": "exact-semantic-authoring-retention",
+                }
+            )
+        rows.append(row)
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=10)
+
+    loaded_ids = [row["requirement_id"] for row in context["rows"]]
+    assert "exact_semantic_definition_authoring_worker_live_attempted" in loaded_ids
+    authoring_row = next(
+        row
+        for row in context["rows"]
+        if row["requirement_id"]
+        == "exact_semantic_definition_authoring_worker_live_attempted"
+    )
+    assert authoring_row["retention_selection"] == "priority_pinned"
+    assert authoring_row["scorecard_payload"]["audit_metrics"][
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks"
+    ] == 1
+    assert "filler_20" not in loaded_ids
+    assert context["counts"]["rows_seen"] == 30
+    assert context["counts"]["rows_loaded"] == 10
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert "not proof evidence" in authoring_row["retention_selection_boundary"]
+
+
+def test_runtime_capability_gap_routing_loader_pins_deferred_meta_resolution(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    rows: list[dict[str, object]] = []
+    for index in range(1, 31):
+        row = {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": f"capability_gap:integrated_runtime:filler_{index}",
+            "requirement_id": f"filler_{index}",
+            "scope": "integrated_runtime",
+            "priority": index + 10,
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "ArchitectCoordinator",
+            "target_behavior": f"resolve filler gap {index}",
+            "success_metric": f"filler_{index}.passed=true",
+            "recommended_capability_eval_command": "research-agent-runtime",
+            "blocker": f"filler blocker {index}",
+            "evidence": f"filler evidence {index}",
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not proof evidence",
+            "fingerprint": f"deferred-meta-retention-filler-{index}",
+        }
+        if index == 20:
+            row.update(
+                {
+                    "id": (
+                        "capability_gap:integrated_runtime:"
+                        "architect_deferred_meta_capability_gaps_resolved"
+                    ),
+                    "requirement_id": (
+                        "architect_deferred_meta_capability_gaps_resolved"
+                    ),
+                    "priority": 90,
+                    "next_owner_subsystem": "AgentRuntimeOrchestrator",
+                    "target_behavior": (
+                        "close deferred AgentRuntime/Architect control-plane "
+                        "capability gaps before integrated readiness"
+                    ),
+                    "success_metric": (
+                        "n_architect_initial_routing_deferred_meta_capability_gaps=0"
+                    ),
+                    "blocker": (
+                        "deferred AgentRuntime/Architect control-plane capability "
+                        "gap remains unresolved"
+                    ),
+                    "evidence": (
+                        "n_architect_initial_routing_deferred_meta_capability_gaps=1"
+                    ),
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": (
+                            "architect_deferred_meta_capability_gaps_resolved"
+                        ),
+                        "audit_metrics": {
+                            "n_architect_initial_routing_deferred_meta_capability_gaps": 1,
+                            "architect_initial_routing_deferred_meta_capability_gap_owners": {
+                                "AgentRuntimeOrchestrator": 1,
+                            },
+                            "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": [
+                                "runtime_progress_observable"
+                            ],
+                            "n_runtime_pseudo_formal_zero_filler": 0,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": "scorecard payload routing only; not proof evidence",
+                    },
+                    "fingerprint": "deferred-meta-resolution-retention",
+                }
+            )
+        rows.append(row)
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=10)
+
+    loaded_ids = [row["requirement_id"] for row in context["rows"]]
+    assert "architect_deferred_meta_capability_gaps_resolved" in loaded_ids
+    deferred_row = next(
+        row
+        for row in context["rows"]
+        if row["requirement_id"]
+        == "architect_deferred_meta_capability_gaps_resolved"
+    )
+    assert deferred_row["retention_selection"] == "priority_pinned"
+    assert deferred_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    assert deferred_row["scorecard_payload"]["audit_metrics"][
+        "n_architect_initial_routing_deferred_meta_capability_gaps"
+    ] == 1
+    assert deferred_row["scorecard_payload"]["audit_metrics"][
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ] == ["runtime_progress_observable"]
+    assert "not proof evidence" in deferred_row["retention_selection_boundary"]
+    assert context["counts"]["rows_seen"] == 30
+    assert context["counts"]["rows_loaded"] == 10
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
 def test_capability_feedback_commands_carry_gap_routing_jsonl() -> None:
@@ -5647,6 +7390,21 @@ def test_capability_feedback_commands_carry_gap_routing_jsonl() -> None:
 
     rerun_command = _capability_full_live_rerun_command(payload)
     resume_command = _capability_resume_command(payload)
+    required_full_live_flags = [
+        "--local-lean",
+        "--formalizer-candidate-lean-lsp-mcp",
+        "--formalization-gap-planner-live-route-planner",
+        "--source-theorem-promotion-proofengineer-bridge",
+        "--source-theorem-promotion-proofengineer-local-lean",
+        "--source-theorem-formal-environment-proofengineer-bridge",
+        "--source-theorem-formal-environment-proofengineer-signature-probes",
+        "--source-theorem-formal-environment-proofengineer-execute-proof-body",
+        "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
+        "--source-theorem-exact-semantic-definition-source-lookup",
+        "--source-theorem-exact-semantic-definition-authoring-worker",
+        "--source-theorem-exact-semantic-definition-lean-repair-executor",
+        "--source-theorem-exact-semantic-definition-candidate-synthesis",
+    ]
 
     assert "--learning-memory-jsonl runs/current/runtime_learning_rows.jsonl" in (
         rerun_command
@@ -5661,6 +7419,16 @@ def test_capability_feedback_commands_carry_gap_routing_jsonl() -> None:
         "runs/current_audit/runtime_capability_gap_routing.jsonl"
     ) in resume_command
     assert "--max-capability-gap-routing-rows 40" in resume_command
+    for flag in required_full_live_flags:
+        assert flag in rerun_command
+        assert flag in resume_command
+
+    for command in (rerun_command, resume_command):
+        argv = shlex.split(command)
+        assert argv[:3] == [".venv/bin/python", "-m", "ai_statistician.cli"]
+        args = cli_module.build_parser().parse_args(argv[3:])
+        _apply_research_agent_runtime_capability_eval_preset(args)
+        assert _research_agent_runtime_capability_config_errors(args) == []
 
 
 def test_runtime_target_identity_audit_flags_route_critical_targetless_rows() -> None:
@@ -6265,7 +8033,8 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
             "n_runtime_formalization_gap_planner_live_route_planner_response_present": 1,
             "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 0,
             "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 0,
-            "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": 1,
+            "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": 0,
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_refinement_evidence_awaiting_tool_response": 3,
         }
     )
 
@@ -6277,6 +8046,12 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
 
     assert route_revision_only_followthrough["passed"] is True
     assert "contract_response_path=0" in route_revision_only_followthrough[
+        "evidence"
+    ]
+    assert "route_revision_feedback_recorded=0" in route_revision_only_followthrough[
+        "evidence"
+    ]
+    assert "target_replay_awaiting=3" in route_revision_only_followthrough[
         "evidence"
     ]
     assert "route_revision_feedback_path=1" in route_revision_only_followthrough[
@@ -9188,9 +10963,11 @@ def test_cli_and_runtime_route_critical_memory_pinning_stays_aligned() -> None:
                 "pseudo_formal_work_order:rank_uniform"
             ),
             "source_block_id": "b1",
+            "scope_parent_id": "",
             "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
             "input_summary": {
                 "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+                "scope_parent_id": "",
                 "runtime_queue_status": (
                     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
                         PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
@@ -11635,10 +13412,11 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
         "runtime_capability_gap_routing": {
             "artifact_kind": "RuntimeCapabilityGapRoutingContext",
             "counts": {
-                "rows_seen": 2,
+                "rows_seen": 5,
                 "rows_loaded": 2,
                 "errors": 0,
-                "max_rows": 5,
+                "max_rows": 2,
+                "retention_policy": "priority_pinned_latest_rows",
             },
             "source_paths": ["runs/audit/runtime_capability_gap_routing.jsonl"],
             "rows": [
@@ -11656,6 +13434,33 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
                         "research-agent-runtime --provider anthropic --capability-eval"
                     ),
                     "blocker": "static providers flattened the coding-agent loop",
+                    "retention_selection": "priority_pinned",
+                    "retention_selection_boundary": (
+                        "Selection metadata explains prompt retention; not proof evidence"
+                    ),
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": "live_generator_agents_enabled",
+                        "scorecard_row": {
+                            "requirement_id": "live_generator_agents_enabled",
+                            "evidence": "n_live_generator_agents_enabled=0",
+                        },
+                        "audit_metrics": {
+                            "n_live_generator_agents_enabled": 0,
+                            **{
+                                (
+                                    "n_runtime_pseudo_formal_block_routing_rows_"
+                                    f"zero_filler_{filler}"
+                                ): 0
+                                for filler in range(15)
+                            },
+                            "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 1,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": "scorecard payload is routing only; not proof evidence",
+                    },
                     "routing_boundary": "routing only; not proof evidence",
                 },
                 {
@@ -11673,6 +13478,10 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
                         "--proof-state-provider lean-lsp-mcp"
                     ),
                     "blocker": "proof-state diagnostics were not called live",
+                    "retention_selection": "latest",
+                    "retention_selection_boundary": (
+                        "Selection metadata explains prompt retention; not verifier evidence"
+                    ),
                     "routing_boundary": "routing only; not verifier evidence",
                 },
             ],
@@ -11691,12 +13500,25 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
     )
 
     assert agenda["artifact_kind"] == "ArchitectCapabilityGapRoutingAgenda"
+    assert agenda["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert agenda["counts"]["input_context_truncated"] is True
     assert agenda["owner_subsystems"] == [
         "ArchitectCoordinator",
         "FormalizationEvaluator",
     ]
     assert agenda["rows"][0]["requirement_id"] == "live_generator_agents_enabled"
+    assert agenda["rows"][0]["scorecard_payload"]["scorecard_row"][
+        "requirement_id"
+    ] == "live_generator_agents_enabled"
+    assert agenda["rows"][0]["scorecard_payload"]["audit_metrics"][
+        "n_live_generator_agents_enabled"
+    ] == 0
+    assert agenda["rows"][0]["scorecard_payload"]["audit_metrics"][
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+    ] == 1
+    assert agenda["rows"][0]["retention_selection"] == "priority_pinned"
     assert agenda["rows"][1]["requirement_id"] == "live_lean_lsp_mcp_called"
+    assert agenda["rows"][1]["retention_selection"] == "latest"
     assert "not proof evidence" in agenda["boundary"]
     assert '"runtime_capability_gap_routing_agenda"' in prompt
     assert '"ArchitectCapabilityGapRoutingAgenda"' in prompt
@@ -11707,6 +13529,16 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
     assert "drive Lean LSP proof-state feedback" in prompt
     assert "success_metric" in prompt
     assert "recommended_capability_eval_command" in prompt
+    assert "scorecard_payload" in prompt
+    assert "n_live_generator_agents_enabled" in prompt
+    assert "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope" in prompt
+    assert "priority_pinned_latest_rows" in prompt
+    assert "retention_selection" in prompt
+    assert "priority_pinned" in prompt
+    assert "latest" in prompt
+    assert "compressed priority-pinned/latest view" in prompt
+    assert "survived prompt-context compression" in prompt
+    assert "do not infer that unseen capability gaps are resolved" in prompt
     assert "not proof evidence" in prompt
 
 
@@ -11715,7 +13547,13 @@ def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() 
     architect_context = {
         "runtime_capability_gap_routing": {
             "artifact_kind": "RuntimeCapabilityGapRoutingContext",
-            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "counts": {
+                "rows_seen": 3,
+                "rows_loaded": 1,
+                "errors": 0,
+                "max_rows": 1,
+                "retention_policy": "priority_pinned_latest_rows",
+            },
             "rows": [
                 {
                     "artifact_kind": "RuntimeCapabilityGapRoutingRow",
@@ -11729,6 +13567,10 @@ def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() 
                     "success_metric": "live_generator_agents_enabled.passed=true",
                     "recommended_capability_eval_command": (
                         "research-agent-runtime --provider anthropic --capability-eval"
+                    ),
+                    "retention_selection": "priority_pinned",
+                    "retention_selection_boundary": (
+                        "Selection metadata explains prompt retention; not proof evidence"
                     ),
                     "routing_boundary": "routing only; not proof evidence",
                 }
@@ -11762,7 +13604,13 @@ def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() 
     runtime_plan = result.next_task.inputs["architect_context"]["architect_runtime_plan"]
     agenda = runtime_plan["runtime_capability_gap_routing_agenda"]
     assert agenda["artifact_kind"] == "ArchitectCapabilityGapRoutingAgenda"
+    assert agenda["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert agenda["counts"]["input_context_truncated"] is True
+    assert "do not mark unseen gaps resolved" in (
+        agenda["required_architect_behavior"][2]
+    )
     assert agenda["rows"][0]["requirement_id"] == "live_generator_agents_enabled"
+    assert agenda["rows"][0]["retention_selection"] == "priority_pinned"
     assert agenda["rows"][0]["success_metric"] == (
         "live_generator_agents_enabled.passed=true"
     )
@@ -11773,6 +13621,300 @@ def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() 
     assert "runtime_capability_gap_routing" not in {
         entry.evidence_type for entry in result.evidence_entries
     }
+
+
+def test_architect_runtime_defers_orchestrator_gap_without_worker_misroute() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    response = _architect_sample_response()
+    response["next_actions"] = [
+        {
+            "owner_agent": "TheoryDeveloper",
+            "action": "derive a rigorous theory packet after meta gap recording",
+            "acceptance_gate": "schema-valid theory packet with equation_chain",
+        }
+    ]
+    architect_context = {
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "runtime_progress_observable",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AgentRuntimeOrchestrator",
+                    "target_behavior": (
+                        "export runtime progress start/finish rows for every handoff"
+                    ),
+                    "success_metric": "runtime_progress_observable.passed=true",
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --provider anthropic --capability-eval"
+                    ),
+                    "blocker": "progress trace export was missing finish rows",
+                    "routing_boundary": "routing only; not proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(response),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(),
+    )
+    task = AgentTask(
+        task_id="architect:runtime-orchestrator-gap",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Record meta runtime gap without pretending a science worker can fix it.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="runtime-meta-gap-test"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "architect_packet_after_meta_capability_gap"
+    assert routing["requested_subsystem"] == "TheoryDeveloper"
+    assert routing["selected_subsystem"] == "TheoryDeveloper"
+    deferred = routing["deferred_meta_capability_gap"]
+    assert deferred["artifact_kind"] == "ArchitectDeferredMetaCapabilityGap"
+    assert deferred["requested_next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    assert deferred["requirement_id"] == "runtime_progress_observable"
+    assert "control-plane debt" in deferred["boundary"]
+    assert "environment_feedback" not in result.next_task.inputs
+
+
+def test_architect_runtime_preserves_meta_gap_while_routing_executable_gap() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    architect_context = {
+        "theory_packet_id": "theory_derivation:simulation_ready",
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 2, "rows_loaded": 2, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "runtime_progress_observable",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AgentRuntimeOrchestrator",
+                    "target_behavior": (
+                        "fix runtime progress export in the control plane"
+                    ),
+                    "success_metric": "runtime_progress_observable.passed=true",
+                    "blocker": "runtime progress export incomplete",
+                    "routing_boundary": "routing only; not proof evidence",
+                },
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "generated_simulation_code_executed_locally",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "SimulationEvaluator",
+                    "target_behavior": (
+                        "produce generated simulation_code_drafts and execute the "
+                        "generated_simulation_sandbox"
+                    ),
+                    "success_metric": "n_generated_simulation_sandbox_executed>0",
+                    "blocker": "no generated simulation sandbox execution",
+                    "routing_boundary": "routing only; not simulation evidence",
+                },
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=9, seed=321),
+    )
+    task = AgentTask(
+        task_id="architect:meta-plus-simulation-gap",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route executable capability gap while retaining meta runtime debt.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="meta-plus-worker-gap"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "SimulationEvaluator"
+    assert routing["selected_subsystem"] == "SimulationEvaluator"
+    assert routing["capability_gap_requirement_id"] == (
+        "generated_simulation_code_executed_locally"
+    )
+    assert routing["deferred_meta_capability_gap_requirement_id"] == (
+        "runtime_progress_observable"
+    )
+    assert routing["deferred_meta_capability_gap_owner"] == (
+        "AgentRuntimeOrchestrator"
+    )
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_simulation_code"
+    ] is True
+
+
+def test_runtime_manifest_surfaces_deferred_meta_gap_top_level(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    response = _architect_sample_response()
+    response["next_actions"] = [
+        {
+            "owner_agent": "TheoryDeveloper",
+            "action": "derive after recording unresolved runtime control-plane debt",
+            "acceptance_gate": "schema-valid theory packet with equation_chain",
+        }
+    ]
+    architect_context = {
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "runtime_progress_observable",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AgentRuntimeOrchestrator",
+                    "target_behavior": (
+                        "export runtime progress start/finish rows for every handoff"
+                    ),
+                    "success_metric": "runtime_progress_observable.passed=true",
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --provider anthropic --capability-eval"
+                    ),
+                    "blocker": "progress trace export was missing finish rows",
+                    "routing_boundary": "routing only; not proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            max_iterations=1,
+            evaluation_mode="capability_eval",
+        ),
+    )
+
+    result = json.loads(
+        Path(manifest["artifacts"]["per_question_results"][0]).read_text(
+            encoding="utf-8"
+        )
+    )
+    routing = result["traces"][0]["observations"][0]["payload"][
+        "initial_routing"
+    ]
+    route_summary = manifest["runtime_architect_initial_routing"]
+
+    assert manifest["status_counts"] == {"MAX_ITERATIONS_REACHED": 1}
+    assert routing["deferred_meta_capability_gap_requirement_id"] == (
+        "runtime_progress_observable"
+    )
+    assert manifest[
+        "n_architect_initial_routing_deferred_meta_capability_gaps"
+    ] == 1
+    assert manifest[
+        "architect_initial_routing_deferred_meta_capability_gap_owners"
+    ] == {"AgentRuntimeOrchestrator": 1}
+    assert manifest[
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ] == ["runtime_progress_observable"]
+    assert route_summary[
+        "n_architect_initial_routing_deferred_meta_capability_gaps"
+    ] == manifest[
+        "n_architect_initial_routing_deferred_meta_capability_gaps"
+    ]
+    assert route_summary[
+        "architect_initial_routing_deferred_meta_capability_gap_owners"
+    ] == manifest[
+        "architect_initial_routing_deferred_meta_capability_gap_owners"
+    ]
+    assert route_summary[
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ] == manifest[
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ]
+
+    audit = audit_research_agent_runtime(
+        tmp_path / "runtime",
+        tmp_path / "runtime_audit",
+    )
+    audit_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    assert audit["runtime_architect_initial_routing_manifest_stale"] is False
+    assert (
+        audit["n_architect_initial_routing_deferred_meta_capability_gaps"]
+        == 1
+    )
+    assert audit[
+        "architect_initial_routing_deferred_meta_capability_gap_owners"
+    ] == {"AgentRuntimeOrchestrator": 1}
+    assert audit[
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ] == ["runtime_progress_observable"]
+    assert audit_rows[
+        "architect_deferred_meta_capability_gaps_visible"
+    ]["passed"] is True
+
+    system_overlay = _research_agent_runtime_audit_overlay(
+        tmp_path / "system_overlay",
+        configured_runtime_dir=str(tmp_path / "runtime"),
+    )
+    assert (
+        system_overlay["n_architect_initial_routing_deferred_meta_capability_gaps"]
+        == 1
+    )
+    assert system_overlay[
+        "architect_initial_routing_deferred_meta_capability_gap_owners"
+    ] == {"AgentRuntimeOrchestrator": 1}
+    assert system_overlay[
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ] == ["runtime_progress_observable"]
 
 
 def test_architect_runtime_routes_initial_task_from_next_action_owner() -> None:
@@ -11823,6 +13965,2063 @@ def test_architect_runtime_routes_initial_task_from_next_action_owner() -> None:
     } == {"llm_architect_coordinator_proposal"}
 
 
+def test_architect_runtime_routes_simulation_next_action_directly() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    response = _architect_sample_response()
+    response["next_actions"] = [
+        {
+            "owner_agent": "SimulationEvaluator",
+            "action": "execute generated simulation stress test",
+            "acceptance_gate": "runtime simulation manifest recorded",
+        }
+    ]
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(response),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=7, seed=123),
+    )
+    task = AgentTask(
+        task_id="architect:simulation-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Let Architect choose direct simulation execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {
+                "theory_packet_id": "theory_derivation:already_structured"
+            },
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="simulation-direct-test"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.inputs["n_runs"] == 7
+    assert result.next_task.inputs["seed"] == 123
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "architect_packet"
+    assert routing["requested_subsystem"] == "SimulationEvaluator"
+    assert routing["selected_subsystem"] == "SimulationEvaluator"
+    assert routing["requires_prerequisite_theory"] is False
+    assert "environment_feedback" not in result.next_task.inputs
+    assert {
+        entry.evidence_type for entry in result.evidence_entries
+    } == {"llm_architect_coordinator_proposal"}
+
+
+def test_architect_runtime_routes_simulation_capability_gap_to_executor() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    architect_context = {
+        "theory_packet_id": "theory_derivation:already_structured",
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "generated_simulation_code_executed_locally",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "SimulationEvaluator",
+                    "target_behavior": (
+                        "produce generated simulation_code_drafts and execute the "
+                        "generated_simulation_sandbox"
+                    ),
+                    "success_metric": (
+                        "n_generated_simulation_sandbox_executed>0 and "
+                        "n_generated_simulation_sandbox_passed>0"
+                    ),
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --simulation-provider anthropic "
+                        "--capability-eval"
+                    ),
+                    "blocker": "no generated simulation sandbox execution",
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": (
+                            "generated_simulation_code_executed_locally"
+                        ),
+                        "scorecard_row": {
+                            "requirement_id": (
+                                "generated_simulation_code_executed_locally"
+                            ),
+                            "evidence": "n_generated_simulation_sandbox_executed=0",
+                        },
+                        "audit_metrics": {
+                            "n_generated_simulation_sandbox_executed": 0,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": (
+                            "scorecard payload is routing only; not simulation evidence"
+                        ),
+                    },
+                    "routing_boundary": "routing only; not simulation evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=9, seed=321),
+    )
+    task = AgentTask(
+        task_id="architect:simulation-gap-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route generated simulation capability gap to execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="simulation-gap-test"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.inputs["n_runs"] == 9
+    assert result.next_task.inputs["seed"] == 321
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["routed_subsystem"] == "SimulationEvaluator"
+    assert feedback["requirement_id"] == "generated_simulation_code_executed_locally"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_simulation_code"
+    ] is True
+    assert feedback["scorecard_payload"]["audit_metrics"][
+        "n_generated_simulation_sandbox_executed"
+    ] == 0
+    assert feedback["proof_evidence_status"] == (
+        "ARCHITECT_CAPABILITY_GAP_EXECUTION_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof" in feedback["boundary"]
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "SimulationEvaluator"
+    assert routing["selected_subsystem"] == "SimulationEvaluator"
+    assert routing["requires_prerequisite_theory"] is False
+    assert routing["capability_gap_requirement_id"] == (
+        "generated_simulation_code_executed_locally"
+    )
+    assert "runtime_capability_gap_routing" not in {
+        entry.evidence_type for entry in result.evidence_entries
+    }
+
+
+def test_runtime_executes_architect_routed_generated_simulation_gap(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    theory_packet_id = "theory_derivation:direct_simulation_gap"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "generated_simulation_code_executed_locally",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "SimulationEvaluator",
+                    "target_behavior": (
+                        "produce generated simulation_code_drafts and execute the "
+                        "generated_simulation_sandbox"
+                    ),
+                    "success_metric": (
+                        "n_generated_simulation_sandbox_executed>0 and "
+                        "n_generated_simulation_sandbox_passed>0"
+                    ),
+                    "blocker": "no generated simulation sandbox execution",
+                    "routing_boundary": "routing only; not simulation evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        }
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    class SafeDirectSimulationEngineer:
+        def __init__(self) -> None:
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+            assert feedback["artifact_kind"] == (
+                "ArchitectCapabilityGapExecutionFeedback"
+            )
+            assert feedback["runtime_requested_evidence_contract"][
+                "capability_eval_requires_generated_simulation_code"
+            ] is True
+            return {
+                "packet_id": "simulation_proposal:direct_gap",
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "direct_gap_generated_simulation",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed, replicates):\n"
+                            "    scale = max(1, int(replicates))\n"
+                            "    seed_offset = (int(seed) % scale) / scale\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'mean_coverage': 0.99,\n"
+                            "        'target_coverage': 0.95,\n"
+                            "        'replicates': scale,\n"
+                            "        'seed_offset': seed_offset,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    simulation_engineer = SafeDirectSimulationEngineer()
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        simulation_engineer=simulation_engineer,  # type: ignore[arg-type]
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=6,
+            seed=20260704,
+            max_iterations=2,
+            evaluation_mode="capability_eval",
+        ),
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: _structured_theory_packet_fixture(theory_packet_id)
+            }
+        },
+    )
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    subsystems = [trace["subsystem"] for trace in result["traces"]]
+    simulation_artifacts = [
+        artifact
+        for artifact in result["blackboard"]["artifacts"].values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+
+    assert subsystems[:2] == ["ArchitectCoordinator", "SimulationEvaluator"]
+    assert manifest["architect_initial_routing_selected_subsystems"][
+        "SimulationEvaluator"
+    ] == 1
+    assert manifest["n_generated_simulation_sandbox_executed"] == 1
+    assert manifest["n_generated_simulation_sandbox_passed"] == 1
+    assert len(simulation_engineer.feedbacks) == 1
+    assert simulation_artifacts[0]["n_generated_simulation_sandbox_executed"] == 1
+    assert simulation_artifacts[0]["n_generated_simulation_sandbox_passed"] == 1
+    assert simulation_artifacts[0]["generated_simulation_sandbox_prototypes"][0][
+        "executor"
+    ] == "generated_simulation_sandbox"
+
+
+def test_architect_runtime_routes_algorithm_capability_gap_to_executor() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    simulation_manifest_id = "simulation_manifest:algorithm_ready"
+    architect_context = {
+        "theory_packet_id": "theory_derivation:already_structured",
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "generated_algorithm_code_executed_locally",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AlgorithmEngineer",
+                    "target_behavior": (
+                        "produce generated sandbox_code_drafts and execute the "
+                        "algorithm_sandbox locally"
+                    ),
+                    "success_metric": (
+                        "n_generated_code_sandbox_executed>0 and "
+                        "n_generated_code_sandbox_passed>0"
+                    ),
+                    "blocker": "no generated algorithm sandbox execution",
+                    "routing_boundary": "routing only; not algorithm evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="algorithm-gap-direct-test",
+        artifacts={
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                    }
+                ],
+            }
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:algorithm-gap-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route generated algorithm capability gap to execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.next_task.inputs["simulation_manifest_id"] == simulation_manifest_id
+    assert result.next_task.inputs["implementation_gaps"] == [
+        {
+            "estimator_id": "custom_estimator",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+        }
+    ]
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["routed_subsystem"] == "AlgorithmEngineer"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_algorithm_code"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "AlgorithmEngineer"
+    assert routing["selected_subsystem"] == "AlgorithmEngineer"
+    assert routing["requires_prerequisite_theory"] is False
+
+
+def test_architect_runtime_routes_combined_coding_gap_to_algorithm_first() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:combined_coding_ready"
+    simulation_manifest_id = "simulation_manifest:combined_coding_ready"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "coding_agent_generated_code_component_gate",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AlgorithmEngineer+SimulationEvaluator",
+                    "target_behavior": (
+                        "AlgorithmEngineer and SimulationEngineer must both "
+                        "produce generated Python, consume local feedback, and "
+                        "reach a local sandbox pass in the integrated runtime."
+                    ),
+                    "success_metric": (
+                        "generated algorithm and generated simulation sandbox "
+                        "execution are both recorded in current runtime manifests"
+                    ),
+                    "blocker": (
+                        "component calibration exists but current AgentRuntime has "
+                        "not executed generated algorithm or simulation code"
+                    ),
+                    "routing_boundary": "routing only; not execution evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="combined-coding-gap-direct-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "question": {"id": question.id, "title": question.title},
+                "theory_packet_id": theory_packet_id,
+                "simulation_passed": True,
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                    }
+                ],
+            },
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:combined-coding-gap-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route combined coding-agent capability gap to executable owner.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["routed_subsystem"] == "AlgorithmEngineer"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_algorithm_code"
+    ] is True
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_simulation_code"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["requested_subsystem"] == "AlgorithmEngineer"
+    assert routing["selected_subsystem"] == "AlgorithmEngineer"
+    assert routing["capability_gap_target_behavior"].startswith(
+        "AlgorithmEngineer and SimulationEngineer"
+    )
+
+
+def test_architect_runtime_routes_algorithm_gap_to_simulation_prerequisite() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    architect_context = {
+        "theory_packet_id": "theory_derivation:already_structured",
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "generated_algorithm_code_executed_locally",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AlgorithmEngineer",
+                    "target_behavior": "execute generated sandbox_code_drafts",
+                    "success_metric": "n_generated_code_sandbox_executed>0",
+                    "blocker": "AlgorithmEngineer lacks a simulation handoff",
+                    "routing_boundary": "routing only; not algorithm evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:algorithm-gap-simulation-prereq",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route generated algorithm capability gap to prerequisite simulation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(
+        task,
+        BlackboardState(project_id="algorithm-gap-simulation-prereq-test"),
+    )
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapPrerequisiteFeedback"
+    assert feedback["requested_next_owner_subsystem"] == "AlgorithmEngineer"
+    assert feedback["routed_prerequisite_subsystem"] == "SimulationEvaluator"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_generated_algorithm_code"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["requested_subsystem"] == "AlgorithmEngineer"
+    assert routing["selected_subsystem"] == "SimulationEvaluator"
+    assert routing["requires_prerequisite_theory"] is True
+
+
+def test_runtime_executes_architect_routed_generated_algorithm_gap(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:direct_algorithm_gap"
+    simulation_manifest_id = "simulation_manifest:direct_algorithm_gap"
+    implementation_gaps = [
+        {
+            "estimator_id": "custom_estimator",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            "reason": "Capability eval requires generated code execution.",
+        }
+    ]
+    theory_packet = _structured_theory_packet_fixture(theory_packet_id)
+    theory_packet["estimator_specs"] = [
+        {
+            "id": "custom_estimator",
+            "name": "Custom conformal prediction interval",
+            "algorithm_sketch": (
+                "Generated sandbox adapter should estimate empirical coverage "
+                "using seed-controlled stress cases."
+            ),
+        }
+    ]
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "generated_algorithm_code_executed_locally",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AlgorithmEngineer",
+                    "target_behavior": (
+                        "produce generated sandbox_code_drafts and execute the "
+                        "algorithm_sandbox locally"
+                    ),
+                    "success_metric": (
+                        "n_generated_code_sandbox_executed>0 and "
+                        "n_generated_code_sandbox_passed>0"
+                    ),
+                    "blocker": "no generated algorithm sandbox execution",
+                    "routing_boundary": "routing only; not algorithm evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    simulation_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "question": {"id": question.id, "title": question.title},
+        "theory_packet_id": theory_packet_id,
+        "simulation_passed": True,
+        "implementation_gaps": implementation_gaps,
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    class SafeDirectAlgorithmEngineer:
+        def __init__(self) -> None:
+            self.config = AlgorithmEngineerConfig(
+                provider_name="static",
+                model="static-algorithm-model",
+            )
+            self.provider = StaticArchitectLLMProvider({})
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+            assert feedback["artifact_kind"] == (
+                "ArchitectCapabilityGapExecutionFeedback"
+            )
+            assert feedback["runtime_requested_evidence_contract"][
+                "capability_eval_requires_generated_algorithm_code"
+            ] is True
+            return {
+                "packet_id": "algorithm_engineer_proposal:direct_gap",
+                "implementation_targets": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "registered_template_hint": "none",
+                    }
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed, replicates):\n"
+                            "    n = max(5, int(replicates))\n"
+                            "    state = int(seed) % 9973\n"
+                            "    covered = 0\n"
+                            "    width_total = 0.0\n"
+                            "    for i in range(n):\n"
+                            "        state = (state * 37 + 17 + i) % 9973\n"
+                            "        covered = covered + (0 if state % 20 == 0 else 1)\n"
+                            "        width_total = width_total + 1.0 + ((state % 11) / 100.0)\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'empirical_coverage': covered / n,\n"
+                            "        'target_coverage': 0.9,\n"
+                            "        'mean_width': width_total / n,\n"
+                            "        'replicates': n,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+                "execution_evidence_status": (
+                    "LLM_ALGORITHM_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    algorithm_engineer = SafeDirectAlgorithmEngineer()
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        algorithm_engineer=algorithm_engineer,  # type: ignore[arg-type]
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=2,
+            evaluation_mode="capability_eval",
+        ),
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: theory_packet,
+                simulation_manifest_id: simulation_manifest,
+            }
+        },
+    )
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    subsystems = [trace["subsystem"] for trace in result["traces"]]
+    algorithm_artifacts = [
+        artifact
+        for artifact in result["blackboard"]["artifacts"].values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    ]
+
+    assert subsystems[:2] == ["ArchitectCoordinator", "AlgorithmEngineer"]
+    assert manifest["architect_initial_routing_selected_subsystems"][
+        "AlgorithmEngineer"
+    ] == 1
+    assert manifest["n_generated_code_sandbox_executed"] == 1
+    assert manifest["n_generated_code_sandbox_passed"] == 1
+    assert len(algorithm_engineer.feedbacks) == 1
+    assert algorithm_artifacts[0]["n_generated_code_executed"] == 1
+    assert algorithm_artifacts[0]["n_passed"] == 1
+    assert algorithm_artifacts[0]["prototypes"][0]["executor"] == (
+        "generated_python_sandbox"
+    )
+
+
+def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:combined_coding_runtime"
+    simulation_manifest_id = "simulation_manifest:combined_coding_runtime"
+    implementation_gaps = [
+        {
+            "estimator_id": "custom_estimator",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            "reason": "Combined capability row requires generated code.",
+        }
+    ]
+    theory_packet = _structured_theory_packet_fixture(theory_packet_id)
+    theory_packet["estimator_specs"] = [
+        {
+            "id": "custom_estimator",
+            "name": "Custom combined coding estimator",
+            "algorithm_sketch": "Generated sandbox adapter for capability routing.",
+        }
+    ]
+    simulation_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": simulation_manifest_id,
+        "question": {"id": question.id, "title": question.title},
+        "theory_packet_id": theory_packet_id,
+        "simulation_passed": True,
+        "implementation_gaps": implementation_gaps,
+    }
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "coding_agent_generated_code_component_gate",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "AlgorithmEngineer+SimulationEvaluator",
+                    "target_behavior": (
+                        "AlgorithmEngineer and SimulationEngineer must both "
+                        "produce generated Python and current-run sandbox evidence."
+                    ),
+                    "success_metric": (
+                        "generated algorithm and generated simulation sandbox "
+                        "execution are both recorded"
+                    ),
+                    "blocker": "combined generated-code capability not yet executed",
+                    "routing_boundary": "routing only; not execution evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    class SafeCombinedAlgorithmEngineer:
+        def __init__(self) -> None:
+            self.config = AlgorithmEngineerConfig(
+                provider_name="static",
+                model="static-algorithm-model",
+            )
+            self.provider = StaticArchitectLLMProvider({})
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+            contract = feedback["runtime_requested_evidence_contract"]
+            assert isinstance(contract, dict)
+            assert contract["capability_eval_requires_generated_algorithm_code"] is True
+            assert contract["capability_eval_requires_generated_simulation_code"] is True
+            return {
+                "packet_id": "algorithm_engineer_proposal:combined_gap",
+                "implementation_targets": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "registered_template_hint": "none",
+                    }
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed, replicates):\n"
+                            "    n = max(5, int(replicates))\n"
+                            "    state = int(seed) % 9973\n"
+                            "    covered = 0\n"
+                            "    width_total = 0.0\n"
+                            "    for i in range(n):\n"
+                            "        state = (state * 37 + 17 + i) % 9973\n"
+                            "        covered = covered + (0 if state % 20 == 0 else 1)\n"
+                            "        width_total = width_total + 1.0 + ((state % 11) / 100.0)\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'empirical_coverage': covered / n,\n"
+                            "        'target_coverage': 0.9,\n"
+                            "        'mean_width': width_total / n,\n"
+                            "        'replicates': n,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+                "execution_evidence_status": (
+                    "LLM_ALGORITHM_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    class NoDraftCombinedSimulationEngineer:
+        def __init__(self) -> None:
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+            assert feedback["runtime_requested_evidence_contract"][
+                "capability_eval_requires_generated_simulation_code"
+            ] is True
+            return {
+                "packet_id": "simulation_engineer_proposal:combined_no_draft",
+                "simulation_targets": [
+                    {
+                        "procedure_id": "combined_generated_simulation",
+                        "estimand": "coverage",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 10,
+                    "seed": 20260704,
+                },
+                "critic_findings": [],
+                "next_actions": [],
+                "simulation_code_drafts": [],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    algorithm_engineer = SafeCombinedAlgorithmEngineer()
+    simulation_engineer = NoDraftCombinedSimulationEngineer()
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        algorithm_engineer=algorithm_engineer,  # type: ignore[arg-type]
+        simulation_engineer=simulation_engineer,  # type: ignore[arg-type]
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=3,
+            evaluation_mode="capability_eval",
+        ),
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: theory_packet,
+                simulation_manifest_id: simulation_manifest,
+            }
+        },
+    )
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    subsystems = [trace["subsystem"] for trace in result["traces"]]
+    simulation_artifacts = [
+        artifact
+        for artifact in result["blackboard"]["artifacts"].values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+    generated_simulation_artifacts = [
+        artifact
+        for artifact in simulation_artifacts
+        if int(artifact.get("n_generated_simulation_sandbox_prototypes", 0) or 0)
+        > 0
+    ]
+
+    assert subsystems[:3] == [
+        "ArchitectCoordinator",
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+    ]
+    assert len(algorithm_engineer.feedbacks) == 1
+    assert len(simulation_engineer.feedbacks) == 1
+    assert manifest["n_generated_code_sandbox_passed"] == 1
+    assert generated_simulation_artifacts
+    assert generated_simulation_artifacts[-1][
+        "n_generated_simulation_sandbox_executed"
+    ] == 0
+    assert generated_simulation_artifacts[-1][
+        "generated_simulation_sandbox_prototypes"
+    ][0]["prototype_status"] == "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"
+
+
+def test_architect_runtime_routes_formalizer_gap_to_executor() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:formalizer_ready"
+    simulation_manifest_id = "simulation_manifest:formalizer_ready"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:formalizer_ready"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "formalizer_lean_candidate_materialized",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": (
+                        "produce a generated formalizer Lean candidate and "
+                        "materialize it in AgentRuntime"
+                    ),
+                    "success_metric": (
+                        "n_formalizer_lean_candidate_artifacts_written>0"
+                    ),
+                    "blocker": "no generated Formalizer Lean candidate",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="formalizer-gap-direct-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+                "n_passed": 1,
+            },
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:formalizer-gap-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route generated formalizer capability gap to execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.next_task.inputs["theory_packet_id"] == theory_packet_id
+    assert result.next_task.inputs["simulation_manifest_id"] == simulation_manifest_id
+    assert result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        algorithm_manifest_id
+    )
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["routed_subsystem"] == "FormalizationEvaluator"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "FormalizationEvaluator"
+    assert routing["selected_subsystem"] == "FormalizationEvaluator"
+    assert routing["requires_prerequisite_theory"] is False
+
+
+def test_architect_runtime_routes_exact_semantic_verifier_gap_with_typed_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:exact_semantic_ready"
+    simulation_manifest_id = "simulation_manifest:exact_semantic_ready"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:exact_semantic_ready"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": (
+                        "exact_semantic_definition_authoring_candidate_verifier_checked"
+                    ),
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "Formalizer/ProofEngineer",
+                    "target_behavior": (
+                        "consume live exact semantic-definition authoring output, "
+                        "materialize definition-only candidate packets, and run "
+                        "local Lean verifier diagnostics"
+                    ),
+                    "success_metric": (
+                        "n_candidate_packets>0, n_materialized_lean_repair_tasks>0, "
+                        "n_materialized_local_lean_checked>0, and "
+                        "n_materialized_feedback_rows>0"
+                    ),
+                    "blocker": (
+                        "exact semantic-definition candidate verifier feedback "
+                        "has not returned to the integrated runtime"
+                    ),
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="exact-semantic-verifier-gap-direct-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+                "n_passed": 1,
+            },
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:exact-semantic-verifier-gap-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route exact semantic-definition verifier gap to execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["routed_subsystem"] == "FormalizationEvaluator"
+    contract = feedback["runtime_requested_evidence_contract"]
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_authoring_worker"
+    ] is True
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_candidate_materializer"
+    ] is True
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_materialized_lean_repair"
+    ] is True
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["requested_subsystem"] == "FormalizationEvaluator"
+    assert routing["selected_subsystem"] == "FormalizationEvaluator"
+
+
+def test_architect_runtime_routes_formalizer_gap_to_algorithm_prerequisite() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:formalizer_needs_algorithm"
+    simulation_manifest_id = "simulation_manifest:formalizer_needs_algorithm"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "formalizer_lean_candidate_materialized",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": "produce a generated Lean candidate",
+                    "success_metric": (
+                        "n_formalizer_lean_candidate_artifacts_written>0"
+                    ),
+                    "blocker": "Formalizer lacks algorithm handoff evidence",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="formalizer-gap-algorithm-prereq-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                    }
+                ],
+            },
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:formalizer-gap-algorithm-prereq",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route formalizer gap through missing algorithm prerequisite.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapPrerequisiteFeedback"
+    assert feedback["requested_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert feedback["routed_prerequisite_subsystem"] == "AlgorithmEngineer"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["requested_subsystem"] == "FormalizationEvaluator"
+    assert routing["selected_subsystem"] == "AlgorithmEngineer"
+    assert routing["requires_prerequisite_theory"] is True
+
+
+def test_runtime_executes_architect_routed_formalizer_gap(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:direct_formalizer_gap"
+    simulation_manifest_id = "simulation_manifest:direct_formalizer_gap"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:direct_formalizer_gap"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "formalizer_lean_candidate_materialized",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": (
+                        "produce a generated formalizer Lean candidate and "
+                        "materialize it in AgentRuntime"
+                    ),
+                    "success_metric": (
+                        "n_formalizer_lean_candidate_artifacts_written>0"
+                    ),
+                    "blocker": "no generated Formalizer Lean candidate",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    class SafeDirectFormalizer:
+        def __init__(self) -> None:
+            self.config = FormalizerConfig(
+                provider_name="static",
+                model="static-formalizer-model",
+            )
+            self.provider = StaticArchitectLLMProvider({})
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+            assert feedback["artifact_kind"] == (
+                "ArchitectCapabilityGapExecutionFeedback"
+            )
+            assert feedback["runtime_requested_evidence_contract"][
+                "capability_eval_requires_formalizer_lean_candidate"
+            ] is True
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:direct_gap",
+                "source_agent": "SafeDirectFormalizer",
+                "formal_targets": [
+                    {
+                        "id": "ai_statistician_formalizer_helper_smoke",
+                        "informal_source": (
+                            "diagnostic helper candidate only; not a source theorem"
+                        ),
+                        "lean_statement_sketch": (
+                            "theorem ai_statistician_formalizer_helper_smoke "
+                            "(p : Prop) (hp : p) : p := by\n"
+                            "  exact hp\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": False,
+                            "target_lean_declaration": "",
+                            "source_theorem_goal_id": "",
+                        },
+                    }
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": ["materialize candidate only"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    formalizer = SafeDirectFormalizer()
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        formalizer=formalizer,  # type: ignore[arg-type]
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=2,
+            evaluation_mode="debug",
+        ),
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: _structured_theory_packet_fixture(
+                    theory_packet_id
+                ),
+                simulation_manifest_id: {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                    "manifest_id": simulation_manifest_id,
+                    "question": {"id": question.id, "title": question.title},
+                    "theory_packet_id": theory_packet_id,
+                    "simulation_passed": True,
+                },
+                algorithm_manifest_id: {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "manifest_id": algorithm_manifest_id,
+                    "question": {"id": question.id, "title": question.title},
+                    "theory_packet_id": theory_packet_id,
+                    "simulation_manifest_id": simulation_manifest_id,
+                    "n_executed": 1,
+                    "n_passed": 1,
+                },
+            }
+        },
+    )
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    subsystems = [trace["subsystem"] for trace in result["traces"]]
+    materializations = [
+        artifact
+        for artifact in result["blackboard"]["artifacts"].values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeFormalizerLeanCandidateMaterialization"
+    ]
+
+    assert subsystems[:2] == ["ArchitectCoordinator", "FormalizationEvaluator"]
+    assert manifest["architect_initial_routing_selected_subsystems"][
+        "FormalizationEvaluator"
+    ] == 1
+    assert manifest["n_formalizer_lean_candidate_sources"] >= 1
+    assert manifest["n_formalizer_lean_candidate_artifacts_written"] >= 1
+    assert len(formalizer.feedbacks) == 1
+    assert materializations
+    assert materializations[0]["proof_evidence_status"] != "PROOF_VERIFIED"
+
+
+def test_architect_runtime_routes_gap_planner_gap_to_executor() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:gap_planner_ready"
+    simulation_manifest_id = "simulation_manifest:gap_planner_ready"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:gap_planner_ready"
+    formalization_manifest_id = "formalization_manifest:gap_planner_ready"
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    bridge["formalization_manifest_id"] = formalization_manifest_id
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "previous_formalization_manifest_id": formalization_manifest_id,
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": (
+                        "formalization_gap_planner_handoff_replayed"
+                    ),
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationGapPlanner",
+                    "target_behavior": (
+                        "execute pseudo-formal route planner and target-prover "
+                        "replay on the runtime formalization_gap_planner bridge"
+                    ),
+                    "success_metric": (
+                        "runtime_formalization_gap_planner_execution_manifest "
+                        "records handoff replay without proof promotion"
+                    ),
+                    "blocker": "no direct FormalizationGapPlanner execution observed",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="gap-planner-direct-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+                "n_passed": 1,
+            },
+            formalization_manifest_id: {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": formalization_manifest_id,
+                "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+                "counts": {"formal_gap": 1, "kernel_verified": 0},
+            },
+            bridge["bridge_id"]: bridge,
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:gap-planner-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route gap-planner capability gap to execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert result.next_task.inputs["formalization_manifest_id"] == (
+        formalization_manifest_id
+    )
+    assert result.next_task.inputs["formalization_gap_planner_bridge_ids"] == [
+        bridge["bridge_id"]
+    ]
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["feedback_type"] == (
+        "architect_capability_gap_formalization_gap_planner_handoff"
+    )
+    assert feedback["routed_subsystem"] == "FormalizationGapPlanner"
+    assert feedback["formalization_gap_planner_bridge_ids"] == [bridge["bridge_id"]]
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalization_gap_planner_bridge"
+    ] is True
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalization_gap_planner_route_planner"
+    ] is True
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalization_gap_planner_target_prover_replay"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "FormalizationGapPlanner"
+    assert routing["selected_subsystem"] == "FormalizationGapPlanner"
+    assert routing["requires_prerequisite_theory"] is False
+
+
+def test_architect_runtime_routes_gap_planner_gap_to_formalizer_prerequisite() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:gap_planner_needs_bridge"
+    simulation_manifest_id = "simulation_manifest:gap_planner_needs_bridge"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:gap_planner_needs_bridge"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": (
+                        "formalization_gap_planner_handoff_replayed"
+                    ),
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationGapPlanner",
+                    "target_behavior": (
+                        "execute a pseudo-formal route planner after a bridge "
+                        "exists"
+                    ),
+                    "success_metric": (
+                        "runtime_formalization_gap_planner_execution_manifest "
+                        "records handoff replay"
+                    ),
+                    "blocker": "no RuntimeFormalizationGapPlannerBridge exists",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="gap-planner-formalizer-prereq-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+                "n_passed": 1,
+            },
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:gap-planner-formalizer-prereq",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route missing gap-planner bridge through Formalizer.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapPrerequisiteFeedback"
+    assert feedback["requested_next_owner_subsystem"] == "FormalizationGapPlanner"
+    assert feedback["routed_prerequisite_subsystem"] == "FormalizationEvaluator"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalization_gap_planner_bridge"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["requested_subsystem"] == "FormalizationGapPlanner"
+    assert routing["selected_subsystem"] == "FormalizationEvaluator"
+    assert routing["requires_prerequisite_theory"] is True
+
+
+def test_runtime_executes_architect_routed_gap_planner_gap(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:direct_gap_planner_gap"
+    formalization_manifest_id = "formalization_manifest:direct_gap_planner_gap"
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    bridge["formalization_manifest_id"] = formalization_manifest_id
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_formalization_manifest_id": formalization_manifest_id,
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": (
+                        "formalization_gap_planner_handoff_replayed"
+                    ),
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "FormalizationGapPlanner",
+                    "target_behavior": (
+                        "execute pseudo-formal route planner handoff replay "
+                        "from the available bridge"
+                    ),
+                    "success_metric": (
+                        "runtime_formalization_gap_planner_execution_manifest "
+                        "records offline handoff smoke"
+                    ),
+                    "blocker": "no direct FormalizationGapPlanner runtime trace",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=2,
+            evaluation_mode="capability_eval",
+        ),
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: _structured_theory_packet_fixture(
+                    theory_packet_id
+                ),
+                formalization_manifest_id: {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "manifest_id": formalization_manifest_id,
+                    "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+                    "counts": {"formal_gap": 1, "kernel_verified": 0},
+                },
+                bridge["bridge_id"]: bridge,
+            }
+        },
+    )
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    subsystems = [trace["subsystem"] for trace in result["traces"]]
+    planner_manifests = [
+        artifact
+        for artifact in result["blackboard"]["artifacts"].values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    ]
+
+    assert subsystems[:2] == ["ArchitectCoordinator", "FormalizationGapPlanner"]
+    assert manifest["architect_initial_routing_selected_subsystems"][
+        "FormalizationGapPlanner"
+    ] == 1
+    assert planner_manifests
+    assert planner_manifests[0]["audit_all_ok"] is True
+    assert planner_manifests[0]["live_llm_invoked"] is False
+    assert planner_manifests[0]["counts"]["handoff_rows"] == 1
+    assert planner_manifests[0]["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_architect_runtime_routes_proofengineer_gap_to_executor() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:proofengineer_ready"
+    simulation_manifest_id = "simulation_manifest:proofengineer_ready"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:proofengineer_ready"
+    materialization_id = "formalizer_lean_candidate_materialization:proofengineer_ready"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "previous_formalizer_lean_candidate_materialization_manifest_id": (
+            materialization_id
+        ),
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "formalizer_lean_candidate_repair_loop_observed",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "ProofEngineer",
+                    "target_behavior": (
+                        "repair the materialized Lean candidate using proof-state "
+                        "feedback and local Lean diagnostics"
+                    ),
+                    "success_metric": (
+                        "formalize-lean-repair task executed by ProofEngineer"
+                    ),
+                    "blocker": "no ProofEngineer repair loop observed",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="proofengineer-gap-direct-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+                "n_passed": 1,
+            },
+            materialization_id: _failed_formalizer_materialization_fixture(
+                materialization_id
+            ),
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:proofengineer-gap-direct",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route ProofEngineer capability gap to Lean repair execution.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.task_id.startswith("formalize-lean-repair:")
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "formalizer_lean_candidate_local_lean_feedback"
+    )
+    assert feedback["routed_subsystem"] == "ProofEngineer"
+    assert feedback["source_manifest_id"] == materialization_id
+    assert feedback["architect_capability_gap_execution_feedback"][
+        "artifact_kind"
+    ] == "ArchitectCapabilityGapExecutionFeedback"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_proof_state_request"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["source"] == "runtime_capability_gap_routing_agenda"
+    assert routing["requested_subsystem"] == "ProofEngineer"
+    assert routing["selected_subsystem"] == "ProofEngineer"
+    assert routing["requires_prerequisite_theory"] is False
+
+
+def test_architect_runtime_routes_proofengineer_gap_to_formalizer_prerequisite() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:proofengineer_needs_formalizer"
+    simulation_manifest_id = "simulation_manifest:proofengineer_needs_formalizer"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:proofengineer_needs_formalizer"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "formalizer_lean_candidate_repair_loop_observed",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "ProofEngineer",
+                    "target_behavior": "repair a materialized Lean candidate",
+                    "success_metric": "ProofEngineer repair loop observed",
+                    "blocker": "no materialized Lean candidate handoff exists",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="proofengineer-gap-formalizer-prereq-test",
+        artifacts={
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+                "n_passed": 1,
+            },
+        },
+    )
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=LLMArchitectCoordinatorAgent(
+            provider=StaticArchitectLLMProvider(_architect_sample_response()),
+            config=ArchitectCoordinatorConfig(
+                provider_name="static",
+                model="static-architect-model",
+            ),
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=456),
+    )
+    task = AgentTask(
+        task_id="architect:proofengineer-gap-formalizer-prereq",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Route ProofEngineer gap through missing Formalizer candidate.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": architect_context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapPrerequisiteFeedback"
+    assert feedback["requested_next_owner_subsystem"] == "ProofEngineer"
+    assert feedback["routed_prerequisite_subsystem"] == "FormalizationEvaluator"
+    assert feedback["runtime_requested_evidence_contract"][
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
+    assert routing["requested_subsystem"] == "ProofEngineer"
+    assert routing["selected_subsystem"] == "FormalizationEvaluator"
+    assert routing["requires_prerequisite_theory"] is True
+
+
+def test_runtime_executes_architect_routed_proofengineer_gap(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory_derivation:direct_proofengineer_gap"
+    simulation_manifest_id = "simulation_manifest:direct_proofengineer_gap"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:direct_proofengineer_gap"
+    materialization_id = "formalizer_lean_candidate_materialization:direct_proofengineer_gap"
+    architect_context = {
+        "theory_packet_id": theory_packet_id,
+        "previous_simulation_manifest_id": simulation_manifest_id,
+        "previous_algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "previous_formalizer_lean_candidate_materialization_manifest_id": (
+            materialization_id
+        ),
+        "runtime_capability_gap_routing": {
+            "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+            "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
+            "rows": [
+                {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+                    "requirement_id": "formalizer_lean_candidate_repair_loop_observed",
+                    "scope": "integrated_runtime",
+                    "gap_status": "OPEN",
+                    "next_owner_subsystem": "ProofEngineer",
+                    "target_behavior": (
+                        "repair the materialized Lean candidate using local Lean "
+                        "diagnostics"
+                    ),
+                    "success_metric": (
+                        "formalize-lean-repair task executed by ProofEngineer"
+                    ),
+                    "blocker": "no ProofEngineer repair loop observed",
+                    "routing_boundary": "routing only; not Lean proof evidence",
+                }
+            ],
+            "boundary": "capability routing context; not proof evidence",
+        },
+    }
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    architect = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="static",
+            model="static-architect-model",
+        ),
+    )
+
+    class SafeDirectProofEngineer:
+        def __init__(self) -> None:
+            self.config = FormalizerConfig(
+                provider_name="static",
+                model="static-formalizer-model",
+            )
+            self.provider = StaticArchitectLLMProvider({})
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+            assert feedback["feedback_type"] == (
+                "formalizer_lean_candidate_local_lean_feedback"
+            )
+            assert feedback["source_manifest_id"] == materialization_id
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:proofengineer_direct_gap",
+                "source_agent": "SafeDirectProofEngineer",
+                "formal_targets": [
+                    {
+                        "id": "proofengineer_repaired_helper",
+                        "informal_source": (
+                            "diagnostic helper repair only; not source theorem proof"
+                        ),
+                        "lean_statement_sketch": (
+                            "theorem proofengineer_repaired_helper "
+                            "(p : Prop) (hp : p) : p := by\n"
+                            "  exact hp\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": False,
+                            "target_lean_declaration": "",
+                            "source_theorem_goal_id": "",
+                        },
+                    }
+                ],
+                "lemma_dependency_plan": [],
+                "retrieval_queries": [],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean"],
+                    "kernel_check_plan": ["repair candidate only"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    proofengineer = SafeDirectProofEngineer()
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        architect_coordinator=architect,
+        formalizer=proofengineer,  # type: ignore[arg-type]
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=2,
+            evaluation_mode="debug",
+        ),
+        initial_blackboard_artifacts={
+            question.id: {
+                theory_packet_id: _structured_theory_packet_fixture(
+                    theory_packet_id
+                ),
+                simulation_manifest_id: {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                    "manifest_id": simulation_manifest_id,
+                    "simulation_passed": True,
+                },
+                algorithm_manifest_id: {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "manifest_id": algorithm_manifest_id,
+                    "n_executed": 1,
+                    "n_passed": 1,
+                },
+                materialization_id: _failed_formalizer_materialization_fixture(
+                    materialization_id
+                ),
+            }
+        },
+    )
+
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    subsystems = [trace["subsystem"] for trace in result["traces"]]
+    materializations = [
+        artifact
+        for artifact in result["blackboard"]["artifacts"].values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeFormalizerLeanCandidateMaterialization"
+    ]
+
+    assert subsystems[:2] == ["ArchitectCoordinator", "ProofEngineer"]
+    assert manifest["architect_initial_routing_selected_subsystems"][
+        "ProofEngineer"
+    ] == 1
+    assert len(proofengineer.feedbacks) == 1
+    assert any(
+        str(row.get("task_id", "")).startswith("formalize-lean-repair:")
+        for row in materializations
+    )
+    assert manifest["n_formalizer_lean_candidate_sources"] >= 2
+
+
 def test_architect_runtime_routes_downstream_gap_to_theory_prerequisite() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     architect_context = {
@@ -11843,6 +16042,21 @@ def test_architect_runtime_routes_downstream_gap_to_theory_prerequisite() -> Non
                     "recommended_capability_eval_command": (
                         "research-agent-runtime --proof-state-provider lean-lsp-mcp"
                     ),
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": "live_lean_lsp_mcp_called",
+                        "scorecard_row": {
+                            "requirement_id": "live_lean_lsp_mcp_called",
+                            "evidence": "n_lean_lsp_mcp_live_calls=0",
+                        },
+                        "audit_metrics": {
+                            "n_lean_lsp_mcp_live_calls": 0,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": "scorecard payload is routing only; not verifier evidence",
+                    },
                     "routing_boundary": "routing only; not verifier evidence",
                 }
             ],
@@ -11879,6 +16093,9 @@ def test_architect_runtime_routes_downstream_gap_to_theory_prerequisite() -> Non
     assert feedback["routed_prerequisite_subsystem"] == "TheoryDeveloper"
     assert feedback["requirement_id"] == "live_lean_lsp_mcp_called"
     assert feedback["success_metric"] == "live_lean_lsp_mcp_called.passed=true"
+    assert feedback["scorecard_payload"]["audit_metrics"][
+        "n_lean_lsp_mcp_live_calls"
+    ] == 0
     assert feedback["proof_evidence_status"] == (
         "ARCHITECT_CAPABILITY_GAP_PREREQUISITE_NOT_PROOF_EVIDENCE"
     )
@@ -11889,6 +16106,18 @@ def test_architect_runtime_routes_downstream_gap_to_theory_prerequisite() -> Non
     assert routing["selected_subsystem"] == "TheoryDeveloper"
     assert routing["requires_prerequisite_theory"] is True
     assert routing["capability_gap_requirement_id"] == "live_lean_lsp_mcp_called"
+    assert routing["capability_gap_success_metric"] == (
+        "live_lean_lsp_mcp_called.passed=true"
+    )
+    assert routing["capability_gap_target_behavior"] == (
+        "drive Lean LSP proof-state feedback before promotion"
+    )
+    assert routing["capability_gap_scorecard_payload"]["audit_metrics"][
+        "n_lean_lsp_mcp_live_calls"
+    ] == 0
+    assert routing["capability_gap_scorecard_payload"]["proof_evidence_status"] == (
+        "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+    )
     assert "runtime_capability_gap_routing" not in {
         entry.evidence_type for entry in result.evidence_entries
     }
@@ -11906,6 +16135,32 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
                             "requested_subsystem": "FormalizationEvaluator",
                             "source": "runtime_capability_gap_routing_agenda",
                             "requires_prerequisite_theory": True,
+                            "capability_gap_requirement_id": (
+                                "live_lean_lsp_mcp_called"
+                            ),
+                            "capability_gap_success_metric": (
+                                "live_lean_lsp_mcp_called.passed=true"
+                            ),
+                            "capability_gap_scorecard_payload": {
+                                "artifact_kind": (
+                                    "RuntimeCapabilityGapScorecardPayload"
+                                ),
+                                "requirement_id": "live_lean_lsp_mcp_called",
+                                "scorecard_row": {
+                                    "requirement_id": "live_lean_lsp_mcp_called",
+                                    "evidence": "n_lean_lsp_mcp_live_calls=0",
+                                },
+                                "audit_metrics": {
+                                    "n_lean_lsp_mcp_live_calls": 0,
+                                },
+                                "proof_evidence_status": (
+                                    "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                                ),
+                                "boundary": (
+                                    "scorecard payload is routing only; "
+                                    "not verifier evidence"
+                                ),
+                            },
                             "proof_evidence_status": (
                                 "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
                             ),
@@ -11928,6 +16183,32 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
                             "requested_subsystem": "FormalizationEvaluator",
                             "source": "runtime_capability_gap_routing_agenda",
                             "requires_prerequisite_theory": True,
+                            "capability_gap_requirement_id": (
+                                "live_lean_lsp_mcp_called"
+                            ),
+                            "capability_gap_success_metric": (
+                                "live_lean_lsp_mcp_called.passed=true"
+                            ),
+                            "capability_gap_scorecard_payload": {
+                                "artifact_kind": (
+                                    "RuntimeCapabilityGapScorecardPayload"
+                                ),
+                                "requirement_id": "live_lean_lsp_mcp_called",
+                                "scorecard_row": {
+                                    "requirement_id": "live_lean_lsp_mcp_called",
+                                    "evidence": "n_lean_lsp_mcp_live_calls=0",
+                                },
+                                "audit_metrics": {
+                                    "n_lean_lsp_mcp_live_calls": 0,
+                                },
+                                "proof_evidence_status": (
+                                    "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                                ),
+                                "boundary": (
+                                    "scorecard payload is routing only; "
+                                    "not verifier evidence"
+                                ),
+                            },
                             "proof_evidence_status": (
                                 "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE"
                             ),
@@ -11950,6 +16231,9 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
     assert records[0]["selected_subsystem"] == "TheoryDeveloper"
     assert records[0]["requested_subsystem"] == "FormalizationEvaluator"
     assert records[0]["requires_prerequisite_theory"] is True
+    assert records[0]["capability_gap_scorecard_payload"]["audit_metrics"][
+        "n_lean_lsp_mcp_live_calls"
+    ] == 0
     assert _architect_initial_routing_record_errors(records) == []
     summary = _runtime_architect_initial_routing_summary(
         [
@@ -11998,6 +16282,104 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
     assert "invalid proof boundary" in _architect_initial_routing_record_errors(
         [bad_record]
     )[0]
+    missing_payload_record = dict(records[0])
+    missing_payload_record.pop("capability_gap_scorecard_payload")
+    assert "missing capability gap scorecard payload" in (
+        _architect_initial_routing_record_errors([missing_payload_record])[0]
+    )
+    bad_payload_record = dict(records[0])
+    bad_payload_record["capability_gap_scorecard_payload"] = dict(
+        records[0]["capability_gap_scorecard_payload"],
+        proof_evidence_status="PROOF_EVIDENCE",
+    )
+    assert "invalid capability gap scorecard proof boundary" in (
+        _architect_initial_routing_record_errors([bad_payload_record])[0]
+    )
+
+
+def test_architect_initial_routing_audit_exposes_deferred_meta_gap() -> None:
+    record = {
+        "artifact_kind": "ArchitectInitialRoutingDecision",
+        "selected_subsystem": "TheoryDeveloper",
+        "requested_subsystem": "TheoryDeveloper",
+        "source": "architect_packet_after_meta_capability_gap",
+        "requires_prerequisite_theory": False,
+        "deferred_meta_capability_gap_requirement_id": (
+            "runtime_progress_observable"
+        ),
+        "deferred_meta_capability_gap_owner": "AgentRuntimeOrchestrator",
+        "deferred_meta_capability_gap": {
+            "artifact_kind": "ArchitectDeferredMetaCapabilityGap",
+            "requested_next_owner_subsystem": "AgentRuntimeOrchestrator",
+            "requirement_id": "runtime_progress_observable",
+            "target_behavior": "fix runtime progress export in the control plane",
+            "success_metric": "runtime_progress_observable.passed=true",
+            "blocker": "progress trace export was missing finish rows",
+            "proof_evidence_status": (
+                "ARCHITECT_META_CAPABILITY_GAP_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "This deferred meta capability gap is unresolved control-plane "
+                "debt. Recording it does not execute a live generator, run a "
+                "simulation, validate generated code, or prove a Lean theorem."
+            ),
+        },
+        "proof_evidence_status": "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Architect initial routing is orchestration control only. It does "
+            "not execute tools, validate generated code or simulations, or "
+            "prove a theorem."
+        ),
+    }
+    traces = [
+        {
+            "task": {
+                "inputs": {
+                    "architect_context": {
+                        "architect_initial_routing": record,
+                    }
+                }
+            },
+            "observations": [{"payload": {"initial_routing": record}}],
+        }
+    ]
+
+    records = _trace_architect_initial_routing_records(traces)
+    summary = _runtime_architect_initial_routing_summary(
+        [
+            {
+                "question_id": "meta-route-case",
+                "question_title": "Meta route case",
+                "traces": traces,
+            }
+        ]
+    )
+
+    assert len(records) == 1
+    assert _architect_initial_routing_record_errors(records) == []
+    assert (
+        summary["n_architect_initial_routing_deferred_meta_capability_gaps"]
+        == 1
+    )
+    assert summary[
+        "architect_initial_routing_deferred_meta_capability_gap_owners"
+    ] == {"AgentRuntimeOrchestrator": 1}
+    assert summary[
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+    ] == ["runtime_progress_observable"]
+    assert summary["rows"][0]["n_deferred_meta_capability_gaps"] == 1
+    assert summary["rows"][0]["deferred_meta_capability_gap_owners"] == [
+        "AgentRuntimeOrchestrator"
+    ]
+
+    bad_record = dict(record)
+    bad_record["deferred_meta_capability_gap"] = dict(
+        record["deferred_meta_capability_gap"],
+        proof_evidence_status="PROOF_EVIDENCE",
+    )
+    assert "invalid deferred meta capability gap proof boundary" in (
+        _architect_initial_routing_record_errors([bad_record])[0]
+    )
 
 
 def test_runtime_handoff_transition_summary_audits_explicit_next_task() -> None:
@@ -12371,7 +16753,253 @@ def test_capability_scorecard_requires_architect_initial_routing_audit() -> None
     }
 
     assert routed_rows["architect_initial_routing_audited"]["passed"] is True
+    assert routed_rows[
+        "architect_deferred_meta_capability_gaps_resolved"
+    ]["passed"] is True
     assert routed_ladder_rows[2]["passed"] is True
+
+    hidden_meta_payload = {
+        **routed_payload,
+        "n_architect_initial_routing_deferred_meta_capability_gaps": 1,
+        "architect_initial_routing_deferred_meta_capability_gap_owners": {},
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": [],
+    }
+    hidden_meta_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(hidden_meta_payload)["rows"]
+    }
+    hidden_meta_row = hidden_meta_rows[
+        "architect_deferred_meta_capability_gaps_visible"
+    ]
+    assert hidden_meta_row["passed"] is False
+    assert "AgentRuntime/Architect control-plane capability gap" in (
+        hidden_meta_row["blocker"]
+    )
+    assert hidden_meta_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    hidden_meta_routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(
+            _runtime_capability_scorecard(hidden_meta_payload),
+            hidden_meta_payload,
+        )
+    }
+    hidden_meta_metrics = hidden_meta_routing_rows[
+        "architect_deferred_meta_capability_gaps_visible"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert (
+        hidden_meta_metrics[
+            "n_architect_initial_routing_deferred_meta_capability_gaps"
+        ]
+        == 1
+    )
+    assert (
+        hidden_meta_metrics[
+            "architect_initial_routing_deferred_meta_capability_gap_owners"
+        ]
+        == {}
+    )
+
+    visible_meta_payload = {
+        **hidden_meta_payload,
+        "architect_initial_routing_deferred_meta_capability_gap_owners": {
+            "AgentRuntimeOrchestrator": 1,
+        },
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": [
+            "runtime_progress_observable",
+        ],
+        "runtime_capability_gap_routing_input_requirement_ids": [],
+        "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [],
+        "runtime_capability_gap_routing_input_owner_subsystems": {},
+    }
+    visible_meta_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(visible_meta_payload)["rows"]
+    }
+    assert visible_meta_rows[
+        "architect_deferred_meta_capability_gaps_visible"
+    ]["passed"] is True
+    visible_meta_resolved_row = visible_meta_rows[
+        "architect_deferred_meta_capability_gaps_resolved"
+    ]
+    assert visible_meta_resolved_row["passed"] is False
+    assert "deferred AgentRuntime/Architect control-plane capability gap" in (
+        visible_meta_resolved_row["blocker"]
+    )
+    visible_meta_replay_row = visible_meta_rows[
+        "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+    ]
+    assert visible_meta_replay_row["passed"] is False
+    assert "priority-pinned" in visible_meta_replay_row["blocker"]
+    visible_meta_scorecard = _runtime_capability_scorecard(visible_meta_payload)
+    visible_meta_capability_gaps = _runtime_capability_gaps_from_scorecard(
+        visible_meta_scorecard
+    )
+    assert any(
+        "deferred AgentRuntime/Architect control-plane capability gap" in gap
+        for gap in visible_meta_capability_gaps
+    )
+    visible_meta_routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(
+            visible_meta_scorecard,
+            visible_meta_payload,
+        )
+    }
+    assert (
+        visible_meta_routing_rows[
+            "architect_deferred_meta_capability_gaps_resolved"
+        ]["next_owner_subsystem"]
+        == "AgentRuntimeOrchestrator"
+    )
+    assert (
+        visible_meta_routing_rows[
+            "architect_deferred_meta_capability_gaps_resolved"
+        ]["scorecard_payload"]["audit_metrics"][
+            "n_architect_initial_routing_deferred_meta_capability_gaps"
+        ]
+        == 1
+    )
+    assert (
+        visible_meta_routing_rows[
+            "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+        ]["next_owner_subsystem"]
+        == "AgentRuntimeOrchestrator"
+    )
+    replay_metrics = visible_meta_routing_rows[
+        "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert replay_metrics[
+        "runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+    ] == []
+    replay_pinned_payload = dict(
+        visible_meta_payload,
+        runtime_capability_gap_routing_input_priority_pinned_requirement_ids=[
+            "architect_deferred_meta_capability_gaps_resolved"
+        ],
+    )
+    replay_pinned_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(replay_pinned_payload)["rows"]
+    }
+    assert replay_pinned_rows[
+        "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+    ]["passed"] is True
+
+
+def test_capability_scorecard_requires_prioritized_gap_routing_input_retention() -> None:
+    payload = {
+        "runtime_capability_gap_routing_input_supplied": True,
+        "n_runtime_capability_gap_routing_input_rows": 2,
+        "n_runtime_capability_gap_routing_input_rows_seen": 6,
+        "runtime_capability_gap_routing_input_retention_policy": "latest_rows",
+        "runtime_capability_gap_routing_input_retention_selection_counts": {},
+        "n_runtime_capability_gap_routing_input_rows_missing_retention_selection": 2,
+        "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": 2,
+        "n_results_with_runtime_capability_gap_routing_input": 1,
+    }
+
+    rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(payload)["rows"]
+    }
+    retention_row = rows[
+        "runtime_capability_gap_routing_input_retention_audited"
+    ]
+    selection_row = rows[
+        "runtime_capability_gap_routing_input_retention_selection_visible"
+    ]
+
+    assert retention_row["passed"] is False
+    assert "rows_seen=6" in retention_row["evidence"]
+    assert "retention_policy=latest_rows" in retention_row["evidence"]
+    assert "priority_pinned_latest_rows" in retention_row["blocker"]
+    assert retention_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    assert selection_row["passed"] is False
+    assert "selection_counts" in selection_row["evidence"]
+    assert "retention_selection" in selection_row["blocker"]
+    assert selection_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(
+            _runtime_capability_scorecard(payload),
+            payload,
+        )
+    }
+    retention_metrics = routing_rows[
+        "runtime_capability_gap_routing_input_retention_audited"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert retention_metrics["n_runtime_capability_gap_routing_input_rows"] == 2
+    assert (
+        retention_metrics["n_runtime_capability_gap_routing_input_rows_seen"] == 6
+    )
+    assert (
+        retention_metrics["runtime_capability_gap_routing_input_retention_policy"]
+        == "latest_rows"
+    )
+    assert (
+        retention_metrics["n_results_with_runtime_capability_gap_routing_input"]
+        == 1
+    )
+    selection_metrics = routing_rows[
+        "runtime_capability_gap_routing_input_retention_selection_visible"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert (
+        selection_metrics["n_runtime_capability_gap_routing_input_rows"]
+        == 2
+    )
+    assert (
+        selection_metrics[
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+        ]
+        == 2
+    )
+
+    priority_payload = dict(
+        payload,
+        runtime_capability_gap_routing_input_retention_policy=(
+            "priority_pinned_latest_rows"
+        ),
+    )
+    priority_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(priority_payload)["rows"]
+    }
+
+    assert (
+        priority_rows[
+            "runtime_capability_gap_routing_input_retention_audited"
+        ]["passed"]
+        is True
+    )
+    priority_selection_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(priority_payload)["rows"]
+    }
+    assert (
+        priority_selection_rows[
+            "runtime_capability_gap_routing_input_retention_selection_visible"
+        ]["passed"]
+        is False
+    )
+    selection_payload = dict(
+        priority_payload,
+        runtime_capability_gap_routing_input_retention_selection_counts={
+            "priority_pinned": 1,
+            "latest": 1,
+        },
+        n_runtime_capability_gap_routing_input_rows_missing_retention_selection=0,
+        n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary=0,
+    )
+    selection_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(selection_payload)["rows"]
+    }
+    assert (
+        selection_rows[
+            "runtime_capability_gap_routing_input_retention_selection_visible"
+        ]["passed"]
+        is True
+    )
 
 
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:
@@ -12431,6 +17059,49 @@ def test_architect_coordinator_validator_requires_research_control_fields() -> N
     assert "missing or empty field: stat_knowledge_bank_plan" in errors
     assert "missing or empty field: literature_fair_comparison_plan" in errors
     assert "missing or empty field: evidence_contract" in errors
+
+
+def test_architect_runtime_plan_fields_count_from_next_task_handoff() -> None:
+    trace = {
+        "task": {
+            "inputs": {
+                "architect_context": {
+                    "runtime_learning_memory": {"rows": []},
+                }
+            }
+        },
+        "next_task": {
+            "inputs": {
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "problem_analysis": {
+                            "theorem_family": "split conformal coverage",
+                        },
+                        "stat_knowledge_bank_plan": {
+                            "source_families_to_collect": ["conformal"],
+                        },
+                        "literature_fair_comparison_plan": [
+                            {"candidate_source_family": "split conformal"}
+                        ],
+                    }
+                }
+            }
+        },
+    }
+
+    assert _trace_has_architect_runtime_field([trace], "problem_analysis") is True
+    assert (
+        _trace_has_architect_runtime_field([trace], "stat_knowledge_bank_plan")
+        is True
+    )
+    assert (
+        _trace_has_architect_runtime_field(
+            [trace],
+            "literature_fair_comparison_plan",
+        )
+        is True
+    )
+    assert _trace_has_architect_runtime_field([trace], "retrieval_strategy") is False
 
 
 def test_research_acceptance_contract_respects_formal_policy() -> None:
@@ -13931,6 +18602,61 @@ def test_formalizer_capability_eval_validator_rejects_helper_only_pending_premis
     )
 
 
+def test_formalizer_empty_pseudo_formal_blocks_get_repair_directive() -> None:
+    directives = runtime_module._formalizer_packet_validation_repair_directives(
+        [
+            "pseudo_formal_proof_packets[0] blocks must contain at least one "
+            "pseudo-formal block"
+        ]
+    )
+
+    assert any("every packet must contain at least one concrete" in row for row in directives)
+    assert any("omit the optional packet" in row for row in directives)
+
+
+def test_formalizer_malformed_pseudo_formal_block_fields_get_repair_directive() -> None:
+    directives = runtime_module._formalizer_packet_validation_repair_directives(
+        [
+            "pseudo_formal_proof_packets[0] blocks[0] missing conclusion",
+            "pseudo_formal_proof_packets[0] blocks[0] missing source_anchors",
+            (
+                "pseudo_formal_proof_packets[0] blocks[0] unsupported "
+                "faithfulness_status: UNVERIFIED"
+            ),
+            (
+                "pseudo_formal_proof_packets[0] blocks[0] accepted "
+                "block_verification must record rollout_count >= 1"
+            ),
+        ]
+    )
+
+    assert any("top-level conclusion field" in row for row in directives)
+    assert any("source_anchors entry" in row for row in directives)
+    assert any("Do not use uppercase statuses" in row for row in directives)
+    assert any("rollout_count as an integer >= 1" in row for row in directives)
+    assert any("keep the block's top-level conclusion" in row for row in directives)
+    assert any("not_run" in row and "unknown" in row for row in directives)
+    assert not any(
+        "`needs_review`, `failed`, or `pending`" in row for row in directives
+    )
+
+
+def test_formalizer_unsupported_pseudo_formal_block_type_gets_directive() -> None:
+    directives = runtime_module._formalizer_packet_validation_repair_directives(
+        [
+            (
+                "pseudo_formal_proof_packets[0] blocks[0] unsupported block_type: "
+                "assumption_block"
+            )
+        ]
+    )
+
+    assert any("block_type vocabulary" in row for row in directives)
+    assert any("assumption_block" in row for row in directives)
+    assert any("theorem_step" in row for row in directives)
+    assert any("derivation_block" in row for row in directives)
+
+
 def test_formalizer_feedback_refreshes_missing_theorem_declaration_directive() -> None:
     existing_directive = "Preserve existing validator guidance."
     feedback = {
@@ -14722,6 +19448,206 @@ def test_formalizer_validation_failure_routes_materialization_contract() -> None
     assert "Requested target id/name(s): aipw_asymptotic_normality" in prompt
 
 
+def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    exc = PacketValidationError(
+        validation_label="LLM Formalizer/ProofEngineer packet",
+        attempts=2,
+        errors=[
+            (
+                "pseudo_formalization_required: proof-body/PF activation feedback "
+                "requires at least one pseudo_formal_proof_packets entry with "
+                "source-anchored blocks, PF/BV method lineage, and non-proof boundary"
+            )
+        ],
+        history=[{"attempt_index": 1, "ok": False}],
+    )
+    task = AgentTask(
+        task_id="formalize:split_conformal_structural_reformulation",
+        owner_subsystem="FormalizationEvaluator",
+        objective="repair structural exact semantic definition blocker",
+        inputs={},
+    )
+    proof_memory_summary = {
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+        "pseudo_formalization_required_reason": (
+            "exact_semantic_definition_structural_reformulation_required"
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": True,
+        "source_theorem_exact_semantic_definition_structural_reformulation_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols": [
+            "C_n"
+        ],
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_semantic_definition_structural_reformulation"
+        ),
+    }
+
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        exc=exc,
+    )
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert "PF/BV" in result.next_task.objective
+    assert "lane-routable pseudo-formal" in result.next_task.acceptance_gate
+    feedback = result.next_task.inputs["environment_feedback"]
+    contract = feedback["pseudo_formalization_repair_contract"]
+    assert feedback["pseudo_formalization_required"] is True
+    assert feedback["pseudo_formalization_required_missing_work_order_rows"] is True
+    assert feedback["pseudo_formalization_required_reason"] == (
+        "exact_semantic_definition_structural_reformulation_required"
+    )
+    assert contract["required_output_key"] == "pseudo_formal_proof_packets"
+    assert contract["target_names"] == ["split_conformal_finite_sample_coverage"]
+    assert contract["placeholder_symbols"] == ["C_n"]
+    assert contract["target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "lean_rag",
+        "source_to_bridge",
+    ]
+    assert contract["required_block_schema_hints"]["conclusion"] == (
+        "top-level non-empty local claim for every block"
+    )
+    assert (
+        "rollout_count must be an integer >= 1"
+        in contract["required_block_schema_hints"]["accepted_block_verification"]
+    )
+    assert "not proof evidence" in contract["acceptance_gate"]
+    assert any(
+        row["rule_id"] == "pseudo_formalization_required"
+        for row in feedback["validation_repair_policy"]["rules"]
+    )
+    assert "pseudo_formal_proof_packets" in feedback["required_repair"]
+    assert feedback["proof_evidence_status"] == (
+        "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+    )
+
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["pseudo_formalization_required"] is True
+    assert artifact["pseudo_formalization_required_missing_work_order_rows"] is True
+    assert artifact["pseudo_formalization_repair_contract"] == contract
+    learning_summary = artifact["learning_rows"][0]["input_summary"]
+    assert learning_summary["pseudo_formalization_required"] is True
+    assert learning_summary["pseudo_formalization_repair_contract"] == contract
+    evidence_payload = result.evidence_entries[0].payload
+    assert evidence_payload["pseudo_formalization_required"] is True
+    assert evidence_payload["pseudo_formalization_repair_contract"] == contract
+    assert evidence_payload["proof_evidence_status"] == (
+        "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+    )
+    observation_payload = result.observations[0].payload
+    assert observation_payload["pseudo_formalization_required"] is True
+    assert observation_payload["pseudo_formalization_repair_contract"] == contract
+
+
+def test_formalizer_provider_timeout_routes_resumable_pf_bv_retry() -> None:
+    class TimeoutFormalizer:
+        def propose(self, **_kwargs):  # type: ignore[no-untyped-def]
+            raise TimeoutError("anthropic generator request timed out")
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    packet_id = "theory_derivation:provider_timeout"
+    simulation_id = "simulation_manifest:provider_timeout"
+    algorithm_id = "algorithm_sandbox_manifest:provider_timeout"
+    structural_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
+        ),
+        "learning_task": "source_theorem_exact_semantic_definition_authoring_worker",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "rank_uniformity_block",
+        "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+        "failure_classification": STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+        "structural_reformulation_required": True,
+        "pseudo_formalization_required": True,
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "rank_uniformity_block",
+        },
+    }
+    result = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=TimeoutFormalizer(),
+        proof_verifier=MockProofVerifier(),
+    ).run(
+        AgentTask(
+            task_id="formalize:provider_timeout",
+            owner_subsystem="FormalizationEvaluator",
+            objective="exercise provider timeout routing",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": packet_id,
+                "simulation_manifest_id": simulation_id,
+                "algorithm_sandbox_manifest_id": algorithm_id,
+                "architect_context": {
+                    "runtime_learning_memory": {
+                        "artifact_kind": "RuntimeLearningMemoryContext",
+                        "rows": [structural_row],
+                    }
+                },
+            },
+        ),
+        BlackboardState(
+            project_id="formalizer-provider-timeout",
+            artifacts={
+                packet_id: _structured_theory_packet_fixture(packet_id),
+                simulation_id: {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                    "manifest_id": simulation_id,
+                    "simulation_passed": True,
+                },
+                algorithm_id: {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "manifest_id": algorithm_id,
+                    "n_executed": 1,
+                },
+            },
+        ),
+    )
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == "provider_timeout_error"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["artifact_kind"] == "RuntimeFormalizerProviderFailure"
+    assert artifact["pseudo_formalization_required"] is True
+    assert (
+        artifact[
+            "source_theorem_exact_semantic_definition_structural_reformulation_required"
+        ]
+        is True
+    )
+    retry_contract = artifact["formalizer_provider_retry_contract"]
+    assert retry_contract["required_output_key"] == "pseudo_formal_proof_packets"
+    assert (
+        "rollout_count must be an integer >= 1"
+        in retry_contract["required_block_schema_hints"][
+            "accepted_block_verification"
+        ]
+    )
+    assert "not_run" in retry_contract["required_block_schema_hints"][
+        "accepted_block_verification"
+    ]
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["formalizer_provider_failure"] is True
+    assert feedback["pseudo_formalization_required"] is True
+    assert result.evidence_entries[0].status == (
+        "FORMALIZER_PROVIDER_FAILURE_RECORDED_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_formalizer_runtime_enforces_lean_candidate_required_from_learning_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     question_payload = {
@@ -15005,6 +19931,257 @@ def test_formalizer_runtime_reports_memory_required_local_lean_config_gap(
         and row["input_summary"]["failure_classification"]
         == "formalizer_capability_contract_missing_local_lean_configuration"
         for row in learning_rows
+    )
+
+
+def test_formalizer_runtime_defers_lean_tool_contract_for_pf_bv_only_route() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_pf_bv_only_route",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Route PF/BV work orders before Lean candidate proof-state checks.",
+        inputs={"question": {"id": question.id, "title": question.title}},
+    )
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "capability_eval_requires_formalizer_local_lean_check": True,
+            "capability_eval_requires_formalizer_proof_state_request": True,
+            "capability_eval_requires_formalizer_proof_state_feedback": True,
+            "capability_eval_requires_formalizer_local_lean_tool_call": True,
+            "capability_eval_requires_formalizer_live_prover_tool_call": True,
+        }
+    }
+    lean_candidate_materialization = {
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:none",
+        "n_candidate_sources": 0,
+        "n_local_lean_checked": 0,
+        "n_live_proof_state_requests": 0,
+        "n_lean_lsp_mcp_ready_requests": 0,
+    }
+
+    result = (
+        runtime_module._formalizer_runtime_capability_contract_failure_result_if_needed(
+            task=task,
+            question=question,
+            context=context,
+            theory_packet_id="theory_packet:test",
+            simulation_manifest_id="simulation_manifest:test",
+            algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+            lean_candidate_materialization=lean_candidate_materialization,
+            candidate_proof_state_manifest=None,
+            proof_state_provider=None,
+            lean_candidate_local_lean=False,
+            pseudo_formal_candidate_gate_satisfied=True,
+            architect_coordinator_available=False,
+            produced_artifacts={},
+            observations=(),
+            evidence_entries=(),
+        )
+    )
+
+    assert result is None
+
+
+def test_formalizer_runtime_still_requires_lean_tool_contract_without_pf_bv_route() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_no_pf_bv_route",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Fail closed when required Lean proof-state path has no PF/BV route.",
+        inputs={"question": {"id": question.id, "title": question.title}},
+    )
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "capability_eval_requires_formalizer_proof_state_request": True,
+            "capability_eval_requires_formalizer_proof_state_feedback": True,
+            "capability_eval_requires_formalizer_local_lean_tool_call": True,
+            "capability_eval_requires_formalizer_live_prover_tool_call": True,
+        }
+    }
+    lean_candidate_materialization = {
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:none",
+        "n_candidate_sources": 0,
+        "n_local_lean_checked": 0,
+        "n_live_proof_state_requests": 0,
+        "n_lean_lsp_mcp_ready_requests": 0,
+    }
+
+    result = (
+        runtime_module._formalizer_runtime_capability_contract_failure_result_if_needed(
+            task=task,
+            question=question,
+            context=context,
+            theory_packet_id="theory_packet:test",
+            simulation_manifest_id="simulation_manifest:test",
+            algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+            lean_candidate_materialization=lean_candidate_materialization,
+            candidate_proof_state_manifest=None,
+            proof_state_provider=None,
+            lean_candidate_local_lean=True,
+            pseudo_formal_candidate_gate_satisfied=False,
+            architect_coordinator_available=False,
+            produced_artifacts={},
+            observations=(),
+            evidence_entries=(),
+        )
+    )
+
+    assert result is not None
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalizer_capability_contract_missing_proof_state_request"
+    )
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizerCapabilityContractFailure"
+    )
+    assert failure["missing_contracts"][0]["flag"] == (
+        "capability_eval_requires_formalizer_proof_state_request"
+    )
+
+
+def test_formalizer_runtime_exports_pf_bv_manifest_under_strict_lean_contract(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    formalizer_response = copy.deepcopy(_formalizer_sample_response())
+    formalizer_response["formal_targets"] = [
+        {
+            "id": "target:aipw_asymptotic_normality",
+            "informal_source": "AIPW source theorem remains a formal gap.",
+            "lean_statement_sketch": "",
+            "semantic_alignment_constraints": [
+                "do not drop the nuisance product-rate remainder"
+            ],
+            "source_theorem_target_provenance": {
+                "source_theorem_target_known": True,
+                "source_theorem_goal_id": "aipw_asymptotic_normality",
+                "target_lean_declaration": "aipw_asymptotic_normality",
+            },
+            "expected_status": "FORMAL_GAP",
+        }
+    ]
+    formalizer_response["proof_bank_obligation_requests"] = []
+    formalizer_response["pseudo_formal_proof_packets"] = [
+        {
+            "theorem_id": "aipw_asymptotic_normality",
+            "source_artifact_id": "theory_derivation:test_fixture_structured",
+            "blocks": [
+                {
+                    "block_id": "pf_remainder_semantics",
+                    "block_type": "lemma",
+                    "conclusion": (
+                        "product-rate nuisance convergence makes the second-order "
+                        "remainder negligible"
+                    ),
+                    "proof_text": (
+                        "Use the orthogonal score equation and the product-rate "
+                        "assumption from the theory trace."
+                    ),
+                    "source_anchors": [
+                        {
+                            "kind": "theory_trace",
+                            "id": "remainder_control",
+                            "excerpt": "second-order remainder negligible",
+                        }
+                    ],
+                    "semantic_primitive_requirements": [
+                        "product_rate_remainder_control"
+                    ],
+                    "lean_feasibility": "needs_semantic_definition",
+                    "faithfulness_status": "faithful",
+                    "block_verification": {
+                        "verdict": "accepted",
+                        "rollout_count": 1,
+                    },
+                }
+            ],
+        }
+    ]
+    environment_feedback = {
+        "feedback_type": (
+            "source_theorem_exact_semantic_definition_structural_reformulation_feedback"
+        ),
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "capability_eval_requires_formalizer_local_lean_check": True,
+            "capability_eval_requires_formalizer_proof_state_request": True,
+            "capability_eval_requires_formalizer_proof_state_feedback": True,
+            "capability_eval_requires_formalizer_local_lean_tool_call": True,
+            "capability_eval_requires_formalizer_live_prover_tool_call": True,
+        },
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(formalizer_response),
+        config=FormalizerConfig(
+            provider_name="static",
+            model="static-formalizer-model",
+        ),
+    )
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=formalizer,
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        lean_candidate_local_lean=False,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalizer_pf_bv_only_strict_contract",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Route PF/BV-only formalizer output under strict Lean contract.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": environment_feedback,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert not any(
+        artifact.get("artifact_kind")
+        == "RuntimeFormalizerCapabilityContractFailure"
+        for artifact in result.produced_artifacts.values()
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert manifest["pseudo_formalization_required"] is True
+    assert manifest["pseudo_formalization_required_satisfied"] is True
+    assert manifest["n_pseudo_formal_routable_work_order_rows"] > 0
+    assert manifest["pseudo_formal_work_order_rows"]
+    assert all(
+        row["proof_evidence_status"]
+        == runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        for row in manifest["pseudo_formal_work_order_rows"]
     )
 
 
@@ -15940,6 +21117,156 @@ def test_formalization_materializes_llm_lean_candidate_artifacts(tmp_path: Path)
     assert learning_rows[0]["candidate_kernel_verified"] is False
     assert learning_rows[0]["kernel_verified_scope"] == "candidate_artifact_only"
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
+
+
+def test_formalization_materialized_source_theorem_candidate_enters_formal_environment_queue(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "failure_classification": (
+                    "source_theorem_candidate_materialization_required"
+                ),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+                ),
+                "trigger": (
+                    "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+                ),
+                "candidate_materialization_required": True,
+                "candidate_materialization_statuses": [
+                    "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+                    "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+                ],
+                "candidate_materialization_contract": (
+                    "Formalizer/ProofEngineer must materialize an exact "
+                    "source-theorem Lean candidate artifact with a signature "
+                    "probe before exact proof-body execution can run."
+                ),
+                "source_theorem_kernel_verified": False,
+            }
+        ],
+        max_rows=10,
+    )
+
+    class SourceTheoremFormalizer:
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            summary = kwargs["proof_bank_runtime_memory_summary"]
+            assert isinstance(summary, dict)
+            assert summary["recommended_formalizer_target_mode"] == (
+                "source_theorem_exact_candidate_materialization_required"
+            )
+            return {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                "packet_id": "formalizer_proposal:source_theorem_materialized",
+                "source_agent": "SourceTheoremFormalizer",
+                "formal_targets": [
+                    {
+                        "id": "split_conformal_source_theorem",
+                        "informal_source": "exact source theorem candidate",
+                        "lean_statement_sketch": (
+                            "theorem split_conformal_coverage "
+                            "(coverage_claim : Prop) "
+                            "(h : coverage_claim) : coverage_claim := by\n"
+                            "  exact h\n"
+                        ),
+                        "expected_status": "NEEDS_KERNEL_CHECK",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": True,
+                            "target_lean_declaration": (
+                                "split_conformal_coverage"
+                            ),
+                            "source_theorem_goal_id": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                        },
+                    }
+                ],
+                "proof_search_plan": {
+                    "preferred_tools": ["local_lean", "signature_probe"],
+                    "known_blockers": [],
+                },
+                "proof_bank_obligation_requests": [],
+                "gap_taxonomy": [],
+                "critic_findings": [],
+                "next_actions": [],
+                "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+            }
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=SourceTheoremFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:source_theorem_materialized_queue",
+        owner_subsystem="FormalizationEvaluator",
+        objective="materialize exact source theorem candidate for signature probe",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "architect_context": {"runtime_learning_memory": memory},
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "RuntimeFormalizerLeanCandidateMaterialization"
+    )
+    candidate_row = materialization["candidate_rows"][0]
+    work_orders = _runtime_source_theorem_formal_environment_work_order_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+
+    assert materialization["n_candidate_artifacts_written"] == 1
+    assert Path(candidate_row["artifact_path"]).exists()
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["source_formal_target_id"] == "split_conformal_source_theorem"
+    assert work_order["target_lean_declaration"] == "split_conformal_coverage"
+    assert work_order["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert work_order["candidate_artifact_path"] == candidate_row["artifact_path"]
+    assert (
+        work_order[
+            "source_formalizer_lean_candidate_materialization_manifest_id"
+        ]
+        == materialization["manifest_id"]
+    )
+    assert work_order["source_formalizer_lean_candidate_id"] == (
+        "split_conformal_source_theorem"
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
 def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
@@ -21361,15 +26688,22 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
                                 "id": "equation:rank_uniformity",
                             }
                         ],
+                        "scope_parent_id": "",
                         "semantic_primitive_requirements": ["rank_uniformity"],
                         "lean_feasibility": "lean_now",
                         "faithfulness_status": "faithful",
-                        "block_verification": {"verdict": "accepted"},
+                        "block_verification": {
+                            "verdict": "accepted",
+                            "rollout_count": 1,
+                        },
                     },
                     {
                         "block_id": "b2",
                         "block_type": "claim",
                         "dependency_ids": ["b1"],
+                        "scope_parent_id": "b1",
+                        "block_depth": 2,
+                        "inherited_scope": ["rank-uniformity setup from b1"],
                         "conclusion": "coverage is at least 1-alpha",
                         "proof_text": "Use the conformal quantile threshold.",
                         "source_anchors": [
@@ -21396,11 +26730,39 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     )
 
     row_kinds = {row["row_kind"] for row in rows}
-    assert "pseudo_formal_lean_candidate_seed" in row_kinds
-    assert "pseudo_formal_exact_semantic_definition_request" in row_kinds
-    assert "pseudo_formal_block_verification_failure" in row_kinds
+    assert "pseudo_formal_lean_candidate_seed" not in row_kinds
+    assert "pseudo_formal_lean_candidate_seed_blocked" in row_kinds
+    assert PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND in row_kinds
+    assert "pseudo_formal_exact_semantic_definition_request" not in row_kinds
+    assert (
+        "pseudo_formal_exact_semantic_definition_request_blocked_by_faithfulness"
+        in row_kinds
+    )
+    assert "pseudo_formal_block_verification_failure" not in row_kinds
+    assert (
+        "pseudo_formal_block_verification_failure_blocked_by_faithfulness"
+        in row_kinds
+    )
     assert "pseudo_formal_faithfulness_review" in row_kinds
     assert "pseudo_formal_semantic_primitive_request" in row_kinds
+    assert (
+        "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness"
+        in row_kinds
+    )
+    coverage_blocked_rows = [
+        row
+        for row in rows
+        if row["row_kind"]
+        == "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness"
+    ]
+    assert coverage_blocked_rows
+    assert {row["semantic_primitive"] for row in coverage_blocked_rows} == {
+        "coverage_event"
+    }
+    assert {row["target_lane"] for row in coverage_blocked_rows} == {"formal_gap"}
+    assert {row["blocked_target_lane"] for row in coverage_blocked_rows} == {
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE
+    }
     assert {row["source_formalizer_proposal_id"] for row in rows} == {
         "formalizer_proposal:pseudo_formal"
     }
@@ -21415,6 +26777,7 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert any(row["scope_parent_id"] == "b1" for row in rows)
     assert all("not theorem proof evidence" in row["proof_evidence_boundary"] for row in rows)
 
     result = {
@@ -21430,6 +26793,7 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
                     "llm_formalizer_proof_engineer_proposal_id": (
                         "formalizer_proposal:pseudo_formal"
                     ),
+                    "pseudo_formalization_required": True,
                 },
                 "formalizer_proposal:pseudo_formal": proposal_packet,
             }
@@ -21461,6 +26825,7 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in exported_rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert any(row["scope_parent_id"] == "b1" for row in exported_rows)
 
     agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
     learning_rows = _runtime_pseudo_formal_next_action_learning_rows(agenda_rows)
@@ -21487,7 +26852,12 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in agenda_rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert any(row["scope_parent_id"] == "b1" for row in agenda_rows)
     assert any(
+        row["owner_subsystem"] == "BlockVerifier/CalibrationReferee"
+        for row in agenda_rows
+    )
+    assert not any(
         row["owner_subsystem"] == "Formalizer/ProofEngineer/LeanProver"
         for row in agenda_rows
     )
@@ -21520,6 +26890,705 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in learning_rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert any(row["scope_parent_id"] == "b1" for row in learning_rows)
+    assert any(
+        row["input_summary"]["scope_parent_id"] == "b1"
+        for row in learning_rows
+    )
+
+    routing_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=agenda_rows,
+        learning_rows=learning_rows,
+        formalization_manifests=[
+            result["blackboard"]["artifacts"]["formalization_manifest:pseudo"]
+        ],
+    )
+    assert (
+        routing_summary["runtime_pseudo_formal_block_routing_contract_complete"]
+        is True
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formal_structural_decomposition_requests"
+        ]
+        == 0
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formal_independent_block_verification_requests"
+        ]
+        == 2
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 0
+    )
+    assert routing_summary["runtime_pseudo_formalization_required_manifest_ids"] == [
+        "formalization_manifest:pseudo"
+    ]
+
+    semantic_primitive_work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows([result])
+    )
+
+    assert {
+        row["semantic_primitive_id"] for row in semantic_primitive_work_orders
+    } == {"rank_uniformity"}
+    rank_work_order = next(
+        row
+        for row in semantic_primitive_work_orders
+        if row["semantic_primitive_id"] == "rank_uniformity"
+    )
+    assert rank_work_order["artifact_kind"] == (
+        "SourceTheoremSemanticPrimitiveWorkOrder"
+    )
+    assert rank_work_order["source_formalization_manifest_id"] == (
+        "formalization_manifest:pseudo"
+    )
+    assert rank_work_order["source_pseudo_formal_block_id"] == "b1"
+    assert rank_work_order["source_pseudo_formal_scope_parent_id"] == ""
+    assert rank_work_order["source_pseudo_formal_source_anchors"][0][
+        "kind"
+    ] == "theory_trace"
+    assert rank_work_order["source_pseudo_formal_source_anchors"][0]["id"] == (
+        "equation:rank_uniformity"
+    )
+    assert rank_work_order["proof_mode"] == (
+        "pseudo_formal_source_semantic_primitive_closure"
+    )
+    assert rank_work_order["runtime_queue_status"] == (
+        "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+    )
+    assert "pseudo-formal" in rank_work_order["runtime_queue_boundary"]
+    assert rank_work_order["proof_evidence_status"] == (
+        "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
+    assert rank_work_order["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
+
+    direct_proposal_packet = {
+        **proposal_packet,
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+    }
+    direct_result = {
+        "blackboard": {
+            "artifacts": {
+                "formalizer_proposal:pseudo_formal": direct_proposal_packet,
+                "formalizer_runtime_capability_contract_failure:pseudo": {
+                    "artifact_kind": "RuntimeFormalizerCapabilityContractFailure",
+                    "failure_id": (
+                        "formalizer_runtime_capability_contract_failure:pseudo"
+                    ),
+                    "question": {
+                        "id": "conformal_prediction_coverage",
+                        "title": "Split conformal coverage",
+                    },
+                    "proof_evidence_status": (
+                        "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            }
+        }
+    }
+
+    direct_exported_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        [direct_result]
+    )
+    direct_semantic_work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows([direct_result])
+    )
+
+    assert len(direct_exported_rows) == len(rows)
+    assert {row["question_id"] for row in direct_exported_rows} == {
+        "conformal_prediction_coverage"
+    }
+    assert {row["source_formalization_manifest_id"] for row in direct_exported_rows} == {
+        ""
+    }
+    assert {
+        row["source_formalizer_proposal_without_formalization_manifest"]
+        for row in direct_exported_rows
+    } == {True}
+    assert {row["proof_evidence_status"] for row in direct_exported_rows} == {
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    }
+    assert {
+        row["semantic_primitive_id"] for row in direct_semantic_work_orders
+    } == {"rank_uniformity"}
+    direct_rank_work_order = direct_semantic_work_orders[0]
+    assert direct_rank_work_order["source_formalization_manifest_id"] == ""
+    assert direct_rank_work_order[
+        "source_formalizer_proposal_without_formalization_manifest"
+    ] is True
+    assert direct_rank_work_order["question_id"] == (
+        "conformal_prediction_coverage"
+    )
+    assert direct_rank_work_order["proof_evidence_status"] == (
+        "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_runtime_audit_recomputes_pseudo_formal_exact_definition_work_orders_from_result_artifacts(
+    tmp_path: Path,
+) -> None:
+    proposal_packet = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:pf_exact",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "pseudo_formal_proof_packets": [
+            {
+                "theorem_id": "split_conformal_finite_sample_coverage",
+                "source_artifact_id": "theory_packet:split_conformal",
+                "blocks": [
+                    {
+                        "block_id": "rank_uniformity_block",
+                        "block_type": "lemma",
+                        "conclusion": "rank is uniform under exchangeability",
+                        "proof_text": "Condition on the multiset of scores.",
+                        "source_anchors": [
+                            {
+                                "kind": "theory_trace",
+                                "id": "equation:rank_uniformity",
+                            }
+                        ],
+                        "scope_parent_id": "",
+                        "semantic_primitive_requirements": ["rank_uniformity_block"],
+                        "lean_feasibility": "needs_semantic_definition",
+                        "faithfulness_status": "faithful",
+                        "block_verification": {
+                            "verdict": "failed",
+                            "reason": "exact semantic definition is missing",
+                            "rollout_count": 1,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+    result_path = tmp_path / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalizer_proposal:pf_exact": proposal_packet,
+                        "formalizer_runtime_capability_contract_failure:pf_exact": {
+                            "artifact_kind": (
+                                "RuntimeFormalizerCapabilityContractFailure"
+                            ),
+                            "failure_id": (
+                                "formalizer_runtime_capability_contract_failure:pf_exact"
+                            ),
+                            "question": proposal_packet["question"],
+                            "proof_evidence_status": (
+                                "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = (
+        _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summary(
+            result_paths=[result_path],
+            manifest={
+                "n_runtime_source_theorem_exact_semantic_definition_work_orders": 0
+            },
+            errors=[],
+        )
+    )
+
+    assert summary["n_manifest_work_orders"] == 0
+    assert summary["n_recomputed_work_orders"] == 1
+    assert summary["n_effective_work_orders"] == 1
+    assert summary["manifest_stale"] is True
+    assert "split_conformal_finite_sample_coverage" in summary["target_ids"]
+    assert summary["placeholder_symbols"] == ["rank_uniformity_block"]
+    assert summary["proof_evidence_statuses"] == [
+        "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+    ]
+    assert "not Lean/AXLE theorem proof evidence" in summary["boundary"]
+
+
+def test_pseudo_formal_required_routing_counts_independent_bv_request() -> None:
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:pseudo_formal_blocked",
+        "pseudo_formal_proof_packets": [
+            {
+                "theorem_id": "split_conformal_coverage",
+                "source_artifact_id": "theory_packet:split_conformal",
+                "blocks": [
+                    {
+                        "block_id": "b_pending",
+                        "block_type": "lemma",
+                        "conclusion": "rank is uniform",
+                        "proof_text": "Exchangeability implies rank uniformity.",
+                        "source_anchors": [
+                            {
+                                "kind": "theory_trace",
+                                "id": "equation:rank_uniformity",
+                            }
+                        ],
+                        "scope_parent_id": "",
+                        "semantic_primitive_requirements": [],
+                        "lean_feasibility": "lean_now",
+                        "faithfulness_status": "faithful",
+                        "block_verification": {"verdict": "unknown"},
+                    }
+                ],
+            }
+        ],
+    }
+
+    rows = _formalizer_pseudo_formal_work_order_rows(
+        proposal_packet=proposal_packet
+    )
+
+    assert {row["row_kind"] for row in rows} == {
+        "pseudo_formal_block_verification_pending",
+        PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+        "pseudo_formal_lean_candidate_seed_blocked",
+    }
+    routable_rows = pseudo_formal_routable_work_order_rows(rows)
+    assert [row["row_kind"] for row in routable_rows] == [
+        PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+    ]
+    assert routable_rows[0]["independent_block_verification_required"] is True
+
+    manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:pseudo_blocked",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:pseudo_formal_blocked"
+        ),
+        "pseudo_formalization_required": True,
+        "pseudo_formalization_required_satisfied": True,
+        "pseudo_formalization_required_missing_work_order_rows": False,
+        "n_pseudo_formal_work_order_rows": len(rows),
+        "n_pseudo_formal_routable_work_order_rows": len(routable_rows),
+        "n_pseudo_formal_blocked_or_pending_work_order_rows": (
+            len(rows) - len(routable_rows)
+        ),
+    }
+    result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:pseudo_blocked": manifest,
+                "formalizer_proposal:pseudo_formal_blocked": proposal_packet,
+            }
+        }
+    }
+    exported_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        [result]
+    )
+    agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
+    learning_rows = _runtime_pseudo_formal_next_action_learning_rows(agenda_rows)
+    routing_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=agenda_rows,
+        learning_rows=learning_rows,
+        formalization_manifests=[manifest],
+    )
+
+    assert len(exported_rows) == len(rows)
+    assert len(agenda_rows) == len(rows)
+    assert (
+        routing_summary["runtime_pseudo_formal_block_routing_contract_complete"]
+        is True
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formal_structural_decomposition_requests"
+        ]
+        == 0
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formal_independent_block_verification_requests"
+        ]
+        == 2
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 0
+    )
+    assert routing_summary[
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+    ] == []
+    independent_agenda_rows = [
+        row
+        for row in agenda_rows
+        if row.get("pseudo_formal_row_kind")
+        == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+    ]
+    assert len(independent_agenda_rows) == 1
+    assert independent_agenda_rows[0]["owner_subsystem"] == (
+        "BlockVerifier/CalibrationReferee"
+    )
+    assert independent_agenda_rows[0][
+        "independent_block_verification_required"
+    ] is True
+    assert "source_block_premises" in independent_agenda_rows[0]
+    assert independent_agenda_rows[0]["source_block_proof_text"] == (
+        "Exchangeability implies rank uniformity."
+    )
+    assert independent_agenda_rows[0]["dependency_statement_context"] == []
+    assert "independent block-verifier" in independent_agenda_rows[0][
+        "acceptance_gate"
+    ]
+    independent_agenda_commands = " ".join(
+        independent_agenda_rows[0]["recommended_commands"]
+    )
+    assert "pseudo-formal-block-verifier-component-gate" in independent_agenda_commands
+    assert "pseudo-formal-block-verifier-prompt-packets" in independent_agenda_commands
+    assert "pseudo-formal-block-verifier-llm-responses" in independent_agenda_commands
+    assert (
+        "pseudo-formal-block-verifier-response-validation"
+        in independent_agenda_commands
+    )
+    assert independent_agenda_rows[0]["pseudo_formal_block_verifier_worker"][
+        "component_gate_command"
+    ].startswith("python -m ai_statistician.cli")
+    assert independent_agenda_rows[0]["pseudo_formal_block_verifier_worker"][
+        "runtime_learning_rows_jsonl"
+    ].endswith("runtime_learning_rows.jsonl")
+    assert independent_agenda_rows[0]["pseudo_formal_block_verifier_worker"][
+        "llm_response_command"
+    ].startswith("python -m ai_statistician.cli")
+    independent_learning_rows = [
+        row
+        for row in learning_rows
+        if row["input_summary"]["row_kind"]
+        == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+    ]
+    assert independent_learning_rows[0]["source_block_proof_text"] == (
+        "Exchangeability implies rank uniformity."
+    )
+    assert independent_learning_rows[0]["input_summary"][
+        "source_block_proof_text"
+    ] == "Exchangeability implies rank uniformity."
+    independent_learning_commands = " ".join(
+        independent_learning_rows[0]["recommended_commands"]
+    )
+    assert "pseudo-formal-block-verifier-component-gate" in independent_learning_commands
+    assert "pseudo-formal-block-verifier-prompt-packets" in independent_learning_commands
+    assert "pseudo-formal-block-verifier-llm-responses" in independent_learning_commands
+    assert (
+        independent_learning_rows[0]["input_summary"][
+            "pseudo_formal_block_verifier_worker"
+        ]["prompt_packets_command"]
+        == independent_learning_rows[0]["pseudo_formal_block_verifier_worker"][
+            "prompt_packets_command"
+        ]
+    )
+
+
+def test_pseudo_formal_structural_decomposition_request_routes_to_formalizer() -> None:
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:pseudo_formal_oversized",
+        "pseudo_formal_proof_packets": [
+            {
+                "theorem_id": "split_conformal_coverage",
+                "source_artifact_id": "theory_packet:split_conformal",
+                "blocks": [
+                    {
+                        "block_id": "b_large",
+                        "block_type": "lemma",
+                        "premises": [f"premise {index}" for index in range(13)],
+                        "conclusion": "rank is uniform",
+                        "proof_text": "Exchangeability argument. " * 320,
+                        "source_anchors": [
+                            {
+                                "kind": "theory_trace",
+                                "id": "equation:rank_uniformity",
+                            }
+                        ],
+                        "scope_parent_id": "",
+                        "lean_feasibility": "lean_now",
+                        "faithfulness_status": "faithful",
+                        "block_verification": {
+                            "verdict": "accepted",
+                            "rollout_count": 1,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    rows = _formalizer_pseudo_formal_work_order_rows(
+        proposal_packet=proposal_packet
+    )
+
+    assert [row["row_kind"] for row in rows] == [
+        PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND
+    ]
+    assert rows[0]["structural_quality_ok"] is False
+    assert "too_many_premises:13>12" in rows[0]["structural_quality_issues"]
+
+    manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:pseudo_oversized",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:pseudo_formal_oversized"
+        ),
+        "pseudo_formalization_required": True,
+        "pseudo_formalization_required_satisfied": True,
+        "pseudo_formalization_required_missing_work_order_rows": False,
+        "n_pseudo_formal_work_order_rows": len(rows),
+        "n_pseudo_formal_routable_work_order_rows": len(rows),
+        "n_pseudo_formal_blocked_or_pending_work_order_rows": 0,
+    }
+    result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:pseudo_oversized": manifest,
+                "formalizer_proposal:pseudo_formal_oversized": proposal_packet,
+            }
+        }
+    }
+    exported_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        [result]
+    )
+    agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
+    learning_rows = _runtime_pseudo_formal_next_action_learning_rows(agenda_rows)
+    routing_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=agenda_rows,
+        learning_rows=learning_rows,
+        formalization_manifests=[manifest],
+    )
+
+    assert len(agenda_rows) == 1
+    assert agenda_rows[0]["owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert "split or rewrite pseudo-formal block" in agenda_rows[0]["action"]
+    assert agenda_rows[0]["structural_quality_ok"] is False
+    assert (
+        learning_rows[0]["input_summary"]["structural_quality_ok"]
+        is False
+    )
+    assert (
+        routing_summary["runtime_pseudo_formal_block_routing_contract_complete"]
+        is True
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formal_structural_decomposition_requests"
+        ]
+        == 2
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 0
+    )
+
+
+def test_invalid_pseudo_formal_packet_exports_quarantine_not_downstream_work() -> None:
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:pseudo_formal_invalid",
+        "pseudo_formal_proof_packets": [
+            {
+                "packet_id": "pseudo_formal_packet:invalid",
+                "theorem_id": "split_conformal_coverage",
+                "source_artifact_id": "theory_packet:split_conformal",
+                "blocks": [
+                    {
+                        "block_id": "b_invalid",
+                        "block_type": "lemma",
+                        "conclusion": "rank is uniform",
+                        "proof_text": "Exchangeability implies rank uniformity.",
+                        "source_anchors": [],
+                        "semantic_primitive_requirements": ["rank_uniformity"],
+                        "lean_feasibility": "lean_now",
+                        "faithfulness_status": "faithful",
+                        "block_verification": {"verdict": "accepted"},
+                    }
+                ],
+            }
+        ],
+    }
+
+    rows = _formalizer_pseudo_formal_work_order_rows(
+        proposal_packet=proposal_packet
+    )
+
+    assert len(rows) == 1
+    quarantine = rows[0]
+    assert quarantine["row_kind"] == "pseudo_formal_packet_validation_quarantine"
+    assert quarantine["target_lane"] == "formal_gap"
+    assert quarantine["validation_errors"]
+    assert "semantic_primitive" not in quarantine
+    assert pseudo_formal_routable_work_order_rows(rows) == []
+    assert quarantine["proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
+    assert quarantine["kernel_verified"] is False
+    assert quarantine["source_theorem_kernel_verified"] is False
+
+    manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:pseudo_invalid",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:pseudo_formal_invalid"
+        ),
+        "pseudo_formalization_required": True,
+        "pseudo_formalization_required_satisfied": False,
+        "pseudo_formalization_required_missing_work_order_rows": True,
+    }
+    result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:pseudo_invalid": manifest,
+                "formalizer_proposal:pseudo_formal_invalid": proposal_packet,
+            }
+        }
+    }
+
+    exported_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        [result]
+    )
+    semantic_primitive_work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows([result])
+    )
+    agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
+    learning_rows = _runtime_pseudo_formal_next_action_learning_rows(agenda_rows)
+    routing_summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=agenda_rows,
+        learning_rows=learning_rows,
+        formalization_manifests=[manifest],
+    )
+
+    assert len(exported_rows) == 1
+    assert exported_rows[0]["row_kind"] == (
+        "pseudo_formal_packet_validation_quarantine"
+    )
+    assert semantic_primitive_work_orders == []
+    assert (
+        routing_summary["runtime_pseudo_formal_block_routing_contract_complete"]
+        is False
+    )
+    assert (
+        routing_summary[
+            "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 1
+    )
+
+
+def test_non_routable_pseudo_formal_rows_do_not_spawn_semantic_work_orders() -> None:
+    stale_non_routable_row = {
+        "row_id": "pseudo_formal_work_order:stale-blocked",
+        "row_kind": "pseudo_formal_lean_candidate_seed_blocked",
+        "source_packet_id": "pseudo_formal_packet:stale",
+        "source_theorem_id": "split_conformal_coverage",
+        "source_artifact_id": "theory_packet:split_conformal",
+        "source_block_id": "b_blocked",
+        "source_block_type": "lemma",
+        "source_block_conclusion": "rank is uniform",
+        "block_depth": 1,
+        "dependency_scope": "earlier_block_statement_only",
+        "dependency_ids": [],
+        "scope_parent_id": "",
+        "inherited_scope": [],
+        "source_anchors": [{"kind": "proof_body", "id": "rank-proof"}],
+        "faithfulness_status": "faithful",
+        "faithfulness_repair_status": "not_required",
+        "block_verification": {"verdict": "unknown"},
+        "bv_calibration": {"rollout_count": 0},
+        "target_lane": PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+        "semantic_primitive": "rank_uniformity",
+        "reason": "stale diagnostic row must not become executable work",
+    }
+    routable_row = {
+        **stale_non_routable_row,
+        "row_id": "pseudo_formal_work_order:routable-semantic",
+        "row_kind": "pseudo_formal_semantic_primitive_request",
+        "source_block_id": "b_routable",
+        "block_verification": {"verdict": "accepted"},
+        "bv_calibration": {"rollout_count": 1},
+        "reason": "semantic primitive required: rank_uniformity",
+    }
+    base_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:pseudo_stale",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "proof_bank_runtime_memory_summary": {},
+        "deterministic_theorem_goals": [],
+    }
+    blocked_result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:pseudo_stale": {
+                    **base_manifest,
+                    "pseudo_formal_work_order_rows": [stale_non_routable_row],
+                }
+            }
+        }
+    }
+    mixed_result = {
+        "blackboard": {
+            "artifacts": {
+                "formalization_manifest:pseudo_stale": {
+                    **base_manifest,
+                    "pseudo_formal_work_order_rows": [
+                        stale_non_routable_row,
+                        routable_row,
+                    ],
+                }
+            }
+        }
+    }
+
+    exported_rows = _runtime_pseudo_formal_work_order_rows_from_formalizer(
+        [blocked_result]
+    )
+    blocked_semantic_work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows([blocked_result])
+    )
+    mixed_semantic_work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows([mixed_result])
+    )
+
+    assert len(exported_rows) == 1
+    assert exported_rows[0]["row_kind"] == "pseudo_formal_lean_candidate_seed_blocked"
+    assert blocked_semantic_work_orders == []
+    assert {
+        row["source_pseudo_formal_work_order_id"]
+        for row in mixed_semantic_work_orders
+    } == {"pseudo_formal_work_order:routable-semantic"}
+    assert {
+        row["source_pseudo_formal_block_id"] for row in mixed_semantic_work_orders
+    } == {"b_routable"}
 
 
 def test_runtime_export_normalizes_persisted_source_to_bridge_work_order_declaration() -> None:
@@ -21991,6 +28060,19 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             "block_depth": 2,
             "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
             "dependency_ids": ["b_exchangeability"],
+            "dependency_statement_context": [
+                {
+                    "source_block_id": "b_exchangeability",
+                    "statement": "scores are exchangeable under calibration/test symmetry",
+                }
+            ],
+            "scope_parent_id": "b_exchangeability",
+            "inherited_scope": ["exchangeability setup"],
+            "source_block_premises": ["calibration and test scores are exchangeable"],
+            "source_block_proof_text": (
+                "Exchangeability makes the rank of the test score uniform among "
+                "calibration plus test scores."
+            ),
             "faithfulness_status": "faithful",
             "faithfulness_repair_status": "not_required",
             "block_verification": {
@@ -22030,7 +28112,7 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
                 "work_order_id": "pseudo_formal_work_order:rank_uniform",
                 "row_kind": "pseudo_formal_lean_candidate_seed",
                 "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
-                "reason": "block is triaged as Lean-feasible",
+                "reason": "faithful BV-accepted block is triaged as Lean-feasible",
                 "source_theorem_id": "split_conformal_finite_sample_coverage",
                 "source_block_id": "b_rank_uniform",
                 "source_block_type": "lemma",
@@ -22038,6 +28120,23 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
                 "block_depth": 2,
                 "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
                 "dependency_ids": ["b_exchangeability"],
+                "dependency_statement_context": [
+                    {
+                        "source_block_id": "b_exchangeability",
+                        "statement": (
+                            "scores are exchangeable under calibration/test symmetry"
+                        ),
+                    }
+                ],
+                "scope_parent_id": "b_exchangeability",
+                "inherited_scope": ["exchangeability setup"],
+                "source_block_premises": [
+                    "calibration and test scores are exchangeable"
+                ],
+                "source_block_proof_text": (
+                    "Exchangeability makes the rank of the test score uniform "
+                    "among calibration plus test scores."
+                ),
                 "faithfulness_status": "faithful",
                 "faithfulness_repair_status": "not_required",
                 "block_verification": {
@@ -22130,9 +28229,14 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     )
 
     assert summary["pseudo_formal_block_routing_active"] is True
+    assert summary["pseudo_formal_block_routing_diagnostic_active"] is False
+    assert summary["n_pseudo_formal_block_routing_memory_rows"] == 1
+    assert summary["n_pseudo_formal_block_routing_effective_memory_rows"] == 1
+    assert summary["n_pseudo_formal_block_routing_diagnostic_memory_rows"] == 0
     assert summary["pseudo_formal_block_routing_target_lanes"] == [
         PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
     ]
+    assert summary["pseudo_formal_block_routing_diagnostic_target_lanes"] == []
     assert "split_conformal_finite_sample_coverage" in summary[
         "pseudo_formal_block_routing_target_ids"
     ]
@@ -22149,10 +28253,20 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert pf_memory[0]["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:rank_uniform"
     )
+    assert pf_memory[0]["pseudo_formal_routable"] is True
     assert pf_memory[0]["source_block_id"] == "b_rank_uniform"
     assert pf_memory[0]["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS
     assert pf_memory[0]["block_depth"] == 2
     assert pf_memory[0]["dependency_scope"] == PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    assert pf_memory[0]["dependency_statement_context"][0]["source_block_id"] == (
+        "b_exchangeability"
+    )
+    assert pf_memory[0]["source_block_premises"] == [
+        "calibration and test scores are exchangeable"
+    ]
+    assert "rank of the test score" in pf_memory[0]["source_block_proof_text"]
+    assert pf_memory[0]["scope_parent_id"] == "b_exchangeability"
+    assert pf_memory[0]["inherited_scope"] == ["exchangeability setup"]
     assert pf_memory[0]["bv_calibration"]["strictness_threshold"] == (
         PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
     )
@@ -22182,12 +28296,661 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert "urn:ai-statistician:contracts:pseudo-formal-pf-bv:1" in prompt
     assert "parallel_pessimistic_aggregation" in prompt
     assert "block_depth" in prompt
+    assert "scope_parent_id" in prompt
     assert "dependency_scope" in prompt
+    assert "dependency_statement_context" in prompt
+    assert "calibration and test scores are exchangeable" in prompt
     assert "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE" in prompt
     assert "b_rank_uniform" in prompt
     assert "equation:rank_uniformity" in prompt
     assert "target_lane=formal_targets" in prompt
     assert "do not hardcode corner-case proof rules" in prompt
+
+
+def test_runtime_learning_memory_replays_independent_pseudo_formal_bv_feedback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    base_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "question_id": question.id,
+        "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": [
+            "split_conformal_finite_sample_coverage",
+            "b_rank_uniform",
+        ],
+        "next_owner_subsystem": "BlockVerifier/CalibrationReferee",
+        "memory_status": PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
+        "source_agenda_id": "pseudo_formal:block_verification:rank_uniform",
+        "source_pseudo_formal_work_order_id": (
+            "pseudo_formal_work_order:rank_uniform:independent-bv"
+        ),
+        "source_formalizer_proposal_id": "formalizer_proposal:pseudo",
+        "source_formalization_manifest_id": "formalization_manifest:pseudo",
+        "source_packet_id": "pseudo_formal_packet:coverage",
+        "source_theorem_id": "split_conformal_finite_sample_coverage",
+        "source_block_id": "b_rank_uniform",
+        "source_block_type": "lemma",
+        "source_block_conclusion": "rank is uniform by exchangeability",
+        "block_depth": 2,
+        "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+        "dependency_ids": ["b_exchangeability"],
+        "dependency_statement_context": [
+            {
+                "source_block_id": "b_exchangeability",
+                "statement": "calibration/test scores are exchangeable",
+            }
+        ],
+        "scope_parent_id": "b_exchangeability",
+        "inherited_scope": ["exchangeability setup"],
+        "source_block_premises": ["scores are exchangeable"],
+        "source_block_proof_text": (
+            "By exchangeability, every rank position is equally likely."
+        ),
+        "faithfulness_status": "faithful",
+        "faithfulness_repair_status": "not_required",
+        "block_verification": {
+            "verdict": "accepted",
+            "reason": "rank argument is locally valid under the stated premise",
+            "verifier_provenance": "independent_block_verifier",
+            "independent_verifier": True,
+            "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+            "aggregation_rule": "parallel_pessimistic_aggregation",
+            "rollout_count": 1,
+        },
+        "block_verification_verifier_provenance": "independent_block_verifier",
+        "block_verification_independent": True,
+        "independent_block_verification_required": False,
+        "bv_calibration": {
+            "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+            "aggregation_rule": "parallel_pessimistic_aggregation",
+            "pessimistic_acceptance": True,
+            "rollout_count": 1,
+        },
+        "source_anchors": [{"kind": "theory_trace", "id": "equation:rank_uniformity"}],
+        "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+        "runtime_queue_status": (
+            PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE["formal_gap"]
+        ),
+        "input_summary": {
+            "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+            "target_lane": "formal_gap",
+            "work_order_id": (
+                "pseudo_formal_work_order:rank_uniform:independent-bv"
+            ),
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "b_rank_uniform",
+            "dependency_statement_context": [
+                {
+                    "source_block_id": "b_exchangeability",
+                    "statement": "calibration/test scores are exchangeable",
+                }
+            ],
+            "source_block_premises": ["scores are exchangeable"],
+            "source_block_proof_text": (
+                "By exchangeability, every rank position is equally likely."
+            ),
+            "block_verification": {
+                "verdict": "accepted",
+                "verifier_provenance": "independent_block_verifier",
+                "independent_verifier": True,
+                "rollout_count": 1,
+            },
+            "block_verification_verifier_provenance": (
+                "independent_block_verifier"
+            ),
+            "block_verification_independent": True,
+            "runtime_queue_status": (
+                PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                    "formal_gap"
+                ]
+            ),
+        },
+        "target_behavior": (
+            "record independent BV verifier feedback for the pseudo-formal block"
+        ),
+        "acceptance_gate": (
+            "verifier feedback is consumed as PF/BV calibration, not theorem proof"
+        ),
+        "proof_evidence_status": "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": (
+            "Pseudo-formalization and block-verification rows are not theorem "
+            "proof evidence."
+        ),
+    }
+    stale_pending_row = copy.deepcopy(base_row)
+    stale_pending_row["block_verification"] = {"verdict": "unknown"}
+    stale_pending_row["block_verification_verifier_provenance"] = "not_run"
+    stale_pending_row["block_verification_independent"] = False
+    stale_pending_row["independent_block_verification_required"] = True
+    stale_pending_row["input_summary"] = dict(base_row["input_summary"])
+    stale_pending_row["input_summary"]["block_verification"] = {"verdict": "unknown"}
+    stale_pending_row["input_summary"][
+        "block_verification_verifier_provenance"
+    ] = "not_run"
+    stale_pending_row["input_summary"]["block_verification_independent"] = False
+    stale_pending_row["input_summary"][
+        "independent_block_verification_required"
+    ] = True
+    learning_path.write_text(
+        json.dumps(base_row) + "\n" + json.dumps(stale_pending_row) + "\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        runtime_module._runtime_learning_memory_context_pin_priority(base_row) == 91
+    )
+    assert cli_module._runtime_learning_memory_pin_priority(base_row) == 91
+    assert (
+        runtime_module._runtime_learning_memory_context_pin_priority(
+            stale_pending_row
+        )
+        == 90
+    )
+    assert runtime_module._runtime_learning_memory_context_pin_key(
+        base_row
+    ) == runtime_module._runtime_learning_memory_context_pin_key(stale_pending_row)
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    retained = memory["rows"][0]
+    assert retained["block_verification"]["verdict"] == "accepted"
+    assert retained["block_verification_verifier_provenance"] == (
+        "independent_block_verifier"
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert (
+        summary["pseudo_formal_independent_block_verification_feedback_active"]
+        is True
+    )
+    assert summary["pseudo_formal_independent_block_verification_pending"] is False
+    assert (
+        summary["n_pseudo_formal_independent_block_verification_feedback_rows"] == 1
+    )
+    assert (
+        summary["pseudo_formal_independent_block_verification_verdicts"]
+        == ["accepted"]
+    )
+    bv_memory = summary[
+        "pseudo_formal_independent_block_verification_feedback_memory"
+    ]
+    assert bv_memory[0]["independent_block_verification_status"] == "completed"
+    assert bv_memory[0]["block_verification_independent"] is True
+    assert bv_memory[0]["dependency_statement_context"][0]["source_block_id"] == (
+        "b_exchangeability"
+    )
+    assert bv_memory[0]["source_block_premises"] == ["scores are exchangeable"]
+    assert "equally likely" in bv_memory[0]["source_block_proof_text"]
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Independent pseudo-formal block-verifier feedback is available" in prompt
+    assert "pseudo_formal_independent_block_verification_feedback_memory" in prompt
+    assert "independent_block_verifier" in prompt
+    assert "By exchangeability, every rank position is equally likely." in prompt
+    assert "not Lean kernel evidence" in prompt
+
+
+def test_runtime_learning_memory_pf_bv_prefers_rich_latest_work_order_row(
+    tmp_path: Path,
+) -> None:
+    old_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+        "target_lane": "formal_gap",
+        "source_pseudo_formal_work_order_id": "pf:bv:rank_uniform",
+        "source_block_id": "rank_uniformity_block",
+        "source_block_type": "lemma",
+        "source_block_conclusion": "rank is uniform by exchangeability",
+        "block_depth": 1,
+        "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+        "scope_parent_id": "",
+        "inherited_scope": [],
+        "dependency_statement_context": [
+            {"statement_id": "exchangeability_scores", "statement": "scores exchangeable"}
+        ],
+        "source_block_premises": ["scores are exchangeable"],
+        "source_block_proof_text": "Exchangeability makes each rank position equally likely.",
+        "block_verification": {
+            "verdict": "accepted",
+            "verifier_provenance": "independent_block_verifier",
+            "independent_verifier": True,
+            "rollout_count": 1,
+        },
+        "block_verification_verifier_provenance": "independent_block_verifier",
+        "block_verification_independent": True,
+        "independent_block_verification_required": False,
+        "independent_block_verification_status": "completed",
+        "runtime_queue_status": "PENDING_FORMAL_GAP_REVIEW_FROM_PSEUDO_FORMAL_BLOCK",
+        "source_anchors": [{"kind": "theory_trace", "id": "equation:rank_uniformity"}],
+        "input_summary": {
+            "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+            "target_lane": "formal_gap",
+            "work_order_id": "pf:bv:rank_uniform",
+            "source_block_id": "rank_uniformity_block",
+            "scope_parent_id": "",
+            "block_verification": {
+                "verdict": "accepted",
+                "verifier_provenance": "independent_block_verifier",
+                "independent_verifier": True,
+                "rollout_count": 1,
+            },
+        },
+        "target_behavior": "route accepted PF/BV block as non-proof formal-gap memory",
+        "acceptance_gate": "PF/BV guides routing only; proof still requires Lean",
+        "proof_evidence_status": "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE",
+    }
+    rich_row = {
+        **copy.deepcopy(old_row),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "structural_quality": {"all_ok": True, "issues": [], "metrics": {"n_premises": 1}},
+        "structural_quality_ok": True,
+        "structural_quality_issues": [],
+        "pseudo_formal_block_verifier_worker": {
+            "component_gate_command": "pseudo-formal-block-verifier-component-gate",
+            "prompt_packets_command": "pseudo-formal-block-verifier-prompt-packets",
+            "llm_response_command": "pseudo-formal-block-verifier-llm-responses",
+            "response_validation_command": (
+                "pseudo-formal-block-verifier-response-validation"
+            ),
+        },
+        "recommended_commands": [
+            "pseudo-formal-block-verifier-component-gate",
+            "pseudo-formal-block-verifier-prompt-packets",
+            "pseudo-formal-block-verifier-llm-responses",
+            "pseudo-formal-block-verifier-response-validation",
+        ],
+    }
+    rich_row["input_summary"] = {
+        **copy.deepcopy(old_row["input_summary"]),
+        "target_ids": ["split_conformal_coverage"],
+        "structural_quality": rich_row["structural_quality"],
+        "structural_quality_ok": True,
+        "structural_quality_issues": [],
+        "pseudo_formal_block_verifier_worker": (
+            rich_row["pseudo_formal_block_verifier_worker"]
+        ),
+        "recommended_commands": rich_row["recommended_commands"],
+    }
+    learning_path = tmp_path / "pf_bv_memory.jsonl"
+    learning_path.write_text(
+        json.dumps(old_row) + "\n" + json.dumps(rich_row) + "\n",
+        encoding="utf-8",
+    )
+
+    assert cli_module._runtime_learning_memory_pin_key(old_row) == (
+        cli_module._runtime_learning_memory_pin_key(rich_row)
+    )
+    assert runtime_module._runtime_learning_memory_context_pin_key(old_row) == (
+        runtime_module._runtime_learning_memory_context_pin_key(rich_row)
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    retained = memory["rows"][0]
+
+    assert retained["target_ids"] == ["split_conformal_coverage"]
+    assert retained["scope_parent_id"] == ""
+    assert retained["input_summary"]["scope_parent_id"] == ""
+    assert retained["structural_quality"]["all_ok"] is True
+    assert retained["structural_quality_ok"] is True
+    assert retained["structural_quality_issues"] == []
+    assert retained["pseudo_formal_block_verifier_worker"][
+        "component_gate_command"
+    ] == "pseudo-formal-block-verifier-component-gate"
+    assert "pseudo-formal-block-verifier-response-validation" in retained[
+        "recommended_commands"
+    ]
+
+    merged = runtime_module._merge_runtime_learning_memory_context(
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningMemoryContext",
+            "rows": [old_row],
+            "counts": {"max_rows": 1},
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningMemoryContext",
+            "rows": [retained],
+            "counts": {"max_rows": 1},
+        },
+    )
+
+    assert len(merged["rows"]) == 1
+    assert merged["rows"][0]["structural_quality"]["all_ok"] is True
+    assert merged["rows"][0]["pseudo_formal_block_verifier_worker"][
+        "llm_response_command"
+    ] == "pseudo-formal-block-verifier-llm-responses"
+
+
+def test_runtime_learning_memory_keeps_non_routable_pseudo_formal_rows_diagnostic(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "question_id": question.id,
+        "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": [
+            "split_conformal_finite_sample_coverage",
+            "b_rank_uniform",
+            "rank_uniformity",
+        ],
+        "next_owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer",
+        "memory_status": PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
+        "source_agenda_id": "pseudo_formal:source_to_bridge:rank_uniform",
+        "source_pseudo_formal_work_order_id": (
+            "pseudo_formal_work_order:blocked-rank-uniform"
+        ),
+        "source_formalizer_proposal_id": "formalizer_proposal:pseudo_blocked",
+        "source_formalization_manifest_id": "formalization_manifest:pseudo_blocked",
+        "source_packet_id": "pseudo_formal_packet:coverage_blocked",
+        "source_theorem_id": "split_conformal_finite_sample_coverage",
+        "source_block_id": "b_rank_uniform",
+        "source_block_type": "lemma",
+        "source_block_conclusion": "rank is uniform by exchangeability",
+        "block_depth": 2,
+        "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+        "dependency_ids": ["b_exchangeability"],
+        "scope_parent_id": "b_exchangeability",
+        "inherited_scope": ["exchangeability setup"],
+        "faithfulness_status": "faithful",
+        "faithfulness_repair_status": "not_required",
+        "block_verification": {"verdict": "unknown"},
+        "bv_calibration": {
+            "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+            "aggregation_rule": "parallel_pessimistic_aggregation",
+            "pessimistic_acceptance": True,
+            "rollout_count": 0,
+        },
+        "source_anchors": [{"kind": "theory_trace", "id": "equation:rank_uniformity"}],
+        "semantic_primitive_id": "rank_uniformity",
+        "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+        "runtime_queue_status": (
+            "PENDING_SOURCE_TO_BRIDGE_FROM_PSEUDO_FORMAL_BLOCK"
+        ),
+        "input_summary": {
+            "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "row_kind": "pseudo_formal_lean_candidate_seed_blocked",
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+            "reason": "Lean seed blocked until accepted BV rollout exists",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "b_rank_uniform",
+            "source_block_type": "lemma",
+            "source_block_conclusion": "rank is uniform by exchangeability",
+            "block_depth": 2,
+            "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+            "dependency_ids": ["b_exchangeability"],
+            "scope_parent_id": "b_exchangeability",
+            "inherited_scope": ["exchangeability setup"],
+            "faithfulness_status": "faithful",
+            "faithfulness_repair_status": "not_required",
+            "block_verification": {"verdict": "unknown"},
+            "bv_calibration": {
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "pessimistic_acceptance": True,
+                "rollout_count": 0,
+            },
+            "source_anchors": [
+                {"kind": "theory_trace", "id": "equation:rank_uniformity"}
+            ],
+            "semantic_primitive_id": "rank_uniformity",
+            "runtime_queue_status": (
+                "PENDING_SOURCE_TO_BRIDGE_FROM_PSEUDO_FORMAL_BLOCK"
+            ),
+        },
+        "target_behavior": (
+            "repair pseudo-formal block verification before routing source-to-bridge"
+        ),
+        "acceptance_gate": (
+            "accepted BV rollout_count >= 1 before any downstream lane work"
+        ),
+        "proof_evidence_status": "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": (
+            "Pseudo-formalization and block-verification rows are not theorem "
+            "proof evidence. Source theorem proof requires target-prover kernel replay."
+        ),
+    }
+    learning_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["pseudo_formal_block_routing_active"] is False
+    assert summary["pseudo_formal_block_routing_diagnostic_active"] is True
+    assert summary["n_pseudo_formal_block_routing_memory_rows"] == 1
+    assert summary["n_pseudo_formal_block_routing_effective_memory_rows"] == 0
+    assert summary["n_pseudo_formal_block_routing_diagnostic_memory_rows"] == 1
+    assert summary["pseudo_formal_block_routing_target_lanes"] == []
+    assert summary["pseudo_formal_block_routing_target_ids"] == []
+    assert summary["pseudo_formal_block_routing_work_order_ids"] == []
+    assert summary["pseudo_formal_block_routing_contract"] == {}
+    assert summary["pseudo_formal_block_routing_memory"] == []
+    assert summary["pseudo_formal_block_routing_diagnostic_target_lanes"] == [
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE
+    ]
+    assert summary["pseudo_formal_block_routing_diagnostic_work_order_ids"] == [
+        "pseudo_formal_work_order:blocked-rank-uniform"
+    ]
+    diagnostic_memory = summary["pseudo_formal_block_routing_diagnostic_memory"]
+    assert diagnostic_memory[0]["row_kind"] == (
+        "pseudo_formal_lean_candidate_seed_blocked"
+    )
+    assert diagnostic_memory[0]["pseudo_formal_routable"] is False
+    assert diagnostic_memory[0]["target_lane"] == (
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE
+    )
+    assert "contains only effective" in summary[
+        "pseudo_formal_block_routing_memory_boundary"
+    ]
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Pseudo-formal/block-verification routing memory is active" not in prompt
+    assert "Pseudo-formal/block-verification diagnostic memory is active" in prompt
+    assert "not lane-routable" in prompt
+    assert "pseudo_formal_block_routing_diagnostic_memory" in prompt
+    assert "pseudo_formal_lean_candidate_seed_blocked" in prompt
+
+
+def test_runtime_learning_memory_pin_key_preserves_pseudo_formal_row_kind_identity(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+
+    def pf_row(row_kind: str, work_order_id: str) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": question.id,
+            "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+            "pseudo_formal_method_contract_id": (
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+            ),
+            "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": [
+                "split_conformal_finite_sample_coverage",
+                "b_rank_uniform",
+                "rank_uniformity",
+            ],
+            "source_pseudo_formal_work_order_id": work_order_id,
+            "source_formalization_manifest_id": "formalization_manifest:pseudo",
+            "source_packet_id": "pseudo_formal_packet:coverage",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "b_rank_uniform",
+            "source_block_type": "lemma",
+            "source_block_conclusion": "rank is uniform by exchangeability",
+            "block_depth": 2,
+            "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+            "dependency_ids": ["b_exchangeability"],
+            "scope_parent_id": "b_exchangeability",
+            "inherited_scope": ["exchangeability setup"],
+            "faithfulness_status": "faithful",
+            "faithfulness_repair_status": "not_required",
+            "block_verification": {
+                "verdict": "accepted"
+                if row_kind == "pseudo_formal_semantic_primitive_request"
+                else "unknown",
+            },
+            "bv_calibration": {
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "pessimistic_acceptance": True,
+                "rollout_count": 1
+                if row_kind == "pseudo_formal_semantic_primitive_request"
+                else 0,
+            },
+            "source_anchors": [
+                {"kind": "theory_trace", "id": "equation:rank_uniformity"}
+            ],
+            "semantic_primitive_id": "rank_uniformity",
+            "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+            "runtime_queue_status": (
+                "PENDING_SOURCE_TO_BRIDGE_FROM_PSEUDO_FORMAL_BLOCK"
+            ),
+            "input_summary": {
+                "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+                "row_kind": row_kind,
+                "target_lane": PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                "work_order_id": work_order_id,
+                "source_block_id": "b_rank_uniform",
+                "source_theorem_id": "split_conformal_finite_sample_coverage",
+                "source_anchors": [
+                    {"kind": "theory_trace", "id": "equation:rank_uniformity"}
+                ],
+            },
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+            "target_behavior": "route or repair PF/BV source-to-bridge block",
+            "acceptance_gate": "accepted BV rollout before downstream work",
+            "proof_evidence_status": "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": (
+                "Pseudo-formalization and block-verification rows are not theorem "
+                "proof evidence."
+            ),
+        }
+
+    diagnostic_row = pf_row(
+        "pseudo_formal_lean_candidate_seed_blocked",
+        "pseudo_formal_work_order:rank_uniform:blocked",
+    )
+    routable_row = pf_row(
+        "pseudo_formal_semantic_primitive_request",
+        "pseudo_formal_work_order:rank_uniform:semantic",
+    )
+    learning_path.write_text(
+        json.dumps(diagnostic_row)
+        + "\n"
+        + json.dumps(routable_row)
+        + "\n",
+        encoding="utf-8",
+    )
+
+    runtime_diag_key = runtime_module._runtime_learning_memory_context_pin_key(
+        diagnostic_row
+    )
+    runtime_routable_key = runtime_module._runtime_learning_memory_context_pin_key(
+        routable_row
+    )
+    assert runtime_diag_key != runtime_routable_key
+    assert runtime_diag_key == cli_module._runtime_learning_memory_pin_key(
+        diagnostic_row
+    )
+    assert runtime_routable_key == cli_module._runtime_learning_memory_pin_key(
+        routable_row
+    )
+    assert "pseudo_formal_lean_candidate_seed_blocked" in runtime_diag_key
+    assert "pseudo_formal_semantic_primitive_request" in runtime_routable_key
+    assert (
+        runtime_module._runtime_learning_memory_context_pin_priority(diagnostic_row)
+        == 89
+    )
+    assert (
+        runtime_module._runtime_learning_memory_context_pin_priority(routable_row)
+        == 90
+    )
+    assert cli_module._runtime_learning_memory_pin_priority(diagnostic_row) == 89
+    assert cli_module._runtime_learning_memory_pin_priority(routable_row) == 90
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=2)
+    assert {
+        row["source_pseudo_formal_work_order_id"] for row in memory["rows"]
+    } == {
+        "pseudo_formal_work_order:rank_uniform:blocked",
+        "pseudo_formal_work_order:rank_uniform:semantic",
+    }
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert summary["n_pseudo_formal_block_routing_effective_memory_rows"] == 1
+    assert summary["n_pseudo_formal_block_routing_diagnostic_memory_rows"] == 1
+    assert summary["pseudo_formal_block_routing_active"] is True
+    assert summary["pseudo_formal_block_routing_diagnostic_active"] is True
+
+    tight_memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+    assert tight_memory["rows"][0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:rank_uniform:semantic"
+    )
 
 
 def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_prompt(
@@ -22584,6 +29347,45 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
                 "artifact_kind": "RuntimeLearningRow",
                 "input_summary": {
                     "learning_task": (
+                        "coding_agent_generated_code_capability_feedback"
+                    ),
+                    "question_id": question.id,
+                    "capability_id": (
+                        "exact_semantic_definition_authoring_candidate_verifier_checked"
+                    ),
+                    "next_owner_subsystem": "Formalizer/ProofEngineer",
+                    "target_behavior": (
+                        "materialize exact semantic-definition authoring output "
+                        "and return local Lean feedback rows"
+                    ),
+                    "recommended_capability_eval_command": (
+                        "research-agent-runtime --capability-eval "
+                        "--source-theorem-exact-semantic-definition-authoring-worker "
+                        "--source-theorem-exact-semantic-definition-lean-repair-executor"
+                    ),
+                    "success_metric": (
+                        "n_materialized_lean_repair_tasks>0 and "
+                        "n_materialized_feedback_rows>0"
+                    ),
+                    "blocker": "compact row saw no exact semantic verifier feedback",
+                    "evidence": (
+                        "n_materialized_lean_repair_tasks=0; "
+                        "n_materialized_feedback_rows=0"
+                    ),
+                    "proof_evidence_status": (
+                        "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                    "boundary": (
+                        "Exact semantic-definition capability feedback is prompt "
+                        "memory, not source theorem proof."
+                    ),
+                },
+            },
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": (
                         "formalizer_runtime_capability_contract_feedback"
                     ),
                     "question_id": question.id,
@@ -22684,6 +29486,11 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
         "formalizer_lean_candidate_proof_state_feedback_recorded"
     )
     assert "compact ProofEngineer" in capability_memory[0]["target_behavior"]
+    assert any(
+        row["capability_id"]
+        == "exact_semantic_definition_authoring_candidate_verifier_checked"
+        for row in capability_memory
+    )
     assert (
         summary["formalizer_runtime_capability_contract_feedback_available"]
         is True
@@ -22714,6 +29521,15 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
     assert runtime_contract[
         "capability_eval_requires_formalizer_local_lean_check"
     ] is True
+    assert runtime_contract[
+        "capability_eval_requires_exact_semantic_definition_authoring_worker"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_exact_semantic_definition_candidate_materializer"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows"
+    ] is True
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -22734,6 +29550,7 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
     assert "claude-sonnet-compact" in prompt
     assert "Integrated Formalizer/ProofEngineer capability feedback is active" in prompt
     assert "formalizer_lean_candidate_proof_state_feedback_recorded" in prompt
+    assert "exact_semantic_definition_authoring_candidate_verifier_checked" in prompt
     assert "Prior Formalizer runtime capability-contract feedback is active" in prompt
     assert "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE" in prompt
 
@@ -29770,6 +36587,45 @@ def test_formalizer_lean_candidate_repair_sequence_counts_validation_repair_hop(
     ] == 1
 
 
+def test_runtime_evidence_summary_counts_live_formalizer_proposal_without_manifest() -> None:
+    artifacts = {
+        "formalizer_proposal:pf-bv-only": {
+            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+            "packet_id": "formalizer_proposal:pf-bv-only",
+            "source_agent": "LLMFormalizerProofEngineerAgent",
+            "provider": "anthropic",
+            "backend_provider": "anthropic",
+            "model": "claude-sonnet-test",
+            "model_tier": "sonnet",
+            "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+            "kernel_verified": False,
+            "full_frontier_theorem_proved": False,
+            "formal_targets": [
+                {
+                    "id": "source_theorem_still_gap",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                }
+            ],
+            "pseudo_formal_proof_packets": [],
+        }
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert evidence_summary["proof"][
+        "n_llm_formalizer_proof_engineer_proposals"
+    ] == 1
+    assert evidence_summary["proof"][
+        "n_live_llm_formalizer_proof_engineer_proposals"
+    ] == 1
+    assert evidence_summary["proof"][
+        "n_formalizer_lean_candidate_local_lean_checked"
+    ] == 0
+
+
 def test_formalizer_lean_candidate_repair_sequence_ignores_unrelated_pass() -> None:
     artifacts = {
         "formalizer_lean_candidate_materialization:fail": {
@@ -33077,6 +39933,147 @@ def test_exact_semantic_definition_work_order_generates_next_action() -> None:
     )
 
 
+def test_typechecked_review_blocked_manifest_rows_generate_next_action(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    blocked_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewBlockedLearningRow"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_typechecked_review_blocked"
+        ),
+        "action_type": "repair_reviewed_exact_semantic_definition",
+        "work_order_id": (
+            "source_theorem_exact_semantic_definition_typechecked_review_blocked:covered"
+        ),
+        "blocker_feedback_id": (
+            "source_theorem_exact_semantic_definition_typechecked_review_blocked:covered"
+        ),
+        "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "covered",
+        "candidate_artifact_path": "runs/candidates/covered.lean",
+        "proof_body_recheck_blockers": [
+            "source_theorem_ready_for_exact_proof_body_false",
+            "semantic_review_required_before_proof_body",
+        ],
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "runtime_queue_status": (
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        ),
+        "semantic_review_required_before_proof_body": True,
+        "semantic_review_status": "semantic_review_pending",
+        "failure_classification": "semantic_definition_review_blocked",
+        "definition_candidate_review_mode": (
+            "semantic_review_blocked_existing_candidate"
+        ),
+        "required_next_checks": [
+            "obtain explicit semantic review approval",
+            "rerun the typechecked review recheck queue",
+        ],
+        "recommended_next_action": (
+            "complete semantic-faithfulness review before proof-body recheck"
+        ),
+        "source_theorem_kernel_evidence_eligible": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_BLOCKED_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    learning_path.write_text(json.dumps(blocked_row) + "\n", encoding="utf-8")
+    recheck_manifest = {"runtime_learning_rows_jsonl": str(learning_path)}
+
+    recheck_learning_rows = (
+        _typechecked_review_runtime_learning_rows_from_recheck_manifest(
+            recheck_manifest
+        )
+    )
+    agenda_rows: list[dict[str, object]] = []
+    generated_rows = _append_runtime_generated_next_action_rows(
+        agenda_rows,
+        recheck_learning_rows,
+        queue_name=(
+            "source_theorem_exact_semantic_definition_"
+            "typechecked_review_recheck_feedback_from_typechecked_candidate_reviews"
+        ),
+    )
+    generated_learning_rows = _runtime_generated_next_action_learning_rows(
+        generated_rows
+    )
+
+    assert recheck_learning_rows == [blocked_row]
+    assert len(generated_rows) == 1
+    assert generated_rows[0]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+    )
+    assert generated_rows[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert generated_rows[0]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert generated_rows[0]["work_order_id"] == blocked_row["work_order_id"]
+    assert generated_rows[0]["source_feedback_trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+    )
+    assert generated_rows[0]["proof_body_recheck_blockers"] == [
+        "source_theorem_ready_for_exact_proof_body_false",
+        "semantic_review_required_before_proof_body",
+    ]
+    assert generated_rows[0]["definition_candidate_review_mode"] == (
+        "semantic_review_blocked_existing_candidate"
+    )
+    assert generated_rows[0]["required_next_checks"] == [
+        "obtain explicit semantic review approval",
+        "rerun the typechecked review recheck queue",
+    ]
+    assert generated_learning_rows[0]["learning_task"] == (
+        "generated_next_action_routing"
+    )
+    assert generated_learning_rows[0]["input_summary"]["source_feedback_trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+    )
+    assert generated_learning_rows[0]["input_summary"]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    assert generated_learning_rows[0]["input_summary"]["proof_body_gate_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert generated_learning_rows[0]["input_summary"]["proof_body_recheck_blockers"] == [
+        "source_theorem_ready_for_exact_proof_body_false",
+        "semantic_review_required_before_proof_body",
+    ]
+    assert generated_learning_rows[0]["input_summary"][
+        "definition_candidate_review_mode"
+    ] == "semantic_review_blocked_existing_candidate"
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": generated_learning_rows,
+            }
+        }
+    )
+    assert len(repairs) == 1
+    assert repairs[0]["source_feedback_trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+    )
+    assert repairs[0]["definition_candidate_review_mode"] == (
+        "semantic_review_blocked_existing_candidate"
+    )
+    assert repairs[0]["proof_body_recheck_blockers"] == [
+        "source_theorem_ready_for_exact_proof_body_false",
+        "semantic_review_required_before_proof_body",
+    ]
+    assert repairs[0]["required_next_checks"] == [
+        "obtain explicit semantic review approval",
+        "rerun the typechecked review recheck queue",
+    ]
+
+
 def test_generated_exact_semantic_next_action_merges_stronger_executor_status() -> None:
     work_order_id = "source_theorem_exact_semantic_definition_work_order:covered"
     stale_work_order = {
@@ -35707,6 +42704,112 @@ def test_exact_semantic_definition_work_orders_from_semantic_primitive_blockers(
     } == {"Exchangeable", "orderStat"}
 
 
+def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -> None:
+    pseudo_formal_rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "PseudoFormalizerWorkOrder",
+            "row_id": "pseudo_formal_work_order:rank_uniformity",
+            "row_kind": "pseudo_formal_exact_semantic_definition_request",
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+            "question_id": "conformal_prediction_coverage",
+            "question_title": "Split conformal coverage",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "rank_uniformity_block",
+            "source_block_conclusion": "rank is uniform under exchangeability",
+            "source_block_proof_text": (
+                "By exchangeability of the calibration and test scores, every "
+                "rank order of the test score is equally likely."
+            ),
+            "semantic_alignment_constraints": [
+                "preserve finite-sample rank uniformity semantics",
+            ],
+            "source_packet_id": "pseudo_formal_packet:coverage",
+            "source_formalizer_proposal_id": "formalizer_proposal:pf_bv",
+            "source_formalizer_proposal_without_formalization_manifest": True,
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+            "pseudo_formal_method_contract_id": (
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+            ),
+            "pseudo_formal_pipeline_stage": (
+                PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+            ),
+            "reason": "block requires exact semantic definitions before Lean replay",
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "PseudoFormalizerWorkOrder",
+            "row_id": "pseudo_formal_work_order:ceiling_gap",
+            "row_kind": "pseudo_formal_library_gap",
+            "target_lane": "formal_gap",
+            "question_id": "conformal_prediction_coverage",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "ceiling_coverage_counting_block",
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": "PseudoFormalizerWorkOrder",
+            "row_id": "pseudo_formal_work_order:blocked_exact",
+            "row_kind": (
+                "pseudo_formal_exact_semantic_definition_request_blocked_by_faithfulness"
+            ),
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+            "question_id": "conformal_prediction_coverage",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "blocked_semantic_definition",
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    ]
+
+    work_orders = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+            pseudo_formal_rows
+        )
+    )
+
+    assert len(work_orders) == 1
+    row = work_orders[0]
+    assert row["artifact_kind"] == (
+        "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+    )
+    assert row["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert row["placeholder_symbol"] == "rank_uniformity_block"
+    assert row["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:rank_uniformity"
+    )
+    assert row["source_pseudo_formal_block_id"] == "rank_uniformity_block"
+    assert row["source_formalizer_proposal_id"] == "formalizer_proposal:pf_bv"
+    assert (
+        row["source_formalizer_proposal_without_formalization_manifest"]
+        is True
+    )
+    assert row["pseudo_formal_method_contract_id"] == (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    assert row["proof_evidence_status"] == (
+        "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+    )
+    assert "rank" in row["search_targets"]
+    assert "uniformity" in row["search_targets"]
+    assert "exchangeability" in row["search_targets"]
+    assert "rank is uniform under exchangeability" in row["search_targets"]
+    assert any(
+        "calibration and test scores" in target
+        for target in row["search_targets"]
+    )
+    assert row["source_theorem_ready_for_exact_proof_body"] is False
+    assert row["source_theorem_semantic_support_only"] is True
+
+
 def test_exact_semantic_definition_work_orders_from_semantic_alignment_feedback(
     tmp_path: Path,
 ) -> None:
@@ -36318,6 +43421,152 @@ def test_runtime_learning_memory_loader_preserves_authoring_retry_request(
     ]
 
 
+def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup() -> None:
+    route = {
+        "artifact_kind": "ExactSemanticDefinitionStructuralReformulationRoute",
+        "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+        "pseudo_formalization_required": True,
+        "target_lanes": [
+            "source_theorem_exact_semantic_definition",
+            "lean_rag",
+            "source_to_bridge",
+        ],
+    }
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
+            ),
+            "learning_task": "source_theorem_exact_semantic_definition_authoring_worker",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "C_n",
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
+            ),
+            "authoring_trigger": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+            ),
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "semantic_goal": "Define C_n without reusing bad Lean APIs.",
+            },
+            "input_summary": {
+                "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
+                "authoring_trigger": (
+                    "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+                ),
+            },
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
+            ),
+            "learning_task": "source_theorem_exact_semantic_definition_authoring_worker",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "C_n",
+            "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+            "failure_classification": STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+            "structural_reformulation_required": True,
+            "pseudo_formalization_required": True,
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "semantic_goal": "Define C_n without reusing bad Lean APIs.",
+            },
+            "source_theorem_exact_semantic_definition_structural_reformulation_route": (
+                route
+            ),
+            "recommended_next_action": (
+                "route to PF/BV-backed structural reformulation"
+            ),
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            rows
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    assert task["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+    )
+    assert task["authoring_mode"] == (
+        "structural_reformulation_exact_semantic_definition_with_pseudo_formalization"
+    )
+    assert task["structural_reformulation_required"] is True
+    assert task["pseudo_formalization_required"] is True
+    assert task["requires_pseudo_formalization"] is True
+    assert task[
+        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+    ] == route
+    assert "PF/BV" in task["proof_evidence_boundary"]
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": rows,
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test"},
+        algorithm_manifest={"manifest_id": "algorithm:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert summary[
+        "source_theorem_exact_semantic_definition_structural_reformulation_required"
+    ] is True
+    assert summary["pseudo_formalization_required"] is True
+    assert summary["requires_pseudo_formalization"] is True
+    assert summary["pseudo_formalization_required_reason"] == (
+        "exact_semantic_definition_structural_reformulation_required"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantic_definition_structural_reformulation"
+    )
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "structural_reformulate_exact_semantic_definition_with_pf_bv"
+    )
+    assert "you must emit at least one pseudo_formal_proof_packets" in prompt
+    assert "block_verification.rollout_count must be an integer >= 1" in prompt
+    assert "top-level conclusion field" in prompt
+    assert "not_run, unknown, or failed" in prompt
+    assert "Use needs_review only as a faithfulness_status value" in prompt
+    assert "needs_review/failed/pending" not in prompt
+    assert (
+        "source_theorem_exact_semantic_definition_structural_reformulation"
+        in prompt
+    )
+    assert "Do not directly retry sibling Lean APIs" in prompt
+
+
 def test_exact_semantic_environment_import_blocker_becomes_authoring_task() -> None:
     rows = [
         {
@@ -36402,6 +43651,80 @@ def test_exact_semantic_environment_import_blocker_becomes_authoring_task() -> N
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )
     assert task["source_theorem_kernel_verified"] is False
+
+
+def test_exact_semantic_authoring_repair_tasks_include_local_lean_source_excerpts(
+    tmp_path: Path,
+) -> None:
+    candidate_path = tmp_path / "BadExactDefinition.lean"
+    candidate_path.write_text(
+        "\n".join(
+            [
+                "def badExactDefinition : Nat :=",
+                "  Nat.succ",
+                "    broken",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    diagnostic = f"{candidate_path}:3:5: error: unknown identifier 'broken'"
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionLeanRepairExecutionResult"
+            ),
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_lean_repair_execution"
+            ),
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "rank",
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+            ),
+            "execution_status": (
+                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+            ),
+            "source_execution_status": (
+                "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+            ),
+            "definition_only_candidate_artifact_path": str(candidate_path),
+            "local_lean_checked": True,
+            "local_lean_compiled": False,
+            "local_lean_diagnostics": [diagnostic],
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "required_anchor_names": ["n2"],
+                "available_anchor_names": ["n2"],
+                "missing_required_anchor_names": [],
+            },
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+    ]
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            rows
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    excerpts = task["local_lean_diagnostic_source_excerpts"]
+    assert excerpts[0]["artifact_path"] == str(candidate_path)
+    assert excerpts[0]["line"] == 3
+    assert "broken" in "\n".join(excerpts[0]["source_excerpt"])
+    assert excerpts[0]["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert task["candidate_repair_feedback"][
+        "local_lean_diagnostic_source_excerpts"
+    ][0]["diagnostic"] == diagnostic
 
 
 def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
@@ -37446,6 +44769,970 @@ def test_exact_semantic_authoring_live_attempt_requires_backend_provenance(
     assert candidate["provider"] == "anthropic"
     assert candidate["backend_provider"] == "static"
     assert candidate["live_llm_generator"] is False
+
+
+def test_exact_semantic_authoring_prompt_includes_local_lean_source_excerpt(
+    tmp_path: Path,
+) -> None:
+    diagnostic = (
+        f"{tmp_path / 'BadExactDefinition.lean'}:3:5: "
+        "error: unknown identifier 'broken'"
+    )
+    source_excerpt = [
+        "1: def badExactDefinition : Nat :=",
+        "2:   Nat.succ",
+        "3:     broken",
+    ]
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:rank-repair",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "local_lean_checked": True,
+                "local_lean_compiled": False,
+                "local_lean_diagnostics": [diagnostic],
+                "local_lean_diagnostic_source_excerpts": [
+                    {
+                        "artifact_path": str(tmp_path / "BadExactDefinition.lean"),
+                        "line": 3,
+                        "column": 5,
+                        "diagnostic": diagnostic,
+                        "source_excerpt": source_excerpt,
+                        "proof_evidence_status": (
+                            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+                        ),
+                        "proof_evidence_boundary": (
+                            "local Lean diagnostic context is repair feedback only"
+                        ),
+                    }
+                ],
+                "candidate_definition_request": {
+                    "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "rank",
+                    "semantic_goal": "Repair the exact semantic definition.",
+                    "required_anchor_names": ["n2"],
+                    "available_anchor_names": ["n2"],
+                    "missing_required_anchor_names": [],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(dry_run=True, max_tasks=1),
+    )
+
+    prompt_packet = json.loads(
+        Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+
+    assert prompt_packet["candidate_repair_feedback"][
+        "local_lean_diagnostic_source_excerpts"
+    ][0]["source_excerpt"] == source_excerpt
+    assert prompt_payload["candidate_repair_feedback"][
+        "local_lean_diagnostic_source_excerpts"
+    ][0]["diagnostic"] == diagnostic
+    assert prompt_payload["lean_authoring_environment_contract"][
+        "diagnostic_source_excerpts"
+    ][0]["source_excerpt"] == source_excerpt
+
+
+def test_exact_semantic_authoring_prompt_extracts_invalid_field_and_typeclass_feedback(
+    tmp_path: Path,
+) -> None:
+    candidate_path = tmp_path / "BadExactDefinition.lean"
+    diagnostics = [
+        (
+            f"{candidate_path}:32:22: error(lean.synthInstanceFailed): "
+            "failed to synthesize instance of type class"
+        ),
+        "  FloorSemiring Real",
+        "Hint: Type class instance resolution failures can be inspected.",
+        (
+            f"{candidate_path}:37:17: error(lean.invalidField): Invalid field "
+            "`get?`: The environment does not contain `List.get?`, so it is "
+            "not possible to project the field `get?` from an expression"
+        ),
+        "  sorted",
+        "of type `List Real`",
+    ]
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:rank-api-feedback",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "local_lean_checked": True,
+                "local_lean_compiled": False,
+                "local_lean_diagnostics": diagnostics,
+                "candidate_definition_request": {
+                    "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "rank",
+                    "semantic_goal": "Repair the exact semantic definition.",
+                    "required_anchor_names": ["n2"],
+                    "available_anchor_names": ["n2"],
+                    "missing_required_anchor_names": [],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(dry_run=True, max_tasks=1),
+    )
+
+    prompt_packet = json.loads(
+        Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+    lean_feedback = prompt_payload["lean_authoring_environment_contract"][
+        "local_lean_feedback"
+    ]
+
+    assert "List.get?" in lean_feedback["unknown_identifiers_from_last_check"]
+    assert "get?" in lean_feedback["unknown_identifiers_from_last_check"]
+    assert lean_feedback["typeclass_failures_from_last_check"][0][
+        "failed_typeclass"
+    ] == "FloorSemiring"
+    assert lean_feedback["typeclass_failures_from_last_check"][0][
+        "failed_instance_type"
+    ] == "FloorSemiring Real"
+
+
+def test_exact_semantic_authoring_candidate_rejects_unverified_imports() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Use the verified floor defs import only.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Algebra.Order.Floor.Defs\n"
+            "import Mathlib.Algebra.Order.Floor\n"
+            "def repairedRank : Nat := 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Algebra.Order.Floor.Defs",
+            "Mathlib.Algebra.Order.Floor",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                ],
+                "unavailable_import_repair_rows": [],
+            },
+            "project_identifier_lookup": {
+                "identifier_lookup_rows": [
+                    {
+                        "unknown_identifier": "Nat.ceil",
+                        "verified_declaration_modules": [
+                            "Mathlib.Algebra.Order.Floor.Defs",
+                        ],
+                    }
+                ],
+                "unknown_identifier_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("Mathlib.Algebra.Order.Floor" in error for error in errors)
+    assert not any("Floor.Defs" in error for error in errors)
+
+
+def test_exact_semantic_authoring_candidate_rejects_hidden_body_imports() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Hide an import in the candidate body.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Data.Set.Basic\n"
+            "def repairedRank : Nat := 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                ],
+                "unavailable_import_repair_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("must be mirrored in required_imports" in error for error in errors)
+    assert any("Mathlib.Data.Set.Basic" in error for error in errors)
+    assert any("required_imports include modules not verified" in error for error in errors)
+
+
+def test_exact_semantic_authoring_candidate_rejects_reused_unresolved_identifier() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Keep the unavailable list field by mistake.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Data.List.Sort\n"
+            "def repairedRank (xs : List Real) : Option Real := xs.get? 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Data.List.Sort",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "local_lean_feedback": {
+                "unknown_identifiers_from_last_check": [
+                    "get?",
+                    "List.get?",
+                ],
+            },
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                    "Mathlib.Data.List.Sort",
+                ],
+            },
+            "project_identifier_lookup": {
+                "identifier_lookup_rows": [
+                    {
+                        "unknown_identifier": "List.get?",
+                        "verified_declaration_modules": [],
+                    }
+                ],
+                "unknown_identifier_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("get?" in error for error in errors)
+    assert any("locally unresolved identifiers" in error for error in errors)
+
+
+def test_exact_semantic_authoring_prompt_preserves_prior_invalid_api_feedback(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:parse-after-api-failure",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "local_lean_checked": True,
+                "local_lean_compiled": False,
+                "local_lean_diagnostics": [
+                    "candidate.lean:30:25: error: expected token",
+                ],
+                "local_lean_diagnostic_source_excerpts": [
+                    {
+                        "line": 30,
+                        "diagnostic": "candidate.lean:30:25: error: expected token",
+                        "source_excerpt": [
+                            "30:   let fi : Int := floor raw",
+                        ],
+                    }
+                ],
+                "candidate_repair_feedback": {
+                    "unknown_identifiers_from_prior_checks": [
+                        "get?",
+                        "List.get?",
+                    ],
+                    "unknown_identifiers_from_all_checks": [
+                        "get?",
+                        "List.get?",
+                    ],
+                    "diagnostic_source_excerpts_history": [
+                        {
+                            "line": 41,
+                            "diagnostic": (
+                                "candidate.lean:41:13: error: Invalid field `get?`"
+                            ),
+                            "source_excerpt": [
+                                "41:   sorted.get? idx",
+                            ],
+                        }
+                    ],
+                },
+                "candidate_definition_request": {
+                    "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "rank",
+                    "semantic_goal": "Repair the exact semantic definition.",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(dry_run=True, max_tasks=1),
+    )
+
+    prompt_packet = json.loads(
+        Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+    lean_feedback = prompt_payload["lean_authoring_environment_contract"][
+        "local_lean_feedback"
+    ]
+    lookup_rows = prompt_payload["lean_authoring_environment_contract"][
+        "project_identifier_lookup"
+    ]["identifier_lookup_rows"]
+    identifier_reuse_policy = prompt_payload["lean_authoring_environment_contract"][
+        "project_identifier_lookup"
+    ]["identifier_reuse_policy"]
+    hard_negative_constraints = prompt_payload["lean_authoring_environment_contract"][
+        "hard_local_negative_constraints"
+    ]
+
+    assert lean_feedback["unknown_identifiers_from_last_check"] == []
+    assert "List.get?" in lean_feedback["unknown_identifiers_from_prior_checks"]
+    assert "List.get?" in lean_feedback["unknown_identifiers_from_all_checks"]
+    assert any(
+        row["lookup_identifier"] == "List.get?"
+        for row in lookup_rows
+    )
+    assert "List.get?" in hard_negative_constraints[
+        "identifiers_with_no_verified_declaration_module"
+    ]
+    assert any(
+        row["identifier"] == "List.get?"
+        and row["reuse_status"] == "must_not_reuse_without_new_local_evidence"
+        and row["must_not_reuse_in_candidate"] is True
+        for row in identifier_reuse_policy
+    )
+    assert prompt_packet["candidate_repair_feedback"][
+        "unknown_identifiers_from_all_checks"
+    ] == ["get?", "List.get?"]
+
+
+def test_exact_semantic_authoring_candidate_rejects_prior_unresolved_identifier() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Reintroduce an API that failed two repairs ago.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Data.List.Sort\n"
+            "def repairedRank (xs : List Real) : Option Real := xs.get? 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Data.List.Sort",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "local_lean_feedback": {
+                "unknown_identifiers_from_last_check": [],
+                "unknown_identifiers_from_prior_checks": [
+                    "get?",
+                    "List.get?",
+                ],
+                "unknown_identifiers_from_all_checks": [
+                    "get?",
+                    "List.get?",
+                ],
+            },
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                    "Mathlib.Data.List.Sort",
+                ],
+            },
+            "project_identifier_lookup": {
+                "identifier_lookup_rows": [
+                    {
+                        "unknown_identifier": "List.get?",
+                        "verified_declaration_modules": [],
+                    }
+                ],
+                "unknown_identifier_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("get?" in error for error in errors)
+    assert any("locally unresolved identifiers" in error for error in errors)
+
+
+def test_exact_semantic_authoring_candidate_rejects_prior_parse_error_fragment() -> None:
+    packet = {
+        "placeholder_symbol": "C_n",
+        "definition_design": "Repeat syntax that local Lean already rejected.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "def C_n (raw : Real) : Nat := ⌈raw⌉₊"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "local_lean_feedback": {
+                "parse_error_source_fragments_from_all_checks": ["⌈raw⌉₊"],
+            },
+            "hard_local_negative_constraints": {
+                "parse_error_source_fragments_must_not_reuse": ["⌈raw⌉₊"],
+            },
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                ],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("parse-error source fragments" in error for error in errors)
+    assert any("⌈raw⌉₊" in error for error in errors)
+
+
+def test_exact_semantic_authoring_candidate_rejects_lookup_hit_without_import() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Use a lookup-hit API without importing its module.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "def repairedRank (raw : Real) : Int := Int.floor raw"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "local_lean_feedback": {
+                "unknown_identifiers_from_all_checks": ["Int.floor"],
+            },
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                ],
+            },
+            "project_identifier_lookup": {
+                "identifier_lookup_rows": [
+                    {
+                        "unknown_identifier": "Int.floor",
+                        "verified_declaration_modules": [
+                            "Mathlib.Algebra.Order.Floor.Defs",
+                        ],
+                    }
+                ],
+                "unknown_identifier_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("Int.floor" in error for error in errors)
+    assert any("locally unresolved identifiers" in error for error in errors)
+
+
+def test_exact_semantic_authoring_hard_negative_validation_routes_structural_reformulation() -> None:
+    error = PacketValidationError(
+        validation_label="Exact semantic-definition authoring candidate packet",
+        attempts=7,
+        errors=[
+            "lean_definition_candidate reuses locally unresolved identifiers: List.get?",
+        ],
+        history=[
+            {
+                "attempt_index": 6,
+                "ok": False,
+                "errors": ["still invalid"],
+                "response_metadata": {"timeout_seconds": 120.0},
+            }
+        ],
+    )
+
+    packet = _failed_candidate_packet(
+        {
+            "authoring_task_id": "authoring_task:validation-failure",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "rank",
+        },
+        prompt_packet={
+            "prompt_packet_id": "prompt:validation-failure",
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "placeholder_symbol": "rank",
+            },
+        },
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        error=error,
+    )
+
+    assert packet["failure_classification"] == (
+        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+    )
+    assert packet["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    assert packet["llm_json_repair_attempts"] == 7
+    assert packet["llm_json_repair_history"][0]["response_metadata"][
+        "timeout_seconds"
+    ] == 120.0
+    assert "provider" not in packet["recommended_next_action"].lower()
+    assert packet["structural_reformulation_required"] is True
+    assert packet["pseudo_formalization_required"] is True
+    route = packet[
+        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+    ]
+    assert route["pseudo_formalization_required"] is True
+    assert route["pseudo_formal_method_contract_id"]
+    assert route["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    assert route["target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "lean_rag",
+        "source_to_bridge",
+    ]
+    assert "not establish" in route["proof_evidence_boundary"]
+
+
+def test_exact_semantic_authoring_worker_emits_structural_reformulation_followup(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:structural-rewrite",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "C_n",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "local_lean_diagnostics": [
+                    "candidate.lean:23:11: error(lean.unknownIdentifier): "
+                    "Unknown constant `Nat.ceil`",
+                ],
+                "candidate_definition_request": {
+                    "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "C_n",
+                    "semantic_goal": "Repair the exact semantic definition.",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    static_response = {
+        "placeholder_symbol": "C_n",
+        "definition_design": "Repeat the prior unknown Lean API.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n\n"
+            "def C_n (raw : Real) : Nat := Nat.ceil raw"
+        ),
+        "required_imports": ["Mathlib.Data.Real.Basic"],
+        "binder_usage": [],
+        "semantic_alignment_notes": [],
+        "known_gaps": [],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+    }
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        provider=StaticArchitectLLMProvider(static_response),
+        config=AuthoringWorkerConfig(
+            provider_name="static",
+            model="static-authoring",
+            dry_run=False,
+            max_tasks=1,
+            max_repair_attempts=0,
+        ),
+    )
+
+    candidate = json.loads(
+        Path(manifest["authoring_candidate_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    retry_task = json.loads(
+        Path(manifest["retryable_authoring_tasks_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+
+    assert manifest["n_candidate_packets_ok"] == 0
+    assert manifest["n_structural_reformulation_required_tasks"] == 1
+    assert manifest["failure_classification_counts"] == {
+        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION: 1
+    }
+    assert candidate["failure_classification"] == (
+        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+    )
+    assert candidate["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    assert candidate["structural_reformulation_required"] is True
+    assert retry_task["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    assert retry_task["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+    )
+    assert retry_task["pseudo_formalization_required"] is True
+    route = retry_task[
+        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+    ]
+    assert route["target_queue_status_by_lane"][
+        "source_theorem_exact_semantic_definition"
+    ] == "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
+    assert route["local_lean_feedback_summary"][
+        "unknown_identifiers_from_all_checks"
+    ] == ["Nat.ceil"]
+    assert candidate["source_theorem_kernel_verified"] is False
+    assert candidate["semantic_definition_kernel_verified"] is False
+
+
+def test_exact_semantic_authoring_candidate_rejects_typeclass_failing_api_reuse() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Keep using the API that caused FloorSemiring failure.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Algebra.Order.Floor.Defs\n"
+            "def repairedRank (raw : Real) : Nat := Nat.ceil raw"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Algebra.Order.Floor.Defs",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "local_lean_feedback": {
+                "typeclass_failures_from_last_check": [
+                    {
+                        "failed_typeclass": "FloorSemiring",
+                        "failed_instance_type": "FloorSemiring Real",
+                    }
+                ],
+                "diagnostic_source_excerpts": [
+                    {
+                        "line": 31,
+                        "diagnostic": (
+                            "candidate.lean:31:35: "
+                            "error(lean.synthInstanceFailed): failed to "
+                            "synthesize instance of type class"
+                        ),
+                        "source_excerpt": [
+                            "30:   let raw : Real := 0",
+                            "31:   let k : Nat := min n (Nat.ceil raw)",
+                        ],
+                    }
+                ],
+            },
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                    "Mathlib.Algebra.Order.Floor.Defs",
+                ],
+            },
+            "project_identifier_lookup": {
+                "identifier_lookup_rows": [
+                    {
+                        "unknown_identifier": "FloorSemiring",
+                        "lookup_reason": "typeclass_synthesis_failure",
+                        "verified_declaration_modules": [
+                            "Mathlib.Algebra.Order.Floor.Defs",
+                        ],
+                    }
+                ],
+                "unknown_identifier_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("Nat.ceil" in error for error in errors)
+    assert any("typeclass-failing source lines" in error for error in errors)
+
+
+def test_exact_semantic_authoring_candidate_rejects_typeclass_declaration_import_as_instance_repair() -> None:
+    packet = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Import a class declaration module as if it gave an instance.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Algebra.Order.Floor.Defs\n"
+            "def repairedRank (raw : Real) : Nat := 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Algebra.Order.Floor.Defs",
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
+        ),
+        "lean_authoring_environment_contract": {
+            "local_lean_feedback": {
+                "typeclass_failures_from_last_check": [
+                    {
+                        "failed_typeclass": "FloorSemiring",
+                        "failed_instance_type": "FloorSemiring Real",
+                    }
+                ],
+            },
+            "project_verified_import_inventory": {
+                "verified_candidate_import_modules": [
+                    "Mathlib.Data.Real.Basic",
+                ],
+            },
+            "project_identifier_lookup": {
+                "identifier_lookup_rows": [
+                    {
+                        "unknown_identifier": "FloorSemiring",
+                        "lookup_reason": "typeclass_synthesis_failure",
+                        "verified_declaration_modules": [
+                            "Mathlib.Algebra.Order.Floor.Defs",
+                        ],
+                    }
+                ],
+                "unknown_identifier_rows": [],
+            },
+        },
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("Mathlib.Algebra.Order.Floor.Defs" in error for error in errors)
+    assert any("required_imports include modules not verified" in error for error in errors)
+
+
+def test_exact_semantic_authoring_worker_repair_task_for_unverified_import(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "lean_project"
+    compiled_basic = (
+        project
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib"
+        / "Data"
+        / "Real"
+        / "Basic.olean"
+    )
+    compiled_basic.parent.mkdir(parents=True)
+    compiled_basic.write_bytes(b"")
+    prior_candidate = tmp_path / "PriorCandidate.lean"
+    prior_candidate.write_text(
+        "import Mathlib.Data.Real.Basic\n\ndef priorRank : Nat := 0\n",
+        encoding="utf-8",
+    )
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:rank-unverified-import",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "candidate_lean_project_hint": str(project),
+                "definition_only_candidate_artifact_path": str(prior_candidate),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "candidate_definition_request": {
+                    "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "rank",
+                    "semantic_goal": "Repair the exact semantic definition.",
+                    "required_anchor_names": ["n2"],
+                    "available_anchor_names": ["n2"],
+                    "missing_required_anchor_names": [],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    static_response = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Incorrectly add an unverified floor import.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Algebra.Order.Floor\n\n"
+            "def repairedRank : Nat := 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Algebra.Order.Floor",
+        ],
+        "binder_usage": [],
+        "semantic_alignment_notes": ["diagnostic only"],
+        "known_gaps": [],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+    }
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        provider=StaticArchitectLLMProvider(static_response),
+        config=AuthoringWorkerConfig(
+            provider_name="static",
+            model="static-authoring",
+            dry_run=False,
+            max_tasks=1,
+            max_repair_attempts=0,
+        ),
+    )
+
+    candidate = json.loads(
+        Path(manifest["authoring_candidate_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    retry_task = json.loads(
+        Path(manifest["retryable_authoring_tasks_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+
+    assert manifest["n_llm_attempted"] == 1
+    assert manifest["n_candidate_packets_ok"] == 0
+    assert manifest["n_candidate_packets_failed"] == 1
+    assert manifest["n_retryable_authoring_tasks"] == 1
+    assert candidate["ok"] is False
+    assert candidate["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    assert "Mathlib.Algebra.Order.Floor" in candidate["validation_errors"][0]
+    assert retry_task["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    assert retry_task["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+    )
+    assert retry_task["repair_of_authoring_candidate_validation_failure"] is True
+    assert "Mathlib.Algebra.Order.Floor" in retry_task["retry_validation_errors"][0]
 
 
 def test_exact_semantic_authoring_live_provider_helpers_require_backend_identity() -> None:
@@ -38723,7 +47010,9 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             "n_llm_semantic_review_approved_packets": 1,
             "n_llm_semantic_review_packets_requiring_verifier_gate": 1,
             "n_blocked_review_packets": 1,
+            "n_blocked_review_learning_rows": 0,
             "n_verifier_gate_work_orders": 1,
+            "n_runtime_learning_rows": 1,
             "n_execution_queue_rows": 0,
             "proof_evidence_status": (
                 "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
@@ -39308,6 +47597,18 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows"
         ]
         == 1
     )
@@ -40792,6 +49093,7 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
             "n_llm_semantic_review_approved_packets": 1,
             "n_llm_semantic_review_packets_requiring_verifier_gate": 1,
             "n_blocked_review_packets": 1,
+            "n_blocked_review_learning_rows": 0,
             "n_verifier_gate_work_orders": 1,
             "n_runtime_learning_rows": 1,
             "n_execution_queue_rows": 0,
@@ -40910,6 +49212,12 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets"
         ]
         == 1
@@ -40923,6 +49231,12 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows"
         ]
         == 1
     )
@@ -43034,6 +51348,133 @@ def test_runtime_routes_formalizer_source_theorem_gap_target_to_formal_environme
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_runtime_routes_materialized_source_theorem_candidate_during_environment_gap(
+    tmp_path: Path,
+) -> None:
+    materialized_candidate_path = tmp_path / "split_conformal_coverage.lean"
+    materialized_candidate_path.write_text(
+        "theorem split_conformal_coverage "
+        "(coverage_claim : Prop) (h : coverage_claim) : coverage_claim := by\n"
+        "  exact h\n",
+        encoding="utf-8",
+    )
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:materialized_candidate_route",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:materialized_candidate_route"
+        ),
+        "proof_bank_runtime_memory_summary": {
+            "source_theorem_exact_candidate_environment_gap": True,
+            "source_theorem_candidate_materialization_required": True,
+            "recommended_formalizer_target_mode": (
+                "source_theorem_exact_candidate_materialization_required"
+            ),
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:materialized_candidate_route",
+        "formal_targets": [
+            {
+                "id": "split_conformal_source_theorem",
+                "informal_source": "exact source theorem candidate",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage "
+                    "(coverage_claim : Prop) (h : coverage_claim) : "
+                    "coverage_claim := by\n"
+                    "  exact h\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+    }
+    materialization_manifest = {
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:materialized_candidate_route",
+        "source_formalizer_packet_id": proposal["packet_id"],
+        "candidate_rows": [
+            {
+                "candidate_id": "split_conformal_source_theorem",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "artifact_path": str(materialized_candidate_path),
+                "kernel_check_artifact_path": str(materialized_candidate_path),
+                "target_lean_declaration": "split_conformal_coverage",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+                "local_lean_compiled": False,
+            }
+        ],
+    }
+
+    work_orders = _runtime_source_theorem_formal_environment_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        formalization_manifest["manifest_id"]: formalization_manifest,
+                        proposal["packet_id"]: proposal,
+                        materialization_manifest["manifest_id"]: (
+                            materialization_manifest
+                        ),
+                    }
+                }
+            }
+        ]
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["source_formal_target_id"] == "split_conformal_source_theorem"
+    assert work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert work_order["target_lean_declaration"] == "split_conformal_coverage"
+    assert work_order["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert work_order["source_formalizer_expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert work_order["source_theorem_candidate_materialization_required"] is False
+    assert work_order["candidate_artifact_path"] == str(materialized_candidate_path)
+    assert (
+        work_order[
+            "source_formalizer_lean_candidate_materialization_manifest_id"
+        ]
+        == materialization_manifest["manifest_id"]
+    )
+    assert work_order["source_formalizer_lean_candidate_id"] == (
+        "split_conformal_source_theorem"
+    )
+    assert "theorem split_conformal_coverage" in work_order["lean_statement_sketch"]
+    assert work_order["runtime_queue_status"] == (
+        "PENDING_SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR_FROM_FORMALIZER_TARGET"
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_critic_memory_routes_candidate_materialization_blocker_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
@@ -43315,6 +51756,87 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
     assert "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING" in prompt
     assert "Do not treat this as proof-body repair" in prompt
     assert "source_theorem_formal_environment_repair" not in prompt
+
+
+def test_candidate_materialization_precedes_verified_adapter_proof_body_retry() -> None:
+    memory = runtime_module._runtime_learning_memory_context_from_rows(
+        [
+            {
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "failure_classification": (
+                    "source_theorem_candidate_materialization_required"
+                ),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION"
+                ),
+                "trigger": (
+                    "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+                ),
+                "candidate_materialization_required": True,
+                "candidate_materialization_statuses": [
+                    "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+                    "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+                ],
+                "candidate_materialization_contract": (
+                    "Formalizer/ProofEngineer must materialize an exact "
+                    "source-theorem Lean candidate artifact with a signature "
+                    "probe before exact proof-body execution can run."
+                ),
+                "source_theorem_kernel_verified": False,
+            },
+            {
+                "learning_task": "source_theorem_proof_body_adapter_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": (
+                    "split_conformal_finite_sample_coverage"
+                ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "source_theorem_kernel_verified": False,
+                "adapter_kernel_verified": True,
+                "kernel_verified_source_theorem_proof_body_adapter_ids": [
+                    "source_theorem_proof_body_adapter_check:verified"
+                ],
+                "adapter_candidate_artifact_path": "runs/adapter.lean",
+                "adapter_declaration_name": (
+                    "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+                ),
+                "proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
+                ),
+            },
+        ],
+        max_rows=10,
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[{"id": "split_conformal_finite_sample_coverage"}],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_proof_body_adapter_kernel_verified"] is True
+    assert summary["source_theorem_candidate_materialization_required"] is True
+    assert summary["source_theorem_exact_proof_body_repair_required"] is False
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "materialize_exact_source_theorem_candidate"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_candidate_materialization_required"
+    )
+    assert summary["source_theorem_candidate_materialization_required_statuses"] == [
+        "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+        "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+    ]
+    assert "FORMAL_GAP/helper/premise-only packets do not satisfy" in summary[
+        "boundary"
+    ]
+    assert "target_lean_declaration, signature_probe_artifact_path" in summary[
+        "boundary"
+    ]
 
 
 def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
@@ -50365,6 +58887,263 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
         and row.get("premise_name") == "hGoodCovered"
         for row in learning_rows
     )
+
+
+def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_bridge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_dir = tmp_path / "runtime"
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    formalizer_response = dict(_formalizer_sample_response())
+    formalizer_response["pseudo_formal_proof_packets"] = [
+        {
+            "theorem_id": "split_conformal_coverage",
+            "source_artifact_id": "theory_packet:split_conformal",
+            "blocks": [
+                {
+                    "block_id": "pf_rank",
+                    "block_type": "lemma",
+                    "block_depth": 1,
+                    "conclusion": "rank is uniform by exchangeability",
+                    "proof_text": "Exchangeability makes the rank uniform.",
+                    "source_anchors": [
+                        {"kind": "theory_trace", "id": "equation:rank_uniformity"}
+                    ],
+                    "semantic_primitive_requirements": ["rank_uniformity"],
+                    "lean_feasibility": "lean_now",
+                    "faithfulness_status": "faithful",
+                    "block_verification": {
+                        "verdict": "accepted",
+                        "rollout_count": 1,
+                    },
+                },
+                {
+                    "block_id": "pf_coverage",
+                    "block_type": "claim",
+                    "dependency_ids": ["pf_rank"],
+                    "scope_parent_id": "pf_rank",
+                    "block_depth": 2,
+                    "inherited_scope": ["rank uniformity setup"],
+                    "conclusion": "coverage is at least 1-alpha",
+                    "proof_text": "Use the conformal quantile event.",
+                    "source_anchors": [
+                        {"kind": "proof_body", "id": "proof:coverage"}
+                    ],
+                    "semantic_primitive_requirements": ["coverage_event"],
+                    "lean_feasibility": "needs_semantic_definition",
+                    "faithfulness_status": "needs_review",
+                    "block_verification": {
+                        "verdict": "failed",
+                        "reason": "coverage event needs exact semantic closure",
+                    },
+                },
+            ],
+        }
+    ]
+    bridge_queue_rows: list[dict[str, object]] = []
+
+    def fake_semantic_bridge(**kwargs: object) -> dict[str, object]:
+        queue_path = Path(kwargs["queue_jsonl"])
+        rows = [
+            json.loads(line)
+            for line in queue_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        bridge_queue_rows.extend(rows)
+        pf_rows = [
+            row
+            for row in rows
+            if row.get("proof_mode")
+            == "pseudo_formal_source_semantic_primitive_closure"
+        ]
+        assert {row.get("semantic_primitive_id") for row in pf_rows} == {
+            "rank_uniformity"
+        }
+        rank_row = next(
+            row
+            for row in pf_rows
+            if row.get("semantic_primitive_id") == "rank_uniformity"
+        )
+        assert rank_row["source_pseudo_formal_block_id"] == "pf_rank"
+        assert rank_row["source_pseudo_formal_scope_parent_id"] == ""
+        assert rank_row["runtime_queue_status"] == (
+            "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+        )
+        assert rank_row["proof_evidence_status"] == (
+            "WORK_ORDER_NOT_PROOF_EVIDENCE"
+        )
+
+        bridge_out = Path(kwargs["out_dir"])
+        bridge_out.mkdir(parents=True, exist_ok=True)
+        learning_path = bridge_out / "runtime_learning_rows.jsonl"
+        learning_export_path = bridge_out / "runtime_learning_export_manifest.json"
+        checks_path = bridge_out / "source_theorem_semantic_primitive_checks.jsonl"
+        proof_queue_path = bridge_out / "proof_library_expansion_queue.jsonl"
+        proof_queue_manifest_path = (
+            bridge_out / "proof_library_expansion_queue_manifest.json"
+        )
+        adapter_queue_path = (
+            bridge_out
+            / "source_to_bridge_adapter_instantiation_queue"
+            / "source_to_bridge_adapter_instantiation_queue.jsonl"
+        )
+        adapter_queue_path.parent.mkdir(parents=True, exist_ok=True)
+        adapter_queue_manifest_path = (
+            adapter_queue_path.parent
+            / "source_to_bridge_adapter_instantiation_queue_manifest.json"
+        )
+        learning_path.write_text("", encoding="utf-8")
+        learning_export_path.write_text(
+            json.dumps({"schema_version": 1, "n_learning_rows": 0}),
+            encoding="utf-8",
+        )
+        checks_path.write_text("", encoding="utf-8")
+        proof_queue_path.write_text("", encoding="utf-8")
+        proof_queue_manifest_path.write_text(
+            json.dumps({"schema_version": 1, "n_queue_rows": 0}),
+            encoding="utf-8",
+        )
+        adapter_queue_path.write_text("", encoding="utf-8")
+        adapter_queue_manifest_path.write_text(
+            json.dumps({"schema_version": 1, "n_queue_rows": 0}),
+            encoding="utf-8",
+        )
+        manifest_path = (
+            bridge_out
+            / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+        )
+        payload = {
+            "schema_version": 1,
+            "artifact_kind": "SourceTheoremSemanticPrimitiveProofEngineerBridgeManifest",
+            "manifest_path": str(manifest_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "runtime_learning_export_manifest": str(learning_export_path),
+            "checks_jsonl": str(checks_path),
+            "proof_library_expansion_queue_jsonl": str(proof_queue_path),
+            "proof_library_expansion_queue_manifest": str(proof_queue_manifest_path),
+            "proof_library_expansion_queue_ready": False,
+            "n_proof_library_expansion_queue_rows": 0,
+            "proof_library_expansion_queue_proof_evidence_status": (
+                "WORK_ORDER_NOT_PROOF_EVIDENCE"
+            ),
+            "source_to_bridge_adapter_instantiation_queue_jsonl": str(
+                adapter_queue_path
+            ),
+            "source_to_bridge_adapter_instantiation_queue_manifest": str(
+                adapter_queue_manifest_path
+            ),
+            "source_to_bridge_adapter_instantiation_queue_ready": False,
+            "n_source_to_bridge_adapter_instantiation_queue_rows": 0,
+            "source_to_bridge_adapter_instantiation_queue_proof_evidence_status": (
+                "WORK_ORDER_NOT_PROOF_EVIDENCE"
+            ),
+            "runtime_learning_ready": False,
+            "proof_evidence_status": (
+                "SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_semantic_primitive_proofengineer_bridge",
+        fake_semantic_bridge,
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        out_dir,
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(
+                provider_name="static",
+                model="static-theory-model",
+            ),
+        ),
+        simulation_engineer=LLMSimulationEngineerAgent(
+            provider=StaticArchitectLLMProvider(_simulation_sample_response()),
+            config=SimulationEngineerConfig(
+                provider_name="static",
+                model="static-simulation-model",
+            ),
+        ),
+        algorithm_engineer=LLMAlgorithmEngineerAgent(
+            provider=StaticArchitectLLMProvider(_conformal_algorithm_sample_response()),
+            config=AlgorithmEngineerConfig(
+                provider_name="static",
+                model="static-algorithm-model",
+            ),
+        ),
+        formalizer=LLMFormalizerProofEngineerAgent(
+            provider=StaticArchitectLLMProvider(formalizer_response),
+            config=FormalizerConfig(
+                provider_name="static",
+                model="static-formalizer-model",
+            ),
+        ),
+        critic_evaluator=LLMCriticEvaluatorAgent(
+            provider=StaticArchitectLLMProvider(_critic_sample_response()),
+            config=CriticEvaluatorConfig(
+                provider_name="static",
+                model="static-critic-model",
+            ),
+        ),
+        proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
+        config=ResearchAgentRuntimeConfig(
+            n_runs=12,
+            seed=20260617,
+            max_iterations=8,
+            source_semantic_proofengineer_bridge=True,
+            source_semantic_proofengineer_local_lean=False,
+        ),
+    )
+
+    assert bridge_queue_rows
+    assert manifest["source_semantic_proofengineer_bridge_ran"] is True
+    assert (
+        manifest[
+            "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal"
+        ]
+        == 1
+    )
+    pf_queue_path = Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal_jsonl"
+        ]
+    )
+    pf_queue_rows = [
+        json.loads(line)
+        for line in pf_queue_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert {row["semantic_primitive_id"] for row in pf_queue_rows} == {
+        "rank_uniformity",
+    }
+    assert {
+        row["proof_evidence_status"] for row in pf_queue_rows
+    } == {"WORK_ORDER_NOT_PROOF_EVIDENCE"}
+    pf_work_order_path = Path(
+        manifest["artifacts"]["runtime_pseudo_formal_work_orders_from_formalizer_jsonl"]
+    )
+    pf_work_order_rows = [
+        json.loads(line)
+        for line in pf_work_order_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    blocked_coverage_rows = [
+        row
+        for row in pf_work_order_rows
+        if row.get("row_kind")
+        == "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness"
+        and row.get("semantic_primitive") == "coverage_event"
+    ]
+    assert blocked_coverage_rows
+    assert {row["target_lane"] for row in blocked_coverage_rows} == {"formal_gap"}
+    assert {
+        row["blocked_target_lane"] for row in blocked_coverage_rows
+    } == {PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE}
 
 
 def test_formalizer_memory_surfaces_unproven_bridge_premise_adapter_failure(
@@ -58607,14 +67386,18 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_packets": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows": 0,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 2,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows": 0,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_ran": True,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_approved_packets": 1,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_llm_approved_packets": 1,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 0,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_packets": 0,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows": 0,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 0,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows": 0,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_execution_rows": 1,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran": True,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows": 1,
@@ -58629,7 +67412,9 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_packets": 1,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_llm_approved_requiring_verifier_gate": 1,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets": 1,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_review_learning_rows": 0,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 1,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows": 1,
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows": 0,
     }
     (runtime_dir / "research_agent_runtime_manifest.json").write_text(
@@ -58684,10 +67469,36 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
     )
     assert (
         audit[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
+        ]
+        == 0
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows"
+        ]
+        == 2
+    )
+    assert (
+        audit[
             "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
         ]
         == 1
     )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows"
+        ]
+        == 1
+    )
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    candidate_evidence = scorecard_rows[
+        "source_theorem_exact_proof_body_candidate_materialized"
+    ]["evidence"]
+    assert "semantic_review_blocked_learning_rows=0" in candidate_evidence
+    assert "semantic_review_learning_rows=3" in candidate_evidence
     report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
         encoding="utf-8"
     )
@@ -61004,6 +69815,22 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": 2,
+        "internal_pseudo_formal_block_verifier_eval_provider_name": "anthropic",
+        "internal_pseudo_formal_block_verifier_eval_backend_provider_name": "anthropic",
+        "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names": [
+            "anthropic"
+        ],
+        "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok": True,
+        "internal_pseudo_formal_block_verifier_eval_live_generator": True,
+        "internal_pseudo_formal_block_verifier_eval_static_or_fixture_only": False,
+        "internal_pseudo_formal_block_verifier_eval_prompt_packets": 1,
+        "internal_pseudo_formal_block_verifier_eval_valid_responses": 1,
+        "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows": 1,
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_paths": [
+            "runs/previous_capability_eval/runtime_learning_rows.jsonl"
+        ],
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_path_count": 1,
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok": True,
         "n_runtime_progress_events": 4,
         "n_runtime_traces": 2,
         "n_real_kernel_verified_subclaims": 1,
@@ -61051,6 +69878,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is True
     assert rows[
+        "pseudo_formal_block_verifier_component_gate"
+    ]["passed"] is True
+    assert rows[
         "formalizer_lean_candidate_integrated_repair_loop_observed"
     ]["passed"] is True
     assert rows[
@@ -61089,7 +69919,7 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     stale_manifest_payload["runtime_research_path_manifest_stale"] = True
     scorecard = _runtime_capability_scorecard(stale_manifest_payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
-    assert rows["architect_research_path_control_propagated"]["passed"] is False
+    assert rows["architect_research_path_control_propagated"]["passed"] is True
     assert "manifest_stale=True" in rows[
         "architect_research_path_control_propagated"
     ]["evidence"]
@@ -61104,6 +69934,12 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     static_component_payload[
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
     ] = "static"
+    static_component_payload[
+        "internal_pseudo_formal_block_verifier_eval_backend_provider_name"
+    ] = "static"
+    static_component_payload[
+        "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names"
+    ] = ["static"]
     scorecard = _runtime_capability_scorecard(static_component_payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert rows[
@@ -61112,6 +69948,22 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows[
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is False
+    assert rows[
+        "pseudo_formal_block_verifier_component_gate"
+    ]["passed"] is False
+
+    external_pseudo_formal_payload = dict(payload)
+    external_pseudo_formal_payload[
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok"
+    ] = False
+    scorecard = _runtime_capability_scorecard(external_pseudo_formal_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "pseudo_formal_block_verifier_component_gate"
+    ]["passed"] is False
+    assert "attached_source_runtime_learning_lineage_ok=False" in rows[
+        "pseudo_formal_block_verifier_component_gate"
+    ]["evidence"]
 
     payload["structured_theory_derivation_trace_observed"] = False
     scorecard = _runtime_capability_scorecard(payload)
@@ -61727,6 +70579,44 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
     assert cross_task_row["proof_evidence_status"] == (
         "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
     )
+    payload["runtime_cross_task_theorem_family_rows"] = [
+        {
+            "question_id": "conformal_prediction_coverage",
+            "task_family": "conformal",
+            "task_family_explicit": True,
+            "full_frontier_theorem_proved": True,
+            "full_frontier_target_bound_kernel_verified": True,
+            "n_formal_gaps": 0,
+            "proof_evidence_status": (
+                "CROSS_TASK_THEOREM_FAMILY_ROW_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
+    payload["runtime_cross_task_theorem_family_boundary"] = (
+        "Cross-task theorem family rows are audit metadata, not proof evidence."
+    )
+    routing_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_gap_routing_rows(scorecard, payload)
+    }
+    cross_task_routing = routing_rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]
+    cross_task_metrics = cross_task_routing["scorecard_payload"]["audit_metrics"]
+    assert cross_task_metrics["n_distinct_task_families"] == 1
+    assert cross_task_metrics["task_families"] == ["conformal"]
+    assert cross_task_metrics["runtime_cross_task_theorem_family_rows"][0][
+        "question_id"
+    ] == "conformal_prediction_coverage"
+    assert (
+        cross_task_metrics["runtime_cross_task_theorem_family_rows"][0][
+            "proof_evidence_status"
+        ]
+        == "CROSS_TASK_THEOREM_FAMILY_ROW_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof evidence" in cross_task_metrics[
+        "runtime_cross_task_theorem_family_boundary"
+    ]
 
     legacy_question_only_payload = {
         "n_results": 2,
@@ -61987,12 +70877,42 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
     assert audit["task_families_with_full_frontier_theorem_proved"] == [
         "conformal"
     ]
+    assert audit["n_runtime_cross_task_theorem_family_rows"] == 2
+    assert (
+        audit["n_runtime_cross_task_theorem_family_rows_with_explicit_family"]
+        == 2
+    )
+    assert (
+        audit["n_runtime_cross_task_theorem_family_rows_with_target_bound_kernel"]
+        == 2
+    )
+    assert (
+        audit["n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps"]
+        == 0
+    )
+    family_rows = {
+        row["question_id"]: row
+        for row in audit["runtime_cross_task_theorem_family_rows"]
+    }
+    assert family_rows["conformal_prediction_coverage"]["task_family"] == (
+        "conformal"
+    )
+    assert family_rows["conformal_prediction_coverage"][
+        "full_frontier_target_bound_kernel_verified"
+    ] is True
+    assert family_rows["conformal_prediction_coverage"][
+        "proof_evidence_status"
+    ] == "CROSS_TASK_THEOREM_FAMILY_ROW_NOT_PROOF_EVIDENCE"
+    assert "not proof evidence" in audit["runtime_cross_task_theorem_family_boundary"]
     assert scorecard_rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is False
     report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
         encoding="utf-8"
     )
+    assert "## Cross-Task Theorem Families" in report
+    assert "family=conformal" in report
+    assert "target_bound_kernel=True" in report
     assert "## Capability Routing" in report
     assert "--question-task-family conformal" in report
     assert "--question-task-family experimental_design" in report
@@ -62104,6 +71024,19 @@ def test_runtime_audit_backfills_task_family_from_manifest_metadata(
         "conformal_prediction_coverage": "conformal",
         "conformal_selection_width": "conformal",
     }
+    assert audit["n_runtime_cross_task_theorem_family_rows"] == 2
+    assert (
+        audit["n_runtime_cross_task_theorem_family_rows_with_explicit_family"]
+        == 2
+    )
+    assert (
+        audit["n_runtime_cross_task_theorem_family_rows_with_target_bound_kernel"]
+        == 2
+    )
+    assert all(
+        row["task_family"] == "conformal"
+        for row in audit["runtime_cross_task_theorem_family_rows"]
+    )
     assert audit["task_families"] == ["conformal"]
     assert audit["n_distinct_task_families"] == 1
     assert audit["task_families_with_full_frontier_theorem_proved"] == [
@@ -63778,6 +72711,42 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_lean_repair_local_l
     ]["passed"] is True
 
 
+def test_runtime_capability_scorecard_accepts_materialized_exact_semantic_lean_feedback() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 2,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 2,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 0,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_total_results": 3,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_total_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_lean_repair_executor_handoff_not_dropped"]
+
+    assert row["passed"] is True
+    assert "local_lean_checked=0" in row["evidence"]
+    assert "total_local_lean_checked=1" in row["evidence"]
+    assert "materialized_local_lean_checked=1" in row["evidence"]
+    assert "chain_local_lean_checked=1" in row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_empty_source_theorem_promotion_bridge_outputs() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -64009,6 +72978,48 @@ def test_runtime_capability_scorecard_flags_source_theorem_proof_body_local_lean
     assert "local_lean_requested=True" in row["evidence"]
     assert "local_lean_checked=0" in row["evidence"]
     assert "observed local Lean check" in row["blocker"]
+
+
+def test_runtime_capability_scorecard_defers_local_lean_gate_when_candidate_materialization_blocks_queue() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+        "source_theorem_candidate_materialization_required": True,
+        "source_theorem_exact_proof_body_repair_required": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready": 0,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_candidate_materialization_required"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
+    candidate_row = rows["source_theorem_exact_proof_body_candidate_materialized"]
+
+    assert local_lean_row["passed"] is True
+    assert local_lean_row["blocker"] == ""
+    assert "local_lean_checked=0" in local_lean_row["evidence"]
+    assert "candidate_materialization_blocking=True" in local_lean_row["evidence"]
+    assert candidate_row["passed"] is False
+    assert "dominant_failure=source_theorem_candidate_materialization_required" in (
+        candidate_row["evidence"]
+    )
 
 
 def test_runtime_capability_scorecard_accepts_source_theorem_proof_body_local_lean_check() -> None:
@@ -64616,6 +73627,171 @@ def test_runtime_capability_scorecard_accepts_semantic_reroute_next_action_hando
 
     assert rows[
         "source_theorem_semantic_primitive_reroutes_have_next_action_handoffs"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_flags_pseudo_formal_semantic_work_without_source_semantic_bridge() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal": 2,
+        "source_semantic_proofengineer_bridge_requested": True,
+        "source_semantic_proofengineer_bridge_ran": False,
+        "source_semantic_proofengineer_bridge_skipped_reason": "bridge_not_run",
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_semantic_primitives_reach_source_semantic_bridge"
+    ]
+
+    assert row["passed"] is False
+    assert "pseudo_formal_semantic_work_orders=2" in row["evidence"]
+    assert "source_semantic_bridge_ran=False" in row["evidence"]
+    assert "source-semantic ProofEngineer bridge" in row["blocker"]
+
+
+@pytest.mark.parametrize(
+    "proof_evidence_status",
+    [
+        "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT",
+        "KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT_PRESENT",
+        "SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_NOT_SOURCE_THEOREM_PROOF",
+    ],
+)
+def test_runtime_capability_scorecard_accepts_pseudo_formal_semantic_bridge_consumption(
+    proof_evidence_status: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal": 2,
+        "source_semantic_proofengineer_bridge_requested": True,
+        "source_semantic_proofengineer_bridge_ran": True,
+        "source_semantic_proofengineer_bridge_proof_evidence_status": (
+            proof_evidence_status
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "pseudo_formal_semantic_primitives_reach_source_semantic_bridge"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_rejects_pseudo_formal_semantic_bridge_theorem_proof_promotion() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal": 1,
+        "source_semantic_proofengineer_bridge_requested": True,
+        "source_semantic_proofengineer_bridge_ran": True,
+        "source_semantic_proofengineer_bridge_proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_semantic_primitives_reach_source_semantic_bridge"
+    ]
+
+    assert row["passed"] is False
+    assert "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF" in row["evidence"]
+    assert "non-source-theorem-proof evidence boundary" in row["blocker"]
+
+
+def test_runtime_capability_scorecard_flags_pseudo_formal_exact_definition_without_source_lookup() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 2,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 2,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": False,
+        "source_theorem_exact_semantic_definition_source_lookup_skipped_reason": (
+            "source_lookup_not_run"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+    ]
+
+    assert row["passed"] is False
+    assert "pseudo_formal_exact_semantic_work_orders=2" in row["evidence"]
+    assert "lookup_ran=False" in row["evidence"]
+    assert "exact semantic-definition source lookup/review loop" in row["blocker"]
+
+
+def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_definition_source_lookup_consumption() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 2,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 2,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
     ]["passed"] is True
 
 
@@ -65729,6 +74905,133 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
         "exact_semantic_definition_authoring_candidate_verifier_checked"
     ]["passed"] is False
 
+    materializer_learning_path = tmp_path / "materializer_learning.jsonl"
+    materializer_learning_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionMaterializationLearningRow",
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    materializer_manifest_path = tmp_path / "materializer_manifest.json"
+    materializer_manifest = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "SourceTheoremExactSemanticDefinitionAuthoringCandidateMaterializerManifest"
+        ),
+        "source_authoring_worker_manifest": str(live_worker_manifest_path),
+        "runtime_learning_rows_jsonl": str(materializer_learning_path),
+        "n_materialization_rows": 1,
+        "n_candidate_packets": 1,
+        "n_materialized_lean_repair_tasks": 1,
+        "n_local_lean_checked": 0,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+        ),
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+    }
+    materializer_manifest_path.write_text(
+        json.dumps(materializer_manifest),
+        encoding="utf-8",
+    )
+    lean_learning_path = tmp_path / "lean_learning.jsonl"
+    lean_learning_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionLeanRepairExecutionLearningRow"
+                ),
+                "proofengineer_state": "TYPECHECKED_CANDIDATE_SEMANTIC_REVIEW_REQUIRED",
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lean_repair_manifest_path = tmp_path / "lean_repair_manifest.json"
+    lean_repair_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest",
+        "source_materializer_manifest": str(materializer_manifest_path),
+        "runtime_learning_rows_jsonl": str(lean_learning_path),
+        "n_results": 1,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 1,
+        "n_typechecked_candidate_review_packets": 1,
+        "by_failure_classification": {},
+        "dominant_failure_classification": "",
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proofengineer_state": "TYPECHECKED_CANDIDATE_SEMANTIC_REVIEW_REQUIRED",
+        "proofengineer_state_reason": (
+            "a definition-only candidate typechecked, but source semantic "
+            "faithfulness is still unreviewed"
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    lean_repair_manifest_path.write_text(
+        json.dumps(lean_repair_manifest),
+        encoding="utf-8",
+    )
+
+    full_audit = audit_research_agent_runtime(
+        runtime_dir,
+        runtime_dir / "audit_live_authoring_with_materialized_lean",
+        post_runtime_exact_semantic_definition_authoring_worker_manifest=live_worker_manifest_path,
+        post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest=materializer_manifest_path,
+        post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest=lean_repair_manifest_path,
+    )
+    full_rows = {
+        row["requirement_id"]: row
+        for row in full_audit["capability_scorecard"]["rows"]
+    }
+    verifier_row = full_rows[
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+    ]
+
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok"
+    ] is True
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok"
+    ] is True
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks"
+    ] == 1
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked"
+    ] == 1
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_by_failure_classification"
+    ] == {}
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_dominant_failure_classification"
+    ] == ""
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_source_theorem_kernel_verified"
+    ] is False
+    assert full_audit[
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proof_evidence_status"
+    ] == "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+    assert full_rows[
+        "exact_semantic_definition_authoring_worker_handoff_not_dropped"
+    ]["passed"] is True
+    assert full_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert verifier_row["passed"] is True
+    assert "verifier_ready_channels=['post_runtime']" in verifier_row["evidence"]
+
     static_worker_manifest_path = tmp_path / "static_authoring_worker_manifest.json"
     static_worker_manifest = dict(live_worker_manifest)
     static_worker_manifest["backend_provider_name"] = "static"
@@ -65806,6 +75109,155 @@ def test_runtime_audit_counts_lineage_checked_post_runtime_exact_semantic_author
     assert mismatched_rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is False
+
+
+def test_runtime_audit_exports_recovered_exact_semantic_authoring_retry_tasks(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    result_path = runtime_dir / "q_runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "MAX_ITERATIONS_REACHED",
+                "blackboard": {"project_id": "runtime:q", "artifacts": {}},
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    learning_row = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringLearningRow",
+        "learning_task": "source_theorem_exact_semantic_definition_authoring_worker",
+        "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY",
+        "failure_classification": "provider_timeout_error",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "coverage_event",
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "coverage_event",
+            "semantic_goal": "Recover the exact coverage event definition.",
+            "required_anchor_names": ["s", "q_hat"],
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": "authoring retry memory is not proof evidence",
+    }
+    learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_evaluation_mode": "capability_eval",
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "n_questions": 1,
+        "question_ids": ["conformal_prediction_coverage"],
+        "status_counts": {"MAX_ITERATIONS_REACHED": 1},
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_requested": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason": (
+            "authoring_worker_disabled"
+        ),
+        "artifacts": {
+            "per_question_results": [str(result_path)],
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(
+        runtime_dir,
+        runtime_dir / "audit_recovered_authoring_retry",
+    )
+    export_path = Path(
+        audit[
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl"
+        ]
+    )
+    exported_rows = [
+        json.loads(line)
+        for line in export_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    routing_rows = {
+        row["requirement_id"]: row for row in audit["runtime_capability_gap_routing_rows"]
+    }
+    live_row = routing_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]
+    live_metrics = live_row["scorecard_payload"]["audit_metrics"]
+
+    assert audit[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available"
+    ] is True
+    assert audit[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_source"
+    ] == "learning_memory_recovery"
+    assert audit[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_n_tasks"
+    ] == 1
+    assert export_path.exists()
+    assert exported_rows[0]["artifact_kind"] == (
+        "SourceTheoremExactSemanticDefinitionAuthoringTask"
+    )
+    assert exported_rows[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+    )
+    assert exported_rows[0]["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+    assert str(export_path) in audit[
+        "source_theorem_exact_semantic_definition_authoring_post_runtime_worker_command"
+    ]
+    assert (
+        "source-theorem-exact-semantic-definition-authoring-worker"
+        in live_row["recommended_capability_eval_command"]
+    )
+    assert str(export_path) in live_row["recommended_capability_eval_command"]
+    assert live_metrics[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_source"
+    ] == "learning_memory_recovery"
+    assert str(export_path) == live_metrics[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl"
+    ]
+    assert (
+        "source-theorem-exact-semantic-definition-authoring-candidate-materialize"
+        in live_metrics[
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_materializer_command"
+        ]
+    )
+    assert (
+        "--post-runtime-exact-semantic-definition-authoring-candidate-materializer-manifest"
+        in audit[
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_audit_command"
+        ]
+    )
+    assert (
+        "--post-runtime-exact-semantic-definition-materialized-lean-repair-executor-manifest"
+        in audit[
+            "source_theorem_exact_semantic_definition_authoring_post_runtime_audit_command"
+        ]
+    )
+    assert "not proof evidence" in audit[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_boundary"
+    ]
 
 
 def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> None:
@@ -67517,7 +76969,7 @@ def test_exact_semantic_definition_lean_repair_records_local_tool_trace(
         lean_command=(
             sys.executable,
             "-c",
-            "import sys; print('fake Lean diagnostic'); sys.exit(1)",
+            "import sys; print(f'{sys.argv[-1]}:1:5: error: fake Lean diagnostic'); sys.exit(1)",
         ),
     )
 
@@ -67532,6 +76984,13 @@ def test_exact_semantic_definition_lean_repair_records_local_tool_trace(
     assert result_row["tool_call_trace"][0]["tool"] == "local.lake_env_lean"
     assert result_row["tool_call_trace"][0]["returncode"] == 1
     assert result_row["tool_call_trace"][0]["artifact_path"] == str(candidate_path)
+    assert result_row["local_lean_diagnostic_source_excerpts"][0]["line"] == 1
+    assert "exactDefinitionCandidate" in "\n".join(
+        result_row["local_lean_diagnostic_source_excerpts"][0]["source_excerpt"]
+    )
+    assert result_row["tool_call_trace"][0]["diagnostic_source_excerpts"][0][
+        "diagnostic"
+    ].endswith("error: fake Lean diagnostic")
     assert result_row["tool_call_trace"][0]["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
     )
@@ -67551,9 +77010,23 @@ def test_exact_semantic_definition_lean_repair_records_local_tool_trace(
     )
     assert learning_row["executed_tools"] == ["local.lake_env_lean"]
     assert learning_row["tool_call_trace"][0]["tool"] == "local.lake_env_lean"
+    assert learning_row["local_lean_diagnostic_source_excerpts"][0]["line"] == 1
     assert learning_row["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
     )
+    authoring_tasks = [
+        json.loads(line)
+        for line in Path(manifest["exact_semantic_definition_authoring_tasks_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert authoring_tasks[0]["local_lean_diagnostic_source_excerpts"][0][
+        "source_excerpt"
+    ] == result_row["local_lean_diagnostic_source_excerpts"][0]["source_excerpt"]
+    assert authoring_tasks[0]["candidate_repair_feedback"][
+        "local_lean_diagnostic_source_excerpts"
+    ][0]["line"] == 1
 
 
 def test_formalizer_candidate_local_lean_enables_proof_state_provider() -> None:
@@ -67973,8 +77446,11 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=0,
         run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
+        run_pseudo_formal_block_verifier_eval=False,
         coding_agent_repair_eval_provider="same",
         formalizer_repair_eval_provider="same",
+        pseudo_formal_block_verifier_eval_provider="same",
+        pseudo_formal_block_verifier_eval_existing_manifest="",
         formalizer_repair_eval_lean_project="",
     )
 
@@ -68100,6 +77576,7 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     )
     assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
+    assert args.run_pseudo_formal_block_verifier_eval is False
     assert _research_agent_runtime_capability_config_errors(args) == []
 
 
@@ -68203,8 +77680,10 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     )
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
+    assert args.run_pseudo_formal_block_verifier_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
+    assert args.pseudo_formal_block_verifier_eval_provider == "same"
     assert args.formalizer_repair_eval_lean_project == args.lean_project
     assert args.source_theorem_exact_semantic_definition_authoring_worker is True
     assert (
@@ -68275,6 +77754,19 @@ def test_capability_eval_rejects_static_component_repair_gate_provider() -> None
         for error in errors
     )
 
+    args.run_coding_agent_generated_code_repair_eval = False
+    args.run_pseudo_formal_block_verifier_eval = True
+    args.pseudo_formal_block_verifier_eval_provider = "static"
+    args.pseudo_formal_block_verifier_eval_existing_manifest = ""
+
+    errors = _research_agent_runtime_capability_config_errors(args)
+
+    assert any(
+        "pseudo-formal BlockVerifier eval" in error
+        and "resolves to static" in error
+        for error in errors
+    )
+
 
 def test_capability_eval_existing_component_manifest_skips_rerun_provider_error() -> None:
     args = _capability_eval_preset_args("minimal-live")
@@ -68291,6 +77783,142 @@ def test_capability_eval_existing_component_manifest_skips_rerun_provider_error(
         for error in errors
     )
 
+    args.run_pseudo_formal_block_verifier_eval = True
+    args.pseudo_formal_block_verifier_eval_provider = "static"
+    args.pseudo_formal_block_verifier_eval_existing_manifest = (
+        "runs/live/pf_bv_manifest.json"
+    )
+
+    errors = _research_agent_runtime_capability_config_errors(args)
+
+    assert not any(
+        "pseudo-formal BlockVerifier eval" in error
+        and "resolves to static" in error
+        for error in errors
+    )
+
+
+def test_pseudo_formal_block_verifier_source_rows_materialize_runtime_memory(
+    tmp_path: Path,
+) -> None:
+    from ai_statistician.pseudo_formal_block_verifier_worker import (
+        export_pseudo_formal_block_verifier_prompt_packets,
+    )
+
+    runtime_out = tmp_path / "runtime"
+    runtime_out.mkdir()
+    runtime_rows_path = runtime_out / "runtime_learning_rows.jsonl"
+    runtime_rows_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "capability_eval_context",
+                "row_kind": "non_pf_bv_context",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    seed_rows_path = tmp_path / "seed_runtime_learning_rows.jsonl"
+    seed_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "source_pseudo_formal_work_order_id": "pf:bv:rank_uniform",
+        "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
+        "runtime_queue_status": "PENDING_FORMALIZER_PSEUDO_FORMAL_BV_FEEDBACK",
+        "target_lane": "formal_gap",
+        "target_ids": ["split_conformal_coverage"],
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "source_block_id": "rank_uniformity_block",
+        "source_block_type": "lemma",
+        "source_block_conclusion": "the held-out rank is uniform",
+        "source_block_premises": [
+            "calibration scores and the test score are exchangeable",
+            "deterministic tie-breaking gives unique ranks",
+        ],
+        "dependency_statement_context": [
+            {
+                "statement_id": "exchangeability_scores",
+                "statement": "scores are exchangeable",
+            }
+        ],
+        "source_block_proof_text": (
+            "Conditioning on the multiset, exchangeability makes each label "
+            "position equally likely, hence the test rank is uniform."
+        ),
+        "block_verification": {"verdict": "unknown"},
+        "block_verification_independent": False,
+        "independent_block_verification_required": True,
+        "input_summary": {
+            "trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+            "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+            "work_order_id": "pf:bv:rank_uniform",
+            "source_block_id": "rank_uniformity_block",
+        },
+        "proof_evidence_status": (
+            runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": (
+            runtime_module.PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+        ),
+    }
+    seed_rows_path.write_text(json.dumps(seed_row) + "\n", encoding="utf-8")
+    args = argparse.Namespace(learning_memory_jsonl=[str(seed_rows_path)])
+    manifest: dict[str, object] = {
+        "artifacts": {"runtime_learning_rows_jsonl": str(runtime_rows_path)}
+    }
+
+    materialized_path = cli_module._materialize_pseudo_formal_block_verifier_source_rows(
+        args,
+        manifest,
+        runtime_out_dir=runtime_out,
+    )
+
+    assert materialized_path == (
+        runtime_out / "runtime_pseudo_formal_block_verifier_source_rows.jsonl"
+    )
+    assert manifest["runtime_pseudo_formal_block_verifier_source_rows"] == 2
+    assert manifest[
+        "runtime_pseudo_formal_block_verifier_source_rows_materialized_from"
+    ] == [str(runtime_rows_path), str(seed_rows_path)]
+    assert manifest["artifacts"][
+        "runtime_pseudo_formal_block_verifier_source_rows_jsonl"
+    ] == str(materialized_path)
+    rows = [
+        json.loads(line)
+        for line in materialized_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    request_rows = [
+        row
+        for row in rows
+        if row.get("row_kind") == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+    ]
+    assert len(request_rows) == 1
+    assert (
+        request_rows[0]["materialized_for_component_gate"]
+        == "pseudo_formal_block_verifier_component_gate"
+    )
+
+    prompt_payload = export_pseudo_formal_block_verifier_prompt_packets(
+        [materialized_path],
+        tmp_path / "prompt_packets",
+    )
+
+    assert prompt_payload["n_source_rows"] == 2
+    assert prompt_payload["n_request_rows"] == 1
+    assert prompt_payload["n_prompt_packets"] == 1
+    assert prompt_payload["n_ok_prompt_packets"] == 1
+    assert prompt_payload["all_ok"] is True
+
 
 def test_runtime_attaches_existing_live_component_repair_manifests(
     tmp_path: Path,
@@ -68299,6 +77927,9 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     runtime_out.mkdir()
     coding_manifest_path = tmp_path / "coding_agent_generated_code_repair_eval_manifest.json"
     formalizer_manifest_path = tmp_path / "formalizer_lean_candidate_repair_eval_manifest.json"
+    pseudo_formal_manifest_path = (
+        tmp_path / "pseudo_formal_block_verifier_component_gate_manifest.json"
+    )
     coding_manifest_path.write_text(
         json.dumps(
             {
@@ -68362,6 +77993,82 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         ),
         encoding="utf-8",
     )
+    pseudo_formal_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "PseudoFormalBlockVerifierComponentGateManifest",
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
+                "component_backend_provider_names": ["anthropic"],
+                "model": "claude-sonnet-4-6",
+                "live_generator": True,
+                "static_or_fixture_only": False,
+                "fixture_plumbing_ok": True,
+                "capability_evidence_ok": True,
+                "n_prompt_packets": 1,
+                "n_ok_prompt_packets": 1,
+                "n_llm_response_rows": 1,
+                "n_ok_responses": 1,
+                "n_valid_responses": 1,
+                "n_runtime_learning_rows": 1,
+                "n_source_runtime_learning_jsonl_paths": 1,
+                "source_runtime_learning_jsonl_paths": [
+                    str(runtime_out / "runtime_learning_rows.jsonl")
+                ],
+                "n_accepted_blocks": 1,
+                "n_failed_blocks": 0,
+                "runtime_learning_rows": [
+                    {
+                        "schema_version": 1,
+                        "artifact_kind": "RuntimeLearningRow",
+                        "question_id": "conformal_prediction_coverage",
+                        "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+                        "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+                        "pseudo_formal_method_contract_id": (
+                            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                        ),
+                        "pseudo_formal_pipeline_stage": (
+                            PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                        ),
+                        "source_pseudo_formal_work_order_id": "pf:wo:1",
+                        "source_block_id": "b_rank_uniform",
+                        "source_block_conclusion": "rank is uniform",
+                        "source_anchors": [{"kind": "theory", "id": "rank"}],
+                        "target_ids": ["split_conformal_coverage"],
+                        "target_lane": "formal_gap",
+                        "runtime_queue_status": (
+                            "PENDING_FORMALIZER_PSEUDO_FORMAL_BV_FEEDBACK"
+                        ),
+                        "block_verification": {
+                            "verdict": "accepted",
+                            "reason": "local block is supported",
+                            "verifier_provenance": "independent_block_verifier",
+                            "independent_verifier": True,
+                            "rollout_count": 1,
+                        },
+                        "block_verification_independent": True,
+                        "proof_evidence_status": (
+                            runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+                        ),
+                        "proof_evidence_boundary": (
+                            runtime_module.PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+                        ),
+                    }
+                ],
+                "artifacts": {
+                    "manifest_json": str(pseudo_formal_manifest_path),
+                    "runtime_learning_rows_jsonl": str(
+                        tmp_path / "pf_runtime_learning_rows.jsonl"
+                    ),
+                },
+                "proof_evidence_status": (
+                    "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
     args = argparse.Namespace(
         out=str(runtime_out),
         question_file="examples/research_questions.json",
@@ -68374,6 +78081,11 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         formalizer_repair_eval_provider="static",
         formalizer_repair_eval_existing_manifest=str(formalizer_manifest_path),
         formalizer_repair_eval_out="",
+        pseudo_formal_block_verifier_eval_provider="static",
+        pseudo_formal_block_verifier_eval_existing_manifest=str(
+            pseudo_formal_manifest_path
+        ),
+        pseudo_formal_block_verifier_eval_out="",
     )
     manifest: dict[str, object] = {
         "artifacts": {
@@ -68386,6 +78098,10 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         manifest,
     )
     manifest = cli_module._attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
+        args,
+        manifest,
+    )
+    manifest = cli_module._attach_pseudo_formal_block_verifier_eval_to_runtime_manifest(
         args,
         manifest,
     )
@@ -68447,6 +78163,33 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert manifest["artifacts"][
         "internal_formalizer_lean_candidate_repair_eval_manifest_json"
     ] == str(formalizer_manifest_path)
+    assert manifest[
+        "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok"
+    ] is True
+    assert (
+        manifest["internal_pseudo_formal_block_verifier_eval_valid_responses"] == 1
+    )
+    assert (
+        manifest[
+            "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_path_count"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok"
+        ]
+        is True
+    )
+    assert manifest["artifacts"][
+        "internal_pseudo_formal_block_verifier_eval_manifest_json"
+    ] == str(pseudo_formal_manifest_path)
     learning_rows = [
         json.loads(line)
         for line in Path(
@@ -68465,6 +78208,23 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         and row.get("prior_feedback_lean_lsp_mcp_tool_calls") == 3
         and row.get("proof_evidence_status")
         == "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+        for row in learning_rows
+    )
+    assert any(
+        row.get("learning_task") == "pseudo_formal_block_verifier_component_gate_feedback"
+        and row.get("capability_evidence_ok") is True
+        and row.get("source_runtime_learning_lineage_ok") is True
+        and row.get("source_component_gate")
+        == "pseudo_formal_block_verifier_component_gate"
+        for row in learning_rows
+    )
+    assert any(
+        row.get("learning_task") == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+        and row.get("source_component_gate")
+        == "pseudo_formal_block_verifier_component_gate"
+        and row.get("block_verification", {}).get("verdict") == "accepted"
+        and row.get("proof_evidence_status")
+        == runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
         for row in learning_rows
     )
 
@@ -68831,6 +78591,7 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is True
     assert manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"] == 1
+    assert manifest["runtime_input_context"]["runtime_learning_memory_rows_seen"] == 1
     assert (
         manifest["runtime_input_context"]["runtime_capability_gap_routing_supplied"]
         is True
@@ -68838,6 +78599,40 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert (
         manifest["runtime_input_context"]["runtime_capability_gap_routing_rows_loaded"]
         == 1
+    )
+    assert (
+        manifest["runtime_input_context"]["runtime_capability_gap_routing_rows_seen"]
+        == 1
+    )
+    assert (
+        manifest["runtime_input_context"][
+            "runtime_capability_gap_routing_retention_policy"
+        ]
+        == "priority_pinned_latest_rows"
+    )
+    assert manifest["runtime_input_context"][
+        "runtime_capability_gap_routing_retention_selection_counts"
+    ] == {"priority_pinned": 1}
+    assert manifest["runtime_input_context"][
+        "runtime_capability_gap_routing_requirement_ids"
+    ] == ["live_generator_agents_enabled"]
+    assert manifest["runtime_input_context"][
+        "runtime_capability_gap_routing_priority_pinned_requirement_ids"
+    ] == ["live_generator_agents_enabled"]
+    assert manifest["runtime_input_context"][
+        "runtime_capability_gap_routing_owner_subsystems"
+    ] == {"ArchitectCoordinator": 1}
+    assert (
+        manifest["runtime_input_context"][
+            "runtime_capability_gap_routing_rows_missing_retention_selection"
+        ]
+        == 0
+    )
+    assert (
+        manifest["runtime_input_context"][
+            "runtime_capability_gap_routing_rows_missing_retention_selection_boundary"
+        ]
+        == 0
     )
     assert manifest["runtime_evaluation_mode"] == "debug"
     assert str(learning_file) in manifest["runtime_input_context"]["runtime_learning_memory_source_paths"]
@@ -68928,6 +78723,13 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert capability_gap_context["rows"][0]["next_owner_subsystem"] == (
         "ArchitectCoordinator"
     )
+    assert capability_gap_context["rows"][0]["retention_selection"] == (
+        "priority_pinned"
+    )
+    assert (
+        "not proof evidence"
+        in capability_gap_context["rows"][0]["retention_selection_boundary"]
+    )
     assert "not proof evidence" in capability_gap_context["boundary"]
     evidence_types = {row["evidence_type"] for row in result["blackboard"]["evidence_ledger"]}
     assert "runtime_learning_memory" not in evidence_types
@@ -68977,6 +78779,11 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
         ]
         is False
     )
+    assert audit["internal_pseudo_formal_block_verifier_eval_attached"] is False
+    assert (
+        audit["internal_pseudo_formal_block_verifier_eval_capability_evidence_ok"]
+        is False
+    )
     assert scorecard_rows["runtime_progress_observable"]["passed"] is True
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["architect_orchestrated"]["passed"] is False
@@ -68986,6 +78793,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     ]["passed"] is False
     assert scorecard_rows[
         "formalizer_lean_candidate_repair_component_gate"
+    ]["passed"] is False
+    assert scorecard_rows[
+        "pseudo_formal_block_verifier_component_gate"
     ]["passed"] is False
     assert "no live Anthropic/OpenAI generator agents were enabled" in audit["capability_gaps"]
     assert (
@@ -69005,8 +78815,72 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert audit["n_runtime_progress_events"] >= audit["n_runtime_traces"] * 2
     assert audit["n_results_with_runtime_learning_memory_input"] == 1
     assert audit["n_runtime_learning_memory_input_rows"] == 1
+    assert audit["n_runtime_learning_memory_input_rows_seen"] == 1
     assert audit["n_results_with_runtime_capability_gap_routing_input"] == 1
     assert audit["n_runtime_capability_gap_routing_input_rows"] == 1
+    assert audit["n_runtime_capability_gap_routing_input_rows_seen"] == 1
+    assert (
+        audit["runtime_capability_gap_routing_input_retention_policy"]
+        == "priority_pinned_latest_rows"
+    )
+    assert audit[
+        "runtime_capability_gap_routing_input_retention_selection_counts"
+    ] == {"priority_pinned": 1}
+    assert audit["runtime_capability_gap_routing_input_requirement_ids"] == [
+        "live_generator_agents_enabled"
+    ]
+    assert audit[
+        "runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+    ] == ["live_generator_agents_enabled"]
+    assert audit["runtime_capability_gap_routing_input_owner_subsystems"] == {
+        "ArchitectCoordinator": 1
+    }
+    assert (
+        audit[
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+        ]
+        == 0
+    )
+    assert (
+        audit[
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary"
+        ]
+        == 0
+    )
+    system_overlay = _research_agent_runtime_audit_overlay(
+        root / "system_overlay",
+        configured_runtime_dir=str(out_dir),
+    )
+    assert system_overlay["n_runtime_capability_gap_routing_input_rows"] == 1
+    assert system_overlay["n_runtime_capability_gap_routing_input_rows_seen"] == 1
+    assert (
+        system_overlay["runtime_capability_gap_routing_input_retention_policy"]
+        == "priority_pinned_latest_rows"
+    )
+    assert system_overlay[
+        "runtime_capability_gap_routing_input_retention_selection_counts"
+    ] == {"priority_pinned": 1}
+    assert system_overlay["runtime_capability_gap_routing_input_requirement_ids"] == [
+        "live_generator_agents_enabled"
+    ]
+    assert system_overlay[
+        "runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+    ] == ["live_generator_agents_enabled"]
+    assert system_overlay["runtime_capability_gap_routing_input_owner_subsystems"] == {
+        "ArchitectCoordinator": 1
+    }
+    assert (
+        system_overlay[
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+        ]
+        == 0
+    )
+    assert (
+        system_overlay[
+            "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary"
+        ]
+        == 0
+    )
     assert audit["runtime_architect_initial_routing"] == route_summary
     assert audit["runtime_architect_initial_routing_manifest_present"] is True
     assert audit["runtime_architect_initial_routing_manifest_stale"] is False
@@ -69024,6 +78898,18 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     )
     assert audit["n_results_with_architect_initial_routing"] == 0
     assert audit["n_architect_initial_routing_decisions"] == 0
+    assert (
+        scorecard_rows[
+            "runtime_capability_gap_routing_input_retention_audited"
+        ]["passed"]
+        is True
+    )
+    assert (
+        scorecard_rows[
+            "runtime_capability_gap_routing_input_retention_selection_visible"
+        ]["passed"]
+        is True
+    )
     assert (
         scorecard_rows[
             "runtime_handoff_transition_summary_audited"

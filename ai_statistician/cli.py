@@ -329,8 +329,17 @@ from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+    PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES,
+    PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+)
+from .pseudo_formal_block_verifier_worker import (
+    export_pseudo_formal_block_verifier_llm_responses,
+    export_pseudo_formal_block_verifier_prompt_packets,
+    export_pseudo_formal_block_verifier_response_validation,
+    run_pseudo_formal_block_verifier_component_gate,
 )
 from .rag_collaboration_export import export_rag_collaboration_manifest
 from .proof_training_export import export_proof_training_dataset
@@ -448,6 +457,7 @@ from .research_agent_runtime import (
     _runtime_coding_agent_capability_table,
     _runtime_component_gate_summary,
     _runtime_formalizer_component_gate_learning_rows,
+    _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
     _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
     run_research_agent_runtime,
@@ -1173,8 +1183,15 @@ def _compact_runtime_capability_gap_routing_row(
         "routing_boundary": str(row.get("routing_boundary", "")),
         "fingerprint": str(row.get("fingerprint", "")),
     }
+    scorecard_payload = row.get("scorecard_payload", {})
+    if isinstance(scorecard_payload, Mapping):
+        compact["scorecard_payload"] = (
+            _compact_runtime_capability_gap_scorecard_payload(scorecard_payload)
+        )
     for key in (
         "priority",
+        "retention_selection",
+        "retention_selection_boundary",
         "source_artifact_kind",
         "source_scorecard_ready",
         "source_scorecard_runtime_evaluation_mode",
@@ -1182,6 +1199,110 @@ def _compact_runtime_capability_gap_routing_row(
         if key in row:
             compact[key] = row[key]
     return compact
+
+
+def _compact_runtime_capability_gap_scorecard_payload(
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    scorecard_row = (
+        payload.get("scorecard_row", {})
+        if isinstance(payload.get("scorecard_row", {}), Mapping)
+        else {}
+    )
+    audit_metrics = (
+        payload.get("audit_metrics", {})
+        if isinstance(payload.get("audit_metrics", {}), Mapping)
+        else {}
+    )
+    return {
+        "artifact_kind": str(
+            payload.get(
+                "artifact_kind",
+                "RuntimeCapabilityGapScorecardPayload",
+            )
+            or "RuntimeCapabilityGapScorecardPayload"
+        ),
+        "requirement_id": str(payload.get("requirement_id", "")),
+        "scorecard_row": {
+            str(key): _compact_runtime_capability_gap_value(value)
+            for key, value in list(scorecard_row.items())[:12]
+        },
+        "audit_metrics": {
+            key: _compact_runtime_capability_gap_value(value)
+            for key, value in _compact_runtime_capability_gap_metric_items(
+                audit_metrics,
+                limit=24,
+            )
+        },
+        "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
+        "boundary": str(payload.get("boundary", ""))[:500],
+    }
+
+
+def _compact_runtime_capability_gap_metric_items(
+    audit_metrics: Mapping[str, object],
+    *,
+    limit: int,
+) -> list[tuple[str, object]]:
+    indexed_items = [
+        (str(key), value, index)
+        for index, (key, value) in enumerate(audit_metrics.items())
+    ]
+
+    def priority(item: tuple[str, object, int]) -> tuple[int, int]:
+        key, value, index = item
+        score = 0
+        if _runtime_capability_gap_metric_has_signal(key, value):
+            score -= 100
+        for token, weight in (
+            ("architect_initial_routing_deferred_meta", 40),
+            ("deferred_meta", 40),
+            ("contract_issues", 35),
+            ("missing", 30),
+            ("invalid", 30),
+            ("exact_semantic_definition", 28),
+            ("required", 25),
+            ("authoring", 24),
+            ("candidate", 22),
+            ("inherited_scope", 20),
+            ("scope_parent", 20),
+            ("contract_complete", 15),
+        ):
+            if token in key:
+                score -= weight
+        return (score, index)
+
+    return [
+        (key, value)
+        for key, value, _ in sorted(indexed_items, key=priority)[: max(limit, 0)]
+    ]
+
+
+def _runtime_capability_gap_metric_has_signal(key: str, value: object) -> bool:
+    if isinstance(value, bool):
+        return value is False if "complete" in key or "passed" in key else value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return bool(value)
+    return value is not None
+
+
+def _compact_runtime_capability_gap_value(value: object) -> object:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value[:500] if isinstance(value, str) else value
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_runtime_capability_gap_value(nested)
+            for key, nested in list(value.items())[:12]
+        }
+    if isinstance(value, list):
+        return [_compact_runtime_capability_gap_value(item) for item in value[:12]]
+    return str(value)[:500]
 
 
 def _load_runtime_capability_gap_routing(
@@ -1219,7 +1340,60 @@ def _load_runtime_capability_gap_routing(
                 continue
             all_rows.append(_compact_runtime_capability_gap_routing_row(payload))
     row_limit = max(int(max_rows or 0), 0)
-    rows = all_rows[-row_limit:] if row_limit else []
+    rows: list[dict[str, object]] = []
+    retention_policy = "latest_rows"
+    if row_limit:
+        latest_reserve = _runtime_capability_gap_routing_latest_reserve(
+            row_limit=row_limit,
+            rows_seen=len(all_rows),
+        )
+        pinned_rows = _priority_pinned_runtime_capability_gap_rows(
+            all_rows,
+            max_rows=max(row_limit - latest_reserve, 0),
+        )
+        latest_capacity = max(row_limit - len(pinned_rows), 0)
+        latest_rows = all_rows[-latest_capacity:] if latest_capacity else []
+        seen: set[str] = set()
+        seen_pin_keys: set[str] = set()
+        row_indexes = {id(row): index for index, row in enumerate(all_rows)}
+
+        def append_candidates(
+            candidates: list[dict[str, object]],
+            *,
+            retention_selection: str,
+        ) -> None:
+            for row in candidates:
+                pin_key = _runtime_capability_gap_routing_pin_key(row)
+                if pin_key and pin_key in seen_pin_keys:
+                    continue
+                fingerprint = json.dumps(row, sort_keys=True, ensure_ascii=False)
+                if fingerprint in seen:
+                    continue
+                seen.add(fingerprint)
+                if pin_key:
+                    seen_pin_keys.add(pin_key)
+                row["retention_selection"] = retention_selection
+                row["retention_selection_boundary"] = (
+                    "Selection metadata explains why this routing row was "
+                    "retained for prompt context; it is not proof evidence, "
+                    "simulation evidence, generated-code evidence, verifier "
+                    "evidence, or source authority."
+                )
+                rows.append(row)
+                if len(rows) >= row_limit:
+                    break
+
+        append_candidates(pinned_rows, retention_selection="priority_pinned")
+        if len(rows) < row_limit:
+            append_candidates(latest_rows, retention_selection="latest")
+        if len(rows) < row_limit:
+            append_candidates(
+                list(reversed(all_rows)),
+                retention_selection="latest_backfill",
+            )
+        rows.sort(key=lambda row: row_indexes.get(id(row), 0))
+        if pinned_rows:
+            retention_policy = "priority_pinned_latest_rows"
     return {
         "schema_version": 1,
         "artifact_kind": "RuntimeCapabilityGapRoutingContext",
@@ -1231,7 +1405,7 @@ def _load_runtime_capability_gap_routing(
             "source_paths": len(paths),
             "errors": len(errors),
             "max_rows": max_rows,
-            "retention_policy": "latest_rows",
+            "retention_policy": retention_policy,
         },
         "errors": errors[:10],
         "boundary": (
@@ -1240,6 +1414,161 @@ def _load_runtime_capability_gap_routing(
             "generated-code evidence, verifier evidence, or source authority."
         ),
     }
+
+
+def _runtime_capability_gap_routing_latest_reserve(
+    *,
+    row_limit: int,
+    rows_seen: int,
+) -> int:
+    if row_limit <= 1 or rows_seen <= row_limit:
+        return 0
+    return min(5, max(1, row_limit // 5))
+
+
+def _priority_pinned_runtime_capability_gap_rows(
+    rows: list[dict[str, object]],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    pinned_by_key: dict[str, tuple[int, int, dict[str, object]]] = {}
+    for row_index, row in enumerate(rows):
+        priority = _runtime_capability_gap_routing_pin_priority(row)
+        if priority < 80:
+            continue
+        pin_key = _runtime_capability_gap_routing_pin_key(row)
+        if not pin_key:
+            pin_key = f"runtime_capability_gap_row:{row_index}"
+        existing = pinned_by_key.get(pin_key)
+        if existing is not None and (existing[0], existing[1]) >= (
+            priority,
+            row_index,
+        ):
+            continue
+        pinned_by_key[pin_key] = (priority, row_index, row)
+    prioritized = sorted(
+        pinned_by_key.values(),
+        key=lambda item: (item[0], item[1]),
+        reverse=True,
+    )[:max(max_rows, 0)]
+    prioritized.sort(key=lambda item: item[1])
+    return [row for _priority, _row_index, row in prioritized]
+
+
+def _runtime_capability_gap_routing_pin_key(row: Mapping[str, object]) -> str:
+    requirement_id = str(row.get("requirement_id", "") or "").strip()
+    if not requirement_id:
+        requirement_id = str(row.get("id", "") or "").strip()
+    if not requirement_id:
+        return ""
+    scope = str(row.get("scope", "integrated_runtime") or "integrated_runtime")
+    return f"{scope}:{requirement_id}"
+
+
+def _runtime_capability_gap_routing_pin_priority(row: Mapping[str, object]) -> int:
+    explicit_priority = row.get("priority", None)
+    score = 0
+    try:
+        if explicit_priority is not None and str(explicit_priority).strip():
+            # Audit-generated priority is a scorecard rank: 1 is the first gap.
+            score += 10_000 - int(explicit_priority)
+    except (TypeError, ValueError):
+        pass
+    if not score:
+        scope = str(row.get("scope", "") or "").strip()
+        if scope != "component_calibration":
+            score += 20
+        else:
+            score -= 20
+        if str(row.get("gap_status", "") or "").strip().upper() in {"", "OPEN"}:
+            score += 10
+        owner = str(row.get("next_owner_subsystem", "") or "").strip()
+        if owner and owner != "ArchitectCoordinator":
+            score += 60
+        elif owner == "ArchitectCoordinator":
+            score += 10
+    requirement_id = str(row.get("requirement_id", "") or "").lower()
+    if "deferred_meta" in requirement_id:
+        score += 2_000
+    critical_tokens = (
+        "architect",
+        "capability_gap",
+        "candidate_materialization",
+        "candidate_materialized",
+        "candidate_verifier",
+        "exact_semantic_definition",
+        "exact_proof_body",
+        "formal",
+        "frontier",
+        "kernel",
+        "lean",
+        "live",
+        "proof",
+        "pseudo_formal",
+        "simulation",
+        "source_theorem",
+        "theorem",
+    )
+    if any(token in requirement_id for token in critical_tokens):
+        score += 50
+    if (
+        "candidate_materialization" in requirement_id
+        or "candidate_materialized" in requirement_id
+    ):
+        score += 1_500
+    if "exact_semantic_definition" in requirement_id and (
+        "authoring" in requirement_id or "candidate_verifier" in requirement_id
+    ):
+        score += 1_200
+    if "source_theorem" in requirement_id and "proof_body" in requirement_id:
+        score += 1_000
+    if "full_frontier" in requirement_id and "kernel" in requirement_id:
+        score += 800
+    payload = (
+        row.get("scorecard_payload", {})
+        if isinstance(row.get("scorecard_payload", {}), Mapping)
+        else {}
+    )
+    audit_metrics = (
+        payload.get("audit_metrics", {})
+        if isinstance(payload.get("audit_metrics", {}), Mapping)
+        else {}
+    )
+    if any(
+        (
+            "architect_initial_routing_deferred_meta" in str(key)
+            or "deferred_meta" in str(key)
+        )
+        and _runtime_capability_gap_metric_has_signal(str(key), value)
+        for key, value in audit_metrics.items()
+    ):
+        score += 2_000
+    if any(
+        (
+            "candidate_materialization" in str(key)
+            or "candidate_materialized" in str(key)
+        )
+        and _runtime_capability_gap_metric_has_signal(str(key), value)
+        for key, value in audit_metrics.items()
+    ):
+        score += 1_500
+    if any(
+        (
+            "source_theorem_exact_semantic_definition_authoring" in str(key)
+            or "post_runtime_exact_semantic_definition_authoring" in str(key)
+        )
+        and _runtime_capability_gap_metric_has_signal(str(key), value)
+        for key, value in audit_metrics.items()
+    ):
+        score += 1_200
+    if any(
+        _runtime_capability_gap_metric_has_signal(str(key), value)
+        for key, value in audit_metrics.items()
+    ):
+        score += 45
+    if str(row.get("blocker", "") or "").strip():
+        score += 5
+    return score
 
 
 _FORMAL_GAP_NEXT_ACTION_ROUTE_IDS = RUNTIME_FORMAL_GAP_NEXT_ACTION_ROUTE_IDS
@@ -1271,6 +1600,67 @@ def _runtime_learning_memory_row_trigger(row: Mapping[str, object]) -> str:
         if trigger:
             return trigger
     return str(row.get("trigger", "") or "").strip()
+
+
+def _runtime_learning_memory_pseudo_formal_bv_mapping(
+    row: Mapping[str, object],
+) -> dict[str, object]:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    row_value = row.get("block_verification", {})
+    input_value = input_summary.get("block_verification", {})
+    if isinstance(row_value, Mapping) and row_value:
+        return dict(row_value)
+    if isinstance(input_value, Mapping):
+        return dict(input_value)
+    if isinstance(row_value, Mapping):
+        return dict(row_value)
+    return {}
+
+
+def _runtime_learning_memory_pseudo_formal_bv_status(
+    row: Mapping[str, object],
+) -> str:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    row_kind = str(
+        row.get("row_kind", "")
+        or row.get("pseudo_formal_row_kind", "")
+        or input_summary.get("row_kind", "")
+        or input_summary.get("pseudo_formal_row_kind", "")
+        or ""
+    ).strip()
+    block_verification = _runtime_learning_memory_pseudo_formal_bv_mapping(row)
+    provenance = str(
+        row.get("block_verification_verifier_provenance", "")
+        or input_summary.get("block_verification_verifier_provenance", "")
+        or block_verification.get("verifier_provenance", "")
+        or block_verification.get("verifier_source", "")
+        or ""
+    ).strip()
+    independent = bool(
+        row.get("block_verification_independent", False)
+        or input_summary.get("block_verification_independent", False)
+        or block_verification.get("independent_verifier", False)
+        or provenance in PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES
+    )
+    request_role = bool(
+        row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+        or row.get("independent_block_verification_required", False)
+        or input_summary.get("independent_block_verification_required", False)
+        or str(row.get("next_owner_subsystem", "") or "").strip()
+        == "BlockVerifier/CalibrationReferee"
+        or str(input_summary.get("next_owner_subsystem", "") or "").strip()
+        == "BlockVerifier/CalibrationReferee"
+    )
+    if not request_role:
+        return ""
+    verdict = str(block_verification.get("verdict", "") or "").strip()
+    if independent and verdict in {"accepted", "failed"}:
+        return "completed"
+    return "pending"
 
 
 def _runtime_learning_memory_row_is_formal_gap_next_action_routing(
@@ -1494,6 +1884,17 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
     if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
+        row_kind = str(
+            row.get("row_kind", "")
+            or row.get("pseudo_formal_row_kind", "")
+            or input_summary.get("row_kind", "")
+            or input_summary.get("pseudo_formal_row_kind", "")
+            or ""
+        )
+        if _runtime_learning_memory_pseudo_formal_bv_status(row) == "completed":
+            return 91
+        if row_kind in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS:
+            return 89
         return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
@@ -1761,6 +2162,13 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         target_lane = str(
             row.get("target_lane", "") or input_summary.get("target_lane", "") or ""
         ).strip()
+        row_kind = str(
+            row.get("row_kind", "")
+            or row.get("pseudo_formal_row_kind", "")
+            or input_summary.get("row_kind", "")
+            or input_summary.get("pseudo_formal_row_kind", "")
+            or ""
+        ).strip()
         source_block_id = str(
             row.get("source_block_id", "")
             or input_summary.get("source_block_id", "")
@@ -1770,11 +2178,13 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         return (
             PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
             + ":"
-            + (target_scope or target or "global")
-            + ":"
             + (target_lane or PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP)
             + ":"
-            + (source_block_id or work_order_id)
+            + (row_kind or "row")
+            + ":"
+            + (source_block_id or "block")
+            + ":"
+            + (work_order_id or "work_order")
         )
     if _runtime_learning_memory_row_requires_candidate_materialization(row):
         return "candidate_materialization_required:" + (target_scope or target)
@@ -2427,9 +2837,18 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_block_conclusion",
         "block_depth",
         "dependency_scope",
+        "scope_parent_id",
+        "source_block_proof_text",
+        "structural_quality_ok",
         "faithfulness_status",
         "faithfulness_repair_status",
         "block_verification",
+        "structural_quality",
+        "block_verification_verifier_provenance",
+        "block_verification_independent",
+        "independent_block_verification_required",
+        "independent_block_verification_status",
+        "independent_block_verification_completed",
         "bv_calibration",
         "pseudo_formal_method_contract_id",
         "pseudo_formal_pipeline_stage",
@@ -2670,15 +3089,22 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "missing_contracts",
         "required_runtime_configuration",
         "required_formalizer_behavior",
+        "pseudo_formal_block_verifier_worker",
     ):
         value = row.get(key)
         if value not in (None, "", [], {}):
             compact[key] = _compact_runtime_learning_field_value(key, value)
+    if "scope_parent_id" in row and "scope_parent_id" not in compact:
+        compact["scope_parent_id"] = str(row.get("scope_parent_id", "") or "")
     for key in (
         "recommended_proof_obligation_ids",
         "selected_proof_obligation_ids",
         "target_ids",
         "dependency_ids",
+        "dependency_statement_context",
+        "inherited_scope",
+        "source_block_premises",
+        "structural_quality_issues",
         "kernel_verified_proof_obligation_ids",
         "proved_non_kernel_proof_obligation_ids",
         "failed_proof_obligation_ids",
@@ -2822,6 +3248,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
             "source_block_conclusion",
             "block_depth",
             "dependency_scope",
+            "scope_parent_id",
             "faithfulness_status",
             "faithfulness_repair_status",
             "block_verification",
@@ -2866,6 +3293,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         for key in (
             "target_ids",
             "target_theorem_goal_ids",
+            "inherited_scope",
             "candidate_materialization_statuses",
             "adapter_candidate_imports",
             "kernel_verified_source_to_bridge_premise_derivation_ids",
@@ -2966,10 +3394,17 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_block_id",
         "source_block_type",
         "source_block_conclusion",
+        "source_block_proof_text",
+        "structural_quality_ok",
         "pseudo_formal_method_contract_id",
         "pseudo_formal_pipeline_stage",
         "row_kind",
         "target_lane",
+        "block_verification_verifier_provenance",
+        "block_verification_independent",
+        "independent_block_verification_required",
+        "independent_block_verification_status",
+        "independent_block_verification_completed",
         "formalization_gap_planner_bridge_id",
         "standalone_seed_artifact_id",
         "formalization_gap_planner_handoff_id",
@@ -3171,6 +3606,10 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
     list_keys = (
         "target_ids",
         "dependency_ids",
+        "dependency_statement_context",
+        "inherited_scope",
+        "source_block_premises",
+        "structural_quality_issues",
         "target_theorem_goal_ids",
         "selected_proof_obligation_ids",
         "selected_unverified_proof_obligation_ids",
@@ -3258,6 +3697,9 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "required_formalizer_behavior",
     )
     mapping_keys = (
+        "block_verification",
+        "structural_quality",
+        "pseudo_formal_block_verifier_worker",
         "formalization_counts",
         "retrieval_counts",
         "runtime_requested_evidence_contract",
@@ -3300,6 +3742,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
                     for child_key, child_value in list(child.items())[:12]
                     if child_value not in (None, "", [], {})
                 }
+    if "scope_parent_id" in value and "scope_parent_id" not in compact:
+        compact["scope_parent_id"] = str(value.get("scope_parent_id", "") or "")
     live_request = value.get("candidate_live_proof_state_request")
     if isinstance(live_request, Mapping):
         goal_excerpt = live_request.get("proof_body_goal_excerpt", [])
@@ -7860,6 +8304,165 @@ def _formal_verifier_replay_repair_patch_autoworker(args: argparse.Namespace) ->
     return 0 if payload["all_ok"] else 1
 
 
+def _pseudo_formal_block_verifier_prompt_packets(args: argparse.Namespace) -> int:
+    payload = export_pseudo_formal_block_verifier_prompt_packets(
+        [Path(path) for path in args.runtime_learning_jsonl],
+        Path(args.out),
+        max_packets=args.max_packets,
+    )
+    print("\nAI Statistical Theory Lab Pseudo-Formal BlockVerifier Prompt Packets")
+    print("=" * 72)
+    print(
+        f"requests={payload['n_request_rows']} "
+        f"packets={payload['n_ok_prompt_packets']}/{payload['n_prompt_packets']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nprompt manifest written to "
+        f"{(Path(args.out) / 'pseudo_formal_block_verifier_prompt_packets_manifest.json').resolve()}"
+    )
+    print(
+        f"prompt packet jsonl written to "
+        f"{(Path(args.out) / 'pseudo_formal_block_verifier_prompt_packets.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _pseudo_formal_block_verifier_llm_responses(args: argparse.Namespace) -> int:
+    provider_name = str(args.provider or "anthropic").strip().lower()
+    provider = _pseudo_formal_block_verifier_provider(
+        provider_name=provider_name,
+        static_response_file=(
+            Path(args.static_response_file)
+            if str(args.static_response_file or "").strip()
+            else None
+        ),
+        llm_timeout_seconds=args.llm_timeout_seconds,
+    )
+    payload = export_pseudo_formal_block_verifier_llm_responses(
+        Path(args.prompt_packets_manifest),
+        Path(args.out),
+        provider=provider,
+        provider_name=provider_name,
+        model=str(args.model or ""),
+        model_tier=str(args.model_tier or "sonnet"),
+        max_packets=args.max_packets,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        max_repair_attempts=args.max_repair_attempts,
+    )
+    print("\nAI Statistical Theory Lab Pseudo-Formal BlockVerifier LLM Responses")
+    print("=" * 72)
+    print(
+        f"provider={payload['provider_name']} model={payload['model']} "
+        f"responses={payload['n_ok_responses']}/{payload['n_prompt_packets']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nLLM response manifest written to "
+        f"{(Path(args.out) / 'pseudo_formal_block_verifier_llm_response_manifest.json').resolve()}"
+    )
+    print(
+        f"response jsonl written to "
+        f"{(Path(args.out) / 'pseudo_formal_block_verifier_responses.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _pseudo_formal_block_verifier_provider(
+    *,
+    provider_name: str,
+    static_response_file: Path | None,
+    llm_timeout_seconds: float | None,
+):
+    if provider_name == "anthropic":
+        return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds)
+    if provider_name == "openai":
+        return OpenAIResponsesGeneratorBackend(timeout_s=llm_timeout_seconds)
+    if provider_name == "static":
+        if static_response_file is None:
+            raise ValueError("static provider requires --static-response-file")
+        return StaticArchitectLLMProvider(
+            static_response_file.read_text(encoding="utf-8")
+        )
+    raise ValueError(
+        "unsupported PF BlockVerifier provider: "
+        f"{provider_name!r}; expected anthropic, openai, or static"
+    )
+
+
+def _pseudo_formal_block_verifier_response_validation(args: argparse.Namespace) -> int:
+    payload = export_pseudo_formal_block_verifier_response_validation(
+        Path(args.prompt_packets_manifest),
+        Path(args.response_jsonl),
+        Path(args.out),
+    )
+    print("\nAI Statistical Theory Lab Pseudo-Formal BlockVerifier Response Validation")
+    print("=" * 72)
+    print(
+        f"responses={payload['n_valid_responses']}/{payload['n_responses']} "
+        f"learning_rows={payload['n_runtime_learning_rows']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nvalidation manifest written to "
+        f"{(Path(args.out) / 'pseudo_formal_block_verifier_response_validation_manifest.json').resolve()}"
+    )
+    print(
+        f"runtime learning rows written to "
+        f"{(Path(args.out) / 'runtime_learning_rows.jsonl').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _pseudo_formal_block_verifier_component_gate(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    provider_name = str(args.provider or "anthropic").strip().lower()
+    provider = _pseudo_formal_block_verifier_provider(
+        provider_name=provider_name,
+        static_response_file=(
+            Path(args.static_response_file)
+            if str(args.static_response_file or "").strip()
+            else None
+        ),
+        llm_timeout_seconds=args.llm_timeout_seconds,
+    )
+    payload = run_pseudo_formal_block_verifier_component_gate(
+        [Path(path) for path in args.runtime_learning_jsonl],
+        Path(args.out),
+        provider=provider,
+        provider_name=provider_name,
+        model=str(args.model or ""),
+        model_tier=str(args.model_tier or "sonnet"),
+        max_packets=args.max_packets,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        max_repair_attempts=args.max_repair_attempts,
+    )
+    print("\nAI Statistical Theory Lab Pseudo-Formal BlockVerifier Component Gate")
+    print("=" * 72)
+    print(f"provider={payload['provider_name']} model={payload['model']}")
+    print(f"live_generator={payload['live_generator']}")
+    print(f"static_or_fixture_only={payload['static_or_fixture_only']}")
+    print(f"fixture_plumbing_ok={payload['fixture_plumbing_ok']}")
+    print(f"capability_evidence_ok={payload['capability_evidence_ok']}")
+    print(
+        "prompt_packets="
+        f"{payload['n_ok_prompt_packets']}/{payload['n_prompt_packets']} "
+        "valid_responses="
+        f"{payload['n_valid_responses']} "
+        "runtime_learning_rows="
+        f"{payload['n_runtime_learning_rows']}"
+    )
+    print(f"proof_evidence_status={payload['proof_evidence_status']}")
+    print(f"manifest={payload['artifacts']['manifest_json']}")
+    if payload["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and payload["fixture_plumbing_ok"]:
+        return 0
+    return 1
+
+
 def _formal_verifier_replay_repair_patch_response_promotion(args: argparse.Namespace) -> int:
     payload = export_formal_verifier_replay_repair_patch_response_promotion(
         Path(args.formal_verifier_replay_repair_patch_response_validation_dir),
@@ -10638,6 +11241,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             args,
             manifest,
         )
+    if getattr(args, "run_pseudo_formal_block_verifier_eval", False):
+        manifest = _attach_pseudo_formal_block_verifier_eval_to_runtime_manifest(
+            args,
+            manifest,
+        )
     print("\nAI Statistician Agent Runtime")
     print("=" * 72)
     print(
@@ -11078,6 +11686,328 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
     return manifest
 
 
+def _attach_pseudo_formal_block_verifier_eval_to_runtime_manifest(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Run the PF/BV component gate and attach it to runtime output."""
+
+    provider_name = str(
+        getattr(args, "pseudo_formal_block_verifier_eval_provider", "same") or "same"
+    )
+    if provider_name == "same":
+        provider_name = str(getattr(args, "provider", "anthropic") or "anthropic")
+    out_dir = Path(
+        getattr(args, "pseudo_formal_block_verifier_eval_out", "")
+        or Path(args.out) / "internal_pseudo_formal_block_verifier_eval"
+    )
+    existing_manifest_path = str(
+        getattr(args, "pseudo_formal_block_verifier_eval_existing_manifest", "")
+        or ""
+    ).strip()
+    if existing_manifest_path:
+        eval_manifest = _load_existing_component_eval_manifest(
+            Path(existing_manifest_path),
+            expected_artifact_kind="PseudoFormalBlockVerifierComponentGateManifest",
+        )
+    else:
+        runtime_learning_paths = [
+            Path(path)
+            for path in (
+                getattr(args, "pseudo_formal_block_verifier_runtime_learning_jsonl", [])
+                or []
+            )
+            if str(path).strip()
+        ]
+        if not runtime_learning_paths:
+            runtime_learning_paths = [
+                _materialize_pseudo_formal_block_verifier_source_rows(
+                    args,
+                    manifest,
+                    runtime_out_dir=Path(args.out),
+                )
+            ]
+        provider = _pseudo_formal_block_verifier_provider(
+            provider_name=provider_name,
+            static_response_file=(
+                Path(getattr(args, "pseudo_formal_block_verifier_eval_static_response_file", ""))
+                if getattr(args, "pseudo_formal_block_verifier_eval_static_response_file", "")
+                else None
+            ),
+            llm_timeout_seconds=float(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_eval_llm_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+            ),
+        )
+        eval_manifest = run_pseudo_formal_block_verifier_component_gate(
+            runtime_learning_paths,
+            out_dir,
+            provider=provider,
+            provider_name=provider_name,
+            model=str(getattr(args, "pseudo_formal_block_verifier_eval_model", "") or ""),
+            model_tier=str(
+                getattr(args, "pseudo_formal_block_verifier_eval_model_tier", "sonnet")
+                or "sonnet"
+            ),
+            max_packets=int(
+                getattr(args, "pseudo_formal_block_verifier_eval_max_packets", 20)
+            ),
+            max_tokens=int(
+                getattr(args, "pseudo_formal_block_verifier_eval_max_tokens", 2000)
+            ),
+            temperature=float(
+                getattr(args, "pseudo_formal_block_verifier_eval_temperature", 0.0)
+            ),
+            max_repair_attempts=int(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_eval_max_repair_attempts",
+                    1,
+                )
+            ),
+        )
+    gate_summary = _runtime_component_gate_summary(eval_manifest)
+    artifacts = (
+        dict(eval_manifest.get("artifacts", {}) or {})
+        if isinstance(eval_manifest.get("artifacts", {}), Mapping)
+        else {}
+    )
+    source_runtime_learning_jsonl_paths = [
+        str(path).strip()
+        for path in eval_manifest.get("source_runtime_learning_jsonl_paths", [])
+        if str(path).strip()
+    ]
+    source_runtime_learning_lineage_reference_dir = str(Path(args.out).resolve())
+    source_runtime_learning_lineage_ok = (
+        _pseudo_formal_source_runtime_learning_lineage_ok(
+            source_runtime_learning_jsonl_paths,
+            runtime_out_dir=Path(args.out),
+        )
+    )
+    attached = {
+        "artifact_kind": "RuntimeAttachedPseudoFormalBlockVerifierEval",
+        "manifest_path": str(artifacts.get("manifest_json", "")),
+        "prompt_packets_manifest_path": str(
+            artifacts.get("prompt_packets_manifest_json", "")
+        ),
+        "llm_response_manifest_path": str(
+            artifacts.get("llm_response_manifest_json", "")
+        ),
+        "response_validation_manifest_path": str(
+            artifacts.get("response_validation_manifest_json", "")
+        ),
+        "runtime_learning_rows_jsonl": str(
+            artifacts.get("runtime_learning_rows_jsonl", "")
+        ),
+        "provider_name": str(gate_summary["provider_name"]),
+        "backend_provider_name": str(gate_summary["backend_provider_name"]),
+        "component_backend_provider_names": list(
+            gate_summary["component_backend_provider_names"]
+        ),
+        "model": str(eval_manifest.get("model", "")),
+        "live_generator": bool(gate_summary["live_generator"]),
+        "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
+        "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
+        "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
+        "n_prompt_packets": int(eval_manifest.get("n_prompt_packets", 0) or 0),
+        "n_ok_prompt_packets": int(eval_manifest.get("n_ok_prompt_packets", 0) or 0),
+        "n_llm_response_rows": int(
+            eval_manifest.get("n_llm_response_rows", 0) or 0
+        ),
+        "n_ok_responses": int(eval_manifest.get("n_ok_responses", 0) or 0),
+        "n_valid_responses": int(eval_manifest.get("n_valid_responses", 0) or 0),
+        "n_runtime_learning_rows": int(
+            eval_manifest.get("n_runtime_learning_rows", 0) or 0
+        ),
+        "n_source_runtime_learning_jsonl_paths": len(
+            source_runtime_learning_jsonl_paths
+        ),
+        "source_runtime_learning_jsonl_paths": list(
+            source_runtime_learning_jsonl_paths
+        ),
+        "source_runtime_learning_lineage_reference_dir": (
+            source_runtime_learning_lineage_reference_dir
+        ),
+        "source_runtime_learning_lineage_ok": bool(
+            source_runtime_learning_lineage_ok
+        ),
+        "n_accepted_blocks": int(eval_manifest.get("n_accepted_blocks", 0) or 0),
+        "n_failed_blocks": int(eval_manifest.get("n_failed_blocks", 0) or 0),
+        "runtime_learning_rows": [
+            dict(row)
+            for row in eval_manifest.get("runtime_learning_rows", [])
+            if isinstance(row, Mapping)
+        ],
+        "proof_evidence_status": str(
+            eval_manifest.get(
+                "proof_evidence_status",
+                "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE",
+            )
+        ),
+        "boundary": (
+            "This attached component gate checks PF/BV prompt generation, live "
+            "LLM BlockVerifier responses, and response validation. It is not "
+            "Lean/AXLE proof evidence and not integrated theorem closure."
+        ),
+    }
+    manifest["internal_pseudo_formal_block_verifier_eval"] = attached
+    manifest["internal_pseudo_formal_block_verifier_eval_provider_name"] = str(
+        attached["provider_name"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_backend_provider_name"] = str(
+        attached["backend_provider_name"]
+    )
+    manifest[
+        "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names"
+    ] = list(attached["component_backend_provider_names"])
+    manifest["internal_pseudo_formal_block_verifier_eval_live_generator"] = bool(
+        attached["live_generator"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_static_or_fixture_only"] = bool(
+        attached["static_or_fixture_only"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_fixture_plumbing_ok"] = bool(
+        attached["fixture_plumbing_ok"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_capability_evidence_ok"] = bool(
+        attached["capability_evidence_ok"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_prompt_packets"] = int(
+        attached["n_prompt_packets"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_valid_responses"] = int(
+        attached["n_valid_responses"]
+    )
+    manifest["internal_pseudo_formal_block_verifier_eval_runtime_learning_rows"] = int(
+        attached["n_runtime_learning_rows"]
+    )
+    manifest[
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_paths"
+    ] = list(source_runtime_learning_jsonl_paths)
+    manifest[
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_path_count"
+    ] = len(source_runtime_learning_jsonl_paths)
+    manifest[
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_reference_dir"
+    ] = source_runtime_learning_lineage_reference_dir
+    manifest[
+        "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok"
+    ] = bool(source_runtime_learning_lineage_ok)
+    manifest.setdefault("artifacts", {})[
+        "internal_pseudo_formal_block_verifier_eval_manifest_json"
+    ] = str(attached["manifest_path"])
+    _refresh_runtime_coding_agent_capability_manifest(
+        manifest,
+        runtime_out_dir=Path(args.out),
+    )
+    manifest_path = Path(args.out) / "research_agent_runtime_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
+    return manifest
+
+
+def _pseudo_formal_source_runtime_learning_lineage_ok(
+    source_runtime_learning_jsonl_paths: list[str],
+    *,
+    runtime_out_dir: Path,
+) -> bool:
+    """Return true when PF/BV consumed learning rows from this runtime output."""
+
+    try:
+        runtime_root = runtime_out_dir.expanduser().resolve()
+    except OSError:
+        runtime_root = runtime_out_dir.expanduser().absolute()
+    for raw_path in source_runtime_learning_jsonl_paths:
+        if not str(raw_path).strip():
+            continue
+        source_path = Path(str(raw_path).strip()).expanduser()
+        try:
+            if not source_path.is_absolute():
+                source_path = (Path.cwd() / source_path).resolve()
+            else:
+                source_path = source_path.resolve()
+            source_path.relative_to(runtime_root)
+            return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def _materialize_pseudo_formal_block_verifier_source_rows(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+    *,
+    runtime_out_dir: Path,
+) -> Path:
+    """Materialize current-runtime PF/BV source rows before attached validation."""
+
+    artifacts = manifest.get("artifacts", {})
+    default_runtime_learning_path = (
+        str(artifacts.get("runtime_learning_rows_jsonl", "") or "")
+        if isinstance(artifacts, Mapping)
+        else ""
+    )
+    source_paths = [
+        Path(default_runtime_learning_path or runtime_out_dir / "runtime_learning_rows.jsonl")
+    ]
+    source_paths.extend(
+        Path(path)
+        for path in getattr(args, "learning_memory_jsonl", []) or []
+        if str(path).strip()
+    )
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source_path in source_paths:
+        if not source_path.exists():
+            continue
+        for line in source_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            row.setdefault("artifact_kind", "RuntimeLearningRow")
+            row.setdefault(
+                "materialized_for_component_gate",
+                "pseudo_formal_block_verifier_component_gate",
+            )
+            row.setdefault(
+                "materialization_boundary",
+                (
+                    "This row was materialized under the current AgentRuntime "
+                    "output directory so an attached PF/BV component gate can "
+                    "consume runtime-visible learning memory. It remains "
+                    "non-proof routing memory."
+                ),
+            )
+            fingerprint = json.dumps(row, sort_keys=True, default=str)
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            rows.append(row)
+    source_rows_path = runtime_out_dir / "runtime_pseudo_formal_block_verifier_source_rows.jsonl"
+    source_rows_path.parent.mkdir(parents=True, exist_ok=True)
+    source_rows_path.write_text(
+        "".join(json.dumps(row, sort_keys=True, default=str) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    artifacts = manifest.setdefault("artifacts", {})
+    if isinstance(artifacts, dict):
+        artifacts["runtime_pseudo_formal_block_verifier_source_rows_jsonl"] = str(
+            source_rows_path
+        )
+    manifest["runtime_pseudo_formal_block_verifier_source_rows"] = len(rows)
+    manifest[
+        "runtime_pseudo_formal_block_verifier_source_rows_materialized_from"
+    ] = [str(path) for path in source_paths]
+    return source_rows_path
+
+
 def _refresh_runtime_coding_agent_capability_manifest(
     manifest: dict[str, Any],
     *,
@@ -11097,6 +12027,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
     )
     component_gate_learning_rows = _runtime_formalizer_component_gate_learning_rows(
         manifest
+    )
+    pseudo_formal_component_gate_learning_rows = (
+        _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(manifest)
     )
     artifacts = manifest.setdefault("artifacts", {})
     learning_path_raw = str(artifacts.get("runtime_learning_rows_jsonl", "") or "")
@@ -11124,13 +12057,17 @@ def _refresh_runtime_coding_agent_capability_manifest(
             "coding_agent_generated_code_capability_feedback",
             "coding_agent_generated_code_component_gate_feedback",
             "formalizer_lean_candidate_component_gate_feedback",
+            "pseudo_formal_block_verifier_component_gate_feedback",
         }
+        and row.get("source_component_gate")
+        != "pseudo_formal_block_verifier_component_gate"
     ]
     refreshed_rows = [
         *retained_rows,
         *capability_learning_rows,
         *coding_component_gate_learning_rows,
         *component_gate_learning_rows,
+        *pseudo_formal_component_gate_learning_rows,
     ]
     learning_path.parent.mkdir(parents=True, exist_ok=True)
     learning_path.write_text(
@@ -11145,6 +12082,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
     )
     manifest["n_runtime_formalizer_component_gate_learning_rows"] = len(
         component_gate_learning_rows
+    )
+    manifest["n_runtime_pseudo_formal_block_verifier_component_gate_learning_rows"] = len(
+        pseudo_formal_component_gate_learning_rows
     )
     manifest["n_runtime_learning_rows"] = len(refreshed_rows)
 
@@ -11346,6 +12286,12 @@ def _apply_research_agent_runtime_capability_eval_preset(
             getattr(args, "formalizer_repair_eval_provider", "same") or "same"
         ) in {"", "none", "static"}:
             args.formalizer_repair_eval_provider = "same"
+        args.run_pseudo_formal_block_verifier_eval = True
+        if str(
+            getattr(args, "pseudo_formal_block_verifier_eval_provider", "same")
+            or "same"
+        ) in {"", "none", "static"}:
+            args.pseudo_formal_block_verifier_eval_provider = "same"
         if lean_project and not str(
             getattr(args, "formalizer_repair_eval_lean_project", "") or ""
         ).strip():
@@ -11547,6 +12493,12 @@ def _research_agent_runtime_capability_config_errors(
             "formalizer_repair_eval_provider",
             "formalizer_repair_eval_existing_manifest",
             "Formalizer Lean-candidate repair eval",
+        ),
+        (
+            "run_pseudo_formal_block_verifier_eval",
+            "pseudo_formal_block_verifier_eval_provider",
+            "pseudo_formal_block_verifier_eval_existing_manifest",
+            "pseudo-formal BlockVerifier eval",
         ),
     )
     main_provider = str(getattr(args, "provider", "") or "")
@@ -11841,12 +12793,38 @@ def _research_agent_runtime_audit(args: argparse.Namespace) -> int:
         )
         or ""
     ).strip()
+    post_runtime_materializer_manifest = str(
+        getattr(
+            args,
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest",
+            "",
+        )
+        or ""
+    ).strip()
+    post_runtime_lean_repair_manifest = str(
+        getattr(
+            args,
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest",
+            "",
+        )
+        or ""
+    ).strip()
     payload = audit_research_agent_runtime(
         Path(args.runtime_dir),
         Path(args.out),
         post_runtime_exact_semantic_definition_authoring_worker_manifest=(
             Path(post_runtime_authoring_manifest)
             if post_runtime_authoring_manifest
+            else None
+        ),
+        post_runtime_exact_semantic_definition_authoring_candidate_materializer_manifest=(
+            Path(post_runtime_materializer_manifest)
+            if post_runtime_materializer_manifest
+            else None
+        ),
+        post_runtime_exact_semantic_definition_materialized_lean_repair_executor_manifest=(
+            Path(post_runtime_lean_repair_manifest)
+            if post_runtime_lean_repair_manifest
             else None
         ),
     )
@@ -16097,6 +17075,226 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formal_verifier_replay_repair_patch_autoworker
     )
 
+    pseudo_formal_block_verifier_prompt_packets = sub.add_parser(
+        "pseudo-formal-block-verifier-prompt-packets",
+        help=(
+            "export independent PF/BV block-verifier prompt packets from "
+            "runtime learning request rows"
+        ),
+    )
+    pseudo_formal_block_verifier_prompt_packets.add_argument(
+        "--runtime-learning-jsonl",
+        action="append",
+        required=True,
+        help=(
+            "runtime_learning_rows.jsonl containing "
+            "pseudo_formal_independent_block_verification_request rows; repeatable"
+        ),
+    )
+    pseudo_formal_block_verifier_prompt_packets.add_argument(
+        "--max-packets",
+        type=int,
+        default=20,
+        help="maximum independent PF/BV request rows to export",
+    )
+    pseudo_formal_block_verifier_prompt_packets.add_argument(
+        "--out",
+        default="runs/pseudo_formal_block_verifier_prompt_packets",
+        help="pseudo-formal block-verifier prompt packet output directory",
+    )
+    pseudo_formal_block_verifier_prompt_packets.set_defaults(
+        func=_pseudo_formal_block_verifier_prompt_packets
+    )
+
+    pseudo_formal_block_verifier_llm_responses = sub.add_parser(
+        "pseudo-formal-block-verifier-llm-responses",
+        help=(
+            "run generator-only LLM responses for independent PF/BV "
+            "block-verifier prompt packets"
+        ),
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--prompt-packets-manifest",
+        required=True,
+        help="pseudo_formal_block_verifier_prompt_packets_manifest.json",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--provider",
+        choices=["anthropic", "openai", "static"],
+        default="anthropic",
+        help="generator-only provider for independent BV responses",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--model",
+        default="",
+        help="optional provider model override; default resolves by model tier",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--model-tier",
+        choices=list(CLAUDE_MODEL_TIERS),
+        default="sonnet",
+        help="Claude cost tier used when provider/model resolution needs a default",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response fixture used only with --provider static",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        help="wall-clock timeout for live generator calls",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--max-packets",
+        type=int,
+        default=20,
+        help="maximum prompt packets to answer",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--max-tokens",
+        type=int,
+        default=2000,
+        help="maximum output tokens for each BV response",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="generator temperature for BV responses",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=1,
+        help="JSON validation repair attempts before marking a response failed",
+    )
+    pseudo_formal_block_verifier_llm_responses.add_argument(
+        "--out",
+        default="runs/pseudo_formal_block_verifier_llm_responses",
+        help="pseudo-formal block-verifier LLM response output directory",
+    )
+    pseudo_formal_block_verifier_llm_responses.set_defaults(
+        func=_pseudo_formal_block_verifier_llm_responses
+    )
+
+    pseudo_formal_block_verifier_response_validation = sub.add_parser(
+        "pseudo-formal-block-verifier-response-validation",
+        help=(
+            "validate independent PF/BV block-verifier responses and export "
+            "runtime learning feedback rows"
+        ),
+    )
+    pseudo_formal_block_verifier_response_validation.add_argument(
+        "--prompt-packets-manifest",
+        required=True,
+        help="pseudo_formal_block_verifier_prompt_packets_manifest.json",
+    )
+    pseudo_formal_block_verifier_response_validation.add_argument(
+        "--response-jsonl",
+        required=True,
+        help="JSONL of independent block-verifier responses",
+    )
+    pseudo_formal_block_verifier_response_validation.add_argument(
+        "--out",
+        default="runs/pseudo_formal_block_verifier_response_validation",
+        help="pseudo-formal block-verifier response validation output directory",
+    )
+    pseudo_formal_block_verifier_response_validation.set_defaults(
+        func=_pseudo_formal_block_verifier_response_validation
+    )
+
+    pseudo_formal_block_verifier_component_gate = sub.add_parser(
+        "pseudo-formal-block-verifier-component-gate",
+        help=(
+            "run the full PF/BV component gate: prompt packets, generator "
+            "responses, response validation, and non-proof runtime feedback rows"
+        ),
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--runtime-learning-jsonl",
+        action="append",
+        required=True,
+        help=(
+            "runtime_learning_rows.jsonl containing independent PF/BV "
+            "block-verification request rows; repeatable"
+        ),
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--provider",
+        choices=["anthropic", "openai", "static"],
+        default="anthropic",
+        help="generator-only provider for the PF/BV BlockVerifier component gate",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--model",
+        default="",
+        help="optional provider model override; default resolves by model tier",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--model-tier",
+        choices=list(CLAUDE_MODEL_TIERS),
+        default="sonnet",
+        help="Claude cost tier used when provider/model resolution needs a default",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--static-response-file",
+        default="",
+        help="JSON response fixture used only with --provider static",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+        help="wall-clock timeout for live generator calls",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--max-packets",
+        type=int,
+        default=20,
+        help="maximum independent PF/BV request rows to evaluate",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--max-tokens",
+        type=int,
+        default=2000,
+        help="maximum output tokens for each BV response",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="generator temperature for BV responses",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=1,
+        help="JSON validation repair attempts before marking a response failed",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--out",
+        default="runs/pseudo_formal_block_verifier_component_gate",
+        help="pseudo-formal block-verifier component gate output directory",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--env-file",
+        default=".env",
+        help="environment file for live generator API keys",
+    )
+    pseudo_formal_block_verifier_component_gate.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires live PF/BV capability evidence"
+        ),
+    )
+    pseudo_formal_block_verifier_component_gate.set_defaults(
+        func=_pseudo_formal_block_verifier_component_gate
+    )
+
     formal_verifier_replay_repair_patch_response_validation = sub.add_parser(
         "formal-verifier-replay-repair-patch-response-validation",
         help="validate prover/RAG repair patch responses against prompt-packet proof-evidence gates",
@@ -18638,7 +19836,8 @@ def build_parser() -> argparse.ArgumentParser:
             "the scorecard gates. minimal-live enables live providers and the "
             "internal Lean/ProofEngineer paths; full-live also attaches the "
             "coding-agent repair, Formalizer/Lean repair, live Lean-LSP/MCP, "
-            "and integrated FormalizationGapPlanner live route-planner gates. "
+            "PF/BV BlockVerifier, and integrated FormalizationGapPlanner live "
+            "route-planner gates. "
             "Static fixtures never become capability evidence."
         ),
     )
@@ -18828,6 +20027,94 @@ def build_parser() -> argparse.ArgumentParser:
             "component calibration evidence only."
         ),
     )
+    research_agent_runtime.add_argument(
+        "--run-pseudo-formal-block-verifier-eval",
+        action="store_true",
+        help=(
+            "after AgentRuntime finishes, run the PF/BV prompt, LLM response, "
+            "and response-validation component gate and attach validated "
+            "non-proof feedback rows to runtime memory"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-provider",
+        choices=("same", "anthropic", "openai", "static"),
+        default="same",
+        help=(
+            "provider for --run-pseudo-formal-block-verifier-eval; same uses "
+            "the runtime --provider"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-model",
+        default="",
+        help="optional model override for the attached PF/BV component gate",
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-model-tier",
+        choices=list(CLAUDE_MODEL_TIERS),
+        default="sonnet",
+        help="Claude cost tier used by the attached PF/BV component gate",
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-static-response-file",
+        default="",
+        help=(
+            "static JSON response fixture used only with "
+            "--pseudo-formal-block-verifier-eval-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-learning-jsonl",
+        action="append",
+        default=[],
+        help=(
+            "runtime_learning_rows.jsonl to scan for independent PF/BV request "
+            "rows; repeatable. Defaults to this runtime's learning rows."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-max-packets",
+        type=int,
+        default=20,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-max-tokens",
+        type=int,
+        default=2000,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-temperature",
+        type=float,
+        default=0.0,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-max-repair-attempts",
+        type=int,
+        default=1,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-out",
+        default="",
+        help=(
+            "optional output directory for the attached PF/BV component gate; "
+            "defaults to <runtime-out>/internal_pseudo_formal_block_verifier_eval"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-eval-existing-manifest",
+        default="",
+        help=(
+            "attach an existing PseudoFormalBlockVerifierComponentGateManifest "
+            "instead of rerunning PF/BV. The attachment remains component "
+            "calibration evidence only."
+        ),
+    )
     research_agent_runtime.add_argument("--out", default="runs/research_agent_runtime")
     research_agent_runtime.add_argument("--env-file", default=".env")
     research_agent_runtime.set_defaults(func=_research_agent_runtime)
@@ -18845,6 +20132,24 @@ def build_parser() -> argparse.ArgumentParser:
             "optional SourceTheoremExactSemanticDefinitionAuthoringWorkerManifest "
             "from a post-runtime live authoring probe. The audit uses it only as "
             "lineage-checked authoring handoff/attempt evidence, not theorem proof."
+        ),
+    )
+    research_agent_runtime_audit.add_argument(
+        "--post-runtime-exact-semantic-definition-authoring-candidate-materializer-manifest",
+        default="",
+        help=(
+            "optional SourceTheoremExactSemanticDefinitionAuthoringCandidateMaterializerManifest "
+            "from a post-runtime materialization probe. The audit uses it only as "
+            "lineage-checked candidate-materialization diagnostics, not theorem proof."
+        ),
+    )
+    research_agent_runtime_audit.add_argument(
+        "--post-runtime-exact-semantic-definition-materialized-lean-repair-executor-manifest",
+        default="",
+        help=(
+            "optional SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest "
+            "from a post-runtime local Lean repair/check probe. The audit uses it "
+            "only as lineage-checked local Lean diagnostics, not source theorem proof."
         ),
     )
     research_agent_runtime_audit.set_defaults(func=_research_agent_runtime_audit)

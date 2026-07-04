@@ -270,7 +270,9 @@ from ai_statistician.research_system_audit import (
     _coding_agent_generated_code_repair_eval_overlay,
     _formalizer_lean_candidate_repair_eval_overlay,
     _formalization_gap_planner_evaluation_route_adoption_count_rollups,
+    _pseudo_formal_block_verifier_component_gate_overlay,
     _research_agent_runtime_exact_semantic_definition_authoring_count_rollup,
+    _research_agent_runtime_capability_gap_routing_followup_commands,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
 )
@@ -5024,9 +5026,115 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": [
                     "static"
                 ],
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_attached": False,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok": False,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_candidate_packets": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materializer_lineage_ok": False,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_lineage_ok": False,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state": "",
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proof_evidence_status": "",
+                "research_agent_runtime_capability_gap_routing_input_rows": 2,
+                "research_agent_runtime_capability_gap_routing_input_rows_seen": 2,
+                "research_agent_runtime_capability_gap_routing_input_retention_policy": "priority_pinned_latest_rows",
+                "research_agent_runtime_capability_gap_routing_input_retention_selection_counts": {
+                    "priority_pinned": 1,
+                    "latest": 1,
+                },
+                "research_agent_runtime_capability_gap_routing_input_requirement_ids": [
+                    "live_generator_agents_enabled",
+                    "architect_deferred_meta_capability_gaps_resolved",
+                ],
+                "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [
+                    "architect_deferred_meta_capability_gaps_resolved"
+                ],
+                "research_agent_runtime_capability_gap_routing_input_owner_subsystems": {
+                    "ArchitectCoordinator": 1,
+                    "AgentRuntimeOrchestrator": 1,
+                },
+                "research_agent_runtime_capability_gap_routing_followup_commands": [
+                    {
+                        "requirement_id": "live_generator_agents_enabled",
+                        "owner_subsystem": "ArchitectCoordinator",
+                        "scope": "integrated_runtime",
+                        "priority": "1",
+                        "retention_selection": "priority_pinned",
+                        "retention_selection_boundary": (
+                            "Selection metadata explains why this routing row was "
+                            "retained; it is not proof evidence."
+                        ),
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+                        ),
+                        "routing_boundary": (
+                            "Capability routing only; not proof evidence."
+                        ),
+                        "command": (
+                            ".venv/bin/python -m ai_statistician.cli "
+                            "research-agent-runtime --provider anthropic "
+                            "--capability-eval --capability-eval-preset full-live "
+                            "--capability-gap-routing-jsonl "
+                            "runs/example_audit/runtime_capability_gap_routing.jsonl "
+                            "--max-capability-gap-routing-rows 40"
+                        ),
+                    }
+                ],
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection": 0,
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": 0,
+                "research_agent_runtime_architect_deferred_meta_capability_gaps": 0,
+                "research_agent_runtime_architect_deferred_meta_capability_gap_owners": {},
+                "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids": [],
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_visible": True,
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved": True,
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": True,
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_evidence": (
+                    "n_architect_initial_routing_deferred_meta_capability_gaps=0"
+                ),
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_blocker": "",
+                "research_agent_runtime_cross_task_theorem_family_rows": 2,
+                "research_agent_runtime_cross_task_theorem_family_rows_with_explicit_family": 2,
+                "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel": 1,
+                "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps": 1,
                 "research_agent_runtime_pseudo_formal_block_routing_contract_complete": False,
                 "research_agent_runtime_pseudo_formal_block_routing_rows": 2,
+                "research_agent_runtime_pseudo_formal_block_routing_effective_rows": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_row_kinds": {
+                    "pseudo_formal_lean_candidate_seed": 1,
+                    "pseudo_formal_lean_candidate_seed_blocked": 1,
+                },
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds": {
+                    "pseudo_formal_lean_candidate_seed_blocked": 1,
+                },
+                "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes": {
+                    "formal_targets": 1,
+                },
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes": {
+                    "formal_targets": 1,
+                },
+                "research_agent_runtime_pseudo_formalization_required_formalization_manifests": 1,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formalization_required_manifest_ids": [
+                    "formalization_manifest:pseudo"
+                ],
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids": [],
+                "research_agent_runtime_pseudo_formalization_routed_manifests": 2,
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifests": 1,
+                "research_agent_runtime_pseudo_formalization_routed_manifest_ids": [
+                    "formalization_manifest:pseudo",
+                    "formalization_manifest:pseudo_diagnostic",
+                ],
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids": [
+                    "formalization_manifest:pseudo"
+                ],
                 "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
                 "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
                 "research_agent_runtime_pseudo_formal_block_routing_issues": [
                     {
@@ -5034,6 +5142,31 @@ class SystemTests(unittest.TestCase):
                         "missing_fields": ["pseudo_formal_method_contract_id"],
                     }
                 ],
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached": False,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok": False,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_live_generator": False,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_static_or_fixture_only": True,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_paths": [],
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_reference_dir": "",
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok": False,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_accepted_blocks": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_failed_blocks": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_provider": "",
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_backend_provider": "",
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path": "",
+                "research_agent_runtime_formal_gap_planner_handoff_rows": 0,
+                "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 0,
+                "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete": True,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough": True,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_invocations": 0,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok": 0,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok": 0,
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_proposals": 0,
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids": 0,
             },
             "artifacts": {
                 "research_benchmark": "runs/example/research_benchmark_manifest.json",
@@ -5063,7 +5196,7 @@ class SystemTests(unittest.TestCase):
             system_audit_payload=payload,
         )
         self.assertTrue(guidance["all_ok"])
-        self.assertEqual(guidance["suites_defined"], 14)
+        self.assertEqual(guidance["suites_defined"], 15)
         self.assertEqual(guidance["frontier_entries"], 60)
         statuses = {row["suite_id"]: row["status"] for row in guidance["suites"]}
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
@@ -5083,6 +5216,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S9_fresh_holdout_frontier"], "OK")
         self.assertEqual(statuses["S10_live_coding_agent_generated_repair"], "CAPACITY_GAP")
         self.assertEqual(statuses["S11_live_formalizer_lean_candidate_repair"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S11b_live_pseudo_formal_block_verifier"], "CAPACITY_GAP")
         self.assertEqual(statuses["S12_live_architect_research_path_policy"], "CAPACITY_GAP")
         self.assertEqual(statuses["S13_live_integrated_agent_runtime_capability"], "CAPACITY_GAP")
         self.assertIn(
@@ -5094,6 +5228,10 @@ class SystemTests(unittest.TestCase):
             suites["S11_live_formalizer_lean_candidate_repair"]["issues"][0],
         )
         self.assertIn(
+            "no live Claude/OpenAI PF/BV BlockVerifier",
+            suites["S11b_live_pseudo_formal_block_verifier"]["issues"][0],
+        )
+        self.assertIn(
             "no live Claude/OpenAI Architect research-path policy",
             suites["S12_live_architect_research_path_policy"]["issues"][0],
         )
@@ -5102,8 +5240,16 @@ class SystemTests(unittest.TestCase):
             suites["S13_live_integrated_agent_runtime_capability"]["issues"][0],
         )
         self.assertIn(
-            "without complete PF+BV method lineage",
-            suites["S13_live_integrated_agent_runtime_capability"]["issues"][1],
+            "scope-parent forest",
+            " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
+        )
+        self.assertIn(
+            "exact semantic-definition authoring is required",
+            " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
+        )
+        self.assertIn(
+            "standalone S11b evidence does not substitute",
+            " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
         )
         self.assertEqual(
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
@@ -5117,6 +5263,27 @@ class SystemTests(unittest.TestCase):
             ],
             ["static"],
         )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
+            ]
+        )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+            ],
+            0,
+        )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+            ]
+        )
         self.assertEqual(
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
                 "research_agent_runtime_pseudo_formal_block_routing_rows"
@@ -5125,10 +5292,851 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_effective_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_row_kinds"
+            ],
+            {
+                "pseudo_formal_lean_candidate_seed": 1,
+                "pseudo_formal_lean_candidate_seed_blocked": 1,
+            },
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds"
+            ],
+            {"pseudo_formal_lean_candidate_seed_blocked": 1},
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes"
+            ],
+            {"formal_targets": 1},
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes"
+            ],
+            {"formal_targets": 1},
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_rows_seen"
+            ],
+            2,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_retention_policy"
+            ],
+            "priority_pinned_latest_rows",
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_retention_selection_counts"
+            ],
+            {"priority_pinned": 1, "latest": 1},
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids"
+            ],
+            ["architect_deferred_meta_capability_gaps_resolved"],
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_owner_subsystems"
+            ],
+            {"ArchitectCoordinator": 1, "AgentRuntimeOrchestrator": 1},
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_followup_commands"
+            ][0]["requirement_id"],
+            "live_generator_agents_enabled",
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps"
+            ],
+            0,
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved"
+            ]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+            ]
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
                 "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
             ],
             1,
         )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_required_formalization_manifests"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_required_manifest_ids"
+            ],
+            ["formalization_manifest:pseudo"],
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids"
+            ],
+            [],
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_routed_manifests"
+            ],
+            2,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifests"
+            ],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids"
+            ],
+            ["formalization_manifest:pseudo"],
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_formal_gap_planner_handoff_rows"
+            ],
+            0,
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete"
+            ]
+        )
+        required_missing_payload = json.loads(json.dumps(payload))
+        required_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": False,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_effective_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_row_kinds": {},
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds": {},
+                "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes": {},
+                "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes": {},
+                "research_agent_runtime_pseudo_formalization_required_formalization_manifests": 1,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 1,
+                "research_agent_runtime_pseudo_formalization_required_manifest_ids": [
+                    "formalization_manifest:pf-required-empty"
+                ],
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids": [
+                    "formalization_manifest:pf-required-empty"
+                ],
+                "research_agent_runtime_pseudo_formalization_routed_manifests": 1,
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifests": 0,
+                "research_agent_runtime_pseudo_formalization_routed_manifest_ids": [
+                    "formalization_manifest:pf-required-empty"
+                ],
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids": [],
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+            }
+        )
+        required_missing_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_required_missing"),
+            system_audit_payload=required_missing_payload,
+        )
+        required_missing_s13 = next(
+            row
+            for row in required_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(required_missing_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            required_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows"
+            ],
+            1,
+        )
+        self.assertIn(
+            "required PF/BV activations must produce effective routed rows",
+            required_missing_s13["issues"][0],
+        )
+        self.assertIn(
+            "blocked, pending, or quarantine diagnostics do not satisfy activation",
+            required_missing_s13["issues"][0],
+        )
+        manifest_inconsistent_payload = json.loads(json.dumps(payload))
+        manifest_inconsistent_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": True,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+                "research_agent_runtime_pseudo_formalization_required_formalization_manifests": 1,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formalization_required_manifest_ids": [
+                    "formalization_manifest:pseudo"
+                ],
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids": [],
+                "research_agent_runtime_pseudo_formalization_routed_manifests": 1,
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifests": 0,
+                "research_agent_runtime_pseudo_formalization_routed_manifest_ids": [
+                    "formalization_manifest:pseudo"
+                ],
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids": [],
+            }
+        )
+        manifest_inconsistent_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_manifest_inconsistent"),
+            system_audit_payload=manifest_inconsistent_payload,
+        )
+        manifest_inconsistent_s13 = next(
+            row
+            for row in manifest_inconsistent_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(manifest_inconsistent_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            manifest_inconsistent_s13["key_counts"][
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifests"
+            ],
+            0,
+        )
+        self.assertEqual(
+            manifest_inconsistent_s13["key_counts"][
+                "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids"
+            ],
+            [],
+        )
+        self.assertIn(
+            "required PF/BV activations must produce effective routed rows",
+            manifest_inconsistent_s13["issues"][0],
+        )
+        single_effective_pf_bv_counts = {
+            "research_agent_runtime_pseudo_formal_block_routing_rows": 1,
+            "research_agent_runtime_pseudo_formal_block_routing_effective_rows": 1,
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows": 0,
+            "research_agent_runtime_pseudo_formal_block_routing_row_kinds": {
+                "pseudo_formal_lean_candidate_seed": 1,
+            },
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds": {},
+            "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes": {
+                "formal_targets": 1,
+            },
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes": {},
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
+        }
+        scope_missing_payload = json.loads(json.dumps(payload))
+        scope_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": False,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 1,
+                **single_effective_pf_bv_counts,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+            }
+        )
+        scope_missing_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_scope_missing"),
+            system_audit_payload=scope_missing_payload,
+        )
+        scope_missing_s13 = next(
+            row
+            for row in scope_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(scope_missing_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            scope_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+            ],
+            1,
+        )
+        self.assertIn("scope-parent forest", scope_missing_s13["issues"][0])
+        invalid_scope_payload = json.loads(json.dumps(payload))
+        invalid_scope_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": False,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 1,
+                **single_effective_pf_bv_counts,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+            }
+        )
+        invalid_scope_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_invalid_scope"),
+            system_audit_payload=invalid_scope_payload,
+        )
+        invalid_scope_s13 = next(
+            row
+            for row in invalid_scope_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(invalid_scope_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            invalid_scope_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+            ],
+            1,
+        )
+        self.assertIn("scope-parent forest", invalid_scope_s13["issues"][0])
+        missing_inherited_scope_payload = json.loads(json.dumps(payload))
+        missing_inherited_scope_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": False,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 1,
+                **single_effective_pf_bv_counts,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 1,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+            }
+        )
+        missing_inherited_scope_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_missing_inherited_scope"),
+            system_audit_payload=missing_inherited_scope_payload,
+        )
+        missing_inherited_scope_s13 = next(
+            row
+            for row in missing_inherited_scope_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(missing_inherited_scope_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            missing_inherited_scope_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+            ],
+            1,
+        )
+        self.assertIn("scope-parent forest", missing_inherited_scope_s13["issues"][0])
+        semantic_bridge_missing_payload = json.loads(json.dumps(payload))
+        semantic_bridge_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": True,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 2,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+                "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders": 2,
+                "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge": False,
+                "research_agent_runtime_source_semantic_proofengineer_bridge_requested": True,
+                "research_agent_runtime_source_semantic_proofengineer_bridge_ran": False,
+                "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status": "",
+            }
+        )
+        semantic_bridge_missing_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_semantic_bridge_missing"),
+            system_audit_payload=semantic_bridge_missing_payload,
+        )
+        semantic_bridge_missing_s13 = next(
+            row
+            for row in semantic_bridge_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(semantic_bridge_missing_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            semantic_bridge_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders"
+            ],
+            2,
+        )
+        self.assertFalse(
+            semantic_bridge_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge"
+            ]
+        )
+        self.assertIn(
+            "source-semantic ProofEngineer bridge",
+            semantic_bridge_missing_s13["issues"][0],
+        )
+        semantic_bridge_ok_payload = json.loads(json.dumps(semantic_bridge_missing_payload))
+        semantic_bridge_ok_payload["counts"].update(
+            {
+                "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge": True,
+                "research_agent_runtime_source_semantic_proofengineer_bridge_ran": True,
+                "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT_PRESENT"
+                ),
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached": True,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok": True,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_live_generator": True,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_static_or_fixture_only": False,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets": 1,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses": 1,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows": 1,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_paths": [
+                    "runs/example/runtime_learning_rows.jsonl"
+                ],
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count": 1,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_reference_dir": "runs/example",
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok": True,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_accepted_blocks": 1,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_failed_blocks": 0,
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_provider": "anthropic",
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_backend_provider": "anthropic",
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path": (
+                    "runs/example/internal_pseudo_formal_block_verifier_eval/"
+                    "pseudo_formal_block_verifier_component_gate_manifest.json"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": 1,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": True,
+            }
+        )
+        semantic_bridge_ok_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_semantic_bridge_ok"),
+            system_audit_payload=semantic_bridge_ok_payload,
+        )
+        semantic_bridge_ok_s13 = next(
+            row
+            for row in semantic_bridge_ok_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(semantic_bridge_ok_s13["status"], "OK")
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows"
+            ],
+            1,
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders"
+            ],
+            1,
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+            ]
+        )
+        exact_lookup_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        exact_lookup_missing_payload["counts"][
+            "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+        ] = False
+        exact_lookup_missing_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_exact_lookup_missing"),
+            system_audit_payload=exact_lookup_missing_payload,
+        )
+        exact_lookup_missing_s13 = next(
+            row
+            for row in exact_lookup_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(exact_lookup_missing_s13["status"], "CAPACITY_GAP")
+        self.assertFalse(
+            exact_lookup_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+            ]
+        )
+        self.assertIn(
+            "pseudo-formal exact semantic-definition work orders",
+            " ".join(exact_lookup_missing_s13["issues"]),
+        )
+        external_pf_bv_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        external_pf_bv_payload["counts"][
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+        ] = False
+        external_pf_bv_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_external_pf_bv"),
+            system_audit_payload=external_pf_bv_payload,
+        )
+        external_pf_bv_s13 = next(
+            row
+            for row in external_pf_bv_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(external_pf_bv_s13["status"], "CAPACITY_GAP")
+        self.assertIn(
+            "source runtime-learning lineage",
+            " ".join(external_pf_bv_s13["issues"]),
+        )
+        post_runtime_local_repair_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        post_runtime_local_repair_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": False,
+                "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted": 1,
+                "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": [
+                    "anthropic"
+                ],
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_attached": True,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok": True,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted": 1,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_candidate_packets": 1,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materializer_lineage_ok": True,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks": 1,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_lineage_ok": True,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked": 1,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled": 0,
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state": "LOCAL_LEAN_REPAIR_REQUIRED",
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proof_evidence_status": "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF",
+            }
+        )
+        post_runtime_local_repair_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_post_runtime_exact_semantic_local_repair"),
+            system_audit_payload=post_runtime_local_repair_payload,
+        )
+        post_runtime_local_repair_s13 = next(
+            row
+            for row in post_runtime_local_repair_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(post_runtime_local_repair_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            post_runtime_local_repair_s13["key_counts"][
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked"
+            ],
+            1,
+        )
+        self.assertEqual(
+            post_runtime_local_repair_s13["key_counts"][
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled"
+            ],
+            0,
+        )
+        self.assertIn(
+            "post-runtime exact semantic-definition candidates reached local Lean",
+            " ".join(post_runtime_local_repair_s13["issues"]),
+        )
+        gap_planner_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        gap_planner_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_formal_gap_planner_handoff_rows": 3,
+                "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 1,
+                "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete": False,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough": False,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_invocations": 1,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok": 0,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok": 0,
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_proposals": 2,
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids": 1,
+            }
+        )
+        gap_planner_missing_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_formal_gap_planner_missing"),
+            system_audit_payload=gap_planner_missing_payload,
+        )
+        gap_planner_missing_s13 = next(
+            row
+            for row in gap_planner_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(gap_planner_missing_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            gap_planner_missing_s13["key_counts"][
+                "research_agent_runtime_formal_gap_planner_handoff_rows"
+            ],
+            3,
+        )
+        self.assertEqual(
+            gap_planner_missing_s13["key_counts"][
+                "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
+            ],
+            1,
+        )
+        self.assertFalse(
+            gap_planner_missing_s13["key_counts"][
+                "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete"
+            ]
+        )
+        self.assertIn(
+            "formal-gap planner handoff rows",
+            gap_planner_missing_s13["issues"][0],
+        )
+        gap_planner_ok_payload = json.loads(json.dumps(gap_planner_missing_payload))
+        gap_planner_ok_payload["counts"].update(
+            {
+                "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 0,
+                "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete": True,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough": True,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok": 1,
+                "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok": 1,
+                "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids": 2,
+            }
+        )
+        gap_planner_ok_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_formal_gap_planner_ok"),
+            system_audit_payload=gap_planner_ok_payload,
+        )
+        gap_planner_ok_s13 = next(
+            row
+            for row in gap_planner_ok_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(gap_planner_ok_s13["status"], "OK")
+        deferred_meta_payload = json.loads(json.dumps(gap_planner_ok_payload))
+        deferred_meta_payload["counts"].update(
+            {
+                "research_agent_runtime_architect_deferred_meta_capability_gaps": 1,
+                "research_agent_runtime_architect_deferred_meta_capability_gap_owners": {
+                    "AgentRuntimeOrchestrator": 1,
+                },
+                "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids": [
+                    "runtime_progress_observable"
+                ],
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_visible": True,
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved": False,
+            }
+        )
+        deferred_meta_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_deferred_meta_gap"),
+            system_audit_payload=deferred_meta_payload,
+        )
+        deferred_meta_s13 = next(
+            row
+            for row in deferred_meta_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(deferred_meta_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            deferred_meta_s13["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps"
+            ],
+            1,
+        )
+        self.assertEqual(
+            deferred_meta_s13["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids"
+            ],
+            ["runtime_progress_observable"],
+        )
+        self.assertFalse(
+            deferred_meta_s13["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved"
+            ]
+        )
+        self.assertIn(
+            "unresolved AgentRuntime/Architect control-plane capability gaps",
+            " ".join(deferred_meta_s13["issues"]),
+        )
+        self.assertTrue(
+            deferred_meta_s13["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+            ]
+        )
+        deferred_meta_unpinned_payload = json.loads(json.dumps(deferred_meta_payload))
+        deferred_meta_unpinned_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_gap_routing_input_requirement_ids": [
+                    "live_generator_agents_enabled"
+                ],
+                "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [],
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": False,
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_blocker": (
+                    "architect_deferred_meta_capability_gaps_resolved was not priority-pinned"
+                ),
+            }
+        )
+        deferred_meta_unpinned_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_deferred_meta_unpinned"),
+            system_audit_payload=deferred_meta_unpinned_payload,
+        )
+        deferred_meta_unpinned_s13 = next(
+            row
+            for row in deferred_meta_unpinned_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(deferred_meta_unpinned_s13["status"], "CAPACITY_GAP")
+        self.assertFalse(
+            deferred_meta_unpinned_s13["key_counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+            ]
+        )
+        self.assertIn(
+            "not priority-pinned in capability-gap routing replay",
+            " ".join(deferred_meta_unpinned_s13["issues"]),
+        )
+        gap_retention_payload = json.loads(json.dumps(payload))
+        gap_retention_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": True,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 1,
+                **single_effective_pf_bv_counts,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+                "research_agent_runtime_capability_gap_routing_input_rows": 2,
+                "research_agent_runtime_capability_gap_routing_input_rows_seen": 6,
+                "research_agent_runtime_capability_gap_routing_input_retention_policy": "latest_rows",
+                "research_agent_runtime_capability_gap_routing_input_retention_selection_counts": {
+                    "latest": 2,
+                },
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection": 0,
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": 0,
+            }
+        )
+        gap_retention_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_gap_retention"),
+            system_audit_payload=gap_retention_payload,
+        )
+        gap_retention_s13 = next(
+            row
+            for row in gap_retention_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(gap_retention_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            gap_retention_s13["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_rows_seen"
+            ],
+            6,
+        )
+        self.assertEqual(
+            gap_retention_s13["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_retention_policy"
+            ],
+            "latest_rows",
+        )
+        self.assertIn("priority-pinned retention", gap_retention_s13["issues"][0])
+        gap_selection_payload = json.loads(json.dumps(payload))
+        gap_selection_payload["counts"].update(
+            {
+                "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                "research_agent_runtime_pseudo_formal_block_routing_contract_complete": True,
+                "research_agent_runtime_pseudo_formal_block_routing_rows": 1,
+                **single_effective_pf_bv_counts,
+                "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+                "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
+                "research_agent_runtime_capability_gap_routing_input_rows": 2,
+                "research_agent_runtime_capability_gap_routing_input_rows_seen": 6,
+                "research_agent_runtime_capability_gap_routing_input_retention_policy": "priority_pinned_latest_rows",
+                "research_agent_runtime_capability_gap_routing_input_retention_selection_counts": {},
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection": 2,
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": 2,
+            }
+        )
+        gap_selection_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_gap_selection"),
+            system_audit_payload=gap_selection_payload,
+        )
+        gap_selection_s13 = next(
+            row
+            for row in gap_selection_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(gap_selection_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            gap_selection_s13["key_counts"][
+                "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection"
+            ],
+            2,
+        )
+        self.assertIn("retention_selection", gap_selection_s13["issues"][0])
         self.assertGreaterEqual(len(guidance["top_actions"]), 3)
         self.assertEqual(
             guidance["top_actions"][1]["action"],
@@ -5140,11 +6148,60 @@ class SystemTests(unittest.TestCase):
             if action["owner_suite"] == "S13_live_integrated_agent_runtime_capability"
         )
         self.assertIn(
-            "aggregate primary/retry/late exact semantic-definition authoring",
+            "aggregate primary/retry/late/post-runtime exact semantic-definition authoring",
             s13_action["success_metric"],
         )
+        self.assertIn("post-runtime exact semantic candidates", s13_action["success_metric"])
         self.assertIn("n_live_llm_attempted>0 when required", s13_action["success_metric"])
-        self.assertIn("PF+BV method-lineage", s13_action["success_metric"])
+        self.assertIn("PF+BV row-kind/effective-vs-diagnostic", s13_action["success_metric"])
+        self.assertIn("source-semantic ProofEngineer bridge", s13_action["success_metric"])
+        self.assertIn("FormalizationGapPlanner executable handoff", s13_action["success_metric"])
+        self.assertIn("priority_pinned_latest_rows retention", s13_action["success_metric"])
+        self.assertIn("zero unresolved AgentRuntime/Architect deferred meta", s13_action["success_metric"])
+        self.assertIn(
+            "architect_deferred_meta_capability_gaps_resolved priority-pinned",
+            s13_action["success_metric"],
+        )
+        self.assertIn("recommended_commands", s13_action)
+        self.assertIn(
+            "--capability-gap-routing-jsonl",
+            s13_action["recommended_commands"][0],
+        )
+        self.assertIn("recommended_command_rows", s13_action)
+        self.assertEqual(
+            s13_action["recommended_command_rows"][0]["requirement_id"],
+            "live_generator_agents_enabled",
+        )
+        self.assertEqual(
+            s13_action["recommended_command_rows"][0]["owner_subsystem"],
+            "ArchitectCoordinator",
+        )
+        self.assertEqual(
+            s13_action["recommended_command_rows"][0]["scope"],
+            "integrated_runtime",
+        )
+        self.assertEqual(
+            s13_action["recommended_command_rows"][0]["priority"],
+            "1",
+        )
+        self.assertEqual(
+            s13_action["recommended_command_rows"][0]["retention_selection"],
+            "priority_pinned",
+        )
+        self.assertEqual(
+            s13_action["recommended_command_rows"][0]["proof_evidence_status"],
+            "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+        )
+        self.assertIn(
+            "not proof evidence",
+            s13_action["recommended_command_rows"][0][
+                "retention_selection_boundary"
+            ],
+        )
+        self.assertIn(
+            "--capability-gap-routing-jsonl",
+            s13_action["recommended_command_rows"][0]["command"],
+        )
         self.assertTrue(
             Path(
                 "runs/test_evaluation_benchmark_guidance/"
@@ -5154,6 +6211,23 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             Path("runs/test_evaluation_benchmark_guidance/evaluation_benchmark_guidance.md").exists()
         )
+        guidance_report = Path(
+            "runs/test_evaluation_benchmark_guidance/evaluation_benchmark_guidance.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("--capability-gap-routing-jsonl", guidance_report)
+        self.assertIn(
+            "Command (`live_generator_agents_enabled` -> `ArchitectCoordinator`)",
+            guidance_report,
+        )
+        self.assertIn(
+            "[scope=`integrated_runtime`, priority=`1`, retention=`priority_pinned`",
+            guidance_report,
+        )
+        self.assertIn(
+            "evidence_status=`CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE`",
+            guidance_report,
+        )
+        self.assertIn("Boundary: Selection metadata", guidance_report)
         live_coding_agent_payload = json.loads(json.dumps(payload))
         live_coding_agent_payload["artifacts"][
             "coding_agent_generated_code_repair_eval"
@@ -5242,6 +6316,53 @@ class SystemTests(unittest.TestCase):
             ]
         )
         self.assertEqual(live_formalizer_s11["issues"], ())
+        live_pseudo_formal_payload = json.loads(json.dumps(payload))
+        live_pseudo_formal_payload["artifacts"][
+            "pseudo_formal_block_verifier_component_gate"
+        ] = (
+            "runs/example/pseudo_formal_block_verifier_component_gate/"
+            "pseudo_formal_block_verifier_component_gate_manifest.json"
+        )
+        live_pseudo_formal_payload["counts"].update(
+            {
+                "pseudo_formal_block_verifier_component_gate_capability_evidence_ok": True,
+                "pseudo_formal_block_verifier_component_gate_live_generator": True,
+                "pseudo_formal_block_verifier_component_gate_static_or_fixture_only": False,
+                "pseudo_formal_block_verifier_component_gate_prompt_packets": 2,
+                "pseudo_formal_block_verifier_component_gate_valid_responses": 2,
+                "pseudo_formal_block_verifier_component_gate_runtime_learning_rows": 2,
+                "pseudo_formal_block_verifier_component_gate_accepted_blocks": 1,
+                "pseudo_formal_block_verifier_component_gate_failed_blocks": 1,
+            }
+        )
+        live_pseudo_formal_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_live_pseudo_formal"),
+            system_audit_payload=live_pseudo_formal_payload,
+        )
+        live_pseudo_formal_s11b = next(
+            row
+            for row in live_pseudo_formal_guidance["suites"]
+            if row["suite_id"] == "S11b_live_pseudo_formal_block_verifier"
+        )
+        self.assertEqual(live_pseudo_formal_s11b["status"], "OK")
+        self.assertTrue(
+            live_pseudo_formal_s11b["key_counts"][
+                "pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            live_pseudo_formal_s11b["key_counts"]["effective_prompt_packets"],
+            2,
+        )
+        self.assertEqual(
+            live_pseudo_formal_s11b["key_counts"]["effective_runtime_learning_rows"],
+            2,
+        )
+        self.assertIn(
+            "cannot count as Lean/AXLE",
+            live_pseudo_formal_s11b["honesty_boundary"],
+        )
+        self.assertEqual(live_pseudo_formal_s11b["issues"], ())
         live_architect_payload = json.loads(json.dumps(payload))
         live_architect_payload["artifacts"][
             "architect_research_path_policy_eval"
@@ -5356,6 +6477,8 @@ class SystemTests(unittest.TestCase):
                 "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
                 "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": False,
                 "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 2,
+                "source_theorem_exact_semantic_definition_structural_reformulation_tasks_required": True,
+                "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks": 1,
                 "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": "anthropic",
                 "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": "anthropic",
                 "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": 2,
@@ -5371,6 +6494,25 @@ class SystemTests(unittest.TestCase):
                 "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted": 1,
                 "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted": 1,
                 "n_source_theorem_exact_semantic_definition_authoring_tasks": 1,
+                "post_runtime_exact_semantic_definition_authoring_worker_attached": True,
+                "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": True,
+                "post_runtime_exact_semantic_definition_authoring_worker_provider_name": "anthropic",
+                "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name": "anthropic",
+                "post_runtime_exact_semantic_definition_authoring_worker_n_source_authoring_tasks": 1,
+                "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted": 1,
+                "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 1,
+                "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets": 1,
+                "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok": True,
+                "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok": True,
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_compiled": 0,
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_by_failure_classification": {
+                    "local_lean_invalid_field": 1
+                },
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_dominant_failure_classification": "local_lean_invalid_field",
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proofengineer_state": "LOCAL_LEAN_REPAIR_REQUIRED",
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proof_evidence_status": "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF",
             }
         )
 
@@ -5384,6 +6526,17 @@ class SystemTests(unittest.TestCase):
         )
         self.assertTrue(
             counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_structural_reformulation_required"
+            ]
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_structural_reformulation_tasks"
+            ],
+            1,
+        )
+        self.assertTrue(
+            counts[
                 "research_agent_runtime_exact_semantic_definition_authoring_late_required"
             ]
         )
@@ -5391,13 +6544,19 @@ class SystemTests(unittest.TestCase):
             counts[
                 "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted"
             ],
-            4,
+            5,
         )
         self.assertEqual(
             counts[
                 "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted"
             ],
-            3,
+            4,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_tasks"
+            ],
+            5,
         )
         self.assertEqual(
             counts[
@@ -5405,6 +6564,116 @@ class SystemTests(unittest.TestCase):
             ],
             ["static", "anthropic", "openai"],
         )
+        self.assertTrue(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok"
+            ]
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted"
+            ],
+            1,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks"
+            ],
+            1,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked"
+            ],
+            1,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled"
+            ],
+            0,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_by_failure_classification"
+            ],
+            {"local_lean_invalid_field": 1},
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_dominant_failure_classification"
+            ],
+            "local_lean_invalid_field",
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state"
+            ],
+            "LOCAL_LEAN_REPAIR_REQUIRED",
+        )
+
+    def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:
+        manifest = {
+            "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [
+                "architect_deferred_meta_capability_gaps_resolved"
+            ],
+            "runtime_capability_gap_routing_rows": [
+                {
+                    "requirement_id": f"ordinary_gap_{index}",
+                    "scope": "integrated_runtime",
+                    "priority": index,
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "recommended_capability_eval_command": f"rerun ordinary {index}",
+                }
+                for index in range(1, 5)
+            ]
+            + [
+                {
+                    "requirement_id": (
+                        "architect_deferred_meta_capability_gaps_resolved"
+                    ),
+                    "scope": "integrated_runtime",
+                    "priority": 99,
+                    "retention_selection": "priority_pinned",
+                    "retention_selection_boundary": (
+                        "Selection metadata explains why this routing row was "
+                        "retained; it is not proof evidence."
+                    ),
+                    "proof_evidence_status": (
+                        "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE"
+                    ),
+                    "routing_boundary": (
+                        "Capability routing only; not proof evidence."
+                    ),
+                    "next_owner_subsystem": "ArchitectCoordinator",
+                    "recommended_capability_eval_command": "rerun pinned architect gap",
+                }
+            ],
+        }
+
+        rows = _research_agent_runtime_capability_gap_routing_followup_commands(
+            manifest,
+            limit=4,
+        )
+
+        requirement_ids = [row["requirement_id"] for row in rows]
+        self.assertEqual(
+            requirement_ids[0],
+            "architect_deferred_meta_capability_gaps_resolved",
+        )
+        self.assertIn("ordinary_gap_1", requirement_ids)
+        self.assertNotIn("ordinary_gap_4", requirement_ids)
+        self.assertEqual(rows[0]["owner_subsystem"], "ArchitectCoordinator")
+        self.assertEqual(rows[0]["scope"], "integrated_runtime")
+        self.assertEqual(rows[0]["priority"], "99")
+        self.assertEqual(rows[0]["retention_selection"], "priority_pinned")
+        self.assertEqual(
+            rows[0]["proof_evidence_status"],
+            "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+        )
+        self.assertIn("not proof evidence", rows[0]["retention_selection_boundary"])
+        self.assertIn("not proof evidence", rows[0]["routing_boundary"])
+        self.assertEqual(rows[0]["command"], "rerun pinned architect gap")
 
     def test_research_system_audit_reads_coding_agent_repair_eval_overlay(self) -> None:
         root = Path("runs/test_coding_agent_generated_repair_overlay")
@@ -5615,6 +6884,136 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(fixture_overlay["candidate_kernel_verified"])
         self.assertTrue(fixture_overlay["fixture_plumbing_ok"])
         self.assertTrue(fixture_overlay["static_or_fixture_only"])
+
+    def test_research_system_audit_reads_pseudo_formal_block_verifier_component_gate_overlay(
+        self,
+    ) -> None:
+        root = Path("runs/test_research_system_audit_pseudo_formal_bv_overlay")
+        shutil.rmtree(root, ignore_errors=True)
+        manifest_dir = root / "pseudo_formal_block_verifier_component_gate"
+        manifest_dir.mkdir(parents=True)
+        manifest_path = (
+            manifest_dir
+            / "pseudo_formal_block_verifier_component_gate_manifest.json"
+        )
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": "PseudoFormalBlockVerifierComponentGateManifest",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "component_backend_provider_names": ["anthropic"],
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "static_or_fixture_only": False,
+                    "n_prompt_packets": 2,
+                    "n_ok_prompt_packets": 2,
+                    "n_llm_response_rows": 2,
+                    "n_ok_responses": 2,
+                    "n_valid_responses": 2,
+                    "n_runtime_learning_rows": 2,
+                    "n_accepted_blocks": 1,
+                    "n_failed_blocks": 1,
+                    "proof_evidence_status": (
+                        "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        overlay = _pseudo_formal_block_verifier_component_gate_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(overlay["available"])
+        self.assertTrue(overlay["artifact_kind_ok"])
+        self.assertTrue(overlay["proof_evidence_status_ok"])
+        self.assertTrue(overlay["live_generator"])
+        self.assertTrue(overlay["fixture_plumbing_ok"])
+        self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertEqual(overlay["backend_provider_name"], "anthropic")
+        self.assertEqual(overlay["component_backend_provider_names"], ["anthropic"])
+        self.assertEqual(overlay["n_prompt_packets"], 2)
+        self.assertEqual(overlay["n_valid_responses"], 2)
+        self.assertEqual(overlay["n_runtime_learning_rows"], 2)
+        self.assertEqual(overlay["n_accepted_blocks"], 1)
+        self.assertEqual(overlay["n_failed_blocks"], 1)
+        self.assertFalse(overlay["static_or_fixture_only"])
+        self.assertEqual(overlay["manifest_path"], str(manifest_path))
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": "PseudoFormalBlockVerifierComponentGateManifest",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "component_backend_provider_names": ["anthropic"],
+                    "live_generator": True,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "static_or_fixture_only": False,
+                    "n_prompt_packets": 2,
+                    "n_ok_prompt_packets": 2,
+                    "n_llm_response_rows": 2,
+                    "n_valid_responses": 2,
+                    "n_runtime_learning_rows": 2,
+                    "proof_evidence_status": "CLAIMED_PROOF",
+                }
+            ),
+            encoding="utf-8",
+        )
+        mislabel_overlay = _pseudo_formal_block_verifier_component_gate_overlay(
+            root / "research_system_audit"
+        )
+        self.assertFalse(mislabel_overlay["proof_evidence_status_ok"])
+        self.assertFalse(mislabel_overlay["fixture_plumbing_ok"])
+        self.assertFalse(mislabel_overlay["capability_evidence_ok"])
+        self.assertIn(
+            "proof_evidence_status_must_remain_non_proof",
+            mislabel_overlay["errors"],
+        )
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": "PseudoFormalBlockVerifierComponentGateManifest",
+                    "provider_name": "static",
+                    "backend_provider_name": "static",
+                    "component_backend_provider_names": ["static"],
+                    "model": "fixture",
+                    "live_generator": False,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "static_or_fixture_only": True,
+                    "n_prompt_packets": 1,
+                    "n_ok_prompt_packets": 1,
+                    "n_llm_response_rows": 1,
+                    "n_ok_responses": 1,
+                    "n_valid_responses": 1,
+                    "n_runtime_learning_rows": 1,
+                    "n_accepted_blocks": 1,
+                    "n_failed_blocks": 0,
+                    "proof_evidence_status": (
+                        "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        fixture_overlay = _pseudo_formal_block_verifier_component_gate_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(fixture_overlay["available"])
+        self.assertFalse(fixture_overlay["live_generator"])
+        self.assertTrue(fixture_overlay["fixture_plumbing_ok"])
+        self.assertFalse(fixture_overlay["capability_evidence_ok"])
+        self.assertTrue(fixture_overlay["static_or_fixture_only"])
+        self.assertIn(
+            "live_generator_missing_or_static_backend",
+            fixture_overlay["errors"],
+        )
 
     def test_research_system_audit_reads_architect_policy_overlay(self) -> None:
         root = Path("runs/test_research_system_audit_architect_policy_overlay")
@@ -7143,22 +8542,26 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(evidence["proof_bank_expansion_bridge_ready"], 53)
 
         suites = {row["id"]: row for row in payload["suites"]}
-        self.assertEqual(set(suites), {f"S{i}_{suffix}" for i, suffix in (
-            (0, "release_sanity"),
-            (1, "core_method_e2e"),
-            (2, "frontier_static_coverage"),
-            (3, "frontier_blind_theory_target"),
-            (4, "formal_primitive_ladder"),
-            (5, "proof_bank_and_search"),
-            (6, "algorithm_simulation_stress"),
-            (7, "feedback_loop_repair"),
-            (8, "adversarial_unsupported_intake"),
-            (9, "fresh_holdout_frontier"),
-            (10, "live_coding_agent_generated_repair"),
-            (11, "live_formalizer_lean_candidate_repair"),
-            (12, "live_architect_research_path_policy"),
-            (13, "live_integrated_agent_runtime_capability"),
-        )})
+        self.assertEqual(
+            set(suites),
+            {
+                "S0_release_sanity",
+                "S1_core_method_e2e",
+                "S2_frontier_static_coverage",
+                "S3_frontier_blind_theory_target",
+                "S4_formal_primitive_ladder",
+                "S5_proof_bank_and_search",
+                "S6_algorithm_simulation_stress",
+                "S7_feedback_loop_repair",
+                "S8_adversarial_unsupported_intake",
+                "S9_fresh_holdout_frontier",
+                "S10_live_coding_agent_generated_repair",
+                "S11_live_formalizer_lean_candidate_repair",
+                "S11b_live_pseudo_formal_block_verifier",
+                "S12_live_architect_research_path_policy",
+                "S13_live_integrated_agent_runtime_capability",
+            },
+        )
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_bridge_ready"], 53)
         self.assertEqual(suites["S4_formal_primitive_ladder"]["current_local_source_only"], 23)
         self.assertEqual(suites["S5_proof_bank_and_search"]["current_proof_bank_size"], proof_bank_size)
@@ -7192,6 +8595,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
         self.assertIn("S10_live_coding_agent_generated_repair", payload["recommended_next_gate_stack"])
         self.assertIn("S11_live_formalizer_lean_candidate_repair", payload["recommended_next_gate_stack"])
+        self.assertIn("S11b_live_pseudo_formal_block_verifier", payload["recommended_next_gate_stack"])
         self.assertIn("S12_live_architect_research_path_policy", payload["recommended_next_gate_stack"])
         self.assertIn("S13_live_integrated_agent_runtime_capability", payload["recommended_next_gate_stack"])
         self.assertEqual(
@@ -7272,6 +8676,43 @@ class SystemTests(unittest.TestCase):
                 "honesty_boundary"
             ],
         )
+        self.assertIn(
+            "live Anthropic Claude Haiku evidence present",
+            suites["S11b_live_pseudo_formal_block_verifier"]["current_status"],
+        )
+        self.assertTrue(
+            suites["S11b_live_pseudo_formal_block_verifier"][
+                "current_live_evidence"
+            ]["capability_evidence_ok"]
+        )
+        self.assertEqual(
+            suites["S11b_live_pseudo_formal_block_verifier"][
+                "current_live_evidence"
+            ]["provider"],
+            "anthropic",
+        )
+        self.assertEqual(
+            suites["S11b_live_pseudo_formal_block_verifier"][
+                "current_live_evidence"
+            ]["n_prompt_packets"],
+            1,
+        )
+        self.assertEqual(
+            suites["S11b_live_pseudo_formal_block_verifier"][
+                "current_live_evidence"
+            ]["n_runtime_learning_rows"],
+            1,
+        )
+        self.assertEqual(
+            suites["S11b_live_pseudo_formal_block_verifier"][
+                "current_live_evidence"
+            ]["proof_evidence_status"],
+            "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE",
+        )
+        self.assertIn(
+            "non-proof verifier feedback",
+            suites["S11b_live_pseudo_formal_block_verifier"]["honesty_boundary"],
+        )
         self.assertEqual(
             suites["S12_live_architect_research_path_policy"]["current_status"],
             (
@@ -7312,9 +8753,92 @@ class SystemTests(unittest.TestCase):
                 "current_live_evidence"
             ]["full_frontier_theorem_kernel_proved"]
         )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["n_passed"],
+            78,
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["architect_problem_analysis_present"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["dynamic_stat_knowledge_bank_planned"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["literature_fair_comparison_planned"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["generated_algorithm_code_executed"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["generated_simulation_code_executed"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["llm_formalizer_proofengineer_proposal_observed"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["runtime_pseudo_formal_block_routing_contract_complete"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["internal_pseudo_formal_block_verifier_eval_capability_evidence_ok"]
+        )
+        self.assertTrue(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ][
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok"
+            ]
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["internal_pseudo_formal_block_verifier_eval_prompt_packets"],
+            1,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"][
+                "current_live_evidence"
+            ]["internal_pseudo_formal_block_verifier_eval_valid_responses"],
+            1,
+        )
+        self.assertTrue(
+            any(
+                "--run-pseudo-formal-block-verifier-eval" in command
+                and "--pseudo-formal-block-verifier-eval-provider same" in command
+                for command in suites["S13_live_integrated_agent_runtime_capability"][
+                    "recommended_commands"
+                ]
+            )
+        )
         self.assertIn(
             "Passing S10, S11, and S12 separately does not imply S13 passes",
             suites["S13_live_integrated_agent_runtime_capability"]["honesty_boundary"],
+        )
+        self.assertTrue(
+            any(
+                "source runtime-learning lineage checked to the current runtime output"
+                in item
+                for item in suites["S13_live_integrated_agent_runtime_capability"][
+                    "release_floor"
+                ]
+            )
         )
         self.assertTrue(
             any(
@@ -7333,6 +8857,11 @@ class SystemTests(unittest.TestCase):
         self.assertIn("bounded adaptive MC inside the benchmark", doc)
         self.assertIn("53 have ranked proof-bank bridge candidates", doc)
         self.assertIn("S11. Live Formalizer Lean-Candidate Repair Suite", doc)
+        self.assertIn("S11b. Live Pseudo-Formal BlockVerifier Suite", doc)
+        self.assertIn(
+            "standalone S11b evidence does not substitute for this in-loop",
+            doc,
+        )
         self.assertIn("S12. Live Architect Research-Path Policy Suite", doc)
         self.assertIn("S13. Live Integrated AgentRuntime Capability Suite", doc)
         self.assertIn("PF+BV pseudo-formal", doc)
@@ -20293,7 +21822,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_production_patches"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_promotion_ready"], 0)
-        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 14)
+        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 15)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 8)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 0)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_capacity_gaps"], 1)
@@ -20689,6 +22218,50 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertGreaterEqual(
             payload["counts"]["research_agent_runtime_critic_reroutes"],
             1,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps"
+            ],
+            0,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_owners"
+            ],
+            {},
+        )
+        self.assertEqual(
+            payload["counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids"
+            ],
+            [],
+        )
+        self.assertTrue(
+            payload["counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_visible"
+            ]
+        )
+        self.assertTrue(
+            payload["counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved"
+            ]
+        )
+        self.assertTrue(
+            payload["counts"][
+                "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned"
+            ]
+        )
+        self.assertTrue(
+            payload["counts"][
+                "research_agent_runtime_capability_gap_routing_followup_commands"
+            ]
+        )
+        self.assertIn(
+            "--capability-eval",
+            payload["counts"][
+                "research_agent_runtime_capability_gap_routing_followup_commands"
+            ][0]["command"],
         )
         self.assertGreaterEqual(
             payload["counts"]["research_agent_runtime_learning_rows"],

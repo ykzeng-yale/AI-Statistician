@@ -106,6 +106,8 @@ from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
     LLMFormalizerProofEngineerAgent,
+    _feedback_requires_pseudo_formalization,
+    _required_pseudo_formal_target_lanes,
 )
 from .formalizer_repair_policy import (
     FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY,
@@ -138,6 +140,8 @@ from .proof_state_feedback import (
     proof_state_feedback_row_to_json,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
+    PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_HIGH_PRIORITY_TARGET_LANES,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
@@ -147,7 +151,9 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
     PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
     PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+    PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES,
     PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+    PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
@@ -156,7 +162,10 @@ from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+    normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
+    pseudo_formal_routable_work_order_rows,
+    validate_pseudo_formal_packet,
 )
 from .research_architect import (
     AnthropicArchitectLLMProvider,
@@ -223,6 +232,8 @@ from .source_theorem_exact_semantic_definition_lean_repair_executor import (
 from .source_theorem_exact_semantic_definition_authoring_worker import (
     AuthoringCandidateMaterializerConfig,
     AuthoringWorkerConfig,
+    STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+    STRUCTURAL_REFORMULATION_QUEUE_STATUS,
     run_source_theorem_exact_semantic_definition_authoring_candidate_materializer,
     run_source_theorem_exact_semantic_definition_authoring_worker,
 )
@@ -728,6 +739,11 @@ def _runtime_attached_component_gate_source(
         "live_generator",
         "static_or_fixture_only",
         "capability_evidence_ok",
+        "source_runtime_learning_jsonl_paths",
+        "source_runtime_learning_jsonl_path_count",
+        "n_source_runtime_learning_jsonl_paths",
+        "source_runtime_learning_lineage_reference_dir",
+        "source_runtime_learning_lineage_ok",
     ):
         flat_key = f"{nested_key}_{field}"
         if flat_key in payload:
@@ -880,6 +896,18 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     post_runtime_lineage_ok = bool(
         payload.get(
             "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            False,
+        )
+    )
+    post_runtime_materializer_lineage_ok = bool(
+        payload.get(
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok",
+            False,
+        )
+    )
+    post_runtime_lean_repair_lineage_ok = bool(
+        payload.get(
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok",
             False,
         )
     )
@@ -1111,6 +1139,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
             "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_candidate_packets",
             "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
         ),
     )
     materialized_lean_repair_tasks = _runtime_manifest_int_sum(
@@ -1119,6 +1148,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
             "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks",
             "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
         ),
     )
     materialized_local_lean_checked = _runtime_manifest_int_sum(
@@ -1128,6 +1158,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked",
             "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_local_lean_checked",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
         ),
     )
     materialized_feedback_rows = _runtime_manifest_int_sum(
@@ -1136,6 +1167,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_runtime_learning_rows",
             "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
         ),
     )
     primary_candidate_packets = max(
@@ -1219,6 +1251,48 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         payload,
         "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
     )
+    post_runtime_candidate_packets = (
+        max(
+            _runtime_manifest_int(
+                payload,
+                "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets",
+            ),
+            _runtime_manifest_int(
+                payload,
+                "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets",
+            ),
+            _runtime_manifest_int(
+                payload,
+                "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+            ),
+        )
+        if post_runtime_lineage_ok and post_runtime_materializer_lineage_ok
+        else 0
+    )
+    post_runtime_materialized_lean_repair_tasks = (
+        _runtime_manifest_int(
+            payload,
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks",
+        )
+        if post_runtime_materializer_lineage_ok
+        else 0
+    )
+    post_runtime_materialized_local_lean_checked = (
+        _runtime_manifest_int(
+            payload,
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
+        )
+        if post_runtime_lean_repair_lineage_ok
+        else 0
+    )
+    post_runtime_materialized_feedback_rows = (
+        _runtime_manifest_int(
+            payload,
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+        )
+        if post_runtime_lean_repair_lineage_ok
+        else 0
+    )
     candidate_packets = max(
         candidate_packets_from_workers,
         candidate_packets_from_materializers,
@@ -1257,6 +1331,14 @@ def _runtime_exact_semantic_definition_authoring_provenance(
                 late_materialized_lean_repair_tasks,
                 late_materialized_local_lean_checked,
                 late_materialized_feedback_rows,
+            ),
+            (
+                "post_runtime",
+                post_runtime_live_attempts,
+                post_runtime_candidate_packets,
+                post_runtime_materialized_lean_repair_tasks,
+                post_runtime_materialized_local_lean_checked,
+                post_runtime_materialized_feedback_rows,
             ),
         )
         if channel_live_attempts > 0
@@ -1340,6 +1422,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
         "post_runtime_attached": post_runtime_attached,
         "post_runtime_lineage_ok": post_runtime_lineage_ok,
+        "post_runtime_materializer_lineage_ok": post_runtime_materializer_lineage_ok,
+        "post_runtime_lean_repair_lineage_ok": post_runtime_lean_repair_lineage_ok,
     }
 
 
@@ -2602,6 +2686,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring['post_runtime_attached']}; "
                 "post_runtime_lineage_ok="
                 f"{exact_semantic_authoring['post_runtime_lineage_ok']}; "
+                "post_runtime_materializer_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_materializer_lineage_ok']}; "
+                "post_runtime_lean_repair_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_lean_repair_lineage_ok']}; "
                 "n_llm_attempted="
                 f"{exact_semantic_authoring_generic_attempts}; "
                 "n_reported_live_llm_attempted="
@@ -2647,7 +2735,15 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "materialized_local_lean_checked="
                 f"{exact_semantic_authoring['n_materialized_local_lean_checked']}; "
                 "materialized_feedback_rows="
-                f"{exact_semantic_authoring['n_materialized_feedback_rows']}"
+                f"{exact_semantic_authoring['n_materialized_feedback_rows']}; "
+                "post_runtime_attached="
+                f"{exact_semantic_authoring['post_runtime_attached']}; "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_lineage_ok']}; "
+                "post_runtime_materializer_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_materializer_lineage_ok']}; "
+                "post_runtime_lean_repair_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_lean_repair_lineage_ok']}"
             ),
             "blocker": (
                 ""
@@ -3481,6 +3577,168 @@ def _runtime_coding_agent_component_gate_learning_rows(
             ),
         }
     ]
+
+
+def _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
+    manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Turn an attached PF/BV component gate into bounded prompt memory."""
+
+    attached = manifest.get("internal_pseudo_formal_block_verifier_eval", {})
+    if not isinstance(attached, Mapping):
+        return []
+    manifest_path = str(attached.get("manifest_path", "") or "").strip()
+    if not manifest_path:
+        return []
+    question_ids = [
+        str(value)
+        for value in manifest.get("question_ids", []) or []
+        if str(value).strip()
+    ]
+    question_id = question_ids[0] if question_ids else ""
+    gate_summary = _runtime_component_gate_summary(attached)
+    provider_name = str(gate_summary["provider_name"])
+    backend_provider_name = str(gate_summary["backend_provider_name"])
+    component_backend_provider_names = list(
+        gate_summary["component_backend_provider_names"]
+    )
+    live_generator = bool(gate_summary["live_generator"])
+    static_or_fixture_only = bool(gate_summary["static_or_fixture_only"])
+    capability_ok = bool(gate_summary["capability_evidence_ok"])
+    source_runtime_learning_jsonl_paths = [
+        str(path).strip()
+        for path in attached.get("source_runtime_learning_jsonl_paths", [])
+        if str(path).strip()
+    ]
+    source_runtime_learning_lineage_reference_dir = str(
+        attached.get("source_runtime_learning_lineage_reference_dir", "") or ""
+    )
+    source_runtime_learning_lineage_ok = bool(
+        attached.get("source_runtime_learning_lineage_ok", False)
+    )
+    validated_rows = [
+        row for row in attached.get("runtime_learning_rows", []) if isinstance(row, Mapping)
+    ]
+    boundary = (
+        "This learning row carries PF/BV component-gate feedback. It is not "
+        "Lean/AXLE proof evidence, not semantic faithfulness proof, and not a "
+        "substitute for target-prover kernel replay."
+    )
+    summary_row: dict[str, Any] = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question_id,
+        "learning_task": "pseudo_formal_block_verifier_component_gate_feedback",
+        "next_owner_subsystem": "Formalizer/ProofEngineer",
+        "source_manifest_path": manifest_path,
+        "component_eval_manifest_path": manifest_path,
+        "component_eval": "PseudoFormalBlockVerifier",
+        "source_component_gate": "pseudo_formal_block_verifier_component_gate",
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "component_backend_provider_names": component_backend_provider_names,
+        "model": str(attached.get("model", "") or ""),
+        "live_generator": live_generator,
+        "static_or_fixture_only": static_or_fixture_only,
+        "capability_evidence_ok": capability_ok,
+        "fixture_plumbing_ok": bool(attached.get("fixture_plumbing_ok", False)),
+        "n_prompt_packets": _int_like(attached.get("n_prompt_packets", 0)),
+        "n_ok_prompt_packets": _int_like(attached.get("n_ok_prompt_packets", 0)),
+        "n_llm_response_rows": _int_like(attached.get("n_llm_response_rows", 0)),
+        "n_ok_responses": _int_like(attached.get("n_ok_responses", 0)),
+        "n_valid_responses": _int_like(attached.get("n_valid_responses", 0)),
+        "n_runtime_learning_rows": _int_like(
+            attached.get("n_runtime_learning_rows", 0)
+        ),
+        "n_source_runtime_learning_jsonl_paths": len(
+            source_runtime_learning_jsonl_paths
+        ),
+        "source_runtime_learning_jsonl_paths": list(
+            source_runtime_learning_jsonl_paths
+        ),
+        "source_runtime_learning_lineage_reference_dir": (
+            source_runtime_learning_lineage_reference_dir
+        ),
+        "source_runtime_learning_lineage_ok": (
+            source_runtime_learning_lineage_ok
+        ),
+        "n_accepted_blocks": _int_like(attached.get("n_accepted_blocks", 0)),
+        "n_failed_blocks": _int_like(attached.get("n_failed_blocks", 0)),
+        "target_behavior": (
+            "Use validated pseudo-formal BlockVerifier feedback to repair, "
+            "split, or reroute pseudo-formal proof blocks while keeping the "
+            "feedback below the theorem-proof evidence boundary."
+        ),
+        "acceptance_gate": (
+            "A future integrated AgentRuntime turn consumes the validated PF/BV "
+            "block feedback and either repairs the block, routes semantic/RAG "
+            "support, or reaches target-prover kernel evidence before any theorem "
+            "proof claim is promoted."
+        ),
+        "input_summary": {
+            "trigger": "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_ATTACHED",
+            "component_eval_manifest_path": manifest_path,
+            "source_component_gate": "pseudo_formal_block_verifier_component_gate",
+            "provider_name": provider_name,
+            "backend_provider_name": backend_provider_name,
+            "component_backend_provider_names": component_backend_provider_names,
+            "live_generator": live_generator,
+            "static_or_fixture_only": static_or_fixture_only,
+            "capability_evidence_ok": capability_ok,
+            "n_valid_responses": _int_like(attached.get("n_valid_responses", 0)),
+            "n_runtime_learning_rows": _int_like(
+                attached.get("n_runtime_learning_rows", 0)
+            ),
+            "n_source_runtime_learning_jsonl_paths": len(
+                source_runtime_learning_jsonl_paths
+            ),
+            "source_runtime_learning_jsonl_paths": list(
+                source_runtime_learning_jsonl_paths
+            ),
+            "source_runtime_learning_lineage_reference_dir": (
+                source_runtime_learning_lineage_reference_dir
+            ),
+            "source_runtime_learning_lineage_ok": (
+                source_runtime_learning_lineage_ok
+            ),
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "proof_evidence_status": (
+            "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": boundary,
+        "boundary": boundary,
+    }
+    rows = [summary_row]
+    for row in validated_rows:
+        copied = dict(row)
+        copied["source_component_gate"] = "pseudo_formal_block_verifier_component_gate"
+        copied["component_eval_manifest_path"] = manifest_path
+        copied["component_eval"] = "PseudoFormalBlockVerifier"
+        copied.setdefault("proof_evidence_status", PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE)
+        copied.setdefault("proof_evidence_boundary", PSEUDO_FORMALIZATION_PROOF_BOUNDARY)
+        copied.setdefault("boundary", PSEUDO_FORMALIZATION_PROOF_BOUNDARY)
+        input_summary = (
+            dict(copied.get("input_summary", {}))
+            if isinstance(copied.get("input_summary", {}), Mapping)
+            else {}
+        )
+        input_summary["source_component_gate"] = (
+            "pseudo_formal_block_verifier_component_gate"
+        )
+        input_summary["component_eval_manifest_path"] = manifest_path
+        input_summary.setdefault(
+            "proof_evidence_status", PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        )
+        input_summary.setdefault(
+            "proof_evidence_boundary", PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+        )
+        copied["input_summary"] = input_summary
+        rows.append(copied)
+    return rows
 
 
 def _runtime_evidence_truth_learning_rows(
@@ -5235,6 +5493,8 @@ class ArchitectCoordinatorRuntimeSubsystem:
             packet=packet,
             architect_context=context,
             packet_id=packet_id,
+            runtime_config=self.runtime_config,
+            blackboard=blackboard,
         )
         context["architect_initial_routing"] = routing_decision["record"]
         next_task = routing_decision["task"]
@@ -5299,10 +5559,14 @@ def _architect_initial_routing_decision(
     packet: Mapping[str, Any],
     architect_context: Mapping[str, Any],
     packet_id: str,
+    runtime_config: ResearchAgentRuntimeConfig,
+    blackboard: BlackboardState,
 ) -> dict[str, Any]:
     selected = _architect_select_initial_subsystem(
         packet=packet,
         architect_context=architect_context,
+        blackboard=blackboard,
+        question_id=question.id,
     )
     context = dict(architect_context)
     record = {
@@ -5321,15 +5585,49 @@ def _architect_initial_routing_decision(
         "proof_evidence_status": "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE",
     }
     if selected.get("gap_row"):
+        gap_row = (
+            selected["gap_row"]
+            if isinstance(selected.get("gap_row"), Mapping)
+            else {}
+        )
         record["capability_gap_requirement_id"] = str(
-            selected["gap_row"].get("requirement_id", "")
+            gap_row.get("requirement_id", "")
         )
         record["capability_gap_success_metric"] = str(
-            selected["gap_row"].get("success_metric", "")
+            gap_row.get("success_metric", "")
+        )
+        record["capability_gap_target_behavior"] = str(
+            gap_row.get("target_behavior", "")
+        )
+        record["capability_gap_recommended_capability_eval_command"] = str(
+            gap_row.get("recommended_capability_eval_command", "")
+        )
+        record["capability_gap_blocker"] = str(gap_row.get("blocker", ""))
+        record["capability_gap_routing_boundary"] = str(
+            gap_row.get("routing_boundary", "")
+        )
+        if isinstance(gap_row.get("scorecard_payload", {}), Mapping):
+            record["capability_gap_scorecard_payload"] = dict(
+                gap_row.get("scorecard_payload", {})
+            )
+    deferred_meta_gap = selected.get("deferred_meta_capability_gap")
+    if isinstance(deferred_meta_gap, Mapping) and deferred_meta_gap:
+        record["deferred_meta_capability_gap"] = dict(deferred_meta_gap)
+        record["deferred_meta_capability_gap_requirement_id"] = str(
+            deferred_meta_gap.get("requirement_id", "")
+        )
+        record["deferred_meta_capability_gap_owner"] = str(
+            deferred_meta_gap.get("requested_next_owner_subsystem", "")
         )
     context["architect_initial_routing"] = record
     if selected["selected_subsystem"] == "TheoryDeveloper":
         feedback = selected.get("environment_feedback")
+        if not feedback and selected.get("gap_row"):
+            feedback = _architect_capability_gap_execution_feedback(
+                requested_subsystem=str(selected.get("requested_subsystem", "")),
+                routed_subsystem="TheoryDeveloper",
+                gap_row=selected.get("gap_row", {}),
+            )
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
             "architect_context": context,
@@ -5369,6 +5667,362 @@ def _architect_initial_routing_decision(
                 "ArchitectCoordinator recorded a top-level execution plan and "
                 "is routing to TheoryDeveloper as the earliest feasible next "
                 "subsystem for the selected obligation."
+            ),
+        }
+    if selected["selected_subsystem"] == "SimulationEvaluator":
+        feedback = selected.get("environment_feedback")
+        if not feedback and selected.get("gap_row"):
+            feedback = _architect_capability_gap_execution_feedback(
+                requested_subsystem=str(selected.get("requested_subsystem", "")),
+                routed_subsystem="SimulationEvaluator",
+                gap_row=selected.get("gap_row", {}),
+            )
+        inputs: dict[str, Any] = {
+            "question": _question_to_payload(question),
+            "theory_packet_id": str(
+                architect_context.get("theory_packet_id", "")
+                or architect_context.get("previous_theory_packet_id", "")
+                or ""
+            ),
+            "architect_context": context,
+            "n_runs": runtime_config.n_runs,
+            "seed": runtime_config.seed,
+        }
+        if isinstance(feedback, Mapping) and feedback:
+            context["environment_feedback"] = dict(feedback)
+            inputs["environment_feedback"] = dict(feedback)
+            inputs["architect_context"] = context
+        return {
+            "task": AgentTask(
+                task_id=f"simulation:{question.id}:{stable_hash([packet_id, record])[:8]}",
+                owner_subsystem="SimulationEvaluator",
+                objective=_architect_initial_objective(
+                    context,
+                    "SimulationEvaluator",
+                    "Execute simulation and generated-simulation diagnostics requested "
+                    "by the Architect plan or capability-gap routing agenda.",
+                ),
+                inputs=inputs,
+                allowed_tools=(
+                    "model_backend",
+                    "research_simulator",
+                    "python",
+                    "filesystem_sandbox",
+                ),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "SimulationEvaluator",
+                    ("simulation_manifest", "implementation_gap_manifest"),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "SimulationEvaluator",
+                    "simulation manifest plus generated-simulation capability evidence or an explicit blocker",
+                ),
+                stop_condition=(
+                    "simulation diagnostics recorded and routed to algorithm or repair"
+                ),
+            ),
+            "record": record,
+            "rationale": (
+                "ArchitectCoordinator recorded a top-level execution plan and is "
+                "routing directly to SimulationEvaluator because the selected "
+                "capability obligation is simulation-executable."
+            ),
+        }
+    if selected["selected_subsystem"] == "AlgorithmEngineer":
+        feedback = selected.get("environment_feedback")
+        if not feedback and selected.get("gap_row"):
+            feedback = _architect_capability_gap_execution_feedback(
+                requested_subsystem=str(selected.get("requested_subsystem", "")),
+                routed_subsystem="AlgorithmEngineer",
+                gap_row=selected.get("gap_row", {}),
+            )
+        simulation_manifest_id = _architect_context_simulation_manifest_id(
+            architect_context
+        )
+        implementation_gaps = _architect_context_implementation_gaps(
+            architect_context,
+            blackboard=blackboard,
+        )
+        inputs: dict[str, Any] = {
+            "question": _question_to_payload(question),
+            "theory_packet_id": _architect_context_theory_packet_id(
+                architect_context
+            ),
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": implementation_gaps,
+            "architect_context": context,
+            "n_runs": runtime_config.n_runs,
+            "seed": runtime_config.seed,
+        }
+        if isinstance(feedback, Mapping) and feedback:
+            context["environment_feedback"] = dict(feedback)
+            inputs["environment_feedback"] = dict(feedback)
+            inputs["architect_context"] = context
+        return {
+            "task": AgentTask(
+                task_id=f"algorithm:{question.id}:{stable_hash([packet_id, record])[:8]}",
+                owner_subsystem="AlgorithmEngineer",
+                objective=_architect_initial_objective(
+                    context,
+                    "AlgorithmEngineer",
+                    "Execute algorithm sandbox and generated-code diagnostics requested "
+                    "by the Architect plan or capability-gap routing agenda.",
+                ),
+                inputs=inputs,
+                allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "AlgorithmEngineer",
+                    ("algorithm_sandbox_manifest",),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "AlgorithmEngineer",
+                    "algorithm sandbox manifest plus generated-code capability evidence or an explicit blocker",
+                ),
+                stop_condition=(
+                    "algorithm sandbox diagnostics recorded and routed to formalization or repair"
+                ),
+            ),
+            "record": record,
+            "rationale": (
+                "ArchitectCoordinator recorded a top-level execution plan and is "
+                "routing directly to AlgorithmEngineer because the selected "
+                "capability obligation has theory, simulation, and implementation-gap "
+                "handoff artifacts available."
+            ),
+        }
+    if selected["selected_subsystem"] == "FormalizationEvaluator":
+        feedback = selected.get("environment_feedback")
+        if not feedback and selected.get("gap_row"):
+            feedback = _architect_capability_gap_execution_feedback(
+                requested_subsystem=str(selected.get("requested_subsystem", "")),
+                routed_subsystem="FormalizationEvaluator",
+                gap_row=selected.get("gap_row", {}),
+            )
+        inputs: dict[str, Any] = {
+            "question": _question_to_payload(question),
+            "theory_packet_id": _architect_context_theory_packet_id(
+                architect_context
+            ),
+            "simulation_manifest_id": _architect_context_simulation_manifest_id(
+                architect_context
+            ),
+            "algorithm_sandbox_manifest_id": (
+                _architect_context_algorithm_sandbox_manifest_id(
+                    architect_context
+                )
+            ),
+            "architect_context": context,
+            "n_runs": runtime_config.n_runs,
+            "seed": runtime_config.seed,
+        }
+        if isinstance(feedback, Mapping) and feedback:
+            context["environment_feedback"] = dict(feedback)
+            inputs["environment_feedback"] = dict(feedback)
+            inputs["architect_context"] = context
+        return {
+            "task": AgentTask(
+                task_id=f"formalize:{question.id}:{stable_hash([packet_id, record])[:8]}",
+                owner_subsystem="FormalizationEvaluator",
+                objective=_architect_initial_objective(
+                    context,
+                    "FormalizationEvaluator",
+                    "Run Formalizer/ProofEngineer candidate generation, Lean "
+                    "materialization, proof-state, and formal-gap diagnostics "
+                    "requested by the Architect plan or capability-gap routing agenda.",
+                ),
+                inputs=inputs,
+                allowed_tools=(
+                    "model_backend",
+                    "proof_bank_retriever",
+                    "formal_source_retriever",
+                    "proof_verifier",
+                    "proof_state",
+                    "local_lean",
+                    "lean_lsp_mcp",
+                ),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "FormalizationEvaluator",
+                    ("formalization_manifest", "proof_feedback"),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "FormalizationEvaluator",
+                    "formalization manifest plus requested Lean-candidate/proof-state evidence or an explicit blocker",
+                ),
+                stop_condition=(
+                    "formalization, Lean-candidate, proof-state, or formal-gap "
+                    "diagnostics recorded and routed to repair or critique"
+                ),
+            ),
+            "record": record,
+            "rationale": (
+                "ArchitectCoordinator recorded a top-level execution plan and is "
+                "routing directly to FormalizationEvaluator because the selected "
+                "capability obligation has the required theory, simulation, and "
+                "algorithm handoff context available."
+            ),
+        }
+    if selected["selected_subsystem"] == "FormalizationGapPlanner":
+        feedback = selected.get("environment_feedback")
+        if not feedback:
+            feedback = _architect_formalization_gap_planner_execution_feedback(
+                requested_subsystem=str(selected.get("requested_subsystem", "")),
+                gap_row=selected.get("gap_row", {}),
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question.id,
+            )
+        bridge_ids = _architect_formalization_gap_planner_bridge_ids(
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question.id,
+        )
+        formalization_manifest_id = (
+            _architect_context_formalization_manifest_id(architect_context)
+            or _architect_formalization_gap_planner_formalization_manifest_id(
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question.id,
+            )
+        )
+        inputs: dict[str, Any] = {
+            "question": _question_to_payload(question),
+            "theory_packet_id": _architect_context_theory_packet_id(
+                architect_context
+            ),
+            "formalization_manifest_id": formalization_manifest_id,
+            "architect_context": context,
+        }
+        if bridge_ids:
+            inputs["formalization_gap_planner_bridge_ids"] = list(bridge_ids)
+        if isinstance(feedback, Mapping) and feedback:
+            context["environment_feedback"] = dict(feedback)
+            inputs["environment_feedback"] = dict(feedback)
+            inputs["architect_context"] = context
+        return {
+            "task": AgentTask(
+                task_id=(
+                    f"gap-planner-handoff:{question.id}:"
+                    f"{stable_hash([packet_id, record, bridge_ids])[:8]}"
+                ),
+                owner_subsystem="FormalizationGapPlanner",
+                objective=_architect_initial_objective(
+                    context,
+                    "FormalizationGapPlanner",
+                    "Execute formalization-gap planner bridge replay, handoff "
+                    "audit, route-planner prompt staging, and optional bounded "
+                    "target-prover feedback requested by the Architect plan or "
+                    "capability-gap routing agenda.",
+                ),
+                inputs=inputs,
+                allowed_tools=(
+                    "formalization_gap_planner",
+                    "formal_source_retriever",
+                    "evidence_ledger",
+                    "model_backend",
+                ),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "FormalizationGapPlanner",
+                    (
+                        "runtime_formalization_gap_planner_execution_manifest",
+                        "runtime_formalization_gap_planner_handoffs",
+                    ),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "FormalizationGapPlanner",
+                    "gap-planner handoff replay and route-planner staging record "
+                    "non-proof planning evidence or an explicit bridge blocker",
+                ),
+                stop_condition=(
+                    "formalization-gap planner execution manifest records offline "
+                    "handoff smoke, optional bounded route-planner feedback, or a "
+                    "typed bridge blocker"
+                ),
+            ),
+            "record": record,
+            "rationale": (
+                "ArchitectCoordinator recorded a top-level execution plan and is "
+                "routing directly to FormalizationGapPlanner because a replayable "
+                "formalization-gap bridge is available."
+            ),
+        }
+    if selected["selected_subsystem"] == "ProofEngineer":
+        feedback = selected.get("environment_feedback")
+        if not feedback:
+            feedback = _architect_proofengineer_execution_feedback(
+                requested_subsystem=str(selected.get("requested_subsystem", "")),
+                gap_row=selected.get("gap_row", {}),
+                architect_context=architect_context,
+                blackboard=blackboard,
+            )
+        inputs: dict[str, Any] = {
+            "question": _question_to_payload(question),
+            "theory_packet_id": _architect_context_theory_packet_id(
+                architect_context
+            ),
+            "simulation_manifest_id": _architect_context_simulation_manifest_id(
+                architect_context
+            ),
+            "algorithm_sandbox_manifest_id": (
+                _architect_context_algorithm_sandbox_manifest_id(
+                    architect_context
+                )
+            ),
+            "architect_context": context,
+            "n_runs": runtime_config.n_runs,
+            "seed": runtime_config.seed,
+        }
+        if isinstance(feedback, Mapping) and feedback:
+            context["environment_feedback"] = dict(feedback)
+            inputs["environment_feedback"] = dict(feedback)
+            inputs["architect_context"] = context
+        return {
+            "task": AgentTask(
+                task_id=(
+                    f"formalize-lean-repair:{question.id}:"
+                    f"{stable_hash([packet_id, record, feedback])[:8]}"
+                ),
+                owner_subsystem="ProofEngineer",
+                objective=_architect_initial_objective(
+                    context,
+                    "ProofEngineer",
+                    "Repair the exact materialized Lean candidate using prior "
+                    "Formalizer diagnostics, local Lean feedback, and proof-state "
+                    "context requested by the Architect plan or capability-gap agenda.",
+                ),
+                inputs=inputs,
+                allowed_tools=(
+                    "model_backend",
+                    "local_lean",
+                    "lean_lsp_mcp",
+                    "formal_source_retrieval",
+                    "proof_search",
+                    "proof_bank_memory",
+                ),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "ProofEngineer",
+                    ("formalization_manifest", "proof_feedback"),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "ProofEngineer",
+                    "ProofEngineer repair candidate is non-vacuous and reruns through local Lean/AXLE or records a precise formal blocker",
+                ),
+                stop_condition="repaired Lean candidate or explicit formal blocker recorded",
+            ),
+            "record": record,
+            "rationale": (
+                "ArchitectCoordinator recorded a top-level execution plan and is "
+                "routing directly to ProofEngineer because a materialized Lean "
+                "candidate repair handoff is available."
             ),
         }
     return {
@@ -5414,11 +6068,36 @@ def _architect_select_initial_subsystem(
     *,
     packet: Mapping[str, Any],
     architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str = "",
 ) -> dict[str, Any]:
     gap_selection = _architect_capability_gap_requested_subsystem(architect_context)
     if gap_selection:
+        if gap_selection.get("meta_capability_gap_only") is True:
+            requested = _architect_packet_requested_subsystem(packet)
+            selected = _architect_feasible_initial_subsystem(
+                requested,
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question_id,
+            )
+            return {
+                "requested_subsystem": requested,
+                "selected_subsystem": selected,
+                "source": "architect_packet_after_meta_capability_gap",
+                "requires_prerequisite_theory": requested != selected,
+                "deferred_meta_capability_gap": gap_selection.get(
+                    "deferred_meta_capability_gap",
+                    {},
+                ),
+            }
         requested = str(gap_selection.get("requested_subsystem", "") or "")
-        selected = _architect_feasible_initial_subsystem(requested)
+        selected = _architect_feasible_initial_subsystem(
+            requested,
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+        )
         result = {
             "requested_subsystem": requested,
             "selected_subsystem": selected,
@@ -5426,16 +6105,28 @@ def _architect_select_initial_subsystem(
             "gap_row": gap_selection.get("gap_row", {}),
             "requires_prerequisite_theory": requested != selected,
         }
+        if isinstance(
+            gap_selection.get("deferred_meta_capability_gap"), Mapping
+        ) and gap_selection.get("deferred_meta_capability_gap"):
+            result["deferred_meta_capability_gap"] = gap_selection.get(
+                "deferred_meta_capability_gap"
+            )
         if requested != selected:
             result["environment_feedback"] = (
                 _architect_capability_gap_prerequisite_feedback(
                     requested_subsystem=requested,
+                    routed_prerequisite_subsystem=selected,
                     gap_row=gap_selection.get("gap_row", {}),
                 )
             )
         return result
     requested = _architect_packet_requested_subsystem(packet)
-    selected = _architect_feasible_initial_subsystem(requested)
+    selected = _architect_feasible_initial_subsystem(
+        requested,
+        architect_context=architect_context,
+        blackboard=blackboard,
+        question_id=question_id,
+    )
     return {
         "requested_subsystem": requested,
         "selected_subsystem": selected,
@@ -5471,22 +6162,408 @@ def _architect_capability_gap_requested_subsystem(
     agenda = plan.get("runtime_capability_gap_routing_agenda", {})
     if not isinstance(agenda, Mapping):
         return {}
+    deferred_meta_gap: dict[str, Any] = {}
     for row in agenda.get("rows", []) or []:
         if not isinstance(row, Mapping):
             continue
         owner = _canonical_architect_subsystem(row.get("next_owner_subsystem"))
-        if owner and owner != "ArchitectCoordinator":
-            return {
+        if owner in {"AgentRuntimeOrchestrator", "ArchitectCoordinator"}:
+            if not deferred_meta_gap:
+                deferred_meta_gap = _architect_deferred_meta_capability_gap(row, owner)
+            continue
+        if owner:
+            selection = {
                 "requested_subsystem": owner,
                 "gap_row": dict(row),
             }
+            if deferred_meta_gap:
+                selection["deferred_meta_capability_gap"] = deferred_meta_gap
+            return selection
+    if deferred_meta_gap:
+        return {
+            "meta_capability_gap_only": True,
+            "deferred_meta_capability_gap": deferred_meta_gap,
+        }
     return {}
 
 
-def _architect_feasible_initial_subsystem(requested: str) -> str:
+def _architect_deferred_meta_capability_gap(
+    row: Mapping[str, Any],
+    owner: str,
+) -> dict[str, Any]:
+    gap = {
+        "artifact_kind": "ArchitectDeferredMetaCapabilityGap",
+        "requested_next_owner_subsystem": owner,
+        "requirement_id": str(row.get("requirement_id", "") or ""),
+        "target_behavior": str(row.get("target_behavior", "") or ""),
+        "success_metric": str(row.get("success_metric", "") or ""),
+        "recommended_capability_eval_command": str(
+            row.get("recommended_capability_eval_command", "") or ""
+        ),
+        "blocker": str(row.get("blocker", "") or ""),
+        "deferred_reason": (
+            "This capability gap targets the AgentRuntime/Architect control plane "
+            "rather than an executable science worker. It requires a runtime "
+            "configuration, harness, orchestration, or code change outside the "
+            "current worker handoff loop."
+        ),
+        "proof_evidence_status": "ARCHITECT_META_CAPABILITY_GAP_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This deferred meta capability gap is unresolved control-plane debt. "
+            "Recording it does not execute a live generator, run a simulation, "
+            "validate generated code, or prove a Lean theorem."
+        ),
+    }
+    if isinstance(row.get("scorecard_payload", {}), Mapping):
+        gap["scorecard_payload"] = dict(row.get("scorecard_payload", {}))
+    return gap
+
+
+def _architect_feasible_initial_subsystem(
+    requested: str,
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str = "",
+) -> str:
     if requested in {"RetrievalMemory", "TheoryDeveloper"}:
         return requested
+    if requested == "SimulationEvaluator":
+        if _architect_context_theory_packet_id(architect_context):
+            return "SimulationEvaluator"
+        return "TheoryDeveloper"
+    if requested == "AlgorithmEngineer":
+        if not _architect_context_theory_packet_id(architect_context):
+            return "TheoryDeveloper"
+        if not _architect_context_simulation_manifest_id(architect_context):
+            return "SimulationEvaluator"
+        if not _architect_context_implementation_gaps(
+            architect_context,
+            blackboard=blackboard,
+        ):
+            return "SimulationEvaluator"
+        return "AlgorithmEngineer"
+    if requested == "FormalizationEvaluator":
+        theory_packet_id = _architect_context_theory_packet_id(architect_context)
+        if not theory_packet_id or not _architect_blackboard_artifact_present(
+            blackboard,
+            theory_packet_id,
+        ):
+            return "TheoryDeveloper"
+        simulation_manifest_id = _architect_context_simulation_manifest_id(
+            architect_context
+        )
+        if not simulation_manifest_id or not _architect_blackboard_artifact_present(
+            blackboard,
+            simulation_manifest_id,
+        ):
+            return "SimulationEvaluator"
+        algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
+            architect_context
+        )
+        implementation_gaps = _architect_context_implementation_gaps(
+            architect_context,
+            blackboard=blackboard,
+        )
+        if (
+            (algorithm_manifest_id or implementation_gaps)
+            and not _architect_blackboard_artifact_present(
+                blackboard,
+                algorithm_manifest_id,
+            )
+            ):
+            return "AlgorithmEngineer"
+        return "FormalizationEvaluator"
+    if requested == "FormalizationGapPlanner":
+        if _architect_formalization_gap_planner_bridge_available(
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+        ):
+            return "FormalizationGapPlanner"
+        return _architect_feasible_initial_subsystem(
+            "FormalizationEvaluator",
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+        )
+    if requested == "ProofEngineer":
+        theory_packet_id = _architect_context_theory_packet_id(architect_context)
+        if not theory_packet_id or not _architect_blackboard_artifact_present(
+            blackboard,
+            theory_packet_id,
+        ):
+            return "TheoryDeveloper"
+        simulation_manifest_id = _architect_context_simulation_manifest_id(
+            architect_context
+        )
+        if not simulation_manifest_id or not _architect_blackboard_artifact_present(
+            blackboard,
+            simulation_manifest_id,
+        ):
+            return "SimulationEvaluator"
+        algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
+            architect_context
+        )
+        implementation_gaps = _architect_context_implementation_gaps(
+            architect_context,
+            blackboard=blackboard,
+        )
+        if (
+            (algorithm_manifest_id or implementation_gaps)
+            and not _architect_blackboard_artifact_present(
+                blackboard,
+                algorithm_manifest_id,
+            )
+        ):
+            return "AlgorithmEngineer"
+        if not _architect_proofengineer_repair_feedback_available(
+            architect_context=architect_context,
+            blackboard=blackboard,
+        ):
+            return "FormalizationEvaluator"
+        return "ProofEngineer"
     return "TheoryDeveloper" if requested else "RetrievalMemory"
+
+
+def _architect_context_theory_packet_id(architect_context: Mapping[str, Any]) -> str:
+    if not isinstance(architect_context, Mapping):
+        return ""
+    return str(
+        architect_context.get("theory_packet_id", "")
+        or architect_context.get("previous_theory_packet_id", "")
+        or ""
+    ).strip()
+
+
+def _architect_context_simulation_manifest_id(
+    architect_context: Mapping[str, Any],
+) -> str:
+    if not isinstance(architect_context, Mapping):
+        return ""
+    return str(
+        architect_context.get("simulation_manifest_id", "")
+        or architect_context.get("previous_simulation_manifest_id", "")
+        or ""
+    ).strip()
+
+
+def _architect_context_algorithm_sandbox_manifest_id(
+    architect_context: Mapping[str, Any],
+) -> str:
+    if not isinstance(architect_context, Mapping):
+        return ""
+    return str(
+        architect_context.get("algorithm_sandbox_manifest_id", "")
+        or architect_context.get("previous_algorithm_sandbox_manifest_id", "")
+        or ""
+    ).strip()
+
+
+def _architect_context_formalizer_lean_candidate_materialization_id(
+    architect_context: Mapping[str, Any],
+) -> str:
+    if not isinstance(architect_context, Mapping):
+        return ""
+    return str(
+        architect_context.get("formalizer_lean_candidate_materialization_manifest_id", "")
+        or architect_context.get(
+            "previous_formalizer_lean_candidate_materialization_manifest_id",
+            "",
+        )
+        or architect_context.get("source_materialization_manifest_id", "")
+        or ""
+    ).strip()
+
+
+def _architect_context_formalization_manifest_id(
+    architect_context: Mapping[str, Any],
+) -> str:
+    if not isinstance(architect_context, Mapping):
+        return ""
+    return str(
+        architect_context.get("formalization_manifest_id", "")
+        or architect_context.get("previous_formalization_manifest_id", "")
+        or ""
+    ).strip()
+
+
+def _architect_context_formalization_gap_planner_bridge_id(
+    architect_context: Mapping[str, Any],
+) -> str:
+    if not isinstance(architect_context, Mapping):
+        return ""
+    for key in (
+        "formalization_gap_planner_bridge_id",
+        "previous_formalization_gap_planner_bridge_id",
+    ):
+        text = str(architect_context.get(key, "") or "").strip()
+        if text:
+            return text
+    environment_feedback = architect_context.get("environment_feedback", {})
+    if isinstance(environment_feedback, Mapping):
+        text = str(
+            environment_feedback.get("formalization_gap_planner_bridge_id", "") or ""
+        ).strip()
+        if text:
+            return text
+        bridge_ids = environment_feedback.get("formalization_gap_planner_bridge_ids", [])
+        if isinstance(bridge_ids, Sequence) and not isinstance(
+            bridge_ids,
+            (str, bytes, bytearray),
+        ):
+            for bridge_id in bridge_ids:
+                text = str(bridge_id or "").strip()
+                if text:
+                    return text
+    return ""
+
+
+def _architect_blackboard_artifact_present(
+    blackboard: BlackboardState,
+    artifact_id: str,
+) -> bool:
+    artifact_id = str(artifact_id or "").strip()
+    if not artifact_id:
+        return False
+    artifact = blackboard.artifacts.get(artifact_id, {})
+    return bool(isinstance(artifact, Mapping) and artifact)
+
+
+def _architect_formalization_gap_planner_bridge_ids(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str = "",
+) -> tuple[str, ...]:
+    bridge_ids: list[str] = []
+    context_bridge_id = _architect_context_formalization_gap_planner_bridge_id(
+        architect_context
+    )
+    if context_bridge_id and _architect_blackboard_artifact_present(
+        blackboard,
+        context_bridge_id,
+    ):
+        bridge_ids.append(context_bridge_id)
+    formalization_manifest_id = _architect_context_formalization_manifest_id(
+        architect_context
+    )
+    if formalization_manifest_id:
+        manifest = blackboard.artifacts.get(formalization_manifest_id, {})
+        if isinstance(manifest, Mapping):
+            manifest_bridge_id = str(
+                manifest.get("formalization_gap_planner_bridge_id", "") or ""
+            ).strip()
+            if manifest_bridge_id and _architect_blackboard_artifact_present(
+                blackboard,
+                manifest_bridge_id,
+            ):
+                bridge_ids.append(manifest_bridge_id)
+    for row in _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
+        blackboard,
+        question_id=question_id,
+    ):
+        bridge_id = str(row.get("bridge_id", "") or "").strip()
+        if bridge_id:
+            bridge_ids.append(bridge_id)
+    return tuple(dict.fromkeys(bridge_ids))
+
+
+def _architect_formalization_gap_planner_bridge_available(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str = "",
+) -> bool:
+    return bool(
+        _architect_formalization_gap_planner_bridge_ids(
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+        )
+    )
+
+
+def _architect_formalization_gap_planner_formalization_manifest_id(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str = "",
+) -> str:
+    manifest_id = _architect_context_formalization_manifest_id(architect_context)
+    if manifest_id:
+        return manifest_id
+    for bridge in _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
+        blackboard,
+        question_id=question_id,
+    ):
+        text = str(bridge.get("formalization_manifest_id", "") or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _architect_formalizer_lean_candidate_materialization(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+) -> dict[str, Any]:
+    materialization_id = (
+        _architect_context_formalizer_lean_candidate_materialization_id(
+            architect_context
+        )
+    )
+    artifact = _artifact_by_id_or_latest(
+        blackboard,
+        materialization_id,
+        "formalizer_lean_candidate_materialization:",
+    )
+    if str(artifact.get("artifact_kind", "") or "") != (
+        "RuntimeFormalizerLeanCandidateMaterialization"
+    ):
+        return {}
+    return _normalize_formalizer_lean_candidate_materialization_artifact(artifact)
+
+
+def _architect_proofengineer_repair_feedback_available(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+) -> bool:
+    materialization = _architect_formalizer_lean_candidate_materialization(
+        architect_context=architect_context,
+        blackboard=blackboard,
+    )
+    if not materialization:
+        return False
+    return _formalizer_lean_candidate_repair_feedback(materialization) is not None
+
+
+def _architect_context_implementation_gaps(
+    architect_context: Mapping[str, Any],
+    *,
+    blackboard: BlackboardState,
+) -> list[dict[str, Any]]:
+    if not isinstance(architect_context, Mapping):
+        return []
+    for key in ("implementation_gaps", "previous_implementation_gaps"):
+        rows = architect_context.get(key, [])
+        if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)):
+            normalized = [dict(row) for row in rows if isinstance(row, Mapping)]
+            if normalized:
+                return normalized
+    simulation_manifest_id = _architect_context_simulation_manifest_id(
+        architect_context
+    )
+    if not simulation_manifest_id:
+        return []
+    simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
+    if not isinstance(simulation_manifest, Mapping):
+        return []
+    rows = simulation_manifest.get("implementation_gaps", [])
+    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
+        return []
+    return [dict(row) for row in rows if isinstance(row, Mapping)]
 
 
 def _canonical_architect_subsystem(value: Any) -> str:
@@ -5505,6 +6582,9 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "algorithmengineer": "AlgorithmEngineer",
         "algorithm": "AlgorithmEngineer",
         "formalizationevaluator": "FormalizationEvaluator",
+        "formalizationgapplanner": "FormalizationGapPlanner",
+        "formalizationgap": "FormalizationGapPlanner",
+        "gapplanner": "FormalizationGapPlanner",
         "formalizer": "FormalizationEvaluator",
         "formalizerproofengineer": "FormalizationEvaluator",
         "formalizer/leanprover": "FormalizationEvaluator",
@@ -5513,12 +6593,21 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "critic": "CriticEvaluator",
         "criticevaluator": "CriticEvaluator",
         "architectcoordinator": "ArchitectCoordinator",
+        "agentruntime": "AgentRuntimeOrchestrator",
+        "agentruntimeorchestrator": "AgentRuntimeOrchestrator",
+        "runtimeorchestrator": "AgentRuntimeOrchestrator",
     }
     if lowered in aliases:
         return aliases[lowered]
-    for separator in ("/", ":", ","):
+    for separator in ("/", ":", ",", "+", "&"):
         if separator in lowered:
             for part in lowered.split(separator):
+                canonical = aliases.get(part.strip())
+                if canonical:
+                    return canonical
+    for token in (" and ", " then ", " -> "):
+        if token in lowered:
+            for part in lowered.split(token):
                 canonical = aliases.get(part.strip())
                 if canonical:
                     return canonical
@@ -5528,9 +6617,11 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "SimulationEvaluator",
         "AlgorithmEngineer",
         "FormalizationEvaluator",
+        "FormalizationGapPlanner",
         "ProofEngineer",
         "CriticEvaluator",
         "ArchitectCoordinator",
+        "AgentRuntimeOrchestrator",
     }:
         return text
     return ""
@@ -5539,16 +6630,17 @@ def _canonical_architect_subsystem(value: Any) -> str:
 def _architect_capability_gap_prerequisite_feedback(
     *,
     requested_subsystem: str,
+    routed_prerequisite_subsystem: str,
     gap_row: Any,
 ) -> dict[str, Any]:
     row = dict(gap_row) if isinstance(gap_row, Mapping) else {}
-    return {
+    feedback = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "ArchitectCapabilityGapPrerequisiteFeedback",
         "feedback_source": "ArchitectCoordinator",
         "trigger": "ARCHITECT_CAPABILITY_GAP_PREREQUISITE",
         "requested_next_owner_subsystem": requested_subsystem,
-        "routed_prerequisite_subsystem": "TheoryDeveloper",
+        "routed_prerequisite_subsystem": routed_prerequisite_subsystem,
         "requirement_id": str(row.get("requirement_id", "") or ""),
         "target_behavior": str(row.get("target_behavior", "") or ""),
         "success_metric": str(row.get("success_metric", "") or ""),
@@ -5556,13 +6648,12 @@ def _architect_capability_gap_prerequisite_feedback(
             row.get("recommended_capability_eval_command", "") or ""
         ),
         "required_repair": (
-            "Produce the structured theory/prerequisite artifact needed before "
+            "Produce the structured prerequisite artifact needed before "
             f"{requested_subsystem} can execute the capability-gap obligation."
         ),
         "acceptance_gate": (
-            "A structured TheoryDerivationPacket with equation_chain, "
-            "assumption_ledger, and formalization_handoff is available for "
-            f"{requested_subsystem}."
+            f"A {routed_prerequisite_subsystem} handoff artifact is available "
+            f"with the concrete inputs needed by {requested_subsystem}."
         ),
         "proof_evidence_status": (
             "ARCHITECT_CAPABILITY_GAP_PREREQUISITE_NOT_PROOF_EVIDENCE"
@@ -5573,6 +6664,355 @@ def _architect_capability_gap_prerequisite_feedback(
             "resolve the capability gap."
         ),
     }
+    contract = _architect_capability_gap_execution_contract(
+        routed_subsystem=requested_subsystem,
+        row=row,
+    )
+    if contract:
+        feedback["runtime_requested_evidence_contract"] = contract
+    if isinstance(row.get("scorecard_payload", {}), Mapping):
+        feedback["scorecard_payload"] = dict(row.get("scorecard_payload", {}))
+    return feedback
+
+
+def _architect_proofengineer_execution_feedback(
+    *,
+    requested_subsystem: str,
+    gap_row: Any,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+) -> dict[str, Any]:
+    base = _architect_capability_gap_execution_feedback(
+        requested_subsystem=requested_subsystem,
+        routed_subsystem="ProofEngineer",
+        gap_row=gap_row,
+    )
+    materialization = _architect_formalizer_lean_candidate_materialization(
+        architect_context=architect_context,
+        blackboard=blackboard,
+    )
+    repair_feedback = _formalizer_lean_candidate_repair_feedback(materialization)
+    if not isinstance(repair_feedback, Mapping) or not repair_feedback:
+        return base
+    feedback = dict(repair_feedback)
+    feedback["architect_capability_gap_execution_feedback"] = base
+    feedback["requested_next_owner_subsystem"] = requested_subsystem
+    feedback["routed_subsystem"] = "ProofEngineer"
+    feedback.setdefault("trigger", "ARCHITECT_CAPABILITY_GAP_EXECUTION")
+    requested_contract = (
+        dict(feedback.get("runtime_requested_evidence_contract", {}))
+        if isinstance(feedback.get("runtime_requested_evidence_contract", {}), Mapping)
+        else {}
+    )
+    base_contract = base.get("runtime_requested_evidence_contract", {})
+    if isinstance(base_contract, Mapping):
+        requested_contract.update(
+            {
+                str(key): value
+                for key, value in base_contract.items()
+                if str(key).startswith("capability_eval_requires_")
+            }
+        )
+    if requested_contract:
+        feedback["runtime_requested_evidence_contract"] = requested_contract
+    if isinstance(base.get("scorecard_payload", {}), Mapping):
+        feedback["scorecard_payload"] = dict(base.get("scorecard_payload", {}))
+    feedback["proof_evidence_status"] = (
+        "ARCHITECT_PROOFENGINEER_EXECUTION_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    feedback["boundary"] = (
+        "This is ProofEngineer repair feedback derived from a materialized "
+        "Formalizer Lean candidate and Architect capability-gap routing. It is "
+        "not proof evidence until a repaired artifact passes local Lean/AXLE "
+        "kernel verification."
+    )
+    return feedback
+
+
+def _architect_formalization_gap_planner_execution_feedback(
+    *,
+    requested_subsystem: str,
+    gap_row: Any,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str = "",
+) -> dict[str, Any]:
+    feedback = _architect_capability_gap_execution_feedback(
+        requested_subsystem=requested_subsystem,
+        routed_subsystem="FormalizationGapPlanner",
+        gap_row=gap_row,
+    )
+    bridge_ids = _architect_formalization_gap_planner_bridge_ids(
+        architect_context=architect_context,
+        blackboard=blackboard,
+        question_id=question_id,
+    )
+    if bridge_ids:
+        feedback["formalization_gap_planner_bridge_ids"] = list(bridge_ids)
+    formalization_manifest_id = (
+        _architect_context_formalization_manifest_id(architect_context)
+        or _architect_formalization_gap_planner_formalization_manifest_id(
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+        )
+    )
+    if formalization_manifest_id:
+        feedback["formalization_manifest_id"] = formalization_manifest_id
+    feedback["feedback_type"] = (
+        "architect_capability_gap_formalization_gap_planner_handoff"
+    )
+    feedback["failure_classification"] = (
+        "architect_requested_formalization_gap_planner_execution"
+    )
+    feedback["proof_evidence_status"] = (
+        "ARCHITECT_FORMALIZATION_GAP_PLANNER_EXECUTION_NOT_PROOF_EVIDENCE"
+    )
+    feedback["proof_evidence_boundary"] = (
+        RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY
+    )
+    feedback["boundary"] = (
+        "This is Architect routing feedback for FormalizationGapPlanner. It "
+        "authorizes replaying bridge and handoff artifacts, staging route plans, "
+        "and recording target-prover diagnostics as planning evidence only; it "
+        "does not prove or repair a Lean theorem."
+    )
+    return feedback
+
+
+def _architect_capability_gap_execution_feedback(
+    *,
+    requested_subsystem: str,
+    routed_subsystem: str,
+    gap_row: Any,
+) -> dict[str, Any]:
+    row = dict(gap_row) if isinstance(gap_row, Mapping) else {}
+    requirement_id = str(row.get("requirement_id", "") or "")
+    target_behavior = str(row.get("target_behavior", "") or "")
+    success_metric = str(row.get("success_metric", "") or "")
+    blocker = str(row.get("blocker", "") or "")
+    feedback = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "ArchitectCapabilityGapExecutionFeedback",
+        "feedback_source": "ArchitectCoordinator",
+        "trigger": "ARCHITECT_CAPABILITY_GAP_EXECUTION",
+        "requested_next_owner_subsystem": requested_subsystem,
+        "routed_subsystem": routed_subsystem,
+        "requirement_id": requirement_id,
+        "target_behavior": target_behavior,
+        "success_metric": success_metric,
+        "blocker": blocker,
+        "recommended_capability_eval_command": str(
+            row.get("recommended_capability_eval_command", "") or ""
+        ),
+        "required_execution": (
+            f"{routed_subsystem} must execute the capability-gap obligation and "
+            "record runtime evidence or a concrete blocker. Routing feedback alone "
+            "does not satisfy the gap."
+        ),
+        "acceptance_gate": (
+            success_metric
+            or "follow-up capability scorecard row passes with runtime evidence"
+        ),
+        "proof_evidence_status": (
+            "ARCHITECT_CAPABILITY_GAP_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This is Architect capability-gap execution feedback. It is "
+            "orchestration control only, not proof, simulation, generated-code, "
+            "or verifier evidence until the target subsystem records its own "
+            "runtime artifact."
+        ),
+    }
+    contract = _architect_capability_gap_execution_contract(
+        routed_subsystem=routed_subsystem,
+        row=row,
+    )
+    if contract:
+        feedback["runtime_requested_evidence_contract"] = contract
+    if isinstance(row.get("scorecard_payload", {}), Mapping):
+        feedback["scorecard_payload"] = dict(row.get("scorecard_payload", {}))
+    return feedback
+
+
+def _architect_capability_gap_execution_contract(
+    *,
+    routed_subsystem: str,
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    text = " ".join(
+        str(row.get(key, "") or "")
+        for key in ("requirement_id", "target_behavior", "success_metric", "blocker")
+    ).lower()
+    contract: dict[str, Any] = {}
+    algorithm_requested = (
+        "algorithmengineer" in text
+        or "algorithm engineer" in text
+        or "algorithm_sandbox" in text
+        or "generated_algorithm" in text
+        or "n_generated_code_sandbox" in text
+    )
+    simulation_requested = (
+        "simulationevaluator" in text
+        or "simulation evaluator" in text
+        or "simulationengineer" in text
+        or "simulation engineer" in text
+        or "generated_simulation" in text
+        or "simulation_sandbox" in text
+        or "simulation_code" in text
+        or "n_generated_simulation_sandbox" in text
+    )
+    generic_generated_code_requested = (
+        "generated_code" in text
+        or "generated-code" in text
+        or "generated code" in text
+        or "sandbox_code" in text
+        or "sandbox code" in text
+        or "generated python" in text
+    )
+    if (
+        routed_subsystem in {"SimulationEvaluator", "AlgorithmEngineer"}
+        and simulation_requested
+    ) or (
+        routed_subsystem == "SimulationEvaluator"
+        and generic_generated_code_requested
+        and not algorithm_requested
+    ):
+        contract["capability_eval_requires_generated_simulation_code"] = True
+    if (
+        routed_subsystem in {"AlgorithmEngineer", "SimulationEvaluator"}
+        and algorithm_requested
+    ) or (
+        routed_subsystem == "AlgorithmEngineer"
+        and generic_generated_code_requested
+        and not simulation_requested
+    ):
+        contract["capability_eval_requires_generated_algorithm_code"] = True
+    if routed_subsystem == "SimulationEvaluator" and (
+        "generated_simulation" in text
+        or "simulation_sandbox" in text
+        or "simulation_code" in text
+        or "n_generated_simulation_sandbox" in text
+    ):
+        contract["capability_eval_requires_generated_simulation_code"] = True
+    if routed_subsystem == "AlgorithmEngineer" and (
+        "generated_code" in text
+        or "algorithm_sandbox" in text
+        or "sandbox_code" in text
+        or "n_generated_code_sandbox" in text
+    ):
+        contract["capability_eval_requires_generated_algorithm_code"] = True
+    if routed_subsystem in {"FormalizationEvaluator", "ProofEngineer"} and (
+        "formalizer" in text
+        or "proofengineer" in text
+        or "proof engineer" in text
+        or "lean" in text
+        or "proof_state" in text
+        or "proof-state" in text
+        or "prover" in text
+    ):
+        contract["capability_eval_requires_formalizer_lean_candidate"] = True
+        if (
+            "local_lean" in text
+            or "local lean" in text
+            or "checked_locally" in text
+            or "local.lake_env_lean" in text
+        ):
+            contract["capability_eval_requires_formalizer_local_lean_check"] = True
+            contract["capability_eval_requires_formalizer_local_lean_tool_call"] = True
+        if (
+            "proof_state" in text
+            or "proof-state" in text
+            or "lsp" in text
+            or "mcp" in text
+            or "prover" in text
+        ):
+            contract["capability_eval_requires_formalizer_proof_state_request"] = True
+            contract["capability_eval_requires_formalizer_proof_state_feedback"] = True
+        if "lean_lsp_mcp" in text or "lean lsp" in text or "lsp/mcp" in text:
+            contract["capability_eval_requires_formalizer_live_prover_tool_call"] = True
+    exact_semantic_definition_requested = (
+        "exact_semantic_definition" in text
+        or "exact semantic-definition" in text
+        or "exact semantic definition" in text
+        or "semantic-definition authoring" in text
+        or "semantic definition authoring" in text
+        or "source-theorem semantic-definition" in text
+        or "source theorem semantic definition" in text
+    )
+    if (
+        routed_subsystem in {"FormalizationEvaluator", "ProofEngineer"}
+        and exact_semantic_definition_requested
+    ):
+        contract[
+            "capability_eval_requires_exact_semantic_definition_authoring_worker"
+        ] = True
+        if (
+            "live_attempted" in text
+            or "live attempted" in text
+            or "live llm" in text
+            or "live claude" in text
+            or "live openai" in text
+            or "authoring worker" in text
+        ):
+            contract[
+                "capability_eval_requires_exact_semantic_definition_authoring_live_attempt"
+            ] = True
+        if (
+            "candidate_verifier_checked" in text
+            or "candidate verifier" in text
+            or "candidate packets" in text
+            or "materialize" in text
+            or "materialized" in text
+            or "materializer" in text
+            or "local lean" in text
+            or "local_lean" in text
+            or "verifier diagnostics" in text
+        ):
+            contract[
+                "capability_eval_requires_exact_semantic_definition_candidate_materializer"
+            ] = True
+            contract[
+                "capability_eval_requires_exact_semantic_definition_materialized_lean_repair"
+            ] = True
+            contract[
+                "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows"
+            ] = True
+    if routed_subsystem == "FormalizationGapPlanner" and (
+        "formalization_gap_planner" in text
+        or "formalization gap planner" in text
+        or "gap planner" in text
+        or "pseudo-formal" in text
+        or "pseudo formal" in text
+        or "block verification" in text
+        or "route planner" in text
+        or "target-prover" in text
+        or "target prover" in text
+        or "prover replay" in text
+    ):
+        contract["capability_eval_requires_formalization_gap_planner_bridge"] = True
+        contract["capability_eval_requires_formalization_gap_planner_handoff"] = True
+        if (
+            "route planner" in text
+            or "pseudo-formal" in text
+            or "pseudo formal" in text
+            or "block verification" in text
+        ):
+            contract[
+                "capability_eval_requires_formalization_gap_planner_route_planner"
+            ] = True
+        if (
+            "target-prover" in text
+            or "target prover" in text
+            or "prover replay" in text
+            or "local_lean" in text
+            or "local lean" in text
+            or "lean" in text
+        ):
+            contract[
+                "capability_eval_requires_formalization_gap_planner_target_prover_replay"
+            ] = True
+    return contract
 
 
 def _architect_initial_objective(
@@ -8252,6 +9692,10 @@ class FormalizationEvaluatorRuntimeSubsystem:
         proposal_source = ""
         formalizer_theory_trace_contract: dict[str, Any] = {}
         formalizer_theory_trace_alignment_contract: dict[str, Any] = {}
+        pseudo_formalization_required = _feedback_requires_pseudo_formalization(
+            environment_feedback,
+            proof_bank_runtime_memory_summary,
+        )
         lean_candidate_repair_feedback: dict[str, Any] | None = None
         lean_candidate_materialization: dict[str, Any] | None = None
         candidate_proof_state_manifest: dict[str, Any] | None = None
@@ -8412,6 +9856,10 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         environment_feedback
                     )
                 )
+                pseudo_formalization_required = _feedback_requires_pseudo_formalization(
+                    environment_feedback,
+                    proof_bank_runtime_memory_summary,
+                )
                 if formal_source_grounding_summary:
                     observations.append(
                         EnvironmentObservation(
@@ -8447,6 +9895,17 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
                     exc=exc,
                     formal_source_retriever=self.formal_source_retriever,
+                )
+            except Exception as exc:
+                return _formalizer_provider_failure_result(
+                    task=task,
+                    question=question,
+                    theory_packet_id=packet_id,
+                    simulation_manifest_id=simulation_manifest_id,
+                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+                    environment_feedback=environment_feedback,
+                    exc=exc,
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
@@ -8511,6 +9970,24 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 formalization_control_seed,
                 subsystem_override=subsystem_name,
             )
+            required_pf_bv_route_satisfies_formalizer_candidate_gate = (
+                _feedback_requires_pseudo_formalization(
+                    (
+                        task.inputs.get("environment_feedback", {})
+                        if isinstance(
+                            task.inputs.get("environment_feedback", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    proof_bank_runtime_memory_summary,
+                )
+                and bool(
+                    pseudo_formal_routable_work_order_rows(
+                        pseudo_formal_work_order_rows
+                    )
+                )
+            )
             if (
                 _runtime_context_requires_formalizer_lean_candidate(context)
                 and int(
@@ -8529,6 +10006,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         else {}
                     ),
                 )
+                and not required_pf_bv_route_satisfies_formalizer_candidate_gate
             ):
                 validation_task = AgentTask(
                     task_id=task.task_id,
@@ -8803,6 +10281,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     candidate_proof_state_manifest=candidate_proof_state_manifest,
                     proof_state_provider=self.proof_state_provider,
                     lean_candidate_local_lean=self.lean_candidate_local_lean,
+                    pseudo_formal_candidate_gate_satisfied=(
+                        required_pf_bv_route_satisfies_formalizer_candidate_gate
+                    ),
                     architect_coordinator_available=(
                         self.architect_coordinator_available
                     ),
@@ -9089,6 +10570,48 @@ class FormalizationEvaluatorRuntimeSubsystem:
         pseudo_formal_work_order_rows = (
             pseudo_formal_work_order_rows if proposal_packet is not None else []
         )
+        pseudo_formal_effective_work_order_rows = (
+            pseudo_formal_routable_work_order_rows(pseudo_formal_work_order_rows)
+        )
+        pseudo_formal_required_target_lanes = (
+            _required_pseudo_formal_target_lanes(
+                (
+                    task.inputs.get("environment_feedback", {})
+                    if isinstance(
+                        task.inputs.get("environment_feedback", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                proof_bank_runtime_memory_summary,
+            )
+        )
+        pseudo_formal_target_lane_work_order_rows = [
+            row
+            for row in pseudo_formal_effective_work_order_rows
+            if str(row.get("target_lane", "") or "")
+            in set(pseudo_formal_required_target_lanes)
+            or str(row.get("row_kind", "") or "")
+            == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+        ]
+        pseudo_formalization_required_satisfied = (
+            (not pseudo_formalization_required)
+            or bool(
+                pseudo_formal_target_lane_work_order_rows
+                if pseudo_formal_required_target_lanes
+                else pseudo_formal_effective_work_order_rows
+            )
+        )
+        pseudo_formal_blocked_or_pending_work_order_rows = [
+            row
+            for row in pseudo_formal_work_order_rows
+            if isinstance(row, Mapping)
+            and str(row.get("row_id", "") or "")
+            not in {
+                str(routable_row.get("row_id", "") or "")
+                for routable_row in pseudo_formal_effective_work_order_rows
+            }
+        ]
         deterministic_formalizer_work_order_seed_used = (
             proposal_source == "deterministic_theorem_closure_work_order_seed"
         )
@@ -9170,6 +10693,38 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "can support formalizer capability claims. Deterministic "
                 "theorem-closure packets are work-order scaffolds and are not "
                 "agentic capability or proof evidence."
+            ),
+            "pseudo_formalization_required": pseudo_formalization_required,
+            "pseudo_formalization_required_satisfied": (
+                pseudo_formalization_required_satisfied
+            ),
+            "pseudo_formalization_required_missing_work_order_rows": (
+                pseudo_formalization_required
+                and not pseudo_formalization_required_satisfied
+            ),
+            "n_pseudo_formal_work_order_rows": len(pseudo_formal_work_order_rows),
+            "n_pseudo_formal_routable_work_order_rows": len(
+                pseudo_formal_effective_work_order_rows
+            ),
+            "pseudo_formal_required_target_lanes": list(
+                pseudo_formal_required_target_lanes
+            ),
+            "n_pseudo_formal_required_target_lane_work_order_rows": len(
+                pseudo_formal_target_lane_work_order_rows
+            ),
+            "n_pseudo_formal_blocked_or_pending_work_order_rows": len(
+                pseudo_formal_blocked_or_pending_work_order_rows
+            ),
+            "pseudo_formalization_requirement_boundary": (
+                "A required PF/BV activation is satisfied only by routed "
+                "pseudo-formal work-order rows with source anchors, method "
+                "lineage, non-proof boundaries, and any required target-lane "
+                "coverage. Generic review rows alone do not satisfy structural "
+                "exact-semantic-definition reformulation; route at least one "
+                "effective row to the required target lanes or independent BV. "
+                "Blocked/pending PF/BV rows are useful diagnostics but do not "
+                "satisfy required PF/BV activation. PF/BV remains routing "
+                "feedback and never theorem proof evidence."
             ),
             "problem": _problem_to_json(problem),
             "llm_formalization_requests": (
@@ -9301,6 +10856,18 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     theorem_reduction_closure_work_orders
                 ),
                 "pseudo_formal_work_order_rows": len(pseudo_formal_work_order_rows),
+                "pseudo_formal_routable_work_order_rows": len(
+                    pseudo_formal_effective_work_order_rows
+                ),
+                "pseudo_formal_blocked_or_pending_work_order_rows": len(
+                    pseudo_formal_blocked_or_pending_work_order_rows
+                ),
+                "pseudo_formalization_required": int(
+                    bool(pseudo_formalization_required)
+                ),
+                "pseudo_formalization_required_satisfied": int(
+                    pseudo_formalization_required_satisfied
+                ),
             },
             "verifiers": verifier_names,
             "full_frontier_theorem_proved": False,
@@ -9825,6 +11392,226 @@ class ProofEngineerRuntimeSubsystem(FormalizationEvaluatorRuntimeSubsystem):
     name = "ProofEngineer"
 
 
+def _formalizer_provider_failure_classification(exc: Exception) -> str:
+    name = type(exc).__name__.lower()
+    text = str(exc).lower()
+    haystack = f"{name} {text}"
+    if "timeout" in haystack or "timed out" in haystack:
+        return "provider_timeout_error"
+    if (
+        "connection" in haystack
+        or "network" in haystack
+        or "dns" in haystack
+        or "host resolution" in haystack
+        or "temporarily unavailable" in haystack
+        or "server error" in haystack
+        or "overloaded" in haystack
+    ):
+        return "provider_connection_error"
+    return "formalizer_provider_generation_failed"
+
+
+def _formalizer_required_pf_bv_block_schema_hints() -> dict[str, str]:
+    return {
+        "conclusion": "top-level non-empty local claim for every block",
+        "source_anchors": (
+            "at least one object pointing to the theory trace, theorem card, "
+            "proof body, paper, or other bounded source"
+        ),
+        "accepted_block_verification": (
+            "if block_verification.verdict is accepted, "
+            "block_verification.rollout_count must be an integer >= 1; "
+            "otherwise use a valid non-accepted verdict such as not_run, "
+            "unknown, or failed; needs_review belongs in faithfulness_status, "
+            "not block_verification.verdict"
+        ),
+    }
+
+
+def _formalizer_provider_failure_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    exc: Exception,
+) -> AgentStepResult:
+    failure_classification = _formalizer_provider_failure_classification(exc)
+    pseudo_formalization_required = _feedback_requires_pseudo_formalization(
+        environment_feedback,
+        proof_bank_runtime_memory_summary,
+        {"provider_failure_classification": failure_classification},
+    )
+    structural_reformulation_required = bool(
+        proof_bank_runtime_memory_summary.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_required",
+            False,
+        )
+        or environment_feedback.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_required",
+            False,
+        )
+    )
+    failure_id = "formalizer_provider_failure:" + stable_hash(
+        [
+            task.task_id,
+            theory_packet_id,
+            failure_classification,
+            type(exc).__name__,
+            str(exc)[:500],
+        ]
+    )[:20]
+    failure_summary = f"{type(exc).__name__}: {str(exc)[:500]}"
+    retry_contract = {
+        "contract_kind": "formalizer_provider_failure_retry",
+        "failure_classification": failure_classification,
+        "retry_scope": (
+            "retry the Formalizer/ProofEngineer packet generation with compact "
+            "PF/BV output, a bounded token budget, or an approved fallback "
+            "provider; no proof evidence was produced"
+        ),
+        "required_output_key": (
+            "pseudo_formal_proof_packets" if pseudo_formalization_required else ""
+        ),
+        "pseudo_formalization_required": pseudo_formalization_required,
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+            structural_reformulation_required
+        ),
+        "required_block_schema_hints": (
+            _formalizer_required_pf_bv_block_schema_hints()
+            if pseudo_formalization_required
+            else {}
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_PROVIDER_FAILURE_RETRY_CONTRACT_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    provider_feedback = {
+        "failure_classification": failure_classification,
+        "provider_failure_summary": failure_summary,
+        "formalizer_provider_failure": True,
+        "formalizer_provider_retry_contract": retry_contract,
+        "pseudo_formalization_required": pseudo_formalization_required,
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+            structural_reformulation_required
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_PROVIDER_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizerProviderFailureLearningRow",
+        "learning_task": "formalizer_provider_failure_feedback",
+        "question_id": question.id,
+        "theory_packet_id": theory_packet_id,
+        "failure_id": failure_id,
+        "failure_classification": failure_classification,
+        "runtime_queue_status": "PENDING_FORMALIZER_PROVIDER_RETRY",
+        "input_summary": {
+            "trigger": "FORMALIZER_PROVIDER_FAILURE",
+            "failure_classification": failure_classification,
+            "pseudo_formalization_required": pseudo_formalization_required,
+            "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+                structural_reformulation_required
+            ),
+            "formalizer_provider_retry_contract": retry_contract,
+        },
+        "proof_evidence_status": (
+            "FORMALIZER_PROVIDER_FAILURE_LEARNING_ROW_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizerProviderFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task.task_id,
+        "theory_packet_id": theory_packet_id,
+        "simulation_manifest_id": simulation_manifest_id,
+        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+        "failure_classification": failure_classification,
+        "exception_type": type(exc).__name__,
+        "exception_module": type(exc).__module__,
+        "exception_summary": failure_summary,
+        "pseudo_formalization_required": pseudo_formalization_required,
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+            structural_reformulation_required
+        ),
+        "formalizer_provider_retry_contract": retry_contract,
+        "proof_bank_runtime_memory_summary": dict(proof_bank_runtime_memory_summary),
+        "learning_rows": [learning_row],
+        "proof_evidence_status": "FORMALIZER_PROVIDER_FAILURE_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    next_inputs = dict(task.inputs)
+    next_inputs["environment_feedback"] = provider_feedback
+    next_task = AgentTask(
+        task_id=f"formalize-provider-retry:{question.id}:{stable_hash(failure_id)[:8]}",
+        owner_subsystem="FormalizationEvaluator",
+        objective=(
+            "Retry Formalizer/ProofEngineer generation after a live provider "
+            "failure while preserving PF/BV structural-reformulation context."
+        ),
+        inputs=next_inputs,
+        allowed_tools=tuple(
+            dict.fromkeys(
+                (
+                    *task.allowed_tools,
+                    "model_backend",
+                    "proof_bank_memory",
+                    "formal_source_retrieval",
+                )
+            )
+        ),
+        expected_artifacts=task.expected_artifacts,
+        acceptance_gate=(
+            "provider call returns a validated Formalizer packet or records a "
+            "bounded non-proof provider failure retry artifact"
+        ),
+        stop_condition="validated Formalizer packet or provider retry artifact recorded",
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+        task_id=task.task_id,
+        artifact_id=failure_id,
+        evidence_type="formalizer_provider_failure",
+        status="FORMALIZER_PROVIDER_FAILURE_RECORDED_NOT_PROOF_EVIDENCE",
+        boundary=KERNEL_PROOF_BOUNDARY,
+        payload={
+            "failure_classification": failure_classification,
+            "pseudo_formalization_required": pseudo_formalization_required,
+            "proof_evidence_status": artifact["proof_evidence_status"],
+        },
+    )
+    return AgentStepResult(
+        status="REVISE",
+        rationale=(
+            "Formalizer/ProofEngineer live provider generation failed before a "
+            "validated packet was recorded; routing a bounded retry task with "
+            "preserved runtime memory context."
+        ),
+        produced_artifacts={failure_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type="formalizer_provider_failure",
+                summary=failure_classification,
+                payload=provider_feedback,
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+        failure_classification=failure_classification,
+    )
+
+
 def _formalizer_packet_validation_failure_result(
     *,
     task: AgentTask,
@@ -9867,6 +11654,138 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
         else {}
     )
+    pseudo_formalization_required = _feedback_requires_pseudo_formalization(
+        prior_environment_feedback,
+        proof_bank_runtime_memory_summary,
+        {"validation_errors": validation_errors},
+    )
+    pseudo_formalization_validation_errors = [
+        error
+        for error in validation_errors
+        if any(
+            marker in error.lower()
+            for marker in (
+                "pseudo_formalization_required",
+                "pseudo_formal_proof_packets",
+                "pf/bv",
+                "pseudo-formal",
+                "block verification",
+            )
+        )
+    ]
+    pseudo_formalization_required_missing_work_order_rows = bool(
+        pseudo_formalization_required and pseudo_formalization_validation_errors
+    )
+    source_theorem_exact_semantic_definition_structural_reformulation_required = bool(
+        proof_bank_runtime_memory_summary.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_required",
+            False,
+        )
+        or prior_environment_feedback.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_required",
+            False,
+        )
+    )
+
+    def _runtime_string_list(value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value] if value else []
+        if not isinstance(value, (list, tuple, set)):
+            return []
+        return [str(item) for item in value if str(item)]
+
+    pseudo_formalization_target_names = _runtime_string_list(
+        proof_bank_runtime_memory_summary.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
+            [],
+        )
+        or prior_environment_feedback.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
+            [],
+        )
+    )
+    pseudo_formalization_placeholder_symbols = _runtime_string_list(
+        proof_bank_runtime_memory_summary.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
+            [],
+        )
+        or prior_environment_feedback.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
+            [],
+        )
+    )
+    pseudo_formalization_target_lanes = _runtime_string_list(
+        proof_bank_runtime_memory_summary.get(
+            "pseudo_formal_block_routing_target_lanes",
+            [],
+        )
+        or prior_environment_feedback.get(
+            "pseudo_formal_block_routing_target_lanes",
+            [],
+        )
+    )
+    if (
+        source_theorem_exact_semantic_definition_structural_reformulation_required
+        and not pseudo_formalization_target_lanes
+    ):
+        pseudo_formalization_target_lanes = [
+            "source_theorem_exact_semantic_definition",
+            "lean_rag",
+            "source_to_bridge",
+        ]
+    pseudo_formalization_required_reason = str(
+        proof_bank_runtime_memory_summary.get("pseudo_formalization_required_reason", "")
+        or prior_environment_feedback.get("pseudo_formalization_required_reason", "")
+        or (
+            "formalizer_packet_validation_required_pf_bv"
+            if pseudo_formalization_required
+            else ""
+        )
+    )
+    pseudo_formalization_repair_contract = (
+        {
+            "contract_kind": "pseudo_formalization_required_repair",
+            "required_output_key": "pseudo_formal_proof_packets",
+            "pseudo_formalization_required_reason": (
+                pseudo_formalization_required_reason
+            ),
+            "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+                source_theorem_exact_semantic_definition_structural_reformulation_required
+            ),
+            "target_lanes": pseudo_formalization_target_lanes,
+            "target_names": pseudo_formalization_target_names,
+            "placeholder_symbols": pseudo_formalization_placeholder_symbols,
+            "required_block_schema_hints": (
+                _formalizer_required_pf_bv_block_schema_hints()
+            ),
+            "acceptance_gate": (
+                "valid PF/BV packet must produce lane-routable pseudo-formal "
+                "work-order rows; not proof evidence"
+            ),
+            "proof_evidence_status": (
+                "FORMALIZER_PSEUDO_FORMALIZATION_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        if pseudo_formalization_required
+        else {}
+    )
+    pseudo_formalization_feedback_fields = {
+        "pseudo_formalization_required": pseudo_formalization_required,
+        "pseudo_formalization_required_reason": pseudo_formalization_required_reason,
+        "pseudo_formalization_required_missing_work_order_rows": (
+            pseudo_formalization_required_missing_work_order_rows
+        ),
+        "pseudo_formalization_validation_errors": (
+            pseudo_formalization_validation_errors
+        ),
+        "pseudo_formalization_repair_contract": (
+            pseudo_formalization_repair_contract
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+            source_theorem_exact_semantic_definition_structural_reformulation_required
+        ),
+    }
     active_local_lean_repair_contract = (
         dict(prior_environment_feedback.get("local_lean_repair_contract", {}) or {})
         if isinstance(
@@ -10007,6 +11926,7 @@ def _formalizer_packet_validation_failure_result(
             "source_theorem_candidate_materialization_contract": (
                 source_theorem_candidate_materialization_contract
             ),
+            **pseudo_formalization_feedback_fields,
             "local_lean_repair_contract": active_local_lean_repair_contract,
             "candidate_diagnostics": active_candidate_diagnostics,
             "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -10094,6 +12014,7 @@ def _formalizer_packet_validation_failure_result(
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
+        **pseudo_formalization_feedback_fields,
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -10131,6 +12052,7 @@ def _formalizer_packet_validation_failure_result(
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
+        **pseudo_formalization_feedback_fields,
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -10159,7 +12081,16 @@ def _formalizer_packet_validation_failure_result(
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "target_behavior": learning_row["target_behavior"],
         "acceptance_gate": learning_row["acceptance_gate"],
-        "required_repair": _formalizer_validation_failure_required_repair(
+        "required_repair": (
+            (
+                "emit at least one valid pseudo_formal_proof_packets entry that "
+                "produces lane-routable PF/BV work-order rows before direct "
+                "Lean/prover retry; "
+            )
+            if pseudo_formalization_required_missing_work_order_rows
+            else ""
+        )
+        + _formalizer_validation_failure_required_repair(
             source_theorem_candidate_materialization_contract=(
                 source_theorem_candidate_materialization_contract
             ),
@@ -10254,7 +12185,17 @@ def _formalizer_packet_validation_failure_result(
             )
         )
         next_inputs["environment_feedback"] = repair_feedback
-    if source_theorem_candidate_materialization_contract:
+    if pseudo_formalization_required_missing_work_order_rows:
+        next_task_objective = (
+            "Repair the Formalizer/ProofEngineer packet by emitting routed PF/BV "
+            "pseudo-formal proof packets before direct Lean/prover work."
+        )
+        next_task_acceptance_gate = (
+            pseudo_formalization_repair_contract.get("acceptance_gate")
+            or "valid PF/BV packet must produce lane-routable pseudo-formal "
+            "work-order rows; not proof evidence"
+        )
+    elif source_theorem_candidate_materialization_contract:
         next_task_objective = (
             "Repair the Formalizer/ProofEngineer packet by emitting a concrete "
             "source-theorem materialization candidate before requesting Lean/prover work."
@@ -10335,6 +12276,7 @@ def _formalizer_packet_validation_failure_result(
         payload={
             "failure_classification": "formalizer_packet_validation_failed",
             "validation_errors": validation_errors,
+            **pseudo_formalization_feedback_fields,
             "missing_semantic_anchor_references": missing_anchors,
             "missing_source_binding_contract_metadata": (
                 missing_source_binding_contract_metadata
@@ -10361,6 +12303,7 @@ def _formalizer_packet_validation_failure_result(
                     "failure_classification": "formalizer_packet_validation_failed",
                     "validation_errors": validation_errors,
                     "validation_repair_directives": validation_repair_directives,
+                    **pseudo_formalization_feedback_fields,
                     "missing_semantic_anchor_references": missing_anchors,
                     "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
                     "missing_source_binding_contract_metadata": (
@@ -10401,6 +12344,7 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
     candidate_proof_state_manifest: Mapping[str, Any] | None,
     proof_state_provider: ProofStateFeedbackProvider | None,
     lean_candidate_local_lean: bool,
+    pseudo_formal_candidate_gate_satisfied: bool = False,
     architect_coordinator_available: bool,
     produced_artifacts: Mapping[str, Any],
     observations: Sequence[EnvironmentObservation],
@@ -10423,6 +12367,12 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
 
     missing_contracts: list[dict[str, Any]] = []
     config_failure = False
+    n_candidate_sources = int(
+        lean_candidate_materialization.get("n_candidate_sources", 0) or 0
+    )
+    lean_candidate_contract_deferred_to_pseudo_formal_route = (
+        pseudo_formal_candidate_gate_satisfied and n_candidate_sources <= 0
+    )
 
     def add_missing(
         *,
@@ -10449,6 +12399,7 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
 
     if (
         _runtime_context_requires_formalizer_local_lean_check(context)
+        and not lean_candidate_contract_deferred_to_pseudo_formal_route
         and not lean_candidate_local_lean
     ):
         add_missing(
@@ -10470,13 +12421,25 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
         )
 
     if _runtime_context_requires_formalizer_proof_state_request(context) and (
-        int(lean_candidate_materialization.get("n_live_proof_state_requests", 0) or 0)
-        <= 0
-        or int(
-            lean_candidate_materialization.get("n_lean_lsp_mcp_ready_requests", 0)
-            or 0
+        not lean_candidate_contract_deferred_to_pseudo_formal_route
+        and (
+            int(
+                lean_candidate_materialization.get(
+                    "n_live_proof_state_requests",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+            or int(
+                lean_candidate_materialization.get(
+                    "n_lean_lsp_mcp_ready_requests",
+                    0,
+                )
+                or 0
+            )
+            <= 0
         )
-        <= 0
     ):
         add_missing(
             flag="capability_eval_requires_formalizer_proof_state_request",
@@ -10500,7 +12463,11 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
         or _runtime_context_requires_formalizer_local_lean_tool_call(context)
         or _runtime_context_requires_formalizer_live_prover_tool_call(context)
     )
-    if proof_state_required and proof_state_provider is None:
+    if (
+        proof_state_required
+        and not lean_candidate_contract_deferred_to_pseudo_formal_route
+        and proof_state_provider is None
+    ):
         add_missing(
             flag="capability_eval_requires_formalizer_proof_state_feedback",
             classification=(
@@ -10521,6 +12488,7 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
 
     if (
         _runtime_context_requires_formalizer_proof_state_feedback(context)
+        and not lean_candidate_contract_deferred_to_pseudo_formal_route
         and proof_state_provider is not None
         and candidate_proof_state_manifest is None
     ):
@@ -10549,6 +12517,7 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
     )
     if (
         _runtime_context_requires_formalizer_local_lean_tool_call(context)
+        and not lean_candidate_contract_deferred_to_pseudo_formal_route
         and proof_state_provider is not None
         and int(proof_state_counts.get("local_lean_tool_calls", 0) or 0) <= 0
     ):
@@ -10569,7 +12538,10 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
             ),
         )
 
-    if _runtime_context_requires_formalizer_live_prover_tool_call(context):
+    if (
+        _runtime_context_requires_formalizer_live_prover_tool_call(context)
+        and not lean_candidate_contract_deferred_to_pseudo_formal_route
+    ):
         live_called = (
             bool(candidate_proof_state_manifest.get("lean_lsp_mcp_live_called", False))
             if isinstance(candidate_proof_state_manifest, Mapping)
@@ -16470,6 +18442,17 @@ class FormalizationGapPlannerRuntimeSubsystem:
             context_materialization = self._materialize_live_route_planner_context(
                 handoff
             )
+            handoff_execution_context = (
+                _runtime_formalization_gap_planner_execution_context(handoff)
+            )
+            handoff_execution_contexts = (
+                [handoff_execution_context] if handoff_execution_context else []
+            )
+            handoff_execution_plan_stage_ids = list(
+                handoff_execution_context.get("execution_plan_stage_ids", [])
+                if handoff_execution_context
+                else []
+            )
             context_errors = [
                 str(error)
                 for error in context_materialization.get("errors", [])
@@ -16551,6 +18534,33 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "handoff_id": handoff_id,
                         "bridge_id": str(handoff.get("bridge_id", "") or ""),
                         "standalone_seed_path": str(standalone_seed_path),
+                        "target_intake_path": str(
+                            handoff.get("target_intake_path", "") or ""
+                        ),
+                        "target_intake_cli": str(
+                            handoff.get("target_intake_cli", "") or ""
+                        ),
+                        "component_resource_registry_cli": str(
+                            handoff.get("component_resource_registry_cli", "") or ""
+                        ),
+                        "standalone_plan_cli": str(
+                            handoff.get("standalone_plan_cli", "") or ""
+                        ),
+                        "llm_route_planner_prompt_cli": str(
+                            handoff.get("llm_route_planner_prompt_cli", "") or ""
+                        ),
+                        "llm_route_planner_live_cli": str(
+                            handoff.get("llm_route_planner_live_cli", "") or ""
+                        ),
+                        "reuse_smoke_cli": str(
+                            handoff.get("reuse_smoke_cli", "") or ""
+                        ),
+                        "formalization_gap_planner_execution_contexts": (
+                            handoff_execution_contexts
+                        ),
+                        "formalization_gap_planner_execution_plan_stage_ids": (
+                            handoff_execution_plan_stage_ids
+                        ),
                         "context_materialization": context_materialization,
                         "target_prover_replay": target_prover_replay,
                         "target_prover_replay_all_ok": bool(
@@ -16882,6 +18892,33 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "handoff_id": handoff_id,
                         "bridge_id": str(handoff.get("bridge_id", "") or ""),
                         "standalone_seed_path": str(standalone_seed_path),
+                        "target_intake_path": str(
+                            handoff.get("target_intake_path", "") or ""
+                        ),
+                        "target_intake_cli": str(
+                            handoff.get("target_intake_cli", "") or ""
+                        ),
+                        "component_resource_registry_cli": str(
+                            handoff.get("component_resource_registry_cli", "") or ""
+                        ),
+                        "standalone_plan_cli": str(
+                            handoff.get("standalone_plan_cli", "") or ""
+                        ),
+                        "llm_route_planner_prompt_cli": str(
+                            handoff.get("llm_route_planner_prompt_cli", "") or ""
+                        ),
+                        "llm_route_planner_live_cli": str(
+                            handoff.get("llm_route_planner_live_cli", "") or ""
+                        ),
+                        "reuse_smoke_cli": str(
+                            handoff.get("reuse_smoke_cli", "") or ""
+                        ),
+                        "formalization_gap_planner_execution_contexts": (
+                            handoff_execution_contexts
+                        ),
+                        "formalization_gap_planner_execution_plan_stage_ids": (
+                            handoff_execution_plan_stage_ids
+                        ),
                         "context_materialization": context_materialization,
                         "target_prover_replay": {
                             "attempted": False,
@@ -19255,6 +21292,21 @@ def run_research_agent_runtime(
                 "architect_initial_routing_requested_subsystems"
             ]
         ),
+        "n_architect_initial_routing_deferred_meta_capability_gaps": (
+            architect_initial_routing_summary[
+                "n_architect_initial_routing_deferred_meta_capability_gaps"
+            ]
+        ),
+        "architect_initial_routing_deferred_meta_capability_gap_owners": (
+            architect_initial_routing_summary[
+                "architect_initial_routing_deferred_meta_capability_gap_owners"
+            ]
+        ),
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": (
+            architect_initial_routing_summary[
+                "architect_initial_routing_deferred_meta_capability_gap_requirement_ids"
+            ]
+        ),
         "runtime_handoff_transition_summary": handoff_transition_summary,
         "runtime_handoff_trace_alignment_ok": handoff_transition_summary[
             "handoff_trace_alignment_ok"
@@ -19619,6 +21671,12 @@ def run_research_agent_runtime(
         "n_live_generated_code_sandbox_executed": evidence_summary["algorithm"][
             "n_live_generated_code_sandbox_executed"
         ],
+        "n_generated_code_sandbox_passed": evidence_summary["algorithm"][
+            "n_generated_code_sandbox_passed"
+        ],
+        "n_live_generated_code_sandbox_passed": evidence_summary["algorithm"][
+            "n_live_generated_code_sandbox_passed"
+        ],
         "n_generated_code_sandbox_metric_gate_failed": evidence_summary[
             "algorithm"
         ]["n_generated_code_sandbox_metric_gate_failed"],
@@ -19840,6 +21898,10 @@ def run_research_agent_runtime(
     source_theorem_semantic_primitive_premise_derivation_work_orders_path = (
         out_dir
         / "runtime_source_theorem_semantic_primitive_work_orders_from_source_to_bridge_premise_derivation.jsonl"
+    )
+    source_theorem_semantic_primitive_pseudo_formal_work_orders_path = (
+        out_dir
+        / "runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal.jsonl"
     )
     source_to_bridge_premise_derivation_formalizer_work_orders_path = (
         out_dir
@@ -20781,6 +22843,11 @@ def run_research_agent_runtime(
             source_theorem_semantic_primitive_work_order_rows
         )
     )
+    source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+            pseudo_formal_formalizer_work_order_rows
+        )
+    )
     source_theorem_exact_semantic_definition_work_order_rows_from_semantic_alignment = (
         _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_alignment_learning_rows(
             _runtime_learning_rows_with_input_memory(architect_context, learning_rows)
@@ -20820,6 +22887,8 @@ def run_research_agent_runtime(
     for row in source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_repair:
         append_or_merge_exact_semantic_work_order(row)
     for row in source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitives:
+        append_or_merge_exact_semantic_work_order(row)
+    for row in source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal:
         append_or_merge_exact_semantic_work_order(row)
     for row in source_theorem_exact_semantic_definition_work_order_rows_from_semantic_alignment:
         append_or_merge_exact_semantic_work_order(row)
@@ -20871,13 +22940,29 @@ def run_research_agent_runtime(
     late_source_theorem_exact_semantic_definition_authoring_worker_learning_rows: list[
         dict[str, Any]
     ] = []
-    source_theorem_exact_semantic_definition_authoring_retry_task_rows = (
+    source_theorem_exact_semantic_definition_authoring_followup_task_rows = (
         _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
             _runtime_learning_rows_with_input_memory(architect_context, [])
         )
     )
+    source_theorem_exact_semantic_definition_structural_reformulation_task_rows = tuple(
+        row
+        for row in source_theorem_exact_semantic_definition_authoring_followup_task_rows
+        if str(row.get("runtime_queue_status", "") or "")
+        == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    )
+    source_theorem_exact_semantic_definition_authoring_retry_task_rows = tuple(
+        row
+        for row in source_theorem_exact_semantic_definition_authoring_followup_task_rows
+        if str(row.get("runtime_queue_status", "") or "")
+        != STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    )
     source_theorem_exact_semantic_definition_authoring_retry_tasks_path = (
         out_dir / "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks.jsonl"
+    )
+    source_theorem_exact_semantic_definition_structural_reformulation_tasks_path = (
+        out_dir
+        / "runtime_source_theorem_exact_semantic_definition_structural_reformulation_tasks.jsonl"
     )
     source_theorem_exact_semantic_definition_authoring_retry_worker_manifest: (
         dict[str, Any] | None
@@ -21062,6 +23147,11 @@ def run_research_agent_runtime(
                                         source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_learning_rows
                                     )
                                     _write_jsonl(learning_path, learning_rows)
+    if source_theorem_exact_semantic_definition_structural_reformulation_task_rows:
+        _write_jsonl(
+            source_theorem_exact_semantic_definition_structural_reformulation_tasks_path,
+            source_theorem_exact_semantic_definition_structural_reformulation_task_rows,
+        )
     late_source_theorem_exact_semantic_definition_authoring_candidate_materializer_manifests: list[
         dict[str, Any]
     ] = []
@@ -21978,33 +24068,36 @@ def run_research_agent_runtime(
                                                                 late_materialized_review_verifier_gate_rows = _typechecked_review_verifier_gate_rows_from_recheck_manifest(
                                                                     late_materialized_review_recheck_queue_manifest
                                                                 )
+                                                                late_materialized_review_learning_rows = _typechecked_review_runtime_learning_rows_from_recheck_manifest(
+                                                                    late_materialized_review_recheck_queue_manifest
+                                                                )
                                                                 if (
-                                                                    late_materialized_review_verifier_gate_rows
+                                                                    late_materialized_review_learning_rows
                                                                 ):
                                                                     late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows.extend(
                                                                         late_materialized_review_verifier_gate_rows
                                                                     )
                                                                     learning_rows.extend(
-                                                                        late_materialized_review_verifier_gate_rows
+                                                                        late_materialized_review_learning_rows
                                                                     )
-                                                                    late_materialized_review_verifier_gate_next_action_rows = _append_runtime_generated_next_action_rows(
+                                                                    late_materialized_review_next_action_rows = _append_runtime_generated_next_action_rows(
                                                                         agenda_rows,
-                                                                        late_materialized_review_verifier_gate_rows,
+                                                                        late_materialized_review_learning_rows,
                                                                         queue_name=(
                                                                             "source_theorem_exact_semantic_definition_"
-                                                                            "typechecked_review_verifier_gate_from_"
+                                                                            "typechecked_review_recheck_feedback_from_"
                                                                             f"late_materialized_candidate_reviews_{safe_queue_name}"
                                                                         ),
                                                                     )
                                                                     if (
-                                                                        late_materialized_review_verifier_gate_next_action_rows
+                                                                        late_materialized_review_next_action_rows
                                                                     ):
                                                                         generated_next_action_rows.extend(
-                                                                            late_materialized_review_verifier_gate_next_action_rows
+                                                                            late_materialized_review_next_action_rows
                                                                         )
                                                                         learning_rows.extend(
                                                                             _runtime_generated_next_action_learning_rows(
-                                                                                late_materialized_review_verifier_gate_next_action_rows
+                                                                                late_materialized_review_next_action_rows
                                                                             )
                                                                         )
                                                                         _write_jsonl(
@@ -22506,30 +24599,33 @@ def run_research_agent_runtime(
                             source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows = _typechecked_review_verifier_gate_rows_from_recheck_manifest(
                                 source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
                             )
+                            source_theorem_exact_semantic_definition_typechecked_review_learning_rows = _typechecked_review_runtime_learning_rows_from_recheck_manifest(
+                                source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+                            )
                             if (
-                                source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows
+                                source_theorem_exact_semantic_definition_typechecked_review_learning_rows
                             ):
                                 learning_rows.extend(
-                                    source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows
+                                    source_theorem_exact_semantic_definition_typechecked_review_learning_rows
                                 )
-                                verifier_gate_next_action_rows = (
+                                typechecked_review_next_action_rows = (
                                     _append_runtime_generated_next_action_rows(
                                         agenda_rows,
-                                        source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_order_rows,
+                                        source_theorem_exact_semantic_definition_typechecked_review_learning_rows,
                                         queue_name=(
                                             "source_theorem_exact_semantic_definition_"
-                                            "typechecked_review_verifier_gate_from_"
+                                            "typechecked_review_recheck_feedback_from_"
                                             "typechecked_candidate_reviews"
                                         ),
                                     )
                                 )
-                                if verifier_gate_next_action_rows:
+                                if typechecked_review_next_action_rows:
                                     generated_next_action_rows.extend(
-                                        verifier_gate_next_action_rows
+                                        typechecked_review_next_action_rows
                                     )
                                     learning_rows.extend(
                                         _runtime_generated_next_action_learning_rows(
-                                            verifier_gate_next_action_rows
+                                            typechecked_review_next_action_rows
                                         )
                                     )
                                     _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
@@ -23015,33 +25111,36 @@ def run_research_agent_runtime(
                                                 materialized_review_verifier_gate_rows = _typechecked_review_verifier_gate_rows_from_recheck_manifest(
                                                     source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
                                                 )
+                                                materialized_review_learning_rows = _typechecked_review_runtime_learning_rows_from_recheck_manifest(
+                                                    source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+                                                )
                                                 if (
-                                                    materialized_review_verifier_gate_rows
+                                                    materialized_review_learning_rows
                                                 ):
                                                     source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_work_order_rows.extend(
                                                         materialized_review_verifier_gate_rows
                                                     )
                                                     learning_rows.extend(
-                                                        materialized_review_verifier_gate_rows
+                                                        materialized_review_learning_rows
                                                     )
-                                                    materialized_review_verifier_gate_next_action_rows = _append_runtime_generated_next_action_rows(
+                                                    materialized_review_next_action_rows = _append_runtime_generated_next_action_rows(
                                                         agenda_rows,
-                                                        materialized_review_verifier_gate_rows,
+                                                        materialized_review_learning_rows,
                                                         queue_name=(
                                                             "source_theorem_exact_semantic_definition_"
-                                                            "typechecked_review_verifier_gate_from_"
+                                                            "typechecked_review_recheck_feedback_from_"
                                                             "materialized_candidate_reviews"
                                                         ),
                                                     )
                                                     if (
-                                                        materialized_review_verifier_gate_next_action_rows
+                                                        materialized_review_next_action_rows
                                                     ):
                                                         generated_next_action_rows.extend(
-                                                            materialized_review_verifier_gate_next_action_rows
+                                                            materialized_review_next_action_rows
                                                         )
                                                         learning_rows.extend(
                                                             _runtime_generated_next_action_learning_rows(
-                                                                materialized_review_verifier_gate_next_action_rows
+                                                                materialized_review_next_action_rows
                                                             )
                                                         )
                                                         _write_jsonl(
@@ -24520,6 +26619,18 @@ def run_research_agent_runtime(
         )
     if not source_theorem_semantic_primitive_adapter_feedback_work_orders_path.exists():
         _write_jsonl(source_theorem_semantic_primitive_adapter_feedback_work_orders_path, [])
+    source_theorem_semantic_primitive_pseudo_formal_work_order_rows = [
+        row
+        for row in source_theorem_semantic_primitive_work_order_rows
+        if isinstance(row, Mapping)
+        and str(row.get("proof_mode", "") or "")
+        == "pseudo_formal_source_semantic_primitive_closure"
+    ]
+    if source_theorem_semantic_primitive_pseudo_formal_work_order_rows:
+        _write_jsonl(
+            source_theorem_semantic_primitive_pseudo_formal_work_orders_path,
+            source_theorem_semantic_primitive_pseudo_formal_work_order_rows,
+        )
     _write_jsonl(gap_planner_handoffs_path, gap_planner_handoff_rows)
     _write_jsonl(gap_planner_bridges_path, gap_planner_bridge_rows)
     manifest["artifacts"]["runtime_next_action_agenda_jsonl"] = str(agenda_path)
@@ -24552,6 +26663,10 @@ def run_research_agent_runtime(
         ] = str(
             source_theorem_semantic_primitive_premise_derivation_work_orders_path
         )
+    if source_theorem_semantic_primitive_pseudo_formal_work_order_rows:
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal_jsonl"
+        ] = str(source_theorem_semantic_primitive_pseudo_formal_work_orders_path)
     manifest["artifacts"][
         "runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer_jsonl"
     ] = str(source_to_bridge_premise_derivation_formalizer_work_orders_path)
@@ -24888,6 +27003,12 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_jsonl"
         ] = str(source_theorem_exact_semantic_definition_authoring_retry_tasks_path)
+    if source_theorem_exact_semantic_definition_structural_reformulation_task_rows:
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_structural_reformulation_tasks_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_structural_reformulation_tasks_path
+        )
     if (
         source_theorem_exact_semantic_definition_authoring_retry_worker_manifest
         is not None
@@ -26620,6 +28741,9 @@ def run_research_agent_runtime(
         "n_runtime_source_theorem_semantic_primitive_work_orders_from_source_to_bridge_premise_derivation"
     ] = len(source_theorem_semantic_primitive_premise_derivation_work_order_rows)
     manifest[
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal"
+    ] = len(source_theorem_semantic_primitive_pseudo_formal_work_order_rows)
+    manifest[
         "n_runtime_source_theorem_semantic_primitive_work_orders_from_input_learning_memory"
     ] = len(new_input_memory_source_theorem_semantic_primitive_work_order_rows)
     manifest[
@@ -27507,6 +29631,11 @@ def run_research_agent_runtime(
         source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitives
     )
     manifest[
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal"
+    ] = len(
+        source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal
+    )
+    manifest[
         "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_semantic_alignment"
     ] = len(
         source_theorem_exact_semantic_definition_work_order_rows_from_semantic_alignment
@@ -27730,8 +29859,16 @@ def run_research_agent_runtime(
         int(row.get("n_blocked_review_packets", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
     )
+    late_typechecked_review_recheck_queue_n_blocked_review_learning_rows = sum(
+        int(row.get("n_blocked_review_learning_rows", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
     late_typechecked_review_recheck_queue_n_verifier_gate_work_orders = sum(
         int(row.get("n_verifier_gate_work_orders", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
+    late_typechecked_review_recheck_queue_n_runtime_learning_rows = sum(
+        int(row.get("n_runtime_learning_rows", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
     )
     late_typechecked_review_recheck_queue_n_execution_rows = sum(
@@ -27809,8 +29946,14 @@ def run_research_agent_runtime(
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_packets"
     ] = late_typechecked_review_recheck_queue_n_blocked_packets
     manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
+    ] = late_typechecked_review_recheck_queue_n_blocked_review_learning_rows
+    manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = late_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_runtime_learning_rows"
+    ] = late_typechecked_review_recheck_queue_n_runtime_learning_rows
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_execution_rows"
     ] = late_typechecked_review_recheck_queue_n_execution_rows
@@ -27990,6 +30133,12 @@ def run_research_agent_runtime(
         "source_theorem_exact_semantic_definition_authoring_retry_n_tasks"
     ] = len(source_theorem_exact_semantic_definition_authoring_retry_task_rows)
     manifest[
+        "source_theorem_exact_semantic_definition_structural_reformulation_tasks_required"
+    ] = bool(source_theorem_exact_semantic_definition_structural_reformulation_task_rows)
+    manifest[
+        "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks"
+    ] = len(source_theorem_exact_semantic_definition_structural_reformulation_task_rows)
+    manifest[
         "source_theorem_exact_semantic_definition_authoring_repair_tasks_required"
     ] = any(
         str(row.get("runtime_queue_status", "") or "")
@@ -28037,6 +30186,9 @@ def run_research_agent_runtime(
         ""
         if source_theorem_exact_semantic_definition_authoring_retry_worker_manifest
         is not None
+        else "structural_reformulation_required_no_authoring_retry"
+        if source_theorem_exact_semantic_definition_structural_reformulation_task_rows
+        and not source_theorem_exact_semantic_definition_authoring_retry_task_rows
         else "no_retryable_authoring_tasks"
         if not source_theorem_exact_semantic_definition_authoring_retry_task_rows
         else "authoring_worker_disabled"
@@ -28806,11 +30958,25 @@ def run_research_agent_runtime(
         ).get("n_blocked_review_packets", 0)
         or 0
     )
+    primary_typechecked_review_recheck_queue_n_blocked_review_learning_rows = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_blocked_review_learning_rows", 0)
+        or 0
+    )
     primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
             or {}
         ).get("n_verifier_gate_work_orders", 0)
+        or 0
+    )
+    primary_typechecked_review_recheck_queue_n_runtime_learning_rows = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_runtime_learning_rows", 0)
         or 0
     )
     primary_typechecked_review_recheck_queue_n_execution_rows = int(
@@ -28888,8 +31054,14 @@ def run_research_agent_runtime(
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_packets"
     ] = primary_typechecked_review_recheck_queue_n_blocked_packets
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
+    ] = primary_typechecked_review_recheck_queue_n_blocked_review_learning_rows
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_runtime_learning_rows"
+    ] = primary_typechecked_review_recheck_queue_n_runtime_learning_rows
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_execution_rows"
     ] = primary_typechecked_review_recheck_queue_n_execution_rows
@@ -29263,6 +31435,25 @@ def run_research_agent_runtime(
         ).get("n_lean_environment_repair_tasks", 0)
         or 0
     )
+    materialized_lean_repair_failure_counts = dict(
+        (
+            source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest
+            or {}
+        ).get("by_failure_classification", {})
+        or {}
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_by_failure_classification"
+    ] = materialized_lean_repair_failure_counts
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_dominant_failure_classification"
+    ] = str(
+        (
+            source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest
+            or {}
+        ).get("dominant_failure_classification", "")
+        or ""
+    )
     manifest[
         "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_semantic_definition_kernel_verified"
     ] = bool(
@@ -29395,11 +31586,25 @@ def run_research_agent_runtime(
         ).get("n_blocked_review_packets", 0)
         or 0
     )
+    materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_blocked_review_learning_rows", 0)
+        or 0
+    )
     materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders = int(
         (
             source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
             or {}
         ).get("n_verifier_gate_work_orders", 0)
+        or 0
+    )
+    materialized_typechecked_review_recheck_queue_n_runtime_learning_rows = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_runtime_learning_rows", 0)
         or 0
     )
     materialized_typechecked_review_recheck_queue_n_execution_rows = int(
@@ -29485,8 +31690,14 @@ def run_research_agent_runtime(
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_packets"
     ] = materialized_typechecked_review_recheck_queue_n_blocked_packets
     manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
+    ] = materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows
+    manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_runtime_learning_rows"
+    ] = materialized_typechecked_review_recheck_queue_n_runtime_learning_rows
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_execution_rows"
     ] = materialized_typechecked_review_recheck_queue_n_execution_rows
@@ -32390,6 +34601,88 @@ def _runtime_learning_row_mapping_value(
     return {}
 
 
+def _runtime_learning_pseudo_formal_bv_mapping(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    return _runtime_learning_row_mapping_value(
+        row,
+        input_summary,
+        "block_verification",
+    )
+
+
+def _runtime_learning_pseudo_formal_bv_provenance(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    block_verification: Mapping[str, Any],
+) -> str:
+    return str(
+        row.get("block_verification_verifier_provenance", "")
+        or input_summary.get("block_verification_verifier_provenance", "")
+        or block_verification.get("verifier_provenance", "")
+        or block_verification.get("verifier_source", "")
+        or ""
+    ).strip()
+
+
+def _runtime_learning_pseudo_formal_bv_independent(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    block_verification: Mapping[str, Any],
+) -> bool:
+    provenance = _runtime_learning_pseudo_formal_bv_provenance(
+        row,
+        input_summary,
+        block_verification,
+    )
+    return bool(
+        row.get("block_verification_independent", False)
+        or input_summary.get("block_verification_independent", False)
+        or block_verification.get("independent_verifier", False)
+        or provenance in PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES
+    )
+
+
+def _runtime_learning_pseudo_formal_independent_bv_status(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> str:
+    row_kind = str(
+        row.get("row_kind", "")
+        or row.get("pseudo_formal_row_kind", "")
+        or input_summary.get("row_kind", "")
+        or input_summary.get("pseudo_formal_row_kind", "")
+        or ""
+    ).strip()
+    block_verification = _runtime_learning_pseudo_formal_bv_mapping(
+        row,
+        input_summary,
+    )
+    request_role = bool(
+        row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+        or row.get("independent_block_verification_required", False)
+        or input_summary.get("independent_block_verification_required", False)
+        or str(row.get("next_owner_subsystem", "") or "").strip()
+        == "BlockVerifier/CalibrationReferee"
+        or str(input_summary.get("next_owner_subsystem", "") or "").strip()
+        == "BlockVerifier/CalibrationReferee"
+    )
+    if not request_role:
+        return ""
+    verdict = str(block_verification.get("verdict", "") or "").strip()
+    if (
+        verdict in {"accepted", "failed"}
+        and _runtime_learning_pseudo_formal_bv_independent(
+            row,
+            input_summary,
+            block_verification,
+        )
+    ):
+        return "completed"
+    return "pending"
+
+
 def _runtime_learning_row_list_value(
     row: Mapping[str, Any],
     input_summary: Mapping[str, Any],
@@ -33158,6 +35451,23 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         return 90
     if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
+        row_kind = str(
+            row.get("row_kind", "")
+            or row.get("pseudo_formal_row_kind", "")
+            or input_summary.get("row_kind", "")
+            or input_summary.get("pseudo_formal_row_kind", "")
+            or ""
+        )
+        if (
+            _runtime_learning_pseudo_formal_independent_bv_status(
+                row,
+                input_summary,
+            )
+            == "completed"
+        ):
+            return 91
+        if row_kind in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS:
+            return 89
         return 90
     if learning_task == "architect_orchestration_feedback":
         return 90
@@ -33544,6 +35854,13 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         target_lane = str(
             row.get("target_lane", "") or input_summary.get("target_lane", "") or ""
         ).strip()
+        row_kind = str(
+            row.get("row_kind", "")
+            or row.get("pseudo_formal_row_kind", "")
+            or input_summary.get("row_kind", "")
+            or input_summary.get("pseudo_formal_row_kind", "")
+            or ""
+        ).strip()
         source_block_id = str(
             row.get("source_block_id", "")
             or input_summary.get("source_block_id", "")
@@ -33553,11 +35870,13 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         return (
             PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
             + ":"
-            + (target_scope or target or "global")
-            + ":"
             + (target_lane or PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP)
             + ":"
-            + (source_block_id or work_order_id)
+            + (row_kind or "row")
+            + ":"
+            + (source_block_id or "block")
+            + ":"
+            + (work_order_id or "work_order")
         )
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         component_manifest = str(
@@ -34654,6 +36973,7 @@ def _critic_should_route_to_formalizer_proofengineer(
     formalizer_modes = {
         "source_theorem_diagnostic_helper_bridge_or_blocker",
         "source_to_bridge_premise_derivation_required",
+        "source_theorem_exact_semantic_definition_structural_reformulation",
         "source_theorem_exact_semantic_definition_repair",
         "source_theorem_exact_candidate_materialization_required",
         "source_theorem_exact_proof_body_repair",
@@ -35694,6 +38014,7 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "recommended_commands",
         "recommended_next_action",
         "local_lean_diagnostics",
+        "local_lean_diagnostic_source_excerpts",
         "source_environment_repair_task_id",
         "recommended_repair_tasks",
         "diagnostics",
@@ -38224,6 +40545,32 @@ def _runtime_formalizer_capability_memory_contract(
         contract["capability_eval_requires_formalizer_live_prover_tool_call"] = True
     if "formalizer_lean_candidate_repair_loop_observed" in capability_ids:
         contract["capability_eval_requires_formalizer_repair_loop"] = True
+    if "exact_semantic_definition_authoring_worker_live_attempted" in capability_ids:
+        contract[
+            "capability_eval_requires_exact_semantic_definition_authoring_worker"
+        ] = True
+        contract[
+            "capability_eval_requires_exact_semantic_definition_authoring_live_attempt"
+        ] = True
+    if (
+        "exact_semantic_definition_authoring_candidate_verifier_checked"
+        in capability_ids
+    ):
+        contract[
+            "capability_eval_requires_exact_semantic_definition_authoring_worker"
+        ] = True
+        contract[
+            "capability_eval_requires_exact_semantic_definition_authoring_live_attempt"
+        ] = True
+        contract[
+            "capability_eval_requires_exact_semantic_definition_candidate_materializer"
+        ] = True
+        contract[
+            "capability_eval_requires_exact_semantic_definition_materialized_lean_repair"
+        ] = True
+        contract[
+            "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows"
+        ] = True
     return contract
 
 
@@ -39810,6 +42157,7 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
         "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
         "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
@@ -40879,6 +43227,8 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "repair_reviewed_exact_semantic_definition"
             or learning_task
             == "source_theorem_exact_semantic_definition_repair_queue"
+            or learning_task
+            == "source_theorem_exact_semantic_definition_typechecked_review_blocked"
         )
         is_exact_semantic_definition_typechecked_review_verifier_gate = (
             str(row.get("artifact_kind", "") or "")
@@ -40918,6 +43268,31 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
                 or row_failure_classification
                 in {"provider_connection_error", "provider_timeout_error"}
+            )
+        )
+        is_exact_semantic_definition_structural_reformulation = (
+            (
+                str(row.get("artifact_kind", "") or "")
+                == "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
+                or str(row.get("artifact_kind", "") or "")
+                == "SourceTheoremExactSemanticDefinitionAuthoringTask"
+                or learning_task
+                == "source_theorem_exact_semantic_definition_authoring_worker"
+            )
+            and (
+                row_runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+                or row_failure_classification
+                == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+                or bool(row.get("structural_reformulation_required", False))
+                or (
+                    isinstance(input_summary, Mapping)
+                    and bool(
+                        input_summary.get(
+                            "structural_reformulation_required",
+                            False,
+                        )
+                    )
+                )
             )
         )
         is_exact_source_proof_body_execution_feedback = (
@@ -41124,7 +43499,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         if is_exact_semantic_definition_candidate_synthesis and not trigger:
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS"
         if is_exact_semantic_definition_repair_queue and not trigger:
-            trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+            trigger = (
+                "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+                if learning_task
+                == "source_theorem_exact_semantic_definition_typechecked_review_blocked"
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+            )
         if (
             is_exact_semantic_definition_typechecked_review_verifier_gate
             and not trigger
@@ -41141,6 +43521,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             or trigger == "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_PACKET"
         ):
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+        if is_exact_semantic_definition_structural_reformulation and (
+            not trigger
+            or trigger == "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_PACKET"
+            or trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+        ):
+            trigger = (
+                "EXACT_SOURCE_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+            )
         if (
             not is_exact_semantic_definition_work_order
             and not is_exact_semantic_definition_source_lookup
@@ -41153,6 +43541,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             and not is_exact_semantic_definition_lean_environment_repair
             and not is_exact_semantic_definition_lean_repair_execution
             and not is_exact_semantic_definition_authoring_retry
+            and not is_exact_semantic_definition_structural_reformulation
             and not is_exact_source_proof_body_execution_feedback
             and not is_source_theorem_proof_body_adapter_feedback
             and not is_source_to_bridge_premise_derivation_feedback
@@ -41234,6 +43623,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             or is_exact_semantic_definition_lean_environment_repair
             or is_exact_semantic_definition_lean_repair_execution
             or is_exact_semantic_definition_authoring_retry
+            or is_exact_semantic_definition_structural_reformulation
         ):
             lookup_status = str(row.get("lookup_status", "") or "").strip()
             if not lookup_status and isinstance(input_summary, Mapping):
@@ -41372,6 +43762,18 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                             "candidate_definition_request_placeholder="
                             + requested_placeholder[:120]
                         )
+            if is_exact_semantic_definition_structural_reformulation:
+                runtime_queue_status = (
+                    runtime_queue_status or STRUCTURAL_REFORMULATION_QUEUE_STATUS
+                )
+                failure_classification = (
+                    row_failure_classification
+                    or failure_classification
+                    or STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+                )
+                diagnostics.append(
+                    "exact_semantic_definition_structural_reformulation_required=true"
+                )
             candidate_lean_project_hint = str(
                 row.get("candidate_lean_project_hint", "") or ""
             ).strip()
@@ -41749,6 +44151,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
                         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
                         "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE",
+                        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
                         "PENDING_REVIEWED_SEMANTIC_DEFINITION_IMPORT",
                     }
                     or "source_theorem_exact_semantic_definition_materialized_candidate_reviews"
@@ -41816,8 +44219,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     failure_classification=failure_classification,
                 )
             definition_contract = {}
-            required_next_checks = []
-            definition_candidate_review_mode = ""
+            required_next_checks = [
+                str(value)
+                for value in input_summary.get("required_next_checks", []) or []
+                if str(value).strip()
+            ][:6]
+            definition_candidate_review_mode = str(
+                row.get("definition_candidate_review_mode", "")
+                or input_summary.get("definition_candidate_review_mode", "")
+                or ""
+            ).strip()
             local_lean_compiled = bool(
                 row.get("local_lean_compiled", False)
                 or input_summary.get("local_lean_compiled", False)
@@ -42937,6 +45348,77 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "definition_contract": definition_contract,
                 "required_next_checks": required_next_checks,
                 "definition_candidate_review_mode": definition_candidate_review_mode,
+                "source_learning_task": str(
+                    row.get("source_learning_task", "")
+                    or (
+                        input_summary.get("source_learning_task", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
+                "source_feedback_trigger": str(
+                    row.get("source_feedback_trigger", "")
+                    or (
+                        input_summary.get("source_feedback_trigger", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
+                "source_review_packet_id": str(
+                    row.get("source_review_packet_id", "")
+                    or (
+                        input_summary.get("source_review_packet_id", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
+                "blocker_feedback_id": str(
+                    row.get("blocker_feedback_id", "")
+                    or (
+                        input_summary.get("blocker_feedback_id", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
+                "proof_body_recheck_blockers": list(
+                    _runtime_row_string_values(row, "proof_body_recheck_blockers")
+                ),
+                "semantic_review_required_before_proof_body": bool(
+                    row.get("semantic_review_required_before_proof_body", False)
+                    or (
+                        input_summary.get(
+                            "semantic_review_required_before_proof_body",
+                            False,
+                        )
+                        if isinstance(input_summary, Mapping)
+                        else False
+                    )
+                ),
+                "semantic_review_decision": str(
+                    row.get("semantic_review_decision", "")
+                    or (
+                        input_summary.get("semantic_review_decision", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
+                "semantic_review_status": str(
+                    row.get("semantic_review_status", "")
+                    or (
+                        input_summary.get("semantic_review_status", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
+                "semantic_review_evidence": list(
+                    _runtime_row_string_values(row, "semantic_review_evidence")
+                ),
                 "semantic_definition_risks": semantic_definition_risks,
                 "semantic_alignment_constraints": semantic_alignment_constraints,
                 "semantic_alignment_blockers": semantic_alignment_blockers,
@@ -43902,6 +46384,26 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
             if isinstance(input_summary.get("block_verification", {}), Mapping)
             else {}
         )
+        block_verification_provenance = (
+            _runtime_learning_pseudo_formal_bv_provenance(
+                row,
+                input_summary,
+                block_verification,
+            )
+        )
+        block_verification_independent = (
+            _runtime_learning_pseudo_formal_bv_independent(
+                row,
+                input_summary,
+                block_verification,
+            )
+        )
+        independent_bv_status = (
+            _runtime_learning_pseudo_formal_independent_bv_status(
+                row,
+                input_summary,
+            )
+        )
         bv_calibration = (
             row.get("bv_calibration", {})
             if isinstance(row.get("bv_calibration", {}), Mapping)
@@ -43987,6 +46489,41 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                     if isinstance(input_summary.get("dependency_ids", []), list)
                     else []
                 ),
+                "dependency_statement_context": [
+                    dict(item)
+                    for item in _runtime_learning_row_list_value(
+                        row,
+                        input_summary,
+                        "dependency_statement_context",
+                    )
+                    if isinstance(item, Mapping)
+                ][:8],
+                "scope_parent_id": str(
+                    row.get("scope_parent_id", "")
+                    or input_summary.get("scope_parent_id", "")
+                    or ""
+                ),
+                "inherited_scope": list(
+                    row.get("inherited_scope", [])
+                    if isinstance(row.get("inherited_scope", []), list)
+                    else input_summary.get("inherited_scope", [])
+                    if isinstance(input_summary.get("inherited_scope", []), list)
+                    else []
+                ),
+                "source_block_premises": [
+                    str(value)
+                    for value in _runtime_learning_row_list_value(
+                        row,
+                        input_summary,
+                        "source_block_premises",
+                    )
+                    if str(value).strip()
+                ][:12],
+                "source_block_proof_text": str(
+                    row.get("source_block_proof_text", "")
+                    or input_summary.get("source_block_proof_text", "")
+                    or ""
+                )[:1200],
                 "faithfulness_status": str(
                     row.get("faithfulness_status", "")
                     or input_summary.get("faithfulness_status", "")
@@ -43998,6 +46535,24 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                     or ""
                 ),
                 "block_verification": dict(block_verification),
+                "block_verification_verifier_provenance": (
+                    block_verification_provenance
+                ),
+                "block_verification_independent": bool(
+                    block_verification_independent
+                ),
+                "independent_block_verification_required": bool(
+                    row.get("independent_block_verification_required", False)
+                    or input_summary.get(
+                        "independent_block_verification_required",
+                        False,
+                    )
+                    or independent_bv_status == "pending"
+                ),
+                "independent_block_verification_status": independent_bv_status,
+                "independent_block_verification_completed": (
+                    independent_bv_status == "completed"
+                ),
                 "bv_calibration": dict(
                     bv_calibration
                     or {
@@ -44240,6 +46795,8 @@ def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
         "formalizer_local_lean_tool_call_observed",
         "formalizer_live_prover_tool_call_observed",
         "formalizer_lean_candidate_repair_loop_observed",
+        "exact_semantic_definition_authoring_worker_live_attempted",
+        "exact_semantic_definition_authoring_candidate_verifier_checked",
     }
     feedback_rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
@@ -45338,6 +47895,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
     pseudo_formal_block_routing_rows = (
         _runtime_learning_memory_pseudo_formal_block_routing_feedback(context)
     )
+    pseudo_formal_block_routing_effective_rows = tuple(
+        row
+        for row in pseudo_formal_block_routing_rows
+        if _pseudo_formal_work_order_is_routable(row)
+    )
+    pseudo_formal_block_routing_diagnostic_rows = tuple(
+        row
+        for row in pseudo_formal_block_routing_rows
+        if not _pseudo_formal_work_order_is_routable(row)
+    )
     formalizer_lean_candidate_component_gate_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
             context
@@ -45486,6 +48053,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
         or str(row.get("runtime_queue_status", "") or "")
         == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
     )
+    exact_semantic_definition_structural_reformulation_rows = tuple(
+        row
+        for row in source_theorem_exact_candidate_repairs
+        if str(row.get("trigger", "") or "")
+        == "EXACT_SOURCE_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+        or str(row.get("runtime_queue_status", "") or "")
+        == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+        or str(row.get("failure_classification", "") or "")
+        == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+        or bool(row.get("structural_reformulation_required", False))
+    )
     verified_adapter_targets_for_semantic_repair = {
         str(row.get("target_theorem_name", "") or "").strip()
         for row in source_theorem_exact_candidate_repairs
@@ -45529,6 +48107,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
             == "semantic_definition_review_blocked"
             or str(row.get("runtime_queue_status", "") or "")
             == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+            or str(row.get("runtime_queue_status", "") or "")
+            == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+            or str(row.get("failure_classification", "") or "")
+            == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+            or bool(row.get("structural_reformulation_required", False))
             or str(row.get("failure_classification", "") or "")
             == "exact_semantic_definition_authoring_required"
             or str(row.get("failure_classification", "") or "")
@@ -46192,14 +48775,21 @@ def _formalizer_proof_bank_runtime_memory_summary(
     pseudo_formal_block_routing_target_lanes = tuple(
         dict.fromkeys(
             str(row.get("target_lane", "") or "").strip()
-            for row in pseudo_formal_block_routing_rows
+            for row in pseudo_formal_block_routing_effective_rows
+            if str(row.get("target_lane", "") or "").strip()
+        )
+    )
+    pseudo_formal_block_routing_diagnostic_target_lanes = tuple(
+        dict.fromkeys(
+            str(row.get("target_lane", "") or "").strip()
+            for row in pseudo_formal_block_routing_diagnostic_rows
             if str(row.get("target_lane", "") or "").strip()
         )
     )
     pseudo_formal_block_routing_target_ids = tuple(
         dict.fromkeys(
             str(value).strip()
-            for row in pseudo_formal_block_routing_rows
+            for row in pseudo_formal_block_routing_effective_rows
             for value in row.get("target_ids", []) or []
             if str(value).strip()
         )
@@ -46207,8 +48797,55 @@ def _formalizer_proof_bank_runtime_memory_summary(
     pseudo_formal_block_routing_work_order_ids = tuple(
         dict.fromkeys(
             str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
-            for row in pseudo_formal_block_routing_rows
+            for row in pseudo_formal_block_routing_effective_rows
             if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        )
+    )
+    pseudo_formal_block_routing_diagnostic_work_order_ids = tuple(
+        dict.fromkeys(
+            str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            for row in pseudo_formal_block_routing_diagnostic_rows
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        )
+    )
+    pseudo_formal_independent_bv_feedback_rows = tuple(
+        row
+        for row in pseudo_formal_block_routing_rows
+        if str(row.get("independent_block_verification_status", "") or "")
+        == "completed"
+    )
+    pseudo_formal_independent_bv_pending_rows = tuple(
+        row
+        for row in pseudo_formal_block_routing_rows
+        if str(row.get("independent_block_verification_status", "") or "")
+        == "pending"
+    )
+    pseudo_formal_independent_bv_work_order_ids = tuple(
+        dict.fromkeys(
+            str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            for row in pseudo_formal_independent_bv_feedback_rows
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        )
+    )
+    pseudo_formal_independent_bv_verdicts = tuple(
+        dict.fromkeys(
+            str(
+                (
+                    row.get("block_verification", {})
+                    if isinstance(row.get("block_verification", {}), Mapping)
+                    else {}
+                ).get("verdict", "")
+                or ""
+            ).strip()
+            for row in pseudo_formal_independent_bv_feedback_rows
+            if str(
+                (
+                    row.get("block_verification", {})
+                    if isinstance(row.get("block_verification", {}), Mapping)
+                    else {}
+                ).get("verdict", "")
+                or ""
+            ).strip()
         )
     )
     pseudo_formal_block_routing_contract = (
@@ -46257,7 +48894,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
             "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
         }
-        if pseudo_formal_block_routing_rows
+        if pseudo_formal_block_routing_effective_rows
         else {}
     )
     source_to_bridge_premise_derivation_all_required_verified = bool(
@@ -46436,6 +49073,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         and not exact_semantic_definition_repair_required
         and not exact_source_proof_body_adapter_required
         and not exact_candidate_environment_gap
+        and not exact_candidate_materialization_required_rows
     )
     exact_candidate_placeholder_resolution_rows = (
         _source_theorem_placeholder_resolution_rows(
@@ -46676,6 +49314,34 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 for row in exact_semantic_definition_authoring_retry_rows
                 if str(row.get("placeholder_symbol", "") or "").strip()
             )
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": bool(
+            exact_semantic_definition_structural_reformulation_rows
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_target_names": list(
+            dict.fromkeys(
+                str(row.get("target_theorem_name", "") or "").strip()
+                for row in exact_semantic_definition_structural_reformulation_rows
+                if str(row.get("target_theorem_name", "") or "").strip()
+            )
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols": list(
+            dict.fromkeys(
+                str(row.get("placeholder_symbol", "") or "").strip()
+                for row in exact_semantic_definition_structural_reformulation_rows
+                if str(row.get("placeholder_symbol", "") or "").strip()
+            )
+        ),
+        "pseudo_formalization_required": bool(
+            exact_semantic_definition_structural_reformulation_rows
+        ),
+        "requires_pseudo_formalization": bool(
+            exact_semantic_definition_structural_reformulation_rows
+        ),
+        "pseudo_formalization_required_reason": (
+            "exact_semantic_definition_structural_reformulation_required"
+            if exact_semantic_definition_structural_reformulation_rows
+            else ""
         ),
         "source_theorem_exact_proof_body_repair_required": (
             exact_source_proof_body_repair_required
@@ -46935,10 +49601,25 @@ def _formalizer_proof_bank_runtime_memory_summary(
             for row in formal_gap_next_action_routing_rows[:4]
         ],
         "pseudo_formal_block_routing_active": bool(
+            pseudo_formal_block_routing_effective_rows
+        ),
+        "pseudo_formal_block_routing_diagnostic_active": bool(
+            pseudo_formal_block_routing_diagnostic_rows
+        ),
+        "n_pseudo_formal_block_routing_memory_rows": len(
             pseudo_formal_block_routing_rows
+        ),
+        "n_pseudo_formal_block_routing_effective_memory_rows": len(
+            pseudo_formal_block_routing_effective_rows
+        ),
+        "n_pseudo_formal_block_routing_diagnostic_memory_rows": len(
+            pseudo_formal_block_routing_diagnostic_rows
         ),
         "pseudo_formal_block_routing_target_lanes": list(
             pseudo_formal_block_routing_target_lanes
+        ),
+        "pseudo_formal_block_routing_diagnostic_target_lanes": list(
+            pseudo_formal_block_routing_diagnostic_target_lanes
         ),
         "pseudo_formal_block_routing_target_ids": list(
             pseudo_formal_block_routing_target_ids
@@ -46946,98 +49627,51 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "pseudo_formal_block_routing_work_order_ids": list(
             pseudo_formal_block_routing_work_order_ids
         ),
+        "pseudo_formal_block_routing_diagnostic_work_order_ids": list(
+            pseudo_formal_block_routing_diagnostic_work_order_ids
+        ),
+        "pseudo_formal_independent_block_verification_feedback_active": bool(
+            pseudo_formal_independent_bv_feedback_rows
+        ),
+        "pseudo_formal_independent_block_verification_pending": bool(
+            pseudo_formal_independent_bv_pending_rows
+        ),
+        "n_pseudo_formal_independent_block_verification_feedback_rows": len(
+            pseudo_formal_independent_bv_feedback_rows
+        ),
+        "n_pseudo_formal_independent_block_verification_pending_rows": len(
+            pseudo_formal_independent_bv_pending_rows
+        ),
+        "pseudo_formal_independent_block_verification_work_order_ids": list(
+            pseudo_formal_independent_bv_work_order_ids
+        ),
+        "pseudo_formal_independent_block_verification_verdicts": list(
+            pseudo_formal_independent_bv_verdicts
+        ),
+        "pseudo_formal_independent_block_verification_feedback_memory": [
+            _pseudo_formal_runtime_memory_row(row)
+            for row in pseudo_formal_independent_bv_feedback_rows[:6]
+        ],
+        "pseudo_formal_independent_block_verification_pending_memory": [
+            _pseudo_formal_runtime_memory_row(row)
+            for row in pseudo_formal_independent_bv_pending_rows[:6]
+        ],
         "pseudo_formal_block_routing_contract": (
             pseudo_formal_block_routing_contract
         ),
+        "pseudo_formal_block_routing_memory_boundary": (
+            "pseudo_formal_block_routing_memory contains only effective "
+            "lane-routable PF/BV rows. Blocked, pending, or quarantine rows are "
+            "preserved separately as pseudo_formal_block_routing_diagnostic_memory "
+            "and do not activate downstream Lean/RAG/source-to-bridge work."
+        ),
         "pseudo_formal_block_routing_memory": [
-            {
-                "learning_task": str(row.get("learning_task", "") or ""),
-                "pseudo_formal_method_contract_id": str(
-                    row.get("pseudo_formal_method_contract_id", "")
-                    or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
-                ),
-                "pseudo_formal_pipeline_stage": str(
-                    row.get("pseudo_formal_pipeline_stage", "")
-                    or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
-                ),
-                "source_pseudo_formal_work_order_id": str(
-                    row.get("source_pseudo_formal_work_order_id", "") or ""
-                ),
-                "source_agenda_id": str(row.get("source_agenda_id", "") or ""),
-                "source_formalizer_proposal_id": str(
-                    row.get("source_formalizer_proposal_id", "") or ""
-                ),
-                "source_formalization_manifest_id": str(
-                    row.get("source_formalization_manifest_id", "") or ""
-                ),
-                "source_packet_id": str(row.get("source_packet_id", "") or ""),
-                "source_theorem_id": str(row.get("source_theorem_id", "") or ""),
-                "source_block_id": str(row.get("source_block_id", "") or ""),
-                "source_block_type": str(row.get("source_block_type", "") or ""),
-                "source_block_conclusion": str(
-                    row.get("source_block_conclusion", "") or ""
-                ),
-                "block_depth": _pseudo_formal_safe_block_depth(
-                    row.get("block_depth")
-                ),
-                "dependency_scope": str(
-                    row.get(
-                        "dependency_scope",
-                        PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
-                    )
-                    or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
-                ),
-                "dependency_ids": list(row.get("dependency_ids", []) or []),
-                "faithfulness_status": str(
-                    row.get("faithfulness_status", "") or ""
-                ),
-                "faithfulness_repair_status": str(
-                    row.get("faithfulness_repair_status", "") or ""
-                ),
-                "block_verification": dict(
-                    row.get("block_verification", {})
-                    if isinstance(row.get("block_verification", {}), Mapping)
-                    else {}
-                ),
-                "bv_calibration": dict(
-                    row.get("bv_calibration", {})
-                    if isinstance(row.get("bv_calibration", {}), Mapping)
-                    else {
-                        "strictness_threshold": (
-                            PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
-                        ),
-                        "aggregation_rule": "parallel_pessimistic_aggregation",
-                        "pessimistic_acceptance": True,
-                    }
-                ),
-                "source_anchors": [
-                    dict(anchor)
-                    for anchor in row.get("source_anchors", []) or []
-                    if isinstance(anchor, Mapping)
-                ][:4],
-                "row_kind": str(row.get("row_kind", "") or ""),
-                "target_lane": str(row.get("target_lane", "") or ""),
-                "target_ids": list(row.get("target_ids", []) or []),
-                "target_theorem_name": str(
-                    row.get("target_theorem_name", "") or ""
-                ),
-                "semantic_primitive_id": str(
-                    row.get("semantic_primitive_id", "") or ""
-                ),
-                "reason": str(row.get("reason", "") or ""),
-                "runtime_queue_status": str(
-                    row.get("runtime_queue_status", "") or ""
-                ),
-                "target_behavior": str(row.get("target_behavior", "") or ""),
-                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
-                "proof_evidence_status": str(
-                    row.get("proof_evidence_status", "") or ""
-                ),
-                "proof_evidence_boundary": str(
-                    row.get("proof_evidence_boundary", "") or ""
-                ),
-            }
-            for row in pseudo_formal_block_routing_rows[:6]
+            _pseudo_formal_runtime_memory_row(row)
+            for row in pseudo_formal_block_routing_effective_rows[:6]
+        ],
+        "pseudo_formal_block_routing_diagnostic_memory": [
+            _pseudo_formal_runtime_memory_row(row)
+            for row in pseudo_formal_block_routing_diagnostic_rows[:6]
         ],
         "source_to_bridge_metadata_authoring_candidate_requests": [
             {
@@ -48286,6 +50920,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "recommended_source_theorem_integration_action": (
             "derive_source_theorem_proof_body_adapter"
             if source_to_bridge_adapter_retry_unblocked_by_verified_premises
+            else "structural_reformulate_exact_semantic_definition_with_pf_bv"
+            if exact_semantic_definition_structural_reformulation_rows
             else "repair_reviewed_exact_semantic_definitions"
             if exact_semantic_definition_repair_required
             else "derive_source_to_bridge_premises"
@@ -48317,6 +50953,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "recommended_formalizer_target_mode": (
             "source_theorem_proof_body_adapter_required"
             if source_to_bridge_adapter_retry_unblocked_by_verified_premises
+            else "source_theorem_exact_semantic_definition_structural_reformulation"
+            if exact_semantic_definition_structural_reformulation_rows
             else "source_theorem_exact_semantic_definition_repair"
             if exact_semantic_definition_repair_required
             else "source_to_bridge_premise_derivation_required"
@@ -48367,6 +51005,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "If memory records a source-to-bridge metadata-authoring blocker, first author or retrieve "
             "the candidate-request metadata with exact source binders and semantic anchors; helper-only "
             "compiled Lean remains diagnostic and is not source-theorem proof evidence. "
+            "If memory records source-theorem candidate materialization required, first emit a concrete "
+            "source-theorem formal_targets entry with expected_status=NEEDS_KERNEL_CHECK, "
+            "source_theorem_target_provenance, target_lean_declaration, and enough Lean source for "
+            "signature probing; FORMAL_GAP/helper/premise-only packets do not satisfy this gate, and "
+            "proof-body repair remains deferred until target_lean_declaration, signature_probe_artifact_path, "
+            "and live proof-body location exist. "
             "If memory records formal-gap next-action routing, reuse the formal-source/prover "
             "context, runtime gap-planner bridge, standalone seed, and target-prover replay path before "
             "broad theory expansion; this planner route is orchestration guidance, not proof evidence. "
@@ -48672,7 +51316,98 @@ def _formalizer_pseudo_formal_work_order_rows(
     ):
         if not isinstance(packet, Mapping):
             continue
-        for row in pseudo_formal_block_work_order_rows(packet):
+        normalized_packet = normalize_pseudo_formal_packet(packet)
+        packet_validation_errors = validate_pseudo_formal_packet(normalized_packet)
+        if packet_validation_errors:
+            source_packet_id = str(
+                normalized_packet.get("packet_id", "")
+                or f"pseudo_formal_packet:{packet_index}"
+            )
+            quarantine_row = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "PseudoFormalizerWorkOrder",
+                "row_id": "pseudo_formal_work_order:"
+                + stable_hash(
+                    [
+                        proposal_id,
+                        packet_index,
+                        source_packet_id,
+                        packet_validation_errors,
+                    ]
+                )[:16],
+                "source_packet_id": source_packet_id,
+                "source_theorem_id": str(
+                    normalized_packet.get("theorem_id", "") or ""
+                ),
+                "source_artifact_id": str(
+                    normalized_packet.get("source_artifact_id", "") or ""
+                ),
+                "source_block_id": f"pseudo_formal_packet_validation:{packet_index}",
+                "source_block_type": "packet_validation_quarantine",
+                "source_block_conclusion": (
+                    "Pseudo-formal packet failed local validation before block "
+                    "routing; repair PF/BV decomposition before downstream work."
+                ),
+                "block_depth": 1,
+                "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+                "dependency_ids": [],
+                "scope_parent_id": "",
+                "inherited_scope": [],
+                "source_anchors": [
+                    {
+                        "kind": "packet_validation",
+                        "id": source_packet_id,
+                        "excerpt": "; ".join(packet_validation_errors[:3])[:300],
+                    }
+                ],
+                "faithfulness_status": "unchecked",
+                "faithfulness_repair_status": "unavailable",
+                "block_verification": {
+                    "verdict": "not_run",
+                    "reason": "pseudo-formal packet failed local validation",
+                },
+                "bv_calibration": {
+                    "strictness_threshold": (
+                        PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+                    ),
+                    "aggregation_rule": "parallel_pessimistic_aggregation",
+                    "pessimistic_acceptance": True,
+                    "rollout_count": 0,
+                },
+                "row_kind": "pseudo_formal_packet_validation_quarantine",
+                "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                "pseudo_formal_method_contract_id": (
+                    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                ),
+                "pseudo_formal_method_name": (
+                    "pseudo_formalization_plus_block_verification"
+                ),
+                "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+                "pseudo_formal_upstream_pipeline_stages": [],
+                "reason": (
+                    "pseudo-formal packet validation failed: "
+                    + "; ".join(packet_validation_errors[:3])
+                ),
+                "validation_errors": packet_validation_errors,
+                "source_formalizer_proposal_id": proposal_id,
+                "source_pseudo_formal_packet_index": packet_index,
+                "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+                "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                "kernel_verified": False,
+                "source_theorem_kernel_verified": False,
+                "runtime_queue_status": _pseudo_formal_runtime_queue_status(
+                    {"target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP}
+                ),
+                "runtime_queue_boundary": (
+                    "This queue row quarantines an invalid pseudo-formal proof "
+                    "packet. It is validation feedback only, not theorem proof "
+                    "evidence; target-prover kernel replay is required before "
+                    "any proof promotion."
+                ),
+            }
+            rows.append(quarantine_row)
+            continue
+        for row in pseudo_formal_block_work_order_rows(normalized_packet):
             runtime_row = {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "artifact_kind": "PseudoFormalizerWorkOrder",
@@ -48703,6 +51438,121 @@ def _pseudo_formal_runtime_queue_status(row: Mapping[str, Any]) -> str:
             PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP
         ],
     )
+
+
+def _pseudo_formal_work_order_row_kind(row: Mapping[str, Any]) -> str:
+    return str(
+        row.get("row_kind", "")
+        or row.get("pseudo_formal_row_kind", "")
+        or ""
+    ).strip()
+
+
+def _pseudo_formal_work_order_is_routable(row: Mapping[str, Any]) -> bool:
+    row_kind = _pseudo_formal_work_order_row_kind(row)
+    return row_kind not in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS
+
+
+def _pseudo_formal_runtime_memory_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "learning_task": str(row.get("learning_task", "") or ""),
+        "pseudo_formal_method_contract_id": str(
+            row.get("pseudo_formal_method_contract_id", "")
+            or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": str(
+            row.get("pseudo_formal_pipeline_stage", "")
+            or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+        ),
+        "source_pseudo_formal_work_order_id": str(
+            row.get("source_pseudo_formal_work_order_id", "") or ""
+        ),
+        "source_agenda_id": str(row.get("source_agenda_id", "") or ""),
+        "source_formalizer_proposal_id": str(
+            row.get("source_formalizer_proposal_id", "") or ""
+        ),
+        "source_formalization_manifest_id": str(
+            row.get("source_formalization_manifest_id", "") or ""
+        ),
+        "source_packet_id": str(row.get("source_packet_id", "") or ""),
+        "source_theorem_id": str(row.get("source_theorem_id", "") or ""),
+        "source_block_id": str(row.get("source_block_id", "") or ""),
+        "source_block_type": str(row.get("source_block_type", "") or ""),
+        "source_block_conclusion": str(row.get("source_block_conclusion", "") or ""),
+        "block_depth": _pseudo_formal_safe_block_depth(row.get("block_depth")),
+        "dependency_scope": str(
+            row.get("dependency_scope", PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE)
+            or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+        ),
+        "dependency_ids": list(row.get("dependency_ids", []) or []),
+        "dependency_statement_context": list(
+            row.get("dependency_statement_context", []) or []
+        ),
+        "scope_parent_id": str(row.get("scope_parent_id", "") or ""),
+        "inherited_scope": list(row.get("inherited_scope", []) or []),
+        "source_block_premises": list(row.get("source_block_premises", []) or []),
+        "source_block_proof_text": str(row.get("source_block_proof_text", "") or ""),
+        "faithfulness_status": str(row.get("faithfulness_status", "") or ""),
+        "faithfulness_repair_status": str(
+            row.get("faithfulness_repair_status", "") or ""
+        ),
+        "block_verification": dict(
+            row.get("block_verification", {})
+            if isinstance(row.get("block_verification", {}), Mapping)
+            else {}
+        ),
+        "block_verification_verifier_provenance": str(
+            row.get("block_verification_verifier_provenance", "") or ""
+        ),
+        "block_verification_independent": bool(
+            row.get("block_verification_independent", False)
+        ),
+        "independent_block_verification_required": bool(
+            row.get("independent_block_verification_required", False)
+        ),
+        "independent_block_verification_status": str(
+            row.get("independent_block_verification_status", "") or ""
+        ),
+        "independent_block_verification_completed": bool(
+            row.get("independent_block_verification_completed", False)
+        ),
+        "bv_calibration": dict(
+            row.get("bv_calibration", {})
+            if isinstance(row.get("bv_calibration", {}), Mapping)
+            else {
+                "strictness_threshold": PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "pessimistic_acceptance": True,
+            }
+        ),
+        "source_anchors": [
+            dict(anchor)
+            for anchor in row.get("source_anchors", []) or []
+            if isinstance(anchor, Mapping)
+        ][:4],
+        "row_kind": _pseudo_formal_work_order_row_kind(row),
+        "pseudo_formal_routable": _pseudo_formal_work_order_is_routable(row),
+        "target_lane": str(row.get("target_lane", "") or ""),
+        "target_ids": list(row.get("target_ids", []) or []),
+        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
+        "reason": str(row.get("reason", "") or ""),
+        "runtime_queue_status": str(row.get("runtime_queue_status", "") or ""),
+        "pseudo_formal_block_verifier_worker": dict(
+            row.get("pseudo_formal_block_verifier_worker", {})
+            if isinstance(row.get("pseudo_formal_block_verifier_worker", {}), Mapping)
+            else {}
+        ),
+        "recommended_commands": list(row.get("recommended_commands", []) or []),
+        "recommended_next_action": str(row.get("recommended_next_action", "") or ""),
+        "target_behavior": str(row.get("target_behavior", "") or ""),
+        "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+        "proof_evidence_status": str(row.get("proof_evidence_status", "") or ""),
+        "proof_evidence_boundary": str(
+            row.get("proof_evidence_boundary", "")
+            or PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+        ),
+    }
 
 
 def _formalizer_theorem_reduction_closure_work_orders(
@@ -49634,6 +52484,201 @@ def _formalizer_source_theorem_semantic_primitive_work_orders(
     return work_orders
 
 
+def _pseudo_formal_source_theorem_semantic_primitive_work_orders(
+    pseudo_formal_work_order_rows: Sequence[Mapping[str, Any]],
+    *,
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    theorem_goals: list[Any],
+) -> list[dict[str, Any]]:
+    target_goal_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get("remaining_theorem_goal_ids", [])
+        or []
+        if str(row).strip()
+    ] or [_theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row)]
+    closure_work_order_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    closure_target_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_theorem_reduction_closure_target_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    closure_declarations = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_theorem_reduction_closure_declarations",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    closure_artifact_paths = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_verified_theorem_reduction_closure_artifact_paths",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    verified_bridge_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_proof_obligation_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in pseudo_formal_work_order_rows:
+        if not isinstance(item, Mapping):
+            continue
+        if not _pseudo_formal_work_order_is_routable(item):
+            continue
+        target_lane = str(item.get("target_lane", "") or "").strip()
+        if target_lane != PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE:
+            continue
+        primitive_id = str(item.get("semantic_primitive", "") or "").strip()
+        if not primitive_id:
+            continue
+        source_block_id = str(item.get("source_block_id", "") or "").strip()
+        source_theorem_id = str(item.get("source_theorem_id", "") or "").strip()
+        source_block_conclusion = str(
+            item.get("source_block_conclusion", "") or ""
+        ).strip()
+        work_order_source_target_ids = target_goal_ids or [
+            value
+            for value in (source_theorem_id, source_block_id)
+            if value
+        ]
+        key = (primitive_id, source_theorem_id, source_block_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        semantic_gap = (
+            f"Pseudo-formal block `{source_block_id or primitive_id}` requires "
+            f"semantic primitive `{primitive_id}`"
+        )
+        if source_block_conclusion:
+            semantic_gap += f" to support: {source_block_conclusion[:240]}"
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "source_theorem_semantic_primitive_work_order:"
+                + stable_hash(
+                    [
+                        "pseudo_formal",
+                        primitive_id,
+                        source_theorem_id,
+                        source_block_id,
+                        item.get("row_id", ""),
+                        item.get("source_packet_id", ""),
+                    ]
+                )[:20],
+                "semantic_primitive_id": primitive_id,
+                "semantic_primitive_gap": semantic_gap,
+                "semantic_primitive_gap_kind": (
+                    "pseudo_formal_source_to_bridge_semantic_primitive"
+                ),
+                "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer",
+                "source_formalizer_packet_id": str(
+                    item.get("source_formalizer_proposal_id", "") or ""
+                ),
+                "source_formal_target_ids": [source_block_id]
+                if source_block_id
+                else [],
+                "source_pseudo_formal_work_order_id": str(
+                    item.get("row_id", "")
+                    or item.get("work_order_id", "")
+                    or ""
+                ),
+                "source_pseudo_formal_packet_id": str(
+                    item.get("source_packet_id", "") or ""
+                ),
+                "source_pseudo_formal_block_id": source_block_id,
+                "source_pseudo_formal_block_type": str(
+                    item.get("source_block_type", "") or ""
+                ),
+                "source_pseudo_formal_block_conclusion": source_block_conclusion,
+                "source_pseudo_formal_dependency_ids": list(
+                    item.get("dependency_ids", []) or []
+                ),
+                "source_pseudo_formal_scope_parent_id": str(
+                    item.get("scope_parent_id", "") or ""
+                ),
+                "source_pseudo_formal_inherited_scope": list(
+                    item.get("inherited_scope", []) or []
+                ),
+                "source_pseudo_formal_source_anchors": list(
+                    item.get("source_anchors", []) or []
+                ),
+                "source_pseudo_formal_reason": str(item.get("reason", "") or ""),
+                "source_theorem_id": source_theorem_id,
+                "target_theorem_goal_ids": list(work_order_source_target_ids),
+                "kernel_verified_theorem_reduction_closure_work_order_ids": (
+                    closure_work_order_ids
+                ),
+                "kernel_verified_theorem_reduction_closure_target_ids": (
+                    closure_target_ids
+                ),
+                "kernel_verified_theorem_reduction_closure_declarations": (
+                    closure_declarations
+                ),
+                "verified_theorem_reduction_closure_artifact_paths": (
+                    closure_artifact_paths
+                ),
+                "memory_kernel_verified_bridge_obligation_ids": verified_bridge_ids,
+                "proof_mode": "pseudo_formal_source_semantic_primitive_closure",
+                "acceptance_gate": (
+                    "A downstream semantic-primitive or exact-definition worker "
+                    "must produce source-anchored Lean/AXLE evidence for this "
+                    "primitive. The pseudo-formal block is routing context only "
+                    "and never proof evidence."
+                ),
+                "runtime_queue_status": (
+                    "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+                ),
+                "runtime_queue_boundary": (
+                    "This queue row was derived from a pseudo-formal source-to-bridge "
+                    "semantic primitive requirement. It is decomposition and routing "
+                    "feedback only; target-prover kernel replay is required before "
+                    "any theorem proof promotion."
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                "pseudo_formal_method_contract_id": str(
+                    item.get("pseudo_formal_method_contract_id", "")
+                    or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                ),
+                "pseudo_formal_pipeline_stage": str(
+                    item.get("pseudo_formal_pipeline_stage", "")
+                    or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                ),
+                "pseudo_formal_proof_evidence_status": (
+                    PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+                ),
+                "pseudo_formal_proof_evidence_boundary": (
+                    PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+                ),
+            }
+        )
+    return rows
+
+
 def _formalizer_source_theorem_exact_semantic_definition_work_orders(
     *,
     proposal_packet: Mapping[str, Any],
@@ -49857,6 +52902,11 @@ def _formalizer_target_requests_source_theorem_formal_environment_repair(
     statement = lean_statement_sketch.strip()
     if bool(target.get("source_theorem_formal_environment_repair_required", False)):
         return True
+    if (
+        expected_status in {"NEEDS_KERNEL_CHECK", "OPEN"}
+        and re.search(r"\b(theorem|lemma)\b", statement)
+    ):
+        return True
     return bool(
         expected_status == "FORMAL_GAP"
         or expected_status_normalized_from == "FORMAL_GAP"
@@ -49917,6 +52967,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
     artifact: Mapping[str, Any],
     proposal_packet: Mapping[str, Any],
     seen: set[str],
+    materialized_candidate_index: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Queue source-theorem environment repair from Formalizer target contracts."""
 
@@ -49925,6 +52976,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
         if isinstance(artifact.get("question"), Mapping)
         else {}
     )
+    materialized_candidate_index = materialized_candidate_index or {}
     rows: list[dict[str, Any]] = []
     for target in proposal_packet.get("formal_targets", []) or []:
         if not isinstance(target, Mapping):
@@ -49964,11 +53016,54 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
             or str(target.get("target_theorem_name", "") or "").strip()
             or source_formal_target_id
         )
+        materialized_candidate = (
+            dict(materialized_candidate_index.get(source_formal_target_id, {}) or {})
+            if isinstance(
+                materialized_candidate_index.get(source_formal_target_id, {}),
+                Mapping,
+            )
+            else {}
+        )
+        if not materialized_candidate and target_lean_declaration:
+            materialized_candidate = (
+                dict(materialized_candidate_index.get(target_lean_declaration, {}) or {})
+                if isinstance(
+                    materialized_candidate_index.get(target_lean_declaration, {}),
+                    Mapping,
+                )
+                else {}
+            )
+        if not materialized_candidate and target_theorem_name:
+            materialized_candidate = (
+                dict(materialized_candidate_index.get(target_theorem_name, {}) or {})
+                if isinstance(
+                    materialized_candidate_index.get(target_theorem_name, {}),
+                    Mapping,
+                )
+                else {}
+            )
+        materialized_target_declaration = str(
+            materialized_candidate.get("target_lean_declaration", "") or ""
+        ).strip()
+        if materialized_target_declaration and not target_lean_declaration:
+            target_lean_declaration = materialized_target_declaration
+            target_theorem_name = materialized_target_declaration
         if target_lean_declaration:
             source_target_provenance.setdefault(
                 "target_lean_declaration",
                 target_lean_declaration,
             )
+        materialized_provenance = (
+            materialized_candidate.get("source_theorem_target_provenance", {})
+            if isinstance(
+                materialized_candidate.get("source_theorem_target_provenance", {}),
+                Mapping,
+            )
+            else {}
+        )
+        for key, value in materialized_provenance.items():
+            if value not in ("", [], {}, None):
+                source_target_provenance.setdefault(str(key), value)
         semantic_alignment_constraints = list(
             source_target_provenance.get("semantic_alignment_constraints", []) or []
         )
@@ -50021,6 +53116,15 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
         candidate_artifact_path = str(
             target.get("candidate_artifact_path", "")
             or target.get("kernel_check_artifact_path", "")
+            or materialized_candidate.get("artifact_path", "")
+            or materialized_candidate.get("kernel_check_artifact_path", "")
+            or ""
+        ).strip()
+        materialized_candidate_id = str(
+            materialized_candidate.get("candidate_id", "") or ""
+        ).strip()
+        materialized_manifest_id = str(
+            materialized_candidate.get("source_materialization_manifest_id", "")
             or ""
         ).strip()
         work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
@@ -50030,6 +53134,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
                 source_formal_target_id,
                 target_theorem_name,
                 target_ids,
+                candidate_artifact_path,
                 failure_classification,
                 diagnostics,
                 source_target_provenance,
@@ -50058,6 +53163,10 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
                 or target_theorem_name,
                 "target_theorem_goal_ids": list(target_ids),
                 "candidate_artifact_path": candidate_artifact_path,
+                "source_formalizer_lean_candidate_materialization_manifest_id": (
+                    materialized_manifest_id
+                ),
+                "source_formalizer_lean_candidate_id": materialized_candidate_id,
                 "lean_statement_sketch": lean_statement_sketch,
                 "lean_imports": _formal_target_imports(target),
                 "source_theorem_target_known": True,
@@ -50108,6 +53217,64 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
     return rows
 
 
+def _runtime_formalizer_materialized_candidate_index(
+    artifacts: Mapping[str, Any],
+    *,
+    proposal_id: str,
+) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    proposal_id = proposal_id.strip()
+    if not proposal_id:
+        return index
+    for artifact in artifacts.values():
+        if not (
+            isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind")
+            == "RuntimeFormalizerLeanCandidateMaterialization"
+            and str(artifact.get("source_formalizer_packet_id", "") or "")
+            == proposal_id
+        ):
+            continue
+        manifest = _normalize_formalizer_lean_candidate_materialization_artifact(
+            artifact
+        )
+        manifest_id = str(manifest.get("manifest_id", "") or "")
+        for candidate in manifest.get("candidate_rows", []) or []:
+            if not isinstance(candidate, Mapping):
+                continue
+            row = dict(candidate)
+            row["source_materialization_manifest_id"] = manifest_id
+            keys = [
+                str(row.get("candidate_id", "") or "").strip(),
+                str(row.get("target_lean_declaration", "") or "").strip(),
+                str(row.get("target_theorem_name", "") or "").strip(),
+            ]
+            for key in dict.fromkeys(value for value in keys if value):
+                index.setdefault(key, row)
+    return index
+
+
+def _source_theorem_formal_environment_coverage_keys(
+    *,
+    target_theorem_name: str = "",
+    target_lean_declaration: str = "",
+    target_ids: Iterable[Any] = (),
+) -> set[str]:
+    keys: set[str] = set()
+    for prefix, value in (
+        ("lean", target_lean_declaration),
+        ("theorem", target_theorem_name),
+    ):
+        normalized = str(value or "").strip()
+        if normalized:
+            keys.add(prefix + ":" + normalized)
+    for target_id in target_ids or ():
+        normalized = str(target_id or "").strip()
+        if normalized:
+            keys.add("goal:" + normalized)
+    return keys
+
+
 def _runtime_source_theorem_formal_environment_work_order_rows(
     results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -50123,24 +53290,50 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                 and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
             ):
                 continue
+            proposal_id = str(
+                artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
+                or ""
+            )
+            proposal_packet = artifacts.get(proposal_id, {})
+            if isinstance(proposal_packet, Mapping):
+                materialized_candidate_index = (
+                    _runtime_formalizer_materialized_candidate_index(
+                        artifacts,
+                        proposal_id=proposal_id,
+                    )
+                )
+                formalizer_target_rows = (
+                    _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_targets(
+                        artifact=artifact,
+                        proposal_packet=proposal_packet,
+                        seen=seen,
+                        materialized_candidate_index=materialized_candidate_index,
+                    )
+                )
+                rows.extend(formalizer_target_rows)
+            else:
+                formalizer_target_rows = []
+            formalizer_target_coverage_keys: set[str] = set()
+            for row in formalizer_target_rows:
+                formalizer_target_coverage_keys.update(
+                    _source_theorem_formal_environment_coverage_keys(
+                        target_theorem_name=str(
+                            row.get("target_theorem_name", "") or ""
+                        ),
+                        target_lean_declaration=str(
+                            row.get("target_lean_declaration", "") or ""
+                        ),
+                        target_ids=(
+                            list(row.get("target_ids", []) or [])
+                            + list(row.get("target_theorem_goal_ids", []) or [])
+                        ),
+                    )
+                )
             proof_memory = artifact.get("proof_bank_runtime_memory_summary", {})
             if not isinstance(proof_memory, Mapping) or not proof_memory.get(
                 "source_theorem_exact_candidate_environment_gap",
                 False,
             ):
-                proposal_id = str(
-                    artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
-                    or ""
-                )
-                proposal_packet = artifacts.get(proposal_id, {})
-                if isinstance(proposal_packet, Mapping):
-                    rows.extend(
-                        _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_targets(
-                            artifact=artifact,
-                            proposal_packet=proposal_packet,
-                            seen=seen,
-                        )
-                    )
                 continue
             question = (
                 artifact.get("question", {})
@@ -50242,6 +53435,18 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                     source_target_provenance=source_target_provenance,
                     fallback_target_theorem_name=target_theorem_name,
                 )
+                target_lean_declaration = str(
+                    source_target_provenance.get("target_lean_declaration", "")
+                    or target_theorem_name
+                ).strip()
+                if formalizer_target_coverage_keys.intersection(
+                    _source_theorem_formal_environment_coverage_keys(
+                        target_theorem_name=target_theorem_name,
+                        target_lean_declaration=target_lean_declaration,
+                        target_ids=target_ids,
+                    )
+                ):
+                    continue
                 work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
                     [
                         artifact.get("manifest_id", ""),
@@ -50268,10 +53473,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         "question_title": str(question.get("title", "") or ""),
                         "target_theorem_name": target_theorem_name,
                         "target_ids": target_ids,
-                        "target_lean_declaration": str(
-                            source_target_provenance.get("target_lean_declaration", "")
-                            or target_theorem_name
-                        ),
+                        "target_lean_declaration": target_lean_declaration,
                         "target_theorem_goal_ids": list(target_ids),
                         "candidate_artifact_path": candidate_artifact_path,
                         "source_theorem_target_known": (
@@ -52315,7 +55517,15 @@ def _merge_runtime_next_action_agenda_row(
         "failure_classifications",
         "source_theorem_exact_candidate_repair_triggers",
         "proof_body_gate_statuses",
+        "proof_body_recheck_blockers",
         "semantic_alignment_blockers",
+        "semantic_review_evidence",
+        "definition_candidate_review_modes",
+        "required_next_checks",
+        "source_learning_tasks",
+        "source_feedback_triggers",
+        "source_review_packet_ids",
+        "blocker_feedback_ids",
         "premise_names",
         "premise_target_types",
         "kernel_verified_source_to_bridge_premise_derivation_ids",
@@ -52780,6 +55990,52 @@ def _append_runtime_generated_next_action_rows(
             row.get("recommended_next_action", "") or ""
         ).strip()
         recommended_commands = _runtime_recommended_commands(row)[:5]
+        proof_body_recheck_blockers = list(
+            _runtime_row_string_values(row, "proof_body_recheck_blockers")
+        )
+        semantic_alignment_blockers = list(
+            _runtime_row_string_values(row, "semantic_alignment_blockers")
+        )
+        semantic_review_evidence = list(
+            _runtime_row_string_values(row, "semantic_review_evidence")
+        )
+        required_next_checks = list(
+            _runtime_row_string_values(row, "required_next_checks")
+        )
+        definition_candidate_review_modes = list(
+            _runtime_row_string_values(row, "definition_candidate_review_mode")
+        )
+        definition_candidate_review_mode = (
+            definition_candidate_review_modes[0]
+            if definition_candidate_review_modes
+            else ""
+        )
+        failure_classifications = list(
+            _runtime_row_string_values(row, "failure_classification")
+        )
+        failure_classification = (
+            failure_classifications[0] if failure_classifications else ""
+        )
+        source_review_packet_id = str(
+            row.get("source_review_packet_id", "")
+            or input_summary.get("source_review_packet_id", "")
+            or ""
+        ).strip()
+        blocker_feedback_id = str(
+            row.get("blocker_feedback_id", "")
+            or input_summary.get("blocker_feedback_id", "")
+            or ""
+        ).strip()
+        semantic_review_required_before_proof_body = bool(
+            row.get("semantic_review_required_before_proof_body", False)
+            or input_summary.get("semantic_review_required_before_proof_body", False)
+        )
+        source_theorem_kernel_evidence_eligible = bool(
+            row.get(
+                "source_theorem_kernel_evidence_eligible",
+                input_summary.get("source_theorem_kernel_evidence_eligible", True),
+            )
+        )
         action = (
             recommended_next_action
             if recommended_next_action
@@ -52882,6 +56138,16 @@ def _append_runtime_generated_next_action_rows(
                 )
             ),
             "work_order_id": work_order_id,
+            "source_learning_task": learning_task,
+            "source_learning_tasks": [learning_task] if learning_task else [],
+            "source_feedback_trigger": source_trigger,
+            "source_feedback_triggers": [source_trigger] if source_trigger else [],
+            "source_review_packet_id": source_review_packet_id,
+            "source_review_packet_ids": (
+                [source_review_packet_id] if source_review_packet_id else []
+            ),
+            "blocker_feedback_id": blocker_feedback_id,
+            "blocker_feedback_ids": [blocker_feedback_id] if blocker_feedback_id else [],
             "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
             "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
             "premise_name": premise_name,
@@ -52927,6 +56193,30 @@ def _append_runtime_generated_next_action_rows(
             ),
             "semantic_definition_typecheck_evidence_status": str(
                 row.get("semantic_definition_typecheck_evidence_status", "") or ""
+            ),
+            "semantic_review_required_before_proof_body": (
+                semantic_review_required_before_proof_body
+            ),
+            "semantic_review_decision": str(
+                row.get("semantic_review_decision", "")
+                or input_summary.get("semantic_review_decision", "")
+                or ""
+            ),
+            "semantic_review_status": str(
+                row.get("semantic_review_status", "")
+                or input_summary.get("semantic_review_status", "")
+                or ""
+            ),
+            "semantic_review_evidence": semantic_review_evidence,
+            "semantic_alignment_blockers": semantic_alignment_blockers,
+            "proof_body_recheck_blockers": proof_body_recheck_blockers,
+            "definition_candidate_review_mode": definition_candidate_review_mode,
+            "definition_candidate_review_modes": definition_candidate_review_modes,
+            "required_next_checks": required_next_checks,
+            "failure_classification": failure_classification,
+            "failure_classifications": failure_classifications,
+            "source_theorem_kernel_evidence_eligible": (
+                source_theorem_kernel_evidence_eligible
             ),
             "semantic_definition_import_candidate_ready": bool(
                 row.get("semantic_definition_import_candidate_ready", False)
@@ -53203,6 +56493,30 @@ def _runtime_generated_next_action_learning_rows(
                     "owner_subsystem": str(row.get("owner_subsystem", "") or ""),
                     "agenda_id": str(row.get("id", "") or ""),
                     "work_order_id": str(row.get("work_order_id", "") or ""),
+                    "source_learning_task": str(
+                        row.get("source_learning_task", "") or ""
+                    ),
+                    "source_learning_tasks": list(
+                        _runtime_row_string_values(row, "source_learning_tasks")
+                    ),
+                    "source_feedback_trigger": str(
+                        row.get("source_feedback_trigger", "") or ""
+                    ),
+                    "source_feedback_triggers": list(
+                        _runtime_row_string_values(row, "source_feedback_triggers")
+                    ),
+                    "source_review_packet_id": str(
+                        row.get("source_review_packet_id", "") or ""
+                    ),
+                    "source_review_packet_ids": list(
+                        _runtime_row_string_values(row, "source_review_packet_ids")
+                    ),
+                    "blocker_feedback_id": str(
+                        row.get("blocker_feedback_id", "") or ""
+                    ),
+                    "blocker_feedback_ids": list(
+                        _runtime_row_string_values(row, "blocker_feedback_ids")
+                    ),
                     "semantic_primitive_id": str(
                         row.get("semantic_primitive_id", "") or ""
                     ),
@@ -53245,6 +56559,36 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "semantic_definition_typecheck_evidence_status": str(
                         row.get("semantic_definition_typecheck_evidence_status", "") or ""
+                    ),
+                    "semantic_review_required_before_proof_body": bool(
+                        row.get("semantic_review_required_before_proof_body", False)
+                    ),
+                    "semantic_review_decision": str(
+                        row.get("semantic_review_decision", "") or ""
+                    ),
+                    "semantic_review_status": str(
+                        row.get("semantic_review_status", "") or ""
+                    ),
+                    "semantic_review_evidence": list(
+                        _runtime_row_string_values(row, "semantic_review_evidence")
+                    ),
+                    "semantic_alignment_blockers": list(
+                        _runtime_row_string_values(row, "semantic_alignment_blockers")
+                    ),
+                    "proof_body_recheck_blockers": list(
+                        _runtime_row_string_values(row, "proof_body_recheck_blockers")
+                    ),
+                    "definition_candidate_review_mode": str(
+                        row.get("definition_candidate_review_mode", "") or ""
+                    ),
+                    "definition_candidate_review_modes": list(
+                        _runtime_row_string_values(
+                            row,
+                            "definition_candidate_review_modes",
+                        )
+                    ),
+                    "required_next_checks": list(
+                        _runtime_row_string_values(row, "required_next_checks")
                     ),
                     "semantic_definition_import_candidate_ready": bool(
                         row.get("semantic_definition_import_candidate_ready", False)
@@ -53298,6 +56642,12 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "failure_classifications": list(
                         _runtime_row_string_values(row, "failure_classifications")
+                    ),
+                    "failure_classification": str(
+                        row.get("failure_classification", "") or ""
+                    ),
+                    "source_theorem_kernel_evidence_eligible": bool(
+                        row.get("source_theorem_kernel_evidence_eligible", True)
                     ),
                     "recommended_next_action": recommended_next_action,
                     "recommended_commands": recommended_commands,
@@ -53884,9 +57234,17 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
                 or RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY
             ),
         }
-        execution_context = _runtime_formalization_gap_planner_execution_context(
-            live_row
+        live_row_contexts = list(
+            _runtime_formalization_gap_planner_row_contexts(live_row, {})
         )
+        if live_row_contexts:
+            execution_contexts = live_row_contexts
+            execution_context = live_row_contexts[0]
+        else:
+            execution_context = _runtime_formalization_gap_planner_execution_context(
+                live_row
+            )
+            execution_contexts = [execution_context] if execution_context else []
         bridge_id = str(live_row.get("bridge_id", "") or "")
         handoff_id = str(live_row.get("handoff_id", "") or "")
         standalone_seed_path = str(live_row.get("standalone_seed_path", "") or "")
@@ -53996,6 +57354,7 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
                 "runtime_queue_status": (
                     RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_QUEUE_STATUS
                 ),
+                "formalization_gap_planner_execution_contexts": execution_contexts,
             }
             rows.append(
                 {
@@ -54015,9 +57374,7 @@ def _formalization_gap_planner_target_prover_replay_learning_rows(
                     "formalization_gap_planner_bridge_id": bridge_id,
                     "formalization_gap_planner_handoff_id": handoff_id,
                     "standalone_seed_path": standalone_seed_path,
-                    "formalization_gap_planner_execution_contexts": (
-                        [execution_context] if execution_context else []
-                    ),
+                    "formalization_gap_planner_execution_contexts": execution_contexts,
                     "route_revision_proposal_id": proposal_id,
                     "refinement_evidence_id": str(
                         proposal.get("refinement_evidence_id", "") or ""
@@ -54647,6 +58004,17 @@ def _typechecked_review_verifier_gate_rows_from_recheck_manifest(
     return [dict(row) for row in _read_jsonl(rows_path) if isinstance(row, Mapping)]
 
 
+def _typechecked_review_runtime_learning_rows_from_recheck_manifest(
+    manifest: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(manifest, Mapping):
+        return []
+    rows_path = Path(str(manifest.get("runtime_learning_rows_jsonl", "") or ""))
+    if not rows_path.exists():
+        return []
+    return [dict(row) for row in _read_jsonl(rows_path) if isinstance(row, Mapping)]
+
+
 def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for result in results:
@@ -55049,6 +58417,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
+        manifest_referenced_proposal_ids: set[str] = set()
         for artifact in artifacts.values():
             if not (
                 isinstance(artifact, Mapping)
@@ -55059,9 +58428,9 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
             proposal_id = str(
                 artifact.get("llm_formalizer_proof_engineer_proposal_id", "") or ""
             )
+            if proposal_id:
+                manifest_referenced_proposal_ids.add(proposal_id)
             proposal_packet = artifacts.get(proposal_id, {})
-            if not isinstance(proposal_packet, Mapping):
-                continue
             proof_bank_summary = (
                 artifact.get("proof_bank_runtime_memory_summary", {})
                 if isinstance(artifact.get("proof_bank_runtime_memory_summary"), Mapping)
@@ -55072,10 +58441,33 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                 for row in artifact.get("deterministic_theorem_goals", []) or []
                 if isinstance(row, Mapping)
             ]
-            work_order_items = _formalizer_source_theorem_semantic_primitive_work_orders(
-                proposal_packet=proposal_packet,
-                proof_bank_runtime_memory_summary=proof_bank_summary,
-                theorem_goals=theorem_goals,
+            work_order_items: list[dict[str, Any]] = []
+            if isinstance(proposal_packet, Mapping):
+                work_order_items.extend(
+                    _formalizer_source_theorem_semantic_primitive_work_orders(
+                        proposal_packet=proposal_packet,
+                        proof_bank_runtime_memory_summary=proof_bank_summary,
+                        theorem_goals=theorem_goals,
+                    )
+                )
+            pseudo_formal_work_order_items = list(
+                artifact.get("pseudo_formal_work_order_rows", []) or []
+            )
+            if (
+                not pseudo_formal_work_order_items
+                and isinstance(proposal_packet, Mapping)
+            ):
+                pseudo_formal_work_order_items = (
+                    _formalizer_pseudo_formal_work_order_rows(
+                        proposal_packet=proposal_packet
+                    )
+                )
+            work_order_items.extend(
+                _pseudo_formal_source_theorem_semantic_primitive_work_orders(
+                    pseudo_formal_work_order_items,
+                    proof_bank_runtime_memory_summary=proof_bank_summary,
+                    theorem_goals=theorem_goals,
+                )
             )
             for item in work_order_items:
                 if not isinstance(item, Mapping):
@@ -55086,12 +58478,18 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                 )
                 row["question_id"] = str(question.get("id", "") or "")
                 row["question_title"] = str(question.get("title", "") or "")
-                row["runtime_queue_status"] = "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+                row["runtime_queue_status"] = str(
+                    row.get("runtime_queue_status", "")
+                    or "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+                )
                 row["runtime_queue_boundary"] = (
-                    "This queue row is an upstream source-theorem semantic primitive "
-                    "proof task exported from live runtime. It is not proof evidence "
-                    "until AXLE/local Lean kernel verification accepts the intended "
-                    "semantic primitive."
+                    str(row.get("runtime_queue_boundary", "") or "")
+                    or (
+                        "This queue row is an upstream source-theorem semantic "
+                        "primitive proof task exported from live runtime. It is not "
+                        "proof evidence until AXLE/local Lean kernel verification "
+                        "accepts the intended semantic primitive."
+                    )
                 )
                 work_order_id = str(row.get("work_order_id", "") or "").strip()
                 source_manifest_id = str(row.get("source_formalization_manifest_id", "") or "")
@@ -55116,7 +58514,173 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                 if work_order_id:
                     by_work_order_id[work_order_id] = len(rows)
                 rows.append(row)
+        fallback_question = _runtime_question_payload_from_artifacts(artifacts)
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind")
+                == "FormalizerProofEngineerProposalPacket"
+            ):
+                continue
+            proposal_id = str(
+                artifact.get("packet_id", "")
+                or artifact.get("proposal_id", "")
+                or ""
+            )
+            if proposal_id and proposal_id in manifest_referenced_proposal_ids:
+                continue
+            question = (
+                artifact.get("question", {})
+                if isinstance(artifact.get("question"), Mapping)
+                else fallback_question
+            )
+            pseudo_formal_work_order_items = _formalizer_pseudo_formal_work_order_rows(
+                proposal_packet=artifact
+            )
+            work_order_items = _pseudo_formal_source_theorem_semantic_primitive_work_orders(
+                pseudo_formal_work_order_items,
+                proof_bank_runtime_memory_summary={},
+                theorem_goals=[],
+            )
+            for item in work_order_items:
+                if not isinstance(item, Mapping):
+                    continue
+                row = dict(item)
+                row["source_formalization_manifest_id"] = ""
+                row["source_formalizer_proposal_id"] = str(
+                    row.get("source_formalizer_proposal_id", "")
+                    or proposal_id
+                    or ""
+                )
+                row["source_formalizer_proposal_without_formalization_manifest"] = True
+                row["question_id"] = str(
+                    row.get("question_id", "") or question.get("id", "") or ""
+                )
+                row["question_title"] = str(
+                    row.get("question_title", "")
+                    or question.get("title", "")
+                    or ""
+                )
+                row["runtime_queue_status"] = str(
+                    row.get("runtime_queue_status", "")
+                    or "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+                )
+                row["runtime_queue_boundary"] = (
+                    str(row.get("runtime_queue_boundary", "") or "")
+                    or (
+                        "This queue row is an upstream source-theorem semantic "
+                        "primitive proof task exported from a direct Formalizer "
+                        "proposal after runtime feedback interrupted manifest "
+                        "creation. It is not proof evidence until AXLE/local Lean "
+                        "kernel verification accepts the intended semantic primitive."
+                    )
+                )
+                work_order_id = str(row.get("work_order_id", "") or "").strip()
+                if work_order_id in by_work_order_id:
+                    continue
+                row["source_formalization_manifest_ids"] = []
+                row["n_source_formalization_manifests"] = 0
+                if work_order_id:
+                    by_work_order_id[work_order_id] = len(rows)
+                rows.append(row)
     return rows
+
+
+def _runtime_question_payload_from_artifacts(
+    artifacts: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    for artifact in artifacts.values():
+        if not isinstance(artifact, Mapping):
+            continue
+        question = artifact.get("question", {})
+        if isinstance(question, Mapping) and (
+            str(question.get("id", "") or "").strip()
+            or str(question.get("title", "") or "").strip()
+        ):
+            return question
+    return {}
+
+
+def _append_runtime_pseudo_formal_work_order_rows(
+    *,
+    rows: list[dict[str, Any]],
+    by_row_id: dict[str, int],
+    work_order_items: Sequence[Any],
+    question: Mapping[str, Any],
+    source_formalization_manifest_id: str = "",
+    source_formalizer_proposal_id: str = "",
+    source_formalizer_proposal_without_formalization_manifest: bool = False,
+) -> None:
+    for item in work_order_items:
+        if not isinstance(item, Mapping):
+            continue
+        row = dict(item)
+        row["source_formalization_manifest_id"] = source_formalization_manifest_id
+        if source_formalizer_proposal_id and not str(
+            row.get("source_formalizer_proposal_id", "") or ""
+        ).strip():
+            row["source_formalizer_proposal_id"] = source_formalizer_proposal_id
+        if source_formalizer_proposal_without_formalization_manifest:
+            row["source_formalizer_proposal_without_formalization_manifest"] = True
+        row["question_id"] = str(
+            row.get("question_id", "") or question.get("id", "") or ""
+        )
+        row["question_title"] = str(
+            row.get("question_title", "")
+            or question.get("title", "")
+            or ""
+        )
+        row["runtime_queue_status"] = str(
+            row.get("runtime_queue_status", "")
+            or _pseudo_formal_runtime_queue_status(row)
+        )
+        row["runtime_queue_boundary"] = str(
+            row.get("runtime_queue_boundary", "")
+            or (
+                "This queue row was exported from a pseudo-formal proof "
+                "block. It is not theorem proof evidence; target-prover "
+                "kernel replay is required before proof promotion."
+            )
+        )
+        row["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        row["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+        row["kernel_verified"] = False
+        row["source_theorem_kernel_verified"] = False
+        row_id = str(row.get("row_id", "") or "").strip()
+        if row_id in by_row_id:
+            existing = rows[by_row_id[row_id]]
+            source_ids = [
+                str(value)
+                for value in existing.get(
+                    "source_formalization_manifest_ids",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ]
+            if (
+                source_formalization_manifest_id
+                and source_formalization_manifest_id not in source_ids
+            ):
+                source_ids.append(source_formalization_manifest_id)
+            existing["source_formalization_manifest_ids"] = source_ids
+            existing["n_source_formalization_manifests"] = len(source_ids)
+            if source_formalizer_proposal_without_formalization_manifest:
+                existing[
+                    "source_formalizer_proposal_without_formalization_manifest"
+                ] = True
+            continue
+        row["source_formalization_manifest_ids"] = (
+            [source_formalization_manifest_id]
+            if source_formalization_manifest_id
+            else []
+        )
+        row["n_source_formalization_manifests"] = len(
+            row["source_formalization_manifest_ids"]
+        )
+        if row_id:
+            by_row_id[row_id] = len(rows)
+        rows.append(row)
 
 
 def _runtime_pseudo_formal_work_order_rows_from_formalizer(
@@ -55128,6 +58692,7 @@ def _runtime_pseudo_formal_work_order_rows_from_formalizer(
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
+        manifest_referenced_proposal_ids: set[str] = set()
         for artifact in artifacts.values():
             if not (
                 isinstance(artifact, Mapping)
@@ -55142,76 +58707,59 @@ def _runtime_pseudo_formal_work_order_rows_from_formalizer(
             work_order_items = list(
                 artifact.get("pseudo_formal_work_order_rows", []) or []
             )
+            proposal_id = str(
+                artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
+                or ""
+            )
+            if proposal_id:
+                manifest_referenced_proposal_ids.add(proposal_id)
             if not work_order_items:
-                proposal_id = str(
-                    artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
-                    or ""
-                )
                 proposal_packet = artifacts.get(proposal_id, {})
                 if isinstance(proposal_packet, Mapping):
                     work_order_items = _formalizer_pseudo_formal_work_order_rows(
                         proposal_packet=proposal_packet
                     )
-            for item in work_order_items:
-                if not isinstance(item, Mapping):
-                    continue
-                row = dict(item)
-                row["source_formalization_manifest_id"] = str(
+            _append_runtime_pseudo_formal_work_order_rows(
+                rows=rows,
+                by_row_id=by_row_id,
+                work_order_items=work_order_items,
+                question=question,
+                source_formalization_manifest_id=str(
                     artifact.get("manifest_id", "") or ""
-                )
-                row["question_id"] = str(
-                    row.get("question_id", "") or question.get("id", "") or ""
-                )
-                row["question_title"] = str(
-                    row.get("question_title", "")
-                    or question.get("title", "")
-                    or ""
-                )
-                row["runtime_queue_status"] = str(
-                    row.get("runtime_queue_status", "")
-                    or _pseudo_formal_runtime_queue_status(row)
-                )
-                row["runtime_queue_boundary"] = str(
-                    row.get("runtime_queue_boundary", "")
-                    or (
-                        "This queue row was exported from a pseudo-formal proof "
-                        "block. It is not theorem proof evidence; target-prover "
-                        "kernel replay is required before proof promotion."
-                    )
-                )
-                row["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
-                row["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
-                row["kernel_verified"] = False
-                row["source_theorem_kernel_verified"] = False
-                row_id = str(row.get("row_id", "") or "").strip()
-                source_manifest_id = str(
-                    row.get("source_formalization_manifest_id", "") or ""
-                )
-                if row_id in by_row_id:
-                    existing = rows[by_row_id[row_id]]
-                    source_ids = [
-                        str(value)
-                        for value in existing.get(
-                            "source_formalization_manifest_ids",
-                            [],
-                        )
-                        or []
-                        if str(value).strip()
-                    ]
-                    if source_manifest_id and source_manifest_id not in source_ids:
-                        source_ids.append(source_manifest_id)
-                    existing["source_formalization_manifest_ids"] = source_ids
-                    existing["n_source_formalization_manifests"] = len(source_ids)
-                    continue
-                row["source_formalization_manifest_ids"] = (
-                    [source_manifest_id] if source_manifest_id else []
-                )
-                row["n_source_formalization_manifests"] = len(
-                    row["source_formalization_manifest_ids"]
-                )
-                if row_id:
-                    by_row_id[row_id] = len(rows)
-                rows.append(row)
+                ),
+                source_formalizer_proposal_id=proposal_id,
+            )
+        fallback_question = _runtime_question_payload_from_artifacts(artifacts)
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind")
+                == "FormalizerProofEngineerProposalPacket"
+            ):
+                continue
+            proposal_id = str(
+                artifact.get("packet_id", "")
+                or artifact.get("proposal_id", "")
+                or ""
+            )
+            if proposal_id and proposal_id in manifest_referenced_proposal_ids:
+                continue
+            proposal_question = (
+                artifact.get("question", {})
+                if isinstance(artifact.get("question"), Mapping)
+                else fallback_question
+            )
+            _append_runtime_pseudo_formal_work_order_rows(
+                rows=rows,
+                by_row_id=by_row_id,
+                work_order_items=_formalizer_pseudo_formal_work_order_rows(
+                    proposal_packet=artifact
+                ),
+                question=proposal_question,
+                source_formalization_manifest_id="",
+                source_formalizer_proposal_id=proposal_id,
+                source_formalizer_proposal_without_formalization_manifest=True,
+            )
     return rows
 
 
@@ -55238,13 +58786,20 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
             work_order.get("semantic_primitive", "") or ""
         ).strip()
         source_block_id = str(work_order.get("source_block_id", "") or "").strip()
-        owner_subsystem = _pseudo_formal_next_action_owner(target_lane)
+        pseudo_formal_row_kind = _pseudo_formal_work_order_row_kind(work_order)
+        owner_subsystem = _pseudo_formal_next_action_owner(
+            target_lane,
+            row_kind=pseudo_formal_row_kind,
+        )
         action = _pseudo_formal_next_action_action(
             work_order,
             source_block_id=source_block_id,
             target_lane=target_lane,
         )
-        acceptance_gate = _pseudo_formal_next_action_acceptance_gate(target_lane)
+        acceptance_gate = _pseudo_formal_next_action_acceptance_gate(
+            target_lane,
+            row_kind=pseudo_formal_row_kind,
+        )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -55302,6 +58857,30 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                     work_order.get("dependency_scope", "") or ""
                 ),
                 "dependency_ids": list(work_order.get("dependency_ids", []) or []),
+                "dependency_statement_context": list(
+                    work_order.get("dependency_statement_context", []) or []
+                ),
+                "scope_parent_id": str(
+                    work_order.get("scope_parent_id", "") or ""
+                ),
+                "inherited_scope": list(work_order.get("inherited_scope", []) or []),
+                "source_block_premises": list(
+                    work_order.get("source_block_premises", []) or []
+                ),
+                "source_block_proof_text": str(
+                    work_order.get("source_block_proof_text", "") or ""
+                ),
+                "structural_quality": dict(
+                    work_order.get("structural_quality", {})
+                    if isinstance(work_order.get("structural_quality", {}), Mapping)
+                    else {}
+                ),
+                "structural_quality_ok": bool(
+                    work_order.get("structural_quality_ok", True)
+                ),
+                "structural_quality_issues": list(
+                    work_order.get("structural_quality_issues", []) or []
+                ),
                 "faithfulness_status": str(
                     work_order.get("faithfulness_status", "") or ""
                 ),
@@ -55313,6 +58892,24 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                     if isinstance(work_order.get("block_verification", {}), Mapping)
                     else {}
                 ),
+                "block_verification_verifier_provenance": str(
+                    work_order.get("block_verification_verifier_provenance", "")
+                    or (
+                        work_order.get("block_verification", {})
+                        if isinstance(
+                            work_order.get("block_verification", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ).get("verifier_provenance", "")
+                    or ""
+                ),
+                "block_verification_independent": bool(
+                    work_order.get("block_verification_independent", False)
+                ),
+                "independent_block_verification_required": bool(
+                    work_order.get("independent_block_verification_required", False)
+                ),
                 "bv_calibration": dict(
                     work_order.get("bv_calibration", {})
                     if isinstance(work_order.get("bv_calibration", {}), Mapping)
@@ -55322,7 +58919,7 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                     work_order.get("source_anchors", []) or []
                 ),
                 "pseudo_formal_row_kind": str(
-                    work_order.get("row_kind", "") or ""
+                    pseudo_formal_row_kind
                 ),
                 "pseudo_formal_method_contract_id": str(
                     work_order.get("pseudo_formal_method_contract_id", "")
@@ -55352,6 +58949,9 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
                 "kernel_verified": False,
                 "source_theorem_kernel_verified": False,
+                **_pseudo_formal_block_verifier_worker_execution_fields(
+                    pseudo_formal_row_kind
+                ),
                 "boundary": (
                     "This next-action row was derived from a pseudo-formal proof "
                     "block. It is decomposition and routing memory only; target "
@@ -55435,6 +59035,32 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "dependency_ids": list(
                         agenda.get("dependency_ids", []) or []
                     ),
+                    "dependency_statement_context": list(
+                        agenda.get("dependency_statement_context", []) or []
+                    ),
+                    "scope_parent_id": str(
+                        agenda.get("scope_parent_id", "") or ""
+                    ),
+                    "inherited_scope": list(
+                        agenda.get("inherited_scope", []) or []
+                    ),
+                    "source_block_premises": list(
+                        agenda.get("source_block_premises", []) or []
+                    ),
+                    "source_block_proof_text": str(
+                        agenda.get("source_block_proof_text", "") or ""
+                    ),
+                    "structural_quality": dict(
+                        agenda.get("structural_quality", {})
+                        if isinstance(agenda.get("structural_quality", {}), Mapping)
+                        else {}
+                    ),
+                    "structural_quality_ok": bool(
+                        agenda.get("structural_quality_ok", True)
+                    ),
+                    "structural_quality_issues": list(
+                        agenda.get("structural_quality_issues", []) or []
+                    ),
                     "faithfulness_status": str(
                         agenda.get("faithfulness_status", "") or ""
                     ),
@@ -55445,6 +59071,30 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                         agenda.get("block_verification", {})
                         if isinstance(agenda.get("block_verification", {}), Mapping)
                         else {}
+                    ),
+                    "block_verification_verifier_provenance": str(
+                        agenda.get("block_verification_verifier_provenance", "")
+                        or ""
+                    ),
+                    "block_verification_independent": bool(
+                        agenda.get("block_verification_independent", False)
+                    ),
+                    "independent_block_verification_required": bool(
+                        agenda.get("independent_block_verification_required", False)
+                    ),
+                    "pseudo_formal_block_verifier_worker": dict(
+                        agenda.get("pseudo_formal_block_verifier_worker", {})
+                        if isinstance(
+                            agenda.get("pseudo_formal_block_verifier_worker", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    "recommended_commands": list(
+                        agenda.get("recommended_commands", []) or []
+                    ),
+                    "recommended_next_action": str(
+                        agenda.get("recommended_next_action", "") or ""
                     ),
                     "bv_calibration": dict(
                         agenda.get("bv_calibration", {})
@@ -55498,6 +59148,35 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                         "dependency_ids": list(
                             agenda.get("dependency_ids", []) or []
                         ),
+                        "dependency_statement_context": list(
+                            agenda.get("dependency_statement_context", []) or []
+                        ),
+                        "scope_parent_id": str(
+                            agenda.get("scope_parent_id", "") or ""
+                        ),
+                        "inherited_scope": list(
+                            agenda.get("inherited_scope", []) or []
+                        ),
+                        "source_block_premises": list(
+                            agenda.get("source_block_premises", []) or []
+                        ),
+                        "source_block_proof_text": str(
+                            agenda.get("source_block_proof_text", "") or ""
+                        ),
+                        "structural_quality": dict(
+                            agenda.get("structural_quality", {})
+                            if isinstance(
+                                agenda.get("structural_quality", {}),
+                                Mapping,
+                            )
+                            else {}
+                        ),
+                        "structural_quality_ok": bool(
+                            agenda.get("structural_quality_ok", True)
+                        ),
+                        "structural_quality_issues": list(
+                            agenda.get("structural_quality_issues", []) or []
+                        ),
                         "faithfulness_status": str(
                             agenda.get("faithfulness_status", "") or ""
                         ),
@@ -55511,6 +59190,39 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                                 Mapping,
                             )
                             else {}
+                        ),
+                        "block_verification_verifier_provenance": str(
+                            agenda.get(
+                                "block_verification_verifier_provenance",
+                                "",
+                            )
+                            or ""
+                        ),
+                        "block_verification_independent": bool(
+                            agenda.get("block_verification_independent", False)
+                        ),
+                        "independent_block_verification_required": bool(
+                            agenda.get(
+                                "independent_block_verification_required",
+                                False,
+                            )
+                        ),
+                        "pseudo_formal_block_verifier_worker": dict(
+                            agenda.get("pseudo_formal_block_verifier_worker", {})
+                            if isinstance(
+                                agenda.get(
+                                    "pseudo_formal_block_verifier_worker",
+                                    {},
+                                ),
+                                Mapping,
+                            )
+                            else {}
+                        ),
+                        "recommended_commands": list(
+                            agenda.get("recommended_commands", []) or []
+                        ),
+                        "recommended_next_action": str(
+                            agenda.get("recommended_next_action", "") or ""
                         ),
                         "bv_calibration": dict(
                             agenda.get("bv_calibration", {})
@@ -55572,6 +59284,98 @@ def _pseudo_formal_next_action_target_ids(
     return list(dict.fromkeys(value for value in values if value.strip()))
 
 
+def _pseudo_formal_block_verifier_worker_execution_fields(
+    row_kind: str,
+) -> dict[str, Any]:
+    if row_kind != PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
+        return {}
+    component_gate_command = (
+        "python -m ai_statistician.cli "
+        "pseudo-formal-block-verifier-component-gate "
+        "--runtime-learning-jsonl <runtime_learning_rows.jsonl> "
+        "--provider anthropic "
+        "--model-tier sonnet "
+        "--out runs/pseudo_formal_block_verifier_component_gate"
+    )
+    prompt_command = (
+        "python -m ai_statistician.cli "
+        "pseudo-formal-block-verifier-prompt-packets "
+        "--runtime-learning-jsonl <runtime_learning_rows.jsonl> "
+        "--out runs/pseudo_formal_block_verifier_prompt_packets"
+    )
+    llm_response_command = (
+        "python -m ai_statistician.cli "
+        "pseudo-formal-block-verifier-llm-responses "
+        "--prompt-packets-manifest "
+        "runs/pseudo_formal_block_verifier_prompt_packets/"
+        "pseudo_formal_block_verifier_prompt_packets_manifest.json "
+        "--provider anthropic "
+        "--model-tier sonnet "
+        "--out runs/pseudo_formal_block_verifier_llm_responses"
+    )
+    response_validation_command = (
+        "python -m ai_statistician.cli "
+        "pseudo-formal-block-verifier-response-validation "
+        "--prompt-packets-manifest "
+        "runs/pseudo_formal_block_verifier_prompt_packets/"
+        "pseudo_formal_block_verifier_prompt_packets_manifest.json "
+        "--response-jsonl "
+        "runs/pseudo_formal_block_verifier_llm_responses/"
+        "pseudo_formal_block_verifier_responses.jsonl "
+        "--out runs/pseudo_formal_block_verifier_response_validation"
+    )
+    return {
+        "pseudo_formal_block_verifier_worker": {
+            "worker_kind": "pseudo_formal_independent_block_verifier",
+            "component_gate_command": component_gate_command,
+            "prompt_packets_command": prompt_command,
+            "llm_response_command": llm_response_command,
+            "response_validation_command": response_validation_command,
+            "component_gate_manifest": (
+                "runs/pseudo_formal_block_verifier_component_gate/"
+                "pseudo_formal_block_verifier_component_gate_manifest.json"
+            ),
+            "prompt_packets_manifest": (
+                "runs/pseudo_formal_block_verifier_prompt_packets/"
+                "pseudo_formal_block_verifier_prompt_packets_manifest.json"
+            ),
+            "prompt_packets_jsonl": (
+                "runs/pseudo_formal_block_verifier_prompt_packets/"
+                "pseudo_formal_block_verifier_prompt_packets.jsonl"
+            ),
+            "llm_response_manifest": (
+                "runs/pseudo_formal_block_verifier_llm_responses/"
+                "pseudo_formal_block_verifier_llm_response_manifest.json"
+            ),
+            "responses_jsonl": (
+                "runs/pseudo_formal_block_verifier_llm_responses/"
+                "pseudo_formal_block_verifier_responses.jsonl"
+            ),
+            "response_validation_manifest": (
+                "runs/pseudo_formal_block_verifier_response_validation/"
+                "pseudo_formal_block_verifier_response_validation_manifest.json"
+            ),
+            "runtime_learning_rows_jsonl": (
+                "runs/pseudo_formal_block_verifier_response_validation/"
+                "runtime_learning_rows.jsonl"
+            ),
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+            "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        },
+        "recommended_commands": [
+            component_gate_command,
+            prompt_command,
+            llm_response_command,
+            response_validation_command,
+        ],
+        "recommended_next_action": (
+            "Run the PF/BV component gate or its expanded prompt/response/"
+            "validation steps, then rerun AgentRuntime with the validated "
+            "non-proof runtime learning memory."
+        ),
+    }
+
+
 def _pseudo_formal_safe_block_depth(value: Any) -> int:
     try:
         depth = int(value)
@@ -55580,7 +59384,11 @@ def _pseudo_formal_safe_block_depth(value: Any) -> int:
     return max(1, min(PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH, depth))
 
 
-def _pseudo_formal_next_action_owner(target_lane: str) -> str:
+def _pseudo_formal_next_action_owner(target_lane: str, *, row_kind: str = "") -> str:
+    if row_kind == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND:
+        return "Formalizer/ProofEngineer"
+    if row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
+        return "BlockVerifier/CalibrationReferee"
     if target_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
         return "Formalizer/ProofEngineer/LeanProver"
     if target_lane == PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG:
@@ -55604,6 +59412,33 @@ def _pseudo_formal_next_action_action(
     target_text = f" `{block_label}`"
     if conclusion:
         target_text += f" ({conclusion[:160]})"
+    if (
+        _pseudo_formal_work_order_row_kind(row)
+        == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND
+    ):
+        issues = ", ".join(
+            str(value)
+            for value in list(row.get("structural_quality_issues", []) or [])[:4]
+            if str(value).strip()
+        )
+        return (
+            "split or rewrite pseudo-formal block"
+            + target_text
+            + " into bounded Good-PF blocks with explicit premises, dependency "
+            "statements, inherited scope, source anchors, and local proof text"
+            + (f"; current structural issues: {issues}" if issues else "")
+        )
+    if (
+        _pseudo_formal_work_order_row_kind(row)
+        == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+    ):
+        return (
+            "run independent PF/BV block verification for pseudo-formal block"
+            + target_text
+            + " using only explicit premises, inherited scope, declared "
+            "dependency statements, conclusion, and local proof text; write the "
+            "verdict back as verifier feedback, not proof evidence"
+        )
     if target_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
         return (
             "materialize pseudo-formal block"
@@ -55642,7 +59477,25 @@ def _pseudo_formal_next_action_action(
     )
 
 
-def _pseudo_formal_next_action_acceptance_gate(target_lane: str) -> str:
+def _pseudo_formal_next_action_acceptance_gate(
+    target_lane: str,
+    *,
+    row_kind: str = "",
+) -> str:
+    if row_kind == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND:
+        return (
+            "Formalizer/ProofEngineer emits a replacement pseudo-formal packet "
+            "whose blocks satisfy the Good-PF bounded-context structural limits, "
+            "then reruns faithfulness and independent block verification. This "
+            "repair row is not proof evidence and cannot promote a theorem."
+        )
+    if row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
+        return (
+            "An independent block-verifier/calibrator records a block verdict "
+            "with verifier_provenance independent from the Formalizer rewrite "
+            "generator. The result is PF/BV diagnostic feedback only and still "
+            "requires target-prover kernel replay for any theorem proof claim."
+        )
     if target_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
         return (
             "A concrete Lean candidate for the block is generated and checked by "
@@ -57974,6 +61827,7 @@ def _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
             "recommended_commands",
             "recommended_next_action",
             "local_lean_diagnostics",
+            "local_lean_diagnostic_source_excerpts",
             "source_environment_repair_task_id",
             "proof_body_gate_status",
             "proof_evidence_status",
@@ -60591,6 +64445,15 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                     or []
                 )
             ),
+            "local_lean_diagnostic_source_excerpts": [
+                dict(value)
+                for value in (
+                    row.get("local_lean_diagnostic_source_excerpts", [])
+                    or input_summary.get("local_lean_diagnostic_source_excerpts", [])
+                    or []
+                )
+                if isinstance(value, Mapping)
+            ][:3],
             "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
                 _str_tuple(
                     row.get(
@@ -60671,6 +64534,413 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
     return rows
 
 
+_PSEUDO_FORMAL_EXACT_SEMANTIC_SEARCH_TARGET_STOPWORDS = frozenset(
+    {
+        "about",
+        "above",
+        "after",
+        "against",
+        "and",
+        "among",
+        "before",
+        "below",
+        "between",
+        "block",
+        "current",
+        "definition",
+        "definitions",
+        "during",
+        "exact",
+        "for",
+        "formal",
+        "from",
+        "into",
+        "lean",
+        "needed",
+        "proof",
+        "requires",
+        "replay",
+        "review",
+        "semantic",
+        "semantics",
+        "source",
+        "target",
+        "the",
+        "that",
+        "theorem",
+        "under",
+        "where",
+        "with",
+    }
+)
+
+
+def _runtime_compact_search_target_text(
+    value: Any,
+    *,
+    max_chars: int = 240,
+) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip()
+
+
+def _runtime_pseudo_formal_exact_semantic_search_target_terms(
+    *values: Any,
+    max_terms: int = 10,
+) -> list[str]:
+    terms: list[str] = []
+    seen_terms: set[str] = set()
+    for value in values:
+        text = str(value or "").replace("_", " ").replace("-", " ")
+        for match in re.finditer(r"[A-Za-z][A-Za-z0-9']{2,}", text):
+            term = match.group(0).strip("'")
+            normalized = term.lower()
+            if (
+                not term
+                or len(normalized) < 3
+                or normalized in _PSEUDO_FORMAL_EXACT_SEMANTIC_SEARCH_TARGET_STOPWORDS
+                or normalized.isdigit()
+                or normalized in seen_terms
+            ):
+                continue
+            terms.append(term)
+            seen_terms.add(normalized)
+            if len(terms) >= max_terms:
+                return terms
+    return terms
+
+
+def _runtime_pseudo_formal_exact_semantic_search_targets(
+    item: Mapping[str, Any],
+    *,
+    placeholder_symbol: str,
+    target_theorem_name: str,
+    semantic_alignment_blockers: Sequence[str],
+    max_targets: int = 18,
+) -> list[str]:
+    targets: list[str] = []
+
+    def add(value: Any, *, max_chars: int = 240) -> None:
+        text = _runtime_compact_search_target_text(value, max_chars=max_chars)
+        if text and text not in targets:
+            targets.append(text)
+
+    identifier_values = [
+        placeholder_symbol,
+        item.get("semantic_primitive", ""),
+        item.get("source_block_id", ""),
+        target_theorem_name,
+        item.get("source_theorem_id", ""),
+        item.get("target_lean_declaration", ""),
+        item.get("question_title", ""),
+    ]
+    semantic_values = [
+        item.get("source_block_conclusion", ""),
+        item.get("source_block_statement", ""),
+        item.get("source_block_goal", ""),
+        item.get("source_block_proof_text", ""),
+        *semantic_alignment_blockers,
+        *list(item.get("semantic_alignment_constraints", []) or []),
+        item.get("reason", ""),
+    ]
+    for value in _runtime_pseudo_formal_exact_semantic_search_target_terms(
+        *identifier_values,
+        *semantic_values,
+    ):
+        add(value, max_chars=80)
+    for value in (
+        item.get("source_block_conclusion", ""),
+        item.get("source_block_statement", ""),
+        item.get("source_block_goal", ""),
+        item.get("source_block_proof_text", ""),
+    ):
+        add(value)
+    for value in identifier_values:
+        add(value, max_chars=120)
+    for value in item.get("search_targets", []) or []:
+        add(value, max_chars=160)
+    return targets[:max_targets]
+
+
+def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+    work_order_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    learning_like_rows: list[dict[str, Any]] = []
+    source_by_work_order_id: dict[str, Mapping[str, Any]] = {}
+    for item in work_order_rows:
+        if not isinstance(item, Mapping):
+            continue
+        if not _pseudo_formal_work_order_is_routable(item):
+            continue
+        target_lane = str(item.get("target_lane", "") or "").strip()
+        if target_lane != PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION:
+            continue
+        target_theorem_name = str(
+            item.get("source_theorem_id", "")
+            or item.get("target_theorem_name", "")
+            or item.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        placeholder_symbol = str(
+            item.get("semantic_primitive", "")
+            or item.get("placeholder_symbol", "")
+            or item.get("source_block_id", "")
+            or ""
+        ).strip()
+        if not target_theorem_name or not placeholder_symbol:
+            continue
+        source_work_order_id = str(
+            item.get("row_id", "") or item.get("work_order_id", "") or ""
+        ).strip()
+        generated_work_order_id = (
+            "source_theorem_exact_semantic_definition_work_order:"
+            + stable_hash(
+                [
+                    "pseudo_formal",
+                    source_work_order_id,
+                    target_theorem_name,
+                    placeholder_symbol,
+                ]
+            )[:20]
+        )
+        source_target_provenance = (
+            dict(item.get("source_theorem_target_provenance", {}))
+            if isinstance(item.get("source_theorem_target_provenance", {}), Mapping)
+            else {}
+        )
+        source_target_provenance.setdefault(
+            "source_theorem_target_known",
+            True,
+        )
+        source_target_provenance.setdefault(
+            "target_lean_declaration",
+            target_theorem_name,
+        )
+        if str(item.get("question_id", "") or "").strip():
+            source_target_provenance.setdefault(
+                "source_theorem_question_id",
+                str(item.get("question_id", "") or "").strip(),
+            )
+        semantic_alignment_blockers = [
+            str(value).strip()
+            for value in (
+                item.get("semantic_alignment_blockers", [])
+                or [
+                    item.get("reason", ""),
+                    item.get("source_block_conclusion", ""),
+                ]
+            )
+            if str(value).strip()
+        ]
+        search_targets = _runtime_pseudo_formal_exact_semantic_search_targets(
+            item,
+            placeholder_symbol=placeholder_symbol,
+            target_theorem_name=target_theorem_name,
+            semantic_alignment_blockers=semantic_alignment_blockers,
+        )
+        learning_like_row = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+            "learning_task": "source_theorem_exact_semantic_definition_work_order",
+            "work_order_id": generated_work_order_id,
+            "source_materialization_seed_id": source_work_order_id,
+            "question_id": str(item.get("question_id", "") or ""),
+            "question_title": str(item.get("question_title", "") or ""),
+            "target_theorem_name": target_theorem_name,
+            "target_lean_declaration": target_theorem_name,
+            "target_ids": [
+                value
+                for value in (
+                    str(item.get("source_theorem_id", "") or "").strip(),
+                    target_theorem_name,
+                )
+                if value
+            ],
+            "target_theorem_goal_ids": [
+                value
+                for value in (
+                    str(item.get("source_theorem_id", "") or "").strip(),
+                    target_theorem_name,
+                )
+                if value
+            ],
+            "source_theorem_target_provenance": source_target_provenance,
+            "source_theorem_target_identity_status": str(
+                item.get("source_theorem_target_identity_status", "")
+                or "PSEUDO_FORMAL_BLOCK_TARGET_BOUND_UNPROMOTED"
+            ),
+            "semantic_alignment_constraints": list(
+                item.get("semantic_alignment_constraints", []) or []
+            ),
+            "semantic_alignment_blockers": semantic_alignment_blockers,
+            "placeholder_symbol": placeholder_symbol,
+            "replacement_strategy": (
+                "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
+            ),
+            "search_targets": search_targets,
+            "candidate_registered_obligation_ids": [],
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
+            ),
+            "runtime_queue_boundary": (
+                "This exact semantic-definition work order was derived from a "
+                "pseudo-formal block routing row. It is not proof evidence; it "
+                "only asks Formalizer/ProofEngineer to author or import the exact "
+                "definition needed before target-prover kernel replay."
+            ),
+            "acceptance_gate": (
+                "AXLE/local Lean verifies the reviewed exact semantic definition "
+                "or source import that replaces the pseudo-formal block placeholder."
+            ),
+            "proof_evidence_status": "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        learning_like_rows.append(learning_like_row)
+        source_by_work_order_id[generated_work_order_id] = item
+    rows = _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
+        learning_like_rows
+    )
+    for row in rows:
+        source = source_by_work_order_id.get(str(row.get("work_order_id", "") or ""))
+        if not isinstance(source, Mapping):
+            continue
+        row["source_pseudo_formal_work_order_id"] = str(
+            source.get("row_id", "") or source.get("work_order_id", "") or ""
+        )
+        row["source_pseudo_formal_block_id"] = str(
+            source.get("source_block_id", "") or ""
+        )
+        row["source_pseudo_formal_packet_id"] = str(
+            source.get("source_packet_id", "") or ""
+        )
+        row["source_formalizer_proposal_id"] = str(
+            source.get("source_formalizer_proposal_id", "") or ""
+        )
+        row["source_formalizer_proposal_without_formalization_manifest"] = bool(
+            source.get(
+                "source_formalizer_proposal_without_formalization_manifest",
+                False,
+            )
+        )
+        row["pseudo_formal_method_contract_id"] = str(
+            source.get("pseudo_formal_method_contract_id", "")
+            or PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        )
+        row["pseudo_formal_pipeline_stage"] = str(
+            source.get("pseudo_formal_pipeline_stage", "")
+            or PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+        )
+        row["pseudo_formal_proof_evidence_status"] = str(
+            source.get(
+                "proof_evidence_status",
+                PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+            )
+            or PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        )
+        row["proof_evidence_status"] = (
+            "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+        )
+        row["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
+    return rows
+
+
+def _runtime_local_lean_diagnostic_source_excerpts(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    *,
+    context_lines: int = 4,
+    max_excerpts: int = 3,
+) -> list[dict[str, Any]]:
+    existing = [
+        dict(value)
+        for value in (
+            row.get("local_lean_diagnostic_source_excerpts", [])
+            or input_summary.get("local_lean_diagnostic_source_excerpts", [])
+            or []
+        )
+        if isinstance(value, Mapping)
+    ][:max_excerpts]
+    if existing:
+        return existing
+    diagnostics = [
+        str(value)
+        for value in (
+            row.get("local_lean_diagnostics", [])
+            or input_summary.get("local_lean_diagnostics", [])
+            or []
+        )
+        if str(value).strip()
+    ]
+    candidate_paths = [
+        str(value).strip()
+        for value in (
+            row.get("definition_only_candidate_artifact_path", ""),
+            input_summary.get("definition_only_candidate_artifact_path", ""),
+            row.get("candidate_artifact_path", ""),
+            input_summary.get("candidate_artifact_path", ""),
+            row.get("candidate_source_file", ""),
+            input_summary.get("candidate_source_file", ""),
+        )
+        if str(value).strip()
+    ]
+    for trace in (
+        row.get("tool_call_trace", [])
+        or input_summary.get("tool_call_trace", [])
+        or []
+    ):
+        if isinstance(trace, Mapping) and str(trace.get("artifact_path", "") or "").strip():
+            candidate_paths.append(str(trace.get("artifact_path", "") or "").strip())
+    excerpts: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, int]] = set()
+    for diagnostic in diagnostics:
+        match = re.match(r"^(?P<path>.*?):(?P<line>\d+):(?P<column>\d+):", diagnostic)
+        if match is None:
+            continue
+        raw_path = match.group("path") if match else ""
+        line_number = int(match.group("line")) if match else 0
+        column_number = int(match.group("column")) if match else 0
+        path_candidates = [raw_path, *candidate_paths] if raw_path else candidate_paths
+        for raw_candidate in path_candidates:
+            path = Path(str(raw_candidate or "").strip()).expanduser()
+            if not path.exists():
+                continue
+            key = (str(path), line_number, column_number)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            if not lines:
+                continue
+            center = line_number if line_number > 0 else 1
+            start = max(1, center - context_lines)
+            end = min(len(lines), center + context_lines)
+            excerpts.append(
+                {
+                    "artifact_path": str(path),
+                    "line": line_number,
+                    "column": column_number,
+                    "diagnostic": diagnostic,
+                    "source_excerpt": [
+                        f"{idx}: {lines[idx - 1]}"
+                        for idx in range(start, end + 1)
+                    ],
+                    "proof_evidence_status": (
+                        "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+                    ),
+                    "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
+            break
+        if len(excerpts) >= max_excerpts:
+            break
+    return excerpts
+
+
 def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
     learning_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -60699,6 +64969,12 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or input_summary.get("environment_repair_status", "")
             or ""
         ).strip()
+        authoring_prompt_response_pending = (
+            runtime_queue_status
+            == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
+            or str(input_summary.get("trigger", "") or "").strip()
+            == "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET"
+        )
         exact_environment_repair_row = bool(
             environment_repair_status
             and (
@@ -60722,6 +64998,16 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or failure_classification
             in {"provider_connection_error", "provider_timeout_error"}
         )
+        structural_reformulation_required = (
+            runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+            or failure_classification == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+            or bool(row.get("structural_reformulation_required", False))
+            or bool(input_summary.get("structural_reformulation_required", False))
+            or str(row.get("authoring_trigger", "") or "").strip()
+            == "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+            or str(input_summary.get("authoring_trigger", "") or "").strip()
+            == "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+        )
         authoring_repair_required = (
             runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
             or environment_port_authoring_required
@@ -60730,7 +65016,18 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or str(input_summary.get("authoring_trigger", "") or "").strip()
             == "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
         )
-        if not authoring_retry_required and not authoring_repair_required:
+        if (
+            authoring_prompt_response_pending
+            and not authoring_retry_required
+            and not structural_reformulation_required
+            and not environment_port_authoring_required
+        ):
+            continue
+        if (
+            not authoring_retry_required
+            and not authoring_repair_required
+            and not structural_reformulation_required
+        ):
             continue
         candidate_definition_request_raw = row.get("candidate_definition_request", {})
         if not candidate_definition_request_raw:
@@ -60758,12 +65055,22 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         if not target or not symbol:
             continue
         request_fingerprint = stable_hash(candidate_definition_request)[:20]
-        key = (target, symbol, request_fingerprint)
+        key = (
+            target,
+            symbol,
+            request_fingerprint,
+            STRUCTURAL_REFORMULATION_QUEUE_STATUS
+            if structural_reformulation_required
+            else "",
+        )
         if key in seen:
             continue
         seen.add(key)
         task = dict(row)
         next_queue_status = (
+            STRUCTURAL_REFORMULATION_QUEUE_STATUS
+            if structural_reformulation_required
+            else
             "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
             if authoring_repair_required
             else "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
@@ -60786,11 +65093,17 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "candidate_definition_request": candidate_definition_request,
                 "runtime_queue_status": next_queue_status,
                 "authoring_trigger": (
+                    "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
+                    if structural_reformulation_required
+                    else
                     "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
                     if authoring_repair_required
                     else "EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY_REQUIRED"
                 ),
                 "authoring_mode": (
+                    "structural_reformulation_exact_semantic_definition_with_pseudo_formalization"
+                    if structural_reformulation_required
+                    else
                     (
                         "port_or_synthesize_exact_definition_for_active_lean_project"
                         if environment_port_authoring_required
@@ -60805,6 +65118,15 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 )
                 or "repair_typechecked_semantic_definition_candidate",
                 "retry_of_authoring_failure": bool(authoring_retry_required),
+                "structural_reformulation_required": bool(
+                    structural_reformulation_required
+                ),
+                "pseudo_formalization_required": bool(
+                    structural_reformulation_required
+                ),
+                "requires_pseudo_formalization": bool(
+                    structural_reformulation_required
+                ),
                 "repair_of_semantic_alignment_blockers": bool(
                     authoring_repair_required
                 ),
@@ -60813,8 +65135,16 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     row.get("recommended_next_action", "")
                     or input_summary.get("recommended_next_action", "")
                     or (
-                        "retry the same exact semantic-definition authoring prompt "
-                        "with preserved candidate-definition request context"
+                        (
+                            "run PF/BV-backed structural reformulation before "
+                            "another exact semantic-definition authoring attempt"
+                        )
+                        if structural_reformulation_required
+                        else (
+                            "retry the same exact semantic-definition authoring "
+                            "prompt with preserved candidate-definition request "
+                            "context"
+                        )
                     )
                 ),
                 "source_theorem_kernel_verified": False,
@@ -60823,9 +65153,18 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
                 ),
                 "proof_evidence_boundary": (
-                    "Retryable exact semantic-definition authoring tasks are "
-                    "ProofEngineer work items only. They are not local Lean/AXLE "
-                    "evidence and cannot prove the source theorem."
+                    (
+                        "Structural exact semantic-definition reformulation tasks "
+                        "are PF/BV and ProofEngineer routing work items only. "
+                        "They are not local Lean/AXLE evidence and cannot prove "
+                        "the source theorem."
+                    )
+                    if structural_reformulation_required
+                    else (
+                        "Retryable exact semantic-definition authoring tasks are "
+                        "ProofEngineer work items only. They are not local Lean/AXLE "
+                        "evidence and cannot prove the source theorem."
+                    )
                 ),
                 "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
             }
@@ -60865,12 +65204,33 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             "recommended_commands",
             "recommended_next_action",
             "local_lean_diagnostics",
+            "local_lean_diagnostic_source_excerpts",
+            "source_theorem_exact_semantic_definition_structural_reformulation_route",
         ):
             if task.get(key_name) not in (None, "", [], {}):
                 continue
             value = input_summary.get(key_name)
             if value not in (None, "", [], {}):
                 task[key_name] = value
+        diagnostic_source_excerpts = _runtime_local_lean_diagnostic_source_excerpts(
+            row,
+            input_summary,
+        )
+        if diagnostic_source_excerpts and not task.get(
+            "local_lean_diagnostic_source_excerpts"
+        ):
+            task["local_lean_diagnostic_source_excerpts"] = diagnostic_source_excerpts
+        if diagnostic_source_excerpts:
+            candidate_repair_feedback = task.get("candidate_repair_feedback", {})
+            if not isinstance(candidate_repair_feedback, Mapping):
+                candidate_repair_feedback = {}
+            else:
+                candidate_repair_feedback = dict(candidate_repair_feedback)
+            candidate_repair_feedback.setdefault(
+                "local_lean_diagnostic_source_excerpts",
+                diagnostic_source_excerpts,
+            )
+            task["candidate_repair_feedback"] = candidate_repair_feedback
         if environment_port_authoring_required:
             task["retry_failure_classification"] = environment_repair_status
             task["retry_recommended_next_action"] = str(
@@ -62479,12 +66839,41 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         and isinstance(capability_gap_routing.get("rows"), list)
         else []
     )
+    gap_retention_selection_counts: Counter[str] = Counter()
+    gap_rows_missing_retention_selection = 0
+    gap_rows_missing_retention_selection_boundary = 0
+    gap_requirement_ids: list[str] = []
+    gap_priority_pinned_requirement_ids: list[str] = []
+    gap_owner_subsystems: Counter[str] = Counter()
+    for gap_row in gap_rows:
+        if not isinstance(gap_row, Mapping):
+            continue
+        requirement_id = str(gap_row.get("requirement_id", "") or "").strip()
+        owner = str(gap_row.get("next_owner_subsystem", "") or "").strip()
+        if requirement_id:
+            gap_requirement_ids.append(requirement_id)
+        if owner:
+            gap_owner_subsystems[owner] += 1
+        retention_selection = str(
+            gap_row.get("retention_selection", "") or ""
+        ).strip()
+        if retention_selection:
+            gap_retention_selection_counts[retention_selection] += 1
+            if retention_selection == "priority_pinned" and requirement_id:
+                gap_priority_pinned_requirement_ids.append(requirement_id)
+        else:
+            gap_rows_missing_retention_selection += 1
+        if not str(gap_row.get("retention_selection_boundary", "") or "").strip():
+            gap_rows_missing_retention_selection_boundary += 1
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeInputContextSummary",
         "runtime_learning_memory_supplied": bool(memory_supplied),
         "runtime_learning_memory_rows_loaded": int(
             counts.get("rows_loaded", len(rows)) or 0
+        ),
+        "runtime_learning_memory_rows_seen": int(
+            counts.get("rows_seen", len(rows)) or 0
         ),
         "runtime_learning_memory_source_paths": [
             str(path) for path in memory.get("source_paths", []) or []
@@ -62493,11 +66882,17 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         else [],
         "runtime_learning_memory_errors": int(counts.get("errors", 0) or 0),
         "runtime_learning_memory_max_rows": int(counts.get("max_rows", 0) or 0),
+        "runtime_learning_memory_retention_policy": str(
+            counts.get("retention_policy", "") or ""
+        ),
         "runtime_capability_gap_routing_supplied": bool(
             capability_gap_routing_supplied
         ),
         "runtime_capability_gap_routing_rows_loaded": int(
             gap_counts.get("rows_loaded", len(gap_rows)) or 0
+        ),
+        "runtime_capability_gap_routing_rows_seen": int(
+            gap_counts.get("rows_seen", len(gap_rows)) or 0
         ),
         "runtime_capability_gap_routing_source_paths": [
             str(path) for path in capability_gap_routing.get("source_paths", []) or []
@@ -62509,6 +66904,27 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         ),
         "runtime_capability_gap_routing_max_rows": int(
             gap_counts.get("max_rows", 0) or 0
+        ),
+        "runtime_capability_gap_routing_retention_policy": str(
+            gap_counts.get("retention_policy", "") or ""
+        ),
+        "runtime_capability_gap_routing_retention_selection_counts": dict(
+            sorted(gap_retention_selection_counts.items())
+        ),
+        "runtime_capability_gap_routing_requirement_ids": list(
+            dict.fromkeys(gap_requirement_ids)
+        ),
+        "runtime_capability_gap_routing_priority_pinned_requirement_ids": list(
+            dict.fromkeys(gap_priority_pinned_requirement_ids)
+        ),
+        "runtime_capability_gap_routing_owner_subsystems": dict(
+            sorted(gap_owner_subsystems.items())
+        ),
+        "runtime_capability_gap_routing_rows_missing_retention_selection": int(
+            gap_rows_missing_retention_selection
+        ),
+        "runtime_capability_gap_routing_rows_missing_retention_selection_boundary": int(
+            gap_rows_missing_retention_selection_boundary
         ),
         "runtime_requested_evidence_contract": dict(requested_contract),
         "boundary": (
@@ -65487,6 +69903,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_algorithm_sandbox_passed": 0,
         "n_generated_code_sandbox_executed": 0,
         "n_live_generated_code_sandbox_executed": 0,
+        "n_generated_code_sandbox_passed": 0,
+        "n_live_generated_code_sandbox_passed": 0,
         "n_generated_code_sandbox_metric_gate_failed": 0,
         "n_live_generated_code_sandbox_metric_gate_failed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
@@ -65517,6 +69935,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     theory_trace_alignment_with_historical_unsupported_anchors: set[
         tuple[str, str]
     ] = set()
+    formalizer_proposal_artifact_ids: set[str] = set()
+    live_formalizer_proposal_artifact_ids: set[str] = set()
+    formalizer_manifest_proposal_ids: set[str] = set()
+    live_formalizer_manifest_proposal_ids: set[str] = set()
     for result in results:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
@@ -65783,6 +70205,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     int(theory["max_assumption_ledger_rows"]),
                     n_assumption_ledger_rows,
                 )
+            elif kind == "FormalizerProofEngineerProposalPacket":
+                proposal_id = str(artifact.get("packet_id", "") or "").strip()
+                if proposal_id:
+                    formalizer_proposal_artifact_ids.add(proposal_id)
+                    if _runtime_llm_proposal_packet_live_generator(artifact):
+                        live_formalizer_proposal_artifact_ids.add(proposal_id)
             elif kind == "RuntimeFormalizationManifest":
                 counts = artifact.get("counts", {}) if isinstance(artifact.get("counts"), Mapping) else {}
                 full_frontier_evidence = (
@@ -65812,6 +70240,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         )
                         or ""
                     )
+                    if proposal_id:
+                        formalizer_manifest_proposal_ids.add(proposal_id)
                     proposal_artifact = artifacts.get(proposal_id)
                     if isinstance(proposal_artifact, Mapping):
                         live_formalizer_proposal = (
@@ -65852,6 +70282,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         proof[
                             "n_live_llm_formalizer_proof_engineer_proposals"
                         ] += 1
+                        if proposal_id:
+                            live_formalizer_manifest_proposal_ids.add(proposal_id)
                 if bool(
                     artifact.get(
                         "deterministic_formalizer_work_order_seed_used",
@@ -66299,6 +70731,17 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 algorithm["n_live_generated_code_sandbox_executed"] += int(
                     live_counts["executed"]
                 )
+                algorithm["n_generated_code_sandbox_passed"] += sum(
+                    1
+                    for row in artifact.get("prototypes", []) or []
+                    if isinstance(row, Mapping)
+                    and str(row.get("executor", "") or "")
+                    == "generated_python_sandbox"
+                    and row.get("smoke_passed") is True
+                )
+                algorithm["n_live_generated_code_sandbox_passed"] += int(
+                    live_counts["passed"]
+                )
                 algorithm["n_generated_code_sandbox_metric_gate_failed"] += int(
                     artifact.get("n_metric_gate_failed", 0) or 0
                 )
@@ -66312,6 +70755,18 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     live_counts["unsafe_rejected"]
                 )
                 algorithm["promotion_ready"] = bool(algorithm["promotion_ready"] or artifact.get("promotion_ready"))
+    direct_formalizer_proposal_ids = (
+        formalizer_proposal_artifact_ids - formalizer_manifest_proposal_ids
+    )
+    direct_live_formalizer_proposal_ids = (
+        live_formalizer_proposal_artifact_ids - live_formalizer_manifest_proposal_ids
+    )
+    proof["n_llm_formalizer_proof_engineer_proposals"] += len(
+        direct_formalizer_proposal_ids
+    )
+    proof["n_live_llm_formalizer_proof_engineer_proposals"] += len(
+        direct_live_formalizer_proposal_ids
+    )
     proof["n_non_kernel_proved_subclaims"] = max(
         0,
         int(proof["n_proved_subclaims"]) - int(proof["n_kernel_verified_subclaims"]),
@@ -66589,6 +71044,8 @@ def _runtime_architect_initial_routing_summary(
     rows: list[dict[str, Any]] = []
     selected_subsystems: list[str] = []
     requested_subsystems: list[str] = []
+    deferred_meta_gap_owners: list[str] = []
+    deferred_meta_gap_requirement_ids: list[str] = []
     n_results_with_routing = 0
     n_decisions = 0
     n_prerequisite_theory = 0
@@ -66625,6 +71082,35 @@ def _runtime_architect_initial_routing_summary(
             1 for record in records if record.get("requires_prerequisite_theory") is True
         )
         n_prerequisite_theory += result_prerequisite_theory
+        result_deferred_meta_gap_owners: list[str] = []
+        result_deferred_meta_gap_requirement_ids: list[str] = []
+        for record in records:
+            deferred = (
+                record.get("deferred_meta_capability_gap", {})
+                if isinstance(
+                    record.get("deferred_meta_capability_gap", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            requirement_id = str(
+                record.get("deferred_meta_capability_gap_requirement_id", "")
+                or deferred.get("requirement_id", "")
+                or ""
+            ).strip()
+            owner = str(
+                record.get("deferred_meta_capability_gap_owner", "")
+                or deferred.get("requested_next_owner_subsystem", "")
+                or ""
+            ).strip()
+            if not requirement_id and not owner:
+                continue
+            if requirement_id:
+                result_deferred_meta_gap_requirement_ids.append(requirement_id)
+                deferred_meta_gap_requirement_ids.append(requirement_id)
+            if owner:
+                result_deferred_meta_gap_owners.append(owner)
+                deferred_meta_gap_owners.append(owner)
         rows.append(
             {
                 "result_index": result_index,
@@ -66636,6 +71122,16 @@ def _runtime_architect_initial_routing_summary(
                 ),
                 "selected_subsystems": list(selected),
                 "requested_subsystems": list(requested),
+                "n_deferred_meta_capability_gaps": len(
+                    result_deferred_meta_gap_requirement_ids
+                    or result_deferred_meta_gap_owners
+                ),
+                "deferred_meta_capability_gap_owners": list(
+                    dict.fromkeys(result_deferred_meta_gap_owners)
+                ),
+                "deferred_meta_capability_gap_requirement_ids": list(
+                    dict.fromkeys(result_deferred_meta_gap_requirement_ids)
+                ),
                 "decisions": records,
             }
         )
@@ -66650,6 +71146,15 @@ def _runtime_architect_initial_routing_summary(
         ),
         "architect_initial_routing_requested_subsystems": dict(
             sorted(Counter(requested_subsystems).items())
+        ),
+        "n_architect_initial_routing_deferred_meta_capability_gaps": len(
+            deferred_meta_gap_requirement_ids or deferred_meta_gap_owners
+        ),
+        "architect_initial_routing_deferred_meta_capability_gap_owners": dict(
+            sorted(Counter(deferred_meta_gap_owners).items())
+        ),
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": (
+            list(dict.fromkeys(deferred_meta_gap_requirement_ids))
         ),
         "rows": rows,
         "proof_evidence_status": (

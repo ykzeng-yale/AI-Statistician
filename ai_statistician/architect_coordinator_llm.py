@@ -234,7 +234,11 @@ def build_architect_coordinator_prompt(
         "risk_register, or next_actions as appropriate before broad retrieval or "
         "final acceptance. Use recommended_capability_eval_command only as a rerun "
         "hint, and never mark the capability gap resolved until runtime evidence "
-        "satisfies the listed success_metric. Capability-gap routing is "
+        "satisfies the listed success_metric. If the agenda counts show "
+        "input_context_truncated=true or rows_seen>rows_loaded, treat the agenda "
+        "as a compressed priority-pinned/latest view and do not infer that unseen "
+        "capability gaps are resolved; row-level retention_selection explains "
+        "why a visible row survived prompt-context compression. Capability-gap routing is "
         "orchestration input, not proof evidence. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
@@ -271,52 +275,65 @@ def architect_capability_gap_routing_agenda(
         )
         if next_owner:
             owner_subsystems.add(next_owner)
-        rows.append(
-            {
-                "requirement_id": requirement_id,
-                "scope": _clean_architect_gap_text(raw_row.get("scope")),
-                "gap_status": _clean_architect_gap_text(raw_row.get("gap_status"))
-                or "OPEN",
-                "next_owner_subsystem": next_owner or "ArchitectCoordinator",
-                "target_behavior": _clean_architect_gap_text(
-                    raw_row.get("target_behavior")
-                ),
-                "success_metric": _clean_architect_gap_text(
-                    raw_row.get("success_metric")
-                ),
-                "blocker": _clean_architect_gap_text(raw_row.get("blocker")),
-                "recommended_capability_eval_command": _clean_architect_gap_text(
-                    raw_row.get("recommended_capability_eval_command")
-                ),
-                "routing_boundary": _clean_architect_gap_text(
-                    raw_row.get("routing_boundary")
-                )
-                or ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY,
-            }
+        agenda_row = {
+            "requirement_id": requirement_id,
+            "scope": _clean_architect_gap_text(raw_row.get("scope")),
+            "gap_status": _clean_architect_gap_text(raw_row.get("gap_status"))
+            or "OPEN",
+            "next_owner_subsystem": next_owner or "ArchitectCoordinator",
+            "target_behavior": _clean_architect_gap_text(
+                raw_row.get("target_behavior")
+            ),
+            "success_metric": _clean_architect_gap_text(
+                raw_row.get("success_metric")
+            ),
+            "blocker": _clean_architect_gap_text(raw_row.get("blocker")),
+            "recommended_capability_eval_command": _clean_architect_gap_text(
+                raw_row.get("recommended_capability_eval_command")
+            ),
+            "retention_selection": _clean_architect_gap_text(
+                raw_row.get("retention_selection")
+            ),
+            "retention_selection_boundary": _clean_architect_gap_text(
+                raw_row.get("retention_selection_boundary")
+            ),
+            "routing_boundary": _clean_architect_gap_text(
+                raw_row.get("routing_boundary")
+            )
+            or ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY,
+        }
+        scorecard_payload = _architect_gap_scorecard_payload(
+            raw_row.get("scorecard_payload", {})
         )
+        if scorecard_payload:
+            agenda_row["scorecard_payload"] = scorecard_payload
+        rows.append(agenda_row)
     if not rows:
         return {}
     counts = context.get("counts", {})
     if not isinstance(counts, Mapping):
         counts = {}
+    rows_loaded = _architect_gap_int(counts.get("rows_loaded"), fallback=len(rows))
+    rows_seen = _architect_gap_int(counts.get("rows_seen"), fallback=len(rows))
     return {
         "artifact_kind": "ArchitectCapabilityGapRoutingAgenda",
         "source_artifact_kind": "RuntimeCapabilityGapRoutingContext",
         "counts": {
-            "rows_loaded": _architect_gap_int(
-                counts.get("rows_loaded"), fallback=len(rows)
-            ),
-            "rows_seen": _architect_gap_int(
-                counts.get("rows_seen"), fallback=len(rows)
-            ),
+            "rows_loaded": rows_loaded,
+            "rows_seen": rows_seen,
             "errors": _architect_gap_int(counts.get("errors"), fallback=0),
             "max_rows": _architect_gap_int(counts.get("max_rows"), fallback=0),
+            "retention_policy": _clean_architect_gap_text(
+                counts.get("retention_policy")
+            ),
+            "input_context_truncated": rows_seen > rows_loaded,
         },
         "owner_subsystems": sorted(owner_subsystems),
         "rows": rows,
         "required_architect_behavior": [
             "allocate each open capability gap to its next_owner_subsystem",
             "keep target_behavior and success_metric visible in next_actions",
+            "when input_context_truncated=true, treat rows as a compressed priority-pinned/latest view and do not mark unseen gaps resolved",
             "do not promote routing rows to proof, simulation, code, or verifier evidence",
         ],
         "source_paths": _architect_gap_source_paths(context.get("source_paths", [])),
@@ -326,6 +343,108 @@ def architect_capability_gap_routing_agenda(
 
 def _clean_architect_gap_text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _architect_gap_scorecard_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    scorecard_row = (
+        value.get("scorecard_row", {})
+        if isinstance(value.get("scorecard_row", {}), Mapping)
+        else {}
+    )
+    audit_metrics = (
+        value.get("audit_metrics", {})
+        if isinstance(value.get("audit_metrics", {}), Mapping)
+        else {}
+    )
+    if not scorecard_row and not audit_metrics:
+        return {}
+    return {
+        "artifact_kind": _clean_architect_gap_text(
+            value.get("artifact_kind")
+        )
+        or "RuntimeCapabilityGapScorecardPayload",
+        "requirement_id": _clean_architect_gap_text(value.get("requirement_id")),
+        "scorecard_row": {
+            str(key): _architect_gap_compact_value(nested)
+            for key, nested in list(scorecard_row.items())[:10]
+        },
+        "audit_metrics": {
+            key: _architect_gap_compact_value(nested)
+            for key, nested in _architect_gap_metric_items(
+                audit_metrics,
+                limit=24,
+            )
+        },
+        "proof_evidence_status": _clean_architect_gap_text(
+            value.get("proof_evidence_status")
+        ),
+        "boundary": _clean_architect_gap_text(value.get("boundary")),
+    }
+
+
+def _architect_gap_metric_items(
+    audit_metrics: Mapping[str, Any],
+    *,
+    limit: int,
+) -> list[tuple[str, Any]]:
+    indexed_items = [
+        (str(key), value, index)
+        for index, (key, value) in enumerate(audit_metrics.items())
+    ]
+
+    def priority(item: tuple[str, Any, int]) -> tuple[int, int]:
+        key, value, index = item
+        score = 0
+        if _architect_gap_metric_has_signal(key, value):
+            score -= 100
+        for token, weight in (
+            ("contract_issues", 35),
+            ("missing", 30),
+            ("invalid", 30),
+            ("required", 25),
+            ("inherited_scope", 20),
+            ("scope_parent", 20),
+            ("contract_complete", 15),
+        ):
+            if token in key:
+                score -= weight
+        return (score, index)
+
+    return [
+        (key, value)
+        for key, value, _ in sorted(indexed_items, key=priority)[: max(limit, 0)]
+    ]
+
+
+def _architect_gap_metric_has_signal(key: str, value: Any) -> bool:
+    if isinstance(value, bool):
+        return value is False if "complete" in key or "passed" in key else value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return bool(value)
+    return value is not None
+
+
+def _architect_gap_compact_value(value: Any) -> Any:
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    if isinstance(value, str):
+        return value[:500]
+    if isinstance(value, Mapping):
+        return {
+            str(key): _architect_gap_compact_value(nested)
+            for key, nested in list(value.items())[:10]
+        }
+    if isinstance(value, list):
+        return [_architect_gap_compact_value(item) for item in value[:10]]
+    return str(value)[:500]
 
 
 def _architect_gap_int(value: Any, *, fallback: int) -> int:

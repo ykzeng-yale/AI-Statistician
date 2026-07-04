@@ -1925,6 +1925,62 @@ async def run_research_system_audit(
         question_file=actual_question_file,
     )
     stage_start = _record_stage(stage_timings, "research_agent_runtime_audit_overlay", stage_start)
+    runtime_scorecard_rows = (
+        research_agent_runtime_audit_manifest.get("capability_scorecard", {}).get(
+            "rows",
+            [],
+        )
+        if isinstance(
+            research_agent_runtime_audit_manifest.get("capability_scorecard", {}),
+            Mapping,
+        )
+        else []
+    )
+    runtime_scorecard_rows_by_id = {
+        str(row.get("requirement_id", "") or ""): row
+        for row in runtime_scorecard_rows
+        if isinstance(row, Mapping) and str(row.get("requirement_id", "") or "")
+    }
+    runtime_pf_semantic_bridge_scorecard_row = runtime_scorecard_rows_by_id.get(
+        "pseudo_formal_semantic_primitives_reach_source_semantic_bridge",
+        {},
+    )
+    runtime_pf_exact_semantic_source_lookup_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup",
+            {},
+        )
+    )
+    runtime_architect_deferred_meta_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "architect_deferred_meta_capability_gaps_visible",
+            {},
+        )
+    )
+    runtime_architect_deferred_meta_resolved_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "architect_deferred_meta_capability_gaps_resolved",
+            {},
+        )
+    )
+    runtime_architect_deferred_meta_replay_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "architect_deferred_meta_capability_gap_resolution_replay_priority_pinned",
+            {},
+        )
+    )
+    runtime_formal_gap_planner_context_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "formal_gap_planner_executable_handoff_context_complete",
+            {},
+        )
+    )
+    runtime_formal_gap_planner_followthrough_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "formal_gap_planner_live_route_planner_followthrough",
+            {},
+        )
+    )
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -3091,6 +3147,74 @@ async def run_research_system_audit(
             "research_agent_runtime_live_generator_agents_enabled": research_agent_runtime_audit_manifest[
                 "n_live_generator_agents_enabled"
             ],
+            "research_agent_runtime_architect_deferred_meta_capability_gaps": research_agent_runtime_audit_manifest.get(
+                "n_architect_initial_routing_deferred_meta_capability_gaps",
+                0,
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gap_owners": research_agent_runtime_audit_manifest.get(
+                "architect_initial_routing_deferred_meta_capability_gap_owners",
+                {},
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gap_requirement_ids": research_agent_runtime_audit_manifest.get(
+                "architect_initial_routing_deferred_meta_capability_gap_requirement_ids",
+                [],
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_visible": bool(
+                runtime_architect_deferred_meta_scorecard_row.get("passed", True)
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_evidence": str(
+                runtime_architect_deferred_meta_scorecard_row.get("evidence", "")
+                or ""
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_blocker": str(
+                runtime_architect_deferred_meta_scorecard_row.get("blocker", "")
+                or ""
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved": bool(
+                runtime_architect_deferred_meta_resolved_scorecard_row.get(
+                    "passed",
+                    not bool(
+                        research_agent_runtime_audit_manifest.get(
+                            "n_architect_initial_routing_deferred_meta_capability_gaps",
+                            0,
+                        )
+                    ),
+                )
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_resolution_evidence": str(
+                runtime_architect_deferred_meta_resolved_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gaps_resolution_blocker": str(
+                runtime_architect_deferred_meta_resolved_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned": bool(
+                runtime_architect_deferred_meta_replay_scorecard_row.get(
+                    "passed",
+                    True,
+                )
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_evidence": str(
+                runtime_architect_deferred_meta_replay_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned_blocker": str(
+                runtime_architect_deferred_meta_replay_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
+            ),
             **_research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
                 research_agent_runtime_audit_manifest
             ),
@@ -3163,21 +3287,320 @@ async def run_research_system_audit(
             "research_agent_runtime_learning_memory_input_rows": research_agent_runtime_audit_manifest[
                 "n_runtime_learning_memory_input_rows"
             ],
+            "research_agent_runtime_capability_gap_routing_inputs": research_agent_runtime_audit_manifest[
+                "n_results_with_runtime_capability_gap_routing_input"
+            ],
+            "research_agent_runtime_capability_gap_routing_input_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_capability_gap_routing_input_rows"
+            ],
+            "research_agent_runtime_capability_gap_routing_input_rows_seen": research_agent_runtime_audit_manifest[
+                "n_runtime_capability_gap_routing_input_rows_seen"
+            ],
+            "research_agent_runtime_capability_gap_routing_input_retention_policy": research_agent_runtime_audit_manifest[
+                "runtime_capability_gap_routing_input_retention_policy"
+            ],
+            "research_agent_runtime_capability_gap_routing_input_retention_selection_counts": research_agent_runtime_audit_manifest.get(
+                "runtime_capability_gap_routing_input_retention_selection_counts",
+                {},
+            ),
+            "research_agent_runtime_capability_gap_routing_input_requirement_ids": research_agent_runtime_audit_manifest.get(
+                "runtime_capability_gap_routing_input_requirement_ids",
+                [],
+            ),
+            "research_agent_runtime_capability_gap_routing_input_priority_pinned_requirement_ids": research_agent_runtime_audit_manifest.get(
+                "runtime_capability_gap_routing_input_priority_pinned_requirement_ids",
+                [],
+            ),
+            "research_agent_runtime_capability_gap_routing_input_owner_subsystems": research_agent_runtime_audit_manifest.get(
+                "runtime_capability_gap_routing_input_owner_subsystems",
+                {},
+            ),
+            "research_agent_runtime_capability_gap_routing_followup_commands": _research_agent_runtime_capability_gap_routing_followup_commands(
+                research_agent_runtime_audit_manifest
+            ),
+            "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection": research_agent_runtime_audit_manifest.get(
+                "n_runtime_capability_gap_routing_input_rows_missing_retention_selection",
+                0,
+            ),
+            "research_agent_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": research_agent_runtime_audit_manifest.get(
+                "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary",
+                0,
+            ),
+            "research_agent_runtime_cross_task_theorem_family_rows": research_agent_runtime_audit_manifest.get(
+                "n_runtime_cross_task_theorem_family_rows",
+                0,
+            ),
+            "research_agent_runtime_cross_task_theorem_family_rows_with_explicit_family": research_agent_runtime_audit_manifest.get(
+                "n_runtime_cross_task_theorem_family_rows_with_explicit_family",
+                0,
+            ),
+            "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel": research_agent_runtime_audit_manifest.get(
+                "n_runtime_cross_task_theorem_family_rows_with_target_bound_kernel",
+                0,
+            ),
+            "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps": research_agent_runtime_audit_manifest.get(
+                "n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps",
+                0,
+            ),
             "research_agent_runtime_pseudo_formal_block_routing_contract_complete": research_agent_runtime_audit_manifest[
                 "runtime_pseudo_formal_block_routing_contract_complete"
             ],
             "research_agent_runtime_pseudo_formal_block_routing_rows": research_agent_runtime_audit_manifest[
                 "n_runtime_pseudo_formal_block_routing_rows"
             ],
+            "research_agent_runtime_pseudo_formal_block_routing_effective_rows": research_agent_runtime_audit_manifest.get(
+                "n_runtime_pseudo_formal_block_routing_effective_rows",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_rows": research_agent_runtime_audit_manifest.get(
+                "n_runtime_pseudo_formal_block_routing_diagnostic_rows",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formalization_required_formalization_manifests": research_agent_runtime_audit_manifest.get(
+                "n_runtime_pseudo_formalization_required_formalization_manifests",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formalization_required_missing_routing_rows": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formalization_required_missing_routing_rows"
+            ],
+            "research_agent_runtime_pseudo_formalization_required_manifest_ids": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formalization_required_manifest_ids",
+                [],
+            ),
+            "research_agent_runtime_pseudo_formalization_required_missing_routing_manifest_ids": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formalization_required_missing_routing_manifest_ids",
+                [],
+            ),
+            "research_agent_runtime_pseudo_formalization_routed_manifest_ids": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formalization_routed_manifest_ids",
+                [],
+            ),
+            "research_agent_runtime_pseudo_formalization_effective_routed_manifest_ids": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formalization_effective_routed_manifest_ids",
+                [],
+            ),
+            "research_agent_runtime_pseudo_formalization_routed_manifests": research_agent_runtime_audit_manifest.get(
+                "n_runtime_pseudo_formalization_routed_manifests",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formalization_effective_routed_manifests": research_agent_runtime_audit_manifest.get(
+                "n_runtime_pseudo_formalization_effective_routed_manifests",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_routing_row_kinds": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formal_block_routing_row_kinds",
+                {},
+            ),
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_row_kinds": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formal_block_routing_diagnostic_row_kinds",
+                {},
+            ),
+            "research_agent_runtime_pseudo_formal_block_routing_effective_target_lanes": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formal_block_routing_effective_target_lanes",
+                {},
+            ),
+            "research_agent_runtime_pseudo_formal_block_routing_diagnostic_target_lanes": research_agent_runtime_audit_manifest.get(
+                "runtime_pseudo_formal_block_routing_diagnostic_target_lanes",
+                {},
+            ),
             "research_agent_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": research_agent_runtime_audit_manifest[
                 "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage"
             ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": research_agent_runtime_audit_manifest[
+                "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope"
+            ],
+            "research_agent_runtime_pseudo_formal_block_routing_rows_missing_row_kind": research_agent_runtime_audit_manifest.get(
+                "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind",
+                0,
+            ),
             "research_agent_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": research_agent_runtime_audit_manifest[
                 "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
             ],
             "research_agent_runtime_pseudo_formal_block_routing_issues": research_agent_runtime_audit_manifest[
                 "runtime_pseudo_formal_block_routing_contract_issues"
             ],
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_attached",
+                False,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_manifest_path",
+                "",
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok",
+                False,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_live_generator": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_live_generator",
+                False,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_static_or_fixture_only": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_static_or_fixture_only",
+                True,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_fixture_plumbing_ok": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_fixture_plumbing_ok",
+                False,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_prompt_packets": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_prompt_packets",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_valid_responses": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_valid_responses",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_runtime_learning_rows": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_runtime_learning_rows",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_paths": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_paths",
+                [],
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_jsonl_path_count",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_reference_dir": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_reference_dir",
+                "",
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok",
+                False,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_accepted_blocks": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_accepted_blocks",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_failed_blocks": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_failed_blocks",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_provider": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_provider_name",
+                "",
+            ),
+            "research_agent_runtime_pseudo_formal_block_verifier_component_gate_backend_provider": research_agent_runtime_audit_manifest.get(
+                "internal_pseudo_formal_block_verifier_eval_backend_provider_name",
+                "",
+            ),
+            "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders": research_agent_runtime_audit_manifest.get(
+                "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": research_agent_runtime_audit_manifest.get(
+                "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge": bool(
+                runtime_pf_semantic_bridge_scorecard_row.get("passed", True)
+            ),
+            "research_agent_runtime_pseudo_formal_semantic_bridge_evidence": str(
+                runtime_pf_semantic_bridge_scorecard_row.get("evidence", "") or ""
+            ),
+            "research_agent_runtime_pseudo_formal_semantic_bridge_blocker": str(
+                runtime_pf_semantic_bridge_scorecard_row.get("blocker", "") or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": bool(
+                runtime_pf_exact_semantic_source_lookup_scorecard_row.get(
+                    "passed",
+                    True,
+                )
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_evidence": str(
+                runtime_pf_exact_semantic_source_lookup_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_blocker": str(
+                runtime_pf_exact_semantic_source_lookup_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_source_semantic_proofengineer_bridge_requested": research_agent_runtime_audit_manifest.get(
+                "source_semantic_proofengineer_bridge_requested",
+                False,
+            ),
+            "research_agent_runtime_source_semantic_proofengineer_bridge_ran": research_agent_runtime_audit_manifest.get(
+                "source_semantic_proofengineer_bridge_ran",
+                False,
+            ),
+            "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status": research_agent_runtime_audit_manifest.get(
+                "source_semantic_proofengineer_bridge_proof_evidence_status",
+                "",
+            ),
+            "research_agent_runtime_formal_gap_planner_handoff_rows": research_agent_runtime_audit_manifest.get(
+                "n_runtime_formal_gap_planner_handoff_rows",
+                0,
+            ),
+            "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context": research_agent_runtime_audit_manifest.get(
+                "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context",
+                0,
+            ),
+            "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete": bool(
+                runtime_formal_gap_planner_context_scorecard_row.get("passed", True)
+            ),
+            "research_agent_runtime_formal_gap_planner_executable_handoff_context_evidence": str(
+                runtime_formal_gap_planner_context_scorecard_row.get("evidence", "")
+                or ""
+            ),
+            "research_agent_runtime_formal_gap_planner_executable_handoff_context_blocker": str(
+                runtime_formal_gap_planner_context_scorecard_row.get("blocker", "")
+                or ""
+            ),
+            "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough": bool(
+                runtime_formal_gap_planner_followthrough_scorecard_row.get(
+                    "passed",
+                    True,
+                )
+            ),
+            "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough_evidence": str(
+                runtime_formal_gap_planner_followthrough_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough_blocker": str(
+                runtime_formal_gap_planner_followthrough_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_formal_gap_planner_live_route_planner_invocations": research_agent_runtime_audit_manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_invocations",
+                0,
+            ),
+            "research_agent_runtime_formal_gap_planner_live_route_planner_response_contract_ok": research_agent_runtime_audit_manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok",
+                0,
+            ),
+            "research_agent_runtime_formal_gap_planner_live_route_planner_target_prover_replay_all_ok": research_agent_runtime_audit_manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok",
+                0,
+            ),
+            "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_proposals": research_agent_runtime_audit_manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals",
+                0,
+            ),
+            "research_agent_runtime_formal_gap_planner_target_prover_replay_route_revision_complete_feedback_proposal_ids": research_agent_runtime_audit_manifest.get(
+                "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids",
+                0,
+            ),
             "research_agent_runtime_problem_analysis": research_agent_runtime_audit_manifest[
                 "n_results_with_problem_analysis"
             ],
@@ -8738,6 +9161,68 @@ async def run_research_system_audit(
         payload["artifacts"]["formalizer_lean_candidate_repair_eval"] = str(
             formalizer_lean_repair_eval_manifest["manifest_path"]
         )
+    pseudo_formal_block_verifier_component_gate_manifest = (
+        _pseudo_formal_block_verifier_component_gate_overlay(out_dir)
+    )
+    payload["counts"].update(
+        {
+            "pseudo_formal_block_verifier_component_gate_capability_evidence_ok": bool(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "capability_evidence_ok"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_live_generator": bool(
+                pseudo_formal_block_verifier_component_gate_manifest["live_generator"]
+            ),
+            "pseudo_formal_block_verifier_component_gate_static_or_fixture_only": bool(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "static_or_fixture_only"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_fixture_plumbing_ok": bool(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "fixture_plumbing_ok"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_prompt_packets": int(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "n_prompt_packets"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_valid_responses": int(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "n_valid_responses"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_runtime_learning_rows": int(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "n_runtime_learning_rows"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_accepted_blocks": int(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "n_accepted_blocks"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_failed_blocks": int(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "n_failed_blocks"
+                ]
+            ),
+            "pseudo_formal_block_verifier_component_gate_provider": str(
+                pseudo_formal_block_verifier_component_gate_manifest["provider_name"]
+            ),
+            "pseudo_formal_block_verifier_component_gate_backend_provider": str(
+                pseudo_formal_block_verifier_component_gate_manifest[
+                    "backend_provider_name"
+                ]
+            ),
+        }
+    )
+    if bool(pseudo_formal_block_verifier_component_gate_manifest["available"]):
+        payload["artifacts"]["pseudo_formal_block_verifier_component_gate"] = str(
+            pseudo_formal_block_verifier_component_gate_manifest["manifest_path"]
+        )
     architect_policy_eval_manifest = _architect_research_path_policy_eval_overlay(
         out_dir
     )
@@ -8838,11 +9323,37 @@ def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
     ) or _manifest_bool(
         "source_theorem_exact_semantic_definition_authoring_repair_tasks_required"
     )
+    structural_reformulation_required = _manifest_bool(
+        "source_theorem_exact_semantic_definition_structural_reformulation_tasks_required"
+    ) or _manifest_int(
+        "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks"
+    ) > 0
     late_required = _manifest_bool(
         "source_theorem_exact_semantic_definition_late_authoring_worker_ran"
     ) or _manifest_int(
         "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests"
     ) > 0
+    post_runtime_worker_lineage_ok = _manifest_bool(
+        "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok"
+    )
+    post_runtime_materializer_lineage_ok = _manifest_bool(
+        "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok"
+    )
+    post_runtime_lean_repair_lineage_ok = _manifest_bool(
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_lineage_ok"
+    )
+    post_runtime_worker_provider_name = (
+        _manifest_str("post_runtime_exact_semantic_definition_authoring_worker_provider_name")
+        if post_runtime_worker_lineage_ok
+        else ""
+    )
+    post_runtime_worker_backend_provider_name = (
+        _manifest_str(
+            "post_runtime_exact_semantic_definition_authoring_worker_backend_provider_name"
+        )
+        if post_runtime_worker_lineage_ok
+        else ""
+    )
     provider_names = list(
         dict.fromkeys(
             value
@@ -8861,6 +9372,7 @@ def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
                     )
                     or []
                 ),
+                post_runtime_worker_provider_name,
             )
             if value
         )
@@ -8883,22 +9395,101 @@ def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
                     )
                     or []
                 ),
+                post_runtime_worker_backend_provider_name,
             )
             if value
         )
     )
+    post_runtime_tasks = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_authoring_worker_n_source_authoring_tasks"
+        )
+        if post_runtime_worker_lineage_ok
+        else 0
+    )
+    post_runtime_llm_attempted = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_authoring_worker_n_llm_attempted"
+        )
+        if post_runtime_worker_lineage_ok
+        else 0
+    )
+    post_runtime_live_llm_attempted = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_authoring_worker_n_live_llm_attempted"
+        )
+        if post_runtime_worker_lineage_ok
+        else 0
+    )
+    post_runtime_candidate_packets = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets"
+        )
+        if post_runtime_worker_lineage_ok
+        else 0
+    )
+    post_runtime_materialized_tasks = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks"
+        )
+        if post_runtime_materializer_lineage_ok
+        else 0
+    )
+    post_runtime_local_lean_checked = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked"
+        )
+        if post_runtime_lean_repair_lineage_ok
+        else 0
+    )
+    post_runtime_local_lean_compiled = (
+        _manifest_int(
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_compiled"
+        )
+        if post_runtime_lean_repair_lineage_ok
+        else 0
+    )
+    post_runtime_lean_repair_by_failure = (
+        dict(
+            manifest.get(
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_by_failure_classification",
+                {},
+            )
+            or {}
+        )
+        if post_runtime_lean_repair_lineage_ok
+        else {}
+    )
+    post_runtime_lean_repair_dominant_failure = (
+        _manifest_str(
+            "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_dominant_failure_classification"
+        )
+        if post_runtime_lean_repair_lineage_ok
+        else ""
+    )
     return {
         "research_agent_runtime_exact_semantic_definition_authoring_required": (
-            primary_required or retry_required or late_required
+            primary_required
+            or retry_required
+            or structural_reformulation_required
+            or late_required
         ),
         "research_agent_runtime_exact_semantic_definition_authoring_primary_required": primary_required,
         "research_agent_runtime_exact_semantic_definition_authoring_retry_required": retry_required,
+        "research_agent_runtime_exact_semantic_definition_authoring_structural_reformulation_required": structural_reformulation_required,
         "research_agent_runtime_exact_semantic_definition_authoring_late_required": late_required,
         "research_agent_runtime_exact_semantic_definition_authoring_tasks": (
             _manifest_int("n_source_theorem_exact_semantic_definition_authoring_tasks")
             + _manifest_int(
                 "source_theorem_exact_semantic_definition_authoring_retry_n_tasks"
             )
+            + _manifest_int(
+                "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks"
+            )
+            + post_runtime_tasks
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_structural_reformulation_tasks": _manifest_int(
+            "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks"
         ),
         "research_agent_runtime_exact_semantic_definition_authoring_llm_attempted": (
             _manifest_int(
@@ -8910,6 +9501,7 @@ def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
             + _manifest_int(
                 "source_theorem_exact_semantic_definition_late_authoring_worker_n_llm_attempted"
             )
+            + post_runtime_llm_attempted
         ),
         "research_agent_runtime_exact_semantic_definition_authoring_live_llm_attempted": (
             _manifest_int(
@@ -8921,10 +9513,130 @@ def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
             + _manifest_int(
                 "source_theorem_exact_semantic_definition_late_authoring_worker_n_live_llm_attempted"
             )
+            + post_runtime_live_llm_attempted
         ),
         "research_agent_runtime_exact_semantic_definition_authoring_provider_names": provider_names,
         "research_agent_runtime_exact_semantic_definition_authoring_backend_provider_names": backend_provider_names,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_attached": _manifest_bool(
+            "post_runtime_exact_semantic_definition_authoring_worker_attached"
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_lineage_ok": post_runtime_worker_lineage_ok,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_live_llm_attempted": post_runtime_live_llm_attempted,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_worker_candidate_packets": post_runtime_candidate_packets,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materializer_lineage_ok": post_runtime_materializer_lineage_ok,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_materialized_lean_repair_tasks": post_runtime_materialized_tasks,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_lineage_ok": post_runtime_lean_repair_lineage_ok,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_checked": post_runtime_local_lean_checked,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled": post_runtime_local_lean_compiled,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_by_failure_classification": post_runtime_lean_repair_by_failure,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_lean_repair_dominant_failure_classification": post_runtime_lean_repair_dominant_failure,
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state": (
+            _manifest_str(
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proofengineer_state"
+            )
+            if post_runtime_lean_repair_lineage_ok
+            else ""
+        ),
+        "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proof_evidence_status": (
+            _manifest_str(
+                "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_proof_evidence_status"
+            )
+            if post_runtime_lean_repair_lineage_ok
+            else ""
+        ),
     }
+
+
+def _research_agent_runtime_capability_gap_routing_followup_commands(
+    manifest: Mapping[str, Any],
+    *,
+    limit: int = 4,
+) -> list[dict[str, str]]:
+    rows = manifest.get("runtime_capability_gap_routing_rows", [])
+    if not isinstance(rows, list):
+        return []
+    priority_pinned_requirement_ids = {
+        str(value).strip()
+        for value in manifest.get(
+            "runtime_capability_gap_routing_input_priority_pinned_requirement_ids",
+            [],
+        )
+        or []
+        if str(value).strip()
+    }
+    ordered_rows = sorted(
+        (
+            (index, row)
+            for index, row in enumerate(rows)
+            if isinstance(row, Mapping)
+            and str(row.get("recommended_capability_eval_command", "") or "").strip()
+        ),
+        key=lambda item: _research_agent_runtime_capability_gap_followup_sort_key(
+            item[1],
+            source_index=item[0],
+            priority_pinned_requirement_ids=priority_pinned_requirement_ids,
+        ),
+    )
+    commands: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for _, row in ordered_rows:
+        command = str(row.get("recommended_capability_eval_command", "") or "").strip()
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        key = (requirement_id, command)
+        if key in seen:
+            continue
+        seen.add(key)
+        commands.append(
+            {
+                "requirement_id": requirement_id,
+                "owner_subsystem": str(
+                    row.get("next_owner_subsystem", "") or ""
+                ).strip(),
+                "scope": str(row.get("scope", "") or "").strip(),
+                "priority": str(row.get("priority", "") or "").strip(),
+                "retention_selection": str(
+                    row.get("retention_selection", "") or ""
+                ).strip(),
+                "retention_selection_boundary": str(
+                    row.get("retention_selection_boundary", "") or ""
+                ).strip(),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ).strip(),
+                "routing_boundary": str(
+                    row.get("routing_boundary", "") or ""
+                ).strip(),
+                "command": command,
+            }
+        )
+        if len(commands) >= limit:
+            break
+    return commands
+
+
+def _research_agent_runtime_capability_gap_followup_sort_key(
+    row: Mapping[str, Any],
+    *,
+    source_index: int,
+    priority_pinned_requirement_ids: set[str],
+) -> tuple[int, int, int, int]:
+    requirement_id = str(row.get("requirement_id", "") or "").strip()
+    retention_selection = str(row.get("retention_selection", "") or "").strip()
+    priority_pinned = (
+        retention_selection == "priority_pinned"
+        or requirement_id in priority_pinned_requirement_ids
+    )
+    scope = str(row.get("scope", "") or "").strip()
+    try:
+        priority = int(row.get("priority", source_index + 1) or source_index + 1)
+    except (TypeError, ValueError):
+        priority = source_index + 1
+    return (
+        0 if priority_pinned else 1,
+        0 if scope == "integrated_runtime" else 1,
+        priority,
+        source_index,
+    )
 
 
 def _proof_search_kernel_rerun_local_lean_overlay(out_dir: Path) -> dict[str, object]:
@@ -9178,6 +9890,172 @@ def _formalizer_lean_candidate_repair_eval_manifest_path(out_dir: Path) -> Path:
     return candidates[0] if candidates else canonical
 
 
+def _pseudo_formal_block_verifier_component_gate_overlay(
+    out_dir: Path,
+) -> dict[str, object]:
+    manifest_path = _pseudo_formal_block_verifier_component_gate_manifest_path(
+        out_dir
+    )
+    empty = {
+        "available": False,
+        "manifest_path": "",
+        "provider_name": "",
+        "backend_provider_name": "",
+        "component_backend_provider_names": [],
+        "model": "",
+        "live_generator": False,
+        "capability_evidence_ok": False,
+        "artifact_kind_ok": False,
+        "proof_evidence_status_ok": False,
+        "n_prompt_packets": 0,
+        "n_ok_prompt_packets": 0,
+        "n_llm_response_rows": 0,
+        "n_ok_responses": 0,
+        "n_valid_responses": 0,
+        "n_runtime_learning_rows": 0,
+        "n_accepted_blocks": 0,
+        "n_failed_blocks": 0,
+        "fixture_plumbing_ok": False,
+        "static_or_fixture_only": False,
+        "proof_evidence_status": "",
+        "all_ok": False,
+        "errors": ["pseudo_formal_block_verifier_component_gate_manifest_missing"],
+    }
+    if not manifest_path.exists():
+        return empty
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            **empty,
+            "manifest_path": str(manifest_path),
+            "errors": ["pseudo_formal_block_verifier_component_gate_manifest_unreadable"],
+        }
+    provider_name = normalize_generator_provider_name(payload.get("provider_name", ""))
+    backend_provider_name = normalize_generator_provider_name(
+        payload.get("backend_provider_name", provider_name)
+    )
+    raw_component_backend_provider_names = payload.get(
+        "component_backend_provider_names",
+        [],
+    )
+    if isinstance(raw_component_backend_provider_names, str):
+        raw_component_backend_provider_names = [
+            raw_component_backend_provider_names
+        ]
+    elif not isinstance(raw_component_backend_provider_names, (list, tuple)):
+        raw_component_backend_provider_names = []
+    component_backend_provider_names = [
+        normalize_generator_provider_name(name)
+        for name in raw_component_backend_provider_names
+        if normalize_generator_provider_name(name)
+    ]
+    if not component_backend_provider_names and backend_provider_name:
+        component_backend_provider_names = [backend_provider_name]
+    backend_live = bool(component_backend_provider_names) and all(
+        is_live_generator_backend(provider_name, backend_provider_name)
+        for backend_provider_name in component_backend_provider_names
+    )
+    live_generator = bool(payload.get("live_generator", False) and backend_live)
+    artifact_kind_ok = (
+        str(payload.get("artifact_kind", ""))
+        == "PseudoFormalBlockVerifierComponentGateManifest"
+    )
+    proof_evidence_status = str(payload.get("proof_evidence_status", ""))
+    proof_evidence_status_ok = (
+        proof_evidence_status
+        == "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+    )
+    n_prompt_packets = int(payload.get("n_prompt_packets", 0) or 0)
+    n_ok_prompt_packets = int(payload.get("n_ok_prompt_packets", 0) or 0)
+    n_llm_response_rows = int(payload.get("n_llm_response_rows", 0) or 0)
+    n_ok_responses = int(payload.get("n_ok_responses", 0) or 0)
+    n_valid_responses = int(payload.get("n_valid_responses", 0) or 0)
+    n_runtime_learning_rows = int(
+        payload.get("n_runtime_learning_rows", 0) or 0
+    )
+    n_accepted_blocks = int(payload.get("n_accepted_blocks", 0) or 0)
+    n_failed_blocks = int(payload.get("n_failed_blocks", 0) or 0)
+    static_or_fixture_only = bool(
+        payload.get("static_or_fixture_only", False) or not live_generator
+    )
+    fixture_plumbing_ok = bool(
+        payload.get("fixture_plumbing_ok", False)
+        and artifact_kind_ok
+        and proof_evidence_status_ok
+        and n_prompt_packets > 0
+        and n_ok_prompt_packets > 0
+        and n_llm_response_rows > 0
+        and n_valid_responses > 0
+        and n_runtime_learning_rows > 0
+    )
+    capability_evidence_ok = bool(
+        live_generator
+        and fixture_plumbing_ok
+        and payload.get("capability_evidence_ok", False)
+    )
+    errors = [
+        error
+        for error in (
+            "" if artifact_kind_ok else "artifact_kind_mismatch",
+            ""
+            if proof_evidence_status_ok
+            else "proof_evidence_status_must_remain_non_proof",
+            "" if live_generator else "live_generator_missing_or_static_backend",
+            "" if fixture_plumbing_ok else "component_gate_chain_incomplete",
+        )
+        if error
+    ]
+    return {
+        "available": True,
+        "manifest_path": str(manifest_path),
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "component_backend_provider_names": component_backend_provider_names,
+        "model": str(payload.get("model", "")),
+        "live_generator": live_generator,
+        "capability_evidence_ok": capability_evidence_ok,
+        "artifact_kind_ok": artifact_kind_ok,
+        "proof_evidence_status_ok": proof_evidence_status_ok,
+        "n_prompt_packets": n_prompt_packets,
+        "n_ok_prompt_packets": n_ok_prompt_packets,
+        "n_llm_response_rows": n_llm_response_rows,
+        "n_ok_responses": n_ok_responses,
+        "n_valid_responses": n_valid_responses,
+        "n_runtime_learning_rows": n_runtime_learning_rows,
+        "n_accepted_blocks": n_accepted_blocks,
+        "n_failed_blocks": n_failed_blocks,
+        "fixture_plumbing_ok": fixture_plumbing_ok,
+        "static_or_fixture_only": static_or_fixture_only,
+        "proof_evidence_status": proof_evidence_status,
+        "all_ok": bool(
+            artifact_kind_ok and proof_evidence_status_ok and fixture_plumbing_ok
+        ),
+        "errors": errors,
+    }
+
+
+def _pseudo_formal_block_verifier_component_gate_manifest_path(
+    out_dir: Path,
+) -> Path:
+    canonical = (
+        out_dir.parent
+        / "pseudo_formal_block_verifier_component_gate"
+        / "pseudo_formal_block_verifier_component_gate_manifest.json"
+    )
+    if canonical.exists():
+        return canonical
+    candidates = sorted(
+        out_dir.parent.glob(
+            "pseudo_formal_block_verifier_component_gate*/"
+            "pseudo_formal_block_verifier_component_gate_manifest.json"
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else canonical
+
+
 def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, object]:
     manifest_path = _architect_research_path_policy_eval_manifest_path(out_dir)
     empty = {
@@ -9417,6 +10295,9 @@ def _research_agent_runtime_audit_overlay(
         "llm_topology_policy_ok": False,
         "unsupported_generator_backends_enabled": 0,
         "n_live_generator_agents_enabled": 0,
+        "n_architect_initial_routing_deferred_meta_capability_gaps": 0,
+        "architect_initial_routing_deferred_meta_capability_gap_owners": {},
+        "architect_initial_routing_deferred_meta_capability_gap_requirement_ids": [],
         "n_critic_reroutes": 0,
         "n_lean_lsp_mcp_live_calls": 0,
         "n_source_theorem_exact_semantic_definition_authoring_tasks": 0,
@@ -9428,6 +10309,8 @@ def _research_agent_runtime_audit_overlay(
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": False,
         "source_theorem_exact_semantic_definition_authoring_repair_tasks_required": False,
         "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 0,
+        "source_theorem_exact_semantic_definition_structural_reformulation_tasks_required": False,
+        "source_theorem_exact_semantic_definition_structural_reformulation_n_tasks": 0,
         "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": "",
         "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": "",
         "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted": 0,
@@ -9451,11 +10334,56 @@ def _research_agent_runtime_audit_overlay(
         "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_results_with_runtime_learning_memory_input": 0,
         "n_runtime_learning_memory_input_rows": 0,
+        "n_results_with_runtime_capability_gap_routing_input": 0,
+        "n_runtime_capability_gap_routing_input_rows": 0,
+        "n_runtime_capability_gap_routing_input_rows_seen": 0,
+        "runtime_capability_gap_routing_input_retention_policy": "",
+        "runtime_capability_gap_routing_input_retention_selection_counts": {},
+        "runtime_capability_gap_routing_input_requirement_ids": [],
+        "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [],
+        "runtime_capability_gap_routing_input_owner_subsystems": {},
+        "runtime_capability_gap_routing_followup_commands": [],
+        "n_runtime_capability_gap_routing_input_rows_missing_retention_selection": 0,
+        "n_runtime_capability_gap_routing_input_rows_missing_retention_selection_boundary": 0,
+        "n_runtime_cross_task_theorem_family_rows": 0,
+        "n_runtime_cross_task_theorem_family_rows_with_explicit_family": 0,
+        "n_runtime_cross_task_theorem_family_rows_with_target_bound_kernel": 0,
+        "n_runtime_cross_task_theorem_family_rows_with_open_formal_gaps": 0,
         "runtime_pseudo_formal_block_routing_contract_complete": False,
         "n_runtime_pseudo_formal_block_routing_rows": 0,
+        "n_runtime_pseudo_formal_block_routing_effective_rows": 0,
+        "n_runtime_pseudo_formal_block_routing_diagnostic_rows": 0,
+        "n_runtime_pseudo_formalization_required_formalization_manifests": 0,
+        "n_runtime_pseudo_formalization_required_missing_routing_rows": 0,
+        "runtime_pseudo_formalization_required_manifest_ids": [],
+        "runtime_pseudo_formalization_required_missing_routing_manifest_ids": [],
+        "runtime_pseudo_formalization_routed_manifest_ids": [],
+        "runtime_pseudo_formalization_effective_routed_manifest_ids": [],
+        "n_runtime_pseudo_formalization_routed_manifests": 0,
+        "n_runtime_pseudo_formalization_effective_routed_manifests": 0,
+        "runtime_pseudo_formal_block_routing_row_kinds": {},
+        "runtime_pseudo_formal_block_routing_diagnostic_row_kinds": {},
+        "runtime_pseudo_formal_block_routing_effective_target_lanes": {},
+        "runtime_pseudo_formal_block_routing_diagnostic_target_lanes": {},
         "n_runtime_pseudo_formal_block_routing_rows_missing_method_lineage": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_scope_parent": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_invalid_scope_parent": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope": 0,
+        "n_runtime_pseudo_formal_block_routing_rows_missing_row_kind": 0,
         "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary": 0,
         "runtime_pseudo_formal_block_routing_contract_issues": [],
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal": 0,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 0,
+        "source_semantic_proofengineer_bridge_requested": False,
+        "source_semantic_proofengineer_bridge_ran": False,
+        "source_semantic_proofengineer_bridge_proof_evidence_status": "",
+        "n_runtime_formal_gap_planner_handoff_rows": 0,
+        "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_invocations": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_all_ok": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_route_revision_proposals": 0,
+        "n_runtime_target_prover_replay_route_revision_complete_feedback_proposal_ids": 0,
         "n_results_with_problem_analysis": 0,
         "n_results_with_stat_knowledge_bank_plan": 0,
         "n_results_with_literature_fair_comparison_plan": 0,

@@ -284,6 +284,11 @@ def _repair_prompt(
         "Keep string fields under 240 characters and avoid multiline derivation essays.",
         "Preserve all evidence boundaries.",
         "Do not claim tool execution, simulation execution, production promotion, Lean proof, or kernel verification.",
+        (
+            "Treat local_validation_errors as hard constraints; do not repeat "
+            "invalid identifiers, imports, claims, or statuses named in them "
+            "unless the original contract gives an explicit verified repair path."
+        ),
     ]
     if truncation_detected:
         repair_instructions.insert(
