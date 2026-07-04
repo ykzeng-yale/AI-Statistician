@@ -246,6 +246,28 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
         PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
     )
     assert method_contract["source_basis"]["arxiv_id"] == "2605.20531"
+    assert method_contract["source_basis"]["reference_repo_url"] == (
+        "https://github.com/Slim205/pseudo-formalization"
+    )
+    assert method_contract["integration_decision"]["adopt_as"] == (
+        "formalizer_proofengineer_intermediate_verifier_and_router"
+    )
+    assert "Lean replacement" in method_contract["integration_decision"]["do_not_adopt_as"]
+    assert method_contract["graph_contract"]["dependency_graph"] == (
+        "directed_acyclic_graph"
+    )
+    assert method_contract["graph_contract"]["scope_inheritance_graph"] == "forest"
+    assert method_contract["graph_contract"]["dependency_access"] == (
+        "statement_only_no_hidden_proof_body_access"
+    )
+    assert "kernel_verified=true" in method_contract["runtime_activation_policy"][
+        "forbidden_outputs"
+    ]
+    assert "structured rewrite rules" in method_contract["reuse_policy"]["reuse"]
+    assert "hardcoded provider/model choices" in method_contract["reuse_policy"][
+        "do_not_reuse_directly"
+    ]
+    assert "GeneratorBackend" in method_contract["reuse_policy"]["adapter_boundary"]
     assert {
         stage["stage_id"] for stage in method_contract["pipeline_stages"]
     } >= {

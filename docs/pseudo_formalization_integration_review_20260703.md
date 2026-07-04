@@ -12,6 +12,20 @@ Do not treat pseudo-formal verification as theorem proof evidence. Source theore
 proof still requires local Lean/AXLE/kernel verification of the intended formal
 claim.
 
+After checking arXiv:2605.20531 and `Slim205/pseudo-formalization`, this is
+worth making a first-class Formalizer/ProofEngineer capability model, not a
+replacement for the Lean prover. The right integration level is:
+
+- LLM-driven pseudo-formal rewriting, faithfulness checking, block verification,
+  calibration, and residual routing.
+- Typed packets and runtime work orders inside our existing AgentRuntime.
+- No direct proof promotion from PF/BV, even when every block is accepted.
+
+The released repo is most useful as a reference implementation of prompts,
+parsing, calibration, and benchmark methodology. It should not be vendored as a
+core prover dependency: provider calls must go through our generator backend,
+runtime audit, and proof-evidence boundary.
+
 ## Why It Fits This System
 
 The current formalization bottleneck is not just "bad Lean syntax". The hard
@@ -78,14 +92,20 @@ readiness gates that require kernel evidence.
 Reuse the design pattern, not the repo wholesale:
 
 - structured rewrite prompts with explicit block types and dependency rules
+- the dependency DAG plus scope-inheritance forest idea
 - faithfulness checking before trusting a rewrite
+- regeneration after faithfulness discrepancies
 - block-level verifier prompts
 - calibrator logic that maps block failures back to original source locations
+- pessimistic aggregation over independent rollouts
 - benchmark harness ideas for comparing PF/BV against direct LLM-as-judge
 
 Avoid copying benchmark-specific or paper-specific assumptions into runtime.
 Any provider/model adapter should be behind our generator backend and typed
 artifact schema.
+
+Also avoid importing hardcoded model names, ad hoc XML parsing as the runtime
+source of truth, or benchmark data with unclear redistribution/training status.
 
 ## Evaluation Gates
 

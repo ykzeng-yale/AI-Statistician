@@ -32,6 +32,8 @@ PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID = (
 PSEUDO_FORMAL_VERIFICATION_METHOD_NAME = (
     "pseudo_formalization_plus_block_verification"
 )
+PSEUDO_FORMAL_REFERENCE_REPO_URL = "https://github.com/Slim205/pseudo-formalization"
+PSEUDO_FORMAL_REFERENCE_ARXIV_URL = "https://arxiv.org/abs/2605.20531"
 PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH = 4
 PSEUDO_FORMAL_DEFAULT_BLOCK_DEPTH = 1
 PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE = "earlier_block_statement_only"
@@ -189,9 +191,40 @@ def pseudo_formal_verification_method_contract() -> dict[str, Any]:
         "source_basis": {
             "paper_title": "Pseudo-Formalization for Automatic Proof Verification",
             "arxiv_id": "2605.20531",
+            "arxiv_url": PSEUDO_FORMAL_REFERENCE_ARXIV_URL,
+            "reference_repo_url": PSEUDO_FORMAL_REFERENCE_REPO_URL,
             "method_short_name": "PF+BV",
+            "benchmarks": ["Hard2Verify", "ArxivMathGradingBench"],
+        },
+        "integration_decision": {
+            "adopt_as": "formalizer_proofengineer_intermediate_verifier_and_router",
+            "do_not_adopt_as": (
+                "kernel prover, Lean replacement, or proof-evidence promotion gate"
+            ),
+            "runtime_role": (
+                "decompose large natural-language/statistical proof artifacts into "
+                "bounded blocks, verify/reject blocks with explicit calibration, "
+                "and route residuals into Lean/RAG/source-to-bridge/semantic-definition "
+                "work orders"
+            ),
+            "maturity_boundary": (
+                "the public repo is a prompt-and-benchmark implementation; reuse "
+                "its method structure and evaluation ideas behind this system's "
+                "typed generator/runtime contracts rather than vendoring it as a "
+                "core prover dependency"
+            ),
         },
         "pipeline_stages": deepcopy(PSEUDO_FORMAL_VERIFICATION_METHOD_STAGES),
+        "graph_contract": {
+            "dependency_graph": "directed_acyclic_graph",
+            "scope_inheritance_graph": "forest",
+            "dependency_access": "statement_only_no_hidden_proof_body_access",
+            "same_level_order_rule": "same-level dependencies must cite earlier blocks",
+            "hoisting_rule": (
+                "any intermediate object needed from another proof body must be "
+                "hoisted into its own block statement before it can be cited"
+            ),
+        },
         "block_verification_scope": (
             "verify each pseudo-formal block independently against its explicit "
             "premises, inherited scope, declared dependencies, conclusion, and proof"
@@ -228,6 +261,47 @@ def pseudo_formal_verification_method_contract() -> dict[str, Any]:
             "use independent stochastic rollouts with pessimistic proof acceptance "
             "and union/deduplication of flagged error locations for error finding"
         ),
+        "runtime_activation_policy": {
+            "activate_when": [
+                "source-theorem proof-body repair is blocked",
+                "semantic anchors or exact definitions are missing",
+                "Lean library support is missing or unknown",
+                "a proof step is too large or underspecified for one Lean translation pass",
+            ],
+            "required_outputs": [
+                "bounded proof blocks",
+                "source anchors",
+                "faithfulness status and repair metadata",
+                "block-verifier verdicts",
+                "Lean feasibility triage",
+                "lane-specific residual work orders",
+            ],
+            "forbidden_outputs": [
+                "kernel_verified=true",
+                "source_theorem_kernel_verified=true",
+                "promotion without target-prover replay",
+                "silent repair of an unfaithful source proof",
+            ],
+        },
+        "reuse_policy": {
+            "reuse": [
+                "structured rewrite rules",
+                "faithfulness-check and regeneration loop",
+                "block verifier prompt pattern",
+                "calibration and pessimistic parallel aggregation ideas",
+                "benchmark harness pattern",
+            ],
+            "do_not_reuse_directly": [
+                "benchmark-specific scoring assumptions",
+                "hardcoded provider/model choices",
+                "ad hoc XML parsing as the runtime source of truth",
+                "data artifacts whose license or redistribution status is unclear",
+            ],
+            "adapter_boundary": (
+                "all live calls must go through this system's GeneratorBackend, "
+                "typed packet schemas, audit manifests, and proof-evidence gates"
+            ),
+        },
         "row_lineage_required": [
             "pseudo_formal_method_contract_id",
             "pseudo_formal_pipeline_stage",
