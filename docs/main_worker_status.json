@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-04T20:43:39Z",
+  "updated_at": "2026-07-04T20:53:14Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1269,10 +1269,22 @@
         "real_replay_source": "runs/main_worker_good_rank_verifier_gate_source_context_executor_20260704/runtime_learning_rows.jsonl",
         "real_replay_result": "Loading the real good_rank_event verifier-gate runtime_learning_rows.jsonl through _load_runtime_learning_memory and then generating authoring follow-up tasks now yields tasks=1, mode=repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback, failure_classification=exact_semantic_definition_verifier_gate_known_gaps_unresolved, verifier_gate_blockers=2, known_gaps=3, source_anchor_context_rows=44, and feedback_known_gaps=3.",
         "boundary": "This is still handoff and authoring-feedback evidence only. The verifier-gate row, authoring task, and authoring prompt remain non-proof evidence until a repaired candidate passes verifier gate and a proof-body executor reports source-theorem kernel verification."
+      },
+      "exact_semantic_authoring_retry_materialized_verifier_rejoin_20260704": {
+        "fix": "The AgentRuntime authoring-retry lane now rejoins the exact semantic-definition review pipeline after a repaired candidate is materialized and locally Lean-checked. If the retry materialized Lean repair executor emits typechecked candidate review packets, runtime runs the materialized candidate semantic-review bridge, reruns the reviewed candidate Lean repair executor, sends reviewed packets through the typechecked-review proof-body recheck queue, and then runs the verifier-gate executor plus verifier-approved recheck queue using the existing verifier helper.",
+        "new_manifest_evidence": "Runtime manifests now expose retry-lane review/verifier counters and artifacts: authoring_retry_materialized_lean_repair_executor_n_typechecked_candidate_review_packets, authoring_retry_materialized_candidate_review_proofengineer_bridge_ran, authoring_retry_materialized_candidate_review_lean_repair_executor_ran, authoring_retry_materialized_typechecked_review_recheck_queue_ran, authoring_retry_materialized_typechecked_review_verifier_gate_executor_ran, verifier approved/blocked counts, and retry-lane recheck/verifier artifact paths.",
+        "integrated_regression": "tests/test_research_agent_runtime.py::test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate starts from verifier-gate repair memory, uses static authoring, then verifies the retry materialized candidate flows through materialization, local Lean repair, semantic-review bridge, reviewed-candidate Lean repair, typechecked-review recheck queue, verifier gate, and verifier-approved recheck queue without claiming source theorem proof.",
+        "validation_scope": "Synthetic worker fakes prove AgentRuntime orchestration and manifest accounting. This is not live Lean/Claude success evidence for good_rank_event; it closes the runtime path needed for the next live attempt.",
+        "boundary": "Verifier-gate approval and verifier-approved recheck queues are still semantic-readiness evidence only. Source theorem proof evidence remains gated on a proof-body executor row with source-theorem kernel verification."
       }
     }
   },
   "latest_local_verification": [
+    "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after authoring-retry materialized verifier-gate rejoin patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_authoring_retry_materialized_candidate_reenters_verifier_gate\" # 1 passed, 807 deselected after authoring-retry materialized verifier-gate rejoin patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or typechecked_review or runtime_consumes_authoring or runtime_static_authoring_worker_materializes_repair_candidate or runtime_authoring_retry_materialized_candidate_reenters_verifier_gate\" # 18 passed, 790 deselected after authoring-retry materialized verifier-gate rejoin patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_authoring_worker.py -q -k \"dry_run_writes_prompt_packets_without_proof_evidence or prompt_contract\" # 5 passed, 13 deselected after authoring-retry materialized verifier-gate rejoin patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py -q -k \"typechecked_review_recheck_queue or verifier_gate\" # 8 passed, 21 deselected after authoring-retry materialized verifier-gate rejoin patch",
     "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/cli.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after verifier-gate compact-memory AgentRuntime handoff patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_consumes_verifier_gate_repair_memory_with_authoring_worker\" # 1 passed, 806 deselected after compact-memory verifier-gate handoff patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or exact_candidate_repair_memory or typechecked_review or runtime_consumes_authoring\" # 17 passed, 790 deselected after compact-memory verifier-gate handoff patch",
