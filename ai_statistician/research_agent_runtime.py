@@ -47232,6 +47232,89 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 and not adapter_kernel_verified
                 else []
             )
+        response_validation_feedback = (
+            _runtime_exact_authoring_response_validation_feedback_context(
+                row,
+                input_summary if isinstance(input_summary, Mapping) else {},
+            )
+        )
+        validation_errors = list(
+            dict.fromkeys(
+                [
+                    *_runtime_sequence_strings(row.get("validation_errors", [])),
+                    *(
+                        _runtime_sequence_strings(
+                            input_summary.get("validation_errors", [])
+                        )
+                        if isinstance(input_summary, Mapping)
+                        else []
+                    ),
+                    *_runtime_sequence_strings(
+                        response_validation_feedback.get("validation_errors", [])
+                    ),
+                ]
+            )
+        )
+        retry_validation_errors = list(
+            dict.fromkeys(
+                [
+                    *_runtime_sequence_strings(
+                        row.get("retry_validation_errors", [])
+                    ),
+                    *(
+                        _runtime_sequence_strings(
+                            input_summary.get("retry_validation_errors", [])
+                        )
+                        if isinstance(input_summary, Mapping)
+                        else []
+                    ),
+                    *validation_errors,
+                ]
+            )
+        )
+        source_failed_candidate_packet_id = str(
+            row.get("source_failed_candidate_packet_id", "")
+            or (
+                input_summary.get("source_failed_candidate_packet_id", "")
+                if isinstance(input_summary, Mapping)
+                else ""
+            )
+            or row.get("candidate_packet_id", "")
+            or ""
+        ).strip()
+        structural_reformulation_route = row.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_route",
+            {},
+        )
+        structural_reformulation_route = (
+            dict(structural_reformulation_route)
+            if isinstance(structural_reformulation_route, Mapping)
+            else {}
+        )
+        if response_validation_feedback and structural_reformulation_route:
+            structural_reformulation_route.setdefault(
+                "response_validation_feedback",
+                response_validation_feedback,
+            )
+            structural_reformulation_route.setdefault(
+                "unverified_required_imports",
+                list(
+                    response_validation_feedback.get(
+                        "unverified_required_imports",
+                        [],
+                    )
+                    or []
+                ),
+            )
+        for value in validation_errors[:3]:
+            diagnostics.append("validation_error=" + value[:180])
+        for value in _runtime_sequence_strings(
+            response_validation_feedback.get(
+                "unverified_required_imports",
+                [],
+            )
+        )[:3]:
+            diagnostics.append("unverified_required_import=" + str(value)[:120])
         repairs.append(
             {
                 "target_theorem_name": target,
@@ -47294,6 +47377,19 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 ),
                 "candidate_definition_request": candidate_definition_request,
                 "failure_classification": failure_classification,
+                "validation_errors": validation_errors,
+                "retry_validation_errors": retry_validation_errors,
+                "source_failed_candidate_packet_id": source_failed_candidate_packet_id,
+                "response_validation_feedback": response_validation_feedback,
+                "source_theorem_exact_semantic_definition_structural_reformulation_route": (
+                    structural_reformulation_route
+                ),
+                "structural_reformulation_required": bool(
+                    is_exact_semantic_definition_structural_reformulation
+                ),
+                "pseudo_formalization_required": bool(
+                    is_exact_semantic_definition_structural_reformulation
+                ),
                 "lookup_status": lookup_status,
                 "next_step_kind": next_step_kind,
                 "source_lookup_hits": source_lookup_hits,
@@ -52547,6 +52643,43 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "runtime_queue_status": str(
                     row.get("runtime_queue_status", "") or ""
+                ),
+                "validation_errors": list(row.get("validation_errors", []) or []),
+                "retry_validation_errors": list(
+                    row.get("retry_validation_errors", []) or []
+                ),
+                "source_failed_candidate_packet_id": str(
+                    row.get("source_failed_candidate_packet_id", "")
+                    or row.get("candidate_packet_id", "")
+                    or ""
+                ),
+                "response_validation_feedback": (
+                    dict(row.get("response_validation_feedback", {}))
+                    if isinstance(row.get("response_validation_feedback", {}), Mapping)
+                    else {}
+                ),
+                "source_theorem_exact_semantic_definition_structural_reformulation_route": (
+                    dict(
+                        row.get(
+                            "source_theorem_exact_semantic_definition_structural_reformulation_route",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "source_theorem_exact_semantic_definition_structural_reformulation_route",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "structural_reformulation_required": bool(
+                    row.get("structural_reformulation_required", False)
+                ),
+                "pseudo_formalization_required": bool(
+                    row.get("pseudo_formalization_required", False)
+                    or row.get("requires_pseudo_formalization", False)
                 ),
                 "candidate_artifact_path": str(
                     row.get("candidate_artifact_path", "") or ""
@@ -67141,6 +67274,81 @@ def _runtime_authoring_response_validation_feedback_from_row(
             or task.get("recommended_next_action", "")
             or row.get("recommended_next_action", "")
             or input_summary.get("recommended_next_action", "")
+            or ""
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": (
+            "Authoring response-validation feedback is prompt repair context only. "
+            "It is not semantic-definition kernel evidence and cannot prove the "
+            "source theorem; any repaired candidate must still pass local Lean/AXLE."
+        ),
+    }
+
+
+def _runtime_sequence_strings(value: Any) -> list[str]:
+    if isinstance(value, list | tuple | set):
+        return [str(item) for item in value if str(item or "").strip()]
+    if str(value or "").strip():
+        return [str(value)]
+    return []
+
+
+def _runtime_exact_authoring_response_validation_feedback_context(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    route = row.get(
+        "source_theorem_exact_semantic_definition_structural_reformulation_route",
+        {},
+    )
+    if not isinstance(route, Mapping):
+        route = {}
+    for source in (row, input_summary, route):
+        feedback = source.get("response_validation_feedback", {})
+        if isinstance(feedback, Mapping) and feedback:
+            return dict(feedback)
+    validation_errors: list[str] = []
+    for source in (row, input_summary, route):
+        validation_errors.extend(
+            _runtime_sequence_strings(source.get("retry_validation_errors", []))
+        )
+        validation_errors.extend(
+            _runtime_sequence_strings(source.get("validation_errors", []))
+        )
+    validation_errors = list(dict.fromkeys(validation_errors))
+    source_failed_candidate_packet_id = str(
+        row.get("source_failed_candidate_packet_id", "")
+        or input_summary.get("source_failed_candidate_packet_id", "")
+        or row.get("candidate_packet_id", "")
+        or ""
+    ).strip()
+    if not validation_errors and not source_failed_candidate_packet_id:
+        return {}
+    return {
+        "source_failed_candidate_packet_id": source_failed_candidate_packet_id,
+        "failure_classification": str(
+            row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+        ),
+        "runtime_queue_status": str(
+            row.get("runtime_queue_status", "")
+            or input_summary.get("runtime_queue_status", "")
+            or route.get("runtime_queue_status", "")
+            or ""
+        ),
+        "validation_errors": validation_errors[:8],
+        "unverified_required_imports": (
+            _runtime_unverified_required_imports_from_validation_errors(
+                validation_errors
+            )[:8]
+        ),
+        "recommended_next_action": str(
+            row.get("recommended_next_action", "")
+            or input_summary.get("recommended_next_action", "")
+            or route.get("required_next_action", "")
             or ""
         ),
         "proof_evidence_status": (

@@ -44083,7 +44083,21 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     assert summary["recommended_source_theorem_integration_action"] == (
         "structural_reformulate_exact_semantic_definition_with_pf_bv"
     )
+    diagnostic = summary["source_theorem_exact_candidate_repair_diagnostics"][0]
+    assert diagnostic["validation_errors"] == route["validation_errors"]
+    assert diagnostic["retry_validation_errors"] == route["validation_errors"]
+    assert diagnostic["response_validation_feedback"][
+        "unverified_required_imports"
+    ] == ["Mathlib.Data.Int.Order"]
+    assert diagnostic[
+        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+    ]["response_validation_feedback"]["unverified_required_imports"] == [
+        "Mathlib.Data.Int.Order"
+    ]
     assert "you must emit at least one pseudo_formal_proof_packets" in prompt
+    assert "Mathlib.Data.Int.Order" in prompt
+    assert "response_validation_feedback" in prompt
+    assert "unverified_required_imports" in prompt
     assert "block_verification.rollout_count must be an integer >= 1" in prompt
     assert "top-level conclusion field" in prompt
     assert "not_run, unknown, or failed" in prompt
