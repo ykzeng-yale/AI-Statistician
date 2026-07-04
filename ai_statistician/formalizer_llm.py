@@ -5765,7 +5765,13 @@ def _formalizer_mode_specific_instructions(
             "target_lane=lean_rag, or target_lane=source_to_bridge as needed. Do not "
             "directly retry sibling Lean APIs, guessed imports, or previously rejected "
             "syntax fragments; reformulate around project-verified primitives, explicit "
-            "parameters, or declare the missing semantic primitive/formal library gap."
+            "parameters, or declare the missing semantic primitive/formal library gap. "
+            "If source_theorem_exact_candidate_repair_diagnostics includes "
+            "response_validation_feedback.unverified_required_imports, treat those "
+            "module names as hard-negative rejected imports: do not reuse them as Lean "
+            "candidate required_imports, and cite the blocked import/API as a PF/BV "
+            "work-order constraint for lean_rag or exact semantic-definition grounding "
+            "instead of retrying the import."
         )
     if (
         mode == "source_theorem_exact_semantic_definition_repair"

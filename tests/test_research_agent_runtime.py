@@ -44098,6 +44098,9 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     assert "Mathlib.Data.Int.Order" in prompt
     assert "response_validation_feedback" in prompt
     assert "unverified_required_imports" in prompt
+    assert "hard-negative rejected imports" in prompt
+    assert "do not reuse them as Lean candidate required_imports" in prompt
+    assert "PF/BV work-order constraint" in prompt
     assert "block_verification.rollout_count must be an integer >= 1" in prompt
     assert "top-level conclusion field" in prompt
     assert "not_run, unknown, or failed" in prompt
