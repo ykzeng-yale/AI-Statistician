@@ -2329,6 +2329,10 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0
     assert manifest["proof_body_recheck_blocked"] is True
+    assert manifest["proof_body_recheck_blocker"] == (
+        "typechecked_candidate_semantic_review_required"
+    )
+    assert manifest["source_theorem_ready_for_exact_proof_body"] is False
     blocked = [
         json.loads(line)
         for line in Path(manifest["blocked_review_packets_jsonl"]).read_text().splitlines()
@@ -2479,6 +2483,11 @@ def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gat
     assert manifest["n_verifier_gate_work_orders"] == 1
     assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0
+    assert manifest["proof_body_recheck_blocked"] is True
+    assert manifest["proof_body_recheck_blocker"] == (
+        "typechecked_candidate_llm_review_requires_verifier_gate"
+    )
+    assert manifest["source_theorem_ready_for_exact_proof_body"] is False
     blocked = [
         json.loads(line)
         for line in Path(manifest["blocked_review_packets_jsonl"]).read_text().splitlines()
@@ -2732,6 +2741,7 @@ def test_typechecked_review_recheck_queue_exports_approved_candidate(
     assert manifest["n_execution_queue_rows"] == 1
     assert manifest["n_ready"] == 1
     assert manifest["proof_body_recheck_blocked"] is False
+    assert manifest["proof_body_recheck_blocker"] == ""
     rows = [
         json.loads(line)
         for line in Path(manifest["proof_body_execution_queue_jsonl"])

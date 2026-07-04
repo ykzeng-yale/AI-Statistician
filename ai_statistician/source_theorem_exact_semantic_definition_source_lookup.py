@@ -673,6 +673,12 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         *blocked_review_learning_rows,
         *verifier_gate_work_orders,
     ]
+    proof_body_recheck_blocker = _typechecked_review_recheck_blocker(
+        blocked_packets=blocked_packets,
+        semantic_review_work_orders=semantic_review_work_orders,
+        verifier_gate_work_orders=verifier_gate_work_orders,
+        execution_queue_rows=rows,
+    )
     verifier_gate_work_orders_path = (
         out_dir
         / "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders.jsonl"
@@ -734,17 +740,14 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
             1 for row in rows if row.get("live_goal_location_ready")
         ),
         "proof_body_recheck_blocked": bool(blocked_packets) and not rows,
-        "proof_body_recheck_blocker": (
-            "typechecked_candidate_semantic_review_not_approved"
-            if blocked_packets and not rows
-            else ""
-        ),
+        "proof_body_recheck_blocker": proof_body_recheck_blocker,
         "definition_candidate_review_modes": [
             "typechecked_candidate_source_semantic_review_approved"
         ]
         if approved_packets
         else [],
         "source_theorem_kernel_evidence_eligible": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "proof_evidence_status": (
             TYPECHECKED_REVIEW_RECHECK_QUEUE_PROOF_EVIDENCE_STATUS
         ),
@@ -758,6 +761,22 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
     manifest["manifest_path"] = str(manifest_path)
     manifest["queue_jsonl"] = str(queue_path)
     return manifest
+
+
+def _typechecked_review_recheck_blocker(
+    *,
+    blocked_packets: Sequence[Mapping[str, Any]],
+    semantic_review_work_orders: Sequence[Mapping[str, Any]],
+    verifier_gate_work_orders: Sequence[Mapping[str, Any]],
+    execution_queue_rows: Sequence[Mapping[str, Any]],
+) -> str:
+    if not blocked_packets or execution_queue_rows:
+        return ""
+    if verifier_gate_work_orders:
+        return "typechecked_candidate_llm_review_requires_verifier_gate"
+    if semantic_review_work_orders:
+        return "typechecked_candidate_semantic_review_required"
+    return "typechecked_candidate_semantic_review_not_approved"
 
 
 def _export_candidate_synthesis_semantic_definition_repair_queue(
