@@ -9876,6 +9876,9 @@ async def _research_system_audit(args: argparse.Namespace) -> int:
             adaptive_mc_rerun=not args.no_adaptive_mc_rerun,
             adaptive_mc_multiplier=args.adaptive_mc_multiplier,
             research_agent_runtime_dir=args.research_agent_runtime_dir or None,
+            research_agent_runtime_contract_smoke=(
+                not args.no_research_agent_runtime_contract_smoke
+            ),
         ),
     )
     print("\nAI Statistical Theory Lab System Audit")
@@ -17676,6 +17679,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional research-agent-runtime output directory to audit as an AgentRuntime "
             "alignment overlay; when supplied, this overlay participates in gates"
+        ),
+    )
+    research_system_audit.add_argument(
+        "--no-research-agent-runtime-contract-smoke",
+        action="store_true",
+        help=(
+            "disable the default deterministic AgentRuntime audit-contract smoke "
+            "when --research-agent-runtime-dir is not supplied"
         ),
     )
     research_system_audit.add_argument("--out", default="runs/research_system_audit", help="research system audit output directory")

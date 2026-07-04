@@ -20653,12 +20653,40 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_finite_metrics"])
         self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_stress_ledgers_ok"])
         self.assertTrue(payload["counts"]["algorithm_simulation_stress_all_diagnoses_ok"])
-        self.assertFalse(payload["counts"]["research_agent_runtime_audit_requested"])
-        self.assertFalse(payload["counts"]["research_agent_runtime_audit_available"])
-        self.assertFalse(payload["counts"]["research_agent_runtime_audit_all_ok"])
-        self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 0)
+        self.assertTrue(payload["counts"]["research_agent_runtime_audit_requested"])
+        self.assertTrue(payload["counts"]["research_agent_runtime_audit_available"])
+        self.assertEqual(
+            payload["counts"]["research_agent_runtime_audit_source"],
+            "system_generated_contract_smoke",
+        )
+        self.assertTrue(payload["counts"]["research_agent_runtime_contract_smoke"])
+        self.assertTrue(payload["counts"]["research_agent_runtime_audit_all_ok"])
+        self.assertFalse(
+            payload["counts"][
+                "research_agent_runtime_capability_ready_for_full_ai_statistician"
+            ]
+        )
+        self.assertEqual(
+            payload["counts"]["research_agent_runtime_capability_status"],
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+        self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 1)
+        self.assertEqual(payload["counts"]["research_agent_runtime_audit_ok"], 1)
+        self.assertEqual(
+            payload["counts"][
+                "research_agent_runtime_budget_exhausted_with_pending_next_task"
+            ],
+            1,
+        )
+        self.assertEqual(
+            payload["counts"][
+                "research_agent_runtime_budgeted_continuation_contract_ok"
+            ],
+            1,
+        )
+        self.assertTrue(payload["counts"]["research_agent_runtime_resumed_from_pending_task"])
         self.assertEqual(payload["counts"]["research_agent_runtime_critic_reroutes"], 0)
-        self.assertEqual(payload["counts"]["research_agent_runtime_learning_rows"], 0)
+        self.assertEqual(payload["counts"]["research_agent_runtime_learning_rows"], 1)
         self.assertFalse(
             payload["counts"][
                 "research_agent_runtime_exact_semantic_definition_authoring_required"

@@ -345,6 +345,7 @@ class ResearchSystemAuditConfig:
     adaptive_mc_rerun: bool = True
     adaptive_mc_multiplier: int = 5
     research_agent_runtime_dir: str | None = None
+    research_agent_runtime_contract_smoke: bool = True
 
 
 async def run_research_system_audit(
@@ -1913,6 +1914,7 @@ async def run_research_system_audit(
     research_agent_runtime_audit_manifest = _research_agent_runtime_audit_overlay(
         out_dir,
         configured_runtime_dir=config.research_agent_runtime_dir,
+        enable_contract_smoke=config.research_agent_runtime_contract_smoke,
     )
     stage_start = _record_stage(stage_timings, "research_agent_runtime_audit_overlay", stage_start)
 
@@ -2440,6 +2442,9 @@ async def run_research_system_audit(
             "adaptive_mc_rerun": config.adaptive_mc_rerun,
             "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
             "research_agent_runtime_dir": config.research_agent_runtime_dir or "",
+            "research_agent_runtime_contract_smoke": (
+                config.research_agent_runtime_contract_smoke
+            ),
             "question_file": str(question_file or Path("examples/research_questions.json")),
         },
         "all_gates_passed": all(gates.values()),
@@ -3024,6 +3029,12 @@ async def run_research_system_audit(
             "research_agent_runtime_audit_available": research_agent_runtime_audit_manifest[
                 "available"
             ],
+            "research_agent_runtime_audit_source": research_agent_runtime_audit_manifest.get(
+                "runtime_audit_source", ""
+            ),
+            "research_agent_runtime_contract_smoke": bool(
+                research_agent_runtime_audit_manifest.get("contract_smoke", False)
+            ),
             "research_agent_runtime_audit_all_ok": research_agent_runtime_audit_manifest[
                 "all_ok"
             ],
@@ -9248,6 +9259,7 @@ def _research_agent_runtime_audit_overlay(
     out_dir: Path,
     *,
     configured_runtime_dir: str | None,
+    enable_contract_smoke: bool = True,
 ) -> dict[str, object]:
     audit_out = out_dir / "research_agent_runtime_audit"
     runtime_dir = Path(configured_runtime_dir) if configured_runtime_dir else None
@@ -9256,8 +9268,40 @@ def _research_agent_runtime_audit_overlay(
         payload["requested"] = True
         payload["available"] = bool((runtime_dir / "research_agent_runtime_manifest.json").exists())
         payload["runtime_dir"] = str(runtime_dir)
+        payload["runtime_audit_source"] = "configured_runtime_dir"
+        payload["contract_smoke"] = False
         payload["manifest_path"] = str(audit_out / "research_agent_runtime_audit_manifest.json")
         payload["report_path"] = str(audit_out / "research_agent_runtime_audit.md")
+        (audit_out / "research_agent_runtime_audit_manifest.json").write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return payload
+
+    if enable_contract_smoke:
+        runtime_dir = _write_research_agent_runtime_contract_smoke(
+            out_dir / "research_agent_runtime_contract_smoke"
+        )
+        payload = audit_research_agent_runtime(runtime_dir, audit_out)
+        payload["requested"] = True
+        payload["available"] = True
+        payload["runtime_dir"] = str(runtime_dir)
+        payload["runtime_audit_source"] = "system_generated_contract_smoke"
+        payload["contract_smoke"] = True
+        payload["manifest_path"] = str(audit_out / "research_agent_runtime_audit_manifest.json")
+        payload["report_path"] = str(audit_out / "research_agent_runtime_audit.md")
+        payload["readiness_boundary"] = (
+            str(payload.get("readiness_boundary", "") or "")
+            + " This system-generated contract smoke proves only that the "
+            "ResearchAgentRuntime audit contract, continuation accounting, "
+            "learning-row plumbing, and non-proof boundary are exercised by the "
+            "system audit. It is not a live autonomous AI Statistician run."
+        ).strip()
+        limitations = list(payload.get("limitations", []) or [])
+        limitations.append(
+            "system-generated AgentRuntime contract smoke is not live autonomous runtime evidence"
+        )
+        payload["limitations"] = limitations
         (audit_out / "research_agent_runtime_audit_manifest.json").write_text(
             json.dumps(payload, indent=2, default=str),
             encoding="utf-8",
@@ -9278,6 +9322,8 @@ def _research_agent_runtime_audit_overlay(
         ],
         "errors": [],
         "runtime_dir": "",
+        "runtime_audit_source": "not_requested",
+        "contract_smoke": False,
         "manifest_path": str(audit_out / "research_agent_runtime_audit_manifest.json"),
         "report_path": str(audit_out / "research_agent_runtime_audit.md"),
         "n_results": 0,
@@ -9382,6 +9428,214 @@ def _research_agent_runtime_audit_overlay(
         encoding="utf-8",
     )
     return payload
+
+
+def _write_research_agent_runtime_contract_smoke(runtime_dir: Path) -> Path:
+    """Write a deterministic AgentRuntime audit-contract smoke fixture.
+
+    The fixture intentionally stops at a pending formal continuation. It gives the
+    system audit concrete runtime artifacts to audit without implying live LLM,
+    generated-code, simulation-repair, Lean-kernel, or full theorem readiness.
+    """
+
+    if runtime_dir.exists():
+        shutil.rmtree(runtime_dir)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    trace_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    result_path = runtime_dir / "contract_smoke_runtime_result.json"
+    pending_task = {
+        "task_id": "formalize:contract-smoke:repair",
+        "owner_subsystem": "FormalizationEvaluator",
+        "objective": (
+            "Continue the remaining formal gap after the system-audit runtime "
+            "contract smoke budget is exhausted."
+        ),
+        "inputs": {
+            "question": {
+                "id": "contract_smoke",
+                "title": "AgentRuntime contract smoke",
+            },
+            "proof_evidence_status": "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE",
+        },
+    }
+    trace = {
+        "schema_version": 1,
+        "subsystem": "CriticEvaluator",
+        "task_id": "critic:contract-smoke:review",
+        "task": {
+            "task_id": "critic:contract-smoke:review",
+            "owner_subsystem": "CriticEvaluator",
+            "inputs": {
+                "question": {
+                    "id": "contract_smoke",
+                    "title": "AgentRuntime contract smoke",
+                }
+            },
+        },
+        "status": "REVISE",
+        "failure_classification": "formal_gap_remaining",
+        "next_task_id": pending_task["task_id"],
+        "next_task": pending_task,
+        "proof_evidence_status": "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Contract-smoke trace exercises budgeted continuation and learning "
+            "plumbing only; it is not theorem proof evidence."
+        ),
+    }
+    agenda = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeNextActionAgendaRow",
+        "id": "formal_gap:contract-smoke:repair",
+        "owner_subsystem": "FormalizationEvaluator",
+        "trigger": "RUNTIME_CONTRACT_SMOKE_FORMAL_GAP",
+        "action": "repair remaining formal gap from contract-smoke runtime audit",
+        "acceptance_gate": "future runtime must provide target-prover replay evidence",
+        "target_ids": ["contract_smoke:formal_gap"],
+        "proof_evidence_status": "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Agenda row is generated by deterministic system-audit contract smoke "
+            "and cannot promote a theorem."
+        ),
+    }
+    learning = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "learning_task": "formal_gap_feedback",
+        "question_id": "contract_smoke",
+        "target_ids": ["contract_smoke:formal_gap"],
+        "next_owner_subsystem": "FormalizationEvaluator",
+        "input_summary": {
+            "source": "system_generated_contract_smoke",
+            "formal_gap": True,
+            "proof_evidence_status": "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE",
+        },
+        "target_behavior": "resume formalization with exact target-prover replay",
+        "proof_evidence_status": "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Learning row is runtime memory only and is not theorem proof evidence."
+        ),
+    }
+    trace_path.write_text(json.dumps(trace, sort_keys=True) + "\n", encoding="utf-8")
+    agenda_path.write_text(json.dumps(agenda, sort_keys=True) + "\n", encoding="utf-8")
+    learning_path.write_text(
+        json.dumps(learning, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    result = {
+        "schema_version": 1,
+        "status": "MAX_ITERATIONS_REACHED",
+        "blackboard": {
+            "project_id": "project:contract_smoke",
+            "artifacts": {
+                "retrieval_memory_manifest:contract_smoke": {
+                    "artifact_kind": "RetrievalMemoryManifest",
+                    "question_id": "contract_smoke",
+                },
+                "theory_derivation:contract_smoke": {
+                    "artifact_kind": "TheoryDerivationPacket",
+                    "question_id": "contract_smoke",
+                },
+                "simulation_manifest:contract_smoke": {
+                    "artifact_kind": "RuntimeSimulationManifest",
+                    "n_generated_simulation_sandbox_executed": 0,
+                    "n_generated_simulation_sandbox_passed": 0,
+                    "n_generated_simulation_sandbox_metric_gate_failed": 0,
+                    "n_unsafe_generated_simulation_code_rejected": 0,
+                    "proof_evidence_status": (
+                        "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                "algorithm_sandbox_manifest:contract_smoke": {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                    "n_executed": 0,
+                    "n_generated_code_executed": 0,
+                    "n_metric_gate_failed": 0,
+                    "n_unsafe_generated_code_rejected": 0,
+                    "proof_evidence_status": (
+                        "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                "formalization_manifest:contract_smoke": {
+                    "artifact_kind": "RuntimeFormalizationManifest",
+                    "counts": {"kernel_verified": 0, "formal_gap": 1},
+                    "formal_subclaims": [],
+                    "proof_evidence_status": (
+                        "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                "critic_evaluator_manifest:contract_smoke": {
+                    "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                    "next_action_agenda": [agenda],
+                    "learning_rows": [learning],
+                    "runtime_reroute_decision": {
+                        "reroute_to_theory_developer": False,
+                    },
+                    "proof_evidence_status": (
+                        "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            },
+        },
+        "traces": [trace],
+    }
+    result_path.write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "system_contract_smoke",
+        "runtime_audit_source": "system_generated_contract_smoke",
+        "contract_smoke": True,
+        "runtime_resume_context": {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeResumeContext",
+            "n_initial_task_overrides": 1,
+            "n_rehydrated_blackboard_artifacts": 6,
+            "resumed_from_pending_task": True,
+            "boundary": (
+                "Contract smoke preserves continuation accounting only; it is "
+                "not proof evidence."
+            ),
+        },
+        "n_questions": 1,
+        "n_runtime_next_action_items": 1,
+        "n_runtime_learning_rows": 1,
+        "llm_runtime_topology": {
+            "policy_status": "OK",
+            "counts": {
+                "unsupported_generator_backends_enabled": 0,
+                "subsystem_model_tier_policy_mismatches": 0,
+                "enabled_by_provider": {},
+            },
+            "policy": {
+                "resolved_claude_models_by_tier": {
+                    "haiku": "claude-haiku-contract-smoke",
+                    "sonnet": "claude-sonnet-contract-smoke",
+                    "opus": "claude-opus-contract-smoke",
+                }
+            },
+        },
+        "artifacts": {
+            "per_question_results": [str(result_path)],
+            "runtime_traces_jsonl": str(trace_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+        "proof_evidence_status": "RUNTIME_CONTRACT_SMOKE_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This deterministic runtime smoke exists only so the system audit "
+            "exercises the AgentRuntime audit contract by default. It is not live "
+            "autonomous runtime evidence and cannot satisfy theorem proof gates."
+        ),
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+    return runtime_dir
 
 
 def _record_stage(
