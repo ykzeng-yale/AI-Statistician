@@ -908,6 +908,12 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         "source_theorem_ready_for_exact_proof_body": False,
         "semantic_review_contract": _semantic_review_contract(task),
         "candidate_repair_feedback": _candidate_repair_feedback(task),
+        "response_validation_feedback": dict(
+            prompt_payload.get("response_validation_feedback", {}) or {}
+        ),
+        "retry_validation_errors": list(
+            prompt_payload.get("retry_validation_errors", []) or []
+        ),
         **_exact_semantic_definition_context(task),
         "candidate_definition_request": request,
         "candidate_definition_request_autofilled": request_autofilled,
@@ -941,6 +947,7 @@ def _prompt_payload(
         task,
         export_mode=export_mode,
     )
+    response_validation_feedback = _response_validation_feedback(task)
     return {
         "task": "author_exact_semantic_definition_candidate",
         "external_export_mode": export_mode,
@@ -976,6 +983,10 @@ def _prompt_payload(
         "source_theorem_ready_for_exact_proof_body": False,
         "semantic_review_contract": _semantic_review_contract(task),
         "candidate_repair_feedback": _candidate_repair_feedback(task),
+        "response_validation_feedback": response_validation_feedback,
+        "retry_validation_errors": list(
+            response_validation_feedback.get("validation_errors", []) or []
+        ),
         "definition_contract": dict(task.get("definition_contract", {}) or {}),
         "lean_authoring_environment_contract": (
             _lean_authoring_environment_contract(
@@ -1211,6 +1222,60 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
         feedback["source_proof_evidence_status"] = source_proof_evidence_status
         feedback["verifier_gate_proof_evidence_status"] = source_proof_evidence_status
     return feedback
+
+
+def _response_validation_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
+    validation_errors = _string_list(task.get("retry_validation_errors", []))
+    feedback = task.get("candidate_repair_feedback", {})
+    if not validation_errors and isinstance(feedback, Mapping):
+        validation_errors = _string_list(feedback.get("validation_errors", []))
+    failed_packet_id = str(task.get("source_failed_candidate_packet_id", "") or "")
+    if not validation_errors and not failed_packet_id:
+        return {}
+    unverified_imports = _unverified_required_imports_from_validation_errors(
+        validation_errors
+    )
+    return {
+        "source_failed_candidate_packet_id": failed_packet_id,
+        "failure_classification": str(
+            task.get("retry_failure_classification", "")
+            or task.get("failure_classification", "")
+            or ""
+        ),
+        "runtime_queue_status": str(task.get("runtime_queue_status", "") or ""),
+        "validation_errors": validation_errors[:8],
+        "unverified_required_imports": unverified_imports[:8],
+        "recommended_next_action": str(
+            task.get("retry_recommended_next_action", "")
+            or task.get("recommended_next_action", "")
+            or ""
+        ),
+        "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": (
+            "Authoring response-validation feedback is prompt repair context only. "
+            "It is not semantic-definition kernel evidence and cannot prove the "
+            "source theorem; any repaired candidate must still pass local Lean/AXLE."
+        ),
+    }
+
+
+def _unverified_required_imports_from_validation_errors(
+    errors: Sequence[str],
+) -> list[str]:
+    modules: list[str] = []
+    for error in errors:
+        text = str(error or "")
+        if "required_imports include modules not verified" not in text:
+            continue
+        suffix = text.split(":", 1)[-1]
+        modules.extend(
+            match.group(0)
+            for match in re.finditer(
+                r"\b(?:[A-Za-z_][A-Za-z0-9_']*\.)+[A-Za-z_][A-Za-z0-9_']*\b",
+                suffix,
+            )
+        )
+    return list(dict.fromkeys(modules))
 
 
 def _prior_local_lean_feedback_sources(
@@ -2338,6 +2403,10 @@ def _lean_authoring_environment_contract(
 
     source_binders = list(task.get("exact_source_theorem_binders", []) or [])
     lean_feedback = _lean_feedback_contract(task)
+    response_validation_feedback = _response_validation_feedback(task)
+    response_validation_unverified_imports = _string_list(
+        response_validation_feedback.get("unverified_required_imports", [])
+    )
     import_inventory = _lean_project_import_inventory_contract(
         task,
         lean_feedback=lean_feedback,
@@ -2409,6 +2478,16 @@ def _lean_authoring_environment_contract(
                 "evidence; prefer unavailable_import_repair_rows exact/descendant "
                 "modules, and use nearby modules only as lookup targets for "
                 "source/RAG/local Lean checks."
+            )
+        )
+    if response_validation_unverified_imports:
+        repair_policy.append(
+            (
+                "Imports rejected by response_validation_feedback."
+                "unverified_required_imports must not be reused unless the "
+                "project inventory, identifier lookup, or a later local Lean "
+                "check verifies the exact module. Put unresolved modules in "
+                "known_gaps instead of required_imports."
             )
         )
     if lean_feedback["typeclass_failures_from_all_checks"]:
@@ -2562,6 +2641,9 @@ def _lean_authoring_environment_contract(
             "unavailable_imports_must_not_reintroduce": list(
                 lean_feedback.get("unavailable_imports_from_all_checks", []) or []
             ),
+            "unverified_imports_rejected_by_response_validator": (
+                response_validation_unverified_imports
+            ),
             "identifier_reuse_policy": identifier_reuse_policy,
             "identifiers_with_no_verified_declaration_module": (
                 identifiers_with_no_verified_declaration_module
@@ -2570,6 +2652,7 @@ def _lean_authoring_environment_contract(
                 parse_error_source_fragments
             ),
         },
+        "response_validation_feedback": response_validation_feedback,
         "project_verified_import_inventory": import_inventory,
         "verified_local_project_import_inventory": import_inventory,
         "project_identifier_lookup": identifier_lookup,
@@ -3716,6 +3799,12 @@ def _learning_row_from_prompt_packet(
         "candidate_definition_request": dict(
             packet.get("candidate_definition_request", {}) or {}
         ),
+        "response_validation_feedback": dict(
+            packet.get("response_validation_feedback", {}) or {}
+        ),
+        "retry_validation_errors": list(
+            packet.get("retry_validation_errors", []) or []
+        ),
         "semantic_alignment_blockers": list(
             packet.get("semantic_alignment_blockers", []) or []
         ),
@@ -3771,6 +3860,12 @@ def _learning_row_from_prompt_packet(
             "semantic_definition_kernel_verified": False,
             "candidate_definition_request": dict(
                 packet.get("candidate_definition_request", {}) or {}
+            ),
+            "response_validation_feedback": dict(
+                packet.get("response_validation_feedback", {}) or {}
+            ),
+            "retry_validation_errors": list(
+                packet.get("retry_validation_errors", []) or []
             ),
             "semantic_alignment_blockers": list(
                 packet.get("semantic_alignment_blockers", []) or []

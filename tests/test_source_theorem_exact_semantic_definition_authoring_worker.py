@@ -1467,6 +1467,144 @@ def test_authoring_worker_rejects_forbidden_shortcut_candidate(
     assert candidates[0]["semantic_definition_kernel_verified"] is False
 
 
+def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "lean_project"
+    compiled_basic = (
+        project
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib"
+        / "Data"
+        / "Real"
+        / "Basic.olean"
+    )
+    compiled_basic.parent.mkdir(parents=True)
+    compiled_basic.write_bytes(b"")
+    prior_candidate = tmp_path / "PriorCandidate.lean"
+    prior_candidate.write_text(
+        "import Mathlib.Data.Real.Basic\n\ndef priorRank : Nat := 0\n",
+        encoding="utf-8",
+    )
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:rank-validation-retry",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "candidate_lean_project_hint": str(project),
+                "definition_only_candidate_artifact_path": str(prior_candidate),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "candidate_definition_request": {
+                    "request_kind": (
+                        "source_theorem_exact_semantic_definition_candidate"
+                    ),
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "rank",
+                    "semantic_goal": "Repair the exact semantic definition.",
+                    "required_anchor_names": ["n2"],
+                    "available_anchor_names": ["n2"],
+                    "missing_required_anchor_names": [],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    static_response = {
+        "placeholder_symbol": "rank",
+        "definition_design": "Incorrectly add an unverified rational import.",
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Data.Rat.Basic\n\n"
+            "def repairedRank : Nat := 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Data.Rat.Basic",
+        ],
+        "binder_usage": [],
+        "semantic_alignment_notes": ["diagnostic only"],
+        "known_gaps": [],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+    }
+
+    failed_manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker_failed",
+        authoring_tasks_jsonl=tasks_path,
+        provider=StaticJSONGeneratorBackend(static_response),
+        config=AuthoringWorkerConfig(
+            provider_name="static",
+            model="static",
+            dry_run=False,
+            max_repair_attempts=0,
+        ),
+    )
+    candidate = json.loads(
+        Path(failed_manifest["authoring_candidate_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    retry_task = json.loads(
+        Path(failed_manifest["retryable_authoring_tasks_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+
+    assert candidate["ok"] is False
+    assert "Mathlib.Data.Rat.Basic" in candidate["validation_errors"][0]
+    assert retry_task["retry_failure_classification"] == (
+        "authoring_candidate_validation_failed"
+    )
+    assert "Mathlib.Data.Rat.Basic" in retry_task["retry_validation_errors"][0]
+
+    retry_manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker_retry_prompt",
+        authoring_tasks_jsonl=Path(failed_manifest["retryable_authoring_tasks_jsonl"]),
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+    prompt_packet = json.loads(
+        Path(retry_manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+    feedback = prompt_payload["response_validation_feedback"]
+    contract = prompt_payload["lean_authoring_environment_contract"]
+
+    assert prompt_packet["retry_validation_errors"] == [
+        candidate["validation_errors"][0]
+    ]
+    assert feedback["failure_classification"] == (
+        "authoring_candidate_validation_failed"
+    )
+    assert feedback["unverified_required_imports"] == [
+        "Mathlib.Data.Rat.Basic"
+    ]
+    assert "Mathlib.Data.Rat.Basic" in prompt_packet["user_prompt"]
+    assert contract["response_validation_feedback"]["validation_errors"] == [
+        candidate["validation_errors"][0]
+    ]
+    assert contract["hard_local_negative_constraints"][
+        "unverified_imports_rejected_by_response_validator"
+    ] == ["Mathlib.Data.Rat.Basic"]
+    assert any(
+        "response_validation_feedback.unverified_required_imports" in row
+        for row in contract["repair_policy"]
+    )
+
+
 def test_authoring_candidate_materializer_writes_lean_repair_task(
     tmp_path: Path,
 ) -> None:
