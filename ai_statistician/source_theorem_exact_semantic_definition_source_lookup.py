@@ -641,18 +641,18 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
             )
             continue
         approved_packets.append(packet)
-        packet_target = str(packet.get("target_theorem_name", "") or "")
         synthesis_row = _typechecked_review_packet_as_synthesis_row(packet)
-        for source_row in source_rows:
-            if not isinstance(source_row, Mapping):
-                continue
-            source_target = str(source_row.get("target_theorem_name", "") or "")
-            if packet_target and source_target and packet_target != source_target:
-                continue
+        for source_row in _typechecked_review_source_rows_for_recheck(
+            packet,
+            source_rows,
+        ):
             rows.append(
                 _proof_body_recheck_queue_row(
                     source_row,
                     synthesized_artifact_path=candidate_artifact,
+                    reviewed_definition_only_artifact_path=(
+                        _typechecked_review_definition_only_artifact_path(packet)
+                    ),
                     semantic_constraints=_semantic_alignment_constraints_from_synthesis_rows(
                         [synthesis_row]
                     ),
@@ -1215,6 +1215,19 @@ def _typechecked_review_candidate_artifact_path_text(row: Mapping[str, Any]) -> 
         or ""
     ).strip()
     return raw
+
+
+def _typechecked_review_definition_only_artifact_path(
+    row: Mapping[str, Any],
+) -> Path | None:
+    nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
+    nested_mapping = nested if isinstance(nested, Mapping) else {}
+    raw = str(
+        row.get("definition_only_candidate_artifact_path", "")
+        or nested_mapping.get("definition_only_candidate_artifact_path", "")
+        or ""
+    ).strip()
+    return Path(raw) if raw else None
 
 
 def _typechecked_review_packet_ready_for_recheck(
@@ -1859,6 +1872,48 @@ def _matching_typechecked_review_source_rows(
     return matches
 
 
+def _typechecked_review_source_rows_for_recheck(
+    row: Mapping[str, Any],
+    source_rows: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Select source proof-body rows for a verifier-approved review packet."""
+
+    source_mappings = [
+        source_row for source_row in source_rows if isinstance(source_row, Mapping)
+    ]
+    target = str(row.get("target_theorem_name", "") or "").strip()
+    target_ids = _target_ids_from_row(row, fallback_target=target)
+    if not target and not target_ids:
+        return source_mappings
+    matches = _matching_typechecked_review_source_rows(row, source_mappings)
+    if not matches:
+        return []
+    target_known_rows = [
+        source_row
+        for source_row in matches
+        if _source_row_target_identity_ready_for_recheck(source_row)
+    ]
+    return target_known_rows or matches
+
+
+def _source_row_target_identity_ready_for_recheck(row: Mapping[str, Any]) -> bool:
+    source_status = str(
+        row.get("source_theorem_target_identity_status", "") or ""
+    ).strip()
+    target_status = str(row.get("target_identity_status", "") or "").strip()
+    execution_status = str(row.get("execution_status", "") or "").strip()
+    return (
+        source_status
+        in {
+            "SOURCE_THEOREM_TARGET_KNOWN",
+            "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED",
+        }
+        or target_status == "TARGET_DECLARATION_MATCHED"
+        or execution_status == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+        or bool(row.get("live_goal_location_ready", False))
+    )
+
+
 def _source_goal_binders_from_proof_body_excerpt(
     proof_body_goal_excerpt: Sequence[str],
 ) -> list[dict[str, Any]]:
@@ -2015,6 +2070,7 @@ def _proof_body_recheck_queue_row(
     synthesized_exact_semantic_definitions: bool,
     definition_candidate_review_modes: list[str],
     out_dir: Path,
+    reviewed_definition_only_artifact_path: Path | None = None,
 ) -> dict[str, Any]:
     target = str(row.get("target_theorem_name", "") or "")
     target_ids = _target_ids_from_row(row, fallback_target=target)
@@ -2094,14 +2150,38 @@ def _proof_body_recheck_queue_row(
         / "execution_transcripts"
         / f"{_safe_identifier(target or 'exact_source_theorem')}_synthesized_definition_recheck.jsonl"
     )
+    reviewed_definition_only = reviewed_definition_only_artifact_path is not None
+    signature_probe_artifact_path = (
+        str(row.get("signature_probe_artifact_path", "") or "")
+        if reviewed_definition_only
+        else str(synthesized_artifact_path)
+    )
+    proof_body_candidate_artifact_path = (
+        str(_reviewed_definition_recheck_candidate_artifact_path(row, out_dir=out_dir))
+        if reviewed_definition_only
+        else str(synthesized_artifact_path)
+    )
+    source_candidate_artifact_path = (
+        str(row.get("source_candidate_artifact_path", "") or "")
+        if reviewed_definition_only
+        else str(synthesized_artifact_path)
+    )
     return {
         **dict(row),
         "execution_queue_id": recheck_id,
         "source_execution_queue_id": str(row.get("execution_queue_id", "") or ""),
         "target_ids": target_ids,
-        "source_candidate_artifact_path": str(synthesized_artifact_path),
-        "signature_probe_artifact_path": str(synthesized_artifact_path),
-        "candidate_artifact_path": str(synthesized_artifact_path),
+        "source_candidate_artifact_path": source_candidate_artifact_path,
+        "signature_probe_artifact_path": signature_probe_artifact_path,
+        "candidate_artifact_path": proof_body_candidate_artifact_path,
+        "reviewed_exact_semantic_definition_artifact_path": str(
+            reviewed_definition_only_artifact_path or ""
+        ),
+        "reviewed_exact_semantic_definition_artifact_paths": (
+            [str(reviewed_definition_only_artifact_path)]
+            if reviewed_definition_only_artifact_path is not None
+            else []
+        ),
         "execution_transcript_path": str(transcript_path),
         "semantic_alignment_constraints": constraints,
         "semantic_alignment_blockers": semantic_blockers,
@@ -2120,6 +2200,28 @@ def _proof_body_recheck_queue_row(
         ),
         "boundary": BOUNDARY,
     }
+
+
+def _reviewed_definition_recheck_candidate_artifact_path(
+    row: Mapping[str, Any],
+    *,
+    out_dir: Path,
+) -> Path:
+    target = str(
+        row.get("target_lean_declaration", "")
+        or row.get("target_theorem_name", "")
+        or "exact_source_theorem"
+    )
+    source_marker = str(
+        row.get("execution_queue_id", "")
+        or row.get("signature_probe_artifact_path", "")
+        or target
+    )
+    filename = (
+        f"{_safe_identifier(target)}_reviewed_semantic_definition_recheck_"
+        f"{stable_hash([source_marker, target])[:10]}.lean"
+    )
+    return out_dir / "candidate_artifacts" / filename
 
 
 def _source_theorem_target_identity_status(

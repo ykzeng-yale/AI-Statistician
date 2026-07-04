@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-04T23:39:30Z",
+  "updated_at": "2026-07-04T23:50:08Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1049,6 +1049,26 @@
         "cross_task_full_theorem_generalization_demonstrated"
       ],
       "proof_boundary": "integrated generated-code repair evidence is implementation evidence, not theorem proof evidence"
+    },
+    "exact_semantic_review_recheck_target_known_routing_patch": {
+      "status": "implemented",
+      "queue_manifest": "runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_after_signature_probe_patch_20260704/exact_source_theorem_proof_body_execution_queue_manifest.json",
+      "proof_body_executor_manifest": "runs/main_worker_good_rank_proof_body_executor_after_signature_probe_patch_20260704/exact_source_theorem_proof_body_execution_result_manifest.json",
+      "n_source_rows_seen": 10,
+      "n_recheck_rows_emitted": 1,
+      "n_ready": 1,
+      "n_live_goal_location_ready": 1,
+      "selected_source_execution_queue_id": "exact_source_theorem_proof_body_execution_queue:61df35a5df59bc02a3a1",
+      "target_lean_declaration": "split_conformal_finite_sample_coverage_repair_v3",
+      "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+      "target_identity_status": "TARGET_DECLARATION_MATCHED",
+      "reviewed_definition_path_preserved": true,
+      "signature_probe_artifact_path_preserved": true,
+      "proof_body_executor_materialized": 1,
+      "proof_body_executor_local_lean_checked": 1,
+      "proof_body_executor_source_theorem_kernel_verified": 0,
+      "proof_body_executor_dominant_failure": "proof_body_reached_semantic_alignment_unreviewed",
+      "proof_boundary": "verifier-approved exact semantic-definition rows now requeue the target-known proof-body source row and preserve the theorem signature probe separately from the reviewed definition-only artifact. This recovers live proof-state feedback but remains non-proof until the exact source theorem passes Lean/AXLE."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2375,6 +2395,10 @@
     "python3 -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py ai_statistician/research_system_audit.py ai_statistician/evaluation_benchmark_guidance.py tests/test_research_agent_runtime.py tests/test_core.py # passed after PF/BV Lean environment repair runtime/audit visibility patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_internal_exact_semantic_lookup_appends_learning_rows tests/test_research_agent_runtime.py::test_capability_eval_auto_runs_exact_semantic_source_lookup_for_work_orders -q # 2 passed after PF/BV Lean environment repair runtime/audit visibility patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_core.py::SystemTests::test_evaluation_benchmark_guidance_flags_capacity_gaps -q # 1 passed after PF/BV Lean environment repair S13 guidance visibility patch",
-    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... audit projection from runs/main_worker_s13_pf_bv_exact_semantic_lean_environment_repair_executor_from_live_after_lineage_patch_20260704 into runs/main_worker_s13_pf_bv_exact_semantic_lean_environment_repair_visibility_projection_20260704 # audit exposes n_tasks_from_pseudo_formal=2, n_results_from_pseudo_formal=2, PF/BV work-order/block ids, source_theorem_ready_for_exact_proof_body=false"
+    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... audit projection from runs/main_worker_s13_pf_bv_exact_semantic_lean_environment_repair_executor_from_live_after_lineage_patch_20260704 into runs/main_worker_s13_pf_bv_exact_semantic_lean_environment_repair_visibility_projection_20260704 # audit exposes n_tasks_from_pseudo_formal=2, n_results_from_pseudo_formal=2, PF/BV work-order/block ids, source_theorem_ready_for_exact_proof_body=false",
+    "python3 -m py_compile ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py # passed after exact-semantic review recheck target-known routing patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_typechecked_review_recheck_prefers_target_known_source_rows tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_typechecked_review_recheck_queue_exports_approved_candidate -q # 2 passed after exact-semantic review recheck target-known routing patch",
+    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue over good_rank_event approved packet # source_rows=10 emitted=1 ready=1 live_goal_ready=1 selected SOURCE_THEOREM_TARGET_KNOWN row with theorem signature probe preserved",
+    "PYTHONPATH=$PWD .venv/bin/python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_after_signature_probe_patch_20260704 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 30 --out runs/main_worker_good_rank_proof_body_executor_after_signature_probe_patch_20260704 # expected exit 1: materialized=1 checked=1 source_theorem_kernel=0, proof_body_reached_semantic_alignment_unreviewed"
   ]
 }

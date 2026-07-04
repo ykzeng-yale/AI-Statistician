@@ -2886,3 +2886,162 @@ def test_typechecked_review_recheck_queue_exports_approved_candidate(
     assert rows[0]["proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_typechecked_review_recheck_prefers_target_known_source_rows(
+    tmp_path: Path,
+) -> None:
+    original_candidate = tmp_path / "original.lean"
+    original_candidate.write_text(
+        "theorem split_conformal_coverage_repair_v3 : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    reviewed_candidate = tmp_path / "reviewed.lean"
+    reviewed_candidate.write_text(
+        "def good_rank_event : True := True\n",
+        encoding="utf-8",
+    )
+    queue_manifest = tmp_path / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    queue_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                        "execution_queue_id": "exact_source_queue:mismatch",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "target_ids": ["split_conformal_coverage"],
+                        "target_lean_declaration": (
+                            "split_conformal_coverage_helper_derivation"
+                        ),
+                        "expected_target_lean_declaration": (
+                            "split_conformal_coverage"
+                        ),
+                        "source_theorem_target_identity_status": (
+                            "TARGET_DECLARATION_MISMATCH"
+                        ),
+                        "target_identity_status": "TARGET_DECLARATION_MISMATCH",
+                        "target_identity_errors": [
+                            "helper declaration does not match source theorem"
+                        ],
+                        "signature_probe_artifact_path": str(original_candidate),
+                        "candidate_artifact_path": str(original_candidate),
+                        "semantic_alignment_constraints": [],
+                        "semantic_alignment_blockers": [],
+                        "proof_body_goal_excerpt": [],
+                        "live_goal_location_ready": False,
+                        "execution_status": (
+                            "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_IDENTITY"
+                        ),
+                    },
+                    {
+                        "schema_version": 1,
+                        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                        "execution_queue_id": "exact_source_queue:target-known",
+                        "target_theorem_name": (
+                            "split_conformal_coverage_repair_v3"
+                        ),
+                        "target_ids": ["split_conformal_coverage"],
+                        "target_lean_declaration": (
+                            "split_conformal_coverage_repair_v3"
+                        ),
+                        "expected_target_lean_declaration": (
+                            "split_conformal_coverage_repair_v3"
+                        ),
+                        "source_theorem_target_known": True,
+                        "source_theorem_target_identity_status": (
+                            "SOURCE_THEOREM_TARGET_KNOWN"
+                        ),
+                        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                        "target_identity_errors": [],
+                        "signature_probe_artifact_path": str(original_candidate),
+                        "candidate_artifact_path": str(original_candidate),
+                        "semantic_alignment_constraints": [],
+                        "semantic_alignment_blockers": [],
+                        "proof_body_goal_excerpt": ["q : Real", "⊢ True"],
+                        "live_goal_location_ready": True,
+                        "live_proof_state_request": {"request_id": "live_goal"},
+                        "already_repaired_environment": {
+                            "missing_formal_symbols": [],
+                            "typeclass_blockers": [],
+                            "signature_typecheck_reached_proof_body": True,
+                        },
+                        "execution_status": (
+                            "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+                        ),
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_packets = tmp_path / "review_packets.jsonl"
+    review_packets.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionVerifierApprovedReviewPacket"
+                ),
+                "review_packet_id": "review:good-rank",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_coverage"],
+                "placeholder_symbol": "good_rank_event",
+                "candidate_artifact_path": str(reviewed_candidate),
+                "definition_only_candidate_artifact_path": str(reviewed_candidate),
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_LOCAL_LEAN_COMPILED_NOT_PROOF"
+                ),
+                "semantic_review_required_before_proof_body": False,
+                "source_theorem_ready_for_exact_proof_body": True,
+                "semantic_review_decision": "approved_definition_candidate",
+                "semantic_review_status": (
+                    "verifier_gate_approved_definition_candidate_not_proof"
+                ),
+                "semantic_review_evidence": ["verifier gate approved"],
+                "source_theorem_kernel_verified": False,
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue(
+        out_dir=tmp_path / "recheck",
+        review_packets_jsonl=review_packets,
+        proof_body_queue_manifest=queue_manifest,
+    )
+
+    assert manifest["n_execution_queue_rows"] == 1
+    assert manifest["n_ready"] == 1
+    rows = [
+        json.loads(line)
+        for line in Path(manifest["proof_body_execution_queue_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert rows[0]["source_execution_queue_id"] == "exact_source_queue:target-known"
+    assert rows[0]["target_ids"] == ["split_conformal_coverage"]
+    assert rows[0]["target_lean_declaration"] == (
+        "split_conformal_coverage_repair_v3"
+    )
+    assert rows[0]["signature_probe_artifact_path"] == str(original_candidate)
+    assert rows[0]["candidate_artifact_path"] != str(reviewed_candidate)
+    assert rows[0]["reviewed_exact_semantic_definition_artifact_path"] == (
+        str(reviewed_candidate)
+    )
+    assert rows[0]["reviewed_exact_semantic_definition_artifact_paths"] == [
+        str(reviewed_candidate)
+    ]
+    assert rows[0]["execution_status"] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+    assert rows[0]["source_theorem_target_identity_status"] == (
+        "SOURCE_THEOREM_TARGET_KNOWN"
+    )
