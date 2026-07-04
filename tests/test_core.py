@@ -20700,6 +20700,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertGreaterEqual(
             payload["counts"][
+                "research_agent_runtime_generated_simulation_sandbox_executed"
+            ],
+            1,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
                 "research_agent_runtime_generated_code_sandbox_executed"
             ],
             1,

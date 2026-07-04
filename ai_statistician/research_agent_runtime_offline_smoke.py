@@ -556,6 +556,38 @@ def _simulation_response() -> dict[str, Any]:
             "seed": 20260528,
             "notes": ["AgentRuntime owns execution and records metrics."],
         },
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "generated_aipw_coverage_probe",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "import math\n"
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    n = max(5, int(replicates))\n"
+                    "    covered = 0\n"
+                    "    sq_total = 0.0\n"
+                    "    total = 0.0\n"
+                    "    for i in range(n):\n"
+                    "        centered = float(((int(seed) + i * 37) % 41) - 20) / 1000.0\n"
+                    "        total = total + centered\n"
+                    "        sq_total = sq_total + centered * centered\n"
+                    "        if abs(centered) <= 0.06:\n"
+                    "            covered = covered + 1\n"
+                    "    mean_bias = total / float(n)\n"
+                    "    mse = sq_total / float(n)\n"
+                    "    return {\n"
+                    "        'status': 'ok',\n"
+                    "        'n_runs': n,\n"
+                    "        'coverage_95': float(covered) / float(n),\n"
+                    "        'target_coverage': 0.95,\n"
+                    "        'mean_bias': mean_bias,\n"
+                    "        'rmse': math.sqrt(mse),\n"
+                    "        'sandbox_failed': False,\n"
+                    "    }\n"
+                ),
+            }
+        ],
         "critic_findings": [
             {
                 "critic": "simulation_critic",

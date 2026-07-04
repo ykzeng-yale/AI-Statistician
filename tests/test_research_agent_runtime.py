@@ -58284,6 +58284,7 @@ def test_runtime_system_overlay_generates_default_offline_smoke(
     assert system_overlay["llm_topology_policy_ok"] is True
     assert system_overlay["n_live_generator_agents_enabled"] == 0
     assert system_overlay["n_algorithm_sandbox_executed"] >= 1
+    assert system_overlay["n_generated_simulation_sandbox_executed"] >= 1
     assert system_overlay["n_generated_code_sandbox_executed"] >= 1
     assert system_overlay["n_formal_gaps"] >= 1
     assert system_overlay["has_real_kernel_evidence"] is False
@@ -58311,6 +58312,7 @@ def test_runtime_system_overlay_offline_smoke_runs_inside_event_loop(
     )
     assert system_overlay["offline_runtime_smoke"] is True
     assert system_overlay["n_ok"] == 1
+    assert system_overlay["n_generated_simulation_sandbox_executed"] >= 1
 
 
 def test_runtime_system_overlay_can_use_contract_smoke_fallback(
