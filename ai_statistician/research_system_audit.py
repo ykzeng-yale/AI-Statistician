@@ -312,6 +312,11 @@ from .research_report import build_research_markdown_report
 from .research_schema import OpenResearchQuestion
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
+from .research_agent_runtime_offline_smoke import (
+    OFFLINE_RUNTIME_SMOKE_BOUNDARY,
+    OFFLINE_RUNTIME_SMOKE_SOURCE,
+    run_research_agent_runtime_offline_smoke,
+)
 from .research_agent_runtime_audit import audit_research_agent_runtime
 from .retrieval import audit_proof_bank_retrieval
 from .theorem_composition_export import export_theorem_composition_packets
@@ -345,6 +350,7 @@ class ResearchSystemAuditConfig:
     adaptive_mc_rerun: bool = True
     adaptive_mc_multiplier: int = 5
     research_agent_runtime_dir: str | None = None
+    research_agent_runtime_offline_smoke: bool = True
     research_agent_runtime_contract_smoke: bool = True
 
 
@@ -1914,7 +1920,9 @@ async def run_research_system_audit(
     research_agent_runtime_audit_manifest = _research_agent_runtime_audit_overlay(
         out_dir,
         configured_runtime_dir=config.research_agent_runtime_dir,
+        enable_offline_smoke=config.research_agent_runtime_offline_smoke,
         enable_contract_smoke=config.research_agent_runtime_contract_smoke,
+        question_file=actual_question_file,
     )
     stage_start = _record_stage(stage_timings, "research_agent_runtime_audit_overlay", stage_start)
 
@@ -2442,6 +2450,9 @@ async def run_research_system_audit(
             "adaptive_mc_rerun": config.adaptive_mc_rerun,
             "adaptive_mc_multiplier": config.adaptive_mc_multiplier,
             "research_agent_runtime_dir": config.research_agent_runtime_dir or "",
+            "research_agent_runtime_offline_smoke": (
+                config.research_agent_runtime_offline_smoke
+            ),
             "research_agent_runtime_contract_smoke": (
                 config.research_agent_runtime_contract_smoke
             ),
@@ -3034,6 +3045,11 @@ async def run_research_system_audit(
             ),
             "research_agent_runtime_contract_smoke": bool(
                 research_agent_runtime_audit_manifest.get("contract_smoke", False)
+            ),
+            "research_agent_runtime_offline_smoke": bool(
+                research_agent_runtime_audit_manifest.get(
+                    "offline_runtime_smoke", False
+                )
             ),
             "research_agent_runtime_audit_all_ok": research_agent_runtime_audit_manifest[
                 "all_ok"
@@ -9259,7 +9275,9 @@ def _research_agent_runtime_audit_overlay(
     out_dir: Path,
     *,
     configured_runtime_dir: str | None,
+    enable_offline_smoke: bool = True,
     enable_contract_smoke: bool = True,
+    question_file: Path = Path("examples/research_questions.json"),
 ) -> dict[str, object]:
     audit_out = out_dir / "research_agent_runtime_audit"
     runtime_dir = Path(configured_runtime_dir) if configured_runtime_dir else None
@@ -9269,9 +9287,43 @@ def _research_agent_runtime_audit_overlay(
         payload["available"] = bool((runtime_dir / "research_agent_runtime_manifest.json").exists())
         payload["runtime_dir"] = str(runtime_dir)
         payload["runtime_audit_source"] = "configured_runtime_dir"
+        payload["offline_runtime_smoke"] = False
         payload["contract_smoke"] = False
         payload["manifest_path"] = str(audit_out / "research_agent_runtime_audit_manifest.json")
         payload["report_path"] = str(audit_out / "research_agent_runtime_audit.md")
+        (audit_out / "research_agent_runtime_audit_manifest.json").write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return payload
+
+    if enable_offline_smoke:
+        runtime_dir = out_dir / "research_agent_runtime_offline_smoke"
+        run_research_agent_runtime_offline_smoke(
+            runtime_dir,
+            question_file=question_file,
+        )
+        payload = audit_research_agent_runtime(runtime_dir, audit_out)
+        payload["requested"] = True
+        payload["available"] = True
+        payload["runtime_dir"] = str(runtime_dir)
+        payload["runtime_audit_source"] = OFFLINE_RUNTIME_SMOKE_SOURCE
+        payload["offline_runtime_smoke"] = True
+        payload["contract_smoke"] = False
+        payload["manifest_path"] = str(
+            audit_out / "research_agent_runtime_audit_manifest.json"
+        )
+        payload["report_path"] = str(audit_out / "research_agent_runtime_audit.md")
+        payload["readiness_boundary"] = (
+            str(payload.get("readiness_boundary", "") or "")
+            + " "
+            + OFFLINE_RUNTIME_SMOKE_BOUNDARY
+        ).strip()
+        limitations = list(payload.get("limitations", []) or [])
+        limitations.append(
+            "system-generated offline AgentRuntime smoke is static-backend runtime evidence, not live autonomous runtime evidence"
+        )
+        payload["limitations"] = limitations
         (audit_out / "research_agent_runtime_audit_manifest.json").write_text(
             json.dumps(payload, indent=2, default=str),
             encoding="utf-8",
@@ -9287,6 +9339,7 @@ def _research_agent_runtime_audit_overlay(
         payload["available"] = True
         payload["runtime_dir"] = str(runtime_dir)
         payload["runtime_audit_source"] = "system_generated_contract_smoke"
+        payload["offline_runtime_smoke"] = False
         payload["contract_smoke"] = True
         payload["manifest_path"] = str(audit_out / "research_agent_runtime_audit_manifest.json")
         payload["report_path"] = str(audit_out / "research_agent_runtime_audit.md")
@@ -9323,6 +9376,7 @@ def _research_agent_runtime_audit_overlay(
         "errors": [],
         "runtime_dir": "",
         "runtime_audit_source": "not_requested",
+        "offline_runtime_smoke": False,
         "contract_smoke": False,
         "manifest_path": str(audit_out / "research_agent_runtime_audit_manifest.json"),
         "report_path": str(audit_out / "research_agent_runtime_audit.md"),

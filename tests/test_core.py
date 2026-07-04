@@ -20657,9 +20657,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["research_agent_runtime_audit_available"])
         self.assertEqual(
             payload["counts"]["research_agent_runtime_audit_source"],
-            "system_generated_contract_smoke",
+            "system_generated_offline_runtime_smoke",
         )
-        self.assertTrue(payload["counts"]["research_agent_runtime_contract_smoke"])
+        self.assertTrue(payload["counts"]["research_agent_runtime_offline_smoke"])
+        self.assertFalse(payload["counts"]["research_agent_runtime_contract_smoke"])
         self.assertTrue(payload["counts"]["research_agent_runtime_audit_all_ok"])
         self.assertFalse(
             payload["counts"][
@@ -20684,9 +20685,25 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             1,
         )
-        self.assertTrue(payload["counts"]["research_agent_runtime_resumed_from_pending_task"])
-        self.assertEqual(payload["counts"]["research_agent_runtime_critic_reroutes"], 0)
-        self.assertEqual(payload["counts"]["research_agent_runtime_learning_rows"], 1)
+        self.assertFalse(payload["counts"]["research_agent_runtime_resumed_from_pending_task"])
+        self.assertGreaterEqual(
+            payload["counts"]["research_agent_runtime_critic_reroutes"],
+            1,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["research_agent_runtime_learning_rows"],
+            1,
+        )
+        self.assertGreaterEqual(
+            payload["counts"]["research_agent_runtime_algorithm_sandbox_executed"],
+            1,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "research_agent_runtime_generated_code_sandbox_executed"
+            ],
+            1,
+        )
         self.assertFalse(
             payload["counts"][
                 "research_agent_runtime_exact_semantic_definition_authoring_required"

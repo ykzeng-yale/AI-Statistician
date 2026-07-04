@@ -58257,7 +58257,7 @@ def test_runtime_audit_treats_budgeted_pending_continuation_as_contract_ok(
     assert "budgeted continuations contract-ok: 1/1" in report
 
 
-def test_runtime_system_overlay_generates_default_contract_smoke(
+def test_runtime_system_overlay_generates_default_offline_smoke(
     tmp_path: Path,
 ) -> None:
     system_overlay = _research_agent_runtime_audit_overlay(
@@ -58269,19 +58269,23 @@ def test_runtime_system_overlay_generates_default_contract_smoke(
     assert system_overlay["available"] is True
     assert system_overlay["all_ok"] is True
     assert system_overlay["runtime_audit_source"] == (
-        "system_generated_contract_smoke"
+        "system_generated_offline_runtime_smoke"
     )
-    assert system_overlay["contract_smoke"] is True
+    assert system_overlay["offline_runtime_smoke"] is True
+    assert system_overlay["contract_smoke"] is False
     assert system_overlay["capability_ready_for_full_ai_statistician"] is False
     assert system_overlay["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     assert system_overlay["n_results"] == 1
     assert system_overlay["n_ok"] == 1
-    assert system_overlay["n_budget_exhausted_with_pending_next_task"] == 1
-    assert system_overlay["n_budgeted_continuation_contract_ok"] == 1
-    assert system_overlay["runtime_resumed_from_pending_task"] is True
-    assert system_overlay["n_runtime_traces"] == 1
-    assert system_overlay["n_runtime_next_action_items"] == 1
-    assert system_overlay["n_runtime_learning_rows"] == 1
+    assert system_overlay["n_runtime_traces"] >= 8
+    assert system_overlay["n_runtime_next_action_items"] >= 1
+    assert system_overlay["n_runtime_learning_rows"] >= 1
+    assert system_overlay["architect_coordinator_enabled"] is True
+    assert system_overlay["llm_topology_policy_ok"] is True
+    assert system_overlay["n_live_generator_agents_enabled"] == 0
+    assert system_overlay["n_algorithm_sandbox_executed"] >= 1
+    assert system_overlay["n_generated_code_sandbox_executed"] >= 1
+    assert system_overlay["n_formal_gaps"] >= 1
     assert system_overlay["has_real_kernel_evidence"] is False
     assert system_overlay["n_results_with_real_kernel_evidence"] == 0
     assert system_overlay["n_full_frontier_theorem_proved"] == 0
@@ -58290,12 +58294,54 @@ def test_runtime_system_overlay_generates_default_contract_smoke(
     assert Path(system_overlay["report_path"]).exists()
 
 
+def test_runtime_system_overlay_offline_smoke_runs_inside_event_loop(
+    tmp_path: Path,
+) -> None:
+    async def run_overlay() -> dict[str, object]:
+        return _research_agent_runtime_audit_overlay(
+            tmp_path / "system_overlay",
+            configured_runtime_dir=None,
+        )
+
+    system_overlay = asyncio.run(run_overlay())
+
+    assert system_overlay["all_ok"] is True
+    assert system_overlay["runtime_audit_source"] == (
+        "system_generated_offline_runtime_smoke"
+    )
+    assert system_overlay["offline_runtime_smoke"] is True
+    assert system_overlay["n_ok"] == 1
+
+
+def test_runtime_system_overlay_can_use_contract_smoke_fallback(
+    tmp_path: Path,
+) -> None:
+    system_overlay = _research_agent_runtime_audit_overlay(
+        tmp_path / "system_overlay",
+        configured_runtime_dir=None,
+        enable_offline_smoke=False,
+    )
+
+    assert system_overlay["requested"] is True
+    assert system_overlay["available"] is True
+    assert system_overlay["all_ok"] is True
+    assert system_overlay["runtime_audit_source"] == (
+        "system_generated_contract_smoke"
+    )
+    assert system_overlay["offline_runtime_smoke"] is False
+    assert system_overlay["contract_smoke"] is True
+    assert system_overlay["n_results"] == 1
+    assert system_overlay["n_budget_exhausted_with_pending_next_task"] == 1
+    assert system_overlay["n_budgeted_continuation_contract_ok"] == 1
+
+
 def test_runtime_system_overlay_can_preserve_not_requested_stub(
     tmp_path: Path,
 ) -> None:
     system_overlay = _research_agent_runtime_audit_overlay(
         tmp_path / "system_overlay",
         configured_runtime_dir=None,
+        enable_offline_smoke=False,
         enable_contract_smoke=False,
     )
 
@@ -58303,6 +58349,7 @@ def test_runtime_system_overlay_can_preserve_not_requested_stub(
     assert system_overlay["available"] is False
     assert system_overlay["all_ok"] is False
     assert system_overlay["runtime_audit_source"] == "not_requested"
+    assert system_overlay["offline_runtime_smoke"] is False
     assert system_overlay["contract_smoke"] is False
     assert system_overlay["capability_status"] == "NOT_REQUESTED"
     assert system_overlay["n_results"] == 0

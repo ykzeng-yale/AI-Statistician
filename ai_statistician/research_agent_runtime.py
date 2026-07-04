@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import sys
+import threading
 from collections import Counter
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -260,6 +261,41 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY = (
     "claim that any route is minimal until the standalone planner, audits, and "
     "target-prover replay run."
 )
+
+
+def _run_runtime_coroutine_from_sync(coro: Any) -> Any:
+    """Run an async runtime helper from sync subsystem code.
+
+    Most AgentRuntime subsystems are synchronous, but system audits can invoke
+    the runtime from inside an existing event loop. In that case asyncio.run()
+    would fail in the caller thread, so run the coroutine in a short-lived
+    helper thread with its own loop.
+    """
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    result_box: dict[str, Any] = {}
+    error_box: dict[str, BaseException] = {}
+
+    def run_in_thread() -> None:
+        try:
+            result_box["result"] = asyncio.run(coro)
+        except BaseException as exc:  # pragma: no cover - defensive bridge
+            error_box["error"] = exc
+
+    thread = threading.Thread(
+        target=run_in_thread,
+        name="ai-statistician-runtime-async-bridge",
+        daemon=True,
+    )
+    thread.start()
+    thread.join()
+    if "error" in error_box:
+        raise error_box["error"]
+    return result_box.get("result")
 RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_STATUS = (
     "RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_NOT_PROOF_EVIDENCE"
 )
@@ -8780,7 +8816,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
             if contract_failure_result is not None:
                 return contract_failure_result
-        subclaims = asyncio.run(
+        subclaims = _run_runtime_coroutine_from_sync(
             self.prover.prove(
                 problem,
                 theorem_goals,
