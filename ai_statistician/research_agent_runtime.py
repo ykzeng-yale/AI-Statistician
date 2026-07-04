@@ -11439,6 +11439,115 @@ def _formalizer_required_pf_bv_block_schema_hints() -> dict[str, str]:
     }
 
 
+def _formalizer_structural_response_validation_feedback(
+    *,
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    prior_environment_feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Extract exact-definition authoring feedback for Formalizer repair resumes."""
+
+    def string_list(value: Any) -> list[str]:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return [stripped] if stripped else []
+        if not isinstance(value, (list, tuple, set)):
+            return []
+        return [str(item).strip() for item in value if str(item).strip()]
+
+    def feedback_from_mapping(source: Mapping[str, Any]) -> dict[str, Any]:
+        feedback = (
+            dict(source.get("response_validation_feedback", {}) or {})
+            if isinstance(source.get("response_validation_feedback", {}), Mapping)
+            else {}
+        )
+        route = (
+            source.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_route",
+                {},
+            )
+            if isinstance(
+                source.get(
+                    "source_theorem_exact_semantic_definition_structural_reformulation_route",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        )
+        if not feedback and isinstance(
+            route.get("response_validation_feedback", {}),
+            Mapping,
+        ):
+            feedback = dict(route.get("response_validation_feedback", {}) or {})
+        input_summary = (
+            source.get("input_summary", {})
+            if isinstance(source.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if not feedback and isinstance(
+            input_summary.get("response_validation_feedback", {}),
+            Mapping,
+        ):
+            feedback = dict(input_summary.get("response_validation_feedback", {}) or {})
+        validation_errors = (
+            string_list(feedback.get("validation_errors", []))
+            or string_list(source.get("retry_validation_errors", []))
+            or string_list(source.get("validation_errors", []))
+            or string_list(input_summary.get("retry_validation_errors", []))
+            or string_list(input_summary.get("validation_errors", []))
+            or string_list(route.get("validation_errors", []))
+        )
+        source_failed_candidate_packet_id = str(
+            feedback.get("source_failed_candidate_packet_id", "")
+            or source.get("source_failed_candidate_packet_id", "")
+            or input_summary.get("source_failed_candidate_packet_id", "")
+            or ""
+        ).strip()
+        unverified_required_imports = (
+            string_list(feedback.get("unverified_required_imports", []))
+            or string_list(source.get("unverified_required_imports", []))
+            or string_list(input_summary.get("unverified_required_imports", []))
+            or _runtime_unverified_required_imports_from_validation_errors(
+                validation_errors
+            )
+        )
+        if (
+            not validation_errors
+            and not source_failed_candidate_packet_id
+            and not unverified_required_imports
+        ):
+            return {}
+        normalized = {
+            "source_failed_candidate_packet_id": source_failed_candidate_packet_id,
+            "validation_errors": validation_errors,
+            "unverified_required_imports": unverified_required_imports,
+        }
+        if isinstance(feedback.get("candidate_definition_request", {}), Mapping):
+            normalized["candidate_definition_request"] = dict(
+                feedback.get("candidate_definition_request", {}) or {}
+            )
+        return normalized
+
+    for source in (
+        prior_environment_feedback,
+        proof_bank_runtime_memory_summary,
+    ):
+        if isinstance(source, Mapping):
+            feedback = feedback_from_mapping(source)
+            if feedback:
+                return feedback
+    for row in proof_bank_runtime_memory_summary.get(
+        "source_theorem_exact_candidate_repair_diagnostics",
+        [],
+    ) or []:
+        if not isinstance(row, Mapping):
+            continue
+        feedback = feedback_from_mapping(row)
+        if feedback:
+            return feedback
+    return {}
+
+
 def _formalizer_provider_failure_result(
     *,
     task: AgentTask,
@@ -11697,6 +11806,35 @@ def _formalizer_packet_validation_failure_result(
             False,
         )
     )
+    structural_response_validation_feedback = (
+        _formalizer_structural_response_validation_feedback(
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+            prior_environment_feedback=prior_environment_feedback,
+        )
+        if source_theorem_exact_semantic_definition_structural_reformulation_required
+        else {}
+    )
+    structural_unverified_required_imports = [
+        str(item).strip()
+        for item in structural_response_validation_feedback.get(
+            "unverified_required_imports",
+            [],
+        )
+        if str(item).strip()
+    ]
+    if structural_unverified_required_imports:
+        hard_negative_import_directive = (
+            "Do not reuse response_validation_feedback.unverified_required_imports "
+            "as Lean candidate required_imports: "
+            + ", ".join(structural_unverified_required_imports[:8])
+            + ". Treat each blocked import/API as a PF/BV work-order constraint "
+            "for lean_rag or exact semantic-definition grounding."
+        )
+        if hard_negative_import_directive not in validation_repair_directives:
+            validation_repair_directives = [
+                *validation_repair_directives,
+                hard_negative_import_directive,
+            ]
 
     def _runtime_string_list(value: Any) -> list[str]:
         if isinstance(value, str):
@@ -11766,6 +11904,28 @@ def _formalizer_packet_validation_failure_result(
             "target_lanes": pseudo_formalization_target_lanes,
             "target_names": pseudo_formalization_target_names,
             "placeholder_symbols": pseudo_formalization_placeholder_symbols,
+            **(
+                {
+                    "response_validation_feedback": (
+                        structural_response_validation_feedback
+                    ),
+                    "unverified_required_imports": (
+                        structural_unverified_required_imports
+                    ),
+                    "hard_negative_rejected_imports": (
+                        structural_unverified_required_imports
+                    ),
+                    "source_failed_candidate_packet_id": str(
+                        structural_response_validation_feedback.get(
+                            "source_failed_candidate_packet_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                }
+                if structural_response_validation_feedback
+                else {}
+            ),
             "required_block_schema_hints": (
                 _formalizer_required_pf_bv_block_schema_hints()
             ),
@@ -11797,6 +11957,29 @@ def _formalizer_packet_validation_failure_result(
             source_theorem_exact_semantic_definition_structural_reformulation_required
         ),
     }
+    structural_response_validation_feedback_fields = (
+        {
+            "response_validation_feedback": structural_response_validation_feedback,
+            "unverified_required_imports": structural_unverified_required_imports,
+            "hard_negative_rejected_imports": (
+                structural_unverified_required_imports
+            ),
+            "source_failed_candidate_packet_id": str(
+                structural_response_validation_feedback.get(
+                    "source_failed_candidate_packet_id",
+                    "",
+                )
+                or ""
+            ),
+            "hard_negative_import_repair_directive": (
+                "Do not reuse the listed unverified_required_imports as Lean "
+                "candidate required_imports; route them as PF/BV work-order "
+                "constraints for lean_rag or exact semantic-definition grounding."
+            ),
+        }
+        if structural_response_validation_feedback
+        else {}
+    )
     active_local_lean_repair_contract = (
         dict(prior_environment_feedback.get("local_lean_repair_contract", {}) or {})
         if isinstance(
@@ -11938,6 +12121,7 @@ def _formalizer_packet_validation_failure_result(
                 source_theorem_candidate_materialization_contract
             ),
             **pseudo_formalization_feedback_fields,
+            **structural_response_validation_feedback_fields,
             "local_lean_repair_contract": active_local_lean_repair_contract,
             "candidate_diagnostics": active_candidate_diagnostics,
             "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -12026,6 +12210,7 @@ def _formalizer_packet_validation_failure_result(
             source_theorem_candidate_materialization_contract
         ),
         **pseudo_formalization_feedback_fields,
+        **structural_response_validation_feedback_fields,
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -12064,6 +12249,7 @@ def _formalizer_packet_validation_failure_result(
             source_theorem_candidate_materialization_contract
         ),
         **pseudo_formalization_feedback_fields,
+        **structural_response_validation_feedback_fields,
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
@@ -12288,6 +12474,7 @@ def _formalizer_packet_validation_failure_result(
             "failure_classification": "formalizer_packet_validation_failed",
             "validation_errors": validation_errors,
             **pseudo_formalization_feedback_fields,
+            **structural_response_validation_feedback_fields,
             "missing_semantic_anchor_references": missing_anchors,
             "missing_source_binding_contract_metadata": (
                 missing_source_binding_contract_metadata
@@ -12315,6 +12502,7 @@ def _formalizer_packet_validation_failure_result(
                     "validation_errors": validation_errors,
                     "validation_repair_directives": validation_repair_directives,
                     **pseudo_formalization_feedback_fields,
+                    **structural_response_validation_feedback_fields,
                     "missing_semantic_anchor_references": missing_anchors,
                     "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
                     "missing_source_binding_contract_metadata": (

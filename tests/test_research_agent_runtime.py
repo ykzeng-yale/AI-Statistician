@@ -19481,6 +19481,29 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
         "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols": [
             "C_n"
         ],
+        "source_theorem_exact_candidate_repair_diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+                "response_validation_feedback": {
+                    "source_failed_candidate_packet_id": (
+                        "source_theorem_exact_semantic_definition_authoring_"
+                        "candidate_failed:blocked-import"
+                    ),
+                    "validation_errors": [
+                        (
+                            "required_imports include modules not verified by "
+                            "the local project inventory or identifier lookup: "
+                            "Mathlib.Data.Int.Order"
+                        )
+                    ],
+                    "unverified_required_imports": [
+                        "Mathlib.Data.Int.Order"
+                    ],
+                },
+            }
+        ],
         "recommended_formalizer_target_mode": (
             "source_theorem_exact_semantic_definition_structural_reformulation"
         ),
@@ -19515,6 +19538,24 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
         "lean_rag",
         "source_to_bridge",
     ]
+    assert contract["response_validation_feedback"][
+        "unverified_required_imports"
+    ] == ["Mathlib.Data.Int.Order"]
+    assert contract["hard_negative_rejected_imports"] == [
+        "Mathlib.Data.Int.Order"
+    ]
+    assert feedback["response_validation_feedback"][
+        "source_failed_candidate_packet_id"
+    ].endswith("blocked-import")
+    assert feedback["unverified_required_imports"] == [
+        "Mathlib.Data.Int.Order"
+    ]
+    assert "Mathlib.Data.Int.Order" in " ".join(
+        feedback["validation_repair_directives"]
+    )
+    assert "Do not reuse response_validation_feedback.unverified_required_imports" in (
+        feedback["validation_repair_directives"][-1]
+    )
     assert contract["required_block_schema_hints"]["conclusion"] == (
         "top-level non-empty local claim for every block"
     )
@@ -19539,15 +19580,24 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     learning_summary = artifact["learning_rows"][0]["input_summary"]
     assert learning_summary["pseudo_formalization_required"] is True
     assert learning_summary["pseudo_formalization_repair_contract"] == contract
+    assert learning_summary["response_validation_feedback"][
+        "unverified_required_imports"
+    ] == ["Mathlib.Data.Int.Order"]
     evidence_payload = result.evidence_entries[0].payload
     assert evidence_payload["pseudo_formalization_required"] is True
     assert evidence_payload["pseudo_formalization_repair_contract"] == contract
+    assert evidence_payload["hard_negative_rejected_imports"] == [
+        "Mathlib.Data.Int.Order"
+    ]
     assert evidence_payload["proof_evidence_status"] == (
         "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
     )
     observation_payload = result.observations[0].payload
     assert observation_payload["pseudo_formalization_required"] is True
     assert observation_payload["pseudo_formalization_repair_contract"] == contract
+    assert observation_payload["unverified_required_imports"] == [
+        "Mathlib.Data.Int.Order"
+    ]
 
 
 def test_formalizer_provider_timeout_routes_resumable_pf_bv_retry() -> None:
