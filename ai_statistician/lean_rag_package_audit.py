@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .research_source_inventory import LEGACY_AI_STATISTICIAN_ROOT
 
 
 LEAN_RAG_PACKAGE_AUDIT_SCHEMA_VERSION = 1
@@ -60,11 +61,11 @@ TARGET_LEAN_SOURCE_COVERAGE: tuple[dict[str, object], ...] = (
         "registry_candidate_section": "external_sources",
         "registry_candidate": {
             "name": "legacy-ai-statistician-statinference",
-            "local_path": "/Users/yukang/AI Statistician/legacy_sources/ai_statistician/StatInference",
+            "local_path": str(LEGACY_AI_STATISTICIAN_ROOT / "StatInference"),
             "trust": "candidate search only; local Lean must verify imported uses",
         },
         "source_evidence_urls": (),
-        "source_evidence_status": "local path observed in /Users/yukang/AI Statistician/legacy_sources",
+        "source_evidence_status": f"local path observed at {LEGACY_AI_STATISTICIAN_ROOT / 'StatInference'}",
     },
     {
         "target_id": "lean_stat_learning_theory",
@@ -352,7 +353,8 @@ def stage_lean_rag_source_registry_expansion(
     source_registry = _load_source_registry(root) if root.exists() else {}
     staged_registry = json.loads(json.dumps(source_registry, default=str)) if source_registry else {}
     coverage_before = dict(audit_payload.get("target_source_coverage", {}) or {})
-    candidates = list(coverage_before.get("registry_expansion_candidates", []) or [])
+    coverage_candidates = list(coverage_before.get("registry_expansion_candidates", []) or [])
+    candidates = coverage_candidates if source_registry else []
     rows = _stage_registry_candidates(staged_registry, candidates)
     local_sources = list(staged_registry.get("local_sources", []) or [])
     external_sources = list(staged_registry.get("external_sources", []) or [])
@@ -378,9 +380,12 @@ def stage_lean_rag_source_registry_expansion(
             audit_dir / "lean_rag_package_audit_manifest.json"
         ),
         "package_contract_ok": bool(audit_payload.get("contract_ok")),
-        "all_ok": bool(audit_payload.get("all_ok")) and not invalid_rows and bool(source_registry),
+        "package_available": bool(root.exists()),
+        "source_registry_available": bool(source_registry),
+        "all_ok": bool(audit_payload.get("all_ok")) and not invalid_rows,
         "stage_ready": bool(source_registry) and not invalid_rows and bool(staged_rows),
         "n_candidates": len(candidates),
+        "n_deferred_candidates": len(coverage_candidates) if not source_registry else 0,
         "n_staged": len(staged_rows),
         "n_already_present": len(already_present_rows),
         "n_invalid": len(invalid_rows),
@@ -435,6 +440,12 @@ def _source_registry_expansion_no_staged(expansion_payload: Mapping[str, object]
     n_present = int(coverage_after.get("n_present", 0) or 0)
     n_missing = int(coverage_after.get("n_missing", 0) or 0)
     n_staged = int(expansion_payload.get("n_staged", 0) or 0)
+    if (
+        bool(expansion_payload.get("all_ok"))
+        and n_staged == 0
+        and not bool(expansion_payload.get("source_registry_available", True))
+    ):
+        return True
     return bool(expansion_payload.get("all_ok")) and n_staged == 0 and n_targets > 0 and n_present >= n_targets and n_missing == 0
 
 
@@ -574,23 +585,30 @@ def apply_lean_rag_source_registry_expansion(
     no_staged = _source_registry_expansion_no_staged(expansion_payload)
     errors: list[str] = []
     warnings: list[str] = []
-    if not expansion_payload.get("stage_ready") and not no_staged:
+    if no_staged:
+        pass
+    elif not expansion_payload.get("stage_ready"):
         errors.append("expansion manifest is not stage_ready")
-    if not preflight_payload.get("source_registry_apply_ready") and not no_staged:
+    if not no_staged and not preflight_payload.get("source_registry_apply_ready"):
         errors.append("preflight does not mark source_registry_apply_ready")
-    if not source_registry_path.exists():
+    if not no_staged and not source_registry_path.exists():
         errors.append("source_registry_path does not exist")
-    if not staged_registry_path.exists():
+    if not no_staged and not staged_registry_path.exists():
         errors.append("staged_source_registry does not exist")
-    if not expected_current_fingerprint:
+    if no_staged:
+        pass
+    elif not expected_current_fingerprint:
         errors.append("expansion manifest lacks source_registry_fingerprint_before; restage before apply")
     elif current_fingerprint != expected_current_fingerprint:
         errors.append("source_registry.json changed after staging; restage before apply")
-    if not expected_staged_fingerprint:
+    if no_staged:
+        pass
+    elif not expected_staged_fingerprint:
         errors.append("expansion manifest lacks staged_source_registry_fingerprint; restage before apply")
     elif staged_fingerprint != expected_staged_fingerprint:
         errors.append("staged_source_registry changed after staging; restage before apply")
-    _validate_staged_registry_policy(staged_registry, errors=errors)
+    if not no_staged:
+        _validate_staged_registry_policy(staged_registry, errors=errors)
 
     apply_ready = not errors
     applied = False
@@ -1531,7 +1549,7 @@ def _source_registry_expansion_markdown(payload: dict[str, object]) -> str:
         f"- Package root: `{payload.get('package_root', '')}`",
         f"- Package contract ok: `{payload.get('package_contract_ok')}`",
         f"- Stage ready: `{payload.get('stage_ready')}`",
-        f"- Candidates: `{payload.get('n_candidates')}` staged=`{payload.get('n_staged')}` already_present=`{payload.get('n_already_present')}` invalid=`{payload.get('n_invalid')}`",
+        f"- Candidates: `{payload.get('n_candidates')}` staged=`{payload.get('n_staged')}` deferred=`{payload.get('n_deferred_candidates', 0)}` already_present=`{payload.get('n_already_present')}` invalid=`{payload.get('n_invalid')}`",
         f"- Target coverage before: `{before.get('n_present')}/{before.get('n_targets')}` missing=`{', '.join(before.get('missing_target_ids', []))}`",
         f"- Target coverage after: `{after.get('n_present')}/{after.get('n_targets')}` missing=`{', '.join(after.get('missing_target_ids', []))}`",
         "",

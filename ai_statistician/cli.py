@@ -5886,6 +5886,8 @@ def _autoform_harness_audit(args: argparse.Namespace) -> int:
     print("=" * 72)
     print(
         f"ready={payload['ready_for_integration']} "
+        f"local_execution={payload.get('ready_for_local_execution')} "
+        f"availability={profile.get('availability_status', '')} "
         f"root={profile['root']} commit={str(profile['git_commit'])[:12]}"
     )
     for key in (
@@ -11474,13 +11476,16 @@ def _research_agent_runtime_static_subsystem_config_errors(
 
 
 def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
+    from .research_source_inventory import VENDORED_EMPIRICAL_PROCESS_ROOT
+
     project_root = Path(__file__).resolve().parents[1]
     relative_vendored_project = Path("legacy_sources/emperical_process_lean")
     repo_vendored_project = project_root / relative_vendored_project
     candidates = (
         relative_vendored_project,
         repo_vendored_project,
-        Path("/Users/yukang/LeanProjects/LeanPractice"),
+        VENDORED_EMPIRICAL_PROCESS_ROOT,
+        Path.home() / "LeanProjects" / "LeanPractice",
     )
     unique: list[Path] = []
     seen: set[str] = set()

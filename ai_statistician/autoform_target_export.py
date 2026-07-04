@@ -43,7 +43,8 @@ def export_autoform_targets(
     tasks = [row for row in task_payload.get("tasks", []) if isinstance(row, dict)]
     targets = [_target_for_task(row) for row in tasks]
     harness = build_autoform_harness_profile()
-    errors = _errors(targets, harness.exists)
+    errors = _errors(targets)
+    warnings = _warnings(harness)
     payload = {
         "schema_version": AUTOFORM_TARGET_EXPORT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -62,6 +63,7 @@ def export_autoform_targets(
             "Autoform-Bot remains an optional external harness with its own dependency setup",
         ],
         "errors": errors,
+        "warnings": warnings,
     }
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -133,10 +135,8 @@ def _safe_name(value: str) -> str:
     return cleaned or "formal_gap"
 
 
-def _errors(targets: list[AutoformFormalizationTarget], harness_exists: bool) -> tuple[str, ...]:
+def _errors(targets: list[AutoformFormalizationTarget]) -> tuple[str, ...]:
     errors: list[str] = []
-    if not harness_exists:
-        errors.append("Autoform-Bot harness checkout is missing")
     if not targets:
         errors.append("no Autoform targets exported")
     for target in targets:
@@ -147,6 +147,17 @@ def _errors(targets: list[AutoformFormalizationTarget], harness_exists: bool) ->
         if "FORMAL_GAP" not in target.description:
             errors.append(f"target {target.name} description missing FORMAL_GAP marker")
     return tuple(dict.fromkeys(errors))
+
+
+def _warnings(harness: Any) -> tuple[str, ...]:
+    if bool(getattr(harness, "local_execution_ready", False)):
+        return ()
+    remote = str(getattr(harness, "remote_url", "") or "")
+    root = str(getattr(harness, "root", "") or "")
+    return (
+        "Autoform-Bot local checkout is not execution-ready; exported targets remain handoff-ready, "
+        f"but a runner must clone/setup {remote or 'the configured harness'} at {root or '<configured root>'}.",
+    )
 
 
 def _yaml_targets(targets: list[AutoformFormalizationTarget]) -> str:
@@ -218,9 +229,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         *(f"- `{cmd}`" for cmd in payload.get("command_templates", []) or []),
         "",
-        "## Targets",
-        "",
     ]
+    warnings = payload.get("warnings", [])
+    if warnings:
+        lines.extend(["## Warnings", ""])
+        lines.extend(f"- {warning}" for warning in warnings)
+        lines.append("")
+    lines.extend(["## Targets", ""])
     if not rows:
         lines.append("No targets exported.")
     for row in rows:  # type: ignore[assignment]

@@ -19,6 +19,7 @@ from .model_backend import (
     generator_provider_override_warnings,
 )
 from .proof_bank import all_obligations
+from .research_source_inventory import OPENPROVER_ROOT
 
 
 MANIFEST_NAMES = {
@@ -381,7 +382,7 @@ def _registry_check(label: str, count: int) -> DoctorCheck:
 
 
 def _openprover_path(env: Mapping[str, str]) -> Path:
-    return Path(env.get("OPENPROVER_SRC", "/Users/yukang/Documents/OpenProver/src")).expanduser()
+    return Path(env.get("OPENPROVER_SRC", str(OPENPROVER_ROOT / "src"))).expanduser()
 
 
 def _openprover_check(env: Mapping[str, str]) -> DoctorCheck:

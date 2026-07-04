@@ -3,6 +3,37 @@ from __future__ import annotations
 from pathlib import Path
 
 from .research_schema import KnowledgeCard, OpenResearchQuestion, ResearchProblemSpec, TheoremGoal
+from .research_source_inventory import (
+    ATLAS_LEAN_ROOT,
+    ATLAS_LEAN_URL,
+    AUTOFORM_BOT_ROOT,
+    AUTOFORM_BOT_URL,
+    BROWNIAN_MOTION_ROOT,
+    BROWNIAN_MOTION_URL,
+    FORMAL_SLT_ROOT,
+    FORMAL_SLT_URL,
+    KOLMOGOROV_EXTENSION_ROOT,
+    KOLMOGOROV_EXTENSION_URL,
+    LEANDOJO_V2_ROOT,
+    LEANDOJO_V2_URL,
+    LEANSEARCH_CLIENT_ROOT,
+    LEANSEARCH_CLIENT_URL,
+    LEAN_BLUEPRINT_ROOT,
+    LEAN_BLUEPRINT_URL,
+    LEAN_MACHINE_LEARNING_ROOT,
+    LEAN_MACHINE_LEARNING_URL,
+    LEAN_RADEMACHER_ROOT,
+    LEAN_RADEMACHER_URL,
+    LEAN_STAT_LEARNING_THEORY_ROOT,
+    LEAN_STAT_LEARNING_THEORY_URL,
+    LOCAL_STATINFERENCE_ROOT,
+    MATHLIB_PROBABILITY_ROOT,
+    MATHLIB_URL,
+    OPENPROVER_ROOT,
+    OPENPROVER_URL,
+    SCILEAN_ROOT,
+    SCILEAN_URL,
+)
 from .retrieval import tokens
 
 
@@ -10,7 +41,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_ROOT = PROJECT_ROOT / "AI for Math Resources"
 LEGACY_AI_STATISTICIAN_ROOT = PROJECT_ROOT / "legacy_sources" / "ai_statistician"
 VENDORED_EMPIRICAL_PROCESS_ROOT = PROJECT_ROOT / "legacy_sources" / "emperical_process_lean"
-LEAN_BLUEPRINT_ROOT = Path("/Users/yukang/.codex/external/leanblueprint")
+
+
+def _source_location(local_path: Path, remote_url: str = "") -> str:
+    return str(local_path) if local_path.expanduser().exists() or not remote_url else remote_url
 
 
 KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
@@ -555,7 +589,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="leansearch_client_local",
         title="Local LeanSearchClient / Loogle syntax integration",
         source_type="local_repo",
-        location="/Users/yukang/Axiom Interview/.lake/packages/LeanSearchClient",
+        location=_source_location(LEANSEARCH_CLIENT_ROOT, LEANSEARCH_CLIENT_URL),
         summary=(
             "Local Lean package exposing #leansearch, #loogle, and state-search "
             "syntax from inside Lean. It is an integration target for using "
@@ -568,7 +602,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="leandojo_v2_local",
         title="Local LeanDojo-v2 prover training and tracing stack",
         source_type="local_repo",
-        location="/Users/yukang/Desktop/AI for Math/Axiom Code Practice/external/LeanDojo-v2",
+        location=_source_location(LEANDOJO_V2_ROOT, LEANDOJO_V2_URL),
         summary=(
             "Local LeanDojo-v2 checkout for repository tracing, proof-state "
             "dataset generation, retrieval-augmented proving, SFT/GRPO training, "
@@ -580,7 +614,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="atlas_lean_repository",
         title="Meta ATLAS Lean probability and high-dimensional statistics corpus",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/ykzeng-atlas-lean",
+        location=_source_location(ATLAS_LEAN_ROOT, ATLAS_LEAN_URL),
         summary=(
             "Local shallow mirror of ykzeng-yale/atlas-lean, currently matching "
             "facebookresearch/atlas-lean. The AI Statistician indexes the "
@@ -606,7 +640,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="autoform_bot_harness",
         title="Meta AutoformBot formalization harness",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/ykzeng-autoform-bot",
+        location=_source_location(AUTOFORM_BOT_ROOT, AUTOFORM_BOT_URL),
         summary=(
             "Local shallow mirror of ykzeng-yale/autoform-bot, currently "
             "matching facebookresearch/autoform-bot, exposing "
@@ -622,7 +656,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="lean_blueprint_knowledge",
         title="LeanBlueprint formalization dependency graph and visualization metadata",
         source_type="local_repo",
-        location=str(LEAN_BLUEPRINT_ROOT),
+        location=_source_location(LEAN_BLUEPRINT_ROOT, LEAN_BLUEPRINT_URL),
         summary=(
             "Local clone of PatrickMassot/leanblueprint, a plasTeX plugin and CLI "
             "for building Lean formalization blueprints. Its key macros "
@@ -646,7 +680,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="local_mathlib_probability",
         title="Local Mathlib probability and statistics source",
         source_type="local_repo",
-        location="/Users/yukang/LeanProjects/LeanPractice/.lake/packages/mathlib/Mathlib/Probability",
+        location=_source_location(MATHLIB_PROBABILITY_ROOT, MATHLIB_URL),
         summary=(
             "Local Mathlib probability tree containing variance, independence, "
             "CLT, martingale, conditional expectation, distribution, and risk files "
@@ -673,7 +707,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="lean_stat_learning_theory",
         title="lean-stat-learning-theory local formalization repo",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/lean-stat-learning-theory",
+        location=_source_location(LEAN_STAT_LEARNING_THEORY_ROOT, LEAN_STAT_LEARNING_THEORY_URL),
         summary=(
             "Local copy of the statistical learning theory formalization with "
             "covering numbers, sub-Gaussian lemmas, Gaussian process tools, and "
@@ -694,7 +728,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="formal_slt",
         title="FormalSLT statistical learning theory corpus",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/FormalSLT/FormalSLT",
+        location=_source_location(FORMAL_SLT_ROOT / "FormalSLT", FORMAL_SLT_URL),
         summary=(
             "Local clone of Robby955/FormalSLT with finite-sample statistical "
             "learning theory theorem families: Rademacher complexity, PAC/VC "
@@ -707,7 +741,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="lean_rademacher",
         title="Lean Rademacher complexity formalization",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/lean-rademacher/FoML",
+        location=_source_location(LEAN_RADEMACHER_ROOT / "FoML", LEAN_RADEMACHER_URL),
         summary=(
             "Local clone of auto-res/lean-rademacher with Rademacher complexity, "
             "McDiarmid, Massart, Dudley entropy, and linear predictor "
@@ -719,7 +753,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="lean_machine_learning_lml",
         title="Lean Machine Learning Library",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/LeanMachineLearning-LML/LeanMachineLearning",
+        location=_source_location(LEAN_MACHINE_LEARNING_ROOT / "LeanMachineLearning", LEAN_MACHINE_LEARNING_URL),
         summary=(
             "Local clone of LeanMachineLearning/LML. It is most relevant to "
             "algorithmic-statistics routes: stochastic bandits, regret, UCB, "
@@ -731,7 +765,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="brownian_motion_lean",
         title="Brownian motion and Gaussian process Lean corpus",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/brownian-motion/BrownianMotion",
+        location=_source_location(BROWNIAN_MOTION_ROOT / "BrownianMotion", BROWNIAN_MOTION_URL),
         summary=(
             "Local clone of RemyDegenne/brownian-motion for retrieval-only reuse "
             "of Brownian motion, Gaussian process, Kolmogorov-Chentsov, "
@@ -744,7 +778,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="kolmogorov_extension_lean",
         title="Kolmogorov extension theorem Lean corpus",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/kolmogorov_extension4/KolmogorovExtension4",
+        location=_source_location(KOLMOGOROV_EXTENSION_ROOT / "KolmogorovExtension4", KOLMOGOROV_EXTENSION_URL),
         summary=(
             "Local clone of RemyDegenne/kolmogorov_extension4 with projective "
             "measure families, compact systems, regular contents, and the "
@@ -756,7 +790,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="scilean_calculus",
         title="SciLean calculus and scientific computing corpus",
         source_type="local_repo",
-        location="/Users/yukang/.codex/external/SciLean/SciLean",
+        location=_source_location(SCILEAN_ROOT / "SciLean", SCILEAN_URL),
         summary=(
             "Local clone of lecopivo/SciLean. It is useful as retrieval-only "
             "context for differentiability, gradients, Jacobians, probabilistic "
@@ -769,7 +803,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="local_statinference_repo",
         title="Local StatInference Lean codebase",
         source_type="local_repo",
-        location="/Users/yukang/.codex/wdsm-lean-gate/StatInference",
+        location=str(LOCAL_STATINFERENCE_ROOT),
         summary=(
             "Local statistics formalization workspace to mine for reusable "
             "definitions and theorem shapes before adding new proof obligations."
@@ -801,7 +835,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         id="openprover_pipeline",
         title="OpenProver proof-search and evaluation pipeline",
         source_type="local_repo",
-        location="/Users/yukang/Documents/OpenProver",
+        location=_source_location(OPENPROVER_ROOT, OPENPROVER_URL),
         summary=(
             "Existing prover/evaluation structure that should be reused for "
             "search orchestration and benchmark logging rather than rebuilt."

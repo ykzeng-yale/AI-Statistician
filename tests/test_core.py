@@ -736,6 +736,9 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
 
     def test_hf_lean_source_revalidation_artifact_validation_gates_worker_outputs(self) -> None:
         task_dir = Path("runs/test_hf_lean_source_artifact_validation_tasks")
+        shutil.rmtree(task_dir, ignore_errors=True)
+        shutil.rmtree(Path("runs/test_hf_lean_source_artifact_validation_awaiting"), ignore_errors=True)
+        shutil.rmtree(Path("runs/test_hf_lean_source_artifact_validation_accepted"), ignore_errors=True)
         task_payload = {
             "task_id": "hf_lean_source_revalidation_task:oproofs",
             "dataset_id": "m-a-p/OProofs",
@@ -5902,25 +5905,49 @@ class SystemTests(unittest.TestCase):
         self.assertIn("brownian_motion_lean", source_inventory_ids)
         self.assertIn("kolmogorov_extension_lean", source_inventory_ids)
         self.assertIn("scilean_calculus", source_inventory_ids)
+        self.assertGreater(source_inventory["n_local_ready"], 0)
+        self.assertEqual(source_inventory["n_missing_required"], 0)
+        self.assertTrue(source_inventory["all_required_local_ok"])
         atlas_rows = [row for row in source_inventory["rows"] if str(row["source_id"]).startswith("atlas_lean")]
         self.assertTrue(atlas_rows)
         self.assertTrue(all(row["usage_policy"] == "retrieval_only_no_training_export" for row in atlas_rows))
-        self.assertTrue(all(row["git_commit"] for row in atlas_rows))
+        self.assertTrue(all(row["remote_url"] for row in atlas_rows))
+        self.assertTrue(
+            all(
+                row["git_commit"]
+                if row["exists"]
+                else row["availability_status"] == "clone_required"
+                for row in atlas_rows
+            )
+        )
         brownian = next(row for row in source_inventory["rows"] if row["source_id"] == "brownian_motion_lean")
         scilean = next(row for row in source_inventory["rows"] if row["source_id"] == "scilean_calculus")
         self.assertEqual(brownian["usage_policy"], "retrieval_only_no_training_export")
         self.assertEqual(scilean["usage_policy"], "retrieval_only_no_training_export")
-        self.assertTrue(brownian["git_commit"])
-        self.assertTrue(scilean["git_commit"])
+        for optional_external in (brownian, scilean):
+            self.assertTrue(optional_external["remote_url"])
+            if optional_external["exists"]:
+                self.assertTrue(optional_external["git_commit"])
+                self.assertEqual(optional_external["availability_status"], "local_ready")
+            else:
+                self.assertEqual(optional_external["availability_status"], "clone_required")
         self.assertIn("autoform_bot_harness", source_inventory_ids)
         autoform = next(row for row in source_inventory["rows"] if row["source_id"] == "autoform_bot_harness")
         self.assertEqual(autoform["usage_policy"], "integration_reference_no_training_export")
-        self.assertTrue(autoform["git_commit"])
+        self.assertTrue(autoform["remote_url"])
+        if autoform["exists"]:
+            self.assertTrue(autoform["git_commit"])
+        else:
+            self.assertEqual(autoform["availability_status"], "clone_required")
         self.assertIn("lean_blueprint", source_inventory_ids)
         lean_blueprint = next(row for row in source_inventory["rows"] if row["source_id"] == "lean_blueprint")
         self.assertEqual(lean_blueprint["usage_policy"], "integration_reference_no_training_export")
         self.assertEqual(lean_blueprint["license_policy"], "Apache-2.0")
-        self.assertTrue(lean_blueprint["git_commit"])
+        self.assertTrue(lean_blueprint["remote_url"])
+        if lean_blueprint["exists"]:
+            self.assertTrue(lean_blueprint["git_commit"])
+        else:
+            self.assertEqual(lean_blueprint["availability_status"], "clone_required")
 
     def test_lean_blueprint_knowledge_exports_visualization_graph(self) -> None:
         payload = export_lean_blueprint_knowledge(Path("runs/test_lean_blueprint_knowledge"))
@@ -5955,14 +5982,21 @@ class SystemTests(unittest.TestCase):
     def test_autoform_harness_audit_detects_reusable_framework(self) -> None:
         payload = audit_autoform_harness(Path("runs/test_autoform_harness"))
         self.assertTrue(payload["ready_for_integration"])
+        self.assertTrue(payload["reference_contract_ready"])
         profile = payload["profile"]
-        self.assertTrue(profile["has_statement_extraction"])
-        self.assertTrue(profile["has_lean_eval"])
-        self.assertTrue(profile["has_dependency_graph_eval"])
-        self.assertTrue(profile["has_lean_proof_checker"])
-        self.assertTrue(profile["has_lean_repl_tool"])
-        self.assertTrue(profile["has_native_lsp_tool"])
-        self.assertTrue(profile["has_lean_skill_docs"])
+        self.assertTrue(profile["remote_url"])
+        self.assertIn(profile["availability_status"], {"local_ready", "local_incomplete", "clone_required"})
+        if payload["ready_for_local_execution"]:
+            self.assertTrue(profile["has_statement_extraction"])
+            self.assertTrue(profile["has_lean_eval"])
+            self.assertTrue(profile["has_dependency_graph_eval"])
+            self.assertTrue(profile["has_lean_proof_checker"])
+            self.assertTrue(profile["has_lean_repl_tool"])
+            self.assertTrue(profile["has_native_lsp_tool"])
+            self.assertTrue(profile["has_lean_skill_docs"])
+            self.assertTrue(profile["has_multi_agent_bot"])
+        else:
+            self.assertIn(profile["availability_status"], {"local_incomplete", "clone_required"})
         self.assertEqual(profile["usage_policy"], "integration_reference_no_training_export")
         self.assertTrue(Path("runs/test_autoform_harness/autoform_harness_manifest.json").exists())
         from ai_statistician.cli import build_parser
@@ -20341,7 +20375,14 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["counts"]["lean_rag_dependency_requested_integrity_ok"])
         self.assertTrue(payload["counts"]["lean_rag_dependency_requested_fts_probe_ok"])
         self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources"], 13)
-        self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_present"], 1)
+        if payload["counts"]["lean_rag_package_available"]:
+            self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_present"], 1)
+        else:
+            self.assertEqual(payload["counts"]["lean_rag_package_target_sources_present"], 0)
+            self.assertGreaterEqual(
+                payload["counts"]["lean_rag_source_registry_expansion_deferred_candidates"],
+                1,
+            )
         self.assertGreaterEqual(payload["counts"]["lean_rag_package_target_sources_missing"], 0)
         self.assertIn("lean_rag_package_missing_target_sources", payload["counts"])
         self.assertIn("lean_rag_package_registry_expansion_candidates", payload["counts"])
@@ -20453,10 +20494,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(payload["counts"]["huggingface_lean_source_proof_evidence_ready"], 0)
         self.assertFalse(payload["counts"]["huggingface_lean_source_use_network"])
         self.assertTrue(payload["counts"]["lean_rag_source_registry_expansion_all_ok"])
+        lean_rag_registry_deferred = (
+            not payload["counts"]["lean_rag_package_available"]
+            and payload["counts"]["lean_rag_source_registry_expansion_deferred_candidates"] > 0
+        )
         self.assertTrue(
             payload["counts"]["lean_rag_source_registry_expansion_stage_ready"]
             or payload["counts"]["lean_rag_source_registry_expansion_coverage_after_present"]
             == payload["counts"]["lean_rag_package_target_sources"]
+            or lean_rag_registry_deferred
         )
         self.assertGreaterEqual(
             payload["counts"]["lean_rag_source_registry_expansion_candidates"],
@@ -20475,11 +20521,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["lean_rag_source_registry_expansion_staged"] > 0
             or payload["counts"]["lean_rag_source_registry_expansion_coverage_after_present"]
             == payload["counts"]["lean_rag_package_target_sources"]
+            or lean_rag_registry_deferred
         )
-        self.assertEqual(
-            payload["counts"]["lean_rag_source_registry_expansion_coverage_after_missing"],
-            0,
-        )
+        if lean_rag_registry_deferred:
+            self.assertGreater(
+                payload["counts"]["lean_rag_source_registry_expansion_coverage_after_missing"],
+                0,
+            )
+        else:
+            self.assertEqual(
+                payload["counts"]["lean_rag_source_registry_expansion_coverage_after_missing"],
+                0,
+            )
         self.assertTrue(
             payload["counts"]["lean_rag_source_registry_expansion_preflight_apply_ready"]
             or payload["counts"]["lean_rag_source_registry_expansion_staged"] == 0

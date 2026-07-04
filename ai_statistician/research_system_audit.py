@@ -2877,6 +2877,9 @@ async def run_research_system_audit(
             "lean_rag_source_registry_expansion_candidates": lean_rag_source_registry_expansion_manifest[
                 "n_candidates"
             ],
+            "lean_rag_source_registry_expansion_deferred_candidates": lean_rag_source_registry_expansion_manifest.get(
+                "n_deferred_candidates", 0
+            ),
             "lean_rag_source_registry_expansion_staged": lean_rag_source_registry_expansion_manifest[
                 "n_staged"
             ],
@@ -2927,19 +2930,33 @@ async def run_research_system_audit(
                 lean_rag_source_registry_expansion_apply_manifest.get("warnings", ())
             ),
             "lean_rag_source_registry_expansion_apply_current_fingerprint_match": (
-                lean_rag_source_registry_expansion_apply_manifest.get(
-                    "source_registry_fingerprint_before_expected"
+                bool(
+                    lean_rag_source_registry_expansion_apply_manifest.get(
+                        "no_staged", False
+                    )
                 )
-                == lean_rag_source_registry_expansion_apply_manifest.get(
-                    "source_registry_fingerprint_before_actual"
+                or (
+                    lean_rag_source_registry_expansion_apply_manifest.get(
+                        "source_registry_fingerprint_before_expected"
+                    )
+                    == lean_rag_source_registry_expansion_apply_manifest.get(
+                        "source_registry_fingerprint_before_actual"
+                    )
                 )
             ),
             "lean_rag_source_registry_expansion_apply_staged_fingerprint_match": (
-                lean_rag_source_registry_expansion_apply_manifest.get(
-                    "staged_source_registry_fingerprint_expected"
+                bool(
+                    lean_rag_source_registry_expansion_apply_manifest.get(
+                        "no_staged", False
+                    )
                 )
-                == lean_rag_source_registry_expansion_apply_manifest.get(
-                    "staged_source_registry_fingerprint_actual"
+                or (
+                    lean_rag_source_registry_expansion_apply_manifest.get(
+                        "staged_source_registry_fingerprint_expected"
+                    )
+                    == lean_rag_source_registry_expansion_apply_manifest.get(
+                        "staged_source_registry_fingerprint_actual"
+                    )
                 )
             ),
             "research_ready_with_gaps": benchmark_manifest["n_ready_with_gaps"],

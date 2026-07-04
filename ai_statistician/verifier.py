@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .research_source_inventory import VENDORED_EMPIRICAL_PROCESS_ROOT
 from .schema import FormalObligation, ProofCheck, RetrievalHit
 
 
@@ -21,8 +22,9 @@ DEFAULT_LOCAL_LEAN_PROJECTS = (
     Path(os.environ["AI_STATISTICIAN_LEAN_PROJECT"])
     if os.environ.get("AI_STATISTICIAN_LEAN_PROJECT")
     else None,
-    Path("/Users/yukang/LeanProjects/LeanPractice"),
-    Path("/Users/yukang/Desktop/AI for Math/Codex"),
+    VENDORED_EMPIRICAL_PROCESS_ROOT,
+    Path.home() / "LeanProjects" / "LeanPractice",
+    Path.home() / "Desktop" / "AI for Math" / "Codex",
 )
 
 

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .fingerprint import stable_hash
-from .research_source_inventory import AUTOFORM_BOT_ROOT
+from .research_source_inventory import AUTOFORM_BOT_ROOT, AUTOFORM_BOT_URL
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,8 @@ class AutoformHarnessProfile:
     exists: bool
     git_commit: str
     remote_url: str
+    availability_status: str
+    local_execution_ready: bool
     has_statement_extraction: bool
     has_lean_eval: bool
     has_dependency_graph_eval: bool
@@ -42,6 +44,26 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
 
     root = root.expanduser()
     exists = root.exists()
+    has_statement_extraction = (root / "autoform" / "statement_extraction" / "extraction.py").exists()
+    has_lean_eval = (root / "autoform" / "eval" / "lean_checks.py").exists()
+    has_dependency_graph_eval = (root / "autoform" / "eval" / "dependency_graph" / "builder.py").exists()
+    has_lean_proof_checker = (root / "tools" / "execution" / "lean" / "proof_checker.py").exists()
+    has_lean_repl_tool = (root / "tools" / "execution" / "lean" / "repl" / "core.py").exists()
+    has_native_lsp_tool = (root / "tools" / "execution" / "lean" / "native_lsp" / "session.py").exists()
+    has_lean_skill_docs = any((root / "autoform" / "bot" / "skills" / "lean").glob("*.md")) if exists else False
+    has_multi_agent_bot = (root / "autoform" / "bot" / "main.py").exists()
+    has_visualizer = (root / "autoform" / "visualizer" / "app.py").exists()
+    local_execution_ready = (
+        exists
+        and has_statement_extraction
+        and has_lean_eval
+        and has_dependency_graph_eval
+        and has_lean_proof_checker
+        and has_lean_repl_tool
+        and has_native_lsp_tool
+        and has_lean_skill_docs
+        and has_multi_agent_bot
+    )
     modules = (
         "autoform.statement_extraction",
         "autoform.eval.lean_checks",
@@ -65,16 +87,18 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
         root=str(root),
         exists=exists,
         git_commit=_git_output(root, "rev-parse", "HEAD") if exists else "",
-        remote_url=_git_output(root, "remote", "get-url", "origin") if exists else "",
-        has_statement_extraction=(root / "autoform" / "statement_extraction" / "extraction.py").exists(),
-        has_lean_eval=(root / "autoform" / "eval" / "lean_checks.py").exists(),
-        has_dependency_graph_eval=(root / "autoform" / "eval" / "dependency_graph" / "builder.py").exists(),
-        has_lean_proof_checker=(root / "tools" / "execution" / "lean" / "proof_checker.py").exists(),
-        has_lean_repl_tool=(root / "tools" / "execution" / "lean" / "repl" / "core.py").exists(),
-        has_native_lsp_tool=(root / "tools" / "execution" / "lean" / "native_lsp" / "session.py").exists(),
-        has_lean_skill_docs=any((root / "autoform" / "bot" / "skills" / "lean").glob("*.md")) if exists else False,
-        has_multi_agent_bot=(root / "autoform" / "bot" / "main.py").exists(),
-        has_visualizer=(root / "autoform" / "visualizer" / "app.py").exists(),
+        remote_url=(_git_output(root, "remote", "get-url", "origin") if exists else "") or AUTOFORM_BOT_URL,
+        availability_status="local_ready" if local_execution_ready else ("local_incomplete" if exists else "clone_required"),
+        local_execution_ready=local_execution_ready,
+        has_statement_extraction=has_statement_extraction,
+        has_lean_eval=has_lean_eval,
+        has_dependency_graph_eval=has_dependency_graph_eval,
+        has_lean_proof_checker=has_lean_proof_checker,
+        has_lean_repl_tool=has_lean_repl_tool,
+        has_native_lsp_tool=has_native_lsp_tool,
+        has_lean_skill_docs=has_lean_skill_docs,
+        has_multi_agent_bot=has_multi_agent_bot,
+        has_visualizer=has_visualizer,
         usage_policy="integration_reference_no_training_export",
         command_templates=command_templates,
         reusable_modules=modules,
@@ -83,25 +107,19 @@ def build_autoform_harness_profile(root: Path = AUTOFORM_BOT_ROOT) -> AutoformHa
 
 def audit_autoform_harness(out_dir: Path | None = None, root: Path = AUTOFORM_BOT_ROOT) -> dict[str, object]:
     profile = build_autoform_harness_profile(root)
+    reference_contract_ready = bool(profile.remote_url and profile.command_templates and profile.reusable_modules)
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "profile": asdict(profile),
-        "ready_for_integration": (
-            profile.exists
-            and profile.has_statement_extraction
-            and profile.has_lean_eval
-            and profile.has_dependency_graph_eval
-            and profile.has_lean_proof_checker
-            and profile.has_lean_repl_tool
-            and profile.has_native_lsp_tool
-            and profile.has_lean_skill_docs
-            and profile.has_multi_agent_bot
-        ),
+        "ready_for_integration": profile.local_execution_ready or reference_contract_ready,
+        "ready_for_local_execution": profile.local_execution_ready,
+        "reference_contract_ready": reference_contract_ready,
         "fingerprint": stable_hash(asdict(profile)),
         "limitations": [
             "adapter only records reusable harness entrypoints; it does not vendor or train on external artifacts",
             "autoform-bot execution still requires its own dependency setup and model-provider keys",
             "Atlas/autoform outputs must stay out of training exports unless license terms change",
+            "clone_required means the route can be planned, but local Autoform execution must request or install the checkout first",
         ],
     }
     if out_dir is not None:
@@ -136,6 +154,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Autoform-Bot Harness Integration",
         "",
         f"- Ready: {payload.get('ready_for_integration')}",
+        f"- Local execution ready: {payload.get('ready_for_local_execution')}",
+        f"- Availability: `{profile.get('availability_status', '')}`",
         f"- Root: `{profile.get('root', '')}`",
         f"- Commit: `{str(profile.get('git_commit', ''))[:12]}`",
         f"- Usage policy: `{profile.get('usage_policy', '')}`",

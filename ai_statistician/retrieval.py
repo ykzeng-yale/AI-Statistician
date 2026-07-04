@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .proof_bank import all_obligations, proof_bank_fingerprint
+from .research_source_inventory import OPENPROVER_ROOT
 from .schema import FormalObligation, RetrievalHit
 
 
@@ -74,9 +75,7 @@ def _openprover_lean_tokens():
     search, so the production default uses the local tokenizer above and keeps
     the direct OpenProver import as an opt-in compatibility hook.
     """
-    openprover_src = Path(
-        os.environ.get("OPENPROVER_SRC", "/Users/yukang/Documents/OpenProver/src")
-    ).expanduser()
+    openprover_src = Path(os.environ.get("OPENPROVER_SRC", str(OPENPROVER_ROOT / "src"))).expanduser()
     if not openprover_src.exists():
         return None
     src = str(openprover_src)

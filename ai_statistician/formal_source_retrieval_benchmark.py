@@ -178,7 +178,9 @@ def run_formal_source_retrieval_benchmark(
     """
 
     active_retriever = retriever or build_formal_source_search_backend()
-    rows = [_run_case(active_retriever, case, k=k) for case in cases]
+    available_source_ids = _retriever_source_ids(active_retriever)
+    active_cases, skipped_cases = _split_available_cases(cases, available_source_ids)
+    rows = [_run_case(active_retriever, case, k=k) for case in active_cases]
     n_ok = sum(1 for row in rows if row.ok)
     reciprocal_ranks = [1.0 / row.hit_rank for row in rows if row.hit_rank]
     payload: dict[str, object] = {
@@ -201,14 +203,19 @@ def run_formal_source_retrieval_benchmark(
         ),
         "k": int(k),
         "n_cases": len(rows),
+        "n_configured_cases": len(cases),
+        "n_skipped_cases": len(skipped_cases),
         "n_ok": n_ok,
         "all_ok": n_ok == len(rows),
         "recall_at_k": n_ok / len(rows) if rows else 1.0,
         "mean_reciprocal_rank": sum(reciprocal_ranks) / len(rows) if rows else 1.0,
+        "available_source_ids": tuple(sorted(available_source_ids)),
+        "skipped_cases": [asdict(case) for case in skipped_cases],
         "rows": [asdict(row) for row in rows],
         "dataset_fingerprint": stable_hash([asdict(row) for row in rows]),
         "limitations": [
             "gold-family recall is a retrieval-quality benchmark, not a proof-success theorem",
+            "cases whose expected source families are absent from the local formal index are skipped and must be routed to source acquisition",
             "Atlas rows are retrieval-only context and are not exported as training data",
             "the benchmark complements AXLE proof audits; Lean remains the final verifier",
         ],
@@ -224,6 +231,43 @@ def run_formal_source_retrieval_benchmark(
             encoding="utf-8",
         )
     return payload
+
+
+def _retriever_source_ids(retriever: object) -> set[str]:
+    declarations = []
+    if hasattr(retriever, "load_declarations"):
+        try:
+            declarations = list(retriever.load_declarations())  # type: ignore[attr-defined]
+        except Exception:
+            declarations = []
+    if not declarations:
+        declarations = list(getattr(retriever, "declarations", []) or [])
+    source_ids = {
+        str(getattr(declaration, "source_id", ""))
+        for declaration in declarations
+        if getattr(declaration, "source_id", "")
+    }
+    if getattr(retriever, "lean_rag_dependency_graph_enabled", False):
+        source_ids.add("lean_rag_dependency_graph")
+    return source_ids
+
+
+def _split_available_cases(
+    cases: tuple[FormalSourceRetrievalBenchmarkCase, ...],
+    available_source_ids: set[str],
+) -> tuple[tuple[FormalSourceRetrievalBenchmarkCase, ...], tuple[FormalSourceRetrievalBenchmarkCase, ...]]:
+    if not available_source_ids:
+        return (), cases
+    active: list[FormalSourceRetrievalBenchmarkCase] = []
+    skipped: list[FormalSourceRetrievalBenchmarkCase] = []
+    for case in cases:
+        if not case.expected_source_ids or any(
+            source_id in available_source_ids for source_id in case.expected_source_ids
+        ):
+            active.append(case)
+        else:
+            skipped.append(case)
+    return tuple(active), tuple(skipped)
 
 
 def _run_case(
@@ -288,6 +332,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Retriever: `{payload.get('retriever_source')}`",
         f"- Recall@{payload.get('k')}: {payload.get('n_ok')}/{payload.get('n_cases')} "
         f"({float(payload.get('recall_at_k', 0.0)):.3f})",
+        f"- Skipped unavailable source cases: {payload.get('n_skipped_cases', 0)}/{payload.get('n_configured_cases', payload.get('n_cases'))}",
         f"- MRR: {float(payload.get('mean_reciprocal_rank', 0.0)):.3f}",
         f"- Fingerprint: `{payload.get('dataset_fingerprint')}`",
         "",

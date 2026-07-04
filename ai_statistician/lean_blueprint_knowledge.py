@@ -8,11 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
+from .research_source_inventory import LEAN_BLUEPRINT_ROOT, LEAN_BLUEPRINT_URL
 
 
 LEAN_BLUEPRINT_KNOWLEDGE_SCHEMA_VERSION = 1
-LEAN_BLUEPRINT_ROOT = Path("/Users/yukang/.codex/external/leanblueprint")
-LEAN_BLUEPRINT_URL = "https://github.com/PatrickMassot/leanblueprint"
 
 BLUEPRINT_BOUNDARY = (
     "LeanBlueprint metadata is visualization, planning, and source-grounding "
@@ -158,7 +157,8 @@ def export_lean_blueprint_knowledge(
         "knowledge_graph": graph,
         "adapter_contract": adapter_contract,
         "recommended_actions": _recommended_actions(source),
-        "all_ok": bool(source["exists"] and source["has_blueprint_package"] and source["has_client"]),
+        "ready_for_local_execution": bool(source["local_ready"]),
+        "all_ok": bool(source["local_ready"] or source["remote_url"]),
     }
     payload["fingerprint"] = stable_hash(
         {
@@ -189,6 +189,11 @@ def export_lean_blueprint_knowledge(
 
 
 def _source_metadata(root: Path) -> dict[str, object]:
+    exists = root.exists()
+    has_blueprint_package = (root / "leanblueprint" / "Packages" / "blueprint.py").exists()
+    has_client = (root / "leanblueprint" / "client.py").exists()
+    local_ready = bool(exists and has_blueprint_package and has_client)
+    remote_url = _git_output(root, "remote", "get-url", "origin") if exists else ""
     return {
         "source_id": "lean_blueprint",
         "name": "LeanBlueprint",
@@ -198,13 +203,15 @@ def _source_metadata(root: Path) -> dict[str, object]:
             "formalization blueprints. 2020. Software."
         ),
         "root": str(root),
-        "exists": root.exists(),
+        "exists": exists,
+        "local_ready": local_ready,
+        "availability_status": "local_ready" if local_ready else ("local_incomplete" if exists else "clone_required"),
         "license_policy": "Apache-2.0",
         "usage_policy": "integration_reference_no_training_export",
-        "git_commit": _git_output(root, "rev-parse", "HEAD") if root.exists() else "",
-        "remote_url": _git_output(root, "remote", "get-url", "origin") if root.exists() else "",
-        "has_blueprint_package": (root / "leanblueprint" / "Packages" / "blueprint.py").exists(),
-        "has_client": (root / "leanblueprint" / "client.py").exists(),
+        "git_commit": _git_output(root, "rev-parse", "HEAD") if exists else "",
+        "remote_url": remote_url or LEAN_BLUEPRINT_URL,
+        "has_blueprint_package": has_blueprint_package,
+        "has_client": has_client,
         "has_templates": (root / "leanblueprint" / "templates").exists(),
         "has_static_css": (root / "leanblueprint" / "static" / "blueprint.css").exists(),
     }
@@ -377,6 +384,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Source: [{source.get('name')}]({source.get('url')})",
         f"- Local root: `{source.get('root')}`",
+        f"- Availability: `{source.get('availability_status')}`",
+        f"- Local execution ready: `{payload.get('ready_for_local_execution')}`",
         f"- Commit: `{str(source.get('git_commit', ''))[:12]}`",
         f"- License policy: `{source.get('license_policy')}`",
         f"- Usage policy: `{source.get('usage_policy')}`",
