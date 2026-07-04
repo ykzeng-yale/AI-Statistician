@@ -2323,7 +2323,9 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     assert manifest["n_review_packets"] == 1
     assert manifest["n_semantically_approved_review_packets"] == 0
     assert manifest["n_blocked_review_packets"] == 1
-    assert manifest["n_blocked_review_learning_rows"] == 1
+    assert manifest["n_blocked_review_learning_rows"] == 0
+    assert manifest["n_semantic_review_work_orders"] == 1
+    assert manifest["n_verifier_gate_work_orders"] == 0
     assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["n_execution_queue_rows"] == 0
     assert manifest["proof_body_recheck_blocked"] is True
@@ -2339,6 +2341,36 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     assert manifest["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
     )
+    semantic_review_work_orders = [
+        json.loads(line)
+        for line in Path(manifest["semantic_review_work_orders_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert semantic_review_work_orders[0]["artifact_kind"] == (
+        "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
+    )
+    assert semantic_review_work_orders[0]["learning_task"] == (
+        "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
+    )
+    assert semantic_review_work_orders[0]["action_type"] == (
+        "review_typechecked_exact_semantic_definition_candidate"
+    )
+    assert semantic_review_work_orders[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+    )
+    assert semantic_review_work_orders[0]["failure_classification"] == (
+        "typechecked_exact_semantic_definition_semantic_review_missing"
+    )
+    assert semantic_review_work_orders[0]["source_theorem_ready_for_exact_proof_body"] is False
+    assert (
+        semantic_review_work_orders[0]["source_theorem_kernel_evidence_eligible"]
+        is False
+    )
+    assert semantic_review_work_orders[0]["proof_evidence_status"] == (
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"])
@@ -2346,27 +2378,25 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
         .splitlines()
         if line.strip()
     ]
+    assert learning_rows == semantic_review_work_orders
     assert learning_rows[0]["learning_task"] == (
-        "source_theorem_exact_semantic_definition_typechecked_review_blocked"
+        "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
     )
-    assert learning_rows[0]["work_order_id"] == learning_rows[0][
-        "blocker_feedback_id"
-    ]
     assert learning_rows[0]["input_summary"]["trigger"] == (
-        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
     )
     assert learning_rows[0]["proof_body_recheck_blockers"] == [
         "source_theorem_ready_for_exact_proof_body_false",
         "semantic_review_required_before_proof_body",
     ]
     assert learning_rows[0]["runtime_queue_status"] == (
-        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
     )
     assert learning_rows[0]["failure_classification"] == (
-        "semantic_definition_review_blocked"
+        "typechecked_exact_semantic_definition_semantic_review_missing"
     )
     assert learning_rows[0]["proof_evidence_status"] == (
-        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_BLOCKED_NOT_PROOF_EVIDENCE"
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
     memory = _load_runtime_learning_memory(
         [Path(manifest["runtime_learning_rows_jsonl"])],
@@ -2377,10 +2407,10 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     )
     assert len(repairs) == 1
     assert repairs[0]["trigger"] == (
-        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
     )
     assert repairs[0]["failure_classification"] == (
-        "semantic_definition_review_blocked"
+        "typechecked_exact_semantic_definition_semantic_review_missing"
     )
     assert repairs[0]["proof_body_gate_status"] == (
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"

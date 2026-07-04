@@ -31,6 +31,9 @@ SEMANTIC_DEFINITION_REPAIR_QUEUE_ROW_ARTIFACT_KIND = (
 TYPECHECKED_REVIEW_VERIFIER_GATE_WORK_ORDER_ARTIFACT_KIND = (
     "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
 )
+TYPECHECKED_REVIEW_SEMANTIC_REVIEW_WORK_ORDER_ARTIFACT_KIND = (
+    "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
+)
 TYPECHECKED_REVIEW_BLOCKED_LEARNING_ROW_ARTIFACT_KIND = (
     "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewBlockedLearningRow"
 )
@@ -39,6 +42,9 @@ TYPECHECKED_REVIEW_RECHECK_QUEUE_PROOF_EVIDENCE_STATUS = (
 )
 TYPECHECKED_REVIEW_VERIFIER_GATE_PROOF_EVIDENCE_STATUS = (
     "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+)
+TYPECHECKED_REVIEW_SEMANTIC_REVIEW_PROOF_EVIDENCE_STATUS = (
+    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
 )
 TYPECHECKED_REVIEW_BLOCKED_PROOF_EVIDENCE_STATUS = (
     "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_BLOCKED_NOT_PROOF_EVIDENCE"
@@ -58,6 +64,9 @@ SEMANTIC_DEFINITION_REPAIR_LEARNING_TASK = (
 )
 TYPECHECKED_REVIEW_VERIFIER_GATE_LEARNING_TASK = (
     "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+)
+TYPECHECKED_REVIEW_SEMANTIC_REVIEW_LEARNING_TASK = (
+    "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
 )
 TYPECHECKED_REVIEW_BLOCKED_LEARNING_TASK = (
     "source_theorem_exact_semantic_definition_typechecked_review_blocked"
@@ -647,13 +656,20 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         if "llm_semantic_review_approved_requires_verifier_recheck_gate"
         in list(row.get("proof_body_recheck_blockers", []) or [])
     ]
+    semantic_review_work_orders = [
+        _typechecked_review_semantic_review_work_order(row)
+        for row in blocked_packets
+        if _typechecked_review_requires_semantic_review_work_order(row)
+    ]
     blocked_review_learning_rows = [
         _typechecked_review_blocked_learning_row(row)
         for row in blocked_packets
         if "llm_semantic_review_approved_requires_verifier_recheck_gate"
         not in list(row.get("proof_body_recheck_blockers", []) or [])
+        and not _typechecked_review_requires_semantic_review_work_order(row)
     ]
     runtime_learning_rows = [
+        *semantic_review_work_orders,
         *blocked_review_learning_rows,
         *verifier_gate_work_orders,
     ]
@@ -661,11 +677,16 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         out_dir
         / "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_work_orders.jsonl"
     )
+    semantic_review_work_orders_path = (
+        out_dir
+        / "source_theorem_exact_semantic_definition_typechecked_semantic_review_work_orders.jsonl"
+    )
     learning_path = out_dir / "runtime_learning_rows.jsonl"
     manifest_path = out_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
     _write_jsonl(queue_path, rows)
     _write_jsonl(blocked_path, blocked_packets)
     _write_jsonl(verifier_gate_work_orders_path, verifier_gate_work_orders)
+    _write_jsonl(semantic_review_work_orders_path, semantic_review_work_orders)
     _write_jsonl(learning_path, runtime_learning_rows)
     manifest = {
         "schema_version": 1,
@@ -677,6 +698,7 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         "proof_body_execution_queue_jsonl": str(queue_path),
         "blocked_review_packets_jsonl": str(blocked_path),
         "verifier_gate_work_orders_jsonl": str(verifier_gate_work_orders_path),
+        "semantic_review_work_orders_jsonl": str(semantic_review_work_orders_path),
         "runtime_learning_rows_jsonl": str(learning_path),
         "candidate_artifacts_dir": str(out_dir),
         "execution_transcripts_dir": str(out_dir / "execution_transcripts"),
@@ -696,6 +718,7 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         ),
         "n_blocked_review_packets": len(blocked_packets),
         "n_blocked_review_learning_rows": len(blocked_review_learning_rows),
+        "n_semantic_review_work_orders": len(semantic_review_work_orders),
         "n_verifier_gate_work_orders": len(verifier_gate_work_orders),
         "n_runtime_learning_rows": len(runtime_learning_rows),
         "n_source_proof_body_rows": len(source_rows),
@@ -1224,6 +1247,113 @@ def _typechecked_review_packet_as_synthesis_row(row: Mapping[str, Any]) -> dict[
             or ""
         ),
         "semantic_review_status": review_status,
+    }
+
+
+def _typechecked_review_requires_semantic_review_work_order(
+    row: Mapping[str, Any],
+) -> bool:
+    blockers = [
+        str(value)
+        for value in row.get("proof_body_recheck_blockers", []) or []
+        if str(value).strip()
+    ]
+    semantic_review_decision = str(
+        row.get("semantic_review_decision", "") or ""
+    ).strip()
+    return (
+        "semantic_review_required_before_proof_body" in blockers
+        and not semantic_review_decision
+        and "candidate_artifact_path_missing" not in blockers
+    )
+
+
+def _typechecked_review_semantic_review_work_order(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    base = _typechecked_review_blocked_learning_row(row)
+    target = str(base.get("target_theorem_name", "") or "").strip()
+    placeholder = str(base.get("placeholder_symbol", "") or "").strip()
+    candidate_artifact_path = str(base.get("candidate_artifact_path", "") or "").strip()
+    work_order_id = (
+        "source_theorem_exact_semantic_definition_typechecked_semantic_review:"
+        + stable_hash(
+            [
+                base.get("source_review_packet_id", ""),
+                target,
+                placeholder,
+                candidate_artifact_path,
+                base.get("proof_body_recheck_blockers", []),
+            ]
+        )[:20]
+    )
+    required_next_checks = [
+        "compare the typechecked exact semantic-definition candidate against source theorem anchors and intended statistical meaning",
+        "record an explicit semantic_review_decision and semantic_review_evidence for this candidate",
+        "if the LLM reviewer approves the candidate, route it to the local Lean/AXLE verifier gate before proof-body recheck",
+        "keep exact source theorem proof-body execution blocked until verifier-approved evidence clears the semantic-review gate",
+    ]
+    input_summary = {
+        **(
+            base.get("input_summary", {})
+            if isinstance(base.get("input_summary", {}), Mapping)
+            else {}
+        ),
+        "trigger": (
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+        ),
+        "semantic_review_work_order_id": work_order_id,
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+        ),
+        "failure_classification": (
+            "typechecked_exact_semantic_definition_semantic_review_missing"
+        ),
+        "definition_candidate_review_mode": (
+            "typechecked_candidate_semantic_faithfulness_review_required"
+        ),
+        "semantic_review_status": "semantic_faithfulness_review_required",
+        "required_next_checks": required_next_checks,
+    }
+    return {
+        **base,
+        "artifact_kind": TYPECHECKED_REVIEW_SEMANTIC_REVIEW_WORK_ORDER_ARTIFACT_KIND,
+        "learning_task": TYPECHECKED_REVIEW_SEMANTIC_REVIEW_LEARNING_TASK,
+        "action_type": "review_typechecked_exact_semantic_definition_candidate",
+        "work_order_id": work_order_id,
+        "semantic_review_work_order_id": work_order_id,
+        "trigger": (
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+        ),
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+        ),
+        "failure_classification": (
+            "typechecked_exact_semantic_definition_semantic_review_missing"
+        ),
+        "definition_candidate_review_mode": (
+            "typechecked_candidate_semantic_faithfulness_review_required"
+        ),
+        "semantic_review_status": "semantic_faithfulness_review_required",
+        "recommended_next_action": (
+            "run semantic-faithfulness review for this typechecked exact "
+            "semantic-definition candidate against source anchors and intended "
+            "statistical meaning; only then route an approved candidate to the "
+            "local Lean/AXLE verifier gate before proof-body recheck"
+        ),
+        "required_next_checks": required_next_checks,
+        "acceptance_gate": (
+            "Semantic review must produce an explicit decision and evidence tied "
+            "to source anchors; LLM approval is still not proof evidence and must "
+            "be followed by a local Lean/AXLE verifier gate before proof-body "
+            "execution can resume."
+        ),
+        "input_summary": input_summary,
+        "proof_evidence_status": (
+            TYPECHECKED_REVIEW_SEMANTIC_REVIEW_PROOF_EVIDENCE_STATUS
+        ),
+        "proof_evidence_boundary": BOUNDARY,
+        "boundary": BOUNDARY,
     }
 
 

@@ -40074,6 +40074,125 @@ def test_typechecked_review_blocked_manifest_rows_generate_next_action(
     ]
 
 
+def test_typechecked_semantic_review_work_orders_generate_next_action(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    work_order = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
+        ),
+        "action_type": "review_typechecked_exact_semantic_definition_candidate",
+        "work_order_id": (
+            "source_theorem_exact_semantic_definition_typechecked_semantic_review:covered"
+        ),
+        "semantic_review_work_order_id": (
+            "source_theorem_exact_semantic_definition_typechecked_semantic_review:covered"
+        ),
+        "trigger": (
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+        ),
+        "source_review_packet_id": "review:covered",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "covered",
+        "candidate_artifact_path": "runs/candidates/covered.lean",
+        "proof_body_recheck_blockers": [
+            "source_theorem_ready_for_exact_proof_body_false",
+            "semantic_review_required_before_proof_body",
+        ],
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+        ),
+        "semantic_review_required_before_proof_body": True,
+        "semantic_review_status": "semantic_faithfulness_review_required",
+        "failure_classification": (
+            "typechecked_exact_semantic_definition_semantic_review_missing"
+        ),
+        "definition_candidate_review_mode": (
+            "typechecked_candidate_semantic_faithfulness_review_required"
+        ),
+        "required_next_checks": [
+            "compare the typechecked exact semantic-definition candidate against source theorem anchors",
+            "record an explicit semantic_review_decision",
+            "route an approved candidate to the local Lean/AXLE verifier gate",
+        ],
+        "recommended_next_action": (
+            "run semantic-faithfulness review before verifier gate or proof-body recheck"
+        ),
+        "source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_kernel_evidence_eligible": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    learning_path.write_text(json.dumps(work_order) + "\n", encoding="utf-8")
+    recheck_manifest = {"runtime_learning_rows_jsonl": str(learning_path)}
+
+    recheck_learning_rows = (
+        _typechecked_review_runtime_learning_rows_from_recheck_manifest(
+            recheck_manifest
+        )
+    )
+    agenda_rows: list[dict[str, object]] = []
+    generated_rows = _append_runtime_generated_next_action_rows(
+        agenda_rows,
+        recheck_learning_rows,
+        queue_name=(
+            "source_theorem_exact_semantic_definition_"
+            "typechecked_review_recheck_feedback_from_typechecked_candidate_reviews"
+        ),
+    )
+    generated_learning_rows = _runtime_generated_next_action_learning_rows(
+        generated_rows
+    )
+
+    assert recheck_learning_rows == [work_order]
+    assert len(generated_rows) == 1
+    assert generated_rows[0]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert generated_rows[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+    )
+    assert generated_rows[0]["source_feedback_trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert generated_rows[0]["work_order_id"] == work_order["work_order_id"]
+    assert generated_rows[0]["definition_candidate_review_mode"] == (
+        "typechecked_candidate_semantic_faithfulness_review_required"
+    )
+    assert generated_rows[0]["failure_classification"] == (
+        "typechecked_exact_semantic_definition_semantic_review_missing"
+    )
+    assert generated_rows[0]["source_theorem_kernel_evidence_eligible"] is False
+    assert "semantic-faithfulness review" in generated_rows[0]["action"]
+    assert generated_learning_rows[0]["input_summary"]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+    )
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": generated_learning_rows,
+            }
+        }
+    )
+    assert len(repairs) == 1
+    assert repairs[0]["source_feedback_trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+    )
+    assert repairs[0]["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+    )
+
+
 def test_generated_exact_semantic_next_action_merges_stronger_executor_status() -> None:
     work_order_id = "source_theorem_exact_semantic_definition_work_order:covered"
     stale_work_order = {

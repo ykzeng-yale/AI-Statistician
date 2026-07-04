@@ -26964,6 +26964,12 @@ def run_research_agent_runtime(
             str(row.get("verifier_gate_work_orders_jsonl", "") or "")
             for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
         ]
+        manifest["artifacts"][
+            "runtime_late_source_theorem_exact_semantic_definition_typechecked_semantic_review_work_orders_jsonl"
+        ] = [
+            str(row.get("semantic_review_work_orders_jsonl", "") or "")
+            for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+        ]
     if late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests:
         manifest["artifacts"][
             "runtime_late_source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_manifests"
@@ -27432,6 +27438,15 @@ def run_research_agent_runtime(
             )
             or ""
         )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_semantic_review_work_orders_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest.get(
+                "semantic_review_work_orders_jsonl",
+                "",
+            )
+            or ""
+        )
     if (
         source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest
         is not None
@@ -27733,6 +27748,15 @@ def run_research_agent_runtime(
         ] = str(
             source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
                 "verifier_gate_work_orders_jsonl",
+                "",
+            )
+            or ""
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_semantic_review_work_orders_jsonl"
+        ] = str(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest.get(
+                "semantic_review_work_orders_jsonl",
                 "",
             )
             or ""
@@ -29866,6 +29890,10 @@ def run_research_agent_runtime(
         int(row.get("n_blocked_review_learning_rows", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
     )
+    late_typechecked_review_recheck_queue_n_semantic_review_work_orders = sum(
+        int(row.get("n_semantic_review_work_orders", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
+    )
     late_typechecked_review_recheck_queue_n_verifier_gate_work_orders = sum(
         int(row.get("n_verifier_gate_work_orders", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifests
@@ -29951,6 +29979,9 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
     ] = late_typechecked_review_recheck_queue_n_blocked_review_learning_rows
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_semantic_review_work_orders"
+    ] = late_typechecked_review_recheck_queue_n_semantic_review_work_orders
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = late_typechecked_review_recheck_queue_n_verifier_gate_work_orders
@@ -30968,6 +30999,13 @@ def run_research_agent_runtime(
         ).get("n_blocked_review_learning_rows", 0)
         or 0
     )
+    primary_typechecked_review_recheck_queue_n_semantic_review_work_orders = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_semantic_review_work_orders", 0)
+        or 0
+    )
     primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_manifest
@@ -31059,6 +31097,9 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
     ] = primary_typechecked_review_recheck_queue_n_blocked_review_learning_rows
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_semantic_review_work_orders"
+    ] = primary_typechecked_review_recheck_queue_n_semantic_review_work_orders
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = primary_typechecked_review_recheck_queue_n_verifier_gate_work_orders
@@ -31596,6 +31637,13 @@ def run_research_agent_runtime(
         ).get("n_blocked_review_learning_rows", 0)
         or 0
     )
+    materialized_typechecked_review_recheck_queue_n_semantic_review_work_orders = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
+            or {}
+        ).get("n_semantic_review_work_orders", 0)
+        or 0
+    )
     materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders = int(
         (
             source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_manifest
@@ -31695,6 +31743,9 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows"
     ] = materialized_typechecked_review_recheck_queue_n_blocked_review_learning_rows
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_semantic_review_work_orders"
+    ] = materialized_typechecked_review_recheck_queue_n_semantic_review_work_orders
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
     ] = materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders
@@ -37629,6 +37680,7 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES = frozenset(
         "source_theorem_semantic_alignment_unreviewed",
         "proof_body_reached_semantic_alignment_unreviewed",
         "semantic_definition_review_blocked",
+        "typechecked_exact_semantic_definition_semantic_review_missing",
         "typechecked_exact_semantic_definition_candidate_review_required",
         "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate",
         "exact_semantic_definition_authoring_required",
@@ -37639,6 +37691,7 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_SEMANTIC_ALIGNMENT_REVIEW_REQUIRED",
         "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY",
     }
@@ -37661,6 +37714,7 @@ _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES = frozenset(
 _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES = frozenset(
     {
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW",
         "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE",
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED",
@@ -42160,6 +42214,7 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CLOSURE_REVIEW_RESULT",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
@@ -43229,10 +43284,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             == "RuntimeSourceTheoremExactSemanticDefinitionRepairQueueRow"
             or str(row.get("action_type", "") or "")
             == "repair_reviewed_exact_semantic_definition"
+            or str(row.get("action_type", "") or "")
+            == "review_typechecked_exact_semantic_definition_candidate"
             or learning_task
             == "source_theorem_exact_semantic_definition_repair_queue"
             or learning_task
             == "source_theorem_exact_semantic_definition_typechecked_review_blocked"
+            or learning_task
+            == "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
+            or str(row.get("artifact_kind", "") or "")
+            == "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
         )
         is_exact_semantic_definition_typechecked_review_verifier_gate = (
             str(row.get("artifact_kind", "") or "")
@@ -43504,9 +43565,18 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS"
         if is_exact_semantic_definition_repair_queue and not trigger:
             trigger = (
-                "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
+                "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+                if learning_task
+                == "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED"
                 if learning_task
                 == "source_theorem_exact_semantic_definition_typechecked_review_blocked"
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+                if str(row.get("action_type", "") or "")
+                == "review_typechecked_exact_semantic_definition_candidate"
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+                if str(row.get("artifact_kind", "") or "")
+                == "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
                 else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
             )
         if (
@@ -43830,6 +43900,8 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 failure_classification = (
                     "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
                 )
+            elif is_exact_semantic_definition_repair_queue and environment_failure:
+                failure_classification = environment_failure
             elif execution_status == "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN":
                 failure_classification = "exact_semantic_definition_authoring_required"
             elif (
@@ -55949,6 +56021,16 @@ def _append_runtime_generated_next_action_rows(
                 or not proof_body_goal_reached_for_routing
             )
         )
+        typechecked_semantic_review_queue_ready = bool(
+            source_trigger
+            == "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+            or learning_task
+            == "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
+            or str(row.get("artifact_kind", "") or "")
+            == "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
+            or str(row.get("action_type", "") or "")
+            == "review_typechecked_exact_semantic_definition_candidate"
+        )
         exact_semantic_definition_repair_queue_ready = bool(
             source_trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
             or learning_task == "source_theorem_exact_semantic_definition_repair_queue"
@@ -55956,6 +56038,7 @@ def _append_runtime_generated_next_action_rows(
             == "RuntimeSourceTheoremExactSemanticDefinitionRepairQueueRow"
             or str(row.get("action_type", "") or "")
             == "repair_reviewed_exact_semantic_definition"
+            or typechecked_semantic_review_queue_ready
             or truth_table_semantic_review_queue_ready
         )
         premise_gap_kind = str(row.get("premise_derivation_gap_kind", "") or "")
@@ -56097,6 +56180,8 @@ def _append_runtime_generated_next_action_rows(
                 if source_to_bridge_premise_gap
                 else "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
                 if truth_table_proof_body_reached_semantic_review_required
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+                if typechecked_semantic_review_queue_ready
                 else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
                 if exact_semantic_definition_repair_queue_ready
                 else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
