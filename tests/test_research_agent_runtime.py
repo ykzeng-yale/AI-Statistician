@@ -44468,6 +44468,290 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
     ).exists()
 
 
+def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_anchor_context = [
+        {
+            "kind": "proof_body_queue_manifest_context",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "n_matching_source_rows": 10,
+        },
+        {
+            "name": "score",
+            "role": "source_theorem_parameter",
+            "type": "Fin (n + 1) -> Omega -> Real",
+        },
+    ]
+    learning_path = tmp_path / "verifier_gate_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow"
+                ),
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_"
+                    "typechecked_review_verifier_gate_execution"
+                ),
+                "work_order_id": (
+                    "source_theorem_exact_semantic_definition_verifier_gate:"
+                    "good_rank_event"
+                ),
+                "verifier_gate_result_id": (
+                    "source_theorem_exact_semantic_definition_verifier_gate_result:"
+                    "good_rank_event"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "placeholder_symbol": "good_rank_event",
+                "candidate_artifact_path": (
+                    "runs/candidates/good_rank_event_definition_only.lean"
+                ),
+                "local_lean_checked": True,
+                "local_lean_compiled": True,
+                "failure_classification": "known_gaps_unresolved",
+                "verifier_gate_status": (
+                    "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+                ),
+                "verifier_gate_blockers": [
+                    "known_gaps_unresolved",
+                    "candidate_known_gaps_comment_present",
+                ],
+                "known_gaps": [
+                    "threshold k is not tied to the source quantile hypothesis",
+                    "candidate still contains a known-gaps comment",
+                ],
+                "source_anchor_context": source_anchor_context,
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+                ),
+                "source_theorem_kernel_evidence_eligible": False,
+                "source_theorem_kernel_verified": False,
+                "source_theorem_ready_for_exact_proof_body": False,
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_"
+                    "NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+    authoring_calls: list[dict[str, object]] = []
+
+    def fake_authoring_worker(
+        *,
+        out_dir: Path,
+        runtime_dir: Path | None = None,
+        repair_executor_manifest: Path | None = None,
+        authoring_tasks_jsonl: Path | None = None,
+        provider: object | None = None,
+        config: object | None = None,
+    ) -> dict[str, object]:
+        assert runtime_dir is None
+        assert repair_executor_manifest is None
+        assert authoring_tasks_jsonl is not None
+        assert authoring_tasks_jsonl.exists()
+        task_rows = [
+            json.loads(line)
+            for line in authoring_tasks_jsonl.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(task_rows) == 1
+        task = task_rows[0]
+        assert task["placeholder_symbol"] == "good_rank_event"
+        assert task["runtime_queue_status"] == (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+        )
+        assert task["authoring_trigger"] == (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+        )
+        assert task["authoring_mode"] == (
+            "repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback"
+        )
+        assert task["retry_failure_classification"] == (
+            "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+        )
+        assert task["verifier_gate_blockers"] == [
+            "known_gaps_unresolved",
+            "candidate_known_gaps_comment_present",
+        ]
+        assert task["known_gaps"] == [
+            "threshold k is not tied to the source quantile hypothesis",
+            "candidate still contains a known-gaps comment",
+        ]
+        assert task["source_anchor_context"] == source_anchor_context
+        assert task["source_anchor_context_rows"] == 2
+        assert task["source_verifier_gate_work_order_id"] == (
+            "source_theorem_exact_semantic_definition_verifier_gate:good_rank_event"
+        )
+        feedback = task["candidate_repair_feedback"]
+        assert feedback["verifier_gate_blockers"] == task["verifier_gate_blockers"]
+        assert feedback["known_gaps"] == task["known_gaps"]
+        assert feedback["source_anchor_context"] == source_anchor_context
+        assert feedback["source_anchor_context_rows"] == 2
+        assert feedback["verifier_gate_proof_evidence_status"] == (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_"
+            "NOT_SOURCE_THEOREM_PROOF"
+        )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_authoring_worker_manifest.json"
+        )
+        prompt_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_authoring_prompt_packets.jsonl"
+        )
+        candidate_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_authoring_candidate_packets.jsonl"
+        )
+        learning_rows_path = out_dir / "runtime_learning_rows.jsonl"
+        prompt_packets_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": (
+                        "SourceTheoremExactSemanticDefinitionAuthoringPromptPacket"
+                    ),
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "placeholder_symbol": "good_rank_event",
+                    "candidate_repair_feedback": feedback,
+                    "proof_evidence_status": (
+                        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        candidate_packets_path.write_text("", encoding="utf-8")
+        learning_rows_path.write_text(
+            json.dumps(
+                {
+                    "learning_task": (
+                        "source_theorem_exact_semantic_definition_authoring_worker"
+                    ),
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "placeholder_symbol": "good_rank_event",
+                    "runtime_queue_status": (
+                        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+                    ),
+                    "source_theorem_kernel_verified": False,
+                    "proof_evidence_status": (
+                        "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "authoring_prompt_packets_jsonl": str(prompt_packets_path),
+            "authoring_candidate_packets_jsonl": str(candidate_packets_path),
+            "runtime_learning_rows_jsonl": str(learning_rows_path),
+            "dry_run": True,
+            "n_prompt_packets": 1,
+            "n_llm_attempted": 0,
+            "n_candidate_packets": 0,
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        authoring_calls.append(
+            {
+                "authoring_tasks_jsonl": str(authoring_tasks_jsonl),
+                "provider": provider,
+                "provider_name": getattr(config, "provider_name", None),
+                "dry_run": getattr(config, "dry_run", None),
+            }
+        )
+        return manifest
+
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_authoring_worker",
+        fake_authoring_worker,
+    )
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(
+                provider_name="static",
+                model="static-theory",
+            ),
+        ),
+        architect_context={"runtime_learning_memory": memory},
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=1,
+            source_theorem_exact_semantic_definition_authoring_worker=True,
+            source_theorem_exact_semantic_definition_authoring_worker_max_tasks=1,
+        ),
+    )
+
+    assert len(authoring_calls) == 1
+    assert authoring_calls[0]["provider"] is None
+    assert authoring_calls[0]["provider_name"] == "none"
+    assert authoring_calls[0]["dry_run"] is True
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_repair_tasks_required"
+        ]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_authoring_repair_n_tasks"]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets"
+        ]
+        == 1
+    )
+    task_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"][
+                "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_jsonl"
+            ]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert task_rows[0]["retry_failure_classification"] == (
+        "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+    )
+    assert task_rows[0]["source_theorem_kernel_verified"] is False
+    assert task_rows[0]["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_runtime_consumes_authoring_repair_memory_with_authoring_worker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

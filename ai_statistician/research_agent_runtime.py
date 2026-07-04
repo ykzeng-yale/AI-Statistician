@@ -66432,6 +66432,19 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "exact_semantic_definition_verifier_gate_"
             )
         )
+        verifier_gate_failure_classification = ""
+        if verifier_gate_repair_required:
+            verifier_gate_failure_classification = (
+                failure_classification
+                if failure_classification.startswith(
+                    "exact_semantic_definition_verifier_gate_"
+                )
+                else (
+                    f"exact_semantic_definition_verifier_gate_{failure_classification}"
+                    if failure_classification
+                    else "exact_semantic_definition_verifier_gate_repair_required"
+                )
+            )
         authoring_repair_required = (
             runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
             or environment_port_authoring_required
@@ -66559,11 +66572,10 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "repair_of_semantic_alignment_blockers": bool(
                     authoring_repair_required
                 ),
-                "retry_failure_classification": failure_classification
-                or (
-                    "exact_semantic_definition_verifier_gate_repair_required"
+                "retry_failure_classification": (
+                    verifier_gate_failure_classification
                     if verifier_gate_repair_required
-                    else ""
+                    else failure_classification
                 ),
                 "retry_recommended_next_action": str(
                     row.get("recommended_next_action", "")
@@ -66667,6 +66679,14 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         ):
             task["source_anchor_context_rows"] = len(
                 task.get("source_anchor_context", []) or []
+            )
+        if verifier_gate_repair_required and not str(
+            task.get("source_verifier_gate_work_order_id", "") or ""
+        ).strip():
+            task["source_verifier_gate_work_order_id"] = str(
+                row.get("work_order_id", "")
+                or input_summary.get("work_order_id", "")
+                or ""
             )
         diagnostic_source_excerpts = _runtime_local_lean_diagnostic_source_excerpts(
             row,

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-04T20:35:38Z",
+  "updated_at": "2026-07-04T20:43:39Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1262,10 +1262,23 @@
         "real_replay_result": "The real good_rank_event verifier-gate row yields n_repairs=1 and now n_authoring_repair_tasks=1 with runtime_queue_status=PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR, authoring_mode=repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback, failure_classification=exact_semantic_definition_verifier_gate_known_gaps_unresolved, known_gaps=3, source_anchor_context_rows=44, feedback_known_gaps=3, and feedback_source_anchor_context_rows=44.",
         "regression_test": "tests/test_research_agent_runtime.py::test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt",
         "boundary": "The new authoring repair task and prompt packet remain ProofEngineer authoring work items only. They are not local Lean/AXLE evidence and do not claim source theorem proof evidence."
+      },
+      "exact_semantic_verifier_gate_compact_memory_agentruntime_handoff_20260704": {
+        "fix": "Runtime compact-memory rows now retain raw verifier-gate repair fields needed for executable follow-up: verifier_gate_status, verifier_gate_result_id, source_verifier_gate_work_order_id/source work_order_id provenance, verifier_gate_blockers, known_gaps, source_anchor_context, source_anchor_context_rows, recommended_repair_tasks, and proof_body_recheck_blockers. Direct AgentRuntime consumption also namespaces raw verifier-gate failure classifications such as known_gaps_unresolved into exact_semantic_definition_verifier_gate_known_gaps_unresolved.",
+        "integrated_regression": "tests/test_research_agent_runtime.py::test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker feeds a raw RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow through _load_runtime_learning_memory and run_research_agent_runtime, then asserts the fake authoring worker receives one PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR task with verifier blockers, known gaps, source anchors, normalized verifier-gate failure classification, source verifier work-order id, and non-proof candidate_repair_feedback intact.",
+        "real_replay_source": "runs/main_worker_good_rank_verifier_gate_source_context_executor_20260704/runtime_learning_rows.jsonl",
+        "real_replay_result": "Loading the real good_rank_event verifier-gate runtime_learning_rows.jsonl through _load_runtime_learning_memory and then generating authoring follow-up tasks now yields tasks=1, mode=repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback, failure_classification=exact_semantic_definition_verifier_gate_known_gaps_unresolved, verifier_gate_blockers=2, known_gaps=3, source_anchor_context_rows=44, and feedback_known_gaps=3.",
+        "boundary": "This is still handoff and authoring-feedback evidence only. The verifier-gate row, authoring task, and authoring prompt remain non-proof evidence until a repaired candidate passes verifier gate and a proof-body executor reports source-theorem kernel verification."
       }
     }
   },
   "latest_local_verification": [
+    "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/cli.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after verifier-gate compact-memory AgentRuntime handoff patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_consumes_verifier_gate_repair_memory_with_authoring_worker\" # 1 passed, 806 deselected after compact-memory verifier-gate handoff patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or exact_candidate_repair_memory or typechecked_review or runtime_consumes_authoring\" # 17 passed, 790 deselected after compact-memory verifier-gate handoff patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_authoring_worker.py -q -k \"dry_run_writes_prompt_packets_without_proof_evidence or prompt_contract\" # 5 passed, 13 deselected after compact-memory verifier-gate handoff patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py -q -k \"typechecked_review_recheck_queue or verifier_gate\" # 8 passed, 21 deselected after compact-memory verifier-gate handoff patch",
+    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... load runs/main_worker_good_rank_verifier_gate_source_context_executor_20260704/runtime_learning_rows.jsonl through _load_runtime_learning_memory then _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows # loaded_rows=1, tasks=1, placeholder=good_rank_event, status=PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR, mode=repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback, failure=exact_semantic_definition_verifier_gate_known_gaps_unresolved, blockers=2, known_gaps=3, source_anchor_context_rows=44, feedback_known_gaps=3",
     "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py ai_statistician/source_theorem_exact_semantic_definition_authoring_worker.py ai_statistician/cli.py tests/test_research_agent_runtime.py # passed after verifier-gate authoring-task feedback patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate_known_gaps_become_authoring_repair_task_and_prompt\" # 1 passed, 805 deselected after verifier-gate authoring-task feedback patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or exact_candidate_repair_memory or authoring_retry_task or authoring_repair_tasks_include\" # 6 passed, 800 deselected after verifier-gate authoring-task feedback patch",
