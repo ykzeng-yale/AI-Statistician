@@ -331,6 +331,16 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     assert learning_rows[0]["runtime_queue_status"] == (
         "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
     )
+    assert learning_rows[0]["work_order_id"] == prompt_packets[0]["prompt_packet_id"]
+    assert learning_rows[0]["source_prompt_packet_id"] == prompt_packets[0][
+        "prompt_packet_id"
+    ]
+    assert learning_rows[0]["provider_requested"] is False
+    assert learning_rows[0]["external_export_blocked"] is False
+    assert "approved live/backend provider" in learning_rows[0][
+        "recommended_next_action"
+    ]
+    assert "local Lean/AXLE" in learning_rows[0]["acceptance_gate"]
     assert learning_rows[0]["placeholder_symbol"] == "covered"
     assert learning_rows[0]["semantic_alignment_blockers"] == [
         "previous covered candidate ignored q_hat and hC"

@@ -3583,10 +3583,38 @@ def _learning_row_from_prompt_packet(
     provider_requested: bool,
     external_export_blocked: bool = False,
 ) -> dict[str, Any]:
+    prompt_packet_id = str(packet.get("prompt_packet_id", "") or "")
+    source_authoring_task_id = str(packet.get("source_authoring_task_id", "") or "")
+    pending_queue_status = (
+        "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED"
+        if external_export_blocked
+        else
+        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+        if not provider_requested
+        else "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
+    )
+    if external_export_blocked:
+        recommended_next_action = (
+            "review and approve the external LLM export packet, or reroute this "
+            "exact semantic-definition prompt to an approved local/live backend; "
+            "any returned semantic-review decision remains non-proof evidence"
+        )
+    elif not provider_requested:
+        recommended_next_action = (
+            "run the exact semantic-definition authoring worker with an approved "
+            "live/backend provider on this prompt packet; expected output is a "
+            "candidate packet or semantic_review_decision, not proof-body readiness"
+        )
+    else:
+        recommended_next_action = (
+            "consume the exact semantic-definition authoring provider response and "
+            "validate it into a candidate packet before materialization or local Lean"
+        )
     return {
         "schema_version": 1,
         "artifact_kind": LEARNING_ARTIFACT_KIND,
         "learning_task": LEARNING_TASK,
+        "work_order_id": prompt_packet_id or source_authoring_task_id,
         "question_id": str(packet.get("question_id", "") or ""),
         "question_title": str(packet.get("question_title", "") or ""),
         "target_theorem_name": str(packet.get("target_theorem_name", "") or ""),
@@ -3609,16 +3637,11 @@ def _learning_row_from_prompt_packet(
             )
             or ""
         ),
-        "source_authoring_task_id": str(packet.get("source_authoring_task_id", "") or ""),
-        "source_prompt_packet_id": str(packet.get("prompt_packet_id", "") or ""),
-        "runtime_queue_status": (
-            "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED"
-            if external_export_blocked
-            else
-            "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
-            if not provider_requested
-            else "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
-        ),
+        "source_authoring_task_id": source_authoring_task_id,
+        "source_prompt_packet_id": prompt_packet_id,
+        "provider_requested": bool(provider_requested),
+        "external_export_blocked": bool(external_export_blocked),
+        "runtime_queue_status": pending_queue_status,
         **_exact_semantic_definition_context(packet),
         "candidate_definition_request": dict(
             packet.get("candidate_definition_request", {}) or {}
@@ -3637,6 +3660,10 @@ def _learning_row_from_prompt_packet(
             "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
             "authoring_trigger": str(packet.get("authoring_trigger", "") or ""),
             "authoring_mode": str(packet.get("authoring_mode", "") or ""),
+            "source_prompt_packet_id": prompt_packet_id,
+            "source_authoring_task_id": source_authoring_task_id,
+            "work_order_id": prompt_packet_id or source_authoring_task_id,
+            "runtime_queue_status": pending_queue_status,
             "source_execution_status": str(
                 packet.get("source_execution_status", "") or ""
             ),
@@ -3682,6 +3709,12 @@ def _learning_row_from_prompt_packet(
         "target_behavior": (
             "obtain an exact semantic-definition candidate from a generator-only "
             "ProofEngineer worker, then materialize and local-Lean check it"
+        ),
+        "recommended_next_action": recommended_next_action,
+        "acceptance_gate": (
+            "A validated authoring candidate packet or explicit semantic_review_decision "
+            "is produced; any candidate must still be materialized and checked by "
+            "local Lean/AXLE before proof-body search can resume."
         ),
         "proof_evidence_status": AUTHORING_WORKER_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,

@@ -39933,6 +39933,92 @@ def test_exact_semantic_definition_work_order_generates_next_action() -> None:
     )
 
 
+def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None:
+    prompt_row = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringLearningRow",
+        "learning_task": "source_theorem_exact_semantic_definition_authoring_worker",
+        "work_order_id": "authoring-prompt:covered",
+        "source_prompt_packet_id": "authoring-prompt:covered",
+        "source_authoring_task_id": "authoring-task:covered",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "covered",
+        "runtime_queue_status": "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+        "semantic_review_required_before_proof_body": True,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "provider_requested": False,
+        "external_export_blocked": False,
+        "recommended_next_action": (
+            "run the exact semantic-definition authoring worker with an approved "
+            "live/backend provider on this prompt packet"
+        ),
+        "acceptance_gate": (
+            "A validated authoring candidate packet or explicit semantic_review_decision "
+            "is produced; local Lean/AXLE remains required before proof-body search."
+        ),
+        "input_summary": {
+            "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
+            "runtime_queue_status": (
+                "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+            ),
+            "source_prompt_packet_id": "authoring-prompt:covered",
+            "source_authoring_task_id": "authoring-task:covered",
+            "provider_requested": False,
+            "external_export_blocked": False,
+            "semantic_review_required_before_proof_body": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+        },
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    agenda_rows: list[dict[str, object]] = []
+
+    generated_rows = _append_runtime_generated_next_action_rows(
+        agenda_rows,
+        [prompt_row],
+        queue_name="source_theorem_exact_semantic_definition_authoring_prompts",
+    )
+    generated_learning_rows = _runtime_generated_next_action_learning_rows(
+        generated_rows
+    )
+
+    assert len(generated_rows) == 1
+    row = generated_rows[0]
+    assert row["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+    )
+    assert row["owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert row["work_order_id"] == "authoring-prompt:covered"
+    assert row["source_prompt_packet_id"] == "authoring-prompt:covered"
+    assert row["source_authoring_task_id"] == "authoring-task:covered"
+    assert row["provider_requested"] is False
+    assert row["external_export_blocked"] is False
+    assert row["runtime_queue_status"] == (
+        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+    )
+    assert "approved live/backend provider" in row["action"]
+    assert "local Lean/AXLE" in row["acceptance_gate"]
+    assert row["semantic_review_required_before_proof_body"] is True
+    assert row["source_theorem_ready_for_exact_proof_body"] is False
+    assert generated_learning_rows[0]["learning_task"] == (
+        "generated_next_action_routing"
+    )
+    assert generated_learning_rows[0]["input_summary"][
+        "source_prompt_packet_id"
+    ] == "authoring-prompt:covered"
+    assert generated_learning_rows[0]["input_summary"]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+    )
+    assert generated_learning_rows[0]["input_summary"][
+        "source_theorem_ready_for_exact_proof_body"
+    ] is False
+    assert generated_learning_rows[0]["proof_evidence_status"] == (
+        "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_typechecked_review_blocked_manifest_rows_generate_next_action(
     tmp_path: Path,
 ) -> None:

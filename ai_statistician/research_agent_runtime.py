@@ -24781,6 +24781,36 @@ def run_research_agent_runtime(
                         if authoring_learning_rows:
                             learning_rows.extend(authoring_learning_rows)
                             _write_jsonl(learning_path, learning_rows)
+                            authoring_prompt_next_action_rows = (
+                                _append_runtime_generated_next_action_rows(
+                                    agenda_rows,
+                                    [
+                                        row
+                                        for row in authoring_learning_rows
+                                        if _source_theorem_exact_semantic_definition_authoring_prompt_backend_pending(
+                                            row
+                                        )
+                                    ],
+                                    queue_name=(
+                                        "source_theorem_exact_semantic_definition_"
+                                        "authoring_prompts"
+                                    ),
+                                )
+                            )
+                            if authoring_prompt_next_action_rows:
+                                generated_next_action_rows.extend(
+                                    authoring_prompt_next_action_rows
+                                )
+                                learning_rows.extend(
+                                    _runtime_generated_next_action_learning_rows(
+                                        authoring_prompt_next_action_rows
+                                    )
+                                )
+                                _write_runtime_next_action_agenda_jsonl(
+                                    agenda_path,
+                                    agenda_rows,
+                                )
+                                _write_jsonl(learning_path, learning_rows)
                     if int(
                         source_theorem_exact_semantic_definition_authoring_worker_manifest.get(
                             "n_candidate_packets",
@@ -55885,6 +55915,37 @@ def _runtime_generated_next_action_queue_name(row: Mapping[str, Any]) -> str:
     return queue_name if separator else ""
 
 
+def _source_theorem_exact_semantic_definition_authoring_prompt_backend_pending(
+    row: Mapping[str, Any],
+) -> bool:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    learning_task = str(
+        row.get("learning_task", "") or input_summary.get("learning_task", "") or ""
+    )
+    if learning_task != "source_theorem_exact_semantic_definition_authoring_worker":
+        return False
+    trigger = str(row.get("trigger", "") or input_summary.get("trigger", "") or "")
+    artifact_kind = str(row.get("artifact_kind", "") or "")
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    )
+    if not (
+        trigger == "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET"
+        or artifact_kind == "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
+    ):
+        return False
+    return runtime_queue_status in {
+        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+        "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED",
+    }
+
+
 def _runtime_generated_next_action_no_artifact_semantic_merge_family(
     row: Mapping[str, Any],
 ) -> str:
@@ -55974,6 +56035,9 @@ def _append_runtime_generated_next_action_rows(
             or row.get("source_environment_repair_task_id", "")
             or row.get("environment_repair_result_id", "")
             or row.get("source_definition_closure_work_order_id", "")
+            or row.get("source_prompt_packet_id", "")
+            or row.get("prompt_packet_id", "")
+            or row.get("source_authoring_task_id", "")
             or ""
         ).strip()
         if not work_order_id:
@@ -56030,6 +56094,11 @@ def _append_runtime_generated_next_action_rows(
             == "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
             or str(row.get("action_type", "") or "")
             == "review_typechecked_exact_semantic_definition_candidate"
+        )
+        authoring_prompt_backend_pending = (
+            _source_theorem_exact_semantic_definition_authoring_prompt_backend_pending(
+                row
+            )
         )
         exact_semantic_definition_repair_queue_ready = bool(
             source_trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
@@ -56117,6 +56186,10 @@ def _append_runtime_generated_next_action_rows(
             row.get("semantic_review_required_before_proof_body", False)
             or input_summary.get("semantic_review_required_before_proof_body", False)
         )
+        source_theorem_ready_for_exact_proof_body = bool(
+            row.get("source_theorem_ready_for_exact_proof_body", False)
+            or input_summary.get("source_theorem_ready_for_exact_proof_body", False)
+        )
         source_theorem_kernel_evidence_eligible = bool(
             row.get(
                 "source_theorem_kernel_evidence_eligible",
@@ -56147,6 +56220,12 @@ def _append_runtime_generated_next_action_rows(
                 f"available for {target_text}; do not treat the premise row itself "
                 "as full source theorem proof"
             )
+        elif authoring_prompt_backend_pending and not recommended_next_action:
+            action = (
+                "run or approve the exact semantic-definition authoring backend for "
+                "this prompt packet; the expected result is a validated candidate "
+                "packet or semantic_review_decision, not proof-body readiness"
+            )
         elif (
             exact_semantic_definition_repair_queue_ready
             and not recommended_next_action
@@ -56171,6 +56250,8 @@ def _append_runtime_generated_next_action_rows(
                 if source_to_bridge_premise_gap
                 else "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver"
                 if truth_table_semantic_repair_queue_ready
+                else "Formalizer/ProofEngineer"
+                if authoring_prompt_backend_pending
                 else "Formalizer/ProofEngineer/LeanProver"
                 if source_to_bridge_premise_verified
                 else "Formalizer/ProofEngineer/LeanProver"
@@ -56180,6 +56261,16 @@ def _append_runtime_generated_next_action_rows(
                 if source_to_bridge_premise_gap
                 else "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
                 if truth_table_proof_body_reached_semantic_review_required
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_EXTERNAL_EXPORT_REVIEW_REQUIRED"
+                if authoring_prompt_backend_pending
+                and str(
+                    row.get("runtime_queue_status", "")
+                    or input_summary.get("runtime_queue_status", "")
+                    or ""
+                )
+                == "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED"
+                else "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+                if authoring_prompt_backend_pending
                 else "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
                 if typechecked_semantic_review_queue_ready
                 else "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
@@ -56207,6 +56298,14 @@ def _append_runtime_generated_next_action_rows(
                     )
                     if source_to_bridge_premise_verified
                     else (
+                        "An approved authoring backend returns a validated exact "
+                        "semantic-definition candidate packet or explicit "
+                        "semantic_review_decision; any candidate must still pass "
+                        "materialization and local Lean/AXLE checks before "
+                        "proof-body search resumes."
+                    )
+                    if authoring_prompt_backend_pending
+                    else (
                         "Exact source-theorem semantic definitions are reviewed or "
                         "repaired, local Lean/AXLE checks the queued candidate, and "
                         "proof-body search only resumes after semantic review clears."
@@ -56227,6 +56326,24 @@ def _append_runtime_generated_next_action_rows(
                 )
             ),
             "work_order_id": work_order_id,
+            "source_prompt_packet_id": str(
+                row.get("source_prompt_packet_id", "")
+                or input_summary.get("source_prompt_packet_id", "")
+                or ""
+            ),
+            "source_authoring_task_id": str(
+                row.get("source_authoring_task_id", "")
+                or input_summary.get("source_authoring_task_id", "")
+                or ""
+            ),
+            "provider_requested": bool(
+                row.get("provider_requested", False)
+                or input_summary.get("provider_requested", False)
+            ),
+            "external_export_blocked": bool(
+                row.get("external_export_blocked", False)
+                or input_summary.get("external_export_blocked", False)
+            ),
             "source_learning_task": learning_task,
             "source_learning_tasks": [learning_task] if learning_task else [],
             "source_feedback_trigger": source_trigger,
@@ -56285,6 +56402,9 @@ def _append_runtime_generated_next_action_rows(
             ),
             "semantic_review_required_before_proof_body": (
                 semantic_review_required_before_proof_body
+            ),
+            "source_theorem_ready_for_exact_proof_body": (
+                source_theorem_ready_for_exact_proof_body
             ),
             "semantic_review_decision": str(
                 row.get("semantic_review_decision", "")
@@ -56582,6 +56702,18 @@ def _runtime_generated_next_action_learning_rows(
                     "owner_subsystem": str(row.get("owner_subsystem", "") or ""),
                     "agenda_id": str(row.get("id", "") or ""),
                     "work_order_id": str(row.get("work_order_id", "") or ""),
+                    "source_prompt_packet_id": str(
+                        row.get("source_prompt_packet_id", "") or ""
+                    ),
+                    "source_authoring_task_id": str(
+                        row.get("source_authoring_task_id", "") or ""
+                    ),
+                    "provider_requested": bool(
+                        row.get("provider_requested", False)
+                    ),
+                    "external_export_blocked": bool(
+                        row.get("external_export_blocked", False)
+                    ),
                     "source_learning_task": str(
                         row.get("source_learning_task", "") or ""
                     ),
@@ -56651,6 +56783,9 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "semantic_review_required_before_proof_body": bool(
                         row.get("semantic_review_required_before_proof_body", False)
+                    ),
+                    "source_theorem_ready_for_exact_proof_body": bool(
+                        row.get("source_theorem_ready_for_exact_proof_body", False)
                     ),
                     "semantic_review_decision": str(
                         row.get("semantic_review_decision", "") or ""
