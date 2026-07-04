@@ -43927,6 +43927,12 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
         "artifact_kind": "ExactSemanticDefinitionStructuralReformulationRoute",
         "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
         "pseudo_formalization_required": True,
+        "validation_errors": [
+            (
+                "required_imports include modules not verified by the local "
+                "project inventory or identifier lookup: Mathlib.Data.Int.Order"
+            )
+        ],
         "target_lanes": [
             "source_theorem_exact_semantic_definition",
             "lean_rag",
@@ -43974,6 +43980,10 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
             "placeholder_symbol": "C_n",
             "runtime_queue_status": STRUCTURAL_REFORMULATION_QUEUE_STATUS,
             "failure_classification": STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+            "candidate_packet_id": (
+                "source_theorem_exact_semantic_definition_authoring_candidate_failed:"
+                "structural-feedback"
+            ),
             "structural_reformulation_required": True,
             "pseudo_formalization_required": True,
             "candidate_definition_request": {
@@ -43985,6 +43995,15 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
             "source_theorem_exact_semantic_definition_structural_reformulation_route": (
                 route
             ),
+            "input_summary": {
+                "validation_errors": [
+                    (
+                        "required_imports include modules not verified by the "
+                        "local project inventory or identifier lookup: "
+                        "Mathlib.Data.Int.Order"
+                    )
+                ],
+            },
             "recommended_next_action": (
                 "route to PF/BV-backed structural reformulation"
             ),
@@ -44014,7 +44033,16 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     assert task["requires_pseudo_formalization"] is True
     assert task[
         "source_theorem_exact_semantic_definition_structural_reformulation_route"
-    ] == route
+    ]["target_lanes"] == route["target_lanes"]
+    assert task["retry_validation_errors"] == route["validation_errors"]
+    feedback = task["response_validation_feedback"]
+    assert feedback["source_failed_candidate_packet_id"].endswith(
+        "structural-feedback"
+    )
+    assert feedback["unverified_required_imports"] == ["Mathlib.Data.Int.Order"]
+    assert task[
+        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+    ]["response_validation_feedback"] == feedback
     assert "PF/BV" in task["proof_evidence_boundary"]
 
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]

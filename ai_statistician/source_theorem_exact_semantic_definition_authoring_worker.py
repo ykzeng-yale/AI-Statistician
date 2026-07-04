@@ -1230,26 +1230,49 @@ def _response_validation_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
     if not validation_errors and isinstance(feedback, Mapping):
         validation_errors = _string_list(feedback.get("validation_errors", []))
     failed_packet_id = str(task.get("source_failed_candidate_packet_id", "") or "")
-    if not validation_errors and not failed_packet_id:
+    return _response_validation_feedback_from_errors(
+        task,
+        validation_errors=validation_errors,
+        failure_classification=str(
+            task.get("retry_failure_classification", "")
+            or task.get("failure_classification", "")
+            or ""
+        ),
+        runtime_queue_status=str(task.get("runtime_queue_status", "") or ""),
+        recommended_next_action=str(
+            task.get("retry_recommended_next_action", "")
+            or task.get("recommended_next_action", "")
+            or ""
+        ),
+        source_failed_candidate_packet_id=failed_packet_id,
+    )
+
+
+def _response_validation_feedback_from_errors(
+    task: Mapping[str, Any],
+    *,
+    validation_errors: Sequence[str],
+    failure_classification: str,
+    runtime_queue_status: str,
+    recommended_next_action: str,
+    source_failed_candidate_packet_id: str = "",
+) -> dict[str, Any]:
+    validation_errors = _string_list(validation_errors)
+    source_failed_candidate_packet_id = str(
+        source_failed_candidate_packet_id or ""
+    )
+    if not validation_errors and not source_failed_candidate_packet_id:
         return {}
     unverified_imports = _unverified_required_imports_from_validation_errors(
         validation_errors
     )
     return {
-        "source_failed_candidate_packet_id": failed_packet_id,
-        "failure_classification": str(
-            task.get("retry_failure_classification", "")
-            or task.get("failure_classification", "")
-            or ""
-        ),
-        "runtime_queue_status": str(task.get("runtime_queue_status", "") or ""),
+        "source_failed_candidate_packet_id": source_failed_candidate_packet_id,
+        "failure_classification": str(failure_classification or ""),
+        "runtime_queue_status": str(runtime_queue_status or ""),
         "validation_errors": validation_errors[:8],
         "unverified_required_imports": unverified_imports[:8],
-        "recommended_next_action": str(
-            task.get("retry_recommended_next_action", "")
-            or task.get("recommended_next_action", "")
-            or ""
-        ),
+        "recommended_next_action": str(recommended_next_action or ""),
         "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": (
             "Authoring response-validation feedback is prompt repair context only. "
@@ -3378,16 +3401,6 @@ def _failed_candidate_packet(
         if runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
         else "repair the failed authoring response contract before materialization"
     )
-    structural_reformulation_route = (
-        _structural_reformulation_route_context(
-            task,
-            prompt_packet=prompt_packet,
-            validation_errors=validation_errors,
-            repair_history=repair_history,
-        )
-        if runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
-        else {}
-    )
     packet_id = (
         "source_theorem_exact_semantic_definition_authoring_candidate_failed:"
         + stable_hash(
@@ -3400,6 +3413,25 @@ def _failed_candidate_packet(
                 str(error),
             ]
         )[:24]
+    )
+    response_validation_feedback = _response_validation_feedback_from_errors(
+        task,
+        validation_errors=validation_errors,
+        failure_classification=failure_classification,
+        runtime_queue_status=runtime_queue_status,
+        recommended_next_action=recommended_next_action,
+        source_failed_candidate_packet_id=packet_id,
+    )
+    structural_reformulation_route = (
+        _structural_reformulation_route_context(
+            task,
+            prompt_packet=prompt_packet,
+            validation_errors=validation_errors,
+            repair_history=repair_history,
+            response_validation_feedback=response_validation_feedback,
+        )
+        if runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+        else {}
     )
     return {
         "schema_version": 1,
@@ -3470,6 +3502,8 @@ def _failed_candidate_packet(
         "recommended_next_action": recommended_next_action,
         "ok": False,
         "validation_errors": validation_errors,
+        "retry_validation_errors": validation_errors,
+        "response_validation_feedback": response_validation_feedback,
         "llm_json_repair_attempts": repair_attempts,
         "llm_json_repair_history": repair_history,
         "structural_reformulation_required": bool(structural_reformulation_route),
@@ -3535,6 +3569,7 @@ def _structural_reformulation_route_context(
     prompt_packet: Mapping[str, Any],
     validation_errors: Sequence[str],
     repair_history: Sequence[Any],
+    response_validation_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = pseudo_formal_verification_method_contract()
     activation_policy = contract.get("runtime_activation_policy", {})
@@ -3559,6 +3594,19 @@ def _structural_reformulation_route_context(
         PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
         PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     ]
+    response_validation_feedback = dict(response_validation_feedback or {})
+    if not response_validation_feedback:
+        response_validation_feedback = _response_validation_feedback_from_errors(
+            task,
+            validation_errors=validation_errors,
+            failure_classification=STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+            runtime_queue_status=STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+            recommended_next_action=(
+                "route to PF/BV-backed structural reformulation with "
+                "Lean/RAG/source grounding before another exact "
+                "semantic-definition authoring attempt"
+            ),
+        )
     return {
         "schema_version": 1,
         "artifact_kind": "ExactSemanticDefinitionStructuralReformulationRoute",
@@ -3616,6 +3664,10 @@ def _structural_reformulation_route_context(
         },
         "hard_local_negative_constraints": dict(hard_constraints),
         "validation_errors": list(validation_errors),
+        "response_validation_feedback": response_validation_feedback,
+        "unverified_required_imports": _string_list(
+            response_validation_feedback.get("unverified_required_imports", [])
+        ),
         "llm_json_repair_history_errors": _validation_history_errors(repair_history),
         "proof_evidence_status": CANDIDATE_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": (
@@ -3682,6 +3734,9 @@ def _retry_authoring_task(
     )
     retry_task["retry_validation_errors"] = list(
         failed_candidate_packet.get("validation_errors", []) or []
+    )
+    retry_task["response_validation_feedback"] = dict(
+        failed_candidate_packet.get("response_validation_feedback", {}) or {}
     )
     retry_task["retry_recommended_next_action"] = str(
         failed_candidate_packet.get("recommended_next_action", "") or ""
@@ -4038,6 +4093,15 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
         "runtime_queue_status": str(packet.get("runtime_queue_status", "") or ""),
         "failure_classification": str(packet.get("failure_classification", "") or ""),
         "recommended_next_action": str(packet.get("recommended_next_action", "") or ""),
+        "validation_errors": list(packet.get("validation_errors", []) or []),
+        "retry_validation_errors": list(
+            packet.get("retry_validation_errors", [])
+            or packet.get("validation_errors", [])
+            or []
+        ),
+        "response_validation_feedback": dict(
+            packet.get("response_validation_feedback", {}) or {}
+        ),
         "structural_reformulation_required": bool(
             packet.get("structural_reformulation_required", False)
         ),
@@ -4072,6 +4136,14 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
             "semantic_definition_kernel_verified": False,
             "source_theorem_kernel_verified": False,
             "validation_errors": list(packet.get("validation_errors", []) or []),
+            "retry_validation_errors": list(
+                packet.get("retry_validation_errors", [])
+                or packet.get("validation_errors", [])
+                or []
+            ),
+            "response_validation_feedback": dict(
+                packet.get("response_validation_feedback", {}) or {}
+            ),
             "failure_classification": str(
                 packet.get("failure_classification", "") or ""
             ),

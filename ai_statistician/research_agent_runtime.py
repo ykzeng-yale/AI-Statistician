@@ -67057,6 +67057,103 @@ def _runtime_local_lean_diagnostic_source_excerpts(
     return excerpts
 
 
+def _runtime_unverified_required_imports_from_validation_errors(
+    errors: Sequence[str],
+) -> list[str]:
+    modules: list[str] = []
+    for error in errors:
+        text = str(error or "")
+        if "required_imports include modules not verified" not in text:
+            continue
+        suffix = text.split(":", 1)[-1]
+        modules.extend(
+            match.group(0)
+            for match in re.finditer(
+                r"\b(?:[A-Za-z_][A-Za-z0-9_']*\.)+[A-Za-z_][A-Za-z0-9_']*\b",
+                suffix,
+            )
+        )
+    return list(dict.fromkeys(modules))
+
+
+def _runtime_authoring_response_validation_feedback_from_row(
+    row: Mapping[str, Any],
+    *,
+    input_summary: Mapping[str, Any],
+    task: Mapping[str, Any],
+) -> dict[str, Any]:
+    for source in (row, input_summary, task):
+        feedback = source.get("response_validation_feedback", {})
+        if isinstance(feedback, Mapping) and feedback:
+            return dict(feedback)
+    route = task.get(
+        "source_theorem_exact_semantic_definition_structural_reformulation_route",
+        {},
+    )
+    if isinstance(route, Mapping):
+        feedback = route.get("response_validation_feedback", {})
+        if isinstance(feedback, Mapping) and feedback:
+            return dict(feedback)
+    validation_errors = list(
+        _runtime_row_string_values(
+            task,
+            "retry_validation_errors",
+            "validation_errors",
+        )
+    )
+    if not validation_errors and isinstance(route, Mapping):
+        route_errors = route.get("validation_errors", [])
+        if isinstance(route_errors, list | tuple):
+            validation_errors = [
+                str(error)
+                for error in route_errors
+                if str(error or "").strip()
+            ]
+        elif str(route_errors or "").strip():
+            validation_errors = [str(route_errors)]
+    source_failed_candidate_packet_id = str(
+        task.get("source_failed_candidate_packet_id", "")
+        or row.get("source_failed_candidate_packet_id", "")
+        or input_summary.get("source_failed_candidate_packet_id", "")
+        or row.get("candidate_packet_id", "")
+        or ""
+    ).strip()
+    if not validation_errors and not source_failed_candidate_packet_id:
+        return {}
+    return {
+        "source_failed_candidate_packet_id": source_failed_candidate_packet_id,
+        "failure_classification": str(
+            task.get("retry_failure_classification", "")
+            or task.get("failure_classification", "")
+            or row.get("failure_classification", "")
+            or input_summary.get("failure_classification", "")
+            or ""
+        ),
+        "runtime_queue_status": str(task.get("runtime_queue_status", "") or ""),
+        "validation_errors": validation_errors[:8],
+        "unverified_required_imports": (
+            _runtime_unverified_required_imports_from_validation_errors(
+                validation_errors
+            )[:8]
+        ),
+        "recommended_next_action": str(
+            task.get("retry_recommended_next_action", "")
+            or task.get("recommended_next_action", "")
+            or row.get("recommended_next_action", "")
+            or input_summary.get("recommended_next_action", "")
+            or ""
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": (
+            "Authoring response-validation feedback is prompt repair context only. "
+            "It is not semantic-definition kernel evidence and cannot prove the "
+            "source theorem; any repaired candidate must still pass local Lean/AXLE."
+        ),
+    }
+
+
 def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
     learning_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -67415,6 +67512,64 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 diagnostic_source_excerpts,
             )
             task["candidate_repair_feedback"] = candidate_repair_feedback
+        if task.get("validation_errors") in (None, "", [], {}):
+            validation_errors = list(
+                _runtime_row_string_values(row, "validation_errors")
+            )
+            if validation_errors:
+                task["validation_errors"] = validation_errors
+        if task.get("retry_validation_errors") in (None, "", [], {}):
+            retry_validation_errors = list(
+                _runtime_row_string_values(
+                    row,
+                    "retry_validation_errors",
+                    "validation_errors",
+                )
+            )
+            if retry_validation_errors:
+                task["retry_validation_errors"] = retry_validation_errors
+        if task.get("source_failed_candidate_packet_id") in (None, "", [], {}):
+            failed_candidate_packet_id = str(
+                row.get("source_failed_candidate_packet_id", "")
+                or input_summary.get("source_failed_candidate_packet_id", "")
+                or row.get("candidate_packet_id", "")
+                or ""
+            ).strip()
+            if failed_candidate_packet_id:
+                task["source_failed_candidate_packet_id"] = failed_candidate_packet_id
+        if task.get("response_validation_feedback") in (None, "", [], {}):
+            response_validation_feedback = (
+                _runtime_authoring_response_validation_feedback_from_row(
+                    row,
+                    input_summary=input_summary,
+                    task=task,
+                )
+            )
+            if response_validation_feedback:
+                task["response_validation_feedback"] = response_validation_feedback
+                route = task.get(
+                    "source_theorem_exact_semantic_definition_structural_reformulation_route",
+                    {},
+                )
+                if isinstance(route, Mapping) and route:
+                    route = dict(route)
+                    route.setdefault(
+                        "response_validation_feedback",
+                        response_validation_feedback,
+                    )
+                    route.setdefault(
+                        "unverified_required_imports",
+                        list(
+                            response_validation_feedback.get(
+                                "unverified_required_imports",
+                                [],
+                            )
+                            or []
+                        ),
+                    )
+                    task[
+                        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+                    ] = route
         if verifier_gate_repair_required:
             candidate_repair_feedback = task.get("candidate_repair_feedback", {})
             if not isinstance(candidate_repair_feedback, Mapping):

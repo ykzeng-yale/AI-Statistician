@@ -12,6 +12,8 @@ from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker i
     CANDIDATE_PROOF_EVIDENCE_STATUS,
     AUTHORING_WORKER_PROOF_EVIDENCE_STATUS,
     MATERIALIZER_PROOF_EVIDENCE_STATUS,
+    STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
+    STRUCTURAL_REFORMULATION_QUEUE_STATUS,
     run_source_theorem_exact_semantic_definition_authoring_candidate_materializer,
     run_source_theorem_exact_semantic_definition_authoring_worker,
 )
@@ -1603,6 +1605,155 @@ def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
         "response_validation_feedback.unverified_required_imports" in row
         for row in contract["repair_policy"]
     )
+
+
+def test_authoring_worker_structural_route_carries_response_validation_feedback(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "lean_project"
+    compiled_basic = (
+        project
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib"
+        / "Data"
+        / "Real"
+        / "Basic.olean"
+    )
+    compiled_basic.parent.mkdir(parents=True)
+    compiled_basic.write_bytes(b"")
+    prior_candidate = tmp_path / "PriorCandidate.lean"
+    prior_candidate.write_text(
+        "import Mathlib.Data.Real.Basic\n\ndef priorCn : Nat := 0\n",
+        encoding="utf-8",
+    )
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "authoring_task_id": "authoring_task:structural-validation",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "C_n",
+                "candidate_lean_project_hint": str(project),
+                "definition_only_candidate_artifact_path": str(prior_candidate),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+                ),
+                "source_execution_status": (
+                    "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
+                ),
+                "local_lean_checked": True,
+                "local_lean_compiled": False,
+                "local_lean_diagnostics": [
+                    "error(lean.unknownIdentifier): Unknown constant `List.get?`",
+                ],
+                "candidate_definition_request": {
+                    "request_kind": (
+                        "source_theorem_exact_semantic_definition_candidate"
+                    ),
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "C_n",
+                    "semantic_goal": (
+                        "Repair C_n without guessing unavailable list APIs."
+                    ),
+                    "required_anchor_names": ["scores"],
+                    "available_anchor_names": ["scores"],
+                    "missing_required_anchor_names": [],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    static_response = {
+        "placeholder_symbol": "C_n",
+        "definition_design": (
+            "Incorrectly reuse unresolved List.get? and guess a new import."
+        ),
+        "lean_definition_candidate": (
+            "import Mathlib.Data.Real.Basic\n"
+            "import Mathlib.Data.Int.Order\n\n"
+            "def repairedCn (scores : List Nat) : Nat :=\n"
+            "  match List.get? scores 0 with\n"
+            "  | some value => value\n"
+            "  | none => 0"
+        ),
+        "required_imports": [
+            "Mathlib.Data.Real.Basic",
+            "Mathlib.Data.Int.Order",
+        ],
+        "binder_usage": [{"name": "scores", "how_used": "candidate list"}],
+        "semantic_alignment_notes": ["diagnostic only"],
+        "known_gaps": [],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+    }
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        provider=StaticJSONGeneratorBackend(static_response),
+        config=AuthoringWorkerConfig(
+            provider_name="static",
+            model="static",
+            dry_run=False,
+            max_repair_attempts=0,
+        ),
+    )
+    candidate = json.loads(
+        Path(manifest["authoring_candidate_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    retry_task = json.loads(
+        Path(manifest["retryable_authoring_tasks_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+
+    assert candidate["ok"] is False
+    assert candidate["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    assert candidate["failure_classification"] == (
+        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+    )
+    assert "Mathlib.Data.Int.Order" in " ".join(candidate["validation_errors"])
+    assert "List.get?" in " ".join(candidate["validation_errors"])
+    feedback = candidate["response_validation_feedback"]
+    assert feedback["source_failed_candidate_packet_id"] == (
+        candidate["candidate_packet_id"]
+    )
+    assert feedback["unverified_required_imports"] == ["Mathlib.Data.Int.Order"]
+    route = candidate[
+        "source_theorem_exact_semantic_definition_structural_reformulation_route"
+    ]
+    assert route["response_validation_feedback"] == feedback
+    assert route["unverified_required_imports"] == ["Mathlib.Data.Int.Order"]
+    assert route["pseudo_formalization_required"] is True
+    assert route["target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "lean_rag",
+        "source_to_bridge",
+    ]
+    candidate_learning_row = learning_rows[-1]
+    assert candidate_learning_row["runtime_queue_status"] == (
+        STRUCTURAL_REFORMULATION_QUEUE_STATUS
+    )
+    assert candidate_learning_row["retry_validation_errors"] == (
+        candidate["validation_errors"]
+    )
+    assert candidate_learning_row["response_validation_feedback"] == feedback
+    assert retry_task["response_validation_feedback"] == feedback
+    assert retry_task["retry_validation_errors"] == candidate["validation_errors"]
 
 
 def test_authoring_candidate_materializer_writes_lean_repair_task(
