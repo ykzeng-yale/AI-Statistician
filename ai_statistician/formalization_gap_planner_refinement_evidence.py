@@ -798,18 +798,6 @@ def _evidence_row(
         response.get("revised_selected_primitives", [])
     )
     revised_delta_primitives = _str_tuple(response.get("revised_delta_primitives", []))
-    errors.extend(
-        _response_scope_errors(
-            queue_target_primitives,
-            coverage_updates=coverage_updates,
-            route_evidence_nodes=route_evidence_nodes,
-            source_snippets=source_snippets,
-            formal_declaration_hits=formal_declaration_hits,
-            lean_declaration_hits=lean_declaration_hits,
-            revised_selected_primitives=revised_selected_primitives,
-            revised_delta_primitives=revised_delta_primitives,
-        )
-    )
     revised_informal_nodes = _dict_tuple(
         response.get("revised_informal_knowledge_dag_nodes", [])
     )
@@ -823,6 +811,26 @@ def _evidence_row(
         target_prover_family,
         _dict_tuple(response.get("revised_lean_realization_dag_nodes", [])),
         fallback_rows=revised_formal_nodes,
+    )
+    route_revision_candidate_primitives = _route_revision_candidate_primitives(
+        hook_kind=hook_kind,
+        evidence_kind=evidence_kind,
+        revised_informal_nodes=revised_informal_nodes,
+        revised_formal_nodes=revised_formal_nodes,
+        revised_lean_nodes=revised_lean_nodes,
+    )
+    errors.extend(
+        _response_scope_errors(
+            queue_target_primitives,
+            coverage_updates=coverage_updates,
+            route_evidence_nodes=route_evidence_nodes,
+            source_snippets=source_snippets,
+            formal_declaration_hits=formal_declaration_hits,
+            lean_declaration_hits=lean_declaration_hits,
+            revised_selected_primitives=revised_selected_primitives,
+            revised_delta_primitives=revised_delta_primitives,
+            route_revision_candidate_primitives=route_revision_candidate_primitives,
+        )
     )
     route_revision_recommended = bool(response.get("route_revision_recommended", False))
     route_revision_reasons = _str_tuple(response.get("route_revision_reasons", []))
@@ -1356,6 +1364,7 @@ def _response_scope_errors(
     lean_declaration_hits: tuple[dict[str, object], ...],
     revised_selected_primitives: tuple[str, ...],
     revised_delta_primitives: tuple[str, ...],
+    route_revision_candidate_primitives: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     allowed = {primitive for primitive in queue_target_primitives if primitive}
     if not allowed:
@@ -1363,10 +1372,17 @@ def _response_scope_errors(
     errors: list[str] = []
     for field_name, primitives in (
         ("coverage_updates", _str_tuple(list(coverage_updates.keys()))),
+    ):
+        errors.extend(_primitive_scope_errors(field_name, primitives, allowed))
+    revision_allowed = set(allowed)
+    revision_allowed.update(
+        primitive for primitive in route_revision_candidate_primitives if primitive
+    )
+    for field_name, primitives in (
         ("revised_selected_primitives", revised_selected_primitives),
         ("revised_delta_primitives", revised_delta_primitives),
     ):
-        errors.extend(_primitive_scope_errors(field_name, primitives, allowed))
+        errors.extend(_primitive_scope_errors(field_name, primitives, revision_allowed))
     for field_name, rows in (
         ("route_evidence_nodes", route_evidence_nodes),
         ("source_snippets", source_snippets),
@@ -1382,6 +1398,22 @@ def _response_scope_errors(
                 )
             )
     return tuple(errors)
+
+
+def _route_revision_candidate_primitives(
+    *,
+    hook_kind: str,
+    evidence_kind: str,
+    revised_informal_nodes: tuple[dict[str, object], ...],
+    revised_formal_nodes: tuple[dict[str, object], ...],
+    revised_lean_nodes: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    if hook_kind != "route_revision" or evidence_kind != "route_revision_proposal":
+        return tuple()
+    primitives: list[str] = []
+    for row in (*revised_informal_nodes, *revised_formal_nodes, *revised_lean_nodes):
+        primitives.extend(_evidence_row_scope_primitives(row))
+    return tuple(dict.fromkeys(primitive for primitive in primitives if primitive))
 
 
 def _evidence_row_scope_primitives(row: dict[str, object]) -> tuple[str, ...]:

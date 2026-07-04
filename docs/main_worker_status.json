@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-04T21:24:47Z",
+  "updated_at": "2026-07-04T21:33:38Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1290,10 +1290,20 @@
         "routing_context": "Capability-gap routing for source_theorem_exact_proof_body_candidate_materialized now includes verifier-approved queue/executor counters without dropping the existing exact proof-body local_lean_checked/local_lean_compiled metrics.",
         "support_test_note": "A broad formalization-gap planner support sweep is currently not clean for unrelated planner contract tests: minimal-delta route revision rejects replacing expensive_bridge with cheap_wrapper, and runtime handoff audit fixtures still use prompt budget caps of 0. These failures are outside this runtime/audit proof-body visibility patch.",
         "boundary": "Verifier-approved queue rows mean an exact semantic-definition candidate is ready for proof-body execution; they are not proof. Proof evidence still requires proof-body executor output, and source theorem proof requires local Lean/AXLE kernel verification counters."
+      },
+      "formalization_gap_planner_route_revision_report_only_budget_contract_20260704": {
+        "fix": "FormalizationGapPlanner refinement evidence now allows explicit route_revision_proposal replacements beyond original target_primitives only when the replacement primitives are represented in revised informal/formal/lean DAG nodes. Runtime handoff audit now treats --max-estimated-prompt-input-tokens 0 as report-only/no-preflight-block mode when the budget flag is present, while still requiring prompt-only stages to avoid provider invocation and live stages to be explicit.",
+        "regression_evidence": "The previously failing minimal-delta route revision overlay and mixed-seed runtime handoff audit tests now pass, and the broad formalization-gap support sweep is green.",
+        "boundary": "This is planner/eval contract repair only. Route-revision proposals and handoff audit smoke rows remain not theorem proof evidence; Lean/AXLE kernel evidence is still required for proof claims."
       }
     }
   },
   "latest_local_verification": [
+    "python3 -m py_compile ai_statistician/formalization_gap_planner_refinement_evidence.py ai_statistician/formalization_gap_planner_runtime_handoff_audit.py tests/test_formalization_gap_planner_minimal_delta_audit_feedback_adapter.py tests/test_formalization_gap_planner_runtime_handoff_audit.py tests/test_formalization_gap_planner_refinement_evidence.py tests/test_research_agent_runtime.py # passed after route-revision/report-only budget contract repair",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_formalization_gap_planner_minimal_delta_audit_feedback_adapter.py::test_minimal_delta_audit_feedback_feeds_route_revision_overlay tests/test_formalization_gap_planner_runtime_handoff_audit.py::test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed tests/test_formalization_gap_planner_refinement_evidence.py::test_refinement_evidence_rejects_expanded_target_primitives tests/test_formalization_gap_planner_refinement_evidence.py::test_refinement_evidence_rejects_off_scope_revision_fields -q # 4 passed after route-revision/report-only budget contract repair",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_formalization_gap_planner_* tests/test_theorem_reduction_closure_work_order_audit.py -q # 412 passed after route-revision/report-only budget contract repair",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalization_gap_planner_runtime_subsystem_executes_live_followup_task or runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda or runtime_gap_planner_staged_assembly_contract_failure_routes_repair_agenda or runtime_gap_planner_nested_target_prover_replay_feedback_routes_agenda or runtime_gap_planner_live_route_planner_summary_counts_execution_manifest or runtime_capability_scorecard_requires_gap_planner_live_followthrough or runtime_audit_recomputes_target_prover_replay_route_revision_feedback or formal_gap_planner_handoff_context\" # 10 passed, 805 deselected after route-revision/report-only budget contract repair",
+    "git diff --check # passed after route-revision/report-only budget contract repair",
     "python3 -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py tests/test_research_agent_runtime.py # passed after verifier-approved recheck queue audit-visibility patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_approved_recheck_rows_as_exact_proof_body_candidate or dropped_verifier_approved_recheck_executor or runtime_authoring_retry_materialized_candidate_reenters_verifier_gate or runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence\" # 7 passed, 808 deselected after verifier-approved recheck queue audit-visibility patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or typechecked_review or runtime_consumes_authoring or runtime_static_authoring_worker_materializes_repair_candidate or runtime_authoring_retry_materialized_candidate_reenters_verifier_gate or source_theorem_kernel_evidence_registries or approved_recheck\" # 24 passed, 791 deselected after verifier-approved recheck queue audit-visibility patch",
