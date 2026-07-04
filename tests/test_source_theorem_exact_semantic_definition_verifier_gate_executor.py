@@ -108,6 +108,60 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     )
 
 
+def test_verifier_gate_executor_accepts_source_anchor_context(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate.lean"
+    candidate.write_text(
+        "def good_rank_event (scores : List Nat) (test_score : Nat) (k : Nat) : Prop :=\n"
+        "  scores.length + 1 <= k\n",
+        encoding="utf-8",
+    )
+    work_orders = tmp_path / "work_orders.jsonl"
+    row = {
+        **_base_work_order(candidate),
+        "source_anchor_context": [
+            {
+                "kind": "proof_body_goal_context",
+                "proof_body_goal_excerpt": ["q : Real", "hq : q = q"],
+            }
+        ],
+        "source_anchor_context_rows": 1,
+    }
+    _write_jsonl(work_orders, [row])
+
+    manifest = run_source_theorem_exact_semantic_definition_verifier_gate_executor(
+        out_dir=tmp_path / "verifier",
+        work_orders_jsonl=work_orders,
+        local_lean=True,
+        lean_command=("true",),
+    )
+
+    assert manifest["n_verifier_approved"] == 1
+    assert manifest["n_source_anchor_context_missing"] == 0
+    results = [
+        json.loads(line)
+        for line in Path(manifest["verifier_gate_results_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert results[0]["source_anchor_context"][0]["kind"] == (
+        "proof_body_goal_context"
+    )
+    approved = [
+        json.loads(line)
+        for line in Path(manifest["verifier_approved_review_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert approved[0]["source_anchor_context"][0]["kind"] == (
+        "proof_body_goal_context"
+    )
+    assert approved[0]["source_anchor_context_rows"] == 1
+
+
 def test_verifier_gate_executor_blocks_missing_source_anchor_context(
     tmp_path: Path,
 ) -> None:
@@ -192,6 +246,13 @@ def test_typechecked_recheck_verifier_work_order_preserves_semantic_context(
                 "source_reference_hints": [
                     {"path": "Source.lean", "symbol": "hRank"}
                 ],
+                "source_anchor_context": [
+                    {
+                        "kind": "proof_body_goal_context",
+                        "proof_body_goal_excerpt": ["q : Real", "hq : q = q"],
+                    }
+                ],
+                "source_anchor_context_rows": 1,
                 "semantic_alignment_constraints": [
                     "rank threshold must use the source theorem k binder"
                 ],
@@ -224,6 +285,13 @@ def test_typechecked_recheck_verifier_work_order_preserves_semantic_context(
     assert verifier_gate_rows[0]["source_reference_hints"] == [
         {"path": "Source.lean", "symbol": "hRank"}
     ]
+    assert verifier_gate_rows[0]["source_anchor_context"] == [
+        {
+            "kind": "proof_body_goal_context",
+            "proof_body_goal_excerpt": ["q : Real", "hq : q = q"],
+        }
+    ]
+    assert verifier_gate_rows[0]["source_anchor_context_rows"] == 1
     assert verifier_gate_rows[0]["semantic_alignment_constraints"] == [
         "rank threshold must use the source theorem k binder"
     ]

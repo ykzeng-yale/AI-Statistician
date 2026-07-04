@@ -345,6 +345,13 @@ def _approved_review_packet(result: Mapping[str, Any]) -> dict[str, Any]:
         "source-anchor context for proof-body recheck; this remains non-proof "
         "semantic-readiness evidence."
     )
+    source_anchor_context = [
+        dict(item)
+        for item in result.get("source_anchor_context", []) or []
+        if isinstance(item, Mapping)
+    ]
+    candidate_definition_request = result.get("candidate_definition_request")
+    definition_contract = result.get("definition_contract")
     return {
         "schema_version": 1,
         "artifact_kind": APPROVED_PACKET_ARTIFACT_KIND,
@@ -372,6 +379,14 @@ def _approved_review_packet(result: Mapping[str, Any]) -> dict[str, Any]:
             "verifier_gate_approved_definition_candidate_not_proof"
         ),
         "semantic_review_evidence": evidence,
+        "source_anchor_context": source_anchor_context,
+        "source_anchor_context_rows": len(source_anchor_context),
+        "candidate_definition_request": dict(candidate_definition_request)
+        if isinstance(candidate_definition_request, Mapping)
+        else {},
+        "definition_contract": dict(definition_contract)
+        if isinstance(definition_contract, Mapping)
+        else {},
         "semantic_review_required_before_proof_body": False,
         "source_theorem_ready_for_exact_proof_body": True,
         "source_theorem_kernel_verified": False,
@@ -472,6 +487,7 @@ def _failure_classification(status: str, blockers: Sequence[str]) -> str:
 def _source_anchor_context(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     context: list[dict[str, Any]] = []
     for key in (
+        "source_anchor_context",
         "source_reference_hints",
         "candidate_source_references",
         "source_anchors",

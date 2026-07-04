@@ -114,8 +114,10 @@ SYSTEM_PROMPT = (
     "claim tool execution, file writes, local Lean checking, theorem proof, or "
     "kernel verification. If the task is a semantic review of a typechecked "
     "definition-only candidate, report a semantic_review_decision as non-proof "
-    "evidence, but do not claim proof-body readiness. Return only one valid "
-    "JSON object satisfying the requested schema."
+    "evidence, but do not claim proof-body readiness; if you approve it, keep "
+    "known_gaps empty and put resolved issues or downstream proof obligations in "
+    "semantic_review_evidence/proof_body_obligations instead. Return only one "
+    "valid JSON object satisfying the requested schema."
 )
 FORBIDDEN_SOURCE_FRAGMENTS = (
     "axiom ",
@@ -982,6 +984,7 @@ def _prompt_payload(
         ),
         "source_theorem_ready_for_exact_proof_body": False,
         "semantic_review_contract": _semantic_review_contract(task),
+        "semantic_review_output_policy": _semantic_review_output_policy(task),
         "candidate_repair_feedback": _candidate_repair_feedback(task),
         "response_validation_feedback": response_validation_feedback,
         "retry_validation_errors": list(
@@ -1014,7 +1017,13 @@ def _prompt_payload(
                 "how the candidate matches source theorem binders and references"
             ],
             "known_gaps": [
-                "remaining semantic/typeclass gaps before local Lean checking"
+                "unresolved definition-level semantic/typeclass/import blockers only; [] when semantic_review_decision is approved_definition_candidate"
+            ],
+            "resolved_gap_evidence": [
+                "prior known gaps resolved by source binders, source anchors, or local Lean feedback"
+            ],
+            "proof_body_obligations": [
+                "downstream theorem-proof obligations that are not blockers for this definition candidate"
             ],
             "semantic_review_decision": (
                 "one of approved_definition_candidate, repair_required, "
@@ -1200,6 +1209,34 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
     if source_anchor_context:
         feedback["source_anchor_context"] = source_anchor_context[:16]
         feedback["source_anchor_context_rows"] = source_anchor_context_rows
+        source_anchor_context_summary = _source_anchor_context_summary(
+            source_anchor_context
+        )
+        if source_anchor_context_summary:
+            feedback["source_anchor_context_summary"] = (
+                source_anchor_context_summary
+            )
+    if (
+        verifier_gate_blockers
+        or known_gaps
+        or str(task.get("retry_failure_classification", "") or "").startswith(
+            "exact_semantic_definition_verifier_gate_"
+        )
+        or str(task.get("failure_classification", "") or "").startswith(
+            "exact_semantic_definition_verifier_gate_"
+        )
+    ):
+        feedback["verifier_gate_known_gap_resolution_contract"] = (
+            _verifier_gate_known_gap_resolution_contract(
+                known_gaps=known_gaps,
+                source_anchor_context_rows=source_anchor_context_rows,
+                source_anchor_context_summary=feedback.get(
+                    "source_anchor_context_summary",
+                    {},
+                ),
+                verifier_gate_blockers=verifier_gate_blockers,
+            )
+        )
     if str(task.get("verifier_gate_result_id", "") or "").strip():
         feedback["verifier_gate_result_id"] = str(
             task.get("verifier_gate_result_id", "") or ""
@@ -1222,6 +1259,119 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
         feedback["source_proof_evidence_status"] = source_proof_evidence_status
         feedback["verifier_gate_proof_evidence_status"] = source_proof_evidence_status
     return feedback
+
+
+def _source_anchor_context_summary(
+    source_anchor_context: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    binder_names: list[str] = []
+    binder_rows: list[dict[str, str]] = []
+    semantic_alignment_constraints: list[str] = []
+    target_lean_declarations: list[str] = []
+    target_identity_statuses: list[str] = []
+    for row in source_anchor_context:
+        if not isinstance(row, Mapping):
+            continue
+        name = str(row.get("name", "") or "").strip()
+        row_type = str(row.get("type", "") or "").strip()
+        role = str(row.get("role", "") or "").strip()
+        if name:
+            binder_names.append(name)
+            binder_row = {"name": name}
+            if row_type:
+                binder_row["type"] = row_type
+            if role:
+                binder_row["role"] = role
+            binder_rows.append(binder_row)
+        for line in row.get("proof_body_goal_excerpt", []) or []:
+            if not isinstance(line, str):
+                continue
+            parsed = _proof_body_goal_binder_from_line(line)
+            if parsed:
+                binder_names.append(parsed["name"])
+                binder_rows.append(parsed)
+        semantic_alignment_constraints.extend(
+            _string_list(row.get("semantic_alignment_constraints", []))
+        )
+        target_declaration = str(row.get("target_lean_declaration", "") or "").strip()
+        if target_declaration:
+            target_lean_declarations.append(target_declaration)
+        target_identity_status = str(
+            row.get("source_theorem_target_identity_status", "") or ""
+        ).strip()
+        if target_identity_status:
+            target_identity_statuses.append(target_identity_status)
+    compact_binder_rows: list[dict[str, str]] = []
+    seen_binders: set[str] = set()
+    for row in binder_rows:
+        name = str(row.get("name", "") or "").strip()
+        if not name or name in seen_binders:
+            continue
+        seen_binders.add(name)
+        compact_binder_rows.append(row)
+    summary = {
+        "source_theorem_binder_names": _dedup_strings(binder_names)[:32],
+        "source_theorem_binders": compact_binder_rows[:16],
+        "semantic_alignment_constraints": _dedup_strings(
+            semantic_alignment_constraints
+        )[:12],
+        "target_lean_declarations": _dedup_strings(target_lean_declarations)[:8],
+        "target_identity_statuses": _dedup_strings(target_identity_statuses)[:8],
+    }
+    return {key: value for key, value in summary.items() if value}
+
+
+def _proof_body_goal_binder_from_line(line: str) -> dict[str, str] | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("/") or stripped.startswith("error:"):
+        return None
+    match = re.match(r"^(?P<name>[A-Za-z_][A-Za-z0-9_']*)\s*:\s*(?P<type>.+)$", stripped)
+    if match is None:
+        return None
+    name = match.group("name").strip()
+    row_type = match.group("type").strip()
+    if name in {"error", "warning"} or not row_type:
+        return None
+    return {"name": name, "type": row_type}
+
+
+def _verifier_gate_known_gap_resolution_contract(
+    *,
+    known_gaps: Sequence[str],
+    source_anchor_context_rows: int,
+    source_anchor_context_summary: Mapping[str, Any],
+    verifier_gate_blockers: Sequence[str],
+) -> dict[str, Any]:
+    binder_names = _string_list(
+        source_anchor_context_summary.get("source_theorem_binder_names", [])
+        if isinstance(source_anchor_context_summary, Mapping)
+        else []
+    )
+    constraints = _string_list(
+        source_anchor_context_summary.get("semantic_alignment_constraints", [])
+        if isinstance(source_anchor_context_summary, Mapping)
+        else []
+    )
+    return {
+        "contract_kind": "verifier_gate_known_gap_resolution",
+        "source_anchor_context_rows": int(source_anchor_context_rows),
+        "source_theorem_binder_names": binder_names[:32],
+        "semantic_alignment_constraints": constraints[:12],
+        "verifier_gate_blockers": _string_list(verifier_gate_blockers),
+        "known_gaps_to_resolve": _string_list(known_gaps),
+        "required_resolution_actions": [
+            "rewrite the exact semantic-definition candidate so every known_gap is either resolved against the recovered source binders/constraints or rewritten as a precise remaining blocker",
+            "remove stale known_gap text that says source theorem binders were unavailable when source_anchor_context_rows is positive",
+            "move resolved issues and downstream proof-body obligations to semantic_review_evidence/resolved_gap_evidence/proof_body_obligations instead of known_gaps",
+            "when semantic_review_decision=approved_definition_candidate, known_gaps must be [] and candidate Known gaps comments must be absent",
+            "remove candidate Known gaps comments only after the definition contract is satisfied; otherwise keep semantic_review_decision=repair_required or blocked_or_insufficient_context and source_theorem_ready_for_exact_proof_body=false",
+            "rerun local Lean and the verifier gate before any proof-body recheck",
+        ],
+        "proof_boundary": (
+            "Resolving verifier-gate known gaps is semantic-readiness work only. "
+            "It must not claim source theorem proof evidence."
+        ),
+    }
 
 
 def _response_validation_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
@@ -2394,8 +2544,12 @@ def _semantic_review_contract(task: Mapping[str, Any]) -> dict[str, Any]:
             "compare the candidate against source theorem binders",
             "check required semantic anchors and adapter dependencies",
             "preserve local Lean typecheckability constraints",
-            "list known gaps instead of guessing missing source context",
+            "classify unresolved known gaps separately from resolved evidence",
         ],
+    )
+    contract.setdefault(
+        "known_gap_classification_policy",
+        _semantic_review_output_policy(task),
     )
     contract["semantic_review_required_before_proof_body"] = bool(
         task.get("semantic_review_required_before_proof_body", True)
@@ -2415,6 +2569,48 @@ def _semantic_review_contract(task: Mapping[str, Any]) -> dict[str, Any]:
         AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
     )
     return contract
+
+
+def _semantic_review_output_policy(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Describe how semantic-review output should classify gaps."""
+
+    authoring_mode = str(task.get("authoring_mode", "") or "")
+    policy = {
+        "known_gaps_mean": (
+            "unresolved definition-level blockers only: missing source binders, "
+            "unverified imports/APIs required by the definition, or semantic "
+            "mismatches that require repair before verifier-gate recheck"
+        ),
+        "known_gaps_do_not_include": [
+            "issues already resolved by recovered source binders or source anchors",
+            "imports that the local project inventory or local Lean run already verified",
+            "future project-structure caveats with no current diagnostic",
+            "proof-body obligations that can be discharged later from source theorem hypotheses",
+        ],
+        "nonblocking_items_go_to": [
+            "semantic_review_evidence",
+            "resolved_gap_evidence",
+            "proof_body_obligations",
+            "semantic_alignment_notes",
+        ],
+        "proof_boundary": (
+            "Even with known_gaps=[], this is semantic-readiness evidence only, "
+            "not source theorem proof or proof-body readiness."
+        ),
+    }
+    if authoring_mode == "review_typechecked_semantic_definition_candidate":
+        policy["review_mode_gate"] = (
+            "For semantic_review_decision=approved_definition_candidate, "
+            "known_gaps must be [] because the later verifier gate treats any "
+            "known_gaps as hard blockers."
+        )
+        policy["approved_review_required_fields"] = [
+            "semantic_review_evidence explaining source-binder/source-anchor agreement",
+            "resolved_gap_evidence for prior known gaps that were discharged",
+            "proof_body_obligations for downstream theorem facts such as measurability lemmas",
+            "source_theorem_ready_for_exact_proof_body=false",
+        ]
+    return policy
 
 
 def _lean_authoring_environment_contract(
@@ -2925,6 +3121,13 @@ def validate_authoring_candidate_packet(packet: Mapping[str, Any]) -> list[str]:
         errors.append("authoring candidate cannot set source_theorem_kernel_verified=true")
     if packet.get("proof_evidence_status") != CANDIDATE_PROOF_EVIDENCE_STATUS:
         errors.append("proof_evidence_status must preserve candidate-only boundary")
+    if _approved_review_packet_has_known_gaps(packet):
+        errors.append(
+            "review_typechecked approved_definition_candidate packets must keep "
+            "known_gaps empty; put resolved issues in semantic_review_evidence/"
+            "resolved_gap_evidence and downstream theorem obligations in "
+            "proof_body_obligations"
+        )
     forbidden_claim = _contains_forbidden_proof_claim(packet)
     if forbidden_claim:
         errors.append(f"packet contains forbidden proof claim: {forbidden_claim}")
@@ -2990,6 +3193,19 @@ def validate_authoring_candidate_packet(packet: Mapping[str, Any]) -> list[str]:
             + ", ".join(parse_error_fragments[:6])
         )
     return sorted(set(errors))
+
+
+def _approved_review_packet_has_known_gaps(packet: Mapping[str, Any]) -> bool:
+    if (
+        str(packet.get("authoring_mode", "") or "")
+        != "review_typechecked_semantic_definition_candidate"
+    ):
+        return False
+    if str(packet.get("semantic_review_decision", "") or "") != (
+        "approved_definition_candidate"
+    ):
+        return False
+    return bool(_string_list(packet.get("known_gaps", [])))
 
 
 def _verified_import_modules_for_candidate_packet(

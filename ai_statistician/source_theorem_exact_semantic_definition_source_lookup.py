@@ -1918,7 +1918,8 @@ def _dedupe_mapping_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, An
 
 def _typechecked_review_has_source_anchor_context(row: Mapping[str, Any]) -> bool:
     return bool(
-        row.get("source_anchors")
+        row.get("source_anchor_context")
+        or row.get("source_anchors")
         or row.get("exact_source_theorem_binders")
         or row.get("premise_semantic_anchor_binders")
         or row.get("source_reference_hints")
@@ -1928,10 +1929,13 @@ def _typechecked_review_has_source_anchor_context(row: Mapping[str, Any]) -> boo
 def _typechecked_review_semantic_context(row: Mapping[str, Any]) -> dict[str, Any]:
     nested = row.get("source_theorem_exact_semantic_definition_typechecked_candidate")
     nested_mapping = nested if isinstance(nested, Mapping) else {}
+    feedback = row.get("candidate_repair_feedback")
+    feedback_mapping = feedback if isinstance(feedback, Mapping) else {}
     context: dict[str, Any] = {}
     for key in (
         "semantic_alignment_constraints",
         "semantic_alignment_blockers",
+        "source_anchor_context",
         "source_reference_hints",
         "candidate_source_references",
         "source_anchors",
@@ -1950,6 +1954,31 @@ def _typechecked_review_semantic_context(row: Mapping[str, Any]) -> dict[str, An
             ]
             if copied:
                 context[key] = copied
+    if "source_anchor_context" not in context:
+        feedback_context = feedback_mapping.get("source_anchor_context", [])
+        if isinstance(feedback_context, Sequence) and not isinstance(
+            feedback_context,
+            (str, bytes),
+        ):
+            copied_feedback_context = [
+                dict(value) if isinstance(value, Mapping) else str(value)
+                for value in feedback_context
+                if str(value).strip()
+            ]
+            if copied_feedback_context:
+                context["source_anchor_context"] = copied_feedback_context
+    raw_context_rows = (
+        row.get("source_anchor_context_rows", None)
+        or nested_mapping.get("source_anchor_context_rows", None)
+        or feedback_mapping.get("source_anchor_context_rows", None)
+        or len(context.get("source_anchor_context", []) or [])
+    )
+    try:
+        source_anchor_context_rows = int(raw_context_rows)
+    except (TypeError, ValueError):
+        source_anchor_context_rows = len(context.get("source_anchor_context", []) or [])
+    if source_anchor_context_rows:
+        context["source_anchor_context_rows"] = source_anchor_context_rows
     request = row.get("candidate_definition_request") or nested_mapping.get(
         "candidate_definition_request"
     )

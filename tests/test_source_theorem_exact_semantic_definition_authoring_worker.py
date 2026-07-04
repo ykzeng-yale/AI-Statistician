@@ -16,6 +16,7 @@ from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker i
     STRUCTURAL_REFORMULATION_QUEUE_STATUS,
     run_source_theorem_exact_semantic_definition_authoring_candidate_materializer,
     run_source_theorem_exact_semantic_definition_authoring_worker,
+    validate_authoring_candidate_packet,
 )
 from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_executor import (
     run_source_theorem_exact_semantic_definition_lean_repair_executor,
@@ -812,6 +813,13 @@ def test_authoring_worker_preserves_review_decision_without_proof_body_readiness
     tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
     static_response = {
         **_valid_authoring_response(),
+        "known_gaps": [],
+        "resolved_gap_evidence": [
+            "candidate uses the recovered source score and q_hat binders"
+        ],
+        "proof_body_obligations": [
+            "downstream proof body must prove the event has the required measurability"
+        ],
         "semantic_review_decision": "approved",
         "semantic_review_evidence": [
             "checked s and q_hat against the source theorem binders",
@@ -853,6 +861,17 @@ def test_authoring_worker_preserves_review_decision_without_proof_body_readiness
     assert prompt_payload["semantic_review_contract"][
         "source_theorem_ready_for_exact_proof_body"
     ] is False
+    assert "known_gaps must be []" in prompt_payload[
+        "semantic_review_output_policy"
+    ]["review_mode_gate"]
+    assert "unresolved definition-level" in prompt_payload[
+        "required_output_contract"
+    ]["known_gaps"][0]
+    assert prompt_payload["semantic_review_contract"][
+        "known_gap_classification_policy"
+    ]["review_mode_gate"] == prompt_payload["semantic_review_output_policy"][
+        "review_mode_gate"
+    ]
     assert "semantic_review_decision" in prompt_packets[0]["response_schema"][
         "properties"
     ]
@@ -917,6 +936,28 @@ def test_authoring_worker_preserves_review_decision_without_proof_body_readiness
     assert repair_tasks[0]["definition_contract"]["semantic_review_status"] == (
         "llm_semantic_review_approved_definition_candidate_not_proof"
     )
+
+
+def test_authoring_worker_rejects_approved_review_packet_with_known_gaps() -> None:
+    packet = {
+        **_valid_authoring_response(),
+        "authoring_mode": "review_typechecked_semantic_definition_candidate",
+        "semantic_review_decision": "approved_definition_candidate",
+        "semantic_review_evidence": [
+            "checked source theorem binders against the candidate"
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": CANDIDATE_PROOF_EVIDENCE_STATUS,
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("known_gaps empty" in error for error in errors)
 
 
 def test_authoring_worker_filters_by_placeholder_symbol(

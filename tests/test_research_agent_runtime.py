@@ -43500,6 +43500,20 @@ def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory(
             "role": "source_theorem_parameter",
             "type": "Fin (n + 1) -> Omega -> Real",
         },
+        {
+            "kind": "proof_body_goal_context",
+            "proof_body_goal_excerpt": [
+                "q : Real",
+                "hq : ae_coverage_quantile_condition score q alpha",
+            ],
+            "semantic_alignment_constraints": [
+                "Quantile threshold q is supplied as a hypothesis rather than constructed inline"
+            ],
+            "target_lean_declaration": (
+                "split_conformal_finite_sample_coverage_repair_v3"
+            ),
+            "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+        },
     ]
     learning_row = {
         "schema_version": 1,
@@ -43573,13 +43587,13 @@ def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory(
     ]
     assert repair["known_gaps"] == learning_row["known_gaps"]
     assert repair["source_anchor_context"] == source_anchor_context
-    assert repair["source_anchor_context_rows"] == 2
+    assert repair["source_anchor_context_rows"] == 3
     assert "verifier_gate_blocker=known_gaps_unresolved" in repair["diagnostics"]
     assert (
         "known_gap=threshold k is not tied to the source quantile hypothesis"
         in repair["diagnostics"]
     )
-    assert "source_anchor_context_rows=2" in repair["diagnostics"]
+    assert "source_anchor_context_rows=3" in repair["diagnostics"]
     assert repair["recommended_repair_tasks"] == [
         "rewrite the exact semantic-definition candidate to resolve verifier-gate known gaps against recovered source anchors/binders",
         "remove candidate known-gap comments only after the definition contract is satisfied",
@@ -43605,7 +43619,7 @@ def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory(
         "candidate_known_gaps_comment_present",
     ]
     assert diagnostic["known_gaps"] == learning_row["known_gaps"]
-    assert diagnostic["source_anchor_context_rows"] == 2
+    assert diagnostic["source_anchor_context_rows"] == 3
     assert diagnostic["source_anchor_context"] == source_anchor_context
 
 
@@ -43622,6 +43636,20 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
             "name": "score",
             "role": "source_theorem_parameter",
             "type": "Fin (n + 1) -> Omega -> Real",
+        },
+        {
+            "kind": "proof_body_goal_context",
+            "proof_body_goal_excerpt": [
+                "q : Real",
+                "hq : ae_coverage_quantile_condition score q alpha",
+            ],
+            "semantic_alignment_constraints": [
+                "Quantile threshold q is supplied as a hypothesis rather than constructed inline"
+            ],
+            "target_lean_declaration": (
+                "split_conformal_finite_sample_coverage_repair_v3"
+            ),
+            "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
         },
     ]
     learning_row = {
@@ -43723,7 +43751,7 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     assert task["verifier_gate_blockers"] == learning_row["verifier_gate_blockers"]
     assert task["known_gaps"] == learning_row["known_gaps"]
     assert task["source_anchor_context"] == source_anchor_context
-    assert task["source_anchor_context_rows"] == 2
+    assert task["source_anchor_context_rows"] == 3
     assert task["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )
@@ -43731,7 +43759,7 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     assert feedback["verifier_gate_blockers"] == learning_row["verifier_gate_blockers"]
     assert feedback["known_gaps"] == learning_row["known_gaps"]
     assert feedback["source_anchor_context"] == source_anchor_context
-    assert feedback["source_anchor_context_rows"] == 2
+    assert feedback["source_anchor_context_rows"] == 3
     assert feedback["verifier_gate_proof_evidence_status"] == (
         learning_row["proof_evidence_status"]
     )
@@ -43762,7 +43790,7 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
         "verifier_gate_blockers"
     ]
     assert prompt_packet["known_gaps"] == learning_row["known_gaps"]
-    assert prompt_packet["source_anchor_context_rows"] == 2
+    assert prompt_packet["source_anchor_context_rows"] == 3
     prompt_payload = json.loads(prompt_packet["user_prompt"])
     prompt_feedback = prompt_payload["candidate_repair_feedback"]
     assert prompt_feedback["verifier_gate_blockers"] == learning_row[
@@ -43770,7 +43798,34 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     ]
     assert prompt_feedback["known_gaps"] == learning_row["known_gaps"]
     assert prompt_feedback["source_anchor_context"] == source_anchor_context
-    assert prompt_feedback["source_anchor_context_rows"] == 2
+    assert prompt_feedback["source_anchor_context_rows"] == 3
+    assert "hq" in prompt_feedback["source_anchor_context_summary"][
+        "source_theorem_binder_names"
+    ]
+    assert "q" in prompt_feedback["source_anchor_context_summary"][
+        "source_theorem_binder_names"
+    ]
+    assert (
+        prompt_feedback["source_anchor_context_summary"][
+            "semantic_alignment_constraints"
+        ]
+        == [
+            "Quantile threshold q is supplied as a hypothesis rather than constructed inline"
+        ]
+    )
+    resolution_contract = prompt_feedback[
+        "verifier_gate_known_gap_resolution_contract"
+    ]
+    assert resolution_contract["source_anchor_context_rows"] == 3
+    assert "hq" in resolution_contract["source_theorem_binder_names"]
+    assert any(
+        "remove stale known_gap text" in action
+        for action in resolution_contract["required_resolution_actions"]
+    )
+    assert any(
+        "remove candidate Known gaps comments" in action
+        for action in resolution_contract["required_resolution_actions"]
+    )
     assert prompt_feedback["recommended_repair_tasks"] == feedback[
         "recommended_repair_tasks"
     ]
