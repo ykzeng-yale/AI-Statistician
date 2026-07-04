@@ -7122,6 +7122,19 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_authoring_candidate_materializer_n_candidate_packets",
@@ -7434,6 +7447,19 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
@@ -7658,6 +7684,19 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
@@ -7798,6 +7837,19 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
                 0,
             )
             or 0

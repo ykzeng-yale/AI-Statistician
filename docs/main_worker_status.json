@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-04T20:53:14Z",
+  "updated_at": "2026-07-04T21:07:22Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1276,10 +1276,24 @@
         "integrated_regression": "tests/test_research_agent_runtime.py::test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate starts from verifier-gate repair memory, uses static authoring, then verifies the retry materialized candidate flows through materialization, local Lean repair, semantic-review bridge, reviewed-candidate Lean repair, typechecked-review recheck queue, verifier gate, and verifier-approved recheck queue without claiming source theorem proof.",
         "validation_scope": "Synthetic worker fakes prove AgentRuntime orchestration and manifest accounting. This is not live Lean/Claude success evidence for good_rank_event; it closes the runtime path needed for the next live attempt.",
         "boundary": "Verifier-gate approval and verifier-approved recheck queues are still semantic-readiness evidence only. Source theorem proof evidence remains gated on a proof-body executor row with source-theorem kernel verification."
+      },
+      "exact_semantic_authoring_retry_verifier_approved_proof_boundary_20260704": {
+        "fix": "Retry-lane verifier-approved recheck and proof-body executor results now surface in the runtime manifest with artifact paths, execution-row counts, runtime-learning counts, source-theorem kernel-verified counts, and proof_evidence_status. Verifier-approved exact-semantic proof-body executor counters for primary/materialized/late/retry lanes are also part of the shared raw/audit source-theorem kernel-evidence registries, so a real verifier-approved proof-body kernel result is not stranded as display-only telemetry.",
+        "integrated_regression": "tests/test_research_agent_runtime.py::test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate now drives the retry lane through verifier approval, a verifier-approved proof-body queue row, and a proof-body executor manifest reporting n_source_theorem_kernel_verified=1.",
+        "audit_regression": "tests/test_research_agent_runtime.py::test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence and test_runtime_capability_ladder_accepts_authoring_retry_verifier_approved_source_kernel_evidence confirm the retry verifier-approved counter feeds audit extraction, evidence truth table, scorecard, and capability ladder source-theorem kernel evidence.",
+        "evidence_boundary": "The verifier gate and verifier-approved recheck remain non-proof semantic-readiness stages. The runtime promotes proof_evidence_status=EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED only from the proof-body executor manifest when n_source_theorem_kernel_verified > 0.",
+        "validation_scope": "This is synthetic AgentRuntime orchestration coverage for manifest accounting and evidence-boundary propagation; it does not claim a new live Claude/Lean proof of the conformal source theorem."
       }
     }
   },
   "latest_local_verification": [
+    "python3 -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py tests/test_research_agent_runtime.py # passed after retry verifier-approved proof-boundary/audit visibility patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"authoring_retry_verifier_approved or source_theorem_kernel_evidence_registries or runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence\" # 3 passed, 807 deselected after retry verifier-approved proof-boundary/audit visibility patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_authoring_retry_materialized_candidate_reenters_verifier_gate\" # 1 passed, 809 deselected after retry verifier-approved proof-boundary/audit visibility patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or typechecked_review or runtime_consumes_authoring or runtime_static_authoring_worker_materializes_repair_candidate or runtime_authoring_retry_materialized_candidate_reenters_verifier_gate or source_theorem_kernel_evidence_registries\" # 19 passed, 791 deselected after retry verifier-approved proof-boundary/audit visibility patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_authoring_worker.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py -q # 47 passed after retry verifier-approved proof-boundary visibility patch",
+    "python3 -m json.tool docs/main_worker_status.json # passed after retry verifier-approved proof-boundary visibility patch",
+    "git diff --check # passed after retry verifier-approved proof-boundary visibility patch",
     "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after authoring-retry materialized verifier-gate rejoin patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_authoring_retry_materialized_candidate_reenters_verifier_gate\" # 1 passed, 807 deselected after authoring-retry materialized verifier-gate rejoin patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or typechecked_review or runtime_consumes_authoring or runtime_static_authoring_worker_materializes_repair_candidate or runtime_authoring_retry_materialized_candidate_reenters_verifier_gate\" # 18 passed, 790 deselected after authoring-retry materialized verifier-gate rejoin patch",

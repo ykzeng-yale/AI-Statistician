@@ -45774,6 +45774,7 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
         assert review_packets_jsonl.exists()
         assert proof_body_queue_manifest == proof_body_queue_manifest_path
         assert proof_body_queue_jsonl is None
+        verifier_approved_recheck = "verifier_approved" in str(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         queue_path = out_dir / "exact_source_theorem_proof_body_execution_queue.jsonl"
         verifier_gate_path = (
@@ -45784,33 +45785,63 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
         manifest_path = (
             out_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
         )
-        queue_path.write_text("", encoding="utf-8")
-        verifier_gate_path.write_text(
-            json.dumps(
-                {
-                    "artifact_kind": (
-                        "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
-                    ),
-                    "learning_task": (
-                        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
-                    ),
-                    "work_order_id": "verifier-gate:rank",
-                    "target_theorem_name": "split_conformal_coverage",
-                    "placeholder_symbol": "rank",
-                    "candidate_artifact_path": str(tmp_path / "reviewed_rank.lean"),
-                    "runtime_queue_status": (
-                        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
-                    ),
-                    "source_theorem_ready_for_exact_proof_body": False,
-                    "proof_evidence_status": (
-                        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
-                    ),
-                }
+        if verifier_approved_recheck:
+            execution_row = {
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue"
+                ),
+                "execution_queue_id": "proof-body-recheck:rank",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "rank",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_RECHECK"
+                ),
+                "source_theorem_ready_for_exact_proof_body": True,
+                "source_theorem_kernel_evidence_eligible": True,
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            queue_path.write_text(
+                json.dumps(execution_row) + "\n",
+                encoding="utf-8",
             )
-            + "\n",
-            encoding="utf-8",
-        )
-        learning_rows_path.write_text(verifier_gate_path.read_text(encoding="utf-8"))
+            verifier_gate_path.write_text("", encoding="utf-8")
+            learning_rows_path.write_text(
+                json.dumps(execution_row) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            queue_path.write_text("", encoding="utf-8")
+            verifier_gate_path.write_text(
+                json.dumps(
+                    {
+                        "artifact_kind": (
+                            "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateWorkOrder"
+                        ),
+                        "learning_task": (
+                            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
+                        ),
+                        "work_order_id": "verifier-gate:rank",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "placeholder_symbol": "rank",
+                        "candidate_artifact_path": str(tmp_path / "reviewed_rank.lean"),
+                        "runtime_queue_status": (
+                            "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_RECHECK_GATE"
+                        ),
+                        "source_theorem_ready_for_exact_proof_body": False,
+                        "proof_evidence_status": (
+                            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            learning_rows_path.write_text(
+                verifier_gate_path.read_text(encoding="utf-8")
+            )
         manifest = {
             "schema_version": 1,
             "manifest_path": str(manifest_path),
@@ -45819,10 +45850,12 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
             "runtime_learning_rows_jsonl": str(learning_rows_path),
             "n_review_packets": 1,
             "n_llm_semantic_review_approved_packets": 1,
-            "n_llm_semantic_review_packets_requiring_verifier_gate": 1,
-            "n_verifier_gate_work_orders": 1,
+            "n_llm_semantic_review_packets_requiring_verifier_gate": (
+                0 if verifier_approved_recheck else 1
+            ),
+            "n_verifier_gate_work_orders": 0 if verifier_approved_recheck else 1,
             "n_runtime_learning_rows": 1,
-            "n_execution_queue_rows": 0,
+            "n_execution_queue_rows": 1 if verifier_approved_recheck else 0,
             "proof_evidence_status": (
                 "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
             ),
@@ -45832,6 +45865,7 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
             {
                 "out_dir": str(out_dir),
                 "review_packets_jsonl": str(review_packets_jsonl),
+                "verifier_approved_recheck": verifier_approved_recheck,
             }
         )
         return manifest
@@ -45927,6 +45961,67 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
         )
         return manifest
 
+    proof_body_executor_calls: list[dict[str, object]] = []
+
+    def fake_proof_body_executor(
+        runtime_dir: Path,
+        *,
+        out_dir: Path,
+        overwrite: bool = False,
+        local_lean: bool = False,
+        lean_project: Path | None = None,
+        lean_timeout: int = 90,
+    ) -> dict[str, object]:
+        assert runtime_dir.exists()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        results_path = out_dir / "exact_source_theorem_proof_body_execution_results.jsonl"
+        learning_rows_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir / "exact_source_theorem_proof_body_execution_result_manifest.json"
+        )
+        result_row = {
+            "artifact_kind": "ExactSourceTheoremProofBodyExecutionResult",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "rank",
+            "source_theorem_kernel_verified": True,
+            "local_lean_checked": bool(local_lean),
+            "local_lean_compiled": bool(local_lean),
+            "proof_evidence_status": (
+                "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+            ),
+        }
+        results_path.write_text(json.dumps(result_row) + "\n", encoding="utf-8")
+        learning_rows_path.write_text(json.dumps(result_row) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "artifact_kind": "ExactSourceTheoremProofBodyExecutionResultManifest",
+            "execution_result_manifest": str(manifest_path),
+            "execution_results_jsonl": str(results_path),
+            "n_execution_result_rows": 1,
+            "n_source_theorem_kernel_verified": 1,
+            "n_local_lean_checked": int(bool(local_lean)),
+            "n_local_lean_compiled": int(bool(local_lean)),
+            "runtime_learning_export": {
+                "runtime_learning_rows_jsonl": str(learning_rows_path),
+                "n_runtime_learning_rows": 1,
+            },
+            "proof_evidence_status": (
+                "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        proof_body_executor_calls.append(
+            {
+                "runtime_dir": str(runtime_dir),
+                "out_dir": str(out_dir),
+                "overwrite": overwrite,
+                "local_lean": local_lean,
+                "lean_project": str(lean_project or ""),
+                "lean_timeout": lean_timeout,
+            }
+        )
+        return manifest
+
     monkeypatch.setattr(
         runtime_module,
         "_proof_body_execution_queue_manifest_from_bridge_manifests",
@@ -45951,6 +46046,11 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
         runtime_module,
         "run_source_theorem_exact_semantic_definition_verifier_gate_executor",
         fake_verifier_gate_executor,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "export_exact_source_theorem_proof_body_execution_results",
+        fake_proof_body_executor,
     )
     source_root = tmp_path / "Lean"
     source_root.mkdir()
@@ -45987,6 +46087,10 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
                 source_root
             ),
             source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout=17,
+            source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+            source_theorem_formal_environment_proofengineer_proof_body_local_lean=True,
+            source_theorem_formal_environment_proofengineer_lean_project=str(source_root),
+            source_theorem_formal_environment_proofengineer_lean_timeout=23,
         ),
     )
 
@@ -45995,10 +46099,16 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
     assert lean_repair_calls[1]["bridge_manifest"]
     assert len(bridge_calls) == 1
     assert len(recheck_calls) == 2
+    assert recheck_calls[0]["verifier_approved_recheck"] is False
+    assert recheck_calls[1]["verifier_approved_recheck"] is True
     assert len(verifier_calls) == 1
     assert verifier_calls[0]["local_lean"] is True
     assert verifier_calls[0]["lean_project"] == str(source_root)
     assert verifier_calls[0]["lean_timeout"] == 17
+    assert len(proof_body_executor_calls) == 1
+    assert proof_body_executor_calls[0]["local_lean"] is True
+    assert proof_body_executor_calls[0]["lean_project"] == str(source_root)
+    assert proof_body_executor_calls[0]["lean_timeout"] == 23
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_typechecked_candidate_review_packets"
@@ -46055,9 +46165,39 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_runtime_learning_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran"
         ]
-        is False
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_runtime_learning_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_proof_evidence_status"
+        ]
+        == "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
     )
     assert Path(
         manifest["artifacts"][
@@ -46072,6 +46212,21 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
     assert Path(
         manifest["artifacts"][
             "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_gate_executor_manifest"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_manifest"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_manifest"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_results_jsonl"
         ]
     ).exists()
 
@@ -69417,6 +69572,61 @@ def test_runtime_audit_exports_llm_semantic_review_verifier_gate_counters(
     assert "late_verifier_gate_work_orders=1" in report
 
 
+def test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "n_questions": 0,
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 0,
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        ]
+        == 1
+    )
+    assert audit["evidence_truth_table"]["source_theorem_kernel_verified"] is True
+    assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
+        encoding="utf-8"
+    )
+    assert "source-theorem kernel verified total: 1" in report
+
+
 def test_runtime_audit_counts_source_theorem_promotion_kernel_evidence(
     tmp_path: Path,
 ) -> None:
@@ -70218,6 +70428,68 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
 
 
+def test_runtime_capability_ladder_accepts_authoring_retry_verifier_approved_source_kernel_evidence() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        **_scorecard_architect_executed_payload(),
+        **_live_generated_code_execution_payload(),
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "structured_theory_derivation_trace_observed": True,
+        "n_theory_derivation_packets": 1,
+        "n_theory_derivation_packets_with_contract": 1,
+        "n_theory_derivation_packets_with_min_derivation_steps": 1,
+        "n_theory_derivation_packets_with_equation_chain": 1,
+        "n_theory_derivation_packets_with_assumption_ledger": 1,
+        "n_theory_derivation_packets_with_formalization_handoff": 1,
+        **_scorecard_theory_trace_consumption_payload(),
+        "n_algorithm_sandbox_executed": 1,
+        "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
+        **_live_generated_code_metric_repair_payload(),
+        "n_formalizer_lean_candidate_local_lean_checked": 1,
+        "n_formalizer_lean_candidate_local_lean_compiled": 1,
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+        **_bound_formalizer_proof_state_feedback_payload(),
+        "n_llm_formalizer_proof_engineer_proposals": 1,
+        "n_live_llm_formalizer_proof_engineer_proposals": 1,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_real_kernel_verified_subclaims": 0,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
+        "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": 2,
+        "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims": 0,
+        "n_runtime_theorem_reduction_closure_work_orders": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        **_target_bound_source_theorem_payload(),
+        "n_formal_gaps": 0,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    truth_table = _runtime_evidence_truth_table(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+
+    assert ladder_rows[7]["passed"] is True
+    assert ladder_rows[8]["passed"] is True
+    assert ladder["max_contiguous_level"] == 8
+    assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
+    assert truth_table["source_theorem_kernel_verified"] is True
+    assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
+
+
 def test_runtime_capability_ladder_accepts_materialized_review_source_kernel_evidence() -> None:
     payload = {
         "all_ok": True,
@@ -70449,6 +70721,26 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
     )
     assert (
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in raw_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
         in audit_keys
     )
     assert (
