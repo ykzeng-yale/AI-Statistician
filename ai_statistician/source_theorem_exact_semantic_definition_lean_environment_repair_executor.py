@@ -8,6 +8,9 @@ from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
+from .source_theorem_exact_semantic_definition_source_lookup import (
+    EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+)
 
 
 ARTIFACT_KIND = "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairExecutorManifest"
@@ -79,9 +82,35 @@ def run_source_theorem_exact_semantic_definition_lean_environment_repair_executo
             if row.get("environment_repair_status")
             == "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
         ),
+        "n_tasks_from_pseudo_formal": sum(
+            1
+            for row in tasks
+            if isinstance(row, Mapping)
+            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_results_from_pseudo_formal": sum(
+            1
+            for row in rows
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "source_pseudo_formal_work_order_ids": list(
+            dict.fromkeys(
+                str(row.get("source_pseudo_formal_work_order_id", "") or "")
+                for row in rows
+                if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            )
+        ),
+        "source_pseudo_formal_block_ids": list(
+            dict.fromkeys(
+                str(row.get("source_pseudo_formal_block_id", "") or "")
+                for row in rows
+                if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
+            )
+        ),
         "status_counts": dict(sorted(status_counts.items())),
         "source_theorem_kernel_verified": False,
         "semantic_definition_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
     }
@@ -257,6 +286,7 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("candidate_repair_feedback", {}) or {}
         ),
         "candidate_definition_request": candidate_definition_request,
+        **_exact_semantic_definition_context(row),
         "lake_project_exists": project_exists,
         "lakefile_exists": lakefile_exists,
         "lean_toolchain_exists": toolchain_exists,
@@ -275,6 +305,7 @@ def _environment_repair_result(row: Mapping[str, Any]) -> dict[str, Any]:
         "recommended_next_action": _recommended_next_action(status),
         "source_theorem_kernel_verified": False,
         "semantic_definition_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
         "kernel_proof_boundary": KERNEL_PROOF_BOUNDARY,
@@ -394,6 +425,10 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
         ),
+        **_exact_semantic_definition_context(row),
+        "source_theorem_kernel_verified": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
             "target_theorem_name": target_theorem_name,
@@ -427,6 +462,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("definition_only_candidate_artifact_path", "") or ""
             ),
             "candidate_definition_request": candidate_definition_request,
+            **_exact_semantic_definition_context(row),
             "recommended_commands": [
                 str(command)
                 for command in row.get("recommended_commands", []) or []
@@ -436,6 +472,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("recommended_next_action", "") or ""
             ),
             "source_theorem_kernel_verified": False,
+            "semantic_definition_kernel_verified": False,
+            "source_theorem_ready_for_exact_proof_body": False,
         },
         "target_behavior": (
             "prepare Lean dependency/cache environment for exact semantic-definition "
@@ -462,6 +500,37 @@ def _candidate_definition_request_from_row(
     if placeholder_symbol and not request.get("placeholder_symbol"):
         request["placeholder_symbol"] = placeholder_symbol
     return request
+
+
+def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]:
+    context: dict[str, Any] = {}
+    for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
+        value = row.get(key, None)
+        if value in (None, "", [], {}):
+            input_summary = row.get("input_summary", {})
+            if isinstance(input_summary, Mapping):
+                value = input_summary.get(key, None)
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, Mapping):
+            context[key] = dict(value)
+        elif isinstance(value, list):
+            context[key] = list(value)
+        else:
+            context[key] = value
+    candidate_request = context.get("candidate_definition_request", {})
+    if isinstance(candidate_request, Mapping):
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
+        target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
+        normalized_request = dict(candidate_request)
+        normalized_request.setdefault("target_theorem_name", target_theorem_name)
+        if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
+            normalized_request["placeholder_symbol"] = placeholder_symbol
+        if target_ids and not normalized_request.get("target_ids"):
+            normalized_request["target_ids"] = list(target_ids)
+        context["candidate_definition_request"] = normalized_request
+    return context
 
 
 def _target_ids_from_row(

@@ -260,6 +260,113 @@ def test_lean_environment_repair_executor_detects_unavailable_import_prefix(
     )
 
 
+def test_lean_environment_repair_executor_preserves_pseudo_formal_origin(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "LeanProject"
+    candidate = project / "StatInference" / "Conformal" / "Block.lean"
+    mathlib = project / ".lake" / "packages" / "mathlib"
+    candidate.parent.mkdir(parents=True)
+    mathlib.mkdir(parents=True)
+    candidate.write_text("import StatInference.Missing\n", encoding="utf-8")
+    (project / "lakefile.lean").write_text("import Lake\n", encoding="utf-8")
+    (project / "lean-toolchain").write_text(
+        "leanprover/lean4:v4.31.0\n",
+        encoding="utf-8",
+    )
+    (project / "lake-manifest.json").write_text("{}", encoding="utf-8")
+    pseudo_formal_origin = {
+        "source_pseudo_formal_work_order_id": (
+            "pseudo_formal_work_order:35f0c7e436caf8c7"
+        ),
+        "source_pseudo_formal_block_id": "blk_exchangeable_setup",
+        "source_pseudo_formal_packet_id": "pseudo_formal_packet:split",
+        "source_formalizer_proposal_id": "formalizer_proposal:split",
+        "pseudo_formal_method_contract_id": (
+            "pseudo_formalization_block_verification_calibration_v1"
+        ),
+        "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+        "pseudo_formal_proof_evidence_status": (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    task = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairTask"
+        ),
+        "environment_repair_task_id": "lean-env-repair:blk_exchangeable_setup",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "blk_exchangeable_setup",
+        "candidate_source_file": str(candidate),
+        "candidate_lean_project_hint": str(project),
+        "failure_classification": "lean_import_environment_missing",
+        "local_lean_diagnostics": [
+            f"{candidate}:1:0: error: unknown module prefix 'StatInference'",
+            "No directory 'StatInference' or file 'StatInference.olean' in the search path entries:",
+        ],
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+        **pseudo_formal_origin,
+    }
+    tasks = tmp_path / "environment_tasks.jsonl"
+    tasks.write_text(json.dumps(task) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_environment_repair_executor(
+        out_dir=tmp_path / "out",
+        environment_tasks_jsonl=tasks,
+    )
+
+    assert manifest["n_tasks_from_pseudo_formal"] == 1
+    assert manifest["n_results_from_pseudo_formal"] == 1
+    assert manifest["source_pseudo_formal_work_order_ids"] == [
+        "pseudo_formal_work_order:35f0c7e436caf8c7"
+    ]
+    assert manifest["source_pseudo_formal_block_ids"] == [
+        "blk_exchangeable_setup"
+    ]
+    assert manifest["source_theorem_ready_for_exact_proof_body"] is False
+    output_paths = [
+        Path(manifest["environment_repair_results_jsonl"]),
+        Path(manifest["runtime_learning_rows_jsonl"]),
+    ]
+    for output_path in output_paths:
+        rows = [
+            json.loads(line)
+            for line in output_path.read_text(encoding="utf-8").splitlines()
+        ]
+        row = rows[0]
+        assert row["source_pseudo_formal_work_order_id"] == (
+            "pseudo_formal_work_order:35f0c7e436caf8c7"
+        )
+        assert row["source_pseudo_formal_block_id"] == "blk_exchangeable_setup"
+        assert row["source_pseudo_formal_packet_id"] == "pseudo_formal_packet:split"
+        assert row["source_formalizer_proposal_id"] == "formalizer_proposal:split"
+        assert row["pseudo_formal_method_contract_id"] == (
+            "pseudo_formalization_block_verification_calibration_v1"
+        )
+        assert row["pseudo_formal_pipeline_stage"] == "pseudo_formal_block_routing"
+        assert row["pseudo_formal_proof_evidence_status"] == (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        )
+        assert row["source_theorem_kernel_verified"] is False
+        assert row["semantic_definition_kernel_verified"] is False
+        assert row["source_theorem_ready_for_exact_proof_body"] is False
+        assert "KERNEL_VERIFIED" not in row["proof_evidence_status"]
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, dict) and input_summary:
+            assert input_summary["source_pseudo_formal_work_order_id"] == (
+                "pseudo_formal_work_order:35f0c7e436caf8c7"
+            )
+            assert input_summary["source_pseudo_formal_block_id"] == (
+                "blk_exchangeable_setup"
+            )
+            assert input_summary["source_theorem_ready_for_exact_proof_body"] is False
+
+
 def test_lean_environment_repair_executor_resolves_repair_manifest(
     tmp_path: Path,
 ) -> None:
