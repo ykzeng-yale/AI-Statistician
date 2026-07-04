@@ -153,6 +153,30 @@ def run_source_theorem_exact_semantic_definition_proofengineer_bridge(
             for row in repair_packets
             if row.get("repair_strategy") == "author_reviewed_definition_from_contract"
         ),
+        "n_repair_packets_from_pseudo_formal": sum(
+            1
+            for row in repair_packets
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_lean_repair_tasks_from_pseudo_formal": sum(
+            1
+            for row in lean_repair_tasks
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "source_pseudo_formal_work_order_ids": list(
+            dict.fromkeys(
+                str(row.get("source_pseudo_formal_work_order_id", "") or "")
+                for row in repair_packets
+                if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            )
+        ),
+        "source_pseudo_formal_block_ids": list(
+            dict.fromkeys(
+                str(row.get("source_pseudo_formal_block_id", "") or "")
+                for row in repair_packets
+                if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
+            )
+        ),
         "placeholder_symbols": list(
             dict.fromkeys(
                 str(row.get("placeholder_symbol", "") or "")
@@ -684,6 +708,7 @@ def _learning_row(
             repair_packet.get("source_definition_closure_work_order_id", "") or ""
         ),
         "repair_strategy": str(repair_packet.get("repair_strategy", "") or ""),
+        **_exact_semantic_definition_context(repair_packet),
         "input_summary": {
             "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_PROOFENGINEER_BRIDGE",
             "source_lookup_status": str(
@@ -744,6 +769,7 @@ def _learning_row(
             or "repair or import exact semantic definitions before proof-body search"
         ),
         "acceptance_gate": str(repair_packet.get("acceptance_gate", "") or ""),
+        "source_theorem_kernel_evidence_eligible": False,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
     }
