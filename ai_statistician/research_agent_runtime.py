@@ -11427,7 +11427,10 @@ def _formalizer_required_pf_bv_block_schema_hints() -> dict[str, str]:
         "conclusion": "top-level non-empty local claim for every block",
         "source_anchors": (
             "at least one object pointing to the theory trace, theorem card, "
-            "proof body, paper, or other bounded source"
+            "proof body, paper, or other bounded source with non-empty id or "
+            "excerpt, e.g. {\"kind\":\"theory_trace\",\"id\":\"coverage_threshold\","
+            "\"excerpt\":\"C_n is the calibration quantile threshold\"}; prose-only "
+            "anchors do not satisfy validation"
         ),
         "accepted_block_verification": (
             "if block_verification.verdict is accepted, "

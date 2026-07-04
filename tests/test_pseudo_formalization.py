@@ -412,6 +412,18 @@ def test_pseudo_formal_block_normalizer_accepts_live_role_aliases() -> None:
                         {"kind": "theory_trace", "id": "equation:coverage"}
                     ],
                 },
+                {
+                    "block_id": "b_residual",
+                    "block_type": "residual",
+                    "conclusion": "the remaining blocked import is a library gap",
+                    "proof_text": "The rejected import must be grounded elsewhere.",
+                    "source_anchors": [
+                        {
+                            "kind": "theory_trace",
+                            "id": "blocked_import:Mathlib.Data.Int.Order",
+                        }
+                    ],
+                },
             ],
         }
     )
@@ -421,6 +433,7 @@ def test_pseudo_formal_block_normalizer_accepts_live_role_aliases() -> None:
         "fact",
         "lemma",
         "definition",
+        "claim",
         "claim",
     ]
 

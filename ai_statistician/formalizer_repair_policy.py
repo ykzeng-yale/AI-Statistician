@@ -103,7 +103,11 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
             "Repair each pseudo-formal block against the block schema: use a "
             "top-level conclusion field for the local claim, include at least one "
             "source_anchors entry pointing to a theory trace/paper/proof-body "
-            "source, and set faithfulness_status to one of lowercase "
+            "source with a non-empty id or excerpt, for example "
+            "{\"kind\":\"theory_trace\",\"id\":\"coverage_threshold\","
+            "\"excerpt\":\"C_n is the calibration quantile threshold\"}; do not "
+            "put anchor names only in prose, comments, or next_actions. Set "
+            "faithfulness_status to one of lowercase "
             "`faithful`, `needs_review`, `unfaithful`, or `unchecked`. Do not use "
             "uppercase statuses such as UNVERIFIED."
         ),

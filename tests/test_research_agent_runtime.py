@@ -18632,6 +18632,8 @@ def test_formalizer_malformed_pseudo_formal_block_fields_get_repair_directive() 
 
     assert any("top-level conclusion field" in row for row in directives)
     assert any("source_anchors entry" in row for row in directives)
+    assert any("\"kind\":\"theory_trace\"" in row for row in directives)
+    assert any("anchor names only in prose" in row for row in directives)
     assert any("Do not use uppercase statuses" in row for row in directives)
     assert any("rollout_count as an integer >= 1" in row for row in directives)
     assert any("keep the block's top-level conclusion" in row for row in directives)
@@ -44245,6 +44247,8 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     assert "lean_feasibility=needs_rag" in prompt
     assert "semantic_primitive_requirements" in prompt
     assert "Generic needs_review/not_run blocks alone" in prompt
+    assert "\"kind\":\"theory_trace\"" in prompt
+    assert "anchor names only in prose" in prompt
     assert "block_verification.rollout_count must be an integer >= 1" in prompt
     assert "top-level conclusion field" in prompt
     assert "not_run, unknown, or failed" in prompt
