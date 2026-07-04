@@ -11439,6 +11439,30 @@ def _formalizer_required_pf_bv_block_schema_hints() -> dict[str, str]:
     }
 
 
+def _formalizer_required_pf_bv_lane_activation_hints() -> dict[str, str]:
+    return {
+        "source_theorem_exact_semantic_definition": (
+            "set faithfulness_status=faithful and "
+            "lean_feasibility=needs_semantic_definition on at least one "
+            "source-anchored block requiring exact semantic-definition grounding"
+        ),
+        "lean_rag": (
+            "set faithfulness_status=faithful and lean_feasibility=needs_rag "
+            "on at least one source-anchored block requiring formal-source or "
+            "Mathlib/Lean grounding"
+        ),
+        "source_to_bridge": (
+            "set faithfulness_status=faithful and include non-empty "
+            "semantic_primitive_requirements on at least one source-anchored "
+            "block requiring a source-to-bridge primitive or premise"
+        ),
+        "generic_review_rows_do_not_satisfy_activation": (
+            "needs_review/not_run-only blocks are diagnostic; they do not count "
+            "as required target-lane PF/BV activation"
+        ),
+    }
+
+
 def _formalizer_structural_response_validation_feedback(
     *,
     proof_bank_runtime_memory_summary: Mapping[str, Any],
@@ -11602,6 +11626,11 @@ def _formalizer_provider_failure_result(
         ),
         "required_block_schema_hints": (
             _formalizer_required_pf_bv_block_schema_hints()
+            if pseudo_formalization_required
+            else {}
+        ),
+        "lane_activation_hints": (
+            _formalizer_required_pf_bv_lane_activation_hints()
             if pseudo_formalization_required
             else {}
         ),
@@ -11843,6 +11872,23 @@ def _formalizer_packet_validation_failure_result(
             return []
         return [str(item) for item in value if str(item)]
 
+    prior_pseudo_formalization_repair_contract = (
+        dict(
+            prior_environment_feedback.get(
+                "pseudo_formalization_repair_contract",
+                {},
+            )
+            or {}
+        )
+        if isinstance(
+            prior_environment_feedback.get(
+                "pseudo_formalization_repair_contract",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
     pseudo_formalization_target_names = _runtime_string_list(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
@@ -11852,6 +11898,7 @@ def _formalizer_packet_validation_failure_result(
             "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
             [],
         )
+        or prior_pseudo_formalization_repair_contract.get("target_names", [])
     )
     pseudo_formalization_placeholder_symbols = _runtime_string_list(
         proof_bank_runtime_memory_summary.get(
@@ -11860,6 +11907,10 @@ def _formalizer_packet_validation_failure_result(
         )
         or prior_environment_feedback.get(
             "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
+            [],
+        )
+        or prior_pseudo_formalization_repair_contract.get(
+            "placeholder_symbols",
             [],
         )
     )
@@ -11928,6 +11979,9 @@ def _formalizer_packet_validation_failure_result(
             ),
             "required_block_schema_hints": (
                 _formalizer_required_pf_bv_block_schema_hints()
+            ),
+            "lane_activation_hints": (
+                _formalizer_required_pf_bv_lane_activation_hints()
             ),
             "acceptance_gate": (
                 "valid PF/BV packet must produce lane-routable pseudo-formal "

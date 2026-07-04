@@ -370,6 +370,61 @@ def test_pseudo_formal_block_normalizer_accepts_decomposition_type_aliases() -> 
     assert packet["blocks"][2]["faithfulness_status"] == "needs_review"
 
 
+def test_pseudo_formal_block_normalizer_accepts_live_role_aliases() -> None:
+    packet = normalize_pseudo_formal_packet(
+        {
+            "theorem_id": "split_conformal_coverage",
+            "source_artifact_id": "theory_packet:split_conformal",
+            "blocks": [
+                {
+                    "block_id": "b_hyp",
+                    "block_type": "hypothesis_introduction",
+                    "conclusion": "exchangeability hypothesis is in scope",
+                    "proof_text": "This is copied from the theory trace.",
+                    "source_anchors": [
+                        {"kind": "theory_trace", "id": "assumption:exchangeability"}
+                    ],
+                },
+                {
+                    "block_id": "b_app",
+                    "block_type": "lemma_application",
+                    "conclusion": "rank uniformity follows from exchangeability",
+                    "proof_text": "Apply the rank-uniformity argument.",
+                    "source_anchors": [
+                        {"kind": "proof_body", "id": "proof:rank-uniformity"}
+                    ],
+                },
+                {
+                    "block_id": "b_def",
+                    "block_type": "definition_instantiation",
+                    "conclusion": "C_n is the source quantile threshold",
+                    "proof_text": "Instantiate the source definition of the threshold.",
+                    "source_anchors": [
+                        {"kind": "theory_trace", "id": "definition:C_n"}
+                    ],
+                },
+                {
+                    "block_id": "b_conclusion",
+                    "block_type": "conclusion_step",
+                    "conclusion": "coverage is at least one minus alpha",
+                    "proof_text": "Combine the previous blocks.",
+                    "source_anchors": [
+                        {"kind": "theory_trace", "id": "equation:coverage"}
+                    ],
+                },
+            ],
+        }
+    )
+
+    assert validate_pseudo_formal_packet(packet) == []
+    assert [block["block_type"] for block in packet["blocks"]] == [
+        "fact",
+        "lemma",
+        "definition",
+        "claim",
+    ]
+
+
 def test_pseudo_formal_block_aliases_still_require_real_source_anchors() -> None:
     packet = normalize_pseudo_formal_packet(
         {
@@ -1861,6 +1916,8 @@ def test_structural_exact_semantic_memory_rejects_generic_review_only() -> None:
 
     assert any("only generic review rows" in error for error in errors)
     assert any("required target lanes" in error for error in errors)
+    assert any("lean_feasibility=needs_semantic_definition" in error for error in errors)
+    assert any("semantic_primitive_requirements" in error for error in errors)
 
 
 def test_proof_body_adapter_feedback_does_not_require_pf_without_explicit_gate() -> None:

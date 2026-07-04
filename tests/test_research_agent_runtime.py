@@ -19538,6 +19538,15 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
         "lean_rag",
         "source_to_bridge",
     ]
+    assert "lean_feasibility=needs_semantic_definition" in contract[
+        "lane_activation_hints"
+    ]["source_theorem_exact_semantic_definition"]
+    assert "lean_feasibility=needs_rag" in contract["lane_activation_hints"][
+        "lean_rag"
+    ]
+    assert "semantic_primitive_requirements" in contract[
+        "lane_activation_hints"
+    ]["source_to_bridge"]
     assert contract["response_validation_feedback"][
         "unverified_required_imports"
     ] == ["Mathlib.Data.Int.Order"]
@@ -19598,6 +19607,87 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     assert observation_payload["unverified_required_imports"] == [
         "Mathlib.Data.Int.Order"
     ]
+
+
+def test_formalizer_validation_failure_preserves_nested_pf_bv_repair_targets() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    exc = PacketValidationError(
+        validation_label="LLM Formalizer/ProofEngineer packet",
+        attempts=2,
+        errors=[
+            (
+                "pseudo_formal_proof_packets[0] blocks[0] unsupported block_type: "
+                "hypothesis_introduction"
+            ),
+            (
+                "pseudo_formalization_required: no locally valid "
+                "pseudo_formal_proof_packets entry was emitted"
+            ),
+        ],
+        history=[{"attempt_index": 1, "ok": False}],
+    )
+    task = AgentTask(
+        task_id="formalize-repair:split_conformal_structural_reformulation",
+        owner_subsystem="FormalizationEvaluator",
+        objective="repair structural exact semantic definition blocker",
+        inputs={
+            "environment_feedback": {
+                "pseudo_formalization_required": True,
+                "source_theorem_exact_semantic_definition_structural_reformulation_required": True,
+                "pseudo_formalization_repair_contract": {
+                    "contract_kind": "pseudo_formalization_required_repair",
+                    "target_names": [
+                        "split_conformal_finite_sample_coverage"
+                    ],
+                    "placeholder_symbols": ["C_n"],
+                    "target_lanes": [
+                        "source_theorem_exact_semantic_definition",
+                        "lean_rag",
+                        "source_to_bridge",
+                    ],
+                    "required_output_key": "pseudo_formal_proof_packets",
+                },
+            }
+        },
+    )
+    proof_memory_summary = {
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+        "pseudo_formalization_required_reason": (
+            "exact_semantic_definition_structural_reformulation_required"
+        ),
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": True,
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_semantic_definition_structural_reformulation"
+        ),
+    }
+
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        exc=exc,
+    )
+
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    contract = feedback["pseudo_formalization_repair_contract"]
+    assert contract["target_names"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert contract["placeholder_symbols"] == ["C_n"]
+    assert contract["target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "lean_rag",
+        "source_to_bridge",
+    ]
+    assert any(
+        "block_type vocabulary" in directive
+        for directive in feedback["validation_repair_directives"]
+    )
 
 
 def test_formalizer_provider_timeout_routes_resumable_pf_bv_retry() -> None:
@@ -44151,6 +44241,10 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     assert "hard-negative rejected imports" in prompt
     assert "do not reuse them as Lean candidate required_imports" in prompt
     assert "PF/BV work-order constraint" in prompt
+    assert "lean_feasibility=needs_semantic_definition" in prompt
+    assert "lean_feasibility=needs_rag" in prompt
+    assert "semantic_primitive_requirements" in prompt
+    assert "Generic needs_review/not_run blocks alone" in prompt
     assert "block_verification.rollout_count must be an integer >= 1" in prompt
     assert "top-level conclusion field" in prompt
     assert "not_run, unknown, or failed" in prompt

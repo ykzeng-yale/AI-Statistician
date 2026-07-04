@@ -37,13 +37,23 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
             "requires at least one pseudo_formal_proof_packets",
             "no locally valid pseudo_formal_proof_packets",
             "valid pf/bv packet did not produce",
+            "only generic review rows",
         ),
         prompt_directive=(
             "PF/BV activation is required: emit at least one "
             "pseudo_formal_proof_packets entry with source-anchored blocks, "
             "PF/BV method lineage, faithfulness/block-verifier status, and at "
             "least one lane-routable residual work order. Do not replace this "
-            "with another direct Lean API retry or a FORMAL_GAP-only packet."
+            "with another direct Lean API retry or a FORMAL_GAP-only packet. "
+            "Runtime target-lane routing is inferred from block fields: use "
+            "faithfulness_status=faithful with "
+            "lean_feasibility=needs_semantic_definition for exact semantic "
+            "definition work, faithfulness_status=faithful with "
+            "lean_feasibility=needs_rag for Lean/RAG grounding, or "
+            "faithfulness_status=faithful with non-empty "
+            "semantic_primitive_requirements for source_to_bridge work. Generic "
+            "needs_review/not_run blocks are diagnostic only and do not satisfy "
+            "required PF/BV activation."
         ),
         allowed_resolution=(
             "Produce valid pseudo-formal blocks that route residuals to Lean/RAG, "
