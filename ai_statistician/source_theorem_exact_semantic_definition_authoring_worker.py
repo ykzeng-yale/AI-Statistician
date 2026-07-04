@@ -1140,6 +1140,76 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
     )
     if diagnostic_history:
         feedback["diagnostic_source_excerpts_history"] = diagnostic_history[:8]
+    verifier_gate_status = str(task.get("verifier_gate_status", "") or "").strip()
+    verifier_gate_blockers = _dedup_strings(
+        [
+            *_string_list(feedback.get("verifier_gate_blockers", [])),
+            *_string_list(task.get("verifier_gate_blockers", [])),
+        ]
+    )
+    known_gaps = _dedup_strings(
+        [
+            *_string_list(feedback.get("known_gaps", [])),
+            *_string_list(task.get("known_gaps", [])),
+        ]
+    )
+    source_anchor_context = _dedup_mapping_rows(
+        [
+            *(feedback.get("source_anchor_context", []) or []),
+            *(task.get("source_anchor_context", []) or []),
+        ]
+    )
+    raw_source_anchor_context_rows = (
+        task.get("source_anchor_context_rows", None)
+        or feedback.get("source_anchor_context_rows", None)
+        or len(source_anchor_context)
+    )
+    try:
+        source_anchor_context_rows = int(raw_source_anchor_context_rows)
+    except (TypeError, ValueError):
+        source_anchor_context_rows = len(source_anchor_context)
+    recommended_repair_tasks = _dedup_strings(
+        [
+            *_string_list(feedback.get("recommended_repair_tasks", [])),
+            *_string_list(task.get("recommended_repair_tasks", [])),
+        ]
+    )
+    proof_body_recheck_blockers = _dedup_strings(
+        [
+            *_string_list(feedback.get("proof_body_recheck_blockers", [])),
+            *_string_list(task.get("proof_body_recheck_blockers", [])),
+        ]
+    )
+    if verifier_gate_status:
+        feedback["verifier_gate_status"] = verifier_gate_status
+    if verifier_gate_blockers:
+        feedback["verifier_gate_blockers"] = verifier_gate_blockers
+    if known_gaps:
+        feedback["known_gaps"] = known_gaps
+    if source_anchor_context:
+        feedback["source_anchor_context"] = source_anchor_context[:16]
+        feedback["source_anchor_context_rows"] = source_anchor_context_rows
+    if str(task.get("verifier_gate_result_id", "") or "").strip():
+        feedback["verifier_gate_result_id"] = str(
+            task.get("verifier_gate_result_id", "") or ""
+        )
+    if str(task.get("source_verifier_gate_work_order_id", "") or "").strip():
+        feedback["source_verifier_gate_work_order_id"] = str(
+            task.get("source_verifier_gate_work_order_id", "") or ""
+        )
+    if recommended_repair_tasks:
+        feedback["recommended_repair_tasks"] = recommended_repair_tasks
+    if proof_body_recheck_blockers:
+        feedback["proof_body_recheck_blockers"] = proof_body_recheck_blockers
+    source_proof_evidence_status = str(
+        task.get("source_proof_evidence_status", "")
+        or feedback.get("source_proof_evidence_status", "")
+        or feedback.get("verifier_gate_proof_evidence_status", "")
+        or ""
+    ).strip()
+    if source_proof_evidence_status:
+        feedback["source_proof_evidence_status"] = source_proof_evidence_status
+        feedback["verifier_gate_proof_evidence_status"] = source_proof_evidence_status
     return feedback
 
 

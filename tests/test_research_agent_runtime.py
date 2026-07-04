@@ -43467,6 +43467,181 @@ def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory(
     assert diagnostic["source_anchor_context"] == source_anchor_context
 
 
+def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
+    tmp_path: Path,
+) -> None:
+    source_anchor_context = [
+        {
+            "kind": "proof_body_queue_manifest_context",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "n_matching_source_rows": 1,
+        },
+        {
+            "name": "score",
+            "role": "source_theorem_parameter",
+            "type": "Fin (n + 1) -> Omega -> Real",
+        },
+    ]
+    learning_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_"
+            "typechecked_review_verifier_gate_execution"
+        ),
+        "work_order_id": (
+            "source_theorem_exact_semantic_definition_verifier_gate:good_rank_event"
+        ),
+        "verifier_gate_result_id": (
+            "source_theorem_exact_semantic_definition_verifier_gate_result:"
+            "good_rank_event"
+        ),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "good_rank_event",
+        "candidate_artifact_path": (
+            "runs/candidates/good_rank_event_definition_only.lean"
+        ),
+        "local_lean_checked": True,
+        "local_lean_compiled": True,
+        "verifier_gate_status": (
+            "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+        ),
+        "verifier_gate_blockers": [
+            "known_gaps_unresolved",
+            "candidate_known_gaps_comment_present",
+        ],
+        "known_gaps": [
+            "threshold k is not tied to the source quantile hypothesis",
+            "candidate still contains a known-gaps comment",
+        ],
+        "source_anchor_context": source_anchor_context,
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        ),
+        "source_theorem_kernel_evidence_eligible": False,
+        "source_theorem_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_"
+            "NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [learning_row],
+    }
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+    assert len(repairs) == 1
+    repair = repairs[0]
+
+    assert cli_module._runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
+        repair
+    )
+    assert (
+        cli_module._runtime_learning_memory_exact_semantic_definition_repair_priority(
+            repair
+        )
+        == 95
+    )
+    assert (
+        cli_module._runtime_learning_memory_exact_semantic_definition_repair_pin_stage(
+            repair
+        )
+        == "verifier_gate_repair"
+    )
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            repairs
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["artifact_kind"] == "SourceTheoremExactSemanticDefinitionAuthoringTask"
+    assert task["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    assert task["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+    )
+    assert task["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback"
+    )
+    assert task["retry_failure_classification"] == (
+        "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+    )
+    assert "verifier-gate blockers" in task["retry_recommended_next_action"]
+    assert task["verifier_gate_status"] == learning_row["verifier_gate_status"]
+    assert task["verifier_gate_blockers"] == learning_row["verifier_gate_blockers"]
+    assert task["known_gaps"] == learning_row["known_gaps"]
+    assert task["source_anchor_context"] == source_anchor_context
+    assert task["source_anchor_context_rows"] == 2
+    assert task["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+    feedback = task["candidate_repair_feedback"]
+    assert feedback["verifier_gate_blockers"] == learning_row["verifier_gate_blockers"]
+    assert feedback["known_gaps"] == learning_row["known_gaps"]
+    assert feedback["source_anchor_context"] == source_anchor_context
+    assert feedback["source_anchor_context_rows"] == 2
+    assert feedback["verifier_gate_proof_evidence_status"] == (
+        learning_row["proof_evidence_status"]
+    )
+    assert feedback["recommended_repair_tasks"] == [
+        "rewrite the exact semantic-definition candidate to resolve verifier-gate known gaps against recovered source anchors/binders",
+        "remove candidate known-gap comments only after the definition contract is satisfied",
+        "rerun the local Lean verifier gate before exact proof-body recheck",
+    ]
+
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True, max_tasks=1),
+    )
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(prompt_packets) == 1
+    prompt_packet = prompt_packets[0]
+    assert prompt_packet["verifier_gate_status"] == learning_row["verifier_gate_status"]
+    assert prompt_packet["verifier_gate_blockers"] == learning_row[
+        "verifier_gate_blockers"
+    ]
+    assert prompt_packet["known_gaps"] == learning_row["known_gaps"]
+    assert prompt_packet["source_anchor_context_rows"] == 2
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+    prompt_feedback = prompt_payload["candidate_repair_feedback"]
+    assert prompt_feedback["verifier_gate_blockers"] == learning_row[
+        "verifier_gate_blockers"
+    ]
+    assert prompt_feedback["known_gaps"] == learning_row["known_gaps"]
+    assert prompt_feedback["source_anchor_context"] == source_anchor_context
+    assert prompt_feedback["source_anchor_context_rows"] == 2
+    assert prompt_feedback["recommended_repair_tasks"] == feedback[
+        "recommended_repair_tasks"
+    ]
+    assert prompt_feedback["verifier_gate_proof_evidence_status"] == (
+        learning_row["proof_evidence_status"]
+    )
+    assert prompt_packet["source_theorem_kernel_verified"] is False
+    assert prompt_packet["semantic_definition_kernel_verified"] is False
+    assert prompt_packet["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_exact_semantic_definition_authoring_learning_row_preserves_source_binders() -> None:
     learning_rows = [
         {

@@ -66377,6 +66377,14 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or input_summary.get("environment_repair_status", "")
             or ""
         ).strip()
+        row_trigger = str(
+            row.get("trigger", "") or input_summary.get("trigger", "") or ""
+        ).strip()
+        source_proof_evidence_status = str(
+            row.get("proof_evidence_status", "")
+            or input_summary.get("proof_evidence_status", "")
+            or ""
+        ).strip()
         authoring_prompt_response_pending = (
             runtime_queue_status
             == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
@@ -66416,9 +66424,18 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or str(input_summary.get("authoring_trigger", "") or "").strip()
             == "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
         )
+        verifier_gate_repair_required = (
+            runtime_queue_status
+            == "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+            or row_trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+            or failure_classification.startswith(
+                "exact_semantic_definition_verifier_gate_"
+            )
+        )
         authoring_repair_required = (
             runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
             or environment_port_authoring_required
+            or verifier_gate_repair_required
             or str(row.get("authoring_trigger", "") or "").strip()
             == "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
             or str(input_summary.get("authoring_trigger", "") or "").strip()
@@ -66429,6 +66446,7 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             and not authoring_retry_required
             and not structural_reformulation_required
             and not environment_port_authoring_required
+            and not verifier_gate_repair_required
         ):
             continue
         if (
@@ -66515,6 +66533,9 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     (
                         "port_or_synthesize_exact_definition_for_active_lean_project"
                         if environment_port_authoring_required
+                        else
+                        "repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback"
+                        if verifier_gate_repair_required
                         else str(
                             row.get("authoring_mode", "")
                             or input_summary.get("authoring_mode", "")
@@ -66538,7 +66559,12 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "repair_of_semantic_alignment_blockers": bool(
                     authoring_repair_required
                 ),
-                "retry_failure_classification": failure_classification,
+                "retry_failure_classification": failure_classification
+                or (
+                    "exact_semantic_definition_verifier_gate_repair_required"
+                    if verifier_gate_repair_required
+                    else ""
+                ),
                 "retry_recommended_next_action": str(
                     row.get("recommended_next_action", "")
                     or input_summary.get("recommended_next_action", "")
@@ -66548,6 +66574,12 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                             "another exact semantic-definition authoring attempt"
                         )
                         if structural_reformulation_required
+                        else (
+                            "repair the typechecked exact semantic-definition "
+                            "candidate against verifier-gate blockers, known gaps, "
+                            "and source anchors before rerunning the verifier gate"
+                        )
+                        if verifier_gate_repair_required
                         else (
                             "retry the same exact semantic-definition authoring "
                             "prompt with preserved candidate-definition request "
@@ -66614,12 +66646,28 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             "local_lean_diagnostics",
             "local_lean_diagnostic_source_excerpts",
             "source_theorem_exact_semantic_definition_structural_reformulation_route",
+            "verifier_gate_status",
+            "verifier_gate_blockers",
+            "known_gaps",
+            "source_anchor_context",
+            "source_anchor_context_rows",
+            "verifier_gate_result_id",
+            "source_verifier_gate_work_order_id",
+            "recommended_repair_tasks",
+            "proof_body_recheck_blockers",
         ):
             if task.get(key_name) not in (None, "", [], {}):
                 continue
             value = input_summary.get(key_name)
             if value not in (None, "", [], {}):
                 task[key_name] = value
+        if (
+            task.get("source_anchor_context_rows") in (None, "", [], {})
+            and isinstance(task.get("source_anchor_context", []), list)
+        ):
+            task["source_anchor_context_rows"] = len(
+                task.get("source_anchor_context", []) or []
+            )
         diagnostic_source_excerpts = _runtime_local_lean_diagnostic_source_excerpts(
             row,
             input_summary,
@@ -66638,6 +66686,36 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "local_lean_diagnostic_source_excerpts",
                 diagnostic_source_excerpts,
             )
+            task["candidate_repair_feedback"] = candidate_repair_feedback
+        if verifier_gate_repair_required:
+            candidate_repair_feedback = task.get("candidate_repair_feedback", {})
+            if not isinstance(candidate_repair_feedback, Mapping):
+                candidate_repair_feedback = {}
+            else:
+                candidate_repair_feedback = dict(candidate_repair_feedback)
+            for key_name in (
+                "verifier_gate_status",
+                "verifier_gate_blockers",
+                "known_gaps",
+                "source_anchor_context",
+                "source_anchor_context_rows",
+                "verifier_gate_result_id",
+                "source_verifier_gate_work_order_id",
+                "recommended_repair_tasks",
+                "proof_body_recheck_blockers",
+            ):
+                value = task.get(key_name)
+                if value not in (None, "", [], {}):
+                    candidate_repair_feedback.setdefault(key_name, value)
+            if source_proof_evidence_status:
+                candidate_repair_feedback.setdefault(
+                    "source_proof_evidence_status",
+                    source_proof_evidence_status,
+                )
+                candidate_repair_feedback.setdefault(
+                    "verifier_gate_proof_evidence_status",
+                    source_proof_evidence_status,
+                )
             task["candidate_repair_feedback"] = candidate_repair_feedback
         if environment_port_authoring_required:
             task["retry_failure_classification"] = environment_repair_status

@@ -98,6 +98,15 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "exact_goal_shape_obligation_ids",
     "target_lean_declaration",
     "candidate_definition_request",
+    "verifier_gate_status",
+    "verifier_gate_blockers",
+    "known_gaps",
+    "source_anchor_context",
+    "source_anchor_context_rows",
+    "verifier_gate_result_id",
+    "source_verifier_gate_work_order_id",
+    "recommended_repair_tasks",
+    "proof_body_recheck_blockers",
 )
 
 

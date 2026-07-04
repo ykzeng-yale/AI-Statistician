@@ -2645,6 +2645,7 @@ def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
         "PENDING_EXACT_SEMANTIC_DEFINITION_LOCAL_LEAN_CHECK",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR",
         "PENDING_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION",
     }:
         return True
@@ -2655,6 +2656,7 @@ def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZED",
         "EXACT_SEMANTIC_DEFINITION_LEAN_IMPORT_ENVIRONMENT_REPAIR",
         "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR",
         "SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER",
     }:
         return True
@@ -2668,6 +2670,7 @@ def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE",
         "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_TASK_NOT_PROOF_EVIDENCE",
         "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE",
+        "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF",
         "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE",
     } and (
         "semantic_definition" in learning_task
@@ -2697,6 +2700,12 @@ def _runtime_learning_memory_exact_semantic_definition_repair_priority(
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
+    trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
+    failure_classification = str(
+        row.get("failure_classification", "")
+        or input_summary.get("failure_classification", "")
+        or ""
+    ).strip()
     environment_repair_status = str(
         row.get("environment_repair_status", "")
         or input_summary.get("environment_repair_status", "")
@@ -2716,6 +2725,14 @@ def _runtime_learning_memory_exact_semantic_definition_repair_priority(
     ).strip()
     if environment_repair_status:
         return 96
+    if (
+        runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        or trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        or failure_classification.startswith(
+            "exact_semantic_definition_verifier_gate_"
+        )
+    ):
+        return 95
     if (
         artifact_path
         or semantic_status
@@ -2752,13 +2769,28 @@ def _runtime_learning_memory_exact_semantic_definition_repair_pin_stage(
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
         input_summary = {}
+    runtime_queue_status = str(
+        row.get("runtime_queue_status", "")
+        or input_summary.get("runtime_queue_status", "")
+        or ""
+    ).strip()
+    trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
+    failure_classification = str(
+        row.get("failure_classification", "")
+        or input_summary.get("failure_classification", "")
+        or ""
+    ).strip()
+    if (
+        runtime_queue_status == "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        or trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        or failure_classification.startswith(
+            "exact_semantic_definition_verifier_gate_"
+        )
+    ):
+        return "verifier_gate_repair"
     return (
-        str(input_summary.get("trigger", "") or row.get("trigger", "") or "").strip()
-        or str(
-            row.get("runtime_queue_status", "")
-            or input_summary.get("runtime_queue_status", "")
-            or ""
-        ).strip()
+        trigger.strip()
+        or runtime_queue_status
         or str(row.get("proof_evidence_status", "") or "").strip()
         or str(row.get("learning_task", "") or "").strip()
         or "unspecified"

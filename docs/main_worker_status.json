@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-04T16:58:00-04:00",
+  "updated_at": "2026-07-04T20:35:38Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1254,10 +1254,24 @@
         "real_replay_result": "The real good_rank_event verifier-gate executor row now yields n_repairs=1, trigger=EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR, failure_classification=exact_semantic_definition_verifier_gate_known_gaps_unresolved, runtime_queue_status=PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR, known_gaps=3, source_anchor_context_rows=44, and summary source_theorem_exact_candidate_requires_repair=true.",
         "regression_test": "tests/test_research_agent_runtime.py::test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory",
         "boundary": "This is repair-memory routing only. The verifier-gate row remains TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF and does not approve proof-body recheck until known gaps are resolved and the verifier gate passes."
+      },
+      "exact_semantic_verifier_gate_authoring_task_feedback_20260704": {
+        "fix": "Verifier-gate repair memory now becomes an executable SourceTheoremExactSemanticDefinitionAuthoringTask instead of stopping at summary diagnostics. The authoring task and dry-run prompt packet preserve verifier_gate_status, verifier_gate_blockers, known_gaps, source_anchor_context/source_anchor_context_rows, verifier gate ids, recommended repair tasks, and the original verifier-gate non-proof status inside candidate_repair_feedback.",
+        "memory_retention": "Runtime compact-memory priority now treats PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR / EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR rows as high-priority exact semantic-definition repair memory with pin stage verifier_gate_repair.",
+        "real_replay_source": "runs/main_worker_good_rank_verifier_gate_source_context_executor_20260704/runtime_learning_rows.jsonl",
+        "real_replay_result": "The real good_rank_event verifier-gate row yields n_repairs=1 and now n_authoring_repair_tasks=1 with runtime_queue_status=PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR, authoring_mode=repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback, failure_classification=exact_semantic_definition_verifier_gate_known_gaps_unresolved, known_gaps=3, source_anchor_context_rows=44, feedback_known_gaps=3, and feedback_source_anchor_context_rows=44.",
+        "regression_test": "tests/test_research_agent_runtime.py::test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt",
+        "boundary": "The new authoring repair task and prompt packet remain ProofEngineer authoring work items only. They are not local Lean/AXLE evidence and do not claim source theorem proof evidence."
       }
     }
   },
   "latest_local_verification": [
+    "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py ai_statistician/source_theorem_exact_semantic_definition_authoring_worker.py ai_statistician/cli.py tests/test_research_agent_runtime.py # passed after verifier-gate authoring-task feedback patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate_known_gaps_become_authoring_repair_task_and_prompt\" # 1 passed, 805 deselected after verifier-gate authoring-task feedback patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate or exact_candidate_repair_memory or authoring_retry_task or authoring_repair_tasks_include\" # 6 passed, 800 deselected after verifier-gate authoring-task feedback patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_authoring_worker.py -q -k \"dry_run_writes_prompt_packets_without_proof_evidence or prompt_contract\" # 5 passed, 13 deselected after verifier-gate authoring-task feedback patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py -q -k \"typechecked_review_recheck_queue or verifier_gate\" # 8 passed, 21 deselected after verifier-gate authoring-task feedback patch",
+    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... replay runs/main_worker_good_rank_verifier_gate_source_context_executor_20260704/runtime_learning_rows.jsonl through repair memory and authoring retry task generation # repairs=1, tasks=1, placeholder=good_rank_event, status=PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR, mode=repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback, known_gaps=3, source_anchor_context_rows=44, feedback_known_gaps=3",
     "PYTHONPATH=$PWD python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after verifier-gate known-gap repair-memory patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory\" # 1 passed, 804 deselected after verifier-gate known-gap repair-memory patch",
     "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... replay runs/main_worker_good_rank_verifier_gate_source_context_executor_20260704/runtime_learning_rows.jsonl through _runtime_learning_memory_source_theorem_exact_candidate_repairs and _formalizer_proof_bank_runtime_memory_summary # n_repairs=1, trigger=EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR, failure=exact_semantic_definition_verifier_gate_known_gaps_unresolved, known_gaps=3, source_anchor_context_rows=44, requires_repair=true",
