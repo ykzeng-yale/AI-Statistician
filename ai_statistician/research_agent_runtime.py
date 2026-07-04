@@ -31278,6 +31278,12 @@ def run_research_agent_runtime(
         late_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifests
     )
     manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+    ] = sum(
+        int(row.get("n_execution_result_rows", 0) or 0)
+        for row in late_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifests
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = sum(
         int(row.get("n_source_theorem_kernel_verified", 0) or 0)
@@ -31779,6 +31785,15 @@ def run_research_agent_runtime(
     ] = (
         source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_executor_manifest
         is not None
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_execution_result_rows", 0)
+        or 0
     )
     manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
@@ -32675,6 +32690,15 @@ def run_research_agent_runtime(
         is not None
     )
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_execution_result_rows", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = primary_typechecked_review_verifier_approved_recheck_executor_n_source_theorem_kernel_verified
     manifest[
@@ -33421,6 +33445,15 @@ def run_research_agent_runtime(
     ] = (
         source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_recheck_executor_manifest
         is not None
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_execution_result_rows", 0)
+        or 0
     )
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"

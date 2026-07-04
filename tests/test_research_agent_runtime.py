@@ -46183,6 +46183,12 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
         ]
         == 1
@@ -69597,7 +69603,11 @@ def test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence(
             "runtime_next_action_agenda_jsonl": str(agenda),
             "runtime_learning_rows_jsonl": str(learning),
         },
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_runtime_learning_rows": 1,
         "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 1,
         "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
         **_target_bound_source_theorem_payload(),
         "n_full_frontier_theorem_proved": 0,
@@ -69619,7 +69629,28 @@ def test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence(
         ]
         == 1
     )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+        ]
+        == 1
+    )
     assert audit["evidence_truth_table"]["source_theorem_kernel_verified"] is True
+    assert scorecard_rows[
+        "source_theorem_exact_proof_body_candidate_materialized"
+    ]["passed"] is True
+    assert scorecard_rows[
+        "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"
+    ]["passed"] is True
+    assert "authoring_retry_verifier_approved_output_rows=2" in scorecard_rows[
+        "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"
+    ]["evidence"]
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
         encoding="utf-8"
@@ -77753,6 +77784,130 @@ def test_runtime_capability_scorecard_flags_empty_typechecked_review_recheck_exe
 
     assert row["passed"] is False
     assert f"{evidence_prefix}_output_rows=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_counts_verifier_approved_recheck_rows_as_exact_proof_body_candidate() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_required": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_n_ready": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_n_execution_rows": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_n_runtime_learning_rows": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": True,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    candidate_row = rows["source_theorem_exact_proof_body_candidate_materialized"]
+    executor_row = rows[
+        "exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"
+    ]
+    assert candidate_row["passed"] is True
+    assert "semantic_recheck_execution_rows=1" in candidate_row["evidence"]
+    assert "semantic_proof_body_recheck_queue_rows=1" in candidate_row["evidence"]
+    assert executor_row["passed"] is True
+    assert "primary_verifier_approved_output_rows=1" in executor_row["evidence"]
+
+
+@pytest.mark.parametrize(
+    (
+        "queue_execution_rows_key",
+        "executor_ran_key",
+        "executor_result_rows_key",
+        "executor_source_kernel_key",
+        "evidence_prefix",
+    ),
+    [
+        (
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "primary_verifier_approved",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "materialized_verifier_approved",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "late_verifier_approved",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            "authoring_retry_verifier_approved",
+        ),
+    ],
+)
+def test_runtime_capability_scorecard_flags_dropped_verifier_approved_recheck_executor(
+    queue_execution_rows_key: str,
+    executor_ran_key: str,
+    executor_result_rows_key: str,
+    executor_source_kernel_key: str,
+    evidence_prefix: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        queue_execution_rows_key: 1,
+        executor_ran_key: False,
+        executor_result_rows_key: 0,
+        executor_source_kernel_key: 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"]
+
+    assert row["passed"] is False
+    assert f"{evidence_prefix}_output_rows=0" in row["evidence"]
+
+    payload[executor_ran_key] = True
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"]
+
+    assert row["passed"] is False
+    assert f"{evidence_prefix}_executor_ran=True" in row["evidence"]
+    assert f"{evidence_prefix}_output_rows=0" in row["evidence"]
+
+    payload[executor_result_rows_key] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_typechecked_review_recheck_executor_not_dropped"]
+
+    assert row["passed"] is True
+    assert f"{evidence_prefix}_output_rows=1" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_derivation_handoff() -> None:
