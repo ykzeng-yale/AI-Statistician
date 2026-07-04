@@ -354,6 +354,36 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
             1 for row in results if row.get("candidate_lean_project_hint")
         ),
         "n_lean_environment_repair_tasks": len(environment_repair_tasks),
+        "n_tasks_from_pseudo_formal": sum(
+            1
+            for row in tasks
+            if isinstance(row, Mapping)
+            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_results_from_pseudo_formal": sum(
+            1
+            for row in results
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_lean_environment_repair_tasks_from_pseudo_formal": sum(
+            1
+            for row in environment_repair_tasks
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "source_pseudo_formal_work_order_ids": list(
+            dict.fromkeys(
+                str(row.get("source_pseudo_formal_work_order_id", "") or "")
+                for row in results
+                if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            )
+        ),
+        "source_pseudo_formal_block_ids": list(
+            dict.fromkeys(
+                str(row.get("source_pseudo_formal_block_id", "") or "")
+                for row in results
+                if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
+            )
+        ),
         "status_counts": dict(sorted(status_counts.items())),
         "by_failure_classification": dict(sorted(failure_counts.items())),
         "dominant_failure_classification": dominant_failure_classification,
@@ -1238,6 +1268,7 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_repair_feedback": dict(
             row.get("candidate_repair_feedback", {}) or {}
         ),
+        **_exact_semantic_definition_context(row),
         "candidate_definition_request": candidate_definition_request,
         "candidate_lean_project_hint": project_hint,
         "recommended_command": command_hint,
@@ -1252,6 +1283,7 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "source_theorem_kernel_verified": False,
         "semantic_definition_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "proof_evidence_status": ENVIRONMENT_REPAIR_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": (
             "This environment repair task is operational feedback only. It does "
@@ -2062,6 +2094,10 @@ def _environment_repair_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("environment_repair_task_id", "") or ""
         ),
         "candidate_definition_request": candidate_definition_request,
+        **_exact_semantic_definition_context(row),
+        "source_theorem_kernel_verified": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "input_summary": {
             "trigger": "EXACT_SEMANTIC_DEFINITION_LEAN_IMPORT_ENVIRONMENT_REPAIR",
             "target_theorem_name": target_theorem_name,
@@ -2073,7 +2109,10 @@ def _environment_repair_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("candidate_lean_project_hint", "") or ""
             ),
             "failure_classification": str(row.get("failure_classification", "") or ""),
+            **_exact_semantic_definition_context(row),
             "source_theorem_kernel_verified": False,
+            "semantic_definition_kernel_verified": False,
+            "source_theorem_ready_for_exact_proof_body": False,
         },
         "target_behavior": (
             "repair Lean import environment so reviewed exact semantic definitions "
@@ -2343,6 +2382,9 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_repair_feedback": dict(
             row.get("candidate_repair_feedback", {}) or {}
         ),
+        "source_theorem_kernel_verified": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
         "input_summary": {
             "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
             "target_theorem_name": target_theorem_name,
@@ -2428,6 +2470,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             **_exact_semantic_definition_context(row),
             "semantic_definition_kernel_verified": False,
             "source_theorem_kernel_verified": False,
+            "source_theorem_ready_for_exact_proof_body": False,
             "recommended_next_action": str(row.get("recommended_next_action", "") or ""),
         },
         "target_behavior": (
