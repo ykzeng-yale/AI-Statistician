@@ -44300,6 +44300,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             or learning_task
             == "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate"
         )
+        is_exact_semantic_definition_verifier_gate_execution = (
+            str(row.get("artifact_kind", "") or "")
+            == "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow"
+            or str(row.get("artifact_kind", "") or "")
+            == "SourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateResult"
+            or learning_task
+            == "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_execution"
+        )
         is_exact_semantic_definition_lean_environment_repair = (
             str(row.get("artifact_kind", "") or "")
             == "SourceTheoremExactSemanticDefinitionLeanEnvironmentRepairTask"
@@ -44583,6 +44591,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             trigger = (
                 "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED"
             )
+        if is_exact_semantic_definition_verifier_gate_execution and (
+            not trigger
+            or trigger
+            == "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_VERIFIER_GATE_REQUIRED"
+        ):
+            trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
         if is_exact_semantic_definition_lean_environment_repair and not trigger:
             trigger = "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR"
         if is_exact_semantic_definition_lean_repair_execution and not trigger:
@@ -44609,6 +44623,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             and not is_exact_semantic_definition_candidate_synthesis
             and not is_exact_semantic_definition_repair_queue
             and not is_exact_semantic_definition_typechecked_review_verifier_gate
+            and not is_exact_semantic_definition_verifier_gate_execution
             and not is_exact_semantic_definition_lean_environment_repair
             and not is_exact_semantic_definition_lean_repair_execution
             and not is_exact_semantic_definition_authoring_retry
@@ -44663,6 +44678,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         semantic_definition_typecheck_evidence_status = ""
         definition_only_candidate_artifact_path = ""
         semantic_import_candidate_ready = False
+        verifier_gate_status = ""
+        verifier_gate_blockers: list[str] = []
+        verifier_gate_known_gaps: list[str] = []
+        verifier_gate_source_anchor_context: list[Any] = []
+        verifier_gate_result_id = ""
         candidate_definition_request_raw = row.get("candidate_definition_request", {})
         if (
             not candidate_definition_request_raw
@@ -44691,6 +44711,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             or is_exact_semantic_definition_candidate_synthesis
             or is_exact_semantic_definition_repair_queue
             or is_exact_semantic_definition_typechecked_review_verifier_gate
+            or is_exact_semantic_definition_verifier_gate_execution
             or is_exact_semantic_definition_lean_environment_repair
             or is_exact_semantic_definition_lean_repair_execution
             or is_exact_semantic_definition_authoring_retry
@@ -44765,6 +44786,13 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     or ""
                 ).strip()
             if local_definition_lean_compiled:
+                diagnostics.append("local_definition_lean_compiled=true")
+            if (
+                is_exact_semantic_definition_verifier_gate_execution
+                and local_lean_compiled
+                and not local_definition_lean_compiled
+            ):
+                local_definition_lean_compiled = True
                 diagnostics.append("local_definition_lean_compiled=true")
             semantic_import_candidate_ready = bool(
                 row.get("semantic_definition_import_candidate_ready", False)
@@ -44877,6 +44905,75 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 diagnostics.append(
                     "recommended_next_action=" + recommended_next_action[:180]
                 )
+            verifier_gate_status = str(
+                row.get("verifier_gate_status", "") or ""
+            ).strip()
+            if not verifier_gate_status and isinstance(input_summary, Mapping):
+                verifier_gate_status = str(
+                    input_summary.get("verifier_gate_status", "") or ""
+                ).strip()
+            verifier_gate_blockers = [
+                str(value).strip()
+                for value in (
+                    row.get("verifier_gate_blockers", [])
+                    or (
+                        input_summary.get("verifier_gate_blockers", [])
+                        if isinstance(input_summary, Mapping)
+                        else []
+                    )
+                    or []
+                )
+                if str(value).strip()
+            ][:12]
+            verifier_gate_known_gaps = [
+                str(value).strip()
+                for value in (
+                    row.get("known_gaps", [])
+                    or (
+                        input_summary.get("known_gaps", [])
+                        if isinstance(input_summary, Mapping)
+                        else []
+                    )
+                    or []
+                )
+                if str(value).strip()
+            ][:12]
+            raw_source_anchor_context = (
+                row.get("source_anchor_context", [])
+                or (
+                    input_summary.get("source_anchor_context", [])
+                    if isinstance(input_summary, Mapping)
+                    else []
+                )
+                or []
+            )
+            verifier_gate_source_anchor_context = (
+                list(raw_source_anchor_context)
+                if isinstance(raw_source_anchor_context, list)
+                else []
+            )
+            verifier_gate_result_id = str(
+                row.get("verifier_gate_result_id", "") or ""
+            ).strip()
+            if not verifier_gate_result_id and isinstance(input_summary, Mapping):
+                verifier_gate_result_id = str(
+                    input_summary.get("verifier_gate_result_id", "") or ""
+                ).strip()
+            if verifier_gate_status:
+                diagnostics.append(f"verifier_gate_status={verifier_gate_status}")
+            diagnostics.extend(
+                f"verifier_gate_blocker={value[:160]}"
+                for value in verifier_gate_blockers[:6]
+            )
+            diagnostics.extend(
+                f"known_gap={value[:160]}"
+                for value in verifier_gate_known_gaps[:3]
+            )
+            if verifier_gate_source_anchor_context:
+                diagnostics.append(
+                    "source_anchor_context_rows="
+                    + str(len(verifier_gate_source_anchor_context))
+                )
             recommended_commands = _runtime_recommended_commands(row)
             if not recommended_commands and isinstance(input_summary, Mapping):
                 recommended_commands = _runtime_recommended_commands(input_summary)
@@ -44893,6 +44990,26 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 ).strip()
             if semantic_import_candidate_ready:
                 failure_classification = "reviewed_semantic_definition_import_pending"
+            elif is_exact_semantic_definition_verifier_gate_execution:
+                if (
+                    "known_gaps_unresolved" in verifier_gate_blockers
+                    or "candidate_known_gaps_comment_present"
+                    in verifier_gate_blockers
+                    or verifier_gate_known_gaps
+                ):
+                    failure_classification = (
+                        "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+                    )
+                elif "source_anchor_context_missing" in verifier_gate_blockers:
+                    failure_classification = (
+                        "exact_semantic_definition_verifier_gate_source_anchor_context_missing"
+                    )
+                elif environment_failure:
+                    failure_classification = environment_failure
+                else:
+                    failure_classification = (
+                        "exact_semantic_definition_verifier_gate_blocked"
+                    )
             elif is_exact_semantic_definition_typechecked_review_verifier_gate:
                 failure_classification = (
                     "typechecked_exact_semantic_definition_llm_review_requires_verifier_gate"
@@ -45090,6 +45207,24 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     if is_exact_semantic_definition_typechecked_review_verifier_gate
                     else "semantic_definition_review_blocked"
                 )
+            if is_exact_semantic_definition_verifier_gate_execution:
+                if (
+                    "known_gaps_unresolved" in verifier_gate_blockers
+                    or "candidate_known_gaps_comment_present"
+                    in verifier_gate_blockers
+                    or verifier_gate_known_gaps
+                ):
+                    failure_classification = (
+                        "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+                    )
+                elif "source_anchor_context_missing" in verifier_gate_blockers:
+                    failure_classification = (
+                        "exact_semantic_definition_verifier_gate_source_anchor_context_missing"
+                    )
+                elif not failure_classification:
+                    failure_classification = (
+                        "exact_semantic_definition_verifier_gate_blocked"
+                    )
             elif not failure_classification:
                 failure_classification = "formal_environment_placeholder_primitives"
             missing_symbols = [
@@ -45148,6 +45283,27 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     "run the formal verifier/Lean semantic-faithfulness gate for the typechecked exact semantic-definition candidate",
                     "only rerun exact source theorem proof-body search after verifier-approved semantic evidence clears the gate",
                 ]
+            if is_exact_semantic_definition_verifier_gate_execution:
+                if failure_classification == (
+                    "exact_semantic_definition_verifier_gate_source_anchor_context_missing"
+                ):
+                    recommended_repair_tasks = [
+                        "recover source-anchor context and source theorem binders for the verifier-gate work order",
+                        "rerun the local Lean verifier gate before exact proof-body recheck",
+                    ]
+                elif failure_classification == (
+                    "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+                ):
+                    recommended_repair_tasks = [
+                        "rewrite the exact semantic-definition candidate to resolve verifier-gate known gaps against recovered source anchors/binders",
+                        "remove candidate known-gap comments only after the definition contract is satisfied",
+                        "rerun the local Lean verifier gate before exact proof-body recheck",
+                    ]
+                else:
+                    recommended_repair_tasks = required_next_checks or [
+                        "repair verifier-gate blockers before exact proof-body recheck",
+                        "rerun the local Lean verifier gate and require verifier approval before proof-body search",
+                    ]
             if is_exact_semantic_definition_closure_review_result:
                 review_tasks = [
                     str(value)
@@ -46413,6 +46569,21 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "semantic_definition_import_candidate_ready": (
                     semantic_import_candidate_ready
                 ),
+                "verifier_gate_status": verifier_gate_status,
+                "verifier_gate_blockers": verifier_gate_blockers,
+                "known_gaps": verifier_gate_known_gaps,
+                "source_anchor_context": verifier_gate_source_anchor_context,
+                "source_anchor_context_rows": len(verifier_gate_source_anchor_context),
+                "verifier_gate_result_id": verifier_gate_result_id,
+                "source_verifier_gate_work_order_id": str(
+                    row.get("work_order_id", "")
+                    or (
+                        input_summary.get("work_order_id", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
                 "candidate_definition_request": candidate_definition_request,
                 "failure_classification": failure_classification,
                 "lookup_status": lookup_status,
@@ -46693,6 +46864,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "missing_formal_symbols": missing_symbols,
                 "typeclass_blockers": typeclass_blockers,
                 "recommended_repair_tasks": recommended_repair_tasks,
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or (
+                        input_summary.get("proof_evidence_status", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
+                ),
             }
         )
     return tuple(repairs)
@@ -49173,6 +49353,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             str(row.get("trigger", "") or "")
             == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
             or str(row.get("trigger", "") or "")
+            == "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+            or str(row.get("trigger", "") or "")
             == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY"
             or str(row.get("trigger", "") or "")
             == "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
@@ -49189,10 +49371,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
             == "exact_semantic_definition_authoring_required"
             or str(row.get("failure_classification", "") or "")
             == "typechecked_exact_semantic_definition_candidate_review_required"
+            or str(row.get("failure_classification", "") or "").startswith(
+                "exact_semantic_definition_verifier_gate_"
+            )
             or str(row.get("failure_classification", "") or "")
             == "proof_body_reached_semantic_alignment_unreviewed"
             or str(row.get("failure_classification", "") or "")
             == "source_theorem_semantic_alignment_unreviewed"
+            or bool(row.get("verifier_gate_blockers", []) or [])
+            or bool(row.get("known_gaps", []) or [])
             or bool(row.get("semantic_alignment_blockers", []) or [])
             or bool(row.get("semantic_definition_risks", []) or [])
         )
@@ -51672,6 +51859,25 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "semantic_definition_import_candidate_ready": bool(
                     row.get("semantic_definition_import_candidate_ready", False)
+                ),
+                "verifier_gate_status": str(
+                    row.get("verifier_gate_status", "") or ""
+                ),
+                "verifier_gate_blockers": list(
+                    row.get("verifier_gate_blockers", []) or []
+                ),
+                "known_gaps": list(row.get("known_gaps", []) or []),
+                "source_anchor_context_rows": int(
+                    row.get("source_anchor_context_rows", 0) or 0
+                ),
+                "source_anchor_context": list(
+                    row.get("source_anchor_context", []) or []
+                )[:8],
+                "verifier_gate_result_id": str(
+                    row.get("verifier_gate_result_id", "") or ""
+                ),
+                "source_verifier_gate_work_order_id": str(
+                    row.get("source_verifier_gate_work_order_id", "") or ""
                 ),
                 "candidate_definition_request": (
                     dict(row.get("candidate_definition_request", {}))

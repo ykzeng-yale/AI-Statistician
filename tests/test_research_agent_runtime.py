@@ -43346,6 +43346,127 @@ def test_exact_semantic_definition_work_orders_from_late_materialized_review_nex
     assert row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory() -> None:
+    source_anchor_context = [
+        {
+            "kind": "proof_body_queue_manifest_context",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "n_matching_source_rows": 1,
+        },
+        {
+            "name": "score",
+            "role": "source_theorem_parameter",
+            "type": "Fin (n + 1) -> Omega -> Real",
+        },
+    ]
+    learning_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_"
+            "typechecked_review_verifier_gate_execution"
+        ),
+        "work_order_id": "source_theorem_exact_semantic_definition_verifier_gate:good_rank_event",
+        "verifier_gate_result_id": "source_theorem_exact_semantic_definition_verifier_gate_result:good_rank_event",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "good_rank_event",
+        "candidate_artifact_path": "runs/candidates/good_rank_event_definition_only.lean",
+        "local_lean_checked": True,
+        "local_lean_compiled": True,
+        "verifier_gate_status": (
+            "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+        ),
+        "verifier_gate_blockers": [
+            "known_gaps_unresolved",
+            "candidate_known_gaps_comment_present",
+        ],
+        "known_gaps": [
+            "threshold k is not tied to the source quantile hypothesis",
+            "candidate still contains a known-gaps comment",
+        ],
+        "source_anchor_context": source_anchor_context,
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        ),
+        "source_theorem_kernel_evidence_eligible": False,
+        "source_theorem_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [learning_row],
+    }
+
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+
+    assert len(repairs) == 1
+    repair = repairs[0]
+    assert repair["trigger"] == "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+    assert repair["failure_classification"] == (
+        "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+    )
+    assert repair["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+    )
+    assert repair["placeholder_symbol"] == "good_rank_event"
+    assert repair["candidate_artifact_path"] == (
+        "runs/candidates/good_rank_event_definition_only.lean"
+    )
+    assert repair["local_lean_compiled"] is True
+    assert repair["local_definition_lean_compiled"] is True
+    assert repair["verifier_gate_status"] == (
+        "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+    )
+    assert repair["verifier_gate_blockers"] == [
+        "known_gaps_unresolved",
+        "candidate_known_gaps_comment_present",
+    ]
+    assert repair["known_gaps"] == learning_row["known_gaps"]
+    assert repair["source_anchor_context"] == source_anchor_context
+    assert repair["source_anchor_context_rows"] == 2
+    assert "verifier_gate_blocker=known_gaps_unresolved" in repair["diagnostics"]
+    assert (
+        "known_gap=threshold k is not tied to the source quantile hypothesis"
+        in repair["diagnostics"]
+    )
+    assert "source_anchor_context_rows=2" in repair["diagnostics"]
+    assert repair["recommended_repair_tasks"] == [
+        "rewrite the exact semantic-definition candidate to resolve verifier-gate known gaps against recovered source anchors/binders",
+        "remove candidate known-gap comments only after the definition contract is satisfied",
+        "rerun the local Lean verifier gate before exact proof-body recheck",
+    ]
+    assert repair["proof_evidence_status"] == learning_row["proof_evidence_status"]
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_candidate_requires_repair"] is True
+    assert summary["source_theorem_exact_candidate_repair_triggers"] == [
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+    ]
+    diagnostic = summary["source_theorem_exact_candidate_repair_diagnostics"][0]
+    assert diagnostic["verifier_gate_blockers"] == [
+        "known_gaps_unresolved",
+        "candidate_known_gaps_comment_present",
+    ]
+    assert diagnostic["known_gaps"] == learning_row["known_gaps"]
+    assert diagnostic["source_anchor_context_rows"] == 2
+    assert diagnostic["source_anchor_context"] == source_anchor_context
+
+
 def test_exact_semantic_definition_authoring_learning_row_preserves_source_binders() -> None:
     learning_rows = [
         {
