@@ -47232,6 +47232,89 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
         )
         return manifest
 
+    verifier_executor_calls: list[dict[str, object]] = []
+
+    def fake_verifier_gate_executor(
+        *,
+        out_dir: Path,
+        recheck_manifest: Path | None = None,
+        work_orders_jsonl: Path | None = None,
+        local_lean: bool = False,
+        lean_project: Path | None = None,
+        lean_timeout: int = 90,
+        lean_command: tuple[str, ...] | None = None,
+    ) -> dict[str, object]:
+        assert recheck_manifest is None
+        assert work_orders_jsonl is not None and work_orders_jsonl.exists()
+        assert lean_command is None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        results_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_verifier_gate_results.jsonl"
+        )
+        approved_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_verifier_approved_review_packets.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_verifier_gate_executor_manifest.json"
+        )
+        result_row = {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateResult"
+            ),
+            "work_order_id": "verifier-gate:orderStat",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "orderStat",
+            "verifier_gate_status": (
+                "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+            ),
+            "verifier_gate_blockers": ["source_anchor_context_missing"],
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+            ),
+            "source_theorem_ready_for_exact_proof_body": False,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        results_path.write_text(json.dumps(result_row) + "\n", encoding="utf-8")
+        approved_path.write_text("", encoding="utf-8")
+        learning_path.write_text(json.dumps(result_row) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "source_verifier_gate_work_orders_jsonl": str(work_orders_jsonl),
+            "verifier_gate_results_jsonl": str(results_path),
+            "verifier_approved_review_packets_jsonl": str(approved_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_work_orders": 1,
+            "n_results": 1,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 1,
+            "n_verifier_approved": 0,
+            "n_verifier_blocked": 1,
+            "n_source_anchor_context_missing": 1,
+            "n_known_gaps_unresolved": 0,
+            "n_candidate_known_gaps_comment_present": 0,
+            "source_theorem_ready_for_exact_proof_body": False,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        verifier_executor_calls.append(
+            {
+                "work_orders_jsonl": str(work_orders_jsonl),
+                "local_lean": local_lean,
+                "lean_project": str(lean_project or ""),
+                "lean_timeout": lean_timeout,
+            }
+        )
+        return manifest
+
     monkeypatch.setattr(
         runtime_module,
         "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
@@ -47271,6 +47354,11 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
         runtime_module,
         "run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue",
         fake_typechecked_review_recheck_queue,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_verifier_gate_executor",
+        fake_verifier_gate_executor,
     )
     source_root = tmp_path / "Lean"
     source_root.mkdir()
@@ -47787,6 +47875,16 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             ],
         }
     ]
+    assert verifier_executor_calls == [
+        {
+            "work_orders_jsonl": manifest["artifacts"][
+                "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_work_orders_jsonl"
+            ],
+            "local_lean": True,
+            "lean_project": str(source_root),
+            "lean_timeout": 11,
+        }
+    ]
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_queue_ran"
@@ -47817,9 +47915,44 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
         ]
         == 1
     )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_n_results"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_n_verifier_approved"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_n_verifier_blocked"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_recheck_queue_ran"
+        ]
+        is False
+    )
     assert Path(
         manifest["artifacts"][
             "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_work_orders_jsonl"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_manifest"
         ]
     ).exists()
     assert environment_executor_calls == [
@@ -49398,6 +49531,49 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
         )
         learning_path = out_dir / "runtime_learning_rows.jsonl"
         manifest_path = out_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+        if (
+            review_packets_jsonl.name
+            == "source_theorem_exact_semantic_definition_verifier_approved_review_packets.jsonl"
+        ):
+            execution_row = {
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "covered",
+                "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            queue_path.write_text(
+                json.dumps(execution_row) + "\n",
+                encoding="utf-8",
+            )
+            blocked_path.write_text("", encoding="utf-8")
+            verifier_gate_path.write_text("", encoding="utf-8")
+            learning_path.write_text("", encoding="utf-8")
+            manifest = {
+                "schema_version": 1,
+                "manifest_path": str(manifest_path),
+                "source_review_packets_jsonl": str(review_packets_jsonl),
+                "proof_body_execution_queue_jsonl": str(queue_path),
+                "blocked_review_packets_jsonl": str(blocked_path),
+                "verifier_gate_work_orders_jsonl": str(verifier_gate_path),
+                "runtime_learning_rows_jsonl": str(learning_path),
+                "n_review_packets": 1,
+                "n_semantically_approved_review_packets": 1,
+                "n_llm_semantic_review_approved_packets": 1,
+                "n_llm_semantic_review_packets_requiring_verifier_gate": 0,
+                "n_blocked_review_packets": 0,
+                "n_blocked_review_learning_rows": 0,
+                "n_verifier_gate_work_orders": 0,
+                "n_runtime_learning_rows": 0,
+                "n_execution_queue_rows": 1,
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_REVIEW_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            calls.append("recheck_queue:verifier_approved")
+            return manifest
         verifier_gate_row = {
             "schema_version": 1,
             "artifact_kind": (
@@ -49521,6 +49697,99 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
         calls.append("recheck_queue")
         return manifest
 
+    def fake_verifier_gate_executor(
+        *,
+        out_dir: Path,
+        recheck_manifest: Path | None = None,
+        work_orders_jsonl: Path | None = None,
+        local_lean: bool = False,
+        lean_project: Path | None = None,
+        lean_timeout: int = 90,
+        lean_command: tuple[str, ...] | None = None,
+    ) -> dict[str, object]:
+        assert recheck_manifest is None
+        assert work_orders_jsonl is not None and work_orders_jsonl.exists()
+        assert local_lean is True
+        assert str(lean_project or "") == str(tmp_path / "LeanProject")
+        assert lean_timeout == 13
+        assert lean_command is None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        results_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_verifier_gate_results.jsonl"
+        )
+        approved_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_verifier_approved_review_packets.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_verifier_gate_executor_manifest.json"
+        )
+        result_row = {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionTypecheckedReviewVerifierGateResult"
+            ),
+            "work_order_id": "verifier-gate:covered",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "candidate_artifact_path": str(tmp_path / "typechecked_candidate.lean"),
+            "semantic_review_decision": "approved_definition_candidate",
+            "verifier_gate_status": "VERIFIER_APPROVED_FOR_PROOF_BODY_RECHECK",
+            "verifier_gate_blockers": [],
+            "runtime_queue_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_RECHECK",
+            "source_theorem_ready_for_exact_proof_body": True,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        approved_packet = {
+            "artifact_kind": (
+                "SourceTheoremExactSemanticDefinitionVerifierApprovedReviewPacket"
+            ),
+            "review_packet_id": "typechecked-review:lookup",
+            "target_theorem_name": "split_conformal_coverage",
+            "target_ids": ["split_conformal_coverage"],
+            "placeholder_symbol": "covered",
+            "candidate_artifact_path": str(tmp_path / "typechecked_candidate.lean"),
+            "local_definition_lean_compiled": True,
+            "semantic_review_decision": "approved_definition_candidate",
+            "semantic_review_required_before_proof_body": False,
+            "source_theorem_ready_for_exact_proof_body": True,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        results_path.write_text(json.dumps(result_row) + "\n", encoding="utf-8")
+        approved_path.write_text(json.dumps(approved_packet) + "\n", encoding="utf-8")
+        learning_path.write_text(json.dumps(result_row) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "source_verifier_gate_work_orders_jsonl": str(work_orders_jsonl),
+            "verifier_gate_results_jsonl": str(results_path),
+            "verifier_approved_review_packets_jsonl": str(approved_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_work_orders": 1,
+            "n_results": 1,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 1,
+            "n_verifier_approved": 1,
+            "n_verifier_blocked": 0,
+            "n_source_anchor_context_missing": 0,
+            "n_known_gaps_unresolved": 0,
+            "n_candidate_known_gaps_comment_present": 0,
+            "source_theorem_ready_for_exact_proof_body": True,
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append("verifier_gate_executor")
+        return manifest
+
     monkeypatch.setattr(
         runtime_module,
         "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
@@ -49550,6 +49819,11 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
         runtime_module,
         "run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue",
         fake_recheck_queue,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_verifier_gate_executor",
+        fake_verifier_gate_executor,
     )
 
     question = next(
@@ -49589,6 +49863,8 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
         "bridge:typechecked_candidate_reviews",
         "executor:typechecked_candidate_reviews",
         "recheck_queue",
+        "verifier_gate_executor",
+        "recheck_queue:verifier_approved",
     ]
     assert (
         manifest[
@@ -49664,6 +49940,42 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_n_execution_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required"
         ]
         is True
@@ -49693,6 +50005,16 @@ def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
         ]
     )
     assert verifier_gate_path.exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifest"
+        ]
+    ).exists()
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_manifest"
+        ]
+    ).exists()
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["artifacts"]["runtime_learning_rows_jsonl"])
