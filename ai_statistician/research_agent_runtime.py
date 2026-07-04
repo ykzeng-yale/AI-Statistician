@@ -25300,42 +25300,45 @@ def run_research_agent_runtime(
         )
         if exact_definition_candidate_artifact_path is not None:
             break
-    if (
-        config.source_theorem_exact_semantic_definition_closure_review
-        and source_theorem_exact_semantic_definition_source_lookup_manifest is not None
-        and exact_definition_candidate_artifact_path is not None
-    ):
+    exact_definition_lookup_manifest_path: Path | None = None
+    if source_theorem_exact_semantic_definition_source_lookup_manifest is not None:
         lookup_manifest_path_value = str(
             source_theorem_exact_semantic_definition_source_lookup_manifest.get(
                 "manifest_path",
                 "",
             )
             or ""
+        ).strip()
+        if lookup_manifest_path_value:
+            exact_definition_lookup_manifest_path = Path(lookup_manifest_path_value)
+    if (
+        config.source_theorem_exact_semantic_definition_closure_review
+        and source_theorem_exact_semantic_definition_source_lookup_manifest is not None
+        and exact_definition_lookup_manifest_path is not None
+        and exact_definition_lookup_manifest_path.exists()
+    ):
+        source_theorem_exact_semantic_definition_closure_review_manifest = (
+            run_source_theorem_exact_semantic_definition_closure_review(
+                out_dir=out_dir
+                / "runtime_source_theorem_exact_semantic_definition_closure_review",
+                lookup_manifest=exact_definition_lookup_manifest_path,
+                candidate_artifact_path=exact_definition_candidate_artifact_path,
+            )
         )
-        lookup_manifest_path = Path(lookup_manifest_path_value)
-        if lookup_manifest_path.exists():
-            source_theorem_exact_semantic_definition_closure_review_manifest = (
-                run_source_theorem_exact_semantic_definition_closure_review(
-                    out_dir=out_dir
-                    / "runtime_source_theorem_exact_semantic_definition_closure_review",
-                    lookup_manifest=lookup_manifest_path,
-                    candidate_artifact_path=exact_definition_candidate_artifact_path,
+        review_learning_path = Path(
+            str(
+                source_theorem_exact_semantic_definition_closure_review_manifest.get(
+                    "runtime_learning_rows_jsonl",
+                    "",
                 )
+                or ""
             )
-            review_learning_path = Path(
-                str(
-                    source_theorem_exact_semantic_definition_closure_review_manifest.get(
-                        "runtime_learning_rows_jsonl",
-                        "",
-                    )
-                    or ""
-                )
-            )
-            if review_learning_path.exists():
-                review_learning_rows = _read_jsonl(review_learning_path)
-                if review_learning_rows:
-                    learning_rows.extend(review_learning_rows)
-                    _write_jsonl(learning_path, learning_rows)
+        )
+        if review_learning_path.exists():
+            review_learning_rows = _read_jsonl(review_learning_path)
+            if review_learning_rows:
+                learning_rows.extend(review_learning_rows)
+                _write_jsonl(learning_path, learning_rows)
     if (
         config.source_theorem_exact_semantic_definition_candidate_synthesis
         and source_theorem_exact_semantic_definition_closure_review_manifest is not None
@@ -32029,9 +32032,10 @@ def run_research_agent_runtime(
             if not config.source_theorem_exact_semantic_definition_closure_review
             else "no_source_lookup_manifest"
             if source_theorem_exact_semantic_definition_source_lookup_manifest is None
-            else "no_exact_source_theorem_candidate_artifact"
-            if exact_definition_candidate_artifact_path is None
             else "lookup_manifest_missing"
+            if exact_definition_lookup_manifest_path is None
+            or not exact_definition_lookup_manifest_path.exists()
+            else "closure_review_not_run"
         )
     )
     manifest[

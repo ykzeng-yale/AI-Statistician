@@ -48636,6 +48636,217 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
     )
 
 
+def test_runtime_runs_exact_semantic_closure_review_without_candidate_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "work_order_id": "source_theorem_exact_semantic_definition_work_order:covered",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "covered",
+        "action_type": "formalize_reviewed_exact_semantic_definition",
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    calls: list[str] = []
+
+    def fake_semantic_work_order_rows(
+        _rows: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        return [dict(fake_work_order)]
+
+    def fake_candidate_path(_manifest: object) -> Path | None:
+        return None
+
+    def fake_lookup(
+        *,
+        out_dir: Path,
+        queue_jsonl: Path | None = None,
+        runtime_dir: Path | None = None,
+        source_roots: list[Path] | None = None,
+        max_hits_per_work_order: int = 8,
+    ) -> dict[str, object]:
+        assert queue_jsonl is not None and queue_jsonl.exists()
+        assert runtime_dir is None
+        assert source_roots == [source_root]
+        assert max_hits_per_work_order == 2
+        out_dir.mkdir(parents=True, exist_ok=True)
+        review_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_closure_review_packets.jsonl"
+        )
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_source_lookup_manifest.json"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        review_packets_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": (
+                        "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewPacket"
+                    ),
+                    "review_packet_id": "review:covered",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "covered",
+                    "proof_evidence_status": (
+                        "DEFINITION_CLOSURE_REVIEW_PACKET_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        learning_path.write_text("", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "definition_closure_review_packets_jsonl": str(review_packets_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_definition_closure_review_packets": 1,
+            "n_runtime_learning_rows": 0,
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append("lookup")
+        return manifest
+
+    def fake_review(
+        *,
+        out_dir: Path,
+        review_packets_jsonl: Path | None = None,
+        lookup_manifest: Path | None = None,
+        candidate_artifact_path: Path | None = None,
+    ) -> dict[str, object]:
+        assert review_packets_jsonl is None
+        assert lookup_manifest is not None and lookup_manifest.exists()
+        assert candidate_artifact_path is None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        results_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_closure_review_results.jsonl"
+        )
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_closure_review_manifest.json"
+        )
+        result = {
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_closure_review"
+            ),
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "review_status": "NO_CANDIDATE_ARTIFACT_PROVIDED",
+            "candidate_artifact_present": False,
+            "ready_for_definition_lean_check": False,
+            "proof_evidence_status": (
+                "DEFINITION_CLOSURE_REVIEW_RESULT_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
+        learning_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "review_results_jsonl": str(results_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_review_packets": 1,
+            "n_review_results": 1,
+            "n_forbidden_placeholder_definitions": 0,
+            "proof_evidence_status": (
+                "DEFINITION_CLOSURE_REVIEW_RESULT_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        calls.append("review")
+        return manifest
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
+        fake_semantic_work_order_rows,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_candidate_artifact_path_from_proof_body_executor_manifest",
+        fake_candidate_path,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_source_lookup",
+        fake_lookup,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_closure_review",
+        fake_review,
+    )
+
+    question = next(
+        row
+        for row in load_open_research_questions(Path("examples/research_questions.json"))
+        if row.id == "conformal_prediction_coverage"
+    )
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+        ),
+        proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260704,
+            max_iterations=2,
+            source_theorem_exact_semantic_definition_source_lookup=True,
+            source_theorem_exact_semantic_definition_source_roots=(str(source_root),),
+            source_theorem_exact_semantic_definition_source_lookup_max_hits=2,
+            source_theorem_exact_semantic_definition_closure_review=True,
+            source_theorem_exact_semantic_definition_candidate_synthesis=True,
+        ),
+    )
+
+    assert calls == ["lookup", "review"]
+    assert manifest["source_theorem_exact_semantic_definition_closure_review_ran"] is True
+    assert (
+        manifest["source_theorem_exact_semantic_definition_closure_review_skipped_reason"]
+        == ""
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_closure_review_n_results"]
+        == 1
+    )
+    assert manifest["source_theorem_exact_semantic_definition_candidate_synthesis_ran"] is False
+    assert (
+        manifest["source_theorem_exact_semantic_definition_candidate_synthesis_skipped_reason"]
+        == "no_exact_source_theorem_candidate_artifact"
+    )
+    assert Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_exact_semantic_definition_closure_review_results_jsonl"
+        ]
+    ).exists()
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["artifacts"]["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_closure_review"
+        and row.get("review_status") == "NO_CANDIDATE_ARTIFACT_PROVIDED"
+        for row in learning_rows
+    )
+
+
 def test_runtime_routes_primary_typechecked_exact_semantic_review_packets(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
