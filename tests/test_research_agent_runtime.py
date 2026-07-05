@@ -77628,6 +77628,73 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_proofengineer_bridg
     ]["passed"] is True
 
 
+def test_runtime_capability_scorecard_rejects_generic_bridge_for_pseudo_formal_exact_review() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 2,
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets": 2,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 2,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_proofengineer_bridge_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "pf_review_packets=1" in row["evidence"]
+    assert "pf_bridge_lean_tasks=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_bridge_tasks() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_flags_empty_exact_semantic_lean_repair_executor_outputs() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -77717,6 +77784,81 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_lean_repair_local_l
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete": True,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_lean_repair_executor_handoff_not_dropped"
+    ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_rejects_generic_lean_repair_for_pseudo_formal_task() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 2,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 2,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 2,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage": 2,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_lean_repair_executor_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "pf_lean_tasks=1" in row["evidence"]
+    assert "pf_executor_results=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_pseudo_formal_lean_repair_feedback() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)

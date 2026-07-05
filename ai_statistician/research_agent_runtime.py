@@ -32943,6 +32943,46 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_repair_packets_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_lean_repair_tasks_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_work_order_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_block_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage"
     ] = int(
         (
@@ -33116,6 +33156,64 @@ def run_research_agent_runtime(
         ).get("n_results", 0)
         or 0
     )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_tasks_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_results_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_local_lean_checked_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_typechecked_candidate_review_packets_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_work_order_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_block_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked"
     ] = int(

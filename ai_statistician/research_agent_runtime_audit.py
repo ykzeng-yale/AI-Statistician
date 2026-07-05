@@ -7134,6 +7134,38 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_work_order_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_block_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage",
@@ -7232,6 +7264,52 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_work_order_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_block_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
         "source_theorem_exact_semantic_definition_lean_repair_executor_total_results": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_total_results",
@@ -18515,6 +18593,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_bridge_pf_repair_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_pf_lean_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_pf_handoff_required = (
+        exact_semantic_source_lookup_pf_review_packets > 0
+    )
     exact_semantic_bridge_review_packets_with_policy_lineage = int(
         payload.get(
             "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage",
@@ -18591,6 +18686,37 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    exact_semantic_lean_repair_pf_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_typechecked_review_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_handoff_required = (
+        exact_semantic_bridge_pf_lean_tasks > 0
     )
     exact_semantic_lean_repair_total_results = int(
         payload.get(
@@ -22217,14 +22343,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and exact_semantic_bridge_effective
                 and exact_semantic_bridge_ran
                 and exact_semantic_lean_repair_tasks > 0
+                and (
+                    not exact_semantic_bridge_pf_handoff_required
+                    or (
+                        exact_semantic_bridge_pf_repair_packets > 0
+                        and exact_semantic_bridge_pf_lean_tasks > 0
+                    )
+                )
             ),
             (
                 "review_packets="
                 f"{payload.get('source_theorem_exact_semantic_definition_n_closure_review_packets')} "
                 "lean_repair_tasks="
                 f"{exact_semantic_lean_repair_tasks} "
+                "pf_review_packets="
+                f"{exact_semantic_source_lookup_pf_review_packets} "
+                "pf_bridge_repair_packets="
+                f"{exact_semantic_bridge_pf_repair_packets} "
+                "pf_bridge_lean_tasks="
+                f"{exact_semantic_bridge_pf_lean_tasks} "
                 "handoff_required="
                 f"{exact_semantic_bridge_handoff_required} "
+                "pf_handoff_required="
+                f"{exact_semantic_bridge_pf_handoff_required} "
                 "required_telemetry_present="
                 f"{exact_semantic_bridge_required_present} "
                 "required="
@@ -22270,12 +22411,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     or exact_semantic_lean_repair_chain_typechecked_review_packets
                     > 0
                 )
+                and (
+                    not exact_semantic_lean_repair_pf_handoff_required
+                    or (
+                        exact_semantic_lean_repair_pf_tasks > 0
+                        and exact_semantic_lean_repair_pf_results > 0
+                        and (
+                            exact_semantic_lean_repair_pf_local_lean_checked > 0
+                            or exact_semantic_lean_repair_pf_typechecked_review_packets
+                            > 0
+                        )
+                    )
+                )
             ),
             (
                 "lean_tasks="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks')} "
+                "pf_lean_tasks="
+                f"{exact_semantic_bridge_pf_lean_tasks} "
                 "executor_results="
                 f"{exact_semantic_lean_repair_results} "
+                "pf_executor_tasks="
+                f"{exact_semantic_lean_repair_pf_tasks} "
+                "pf_executor_results="
+                f"{exact_semantic_lean_repair_pf_results} "
                 "total_results="
                 f"{exact_semantic_lean_repair_total_results} "
                 "materialized_results="
@@ -22304,6 +22463,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested')} "
                 "local_lean_checked="
                 f"{exact_semantic_lean_repair_local_lean_checked} "
+                "pf_local_lean_checked="
+                f"{exact_semantic_lean_repair_pf_local_lean_checked} "
                 "total_local_lean_checked="
                 f"{exact_semantic_lean_repair_total_local_lean_checked} "
                 "materialized_local_lean_checked="
@@ -22312,6 +22473,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_lean_repair_chain_local_lean_checked} "
                 "typechecked_review_packets="
                 f"{exact_semantic_lean_repair_typechecked_review_packets} "
+                "pf_typechecked_review_packets="
+                f"{exact_semantic_lean_repair_pf_typechecked_review_packets} "
                 "materialized_typechecked_review_packets="
                 f"{exact_semantic_lean_repair_materialized_typechecked_review_packets} "
                 "chain_typechecked_review_packets="

@@ -337,6 +337,7 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_pseudo_formal_
 
     assert manifest["n_tasks_from_pseudo_formal"] == 1
     assert manifest["n_results_from_pseudo_formal"] == 1
+    assert manifest["n_local_lean_checked_from_pseudo_formal"] == 1
     assert manifest["n_lean_environment_repair_tasks_from_pseudo_formal"] == 1
     assert manifest["source_pseudo_formal_work_order_ids"] == [
         "pseudo_formal_work_order:35f0c7e436caf8c7"

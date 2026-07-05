@@ -393,9 +393,31 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
             for row in results
             if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
         ),
+        "n_local_lean_checked_from_pseudo_formal": sum(
+            1
+            for row in results
+            if row.get("local_lean_checked")
+            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_local_lean_compiled_from_pseudo_formal": sum(
+            1
+            for row in results
+            if row.get("local_lean_compiled")
+            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
         "n_lean_environment_repair_tasks_from_pseudo_formal": sum(
             1
             for row in environment_repair_tasks
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_exact_semantic_definition_authoring_tasks_from_pseudo_formal": sum(
+            1
+            for row in author_definition_tasks
+            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        ),
+        "n_typechecked_candidate_review_packets_from_pseudo_formal": sum(
+            1
+            for row in typechecked_candidate_review_packets
             if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
         ),
         "source_pseudo_formal_work_order_ids": list(
