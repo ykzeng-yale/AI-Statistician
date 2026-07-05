@@ -8304,6 +8304,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_learning_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_learning_rows",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows": int(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows",
@@ -17505,6 +17512,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    adapter_premise_exact_executor_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_learning_rows",
+            0,
+        )
+        or 0
+    )
     adapter_premise_exact_executor_premise_context_rows = int(
         payload.get(
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows",
@@ -20946,6 +20960,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 adapter_premise_exact_executor_requested
                 and adapter_premise_exact_executor_ran
                 and adapter_premise_exact_executor_result_rows > 0
+                and adapter_premise_exact_executor_learning_rows > 0
                 and adapter_premise_exact_executor_premise_context_rows > 0
                 and bool(adapter_premise_exact_executor_premise_ids)
             ),
@@ -20966,6 +20981,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows')} "
                 "exact_executor_results="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows')} "
+                "exact_executor_learning_rows="
+                f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_learning_rows')} "
                 "executor_verified_premise_context_rows="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows')} "
                 "executor_verified_premise_ids="
@@ -20974,8 +20991,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "Adapter-premise verified-adapter exact source-theorem proof-body "
                 "executor was required/requested but did not record explicit "
-                "handoff telemetry or produce concrete result-row telemetry with "
-                "verified source-to-bridge premise-derivation context"
+                "handoff telemetry or produce concrete result-row telemetry, "
+                "learning-row telemetry, and verified source-to-bridge "
+                "premise-derivation context"
             ),
         ),
         _scorecard_row(
