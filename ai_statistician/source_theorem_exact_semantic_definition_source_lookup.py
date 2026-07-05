@@ -232,6 +232,33 @@ def run_source_theorem_exact_semantic_definition_source_lookup(
         "n_runtime_learning_rows_with_placeholder_policy_lineage": (
             _count_placeholder_policy_lineage(learning_rows)
         ),
+        "n_work_orders_from_pseudo_formal": _count_pseudo_formal_origin(work_orders),
+        "n_lookup_rows_from_pseudo_formal": _count_pseudo_formal_origin(lookup_rows),
+        "n_definition_closure_work_orders_from_pseudo_formal": (
+            _count_pseudo_formal_origin(definition_closure_work_orders)
+        ),
+        "n_definition_closure_review_packets_from_pseudo_formal": (
+            _count_pseudo_formal_origin(definition_closure_review_packets)
+        ),
+        "n_runtime_learning_rows_from_pseudo_formal": (
+            _count_pseudo_formal_origin(learning_rows)
+        ),
+        "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
+            [*work_orders, *lookup_rows, *definition_closure_work_orders],
+            "source_pseudo_formal_work_order_id",
+        ),
+        "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
+            [*work_orders, *lookup_rows, *definition_closure_work_orders],
+            "source_pseudo_formal_block_id",
+        ),
+        "pseudo_formal_origin_lineage_complete": (
+            _pseudo_formal_origin_lineage_complete(
+                lookup_rows,
+                definition_closure_work_orders,
+                definition_closure_review_packets,
+                learning_rows,
+            )
+        ),
         "placeholder_policy_lineage_complete": (
             _placeholder_policy_lineage_complete(
                 lookup_rows,
@@ -4710,6 +4737,42 @@ def _has_placeholder_policy_lineage(row: Mapping[str, Any]) -> bool:
 
 def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
     return sum(1 for row in rows if _has_placeholder_policy_lineage(row))
+
+
+def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
+    return bool(str(row.get("source_pseudo_formal_work_order_id", "") or "").strip())
+
+
+def _count_pseudo_formal_origin(rows: Sequence[Mapping[str, Any]]) -> int:
+    return sum(1 for row in rows if _has_pseudo_formal_origin(row))
+
+
+def _source_pseudo_formal_ids(
+    rows: Sequence[Mapping[str, Any]],
+    key: str,
+) -> list[str]:
+    ids: list[str] = []
+    for row in rows:
+        value = str(row.get(key, "") or "").strip()
+        if value and value not in ids:
+            ids.append(value)
+    return ids
+
+
+def _pseudo_formal_origin_lineage_complete(
+    *row_groups: Sequence[Mapping[str, Any]],
+) -> bool:
+    pseudo_formal_rows = [
+        row for rows in row_groups for row in rows if _has_pseudo_formal_origin(row)
+    ]
+    return bool(
+        pseudo_formal_rows
+        and all(
+            str(row.get("source_pseudo_formal_block_id", "") or "").strip()
+            and str(row.get("pseudo_formal_proof_evidence_status", "") or "").strip()
+            for row in pseudo_formal_rows
+        )
+    )
 
 
 def _placeholder_policy_lineage_complete(

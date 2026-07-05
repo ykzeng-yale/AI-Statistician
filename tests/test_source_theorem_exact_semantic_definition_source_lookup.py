@@ -489,6 +489,18 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
     ]
 
     assert manifest["n_definition_closure_review_packets"] == 1
+    assert manifest["n_work_orders_from_pseudo_formal"] == 1
+    assert manifest["n_lookup_rows_from_pseudo_formal"] == 1
+    assert manifest["n_definition_closure_work_orders_from_pseudo_formal"] == 1
+    assert manifest["n_definition_closure_review_packets_from_pseudo_formal"] == 1
+    assert manifest["n_runtime_learning_rows_from_pseudo_formal"] == 3
+    assert manifest["source_pseudo_formal_work_order_ids"] == [
+        "pseudo_formal_work_order:35f0c7e436caf8c7"
+    ]
+    assert manifest["source_pseudo_formal_block_ids"] == [
+        "blk_exchangeable_setup"
+    ]
+    assert manifest["pseudo_formal_origin_lineage_complete"] is True
     for row in [lookup_rows[0], closure_rows[0], review_packets[0], *learning_rows]:
         assert row["source_pseudo_formal_work_order_id"] == (
             "pseudo_formal_work_order:35f0c7e436caf8c7"

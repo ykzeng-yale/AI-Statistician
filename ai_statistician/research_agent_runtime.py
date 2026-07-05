@@ -31680,6 +31680,61 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_work_orders_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_lookup_rows_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_definition_closure_review_packets_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_runtime_learning_rows_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("pseudo_formal_origin_lineage_complete", False)
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_work_order_ids"
+    ] = list(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_block_ids"
+    ] = list(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
     ] = bool(
         (

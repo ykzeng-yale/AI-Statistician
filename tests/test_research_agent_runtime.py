@@ -79170,6 +79170,11 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_definition_sou
         "source_theorem_exact_semantic_definition_source_lookup_ran": True,
         "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
         "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal": 2,
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal": 2,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": True,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -79178,6 +79183,44 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_definition_sou
     assert rows[
         "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
     ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_rejects_generic_exact_lookup_for_pseudo_formal_work() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 3,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 2,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_effective": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 3,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": False,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+    ]
+
+    assert row["passed"] is False
+    assert "pf_lookup_rows=0" in row["evidence"]
+    assert "pf_origin_lineage_complete=False" in row["evidence"]
 
 
 @pytest.mark.parametrize(

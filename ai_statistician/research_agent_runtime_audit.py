@@ -7008,6 +7008,54 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_work_order_ids": list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_block_ids": list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+        ),
         "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete",
@@ -18358,6 +18406,40 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_source_lookup_pf_work_orders = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_pf_lookup_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_pf_review_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_pf_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_pf_lineage_complete = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete"
+        )
+        is True
+    )
     exact_semantic_source_lookup_policy_lineage_complete = (
         payload.get(
             "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
@@ -18379,10 +18461,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and exact_semantic_source_lookup_effective_present
             and exact_semantic_source_lookup_effective
             and exact_semantic_source_lookup_ran
+            and exact_semantic_source_lookup_pf_work_orders > 0
+            and exact_semantic_source_lookup_pf_lookup_rows > 0
             and (
-                exact_semantic_source_lookup_learning_rows > 0
-                or exact_semantic_bridge_review_packets > 0
+                exact_semantic_source_lookup_pf_learning_rows > 0
+                or exact_semantic_source_lookup_pf_review_packets > 0
             )
+            and exact_semantic_source_lookup_pf_lineage_complete
         )
     )
     exact_semantic_bridge_required_value = payload.get(
@@ -21898,6 +21983,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_source_lookup_learning_rows} "
                 "closure_review_packets="
                 f"{exact_semantic_bridge_review_packets} "
+                "pf_lookup_work_orders="
+                f"{exact_semantic_source_lookup_pf_work_orders} "
+                "pf_lookup_rows="
+                f"{exact_semantic_source_lookup_pf_lookup_rows} "
+                "pf_lookup_learning_rows="
+                f"{exact_semantic_source_lookup_pf_learning_rows} "
+                "pf_closure_review_packets="
+                f"{exact_semantic_source_lookup_pf_review_packets} "
+                "pf_origin_lineage_complete="
+                f"{exact_semantic_source_lookup_pf_lineage_complete} "
                 "lookup_skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_skipped_reason')}"
             ),
@@ -21919,7 +22014,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "implies source_theorem_exact_semantic_definition_source_lookup_required=true, "
                     "source_theorem_exact_semantic_definition_source_lookup_effective=true, "
                     "source_theorem_exact_semantic_definition_source_lookup_ran=true, "
-                    "and lookup learning rows or closure review packets are produced"
+                    "PF-origin lookup rows are produced, PF-origin learning rows "
+                    "or closure review packets are produced, and PF/BV origin "
+                    "lineage is preserved"
                 ),
             ),
         ),
