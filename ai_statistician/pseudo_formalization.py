@@ -1788,6 +1788,9 @@ def _work_order_row(
         "inherited_scope": _string_list(block.get("inherited_scope")),
         "source_block_premises": _string_list(block.get("premises")),
         "source_block_proof_text": str(block.get("proof_text", "") or ""),
+        "semantic_primitive_requirements": _string_list(
+            block.get("semantic_primitive_requirements")
+        ),
         "structural_quality": structural_quality,
         "structural_quality_ok": bool(structural_quality.get("all_ok", False)),
         "structural_quality_issues": list(

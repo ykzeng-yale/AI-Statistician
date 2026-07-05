@@ -73559,6 +73559,10 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets": 1,
         "internal_formalizer_pseudo_formal_packet_eval_work_order_rows": 11,
         "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows": 8,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows": 1,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_source_anchors": 1,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_semantic_requirements": 1,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_lineage": 1,
         "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds": [
             "pseudo_formal_exact_semantic_definition_request",
             "pseudo_formal_independent_block_verification_request",
@@ -73570,6 +73574,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved": True,
         "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written": False,
         "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present": True,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored": True,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present": True,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete": True,
         "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok": True,
         "internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim": True,
         "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed": True,
@@ -73731,6 +73738,20 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "attached_target_lanes=['source_to_bridge']" in rows[
         "formalizer_pseudo_formal_packet_component_gate"
     ]["evidence"]
+
+    missing_exact_requirements_payload = dict(payload)
+    missing_exact_requirements_payload[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present"
+    ] = False
+    scorecard = _runtime_capability_scorecard(missing_exact_requirements_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["passed"] is False
+    assert (
+        "attached_exact_semantic_definition_rows_semantic_requirements_present=False"
+        in rows["formalizer_pseudo_formal_packet_component_gate"]["evidence"]
+    )
 
     stale_pf_attachment_payload = dict(payload)
     stale_pf_attachment_payload[
@@ -83302,6 +83323,10 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
                 "n_pseudo_formal_packets": 1,
                 "n_pseudo_formal_work_order_rows": 11,
                 "n_pseudo_formal_routable_work_order_rows": 8,
+                "n_pseudo_formal_exact_semantic_definition_rows": 1,
+                "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+                "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
                 "pseudo_formal_routable_row_kinds": [
                     "pseudo_formal_exact_semantic_definition_request",
                     "pseudo_formal_independent_block_verification_request",
@@ -83315,8 +83340,16 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
                     "formalizer_packet_valid": True,
                     "pseudo_formal_packets_present": True,
                     "routable_work_order_rows_present": True,
+                    "exact_semantic_definition_lane_present": True,
+                    "exact_semantic_definition_rows_source_anchored": True,
+                    "exact_semantic_definition_rows_semantic_requirements_present": True,
+                    "exact_semantic_definition_rows_lineage_complete": True,
                     "nonproof_boundary_preserved": True,
                 },
+                "exact_semantic_definition_lane_present": True,
+                "exact_semantic_definition_rows_source_anchored": True,
+                "exact_semantic_definition_rows_semantic_requirements_present": True,
+                "exact_semantic_definition_rows_lineage_complete": True,
                 "raw_model_output_written": False,
                 "source_theorem_kernel_verified": False,
                 "full_frontier_theorem_proved": False,
@@ -83531,6 +83564,30 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     )
     assert (
         manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete"
+        ]
+        is True
+    )
+    assert (
+        manifest[
             "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
         ]
         is True
@@ -83539,6 +83596,12 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         manifest["internal_formalizer_pseudo_formal_packet_eval"][
             "attachment_gate_requirements"
         ]["exact_semantic_definition_lane_present"]
+        is True
+    )
+    assert (
+        manifest["internal_formalizer_pseudo_formal_packet_eval"][
+            "attachment_gate_requirements"
+        ]["exact_semantic_definition_rows_semantic_requirements_present"]
         is True
     )
     assert (

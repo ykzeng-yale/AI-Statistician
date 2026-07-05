@@ -3605,6 +3605,34 @@ async def run_research_system_audit(
                 "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present",
                 False,
             ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_source_anchors",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_semantic_requirements",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_lineage",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete",
+                False,
+            ),
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": research_agent_runtime_audit_manifest.get(
                 "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok",
                 False,
@@ -9600,6 +9628,41 @@ async def run_research_system_audit(
                     "exact_semantic_definition_lane_present"
                 ]
             ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_exact_semantic_definition_rows"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "exact_semantic_definition_rows_source_anchored"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "exact_semantic_definition_rows_semantic_requirements_present"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "exact_semantic_definition_rows_lineage_complete"
+                ]
+            ),
             "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": bool(
                 formalizer_pseudo_formal_packet_eval_manifest[
                     "nonproof_boundary_preserved"
@@ -10369,9 +10432,16 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         "n_pseudo_formal_packets": 0,
         "n_pseudo_formal_work_order_rows": 0,
         "n_pseudo_formal_routable_work_order_rows": 0,
+        "n_pseudo_formal_exact_semantic_definition_rows": 0,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 0,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 0,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 0,
         "pseudo_formal_routable_row_kinds": [],
         "pseudo_formal_routable_target_lanes": [],
         "exact_semantic_definition_lane_present": False,
+        "exact_semantic_definition_rows_source_anchored": False,
+        "exact_semantic_definition_rows_semantic_requirements_present": False,
+        "exact_semantic_definition_rows_lineage_complete": False,
         "nonproof_boundary_preserved": False,
         "raw_model_output_written": False,
         "fixture_plumbing_ok": False,
@@ -10421,6 +10491,29 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
     n_pseudo_formal_routable_work_order_rows = int(
         payload.get("n_pseudo_formal_routable_work_order_rows", 0) or 0
     )
+    n_pseudo_formal_exact_semantic_definition_rows = int(
+        payload.get("n_pseudo_formal_exact_semantic_definition_rows", 0) or 0
+    )
+    n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors = int(
+        payload.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
+            0,
+        )
+        or 0
+    )
+    n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements = int(
+        payload.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
+            0,
+        )
+        or 0
+    )
+    n_pseudo_formal_exact_semantic_definition_rows_with_lineage = int(
+        payload.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_lineage", 0
+        )
+        or 0
+    )
     row_kinds = [
         str(value)
         for value in payload.get("pseudo_formal_routable_row_kinds", [])
@@ -10434,6 +10527,17 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
     exact_semantic_definition_lane_present = bool(
         payload.get("exact_semantic_definition_lane_present", False)
         or "source_theorem_exact_semantic_definition" in target_lanes
+    )
+    exact_semantic_definition_rows_source_anchored = bool(
+        payload.get("exact_semantic_definition_rows_source_anchored", False)
+    )
+    exact_semantic_definition_rows_semantic_requirements_present = bool(
+        payload.get(
+            "exact_semantic_definition_rows_semantic_requirements_present", False
+        )
+    )
+    exact_semantic_definition_rows_lineage_complete = bool(
+        payload.get("exact_semantic_definition_rows_lineage_complete", False)
     )
     nonproof_boundary_preserved = bool(
         capability_requirements.get("nonproof_boundary_preserved", False)
@@ -10454,6 +10558,10 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         and n_pseudo_formal_packets > 0
         and n_pseudo_formal_routable_work_order_rows > 0
         and exact_semantic_definition_lane_present
+        and n_pseudo_formal_exact_semantic_definition_rows > 0
+        and exact_semantic_definition_rows_source_anchored
+        and exact_semantic_definition_rows_semantic_requirements_present
+        and exact_semantic_definition_rows_lineage_complete
         and nonproof_boundary_preserved
         and not raw_model_output_written
         and no_theorem_proof_claim
@@ -10479,6 +10587,18 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
             if "source_theorem_exact_semantic_definition" in target_lanes
             else "exact_semantic_definition_lane_missing",
             ""
+            if n_pseudo_formal_exact_semantic_definition_rows > 0
+            else "exact_semantic_definition_rows_missing",
+            ""
+            if exact_semantic_definition_rows_source_anchored
+            else "exact_semantic_definition_rows_source_anchors_missing",
+            ""
+            if exact_semantic_definition_rows_semantic_requirements_present
+            else "exact_semantic_definition_rows_semantic_requirements_missing",
+            ""
+            if exact_semantic_definition_rows_lineage_complete
+            else "exact_semantic_definition_rows_lineage_missing",
+            ""
             if nonproof_boundary_preserved
             else "nonproof_boundary_not_preserved",
             "" if not raw_model_output_written else "raw_model_output_written",
@@ -10500,9 +10620,16 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         "n_pseudo_formal_packets": n_pseudo_formal_packets,
         "n_pseudo_formal_work_order_rows": n_pseudo_formal_work_order_rows,
         "n_pseudo_formal_routable_work_order_rows": n_pseudo_formal_routable_work_order_rows,
+        "n_pseudo_formal_exact_semantic_definition_rows": n_pseudo_formal_exact_semantic_definition_rows,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": n_pseudo_formal_exact_semantic_definition_rows_with_lineage,
         "pseudo_formal_routable_row_kinds": row_kinds,
         "pseudo_formal_routable_target_lanes": target_lanes,
         "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
+        "exact_semantic_definition_rows_source_anchored": exact_semantic_definition_rows_source_anchored,
+        "exact_semantic_definition_rows_semantic_requirements_present": exact_semantic_definition_rows_semantic_requirements_present,
+        "exact_semantic_definition_rows_lineage_complete": exact_semantic_definition_rows_lineage_complete,
         "nonproof_boundary_preserved": nonproof_boundary_preserved,
         "raw_model_output_written": raw_model_output_written,
         "fixture_plumbing_ok": fixture_plumbing_ok,

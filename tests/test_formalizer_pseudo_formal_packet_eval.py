@@ -213,10 +213,48 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     assert all(manifest["fixture_plumbing_requirements"].values())
     assert manifest["n_pseudo_formal_packets"] == 1
     assert manifest["n_pseudo_formal_routable_work_order_rows"] >= 3
+    assert manifest["n_pseudo_formal_exact_semantic_definition_rows"] == 1
+    assert (
+        manifest[
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements"
+        ]
+        == 1
+    )
+    assert manifest["n_pseudo_formal_exact_semantic_definition_rows_with_lineage"] == 1
     assert manifest["exact_semantic_definition_lane_present"] is True
+    assert manifest["exact_semantic_definition_rows_source_anchored"] is True
+    assert (
+        manifest["exact_semantic_definition_rows_semantic_requirements_present"]
+        is True
+    )
+    assert manifest["exact_semantic_definition_rows_lineage_complete"] is True
     assert (
         manifest["fixture_plumbing_requirements"][
             "exact_semantic_definition_lane_present"
+        ]
+        is True
+    )
+    assert (
+        manifest["fixture_plumbing_requirements"][
+            "exact_semantic_definition_rows_source_anchored"
+        ]
+        is True
+    )
+    assert (
+        manifest["fixture_plumbing_requirements"][
+            "exact_semantic_definition_rows_semantic_requirements_present"
+        ]
+        is True
+    )
+    assert (
+        manifest["fixture_plumbing_requirements"][
+            "exact_semantic_definition_rows_lineage_complete"
         ]
         is True
     )
@@ -270,6 +308,46 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_missing_exact_lane(
     assert (
         manifest["fixture_plumbing_requirements"][
             "exact_semantic_definition_lane_present"
+        ]
+        is False
+    )
+
+
+def test_formalizer_pseudo_formal_packet_eval_rejects_inactionable_exact_rows(
+    tmp_path: Path,
+) -> None:
+    response_file = tmp_path / "formalizer_response.json"
+    _write_static_formalizer_response(response_file)
+    response = json.loads(response_file.read_text(encoding="utf-8"))
+    response["pseudo_formal_proof_packets"][0]["blocks"][0][
+        "semantic_primitive_requirements"
+    ] = []
+    response_file.write_text(json.dumps(response), encoding="utf-8")
+
+    manifest = run_formalizer_pseudo_formal_packet_eval(
+        out_dir=tmp_path / "out",
+        provider_name="static",
+        static_response_file=response_file,
+    )
+
+    assert manifest["result_status"] == "OK"
+    assert manifest["exact_semantic_definition_lane_present"] is True
+    assert manifest["n_pseudo_formal_exact_semantic_definition_rows"] == 1
+    assert (
+        manifest[
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements"
+        ]
+        == 0
+    )
+    assert (
+        manifest["exact_semantic_definition_rows_semantic_requirements_present"]
+        is False
+    )
+    assert manifest["fixture_plumbing_ok"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert (
+        manifest["fixture_plumbing_requirements"][
+            "exact_semantic_definition_rows_semantic_requirements_present"
         ]
         is False
     )

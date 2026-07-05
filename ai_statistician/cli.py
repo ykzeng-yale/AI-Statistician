@@ -11523,6 +11523,42 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         in routable_target_lanes
     )
+    n_exact_semantic_rows = int(
+        eval_manifest.get("n_pseudo_formal_exact_semantic_definition_rows", 0) or 0
+    )
+    n_exact_semantic_rows_with_source_anchors = int(
+        eval_manifest.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
+            0,
+        )
+        or 0
+    )
+    n_exact_semantic_rows_with_semantic_requirements = int(
+        eval_manifest.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
+            0,
+        )
+        or 0
+    )
+    n_exact_semantic_rows_with_lineage = int(
+        eval_manifest.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_rows_source_anchored = bool(
+        eval_manifest.get("exact_semantic_definition_rows_source_anchored", False)
+    )
+    exact_semantic_rows_semantic_requirements_present = bool(
+        eval_manifest.get(
+            "exact_semantic_definition_rows_semantic_requirements_present",
+            False,
+        )
+    )
+    exact_semantic_rows_lineage_complete = bool(
+        eval_manifest.get("exact_semantic_definition_rows_lineage_complete", False)
+    )
     proof_evidence_status_ok = (
         str(eval_manifest.get("proof_evidence_status", "") or "")
         == FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE
@@ -11536,6 +11572,10 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         and n_pseudo_formal_packets > 0
         and n_routable_rows > 0
         and exact_lane_present
+        and n_exact_semantic_rows > 0
+        and exact_semantic_rows_source_anchored
+        and exact_semantic_rows_semantic_requirements_present
+        and exact_semantic_rows_lineage_complete
         and nonproof_boundary_preserved
         and not raw_model_output_written
         and proof_evidence_status_ok
@@ -11554,6 +11594,25 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         "raw_model_output_written": raw_model_output_written,
         "proof_evidence_status_ok": proof_evidence_status_ok,
         "no_theorem_proof_claim": no_theorem_proof_claim,
+        "n_pseudo_formal_exact_semantic_definition_rows": n_exact_semantic_rows,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": (
+            n_exact_semantic_rows_with_source_anchors
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": (
+            n_exact_semantic_rows_with_semantic_requirements
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": (
+            n_exact_semantic_rows_with_lineage
+        ),
+        "exact_semantic_definition_rows_source_anchored": (
+            exact_semantic_rows_source_anchored
+        ),
+        "exact_semantic_definition_rows_semantic_requirements_present": (
+            exact_semantic_rows_semantic_requirements_present
+        ),
+        "exact_semantic_definition_rows_lineage_complete": (
+            exact_semantic_rows_lineage_complete
+        ),
         "attachment_gate_recomputed": True,
         "attachment_gate_requirements": {
             "live_generator": bool(gate_summary["live_generator"]),
@@ -11564,6 +11623,16 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
             "pseudo_formal_packets_present": n_pseudo_formal_packets > 0,
             "routable_work_order_rows_present": n_routable_rows > 0,
             "exact_semantic_definition_lane_present": exact_lane_present,
+            "exact_semantic_definition_rows_present": n_exact_semantic_rows > 0,
+            "exact_semantic_definition_rows_source_anchored": (
+                exact_semantic_rows_source_anchored
+            ),
+            "exact_semantic_definition_rows_semantic_requirements_present": (
+                exact_semantic_rows_semantic_requirements_present
+            ),
+            "exact_semantic_definition_rows_lineage_complete": (
+                exact_semantic_rows_lineage_complete
+            ),
             "nonproof_boundary_preserved": nonproof_boundary_preserved,
             "raw_model_output_not_written": not raw_model_output_written,
             "proof_evidence_status_ok": proof_evidence_status_ok,
@@ -12032,6 +12101,35 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         "exact_semantic_definition_lane_present": bool(
             gate_summary["exact_semantic_definition_lane_present"]
         ),
+        "n_pseudo_formal_exact_semantic_definition_rows": int(
+            gate_summary["n_pseudo_formal_exact_semantic_definition_rows"]
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": int(
+            gate_summary[
+                "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors"
+            ]
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": int(
+            gate_summary[
+                "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements"
+            ]
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": int(
+            gate_summary[
+                "n_pseudo_formal_exact_semantic_definition_rows_with_lineage"
+            ]
+        ),
+        "exact_semantic_definition_rows_source_anchored": bool(
+            gate_summary["exact_semantic_definition_rows_source_anchored"]
+        ),
+        "exact_semantic_definition_rows_semantic_requirements_present": bool(
+            gate_summary[
+                "exact_semantic_definition_rows_semantic_requirements_present"
+            ]
+        ),
+        "exact_semantic_definition_rows_lineage_complete": bool(
+            gate_summary["exact_semantic_definition_rows_lineage_complete"]
+        ),
         "proof_evidence_status_ok": bool(gate_summary["proof_evidence_status_ok"]),
         "no_theorem_proof_claim": bool(gate_summary["no_theorem_proof_claim"]),
         "attachment_gate_recomputed": bool(
@@ -12103,6 +12201,35 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest[
         "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
     ] = bool(attached["exact_semantic_definition_lane_present"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows"
+    ] = int(attached["n_pseudo_formal_exact_semantic_definition_rows"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_source_anchors"
+    ] = int(
+        attached[
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors"
+        ]
+    )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_semantic_requirements"
+    ] = int(
+        attached[
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements"
+        ]
+    )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_lineage"
+    ] = int(attached["n_pseudo_formal_exact_semantic_definition_rows_with_lineage"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored"
+    ] = bool(attached["exact_semantic_definition_rows_source_anchored"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present"
+    ] = bool(attached["exact_semantic_definition_rows_semantic_requirements_present"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete"
+    ] = bool(attached["exact_semantic_definition_rows_lineage_complete"])
     manifest[
         "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
     ] = bool(attached["attachment_gate_recomputed"])

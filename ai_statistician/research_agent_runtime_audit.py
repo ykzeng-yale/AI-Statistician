@@ -5905,6 +5905,45 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows": int(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "n_pseudo_formal_exact_semantic_definition_rows", 0
+                ),
+            )
+            or 0
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_source_anchors": int(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_source_anchors",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_semantic_requirements": int(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_semantic_requirements",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_lineage": int(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_lineage",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage",
+                    0,
+                ),
+            )
+            or 0
+        ),
         "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds": (
             _compact_string_list(
                 attached_formalizer_pseudo_formal_packet_eval.get(
@@ -5934,6 +5973,31 @@ def audit_research_agent_runtime(
                 "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present",
                 attached_formalizer_pseudo_formal_packet_eval.get(
                     "exact_semantic_definition_lane_present", False
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "exact_semantic_definition_rows_source_anchored", False
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "exact_semantic_definition_rows_semantic_requirements_present",
+                    False,
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "exact_semantic_definition_rows_lineage_complete", False
                 ),
             )
         ),
@@ -16690,6 +16754,52 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    attached_formalizer_pseudo_formal_exact_rows = int(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_exact_semantic_definition_rows", 0
+            ),
+        )
+        or 0
+    )
+    attached_formalizer_pseudo_formal_exact_rows_with_source_anchors = int(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows_with_source_anchors",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
+                0,
+            ),
+        )
+        or 0
+    )
+    attached_formalizer_pseudo_formal_exact_rows_with_semantic_requirements = int(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows_with_semantic_requirements",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
+                0,
+            ),
+        )
+        or 0
+    )
+    attached_formalizer_pseudo_formal_exact_rows_with_lineage = int(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows_with_lineage",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_exact_semantic_definition_rows_with_lineage", 0
+            ),
+        )
+        or 0
+    )
     attached_formalizer_pseudo_formal_row_kinds = _compact_string_list(
         payload.get(
             "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds",
@@ -16730,6 +16840,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
+    attached_formalizer_pseudo_formal_exact_rows_source_anchored = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows_source_anchored",
+            False,
+        )
+    )
+    attached_formalizer_pseudo_formal_exact_rows_semantic_requirements_present = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows_semantic_requirements_present",
+            False,
+        )
+    )
+    attached_formalizer_pseudo_formal_exact_rows_lineage_complete = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_rows_lineage_complete",
+            False,
+        )
+    )
     attached_formalizer_pseudo_formal_proof_evidence_status_ok = bool(
         _runtime_attached_component_field(
             payload,
@@ -16763,6 +16897,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and attached_formalizer_pseudo_formal_packets > 0
         and attached_formalizer_pseudo_formal_routable_rows > 0
         and attached_formalizer_pseudo_formal_exact_lane_present
+        and attached_formalizer_pseudo_formal_exact_rows > 0
+        and attached_formalizer_pseudo_formal_exact_rows_source_anchored
+        and attached_formalizer_pseudo_formal_exact_rows_semantic_requirements_present
+        and attached_formalizer_pseudo_formal_exact_rows_lineage_complete
         and attached_formalizer_pseudo_formal_nonproof_boundary
         and not attached_formalizer_pseudo_formal_raw_output_written
         and attached_formalizer_pseudo_formal_proof_evidence_status_ok
@@ -20539,12 +20677,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{attached_formalizer_pseudo_formal_row_kinds} "
                 "attached_target_lanes="
                 f"{attached_formalizer_pseudo_formal_target_lanes} "
+                "attached_exact_semantic_definition_rows="
+                f"{attached_formalizer_pseudo_formal_exact_rows} "
+                "attached_exact_rows_with_source_anchors="
+                f"{attached_formalizer_pseudo_formal_exact_rows_with_source_anchors} "
+                "attached_exact_rows_with_semantic_requirements="
+                f"{attached_formalizer_pseudo_formal_exact_rows_with_semantic_requirements} "
+                "attached_exact_rows_with_lineage="
+                f"{attached_formalizer_pseudo_formal_exact_rows_with_lineage} "
                 "attached_nonproof_boundary="
                 f"{attached_formalizer_pseudo_formal_nonproof_boundary} "
                 "attached_raw_model_output_written="
                 f"{attached_formalizer_pseudo_formal_raw_output_written} "
                 "attached_exact_semantic_definition_lane_present="
                 f"{attached_formalizer_pseudo_formal_exact_lane_present} "
+                "attached_exact_semantic_definition_rows_source_anchored="
+                f"{attached_formalizer_pseudo_formal_exact_rows_source_anchored} "
+                "attached_exact_semantic_definition_rows_semantic_requirements_present="
+                f"{attached_formalizer_pseudo_formal_exact_rows_semantic_requirements_present} "
+                "attached_exact_semantic_definition_rows_lineage_complete="
+                f"{attached_formalizer_pseudo_formal_exact_rows_lineage_complete} "
                 "attached_proof_evidence_status_ok="
                 f"{attached_formalizer_pseudo_formal_proof_evidence_status_ok} "
                 "attached_no_theorem_proof_claim="
@@ -20555,10 +20707,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "attached live Formalizer PF/BV packet calibration did not show "
                 "schema-valid pseudo-formal packets with effective lane-routable "
-                "work-order rows, exact-semantic-definition routing, preserved "
-                "non-proof boundary, no theorem-proof claim, and a recomputed "
-                "attachment gate; static fixtures and generic or stale packets "
-                "do not demonstrate this Formalizer capacity"
+                "work-order rows, actionable source-anchored exact-semantic "
+                "definition rows, preserved non-proof boundary, no theorem-proof "
+                "claim, and a recomputed attachment gate; static fixtures and "
+                "generic or stale packets do not demonstrate this Formalizer "
+                "capacity"
             ),
             scope="component_calibration",
             **_runtime_resume_scorecard_routing(
@@ -20574,6 +20727,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "with pseudo_formal_packets>0, routable_work_order_rows>0, "
                     "source_theorem_exact_semantic_definition in target lanes, "
                     "exact_semantic_definition_lane_present=true, "
+                    "exact_semantic_definition_rows>0, "
+                    "exact_semantic_definition_rows_source_anchored=true, "
+                    "exact_semantic_definition_rows_semantic_requirements_present=true, "
+                    "exact_semantic_definition_rows_lineage_complete=true, "
                     "nonproof_boundary_preserved=true, proof_evidence_status_ok=true, "
                     "no_theorem_proof_claim=true, raw_model_output_written=false, "
                     "and attachment_gate_recomputed=true"

@@ -172,6 +172,13 @@ def build_evaluation_benchmark_guidance(
                         "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved",
                         "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written",
                         "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present",
+                        "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete",
                         "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok",
                         "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim",
                         "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached",
@@ -195,6 +202,13 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed",
@@ -208,6 +222,13 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_source_anchors",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_semantic_requirements",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_with_lineage",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present",
+                        "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed",
@@ -642,6 +663,42 @@ def _suite_rows(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
         )
     )
+    runtime_formalizer_pf_packet_component_exact_rows = max(
+        _int(
+            counts.get(
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows"
+            )
+        ),
+        _int(
+            counts.get(
+                "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows"
+            )
+        ),
+    )
+    runtime_formalizer_pf_packet_component_exact_rows_source_anchored = bool(
+        counts.get(
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored"
+        )
+        or counts.get(
+            "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored"
+        )
+    )
+    runtime_formalizer_pf_packet_component_exact_rows_semantic_requirements_present = bool(
+        counts.get(
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present"
+        )
+        or counts.get(
+            "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present"
+        )
+    )
+    runtime_formalizer_pf_packet_component_exact_rows_lineage_complete = bool(
+        counts.get(
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete"
+        )
+        or counts.get(
+            "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete"
+        )
+    )
     runtime_formalizer_pf_packet_component_nonproof_boundary = bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved"
@@ -688,6 +745,10 @@ def _suite_rows(
         and runtime_formalizer_pf_packet_component_packets > 0
         and runtime_formalizer_pf_packet_component_routable_rows > 0
         and runtime_formalizer_pf_packet_component_exact_lane_present
+        and runtime_formalizer_pf_packet_component_exact_rows > 0
+        and runtime_formalizer_pf_packet_component_exact_rows_source_anchored
+        and runtime_formalizer_pf_packet_component_exact_rows_semantic_requirements_present
+        and runtime_formalizer_pf_packet_component_exact_rows_lineage_complete
         and runtime_formalizer_pf_packet_component_nonproof_boundary
         and not runtime_formalizer_pf_packet_component_raw_output_written
         and runtime_formalizer_pf_packet_component_proof_evidence_status_ok
@@ -723,6 +784,26 @@ def _suite_rows(
         or "source_theorem_exact_semantic_definition"
         in standalone_formalizer_pf_packet_component_target_lanes
     )
+    standalone_formalizer_pf_packet_component_exact_rows = _int(
+        counts.get(
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows"
+        )
+    )
+    standalone_formalizer_pf_packet_component_exact_rows_source_anchored = bool(
+        counts.get(
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored"
+        )
+    )
+    standalone_formalizer_pf_packet_component_exact_rows_semantic_requirements_present = bool(
+        counts.get(
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present"
+        )
+    )
+    standalone_formalizer_pf_packet_component_exact_rows_lineage_complete = bool(
+        counts.get(
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete"
+        )
+    )
     standalone_formalizer_pf_packet_component_nonproof_boundary = bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved"
@@ -749,6 +830,10 @@ def _suite_rows(
         and standalone_formalizer_pf_packet_component_packets > 0
         and standalone_formalizer_pf_packet_component_routable_rows > 0
         and standalone_formalizer_pf_packet_component_exact_lane_present
+        and standalone_formalizer_pf_packet_component_exact_rows > 0
+        and standalone_formalizer_pf_packet_component_exact_rows_source_anchored
+        and standalone_formalizer_pf_packet_component_exact_rows_semantic_requirements_present
+        and standalone_formalizer_pf_packet_component_exact_rows_lineage_complete
         and standalone_formalizer_pf_packet_component_nonproof_boundary
         and not standalone_formalizer_pf_packet_component_raw_output_written
         and standalone_formalizer_pf_packet_component_proof_evidence_status_ok
@@ -805,6 +890,22 @@ def _suite_rows(
         or runtime_formalizer_pf_packet_component_exact_lane_present
         or "source_theorem_exact_semantic_definition"
         in formalizer_pf_packet_target_lanes
+    )
+    formalizer_pf_packet_exact_rows = max(
+        standalone_formalizer_pf_packet_component_exact_rows,
+        runtime_formalizer_pf_packet_component_exact_rows,
+    )
+    formalizer_pf_packet_exact_rows_source_anchored = bool(
+        standalone_formalizer_pf_packet_component_exact_rows_source_anchored
+        or runtime_formalizer_pf_packet_component_exact_rows_source_anchored
+    )
+    formalizer_pf_packet_exact_rows_semantic_requirements_present = bool(
+        standalone_formalizer_pf_packet_component_exact_rows_semantic_requirements_present
+        or runtime_formalizer_pf_packet_component_exact_rows_semantic_requirements_present
+    )
+    formalizer_pf_packet_exact_rows_lineage_complete = bool(
+        standalone_formalizer_pf_packet_component_exact_rows_lineage_complete
+        or runtime_formalizer_pf_packet_component_exact_rows_lineage_complete
     )
     formalizer_pf_packet_nonproof_boundary = bool(
         counts.get(
@@ -2063,6 +2164,27 @@ def _suite_rows(
                 "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": counts.get(
                     "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
                 ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows"
+                ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors"
+                ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements"
+                ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage"
+                ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored"
+                ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present"
+                ),
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": counts.get(
+                    "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete"
+                ),
                 "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": counts.get(
                     "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
                 ),
@@ -2093,6 +2215,18 @@ def _suite_rows(
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": counts.get(
                     "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
                 ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows"
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored"
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present"
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete"
+                ),
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": counts.get(
                     "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
                 ),
@@ -2111,6 +2245,18 @@ def _suite_rows(
                 "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present": counts.get(
                     "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
                 ),
+                "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows": counts.get(
+                    "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows"
+                ),
+                "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored": counts.get(
+                    "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored"
+                ),
+                "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present": counts.get(
+                    "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present"
+                ),
+                "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete": counts.get(
+                    "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete"
+                ),
                 "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok": counts.get(
                     "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok"
                 ),
@@ -2126,6 +2272,10 @@ def _suite_rows(
                     formalizer_pf_packet_target_lanes
                 ),
                 "effective_exact_semantic_definition_lane_present": formalizer_pf_packet_exact_lane_present,
+                "effective_exact_semantic_definition_rows": formalizer_pf_packet_exact_rows,
+                "effective_exact_semantic_definition_rows_source_anchored": formalizer_pf_packet_exact_rows_source_anchored,
+                "effective_exact_semantic_definition_rows_semantic_requirements_present": formalizer_pf_packet_exact_rows_semantic_requirements_present,
+                "effective_exact_semantic_definition_rows_lineage_complete": formalizer_pf_packet_exact_rows_lineage_complete,
                 "effective_nonproof_boundary_preserved": formalizer_pf_packet_nonproof_boundary,
                 "effective_proof_evidence_status_ok": formalizer_pf_packet_proof_evidence_status_ok,
                 "effective_no_theorem_proof_claim": formalizer_pf_packet_no_theorem_proof_claim,
@@ -2140,7 +2290,7 @@ def _suite_rows(
             issues=()
             if formalizer_pf_packet_component_ok
             else (
-                "no live Claude/OpenAI Formalizer PF/BV packet-emission evidence with exact-semantic-definition lane routing, nonzero routable rows, preserved non-proof boundary, and no theorem-proof claim is present",
+                "no live Claude/OpenAI Formalizer PF/BV packet-emission evidence with exact-semantic-definition lane routing, actionable source-anchored exact rows, nonzero routable rows, preserved non-proof boundary, and no theorem-proof claim is present",
             ),
         ),
         BenchmarkSuiteGuidanceRow(

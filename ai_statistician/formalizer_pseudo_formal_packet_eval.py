@@ -308,6 +308,32 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
     exact_semantic_definition_lane_present = (
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in routable_target_lanes
     )
+    exact_semantic_rows = [
+        row
+        for row in routable_rows
+        if str(row.get("target_lane", "") or "")
+        == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+    ]
+    exact_semantic_rows_with_source_anchors = [
+        row for row in exact_semantic_rows if _row_has_source_anchor(row)
+    ]
+    exact_semantic_rows_with_semantic_requirements = [
+        row for row in exact_semantic_rows if _row_has_semantic_requirements(row)
+    ]
+    exact_semantic_rows_with_lineage = [
+        row for row in exact_semantic_rows if _row_has_required_pf_lineage(row)
+    ]
+    exact_semantic_rows_source_anchored = bool(exact_semantic_rows) and len(
+        exact_semantic_rows_with_source_anchors
+    ) == len(exact_semantic_rows)
+    exact_semantic_rows_semantic_requirements_present = bool(
+        exact_semantic_rows
+    ) and len(exact_semantic_rows_with_semantic_requirements) == len(
+        exact_semantic_rows
+    )
+    exact_semantic_rows_lineage_complete = bool(exact_semantic_rows) and len(
+        exact_semantic_rows_with_lineage
+    ) == len(exact_semantic_rows)
     nonproof_boundary = (
         packet.get("kernel_verified") is False
         and packet.get("full_frontier_theorem_proved") is False
@@ -325,6 +351,13 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "pseudo_formal_packets_present": packet_present,
         "routable_work_order_rows_present": routable_rows_present,
         "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
+        "exact_semantic_definition_rows_source_anchored": exact_semantic_rows_source_anchored,
+        "exact_semantic_definition_rows_semantic_requirements_present": (
+            exact_semantic_rows_semantic_requirements_present
+        ),
+        "exact_semantic_definition_rows_lineage_complete": (
+            exact_semantic_rows_lineage_complete
+        ),
         "nonproof_boundary_preserved": bool(nonproof_boundary),
     }
     fixture_requirements = {
@@ -353,6 +386,23 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "n_pseudo_formal_work_order_rows": len(work_order_rows),
         "n_pseudo_formal_routable_work_order_rows": len(routable_rows),
         "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
+        "n_pseudo_formal_exact_semantic_definition_rows": len(exact_semantic_rows),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": len(
+            exact_semantic_rows_with_source_anchors
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": len(
+            exact_semantic_rows_with_semantic_requirements
+        ),
+        "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": len(
+            exact_semantic_rows_with_lineage
+        ),
+        "exact_semantic_definition_rows_source_anchored": exact_semantic_rows_source_anchored,
+        "exact_semantic_definition_rows_semantic_requirements_present": (
+            exact_semantic_rows_semantic_requirements_present
+        ),
+        "exact_semantic_definition_rows_lineage_complete": (
+            exact_semantic_rows_lineage_complete
+        ),
         "pseudo_formal_routable_row_kinds": sorted(
             {str(row.get("row_kind", "") or "") for row in routable_rows}
         ),
@@ -399,6 +449,10 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
             "n_pseudo_formal_packets",
             "n_pseudo_formal_work_order_rows",
             "n_pseudo_formal_routable_work_order_rows",
+            "n_pseudo_formal_exact_semantic_definition_rows",
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
+            "n_pseudo_formal_exact_semantic_definition_rows_with_lineage",
             "pseudo_formal_routable_row_kinds",
             "pseudo_formal_routable_target_lanes",
             "llm_json_repair_attempts",
@@ -413,6 +467,36 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
         json.dumps(manifest, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
     )
+
+
+def _row_has_source_anchor(row: Mapping[str, Any]) -> bool:
+    for anchor in row.get("source_anchors", []) or []:
+        if not isinstance(anchor, Mapping):
+            continue
+        if str(anchor.get("id", "") or "").strip() or str(
+            anchor.get("excerpt", "") or ""
+        ).strip():
+            return True
+    return False
+
+
+def _row_has_semantic_requirements(row: Mapping[str, Any]) -> bool:
+    return any(
+        str(value or "").strip()
+        for value in row.get("semantic_primitive_requirements", []) or []
+    )
+
+
+def _row_has_required_pf_lineage(row: Mapping[str, Any]) -> bool:
+    required_fields = (
+        "pseudo_formal_method_contract_id",
+        "pseudo_formal_pipeline_stage",
+        "source_packet_id",
+        "source_block_id",
+        "target_lane",
+        "row_kind",
+    )
+    return all(str(row.get(field, "") or "").strip() for field in required_fields)
 
 
 def _formalizer_pseudo_formal_packet_eval_boundary() -> str:
