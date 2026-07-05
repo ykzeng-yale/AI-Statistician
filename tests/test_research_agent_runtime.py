@@ -19529,10 +19529,19 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     contract = feedback["pseudo_formalization_repair_contract"]
     assert feedback["pseudo_formalization_required"] is True
     assert feedback["pseudo_formalization_required_missing_work_order_rows"] is True
+    assert feedback["pseudo_formalization_required_invalid_packets"] is False
+    assert feedback["pseudo_formalization_required_no_lane_routable_rows"] is False
+    assert feedback["pseudo_formalization_validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
     assert feedback["pseudo_formalization_required_reason"] == (
         "exact_semantic_definition_structural_reformulation_required"
     )
     assert contract["required_output_key"] == "pseudo_formal_proof_packets"
+    assert contract["validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
+    assert "missing_required_packet" in contract["validation_issue_kinds"]
     assert contract["target_names"] == ["split_conformal_finite_sample_coverage"]
     assert contract["placeholder_symbols"] == ["C_n"]
     assert contract["target_lanes"] == [
@@ -19587,15 +19596,24 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     artifact = next(iter(result.produced_artifacts.values()))
     assert artifact["pseudo_formalization_required"] is True
     assert artifact["pseudo_formalization_required_missing_work_order_rows"] is True
+    assert artifact["pseudo_formalization_validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
     assert artifact["pseudo_formalization_repair_contract"] == contract
     learning_summary = artifact["learning_rows"][0]["input_summary"]
     assert learning_summary["pseudo_formalization_required"] is True
+    assert learning_summary["pseudo_formalization_validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
     assert learning_summary["pseudo_formalization_repair_contract"] == contract
     assert learning_summary["response_validation_feedback"][
         "unverified_required_imports"
     ] == ["Mathlib.Data.Int.Order"]
     evidence_payload = result.evidence_entries[0].payload
     assert evidence_payload["pseudo_formalization_required"] is True
+    assert evidence_payload["pseudo_formalization_validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
     assert evidence_payload["pseudo_formalization_repair_contract"] == contract
     assert evidence_payload["hard_negative_rejected_imports"] == [
         "Mathlib.Data.Int.Order"
@@ -19605,6 +19623,9 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     )
     observation_payload = result.observations[0].payload
     assert observation_payload["pseudo_formalization_required"] is True
+    assert observation_payload["pseudo_formalization_validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
     assert observation_payload["pseudo_formalization_repair_contract"] == contract
     assert observation_payload["unverified_required_imports"] == [
         "Mathlib.Data.Int.Order"
@@ -27560,7 +27581,7 @@ def test_invalid_pseudo_formal_packet_exports_quarantine_not_downstream_work() -
                     {
                         "block_id": "b_invalid",
                         "block_type": "lemma",
-                        "conclusion": "rank is uniform",
+                        "conclusion": "",
                         "proof_text": "Exchangeability implies rank uniformity.",
                         "source_anchors": [],
                         "semantic_primitive_requirements": ["rank_uniformity"],
@@ -27582,6 +27603,12 @@ def test_invalid_pseudo_formal_packet_exports_quarantine_not_downstream_work() -
     assert quarantine["row_kind"] == "pseudo_formal_packet_validation_quarantine"
     assert quarantine["target_lane"] == "formal_gap"
     assert quarantine["validation_errors"]
+    assert quarantine["validation_issue_summary"]["n_missing_conclusion"] == 1
+    assert quarantine["validation_issue_summary"]["n_missing_source_anchors"] == 1
+    assert quarantine["validation_issue_counts"]["missing_conclusion"] == 1
+    assert quarantine["validation_issue_counts"]["missing_source_anchors"] == 1
+    assert "missing_conclusion" in quarantine["required_repair"]
+    assert "missing_source_anchors" in quarantine["required_repair"]
     assert "semantic_primitive" not in quarantine
     assert pseudo_formal_routable_work_order_rows(rows) == []
     assert quarantine["proof_evidence_status"] == (
@@ -27639,6 +27666,23 @@ def test_invalid_pseudo_formal_packet_exports_quarantine_not_downstream_work() -
     assert (
         routing_summary[
             "n_runtime_pseudo_formalization_required_missing_routing_rows"
+        ]
+        == 1
+    )
+    assert len(agenda_rows) == 1
+    assert agenda_rows[0]["owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert "repair invalid pseudo-formal packet" in agenda_rows[0]["action"]
+    assert (
+        agenda_rows[0]["validation_issue_summary"]["n_missing_source_anchors"]
+        == 1
+    )
+    assert "missing_conclusion" in agenda_rows[0]["validation_issue_kinds"]
+    assert "missing_source_anchors" in agenda_rows[0]["validation_issue_kinds"]
+    assert "missing_source_anchors" in agenda_rows[0]["required_repair"]
+    assert len(learning_rows) == 1
+    assert (
+        learning_rows[0]["input_summary"]["validation_issue_summary"][
+            "n_missing_source_anchors"
         ]
         == 1
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
@@ -236,8 +237,11 @@ VALID_LEAN_FEASIBILITY = (
     "pseudo_only",
     "unknown",
 )
+PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND = (
+    "pseudo_formal_packet_validation_quarantine"
+)
 PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS = (
-    "pseudo_formal_packet_validation_quarantine",
+    PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND,
     "pseudo_formal_block_verification_pending",
     "pseudo_formal_block_verification_failure_blocked_by_faithfulness",
     "pseudo_formal_block_verification_failure_blocked_by_independent_bv",
@@ -247,6 +251,63 @@ PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS = (
     "pseudo_formal_exact_semantic_definition_request_blocked_by_faithfulness",
     "pseudo_formal_nonlean_residual_gap_blocked_by_faithfulness",
     "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness",
+)
+
+PSEUDO_FORMAL_VALIDATION_ISSUE_MARKERS: tuple[
+    tuple[str, tuple[str, ...]],
+    ...,
+] = (
+    (
+        "missing_required_packet",
+        (
+            "requires at least one pseudo_formal_proof_packets",
+            "no locally valid pseudo_formal_proof_packets",
+        ),
+    ),
+    ("missing_blocks", ("blocks must contain at least one pseudo-formal block",)),
+    ("missing_conclusion", ("missing conclusion",)),
+    ("missing_source_anchors", ("missing source_anchors",)),
+    ("unsupported_block_type", ("unsupported block_type",)),
+    ("unsupported_faithfulness_status", ("unsupported faithfulness_status",)),
+    ("unsupported_lean_feasibility", ("unsupported lean_feasibility",)),
+    ("unsupported_block_verdict", ("unsupported block verdict",)),
+    (
+        "accepted_without_rollout_count",
+        (
+            "accepted block_verification must record rollout_count",
+            "accepted_without_rollout_count",
+        ),
+    ),
+    (
+        "forbidden_kernel_claim",
+        (
+            "kernel_verified must be false",
+            "source_theorem_kernel_verified must be false",
+            "proof_evidence_status must be pseudo-formal non-proof",
+        ),
+    ),
+    (
+        "dependency_or_scope_order",
+        (
+            "dependency_id must reference",
+            "dependency_ids cannot include self",
+            "scope_parent_id must reference",
+            "scope_parent_id cannot be self",
+            "dependency cycle",
+        ),
+    ),
+    (
+        "no_lane_routable_work_order_rows",
+        (
+            "valid pf/bv packet did not produce",
+            "no lane-routable",
+            "no effective lane-routable",
+        ),
+    ),
+    (
+        "missing_required_target_lane",
+        ("only generic review rows", "did not route any effective row"),
+    ),
 )
 
 
@@ -773,6 +834,40 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             + ", ".join(cycle_nodes)
         )
     return sorted(set(errors))
+
+
+def pseudo_formal_validation_issue_summary(
+    validation_errors: Sequence[Any],
+) -> dict[str, Any]:
+    """Classify PF/BV validation failures into compact repair issue kinds."""
+
+    errors = [str(error) for error in validation_errors if str(error).strip()]
+    counts: Counter[str] = Counter()
+    for error in errors:
+        lowered = error.lower()
+        matched = False
+        for issue_kind, markers in PSEUDO_FORMAL_VALIDATION_ISSUE_MARKERS:
+            if any(marker in lowered for marker in markers):
+                counts[issue_kind] += 1
+                matched = True
+        if not matched:
+            counts["other"] += 1
+    issue_counts = dict(sorted(counts.items()))
+    result: dict[str, Any] = {
+        "artifact_kind": "PseudoFormalValidationIssueSummary",
+        "n_validation_errors": len(errors),
+        "issue_kinds": sorted(issue_counts),
+        "issue_counts": issue_counts,
+        "blocking_issue_kinds": sorted(
+            issue for issue in issue_counts if issue != "other"
+        ),
+        "validation_errors_excerpt": errors[:6],
+        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    }
+    for issue_kind, count in issue_counts.items():
+        result[f"n_{issue_kind}"] = count
+    return result
 
 
 def _pseudo_formal_dependency_cycle_nodes(

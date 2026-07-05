@@ -154,6 +154,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES,
     PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
     PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
+    PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
@@ -165,6 +166,7 @@ from .pseudo_formalization import (
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
+    pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
 )
 from .research_architect import (
@@ -11832,8 +11834,59 @@ def _formalizer_packet_validation_failure_result(
             )
         )
     ]
+    pseudo_formalization_validation_issue_summary = (
+        pseudo_formal_validation_issue_summary(
+            pseudo_formalization_validation_errors
+        )
+    )
     pseudo_formalization_required_missing_work_order_rows = bool(
         pseudo_formalization_required and pseudo_formalization_validation_errors
+    )
+    pseudo_formalization_validation_issue_kinds = {
+        str(value)
+        for value in pseudo_formalization_validation_issue_summary.get(
+            "issue_kinds",
+            [],
+        )
+        or []
+        if str(value).strip()
+    }
+    pseudo_formalization_required_invalid_packets = bool(
+        pseudo_formalization_required
+        and int(
+            pseudo_formalization_validation_issue_summary.get(
+                "n_validation_errors",
+                0,
+            )
+            or 0
+        )
+        > 0
+        and bool(
+            pseudo_formalization_validation_issue_kinds
+            - {
+                "missing_required_packet",
+                "no_lane_routable_work_order_rows",
+            }
+        )
+        and int(
+            pseudo_formalization_validation_issue_summary.get(
+                "n_no_lane_routable_work_order_rows",
+                0,
+            )
+            or 0
+        )
+        <= 0
+    )
+    pseudo_formalization_required_no_lane_routable_rows = bool(
+        pseudo_formalization_required
+        and int(
+            pseudo_formalization_validation_issue_summary.get(
+                "n_no_lane_routable_work_order_rows",
+                0,
+            )
+            or 0
+        )
+        > 0
     )
     source_theorem_exact_semantic_definition_structural_reformulation_required = bool(
         proof_bank_runtime_memory_summary.get(
@@ -11993,6 +12046,16 @@ def _formalizer_packet_validation_failure_result(
             "lane_activation_hints": (
                 _formalizer_required_pf_bv_lane_activation_hints()
             ),
+            "validation_issue_summary": (
+                pseudo_formalization_validation_issue_summary
+            ),
+            "validation_issue_kinds": list(
+                pseudo_formalization_validation_issue_summary.get(
+                    "issue_kinds",
+                    [],
+                )
+                or []
+            ),
             "acceptance_gate": (
                 "valid PF/BV packet must produce lane-routable pseudo-formal "
                 "work-order rows; not proof evidence"
@@ -12011,8 +12074,17 @@ def _formalizer_packet_validation_failure_result(
         "pseudo_formalization_required_missing_work_order_rows": (
             pseudo_formalization_required_missing_work_order_rows
         ),
+        "pseudo_formalization_required_invalid_packets": (
+            pseudo_formalization_required_invalid_packets
+        ),
+        "pseudo_formalization_required_no_lane_routable_rows": (
+            pseudo_formalization_required_no_lane_routable_rows
+        ),
         "pseudo_formalization_validation_errors": (
             pseudo_formalization_validation_errors
+        ),
+        "pseudo_formalization_validation_issue_summary": (
+            pseudo_formalization_validation_issue_summary
         ),
         "pseudo_formalization_repair_contract": (
             pseudo_formalization_repair_contract
@@ -54188,6 +54260,24 @@ def _deterministic_theorem_closure_lean_statement_sketch(
     )
 
 
+def _pseudo_formal_packet_validation_quarantine_required_repair(
+    validation_issue_summary: Mapping[str, Any],
+) -> str:
+    issue_kinds = [
+        str(value)
+        for value in validation_issue_summary.get("issue_kinds", []) or []
+        if str(value).strip()
+    ]
+    issue_focus = ", ".join(issue_kinds[:6]) or "packet validation errors"
+    return (
+        "Repair the pseudo_formal_proof_packets entry before any downstream "
+        "Lean/RAG/source-to-bridge work: emit schema-valid PF/BV blocks with "
+        "top-level conclusion, source_anchors, valid faithfulness_status, and "
+        "valid block_verification metadata; current PF/BV validation issue "
+        f"kinds: {issue_focus}."
+    )
+
+
 def _formalizer_pseudo_formal_work_order_rows(
     *,
     proposal_packet: Mapping[str, Any],
@@ -54203,6 +54293,9 @@ def _formalizer_pseudo_formal_work_order_rows(
         normalized_packet = normalize_pseudo_formal_packet(packet)
         packet_validation_errors = validate_pseudo_formal_packet(normalized_packet)
         if packet_validation_errors:
+            validation_issue_summary = pseudo_formal_validation_issue_summary(
+                packet_validation_errors
+            )
             source_packet_id = str(
                 normalized_packet.get("packet_id", "")
                 or f"pseudo_formal_packet:{packet_index}"
@@ -54258,7 +54351,7 @@ def _formalizer_pseudo_formal_work_order_rows(
                     "pessimistic_acceptance": True,
                     "rollout_count": 0,
                 },
-                "row_kind": "pseudo_formal_packet_validation_quarantine",
+                "row_kind": PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND,
                 "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
                 "pseudo_formal_method_contract_id": (
                     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
@@ -54273,6 +54366,23 @@ def _formalizer_pseudo_formal_work_order_rows(
                     + "; ".join(packet_validation_errors[:3])
                 ),
                 "validation_errors": packet_validation_errors,
+                "validation_issue_summary": validation_issue_summary,
+                "validation_issue_kinds": list(
+                    validation_issue_summary.get("issue_kinds", []) or []
+                ),
+                "validation_issue_counts": dict(
+                    validation_issue_summary.get("issue_counts", {})
+                    if isinstance(
+                        validation_issue_summary.get("issue_counts", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "required_repair": (
+                    _pseudo_formal_packet_validation_quarantine_required_repair(
+                        validation_issue_summary
+                    )
+                ),
                 "source_formalizer_proposal_id": proposal_id,
                 "source_pseudo_formal_packet_index": packet_index,
                 "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -61829,6 +61939,40 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
         ).strip()
         source_block_id = str(work_order.get("source_block_id", "") or "").strip()
         pseudo_formal_row_kind = _pseudo_formal_work_order_row_kind(work_order)
+        validation_errors = [
+            str(value)
+            for value in (
+                work_order.get("validation_errors", [])
+                if isinstance(work_order.get("validation_errors", []), (list, tuple))
+                else []
+            )
+            if str(value).strip()
+        ]
+        validation_issue_summary = dict(
+            work_order.get("validation_issue_summary", {})
+            if isinstance(work_order.get("validation_issue_summary", {}), Mapping)
+            else {}
+        )
+        raw_validation_issue_counts = validation_issue_summary.get(
+            "issue_counts",
+            {},
+        )
+        validation_issue_counts = dict(
+            raw_validation_issue_counts
+            if isinstance(raw_validation_issue_counts, Mapping)
+            else {}
+        )
+        raw_validation_issue_kinds = (
+            work_order.get("validation_issue_kinds", [])
+            or validation_issue_summary.get("issue_kinds", [])
+            or []
+        )
+        validation_issue_kinds = [
+            str(value)
+            for value in raw_validation_issue_kinds
+            if str(value).strip()
+        ]
+        required_repair = str(work_order.get("required_repair", "") or "")
         owner_subsystem = _pseudo_formal_next_action_owner(
             target_lane,
             row_kind=pseudo_formal_row_kind,
@@ -61977,6 +62121,11 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 ),
                 "target_lane": target_lane,
                 "reason": str(work_order.get("reason", "") or ""),
+                "validation_errors": validation_errors,
+                "validation_issue_summary": validation_issue_summary,
+                "validation_issue_kinds": validation_issue_kinds,
+                "validation_issue_counts": validation_issue_counts,
+                "required_repair": required_repair,
                 "runtime_queue_status": str(
                     work_order.get("runtime_queue_status", "")
                     or _pseudo_formal_runtime_queue_status(work_order)
@@ -62022,6 +62171,40 @@ def _runtime_pseudo_formal_next_action_learning_rows(
         target_theorem_name = str(
             agenda.get("target_theorem_name", "") or ""
         ).strip()
+        validation_errors = [
+            str(value)
+            for value in (
+                agenda.get("validation_errors", [])
+                if isinstance(agenda.get("validation_errors", []), (list, tuple))
+                else []
+            )
+            if str(value).strip()
+        ]
+        validation_issue_summary = dict(
+            agenda.get("validation_issue_summary", {})
+            if isinstance(agenda.get("validation_issue_summary", {}), Mapping)
+            else {}
+        )
+        raw_validation_issue_counts = validation_issue_summary.get(
+            "issue_counts",
+            {},
+        )
+        validation_issue_counts = dict(
+            raw_validation_issue_counts
+            if isinstance(raw_validation_issue_counts, Mapping)
+            else {}
+        )
+        raw_validation_issue_kinds = (
+            agenda.get("validation_issue_kinds", [])
+            or validation_issue_summary.get("issue_kinds", [])
+            or []
+        )
+        validation_issue_kinds = [
+            str(value)
+            for value in raw_validation_issue_kinds
+            if str(value).strip()
+        ]
+        required_repair = str(agenda.get("required_repair", "") or "")
         rows.append(
             _runtime_learning_row_with_surface_targets(
                 {
@@ -62152,6 +62335,11 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "runtime_queue_status": str(
                         agenda.get("runtime_queue_status", "") or ""
                     ),
+                    "validation_errors": validation_errors,
+                    "validation_issue_summary": validation_issue_summary,
+                    "validation_issue_kinds": validation_issue_kinds,
+                    "validation_issue_counts": validation_issue_counts,
+                    "required_repair": required_repair,
                     "input_summary": {
                         "trigger": str(agenda.get("trigger", "") or ""),
                         "pseudo_formal_method_contract_id": str(
@@ -62284,6 +62472,11 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                         "runtime_queue_status": str(
                             agenda.get("runtime_queue_status", "") or ""
                         ),
+                        "validation_errors": validation_errors,
+                        "validation_issue_summary": validation_issue_summary,
+                        "validation_issue_kinds": validation_issue_kinds,
+                        "validation_issue_counts": validation_issue_counts,
+                        "required_repair": required_repair,
                         "runtime_queue_boundary": str(
                             agenda.get("runtime_queue_boundary", "") or ""
                         ),
@@ -62418,6 +62611,23 @@ def _pseudo_formal_block_verifier_worker_execution_fields(
     }
 
 
+def _pseudo_formal_validation_issue_kinds_for_row(row: Mapping[str, Any]) -> list[str]:
+    validation_issue_summary = (
+        row.get("validation_issue_summary", {})
+        if isinstance(row.get("validation_issue_summary", {}), Mapping)
+        else {}
+    )
+    return [
+        str(value)
+        for value in (
+            row.get("validation_issue_kinds", [])
+            or validation_issue_summary.get("issue_kinds", [])
+            or []
+        )
+        if str(value).strip()
+    ]
+
+
 def _pseudo_formal_safe_block_depth(value: Any) -> int:
     try:
         depth = int(value)
@@ -62427,6 +62637,8 @@ def _pseudo_formal_safe_block_depth(value: Any) -> int:
 
 
 def _pseudo_formal_next_action_owner(target_lane: str, *, row_kind: str = "") -> str:
+    if row_kind == PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND:
+        return "Formalizer/ProofEngineer"
     if row_kind == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND:
         return "Formalizer/ProofEngineer"
     if row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
@@ -62454,6 +62666,18 @@ def _pseudo_formal_next_action_action(
     target_text = f" `{block_label}`"
     if conclusion:
         target_text += f" ({conclusion[:160]})"
+    if (
+        _pseudo_formal_work_order_row_kind(row)
+        == PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND
+    ):
+        issue_kinds = ", ".join(_pseudo_formal_validation_issue_kinds_for_row(row)[:6])
+        return (
+            "repair invalid pseudo-formal packet"
+            + target_text
+            + " so it passes PF/BV schema validation and emits lane-routable "
+            "residual work orders"
+            + (f"; validation issue kinds: {issue_kinds}" if issue_kinds else "")
+        )
     if (
         _pseudo_formal_work_order_row_kind(row)
         == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND
@@ -62524,6 +62748,13 @@ def _pseudo_formal_next_action_acceptance_gate(
     *,
     row_kind: str = "",
 ) -> str:
+    if row_kind == PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND:
+        return (
+            "Formalizer/ProofEngineer emits a replacement pseudo_formal_proof_packets "
+            "entry that passes validate_pseudo_formal_packet and, when PF/BV "
+            "activation is required, produces at least one lane-routable "
+            "pseudo-formal work-order row. This repair row is not proof evidence."
+        )
     if row_kind == PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND:
         return (
             "Formalizer/ProofEngineer emits a replacement pseudo-formal packet "

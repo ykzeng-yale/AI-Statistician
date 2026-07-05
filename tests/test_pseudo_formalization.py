@@ -28,6 +28,7 @@ from ai_statistician.pseudo_formalization import (
     pseudo_formal_work_order_row_json_schema,
     pseudo_formalizer_output_contract,
     pseudo_formalizer_prompt_contract,
+    pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
 )
 from ai_statistician.pseudo_formal_block_verifier_worker import (
@@ -291,6 +292,35 @@ def test_pseudo_formal_block_normalizer_accepts_llm_aliases_without_weakening_an
     assert block["proof_text"].startswith("Exchangeability")
     assert block["source_anchors"][0]["id"] == "equation:rank_uniformity"
     assert block["faithfulness_status"] == "unchecked"
+
+
+def test_pseudo_formal_validation_issue_summary_classifies_repair_targets() -> None:
+    summary = pseudo_formal_validation_issue_summary(
+        [
+            (
+                "pseudo_formalization_required: proof-body/PF activation feedback "
+                "requires at least one pseudo_formal_proof_packets entry"
+            ),
+            "blocks[0] missing conclusion",
+            "blocks[0] missing source_anchors",
+            "blocks[0] accepted block_verification must record rollout_count >= 1",
+            (
+                "pseudo_formalization_required: valid PF/BV packet did not produce "
+                "lane-routable pseudo-formal work-order rows"
+            ),
+        ]
+    )
+
+    assert summary["n_validation_errors"] == 5
+    assert summary["n_missing_required_packet"] == 1
+    assert summary["n_missing_conclusion"] == 1
+    assert summary["n_missing_source_anchors"] == 1
+    assert summary["n_accepted_without_rollout_count"] == 1
+    assert summary["n_no_lane_routable_work_order_rows"] == 1
+    assert "missing_source_anchors" in summary["blocking_issue_kinds"]
+    assert summary["proof_evidence_status"] == (
+        PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    )
 
 
 def test_pseudo_formal_block_normalizer_accepts_decomposition_type_aliases() -> None:
