@@ -475,6 +475,10 @@ from .formalizer_lean_candidate_repair_eval import (
     run_formalizer_lean_candidate_repair_eval,
     write_formalizer_lean_candidate_repair_eval_failure_manifest,
 )
+from .formalizer_pseudo_formal_packet_eval import (
+    run_formalizer_pseudo_formal_packet_eval,
+    write_formalizer_pseudo_formal_packet_eval_failure_manifest,
+)
 from .questions import QUESTIONS, load_question_file
 from .retrieval import audit_proof_bank_retrieval
 from .system import AIStatisticianSystem, compact_summary, write_run_manifest, write_trace
@@ -13260,6 +13264,63 @@ def _formalizer_lean_candidate_repair_eval(args: argparse.Namespace) -> int:
     return 1
 
 
+def _formalizer_pseudo_formal_packet_eval(args: argparse.Namespace) -> int:
+    _load_dotenv(Path(args.env_file))
+    try:
+        manifest = run_formalizer_pseudo_formal_packet_eval(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            static_response_file=(
+                Path(args.static_response_file)
+                if args.static_response_file
+                else None
+            ),
+            llm_timeout_seconds=args.llm_timeout_seconds,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            max_repair_attempts=args.max_repair_attempts,
+        )
+    except Exception as exc:
+        manifest = write_formalizer_pseudo_formal_packet_eval_failure_manifest(
+            out_dir=Path(args.out),
+            provider_name=args.provider,
+            model=args.llm_model,
+            exc=exc,
+        )
+        print("\nAI Statistician Formalizer PF/BV Packet Eval failed")
+        print("=" * 72)
+        print(f"- {exc}")
+        print(f"manifest={manifest['artifacts']['manifest_json']}")
+        return 1
+    print("\nAI Statistician Formalizer PF/BV Packet Eval")
+    print("=" * 72)
+    print(f"provider={manifest['provider_name']} model={manifest['model']}")
+    print(f"live_generator={manifest['live_generator']}")
+    print(f"result_status={manifest['result_status']}")
+    print(
+        "pf_packets="
+        f"{manifest['n_pseudo_formal_packets']} "
+        "work_order_rows="
+        f"{manifest['n_pseudo_formal_work_order_rows']} "
+        "routable_rows="
+        f"{manifest['n_pseudo_formal_routable_work_order_rows']}"
+    )
+    print(
+        "target_lanes="
+        f"{','.join(manifest['pseudo_formal_routable_target_lanes'])}"
+    )
+    print(f"fixture_plumbing_ok={manifest['fixture_plumbing_ok']}")
+    print(f"capability_evidence_ok={manifest['capability_evidence_ok']}")
+    print(f"proof_evidence_status={manifest['proof_evidence_status']}")
+    print(f"manifest={manifest['artifacts']['manifest_json']}")
+    if manifest["capability_evidence_ok"]:
+        return 0
+    if args.allow_fixture_success and manifest["fixture_plumbing_ok"]:
+        return 0
+    return 1
+
+
 def _architect_research_path_policy_eval(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     try:
@@ -20696,6 +20757,73 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalizer_lean_candidate_repair_eval.set_defaults(
         func=_formalizer_lean_candidate_repair_eval
+    )
+
+    formalizer_pseudo_formal_packet_eval = sub.add_parser(
+        "formalizer-pseudo-formal-packet-eval",
+        help=(
+            "component eval for Formalizer/ProofEngineer PF/BV packet emission: "
+            "force required pseudo-formal activation, validate source-anchored "
+            "PF/BV packets, and record lane-routable work-order evidence"
+        ),
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--provider",
+        choices=("anthropic", "openai", "static"),
+        default=_default_live_generator_provider(),
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--static-response-file",
+        default="",
+        help="Formalizer JSON response to replay when --provider static",
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--llm-model",
+        default="",
+        help="model name for Formalizer/ProofEngineer; Anthropic defaults to Claude Sonnet 4.6",
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--max-tokens",
+        type=int,
+        default=5000,
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--temperature",
+        type=float,
+        default=0.1,
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        default=1,
+        help=(
+            "bounded Formalizer JSON repair attempts after required PF/BV "
+            "packet validation failures"
+        ),
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--out",
+        default="runs/formalizer_pseudo_formal_packet_eval",
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--env-file",
+        default=".env",
+    )
+    formalizer_pseudo_formal_packet_eval.add_argument(
+        "--allow-fixture-success",
+        action="store_true",
+        help=(
+            "return success for static fixture plumbing checks; default success "
+            "requires live generator PF/BV packet emission evidence"
+        ),
+    )
+    formalizer_pseudo_formal_packet_eval.set_defaults(
+        func=_formalizer_pseudo_formal_packet_eval
     )
 
     architect_research_path_policy_eval = sub.add_parser(
