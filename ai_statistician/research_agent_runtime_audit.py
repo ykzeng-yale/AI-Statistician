@@ -8511,29 +8511,42 @@ def audit_research_agent_runtime(
         ),
         "source_to_bridge_premise_derivation_proofengineer_bridge_required": bool(
             manifest.get(
-                "source_to_bridge_premise_derivation_proofengineer_bridge_requested",
-                False,
+                "source_to_bridge_premise_derivation_proofengineer_bridge_required",
+                bool(
+                    manifest.get(
+                        "source_to_bridge_premise_derivation_proofengineer_bridge_requested",
+                        False,
+                    )
+                    or int(
+                        manifest.get(
+                            "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                    or int(
+                        manifest.get(
+                            "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
             )
-            or int(
-                manifest.get(
-                    "source_theorem_proof_body_adapter_proofengineer_bridge_n_source_to_bridge_premise_derivation_queue_rows",
-                    0,
-                )
-                or 0
-            )
-            or int(
-                manifest.get(
-                    "source_to_bridge_premise_derivation_proofengineer_bridge_n_rows",
-                    0,
-                )
-                or 0
-            )
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required_telemetry_present": (
+            "source_to_bridge_premise_derivation_proofengineer_bridge_required"
+            in manifest
         ),
         "source_to_bridge_premise_derivation_proofengineer_bridge_requested": bool(
             manifest.get(
                 "source_to_bridge_premise_derivation_proofengineer_bridge_requested",
                 False,
             )
+        ),
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested_telemetry_present": (
+            "source_to_bridge_premise_derivation_proofengineer_bridge_requested"
+            in manifest
         ),
         "source_to_bridge_premise_derivation_proofengineer_bridge_ran": bool(
             manifest.get(
@@ -8625,22 +8638,35 @@ def audit_research_agent_runtime(
         ),
         "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required": bool(
             manifest.get(
-                "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested",
-                False,
+                "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required",
+                bool(
+                    manifest.get(
+                        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested",
+                        False,
+                    )
+                    or int(
+                        manifest.get(
+                            "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
             )
-            or int(
-                manifest.get(
-                    "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_n_rows",
-                    0,
-                )
-                or 0
-            )
+        ),
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required_telemetry_present": (
+            "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required"
+            in manifest
         ),
         "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested": bool(
             manifest.get(
                 "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested",
                 False,
             )
+        ),
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested_telemetry_present": (
+            "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested"
+            in manifest
         ),
         "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_ran": bool(
             manifest.get(
@@ -15337,6 +15363,12 @@ def _ladder_level(
 
 
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
+    def _requested_telemetry_present(key: str, value: object) -> bool:
+        presence_key = f"{key}_telemetry_present"
+        if presence_key in payload:
+            return bool(payload.get(presence_key))
+        return value is True or value is False
+
     n_results = int(payload.get("n_results", 0) or 0)
     source_theorem_kernel_count = _payload_source_theorem_kernel_count(payload)
     source_theorem_target_bound_kernel_count = (
@@ -16902,16 +16934,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_to_bridge_premise_bridge_required_value = payload.get(
         "source_to_bridge_premise_derivation_proofengineer_bridge_required"
     )
-    source_to_bridge_premise_bridge_required_present = (
-        source_to_bridge_premise_bridge_required_value is True
-        or source_to_bridge_premise_bridge_required_value is False
+    source_to_bridge_premise_bridge_required_present = _requested_telemetry_present(
+        "source_to_bridge_premise_derivation_proofengineer_bridge_required",
+        source_to_bridge_premise_bridge_required_value,
     )
     source_to_bridge_premise_bridge_required = (
         source_to_bridge_premise_bridge_required_value is True
     )
+    source_to_bridge_premise_bridge_requested_value = payload.get(
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested"
+    )
+    source_to_bridge_premise_bridge_requested_present = _requested_telemetry_present(
+        "source_to_bridge_premise_derivation_proofengineer_bridge_requested",
+        source_to_bridge_premise_bridge_requested_value,
+    )
     source_to_bridge_premise_bridge_requested = (
-        payload.get("source_to_bridge_premise_derivation_proofengineer_bridge_requested")
-        is True
+        source_to_bridge_premise_bridge_requested_value is True
     )
     source_to_bridge_premise_bridge_ran = (
         payload.get("source_to_bridge_premise_derivation_proofengineer_bridge_ran")
@@ -17209,12 +17247,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    def _requested_telemetry_present(key: str, value: object) -> bool:
-        presence_key = f"{key}_telemetry_present"
-        if presence_key in payload:
-            return bool(payload.get(presence_key))
-        return value is True or value is False
-
     post_adapter_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
     )
@@ -17411,18 +17443,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     adapter_instantiation_premise_bridge_required_value = payload.get(
         "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required"
     )
-    adapter_instantiation_premise_bridge_required_present = (
-        adapter_instantiation_premise_bridge_required_value is True
-        or adapter_instantiation_premise_bridge_required_value is False
+    adapter_instantiation_premise_bridge_required_present = _requested_telemetry_present(
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required",
+        adapter_instantiation_premise_bridge_required_value,
     )
     adapter_instantiation_premise_bridge_required = (
         adapter_instantiation_premise_bridge_required_value is True
     )
+    adapter_instantiation_premise_bridge_requested_value = payload.get(
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested"
+    )
+    adapter_instantiation_premise_bridge_requested_present = _requested_telemetry_present(
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested",
+        adapter_instantiation_premise_bridge_requested_value,
+    )
     adapter_instantiation_premise_bridge_requested = (
-        payload.get(
-            "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested"
-        )
-        is True
+        adapter_instantiation_premise_bridge_requested_value is True
     )
     adapter_instantiation_premise_bridge_ran = (
         payload.get(
@@ -20215,6 +20251,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 adapter_instantiation_premise_bridge_required_present
                 and adapter_instantiation_premise_bridge_required
+                and adapter_instantiation_premise_bridge_requested_present
+                and adapter_instantiation_premise_bridge_requested
                 and adapter_instantiation_premise_bridge_ran
                 and adapter_instantiation_premise_bridge_output_rows > 0
             ),
@@ -20231,6 +20269,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{int(adapter_instantiation_premise_bridge_required_present)} "
                 "required="
                 f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required')} "
+                "requested_telemetry_present="
+                f"{int(adapter_instantiation_premise_bridge_requested_present)} "
                 "requested="
                 f"{payload.get('source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested')} "
                 "ran="
@@ -20261,6 +20301,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 source_to_bridge_premise_bridge_required_present
                 and source_to_bridge_premise_bridge_required
+                and source_to_bridge_premise_bridge_requested_present
+                and source_to_bridge_premise_bridge_requested
                 and source_to_bridge_premise_bridge_ran
                 and source_to_bridge_premise_bridge_output_rows > 0
             ),
@@ -20279,6 +20321,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{int(source_to_bridge_premise_bridge_required_present)} "
                 "required="
                 f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_required')} "
+                "requested_telemetry_present="
+                f"{int(source_to_bridge_premise_bridge_requested_present)} "
                 "requested="
                 f"{payload.get('source_to_bridge_premise_derivation_proofengineer_bridge_requested')} "
                 "ran="

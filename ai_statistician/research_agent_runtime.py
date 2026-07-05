@@ -30403,6 +30403,9 @@ def run_research_agent_runtime(
         if source_theorem_proof_body_adapter_bridge_manifest
         else 0
     )
+    manifest["source_to_bridge_premise_derivation_proofengineer_bridge_required"] = (
+        first_premise_queue_rows > 0
+    )
     manifest["source_to_bridge_premise_derivation_proofengineer_bridge_requested"] = (
         bool(
             config.source_to_bridge_premise_derivation_proofengineer_bridge
@@ -30593,6 +30596,9 @@ def run_research_agent_runtime(
         if source_theorem_proof_body_adapter_instantiation_bridge_manifest
         else 0
     )
+    manifest[
+        "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_required"
+    ] = instantiation_premise_queue_rows > 0
     manifest[
         "source_to_bridge_premise_derivation_from_adapter_instantiation_bridge_requested"
     ] = bool(
