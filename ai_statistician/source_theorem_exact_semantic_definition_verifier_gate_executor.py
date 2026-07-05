@@ -135,6 +135,40 @@ def run_source_theorem_exact_semantic_definition_verifier_gate_executor(
             1 for row in results if row.get("local_lean_compiled")
         ),
         "n_verifier_approved": len(approved_packets),
+        "n_work_orders_from_pseudo_formal": sum(
+            1 for row in work_orders if _has_pseudo_formal_origin(row)
+        ),
+        "n_results_from_pseudo_formal": sum(
+            1 for row in results if _has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_checked_from_pseudo_formal": sum(
+            1
+            for row in results
+            if row.get("local_lean_checked") and _has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_compiled_from_pseudo_formal": sum(
+            1
+            for row in results
+            if row.get("local_lean_compiled") and _has_pseudo_formal_origin(row)
+        ),
+        "n_verifier_approved_from_pseudo_formal": sum(
+            1 for row in approved_packets if _has_pseudo_formal_origin(row)
+        ),
+        "n_verifier_blocked_from_pseudo_formal": sum(
+            1
+            for row in results
+            if row.get("verifier_gate_status")
+            != "VERIFIER_APPROVED_FOR_PROOF_BODY_RECHECK"
+            and _has_pseudo_formal_origin(row)
+        ),
+        "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
+            results,
+            "source_pseudo_formal_work_order_id",
+        ),
+        "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
+            results,
+            "source_pseudo_formal_block_id",
+        ),
         "n_verifier_blocked": sum(
             1
             for row in results
@@ -663,3 +697,20 @@ def _string_list(value: Any) -> list[str]:
     if str(value or "").strip():
         return [str(value)]
     return []
+
+
+def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
+    return bool(str(row.get("source_pseudo_formal_work_order_id", "") or "").strip())
+
+
+def _source_pseudo_formal_ids(
+    rows: Sequence[Mapping[str, Any]],
+    key: str,
+) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(row.get(key, "") or "")
+            for row in rows
+            if str(row.get(key, "") or "").strip()
+        )
+    )

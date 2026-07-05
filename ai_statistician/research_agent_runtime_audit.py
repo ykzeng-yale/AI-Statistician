@@ -8240,6 +8240,99 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_pseudo_formal_work_order_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_pseudo_formal_block_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body",
+                False,
+            )
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_ran": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_queue_ran",
@@ -17686,6 +17779,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_pf_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
     primary_materialized_typechecked_review_required_value = payload.get(
         "source_theorem_exact_semantic_definition_materialized_candidate_review_required"
     )
@@ -17831,6 +17931,72 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    primary_typechecked_review_verifier_gate_ran = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran"
+        )
+        is True
+    )
+    primary_typechecked_review_verifier_gate_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_verifier_gate_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_verifier_gate_approved = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_gate_work_orders = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_gate_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_gate_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_gate_approved = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_gate_blocked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_gate_required = (
+        primary_typechecked_review_pf_packets > 0
+        and primary_typechecked_review_verifier_gate_work_orders > 0
     )
     primary_typechecked_review_blocked_packets = int(
         payload.get(
@@ -22474,7 +22640,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "typechecked_review_packets="
                 f"{exact_semantic_lean_repair_typechecked_review_packets} "
                 "pf_typechecked_review_packets="
-                f"{exact_semantic_lean_repair_pf_typechecked_review_packets} "
+                f"{primary_typechecked_review_pf_packets} "
                 "materialized_typechecked_review_packets="
                 f"{exact_semantic_lean_repair_materialized_typechecked_review_packets} "
                 "chain_typechecked_review_packets="
@@ -22484,6 +22650,55 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "ProofEngineer bridge produced exact semantic-definition Lean "
                 "repair tasks but the Lean repair executor did not run with "
                 "explicit handoff telemetry and local Lean result rows"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_typechecked_review_verifier_gate_pf_handoff_not_dropped",
+            (not primary_typechecked_review_pf_verifier_gate_required)
+            or (
+                primary_typechecked_review_verifier_gate_ran
+                and primary_typechecked_review_verifier_gate_results > 0
+                and primary_typechecked_review_verifier_gate_local_lean_checked > 0
+                and primary_typechecked_review_pf_verifier_gate_work_orders > 0
+                and primary_typechecked_review_pf_verifier_gate_results > 0
+                and primary_typechecked_review_pf_verifier_gate_local_lean_checked > 0
+                and (
+                    primary_typechecked_review_pf_verifier_gate_approved
+                    + primary_typechecked_review_pf_verifier_gate_blocked
+                    > 0
+                )
+            ),
+            (
+                "pf_typechecked_review_packets="
+                f"{primary_typechecked_review_pf_packets} "
+                "verifier_gate_work_orders="
+                f"{primary_typechecked_review_verifier_gate_work_orders} "
+                "verifier_gate_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran')} "
+                "verifier_gate_results="
+                f"{primary_typechecked_review_verifier_gate_results} "
+                "verifier_gate_local_lean_checked="
+                f"{primary_typechecked_review_verifier_gate_local_lean_checked} "
+                "verifier_gate_approved="
+                f"{primary_typechecked_review_verifier_gate_approved} "
+                "pf_verifier_gate_work_orders="
+                f"{primary_typechecked_review_pf_verifier_gate_work_orders} "
+                "pf_verifier_gate_results="
+                f"{primary_typechecked_review_pf_verifier_gate_results} "
+                "pf_verifier_gate_local_lean_checked="
+                f"{primary_typechecked_review_pf_verifier_gate_local_lean_checked} "
+                "pf_verifier_gate_approved="
+                f"{primary_typechecked_review_pf_verifier_gate_approved} "
+                "pf_verifier_gate_blocked="
+                f"{primary_typechecked_review_pf_verifier_gate_blocked} "
+                "pf_handoff_required="
+                f"{primary_typechecked_review_pf_verifier_gate_required}"
+            ),
+            (
+                "PF-origin exact semantic-definition typechecked review packets "
+                "required verifier-gate processing, but the verifier gate did "
+                "not report PF-origin local Lean feedback and an approved or "
+                "blocked PF-origin outcome"
             ),
         ),
         _scorecard_row(

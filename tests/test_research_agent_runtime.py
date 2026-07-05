@@ -77869,6 +77869,77 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_lean_repair_feedback
     ]["passed"] is True
 
 
+def test_runtime_capability_scorecard_rejects_generic_verifier_gate_for_pseudo_formal_typechecked_review() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran": True,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "exact_semantic_definition_typechecked_review_verifier_gate_pf_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is False
+    assert "pf_typechecked_review_packets=1" in row["evidence"]
+    assert "pf_verifier_gate_results=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_pseudo_formal_verifier_gate_blocked_feedback() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_recheck_queue_n_verifier_gate_work_orders": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_ran": True,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_typechecked_review_verifier_gate_pf_handoff_not_dropped"
+    ]["passed"] is True
+
+
 def test_runtime_capability_scorecard_accepts_materialized_exact_semantic_lean_feedback() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

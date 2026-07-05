@@ -32004,6 +32004,12 @@ def run_research_agent_runtime(
         "n_local_lean_checked",
         "n_local_lean_compiled",
         "n_verifier_approved",
+        "n_work_orders_from_pseudo_formal",
+        "n_results_from_pseudo_formal",
+        "n_local_lean_checked_from_pseudo_formal",
+        "n_local_lean_compiled_from_pseudo_formal",
+        "n_verifier_approved_from_pseudo_formal",
+        "n_verifier_blocked_from_pseudo_formal",
         "n_verifier_blocked",
         "n_source_anchor_context_missing",
         "n_known_gaps_unresolved",
@@ -32015,6 +32021,26 @@ def run_research_agent_runtime(
             int(row.get(key, 0) or 0)
             for row in late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifests
         )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_gate_executor_source_pseudo_formal_work_order_ids"
+    ] = list(
+        dict.fromkeys(
+            str(value)
+            for row in late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifests
+            for value in row.get("source_pseudo_formal_work_order_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_gate_executor_source_pseudo_formal_block_ids"
+    ] = list(
+        dict.fromkeys(
+            str(value)
+            for row in late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifests
+            for value in row.get("source_pseudo_formal_block_ids", []) or []
+            if str(value).strip()
+        )
+    )
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_gate_executor_n_runtime_learning_rows"
     ] = len(
@@ -33686,6 +33712,12 @@ def run_research_agent_runtime(
         "n_local_lean_checked",
         "n_local_lean_compiled",
         "n_verifier_approved",
+        "n_work_orders_from_pseudo_formal",
+        "n_results_from_pseudo_formal",
+        "n_local_lean_checked_from_pseudo_formal",
+        "n_local_lean_compiled_from_pseudo_formal",
+        "n_verifier_approved_from_pseudo_formal",
+        "n_verifier_blocked_from_pseudo_formal",
         "n_verifier_blocked",
         "n_source_anchor_context_missing",
         "n_known_gaps_unresolved",
@@ -33700,6 +33732,28 @@ def run_research_agent_runtime(
             ).get(key, 0)
             or 0
         )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_pseudo_formal_work_order_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_pseudo_formal_block_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_runtime_learning_rows"
     ] = len(
@@ -34440,6 +34494,12 @@ def run_research_agent_runtime(
         "n_local_lean_checked",
         "n_local_lean_compiled",
         "n_verifier_approved",
+        "n_work_orders_from_pseudo_formal",
+        "n_results_from_pseudo_formal",
+        "n_local_lean_checked_from_pseudo_formal",
+        "n_local_lean_compiled_from_pseudo_formal",
+        "n_verifier_approved_from_pseudo_formal",
+        "n_verifier_blocked_from_pseudo_formal",
         "n_verifier_blocked",
         "n_source_anchor_context_missing",
         "n_known_gaps_unresolved",
@@ -34454,6 +34514,28 @@ def run_research_agent_runtime(
             ).get(key, 0)
             or 0
         )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_source_pseudo_formal_work_order_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_source_pseudo_formal_block_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_gate_executor_n_runtime_learning_rows"
     ] = len(

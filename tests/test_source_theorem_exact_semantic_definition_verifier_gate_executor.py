@@ -98,6 +98,16 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     assert manifest["n_local_lean_checked"] == 1
     assert manifest["n_local_lean_compiled"] == 1
     assert manifest["n_verifier_approved"] == 1
+    assert manifest["n_work_orders_from_pseudo_formal"] == 1
+    assert manifest["n_results_from_pseudo_formal"] == 1
+    assert manifest["n_local_lean_checked_from_pseudo_formal"] == 1
+    assert manifest["n_local_lean_compiled_from_pseudo_formal"] == 1
+    assert manifest["n_verifier_approved_from_pseudo_formal"] == 1
+    assert manifest["n_verifier_blocked_from_pseudo_formal"] == 0
+    assert manifest["source_pseudo_formal_work_order_ids"] == [
+        "pseudo_formal_work_order:good_rank"
+    ]
+    assert manifest["source_pseudo_formal_block_ids"] == ["pf:block:good_rank_event"]
     assert manifest["n_verifier_blocked"] == 0
     assert manifest["source_theorem_ready_for_exact_proof_body"] is True
     results = [
