@@ -290,6 +290,29 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
         "lean_command": list(command),
         "n_tasks": len(tasks),
         "n_results": len(results),
+        "n_tasks_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(tasks)
+        ),
+        "n_results_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(results)
+        ),
+        "n_exact_semantic_definition_authoring_tasks_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(author_definition_tasks)
+        ),
+        "n_typechecked_candidate_review_packets_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(typechecked_candidate_review_packets)
+        ),
+        "n_runtime_learning_rows_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(learning_rows)
+        ),
+        "placeholder_policy_lineage_complete": (
+            _placeholder_policy_lineage_complete(
+                results,
+                author_definition_tasks,
+                typechecked_candidate_review_packets,
+                learning_rows,
+            )
+        ),
         "n_import_candidate_tasks": sum(
             1
             for row in results
@@ -1442,6 +1465,27 @@ def _available_semantic_binders_by_name(
     return binders_by_name
 
 
+def _has_placeholder_policy_lineage(row: Mapping[str, Any]) -> bool:
+    return bool(
+        str(row.get("placeholder_policy_id", "") or "").strip()
+        and str(row.get("placeholder_policy_scope", "") or "").strip()
+    )
+
+
+def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
+    return sum(1 for row in rows if _has_placeholder_policy_lineage(row))
+
+
+def _placeholder_policy_lineage_complete(
+    *row_groups: Sequence[Mapping[str, Any]],
+) -> bool:
+    for rows in row_groups:
+        for row in rows:
+            if not _has_placeholder_policy_lineage(row):
+                return False
+    return True
+
+
 def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     """Create a semantic-review handoff for a typechecked definition candidate."""
 
@@ -1948,12 +1992,20 @@ def _semantic_import_candidate_blocker(
 
 def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]:
     context: dict[str, Any] = {}
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    placeholder_symbol = str(
+        row.get("placeholder_symbol", "")
+        or input_summary.get("placeholder_symbol", "")
+        or ""
+    ).strip()
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
         value = row.get(key, None)
         if value in (None, "", [], {}):
-            input_summary = row.get("input_summary", {})
-            if isinstance(input_summary, Mapping):
-                value = input_summary.get(key, None)
+            value = input_summary.get(key, None)
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -1962,10 +2014,15 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = list(value)
         else:
             context[key] = value
+    if placeholder_symbol:
+        placeholder_policy = exact_semantic_definition_placeholder_policy(
+            placeholder_symbol
+        )
+        context.setdefault("placeholder_policy_id", placeholder_policy.policy_id)
+        context.setdefault("placeholder_policy_scope", placeholder_policy.policy_scope)
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
         target_theorem_name = str(row.get("target_theorem_name", "") or "")
-        placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
         target_ids = _exact_semantic_definition_target_ids(
             row,
             fallback_target=target_theorem_name,
@@ -1974,6 +2031,18 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         normalized_request.setdefault("target_theorem_name", target_theorem_name)
         if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
             normalized_request["placeholder_symbol"] = placeholder_symbol
+        if placeholder_symbol:
+            placeholder_policy = exact_semantic_definition_placeholder_policy(
+                placeholder_symbol
+            )
+            normalized_request.setdefault(
+                "placeholder_policy_id",
+                placeholder_policy.policy_id,
+            )
+            normalized_request.setdefault(
+                "placeholder_policy_scope",
+                placeholder_policy.policy_scope,
+            )
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request

@@ -31319,6 +31319,45 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_lookup_rows_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_work_orders_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_definition_closure_work_orders_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_definition_closure_review_packets_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_runtime_learning_rows_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("placeholder_policy_lineage_complete", False)
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_late_source_lookup_ran"
     ] = bool(late_source_theorem_exact_semantic_definition_source_lookup_manifests)
     manifest[
@@ -32504,6 +32543,50 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_review_packets_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_repair_packets_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_lean_repair_tasks_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_runtime_learning_rows_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_runtime_learning_rows_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_placeholder_policy_lineage_complete"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("placeholder_policy_lineage_complete", False)
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_required"
     ] = bool(
         manifest.get(
@@ -32637,6 +32720,65 @@ def run_research_agent_runtime(
             or {}
         ).get("n_local_lean_compiled", 0)
         or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_tasks_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_results_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_authoring_tasks_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get(
+            "n_exact_semantic_definition_authoring_tasks_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get(
+            "n_typechecked_candidate_review_packets_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_runtime_learning_rows_with_placeholder_policy_lineage"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_runtime_learning_rows_with_placeholder_policy_lineage", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("placeholder_policy_lineage_complete", False)
     )
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_environment_repair_tasks"

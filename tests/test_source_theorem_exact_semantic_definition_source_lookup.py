@@ -367,6 +367,12 @@ def test_exact_semantic_definition_source_lookup_preserves_placeholder_policy_li
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
     ]
 
+    assert manifest["n_lookup_rows_with_placeholder_policy_lineage"] == 1
+    assert manifest["n_definition_closure_work_orders_with_placeholder_policy_lineage"] == 1
+    assert manifest["n_definition_closure_review_packets_with_placeholder_policy_lineage"] == 1
+    assert manifest["n_runtime_learning_rows_with_placeholder_policy_lineage"] == 3
+    assert manifest["placeholder_policy_lineage_complete"] is True
+
     for row in (lookup_rows[0], closure_rows[0], review_packets[0]):
         assert row["placeholder_policy_id"] == "split_conformal_coverage.rank"
         assert row["placeholder_policy_scope"] == "split_conformal_coverage"

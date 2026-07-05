@@ -98,6 +98,26 @@ def run_source_theorem_exact_semantic_definition_proofengineer_bridge(
         "n_review_packets": len(review_packets),
         "n_repair_packets": len(repair_packets),
         "n_lean_repair_tasks": len(lean_repair_tasks),
+        "n_review_packets_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(review_packets)
+        ),
+        "n_repair_packets_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(repair_packets)
+        ),
+        "n_lean_repair_tasks_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(lean_repair_tasks)
+        ),
+        "n_runtime_learning_rows_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(learning_rows)
+        ),
+        "placeholder_policy_lineage_complete": (
+            _placeholder_policy_lineage_complete(
+                review_packets,
+                repair_packets,
+                lean_repair_tasks,
+                learning_rows,
+            )
+        ),
         "n_import_candidate_declaration_packets": sum(
             1
             for row in repair_packets
@@ -838,6 +858,27 @@ def _semantic_review_decision_reported(row: Mapping[str, Any]) -> bool:
         "",
         "not_reported",
     }
+
+
+def _has_placeholder_policy_lineage(row: Mapping[str, Any]) -> bool:
+    return bool(
+        str(row.get("placeholder_policy_id", "") or "").strip()
+        and str(row.get("placeholder_policy_scope", "") or "").strip()
+    )
+
+
+def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
+    return sum(1 for row in rows if _has_placeholder_policy_lineage(row))
+
+
+def _placeholder_policy_lineage_complete(
+    *row_groups: Sequence[Mapping[str, Any]],
+) -> bool:
+    for rows in row_groups:
+        for row in rows:
+            if not _has_placeholder_policy_lineage(row):
+                return False
+    return True
 
 
 def _target_ids_from_row(

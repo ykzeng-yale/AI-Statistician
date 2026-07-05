@@ -762,6 +762,16 @@ def test_authoring_task_exports_structured_candidate_definition_request(
         ).read_text().splitlines()
     ]
     assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
+    assert manifest["n_tasks_with_placeholder_policy_lineage"] == 0
+    assert manifest["n_results_with_placeholder_policy_lineage"] == 1
+    assert (
+        manifest[
+            "n_exact_semantic_definition_authoring_tasks_with_placeholder_policy_lineage"
+        ]
+        == 1
+    )
+    assert manifest["n_runtime_learning_rows_with_placeholder_policy_lineage"] == 2
+    assert manifest["placeholder_policy_lineage_complete"] is True
     request = authoring_tasks[0]["candidate_definition_request"]
     assert request["placeholder_symbol"] == "covered"
     assert request["placeholder_policy_id"] == "split_conformal_coverage.covered"

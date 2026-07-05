@@ -6608,6 +6608,40 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_work_orders_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_closure_work_orders_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete",
+                False,
+            )
+        ),
         "source_theorem_exact_semantic_definition_n_closure_review_packets": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_n_closure_review_packets",
@@ -6666,12 +6700,53 @@ def audit_research_agent_runtime(
             )
             or ""
         ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
                 0,
             )
             or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_runtime_learning_rows_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_runtime_learning_rows_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_placeholder_policy_lineage_complete": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_placeholder_policy_lineage_complete",
+                False,
+            )
         ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_required": bool(
             manifest.get(
@@ -6785,6 +6860,47 @@ def audit_research_agent_runtime(
                 0,
             )
             or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_authoring_tasks_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_authoring_tasks_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_runtime_learning_rows_with_placeholder_policy_lineage": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_runtime_learning_rows_with_placeholder_policy_lineage",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete",
+                False,
+            )
         ),
         "n_source_theorem_exact_semantic_definition_authoring_tasks": len(
             exact_semantic_definition_authoring_task_rows
@@ -17175,6 +17291,33 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_source_lookup_review_packets_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_learning_rows_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_policy_lineage_complete = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
+        )
+        is True
+    )
+    exact_semantic_source_lookup_policy_lineage_required = (
+        exact_semantic_source_lookup_ran
+        and (
+            exact_semantic_source_lookup_learning_rows > 0
+            or exact_semantic_bridge_review_packets > 0
+        )
+    )
     pseudo_formal_exact_semantic_source_lookup_consumed = (
         pseudo_formal_exact_semantic_work_orders <= 0
         or (
@@ -17220,12 +17363,53 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_bridge_handoff_required = (
         exact_semantic_bridge_review_packets > 0
     )
+    exact_semantic_bridge_repair_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets",
+            0,
+        )
+        or 0
+    )
     exact_semantic_lean_repair_tasks = int(
         payload.get(
             "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
             0,
         )
         or 0
+    )
+    exact_semantic_bridge_review_packets_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_repair_packets_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_lean_tasks_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_policy_lineage_complete = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_placeholder_policy_lineage_complete"
+        )
+        is True
+    )
+    exact_semantic_bridge_policy_lineage_required = (
+        exact_semantic_bridge_ran
+        and (
+            exact_semantic_bridge_repair_packets > 0
+            or exact_semantic_lean_repair_tasks > 0
+        )
     )
     exact_semantic_lean_repair_required_value = payload.get(
         "source_theorem_exact_semantic_definition_lean_repair_executor_required"
@@ -17355,6 +17539,67 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     exact_semantic_lean_repair_handoff_required = (
         exact_semantic_lean_repair_tasks > 0
+    )
+    exact_semantic_lean_repair_tasks_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_results_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_authoring_tasks_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_authoring_tasks_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_typechecked_packets_with_policy_lineage = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_with_placeholder_policy_lineage",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_policy_lineage_complete = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_placeholder_policy_lineage_complete"
+        )
+        is True
+    )
+    exact_semantic_lean_repair_policy_lineage_required = (
+        exact_semantic_lean_repair_ran
+        and (
+            exact_semantic_lean_repair_results > 0
+            or exact_semantic_lean_repair_typechecked_review_packets > 0
+            or exact_semantic_definition_authoring_tasks > 0
+        )
+    )
+    exact_semantic_policy_lineage_required = (
+        exact_semantic_source_lookup_policy_lineage_required
+        or exact_semantic_bridge_policy_lineage_required
+        or exact_semantic_lean_repair_policy_lineage_required
+    )
+    exact_semantic_policy_lineage_complete = (
+        (
+            not exact_semantic_source_lookup_policy_lineage_required
+            or exact_semantic_source_lookup_policy_lineage_complete
+        )
+        and (
+            not exact_semantic_bridge_policy_lineage_required
+            or exact_semantic_bridge_policy_lineage_complete
+        )
+        and (
+            not exact_semantic_lean_repair_policy_lineage_required
+            or exact_semantic_lean_repair_policy_lineage_complete
+        )
     )
     source_theorem_promotion_bridge_kernel_verified = sum(
         int(payload.get(key, 0) or 0)
@@ -20685,6 +20930,59 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "ProofEngineer bridge produced exact semantic-definition Lean "
                 "repair tasks but the Lean repair executor did not run with "
                 "explicit handoff telemetry and local Lean result rows"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_placeholder_policy_lineage_not_dropped",
+            (not exact_semantic_policy_lineage_required)
+            or exact_semantic_policy_lineage_complete,
+            (
+                "source_lookup_required="
+                f"{exact_semantic_source_lookup_policy_lineage_required} "
+                "source_lookup_lineage_complete="
+                f"{exact_semantic_source_lookup_policy_lineage_complete} "
+                "source_lookup_learning_rows="
+                f"{exact_semantic_source_lookup_learning_rows} "
+                "source_lookup_learning_rows_with_policy_lineage="
+                f"{exact_semantic_source_lookup_learning_rows_with_policy_lineage} "
+                "source_lookup_review_packets="
+                f"{exact_semantic_bridge_review_packets} "
+                "source_lookup_review_packets_with_policy_lineage="
+                f"{exact_semantic_source_lookup_review_packets_with_policy_lineage} "
+                "bridge_required="
+                f"{exact_semantic_bridge_policy_lineage_required} "
+                "bridge_lineage_complete="
+                f"{exact_semantic_bridge_policy_lineage_complete} "
+                "bridge_repair_packets="
+                f"{exact_semantic_bridge_repair_packets} "
+                "bridge_repair_packets_with_policy_lineage="
+                f"{exact_semantic_bridge_repair_packets_with_policy_lineage} "
+                "bridge_lean_tasks="
+                f"{exact_semantic_lean_repair_tasks} "
+                "bridge_lean_tasks_with_policy_lineage="
+                f"{exact_semantic_bridge_lean_tasks_with_policy_lineage} "
+                "lean_repair_required="
+                f"{exact_semantic_lean_repair_policy_lineage_required} "
+                "lean_repair_lineage_complete="
+                f"{exact_semantic_lean_repair_policy_lineage_complete} "
+                "lean_repair_tasks_with_policy_lineage="
+                f"{exact_semantic_lean_repair_tasks_with_policy_lineage} "
+                "lean_repair_results="
+                f"{exact_semantic_lean_repair_results} "
+                "lean_repair_results_with_policy_lineage="
+                f"{exact_semantic_lean_repair_results_with_policy_lineage} "
+                "lean_repair_authoring_tasks_with_policy_lineage="
+                f"{exact_semantic_lean_repair_authoring_tasks_with_policy_lineage} "
+                "lean_repair_typechecked_packets="
+                f"{exact_semantic_lean_repair_typechecked_review_packets} "
+                "lean_repair_typechecked_packets_with_policy_lineage="
+                f"{exact_semantic_lean_repair_typechecked_packets_with_policy_lineage}"
+            ),
+            (
+                "active exact semantic-definition handoffs produced lookup, "
+                "bridge, or Lean-repair rows without manifest-level placeholder "
+                "policy lineage; downstream workers/evals cannot distinguish "
+                "domain policy from generic placeholder handling"
             ),
         ),
         _scorecard_row(

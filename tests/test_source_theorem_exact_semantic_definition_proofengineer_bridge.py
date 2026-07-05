@@ -431,6 +431,8 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
         "target_theorem_name": "split_conformal_coverage",
         "target_ids": ["split_conformal_coverage"],
         "placeholder_symbol": "covered",
+        "placeholder_policy_id": "split_conformal_coverage.covered",
+        "placeholder_policy_scope": "split_conformal_coverage",
         "definition_only_candidate_artifact_path": (
             "runs/candidate_artifacts/covered_defs_only.lean"
         ),
@@ -516,6 +518,11 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     )
     assert manifest["n_review_typechecked_candidate_packets_llm_approved"] == 1
     assert manifest["n_lean_review_typechecked_candidate_tasks"] == 1
+    assert manifest["n_review_packets_with_placeholder_policy_lineage"] == 1
+    assert manifest["n_repair_packets_with_placeholder_policy_lineage"] == 1
+    assert manifest["n_lean_repair_tasks_with_placeholder_policy_lineage"] == 1
+    assert manifest["n_runtime_learning_rows_with_placeholder_policy_lineage"] == 1
+    assert manifest["placeholder_policy_lineage_complete"] is True
     packets = [
         json.loads(line)
         for line in Path(manifest["repair_packets_jsonl"]).read_text().splitlines()

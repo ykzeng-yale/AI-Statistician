@@ -202,6 +202,26 @@ def run_source_theorem_exact_semantic_definition_source_lookup(
             definition_closure_review_packets
         ),
         "n_runtime_learning_rows": len(learning_rows),
+        "n_lookup_rows_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(lookup_rows)
+        ),
+        "n_definition_closure_work_orders_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(definition_closure_work_orders)
+        ),
+        "n_definition_closure_review_packets_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(definition_closure_review_packets)
+        ),
+        "n_runtime_learning_rows_with_placeholder_policy_lineage": (
+            _count_placeholder_policy_lineage(learning_rows)
+        ),
+        "placeholder_policy_lineage_complete": (
+            _placeholder_policy_lineage_complete(
+                lookup_rows,
+                definition_closure_work_orders,
+                definition_closure_review_packets,
+                learning_rows,
+            )
+        ),
         "n_rows_with_source_hits": sum(
             1 for row in lookup_rows if row.get("source_lookup_hits")
         ),
@@ -4810,6 +4830,27 @@ def _count_by_key(rows: list[Mapping[str, Any]], key: str) -> dict[str, int]:
         value = str(row.get(key, "") or "")
         counts[value] = counts.get(value, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _has_placeholder_policy_lineage(row: Mapping[str, Any]) -> bool:
+    return bool(
+        str(row.get("placeholder_policy_id", "") or "").strip()
+        and str(row.get("placeholder_policy_scope", "") or "").strip()
+    )
+
+
+def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
+    return sum(1 for row in rows if _has_placeholder_policy_lineage(row))
+
+
+def _placeholder_policy_lineage_complete(
+    *row_groups: Sequence[Mapping[str, Any]],
+) -> bool:
+    for rows in row_groups:
+        for row in rows:
+            if not _has_placeholder_policy_lineage(row):
+                return False
+    return True
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
