@@ -49998,6 +49998,231 @@ def test_capability_eval_auto_runs_exact_semantic_source_lookup_for_work_orders(
     ]["passed"] is True
 
 
+def test_runtime_exact_semantic_bridge_effective_requires_lookup_manifest_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "work_order_id": "source_theorem_exact_semantic_definition_work_order:orderStat",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "orderStat",
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    bridge_calls: list[dict[str, object]] = []
+
+    def fake_semantic_work_order_rows(_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [dict(fake_work_order)]
+
+    def fake_lookup(
+        *,
+        out_dir: Path,
+        queue_jsonl: Path | None = None,
+        runtime_dir: Path | None = None,
+        source_roots: list[Path] | None = None,
+        max_hits_per_work_order: int = 8,
+    ) -> dict[str, object]:
+        del queue_jsonl, runtime_dir, source_roots, max_hits_per_work_order
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "schema_version": 1,
+            "manifest_path": str(out_dir / "missing_lookup_manifest.json"),
+            "n_runtime_learning_rows": 0,
+            "n_source_lookup_hits": 0,
+            "n_definition_closure_review_packets": 1,
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+
+    def fake_bridge(**kwargs: object) -> dict[str, object]:
+        bridge_calls.append(dict(kwargs))
+        raise AssertionError("bridge should not run without a lookup manifest path")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
+        fake_semantic_work_order_rows,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_source_lookup",
+        fake_lookup,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_proofengineer_bridge",
+        fake_bridge,
+    )
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=developer,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260528,
+            max_iterations=2,
+            source_theorem_exact_semantic_definition_source_lookup=True,
+            source_theorem_exact_semantic_definition_proofengineer_bridge=True,
+        ),
+    )
+
+    assert bridge_calls == []
+    assert (
+        manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_requested"]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_effective"]
+        is False
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_ran"]
+        is False
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason"
+        ]
+        == "lookup_manifest_missing"
+    )
+
+
+def test_runtime_exact_semantic_lean_repair_effective_requires_bridge_manifest_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "work_order_id": "source_theorem_exact_semantic_definition_work_order:orderStat",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "orderStat",
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    executor_calls: list[dict[str, object]] = []
+
+    def fake_semantic_work_order_rows(_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [dict(fake_work_order)]
+
+    def fake_lookup(
+        *,
+        out_dir: Path,
+        queue_jsonl: Path | None = None,
+        runtime_dir: Path | None = None,
+        source_roots: list[Path] | None = None,
+        max_hits_per_work_order: int = 8,
+    ) -> dict[str, object]:
+        del queue_jsonl, runtime_dir, source_roots, max_hits_per_work_order
+        out_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_source_lookup_manifest.json"
+        )
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "n_runtime_learning_rows": 0,
+            "n_source_lookup_hits": 0,
+            "n_definition_closure_review_packets": 1,
+            "proof_evidence_status": "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE",
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        return manifest
+
+    def fake_bridge(**kwargs: object) -> dict[str, object]:
+        out_dir = Path(str(kwargs["out_dir"]))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "schema_version": 1,
+            "manifest_path": str(out_dir / "missing_bridge_manifest.json"),
+            "n_repair_packets": 1,
+            "n_lean_repair_tasks": 1,
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_PROOFENGINEER_BRIDGE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+
+    def fake_executor(**kwargs: object) -> dict[str, object]:
+        executor_calls.append(dict(kwargs))
+        raise AssertionError("executor should not run without a bridge manifest path")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
+        fake_semantic_work_order_rows,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_source_lookup",
+        fake_lookup,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_proofengineer_bridge",
+        fake_bridge,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_lean_repair_executor",
+        fake_executor,
+    )
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=developer,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260528,
+            max_iterations=2,
+            source_theorem_exact_semantic_definition_source_lookup=True,
+            source_theorem_exact_semantic_definition_proofengineer_bridge=True,
+            source_theorem_exact_semantic_definition_lean_repair_executor=True,
+        ),
+    )
+
+    assert executor_calls == []
+    assert (
+        manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_effective"]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_ran"]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_lean_repair_executor_requested"]
+        is True
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_lean_repair_executor_effective"]
+        is False
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_lean_repair_executor_ran"]
+        is False
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_skipped_reason"
+        ]
+        == "bridge_manifest_missing"
+    )
+
+
 def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_learning_rows(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -75882,6 +76107,8 @@ def test_runtime_capability_scorecard_accepts_materialized_exact_semantic_lean_f
         "n_runtime_traces": 6,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 2,
         "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 2,
