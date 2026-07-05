@@ -39,6 +39,7 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     draft_definition: str = ""
     draft_definition_semantic_risk: str = "draft definition requires semantic review"
     source_lookup_search_terms: tuple[str, ...] = ()
+    source_lookup_aliases: tuple[str, ...] = ()
     definition_contract: Mapping[str, Any] = field(default_factory=dict)
     candidate_risk_rules: tuple[
         ExactSemanticDefinitionCandidateRiskRule,
@@ -75,6 +76,7 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
         ),
         required_anchor_names=("P", "s"),
         source_lookup_search_terms=("exchangeability", "exchangeab"),
+        source_lookup_aliases=("exchangeable", "exchangeability"),
         definition_contract={
             "semantic_intent": (
                 "finite calibration/test score family has a permutation-invariant "
@@ -146,6 +148,7 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
             "containment and bad-rank probability premises."
         ),
         required_anchor_names=("n2", "s", "q_hat", "hq"),
+        source_lookup_aliases=("rank", "rank_uniformity"),
     ),
     ExactSemanticDefinitionPlaceholderPolicy(
         policy_id="split_conformal_coverage.order_statistic_threshold",
@@ -190,6 +193,7 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
             "parameter for orderStat"
         ),
         source_lookup_search_terms=("orderStatistic", "order statistic", "quantile"),
+        source_lookup_aliases=("orderStat", "orderStatistic", "quantile"),
         definition_contract={
             "semantic_intent": (
                 "finite order statistic / conformal quantile of calibration scores "
@@ -264,6 +268,7 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
         ),
         required_anchor_names=("n2", "alpha", "halpha", "s", "q_hat", "hq"),
         required_adapter_object_names=("rank",),
+        source_lookup_aliases=("BadRanks", "bad ranks", "bad-rank"),
     ),
     ExactSemanticDefinitionPlaceholderPolicy(
         policy_id="split_conformal_coverage.alpha",
@@ -274,6 +279,8 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
             "miscoverage level alpha and rank-uniformity/exchangeability anchor hexch."
         ),
         required_anchor_names=("P", "n2", "alpha", "s", "hexch"),
+        source_lookup_search_terms=("alpha", "\u03b1", "miscoverage"),
+        source_lookup_aliases=("alpha", "\u03b1"),
     ),
     ExactSemanticDefinitionPlaceholderPolicy(
         policy_id="split_conformal_coverage.alpha_total",
@@ -285,6 +292,19 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
         ),
         required_anchor_names=("n2", "alpha", "halpha"),
         required_adapter_object_names=("BadRanks",),
+        source_lookup_search_terms=(
+            "alpha_total",
+            "\u03b1_total",
+            "alpha",
+            "bad-rank budget",
+        ),
+        source_lookup_aliases=(
+            "alpha_total",
+            "\u03b1_total",
+            "alphatotal",
+            "alpha",
+            "\u03b1",
+        ),
     ),
 )
 
@@ -374,6 +394,19 @@ def exact_semantic_definition_source_lookup_terms(
 ) -> tuple[str, ...]:
     policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
     return policy.source_lookup_search_terms
+
+
+def exact_semantic_definition_source_lookup_aliases(
+    placeholder_symbol: str,
+) -> tuple[str, ...]:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    aliases = [
+        str(placeholder_symbol or "").strip(),
+        policy.placeholder_key,
+        *policy.source_lookup_search_terms,
+        *policy.source_lookup_aliases,
+    ]
+    return tuple(dict.fromkeys(alias for alias in aliases if alias))
 
 
 def exact_semantic_definition_contract(placeholder_symbol: str) -> dict[str, Any]:

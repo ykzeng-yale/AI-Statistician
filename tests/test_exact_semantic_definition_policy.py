@@ -8,6 +8,7 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
 
@@ -127,6 +128,11 @@ def test_placeholder_policy_owns_draft_definitions_and_search_aliases() -> None:
         "orderStatistic",
         "order statistic",
         "quantile",
+    )
+    assert "alpha" in exact_semantic_definition_source_lookup_terms("\u03b1_total")
+    assert "alpha" in exact_semantic_definition_source_lookup_aliases("\u03b1_total")
+    assert "alphatotal" in exact_semantic_definition_source_lookup_aliases(
+        "\u03b1_total"
     )
     order_stat_contract = exact_semantic_definition_contract("orderStat")
     assert "conformal quantile" in order_stat_contract["semantic_intent"]

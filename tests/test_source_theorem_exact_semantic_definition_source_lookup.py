@@ -229,6 +229,7 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
     assert closure_rows[0]["artifact_kind"] == (
         "RuntimeSourceTheoremExactSemanticDefinitionClosureWorkOrder"
     )
+
     assert closure_rows[0]["next_step_kind"] == (
         "REVIEW_IMPORT_CANDIDATE_SOURCE_DECLARATION"
     )
@@ -340,6 +341,39 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
         and repair["definition_only_candidate_artifact_path"]
         == "runs/candidate_artifacts/defs_only.lean"
         for repair in repairs
+    )
+
+
+def test_exact_semantic_definition_source_lookup_uses_policy_aliases(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    (source_root / "AlphaBudget.lean").write_text(
+        "def alphaBudget (BadRanks : Nat) (alpha : Nat) := alpha + BadRanks\n",
+        encoding="utf-8",
+    )
+    _write_work_order(queue, placeholder_symbol="\u03b1_total")
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    row = lookup_rows[0]
+
+    assert row["placeholder_policy_id"] == "split_conformal_coverage.alpha_total"
+    assert "alpha" in row["search_terms"]
+    assert row["lookup_status"] == "CANDIDATE_SOURCE_DECLARATIONS_FOUND"
+    assert row["candidate_source_declarations"][0]["match_term"] == "alpha"
+    assert row["candidate_source_declarations"][0]["source_lookup_rank_reason"] == (
+        "declaration_name_matches_placeholder_policy_alias"
     )
 
 

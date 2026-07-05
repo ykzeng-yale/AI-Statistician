@@ -15,6 +15,7 @@ from .exact_semantic_definition_policy import (
     exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
 from .fingerprint import stable_hash
@@ -4323,6 +4324,7 @@ def _source_lookup_hits(
             "source_lookup_rank_reason": _source_lookup_rank_reason(
                 hit=hit,
                 normalized_terms=normalized_terms,
+                work_order=work_order,
             ),
             **_source_lookup_semantic_import_review(
                 hit=hit,
@@ -4468,6 +4470,7 @@ def _source_lookup_rank_reason(
     *,
     hit: Mapping[str, Any],
     normalized_terms: list[str],
+    work_order: Mapping[str, Any] | None = None,
 ) -> str:
     candidate_kind = str(hit.get("candidate_kind", "") or "")
     match_term = str(hit.get("match_term", "") or "")
@@ -4478,6 +4481,13 @@ def _source_lookup_rank_reason(
     declaration_name_normalized = _compact_identifier(declaration_name)
     if candidate_kind == "lean_declaration" and primary_normalized in declaration_name_normalized:
         return "declaration_name_matches_primary_placeholder"
+    if candidate_kind == "lean_declaration":
+        exact_aliases = _source_lookup_exact_aliases(
+            work_order=work_order,
+            normalized_terms=normalized_terms,
+        )
+        if any(alias and alias in declaration_name_normalized for alias in exact_aliases):
+            return "declaration_name_matches_placeholder_policy_alias"
     if context_score > 0:
         return (
             f"contextual_{candidate_kind}_match_term={match_term}"
@@ -4565,6 +4575,10 @@ def _source_lookup_exact_aliases(
         compact = _compact_identifier(text)
         if len(compact) >= 4:
             aliases.add(compact)
+        for alias in exact_semantic_definition_source_lookup_aliases(text):
+            compact_alias = _compact_identifier(alias)
+            if len(compact_alias) >= 4:
+                aliases.add(compact_alias)
     return aliases
 
 
@@ -4628,8 +4642,13 @@ def _source_lookup_primary_aliases(primary: str) -> set[str]:
     compact = _compact_identifier(stripped)
     if compact:
         aliases.add(compact)
-    if stripped in {"α", "α_total", "alpha_total"}:
-        aliases.add("alpha")
+    for alias in exact_semantic_definition_source_lookup_aliases(primary):
+        alias_text = str(alias or "").lower().strip()
+        if alias_text:
+            aliases.add(alias_text)
+        compact_alias = _compact_identifier(alias_text)
+        if compact_alias:
+            aliases.add(compact_alias)
     return aliases
 
 
