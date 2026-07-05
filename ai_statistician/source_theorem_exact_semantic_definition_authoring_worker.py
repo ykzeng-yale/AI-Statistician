@@ -4114,6 +4114,7 @@ def _learning_row_from_prompt_packet(
             "semantic_alignment_blockers": list(
                 packet.get("semantic_alignment_blockers", []) or []
             ),
+            **_exact_semantic_definition_context(packet),
         },
         "target_behavior": (
             "obtain an exact semantic-definition candidate from a generator-only "
@@ -4211,6 +4212,10 @@ def _external_export_review_packet(
                 or prompt_packet.get("exact_source_theorem_binders")
             ),
         },
+        **_exact_semantic_definition_context_for_prompt(
+            prompt_packet,
+            export_mode=export_mode,
+        ),
         "required_operator_action": (
             "Approve external export for this specific authoring task or rerun "
             "with a local/static provider. Approval affects LLM proposal "
@@ -4244,12 +4249,14 @@ def _learning_row_from_external_export_review_packet(
             packet.get("external_export_review_packet_id", "") or ""
         ),
         "runtime_queue_status": "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED",
+        **_exact_semantic_definition_context(packet),
         "input_summary": {
             "trigger": "EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED",
             "provider_name": str(packet.get("provider_name", "") or ""),
             "export_payload_summary": dict(
                 packet.get("export_payload_summary", {}) or {}
             ),
+            **_exact_semantic_definition_context(packet),
             "source_theorem_kernel_verified": False,
             "semantic_definition_kernel_verified": False,
         },
@@ -4346,6 +4353,7 @@ def _learning_row_from_candidate_packet(packet: Mapping[str, Any]) -> dict[str, 
                 packet.get("pseudo_formalization_required", False)
                 or packet.get("requires_pseudo_formalization", False)
             ),
+            **_exact_semantic_definition_context(packet),
         },
         "target_behavior": (
             "materialize the proposed Lean definition into a definition-only "
@@ -4795,6 +4803,7 @@ def _learning_row_from_materialization_row(row: Mapping[str, Any]) -> dict[str, 
             "source_theorem_kernel_verified": False,
             "source_theorem_ready_for_exact_proof_body": False,
             "validation_errors": list(row.get("validation_errors", []) or []),
+            **_exact_semantic_definition_context(row),
         },
         "target_behavior": (
             "run the exact semantic-definition Lean repair executor with local "

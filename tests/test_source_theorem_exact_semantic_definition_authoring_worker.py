@@ -422,6 +422,17 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     assert learning_rows[0]["input_summary"][
         "source_to_bridge_grouped_premise_derivation_candidate_request_id"
     ] == "source_to_bridge_grouped_premise_derivation_candidate_request:covered"
+    assert learning_rows[0]["semantic_primitive_requirements"] == ["covered"]
+    assert learning_rows[0]["input_summary"]["semantic_primitive_requirements"] == [
+        "covered"
+    ]
+    assert learning_rows[0]["source_anchors"][0]["id"] == "pf:block:covered"
+    assert learning_rows[0]["input_summary"]["source_anchors"][0]["id"] == (
+        "pf:block:covered"
+    )
+    assert learning_rows[0]["input_summary"][
+        "source_pseudo_formal_work_order_id"
+    ] == "pseudo_formal_work_order:covered"
     assert learning_rows[0]["proof_evidence_status"] == (
         AUTHORING_WORKER_PROOF_EVIDENCE_STATUS
     )
@@ -1305,10 +1316,37 @@ def test_authoring_worker_redacted_external_export_removes_paths_and_snippets(
     review_summary = review_packets[0]["export_payload_summary"]
     assert review_packets[0]["external_export_mode"] == "redacted"
     assert review_packets[0]["export_redaction_applied"] is True
+    assert review_packets[0]["semantic_primitive_requirements"] == ["covered"]
+    assert review_packets[0]["source_anchors"] == [
+        {
+            "anchor_index": 0,
+            "kind": "pseudo_formal_block",
+            "id": "pf:block:covered",
+            "excerpt_redacted": True,
+            "excerpt_chars": len("coverage event is grounded by q_hat and hC"),
+        }
+    ]
     assert review_summary["contains_local_paths"] is False
     assert review_summary["contains_lean_source_snippets"] is False
     assert review_summary["source_reference_paths"] == [""]
     assert review_summary["source_reference_redaction_summary"]["paths_redacted"] == 1
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    export_learning = next(
+        row
+        for row in learning_rows
+        if row["learning_task"]
+        == "source_theorem_exact_semantic_definition_external_llm_export_review"
+    )
+    assert export_learning["semantic_primitive_requirements"] == ["covered"]
+    assert export_learning["input_summary"]["semantic_primitive_requirements"] == [
+        "covered"
+    ]
+    assert export_learning["input_summary"]["source_anchors"][0]["id"] == (
+        "pf:block:covered"
+    )
 
 
 def test_authoring_worker_external_export_approval_manifest_allows_exact_task(
@@ -1524,6 +1562,14 @@ def test_authoring_worker_static_candidate_preserves_kernel_boundary(
     ] == "local_lean_failed_unclassified"
     assert candidate_learning["input_summary"]["local_definition_lean_checked"] is False
     assert candidate_learning["input_summary"]["source_theorem_kernel_verified"] is False
+    assert candidate["semantic_primitive_requirements"] == ["covered"]
+    assert candidate_learning["semantic_primitive_requirements"] == ["covered"]
+    assert candidate_learning["input_summary"]["semantic_primitive_requirements"] == [
+        "covered"
+    ]
+    assert candidate_learning["input_summary"]["source_anchors"][0]["id"] == (
+        "pf:block:covered"
+    )
 
 
 def test_authoring_worker_rejects_forbidden_shortcut_candidate(
@@ -1936,6 +1982,8 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
     assert rows[0]["candidate_repair_feedback"]["failure_classification"] == (
         "local_lean_failed_unclassified"
     )
+    assert rows[0]["semantic_primitive_requirements"] == ["covered"]
+    assert rows[0]["source_anchors"][0]["id"] == "pf:block:covered"
     definition_path = Path(rows[0]["definition_only_candidate_artifact_path"])
     assert definition_path.exists()
     definition_text = definition_path.read_text()
@@ -1976,6 +2024,8 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
     assert repair_tasks[0]["candidate_repair_feedback"][
         "failure_classification"
     ] == "local_lean_failed_unclassified"
+    assert repair_tasks[0]["semantic_primitive_requirements"] == ["covered"]
+    assert repair_tasks[0]["source_anchors"][0]["id"] == "pf:block:covered"
     assert repair_tasks[0]["runtime_queue_status"] == (
         "PENDING_EXACT_SEMANTIC_DEFINITION_MATERIALIZED_LOCAL_LEAN_CHECK"
     )
@@ -1988,6 +2038,21 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
         definition_path
     )
     assert repair_tasks[0]["source_theorem_kernel_verified"] is False
+    materialization_learning_rows = [
+        json.loads(line)
+        for line in Path(
+            materializer_manifest["runtime_learning_rows_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert materialization_learning_rows[0]["semantic_primitive_requirements"] == [
+        "covered"
+    ]
+    assert materialization_learning_rows[0]["input_summary"][
+        "semantic_primitive_requirements"
+    ] == ["covered"]
+    assert materialization_learning_rows[0]["input_summary"]["source_anchors"][0][
+        "id"
+    ] == "pf:block:covered"
 
     repair_manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
         out_dir=tmp_path / "repair_executor",
