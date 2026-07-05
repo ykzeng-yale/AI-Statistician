@@ -5159,6 +5159,24 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_pseudo_formal_block_verifier_component_gate_provider": "",
                 "research_agent_runtime_pseudo_formal_block_verifier_component_gate_backend_provider": "",
                 "research_agent_runtime_pseudo_formal_block_verifier_component_gate_manifest_path": "",
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran": False,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested": False,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran": False,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": False,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_proof_body_result_row_count": 0,
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 0,
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": 0,
+                "research_agent_runtime_source_theorem_kernel_verified_count": 0,
                 "research_agent_runtime_formal_gap_planner_handoff_rows": 0,
                 "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 0,
                 "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete": True,
@@ -5259,6 +5277,10 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "standalone S11c evidence does not substitute",
+            " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
+        )
+        self.assertIn(
+            "exact source-theorem proof-body executor",
             " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
         )
         self.assertEqual(
@@ -5507,6 +5529,18 @@ class SystemTests(unittest.TestCase):
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
                 "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete"
             ]
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_effective_result_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_source_theorem_effective_kernel_verified"
+            ],
+            0,
         )
         required_missing_payload = json.loads(json.dumps(payload))
         required_missing_payload["counts"].update(
@@ -5831,6 +5865,15 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": True,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran": True,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 1,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": 0,
+                "research_agent_runtime_source_theorem_kernel_verified_count": 0,
             }
         )
         semantic_bridge_ok_guidance = build_evaluation_benchmark_guidance(
@@ -5925,6 +5968,39 @@ class SystemTests(unittest.TestCase):
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
             ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_effective_result_rows"
+            ],
+            1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_effective_local_lean_checked"
+            ],
+            1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_effective_goal_reached"
+            ],
+            1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_effective_kernel_verified"
+            ],
+            0,
+        )
+        self.assertIn(
+            "source-theorem proof-body executor",
+            semantic_bridge_ok_s13["honesty_boundary"],
         )
         exact_lookup_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         exact_lookup_missing_payload["counts"][
@@ -6264,6 +6340,7 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn("post-runtime exact semantic candidates", s13_action["success_metric"])
         self.assertIn("n_live_llm_attempted>0 when required", s13_action["success_metric"])
+        self.assertIn("exact source-theorem proof-body executor", s13_action["success_metric"])
         self.assertIn("PF+BV row-kind/effective-vs-diagnostic", s13_action["success_metric"])
         self.assertIn("Formalizer PF/BV packet-emission", s13_action["success_metric"])
         self.assertIn("source-semantic ProofEngineer bridge", s13_action["success_metric"])

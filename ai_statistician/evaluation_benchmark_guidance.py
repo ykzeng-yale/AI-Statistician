@@ -207,6 +207,24 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_semantic_proofengineer_bridge_requested",
                         "research_agent_runtime_source_semantic_proofengineer_bridge_ran",
                         "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status",
+                        "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran",
+                        "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested",
+                        "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows",
+                        "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+                        "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
+                        "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
+                        "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+                        "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+                        "research_agent_runtime_source_theorem_proof_body_result_row_count",
+                        "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count",
+                        "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
+                        "research_agent_runtime_source_theorem_kernel_verified_count",
                         "research_agent_runtime_formal_gap_planner_handoff_rows",
                         "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context",
                         "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete",
@@ -725,6 +743,119 @@ def _suite_rows(
         runtime_pf_exact_semantic_work_orders <= 0
         or runtime_pf_exact_semantic_source_lookup_consumed
     )
+    runtime_source_theorem_formal_environment_proof_body_executor_ran = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran"
+        )
+    )
+    runtime_source_theorem_formal_environment_proof_body_local_lean_requested = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+        )
+    )
+    runtime_source_theorem_formal_environment_proof_body_result_rows = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows"
+        )
+    )
+    runtime_source_theorem_formal_environment_proof_body_local_lean_checked = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+        )
+    )
+    runtime_source_theorem_formal_environment_proof_body_kernel_verified = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_executor_ran = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran"
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_result_rows = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows"
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_local_lean_checked = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked"
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_goal_reached = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached"
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_goal_reached_with_semantic_blockers = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers"
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_kernel_verified = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
+        )
+    )
+    runtime_source_theorem_approved_proof_body_recheck_executor_ran = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran"
+        )
+    )
+    runtime_source_theorem_approved_proof_body_recheck_result_rows = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+        )
+    )
+    runtime_source_theorem_approved_proof_body_recheck_kernel_verified = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+        )
+    )
+    runtime_source_theorem_proof_body_result_rows = max(
+        runtime_source_theorem_formal_environment_proof_body_result_rows,
+        runtime_source_theorem_exact_proof_body_repair_result_rows,
+        runtime_source_theorem_approved_proof_body_recheck_result_rows,
+        _int(counts.get("research_agent_runtime_source_theorem_proof_body_result_row_count")),
+    )
+    runtime_source_theorem_proof_body_local_lean_checked = max(
+        runtime_source_theorem_formal_environment_proof_body_local_lean_checked,
+        runtime_source_theorem_exact_proof_body_repair_local_lean_checked,
+    )
+    runtime_source_theorem_proof_body_goal_reached = max(
+        runtime_source_theorem_exact_proof_body_repair_goal_reached,
+        _int(
+            counts.get(
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count"
+            )
+        ),
+    )
+    runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers = max(
+        runtime_source_theorem_exact_proof_body_repair_goal_reached_with_semantic_blockers,
+        _int(
+            counts.get(
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers"
+            )
+        ),
+    )
+    runtime_source_theorem_kernel_verified = max(
+        runtime_source_theorem_formal_environment_proof_body_kernel_verified,
+        runtime_source_theorem_exact_proof_body_repair_kernel_verified,
+        runtime_source_theorem_approved_proof_body_recheck_kernel_verified,
+        _int(counts.get("research_agent_runtime_source_theorem_kernel_verified_count")),
+    )
+    runtime_source_theorem_proof_body_executor_ran = bool(
+        runtime_source_theorem_formal_environment_proof_body_executor_ran
+        or runtime_source_theorem_exact_proof_body_repair_executor_ran
+        or runtime_source_theorem_approved_proof_body_recheck_executor_ran
+        or runtime_source_theorem_proof_body_result_rows > 0
+    )
+    runtime_source_theorem_proof_body_local_lean_gate_ok = (
+        runtime_source_theorem_proof_body_result_rows <= 0
+        or runtime_source_theorem_proof_body_local_lean_checked > 0
+        or runtime_source_theorem_kernel_verified > 0
+    )
     runtime_formal_gap_planner_handoff_rows = _int(
         counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
     )
@@ -984,6 +1115,14 @@ def _suite_rows(
     if not runtime_formalizer_pf_packet_component_ok:
         s13_issues.append(
             "integrated AgentRuntime has not attached live Formalizer PF/BV packet-emission evidence with source-anchored pseudo-formal packets, exact-semantic-definition lane routing, nonzero routable work-order rows, no raw model output leakage, and a preserved non-proof boundary; standalone S11c evidence does not substitute for in-loop calibration"
+        )
+    if not runtime_source_theorem_proof_body_executor_ran:
+        s13_issues.append(
+            "integrated AgentRuntime has not run an exact source-theorem proof-body executor after exact semantic-definition/source lookup work; Formalizer local Lean feedback is still calibration unless a proof-body worker attempts the source theorem boundary in-loop"
+        )
+    elif not runtime_source_theorem_proof_body_local_lean_gate_ok:
+        s13_issues.append(
+            "exact source-theorem proof-body executor result rows exist, but no local Lean/AXLE check or source-theorem kernel verification is visible; proof-body rows must stay non-proof feedback until the verifier boundary is exercised"
         )
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -1607,6 +1746,8 @@ def _suite_rows(
                 and runtime_gap_routing_retention_ok
                 and runtime_gap_routing_retention_selection_ok
                 and runtime_deferred_meta_gaps_ok
+                and runtime_source_theorem_proof_body_executor_ran
+                and runtime_source_theorem_proof_body_local_lean_gate_ok
             )
             else "CAPACITY_GAP",
             evidence_paths=(
@@ -1960,6 +2101,66 @@ def _suite_rows(
                 "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status": counts.get(
                     "research_agent_runtime_source_semantic_proofengineer_bridge_proof_evidence_status"
                 ),
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran": counts.get(
+                    "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran"
+                ),
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested": counts.get(
+                    "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+                ),
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": counts.get(
+                    "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows"
+                ),
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": counts.get(
+                    "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+                ),
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": counts.get(
+                    "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
+                ),
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran": counts.get(
+                    "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran"
+                ),
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": counts.get(
+                    "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
+                ),
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": counts.get(
+                    "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_result_row_count": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_result_row_count"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers"
+                ),
+                "research_agent_runtime_source_theorem_kernel_verified_count": counts.get(
+                    "research_agent_runtime_source_theorem_kernel_verified_count"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_effective_result_rows": runtime_source_theorem_proof_body_result_rows,
+                "research_agent_runtime_source_theorem_proof_body_effective_local_lean_requested": runtime_source_theorem_formal_environment_proof_body_local_lean_requested,
+                "research_agent_runtime_source_theorem_proof_body_effective_local_lean_checked": runtime_source_theorem_proof_body_local_lean_checked,
+                "research_agent_runtime_source_theorem_proof_body_effective_goal_reached": runtime_source_theorem_proof_body_goal_reached,
+                "research_agent_runtime_source_theorem_proof_body_effective_goal_reached_with_semantic_blockers": runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers,
+                "research_agent_runtime_source_theorem_effective_kernel_verified": runtime_source_theorem_kernel_verified,
                 "research_agent_runtime_formal_gap_planner_handoff_rows": counts.get(
                     "research_agent_runtime_formal_gap_planner_handoff_rows"
                 ),
@@ -2006,7 +2207,10 @@ def _suite_rows(
                 "evidence. Post-runtime exact semantic-definition attachments "
                 "are lineage-checked live handoff and local Lean diagnostic "
                 "evidence only; local Lean failure is a repair signal, not "
-                "source theorem proof."
+                "source theorem proof. Exact source-theorem proof-body executor "
+                "rows are proof-search feedback until local Lean/AXLE checks them, "
+                "and only source-theorem kernel verification closes the proof "
+                "claim."
             ),
             issues=tuple(s13_issues),
         ),
@@ -2088,7 +2292,7 @@ def _top_actions(
             "owner_suite": "S13_live_integrated_agent_runtime_capability",
             "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission calibration, attached PF/BV BlockVerifier calibration, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
             "why": "S10/S11/S11c/S11b/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
-            "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission evidence with capability_evidence_ok=true, pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, nonproof_boundary_preserved=true, and raw_model_output_written=false, attached internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, and runtime_learning_rows>0 from a live backend, zero unresolved AgentRuntime/Architect deferred meta capability gaps with owner/requirement telemetry if any are detected, architect_deferred_meta_capability_gaps_resolved priority-pinned in capability-gap replay whenever such a gap remains open, aggregate primary/retry/late/post-runtime exact semantic-definition authoring n_live_llm_attempted>0 when required, post-runtime exact semantic candidates materialized and locally Lean-checked with repair state exposed, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, PF+BV row-kind/effective-vs-diagnostic split/method-lineage/non-proof contract complete for any pseudo-formal routing rows, source-semantic ProofEngineer bridge consumption for pseudo-formal semantic primitive work orders with semantic-support/not-source-theorem-proof status, FormalizationGapPlanner executable handoff context plus live route-planner target-prover route-revision followthrough, and priority_pinned_latest_rows retention plus row-level retention_selection whenever capability-gap routing input is truncated.",
+            "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission evidence with capability_evidence_ok=true, pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, nonproof_boundary_preserved=true, and raw_model_output_written=false, attached internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, and runtime_learning_rows>0 from a live backend, zero unresolved AgentRuntime/Architect deferred meta capability gaps with owner/requirement telemetry if any are detected, architect_deferred_meta_capability_gaps_resolved priority-pinned in capability-gap replay whenever such a gap remains open, aggregate primary/retry/late/post-runtime exact semantic-definition authoring n_live_llm_attempted>0 when required, post-runtime exact semantic candidates materialized and locally Lean-checked with repair state exposed, exact source-theorem proof-body executor evidence with result rows plus local Lean/AXLE feedback or source-theorem kernel verification, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, PF+BV row-kind/effective-vs-diagnostic split/method-lineage/non-proof contract complete for any pseudo-formal routing rows, source-semantic ProofEngineer bridge consumption for pseudo-formal semantic primitive work orders with semantic-support/not-source-theorem-proof status, FormalizationGapPlanner executable handoff context plus live route-planner target-prover route-revision followthrough, and priority_pinned_latest_rows retention plus row-level retention_selection whenever capability-gap routing input is truncated.",
         }
         if s13_followup_commands:
             s13_action["recommended_commands"] = s13_followup_commands
