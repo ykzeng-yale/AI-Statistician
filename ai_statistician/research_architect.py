@@ -592,8 +592,19 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
     formal_subclaims = list(feedback.get("formal_subclaim_feedback", []) or [])
     failed_simulations = list(feedback.get("failed_simulations", []) or [])
     implementation_gaps = list(feedback.get("implementation_gaps", []) or [])
-    return {
+    compact = {
         "feedback_source": feedback.get("feedback_source", ""),
+        "feedback_type": feedback.get("feedback_type", ""),
+        "trigger": feedback.get("trigger", ""),
+        "failure_classification": feedback.get("failure_classification", ""),
+        "failure_classifications": _compact_learning_memory_value(
+            feedback.get("failure_classifications", [])
+        ),
+        "question_id": feedback.get("question_id", ""),
+        "source_task_id": feedback.get("source_task_id", ""),
+        "source_owner_subsystem": feedback.get("source_owner_subsystem", ""),
+        "source_theory_packet_id": feedback.get("source_theory_packet_id", ""),
+        "target_consumer_subsystem": feedback.get("target_consumer_subsystem", ""),
         "critic_repair_round": feedback.get("critic_repair_round", ""),
         "next_critic_repair_round": feedback.get("next_critic_repair_round", ""),
         "max_critic_repair_rounds": feedback.get("max_critic_repair_rounds", ""),
@@ -607,9 +618,34 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "formal_subclaim_feedback": [_compact_feedback_row(row) for row in formal_subclaims[:8]],
         "failed_simulations": [_compact_feedback_row(row) for row in failed_simulations[:5]],
         "implementation_gaps": [_compact_feedback_row(row) for row in implementation_gaps[:5]],
+        "required_repair": _truncate_text(feedback.get("required_repair", ""), 720),
         "required_revision": _truncate_text(feedback.get("required_revision", ""), 600),
+        "acceptance_gate": _truncate_text(feedback.get("acceptance_gate", ""), 720),
+        "proof_evidence_status": _truncate_text(
+            feedback.get("proof_evidence_status", ""), 240
+        ),
         "proof_evidence_boundary": _truncate_text(feedback.get("proof_evidence_boundary", ""), 400),
         "boundary": _truncate_text(feedback.get("boundary", ""), 400),
+    }
+    theory_alignment_feedback = feedback.get("theory_trace_downstream_alignment_feedback")
+    if isinstance(theory_alignment_feedback, Mapping) and theory_alignment_feedback:
+        compact["theory_trace_downstream_alignment_feedback"] = _compact_feedback_row(
+            theory_alignment_feedback
+        )
+    theory_alignment_contract = feedback.get("theory_trace_downstream_alignment_contract")
+    if isinstance(theory_alignment_contract, Mapping) and theory_alignment_contract:
+        compact["theory_trace_downstream_alignment_contract"] = _compact_feedback_row(
+            theory_alignment_contract
+        )
+    additional_feedback = feedback.get("additional_runtime_feedback", [])
+    if isinstance(additional_feedback, list) and additional_feedback:
+        compact["additional_runtime_feedback"] = [
+            _compact_feedback_row(row) for row in additional_feedback[:4]
+        ]
+    return {
+        key: value
+        for key, value in compact.items()
+        if value not in (None, "", [], {})
     }
 
 
@@ -632,14 +668,37 @@ def _compact_runtime_learning_memory_for_prompt(memory: Mapping[str, Any]) -> di
 def _compact_learning_memory_row(row: Any) -> dict[str, Any]:
     if not isinstance(row, Mapping):
         return {"summary": _truncate_text(row, 240)}
-    return {
+    compact = {
         "learning_task": _truncate_text(row.get("learning_task", ""), 120),
         "question_id": _truncate_text(row.get("question_id", ""), 120),
+        "work_order_id": _truncate_text(row.get("work_order_id", ""), 120),
+        "next_owner_subsystem": _truncate_text(
+            row.get("next_owner_subsystem", ""), 120
+        ),
+        "target_consumer_subsystem": _truncate_text(
+            row.get("target_consumer_subsystem", ""), 120
+        ),
+        "target_theorem_name": _truncate_text(row.get("target_theorem_name", ""), 160),
+        "failure_classification": _truncate_text(
+            row.get("failure_classification", ""), 160
+        ),
+        "failure_classifications": _compact_learning_memory_value(
+            row.get("failure_classifications", [])
+        ),
         "target_behavior": _truncate_text(row.get("target_behavior", ""), 360),
+        "required_repair": _truncate_text(row.get("required_repair", ""), 360),
         "acceptance_gate": _truncate_text(row.get("acceptance_gate", ""), 240),
+        "proof_evidence_status": _truncate_text(
+            row.get("proof_evidence_status", ""), 180
+        ),
         "input_summary": _compact_learning_memory_input_summary(
             row.get("input_summary", {})
         ),
+    }
+    return {
+        key: value
+        for key, value in compact.items()
+        if value not in (None, "", [], {})
     }
 
 
@@ -699,6 +758,25 @@ def _compact_learning_memory_input_summary(value: Any) -> dict[str, Any]:
         "proof_body_attempt_summaries",
         "formalization_counts",
         "retrieval_counts",
+        "n_theory_derivation_packets",
+        "n_theory_derivation_packets_with_contract",
+        "n_theory_derivation_packets_with_min_derivation_steps",
+        "n_theory_derivation_packets_with_equation_chain",
+        "n_theory_derivation_packets_with_assumption_ledger",
+        "n_theory_derivation_packets_with_formalization_handoff",
+        "required_theory_trace_consumers",
+        "theory_trace_consuming_subsystems",
+        "structured_theory_trace_consuming_subsystems",
+        "structured_theory_trace_aligned_subsystems",
+        "all_required_theory_trace_consumers_observed",
+        "all_required_theory_trace_alignment_consumers_observed",
+        "target_consumer_subsystem",
+        "n_theory_trace_consumption_contracts",
+        "n_theory_trace_alignment_contracts",
+        "n_theory_trace_alignment_contracts_with_llm_alignment",
+        "n_structured_theory_trace_alignment_contracts",
+        "n_theory_trace_alignment_contracts_with_unsupported_anchors",
+        "failure_classifications",
     )
     compact: dict[str, Any] = {}
     for key in keep_keys:
@@ -753,13 +831,14 @@ def _compact_feedback_row(row: Any) -> dict[str, Any]:
             compact[str(key)] = value
         elif isinstance(value, list):
             compact[str(key)] = [
-                _truncate_text(item, 240) if isinstance(item, str) else item
+                _compact_learning_memory_value(item)
                 for item in value[:8]
             ]
         elif isinstance(value, Mapping):
             compact[str(key)] = {
-                str(k): _truncate_text(v, 240) if isinstance(v, str) else v
+                str(k): _compact_learning_memory_value(v)
                 for k, v in list(value.items())[:8]
+                if v not in (None, "", [], {})
             }
     return compact
 

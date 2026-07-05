@@ -31552,6 +31552,94 @@ def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> N
     assert len(prompt) < 30000
 
 
+def test_theory_developer_prompt_preserves_theory_trace_repair_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_theory_developer_prompt(
+        question,
+        architect_context={
+            "environment_feedback": {
+                "artifact_kind": "RuntimeTheoryTraceRepairFeedback",
+                "feedback_source": "FormalizationEvaluator",
+                "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+                "failure_classification": "runtime_theory_derivation_trace_incomplete",
+                "failure_classifications": [
+                    "missing_theory_derivation_contract",
+                    "missing_equation_chain",
+                    "missing_assumption_ledger",
+                    "missing_formalization_handoff",
+                ],
+                "source_task_id": "formalize:weak-theory",
+                "source_owner_subsystem": "FormalizationEvaluator",
+                "source_theory_packet_id": "theory_derivation:legacy",
+                "target_consumer_subsystem": "FormalizerProofEngineer",
+                "required_repair": (
+                    "TheoryDeveloper must regenerate a structured "
+                    "TheoryDerivationPacket with derivation_steps, equation_chain, "
+                    "assumption_ledger, formalization_handoff, and stable anchors "
+                    "before downstream execution."
+                ),
+                "acceptance_gate": (
+                    "The repaired packet has three derivation steps, two equation "
+                    "rows, a non-empty assumption ledger, and a formalization handoff."
+                ),
+                "proof_evidence_status": (
+                    "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+                ),
+                "theory_trace_downstream_alignment_contract": {
+                    "trigger": "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
+                    "target_consumer_subsystem": "FormalizerProofEngineer",
+                    "failure_classifications": [
+                        "downstream_theory_trace_alignment_missing"
+                    ],
+                },
+            },
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "learning_task": "theory_derivation_trace_feedback",
+                        "next_owner_subsystem": "TheoryDeveloper",
+                        "work_order_id": "theory-trace-repair",
+                        "failure_classifications": [
+                            "missing_equation_chain",
+                            "missing_assumption_ledger",
+                        ],
+                        "target_behavior": (
+                            "Route back to TheoryDeveloper for a structured "
+                            "TheoryDerivationPacket."
+                        ),
+                        "input_summary": {
+                            "trigger": "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
+                            "n_theory_derivation_packets": 2,
+                            "n_theory_derivation_packets_with_contract": 0,
+                            "n_theory_derivation_packets_with_equation_chain": 0,
+                            "required_theory_trace_consumers": [
+                                "SimulationEngineer",
+                                "AlgorithmEngineer",
+                                "FormalizerProofEngineer",
+                            ],
+                        },
+                        "proof_evidence_status": (
+                            "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    assert "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE" in prompt
+    assert "missing_equation_chain" in prompt
+    assert "missing_assumption_ledger" in prompt
+    assert "missing_formalization_handoff" in prompt
+    assert "theory_derivation:legacy" in prompt
+    assert "FormalizerProofEngineer" in prompt
+    assert "structured TheoryDerivationPacket" in prompt
+    assert "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
+    assert "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
+    assert len(prompt) < 30000
+
+
 def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_algorithm_engineer_prompt(
