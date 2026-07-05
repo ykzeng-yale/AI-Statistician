@@ -7278,8 +7278,9 @@ def test_runtime_capability_gap_routing_loader_pins_exact_semantic_authoring(
                         "provider, then materialize and verify candidates"
                     ),
                     "success_metric": (
-                        "sum(primary/retry/late/post-runtime exact semantic-"
-                        "definition authoring n_live_llm_attempted)>0"
+                        "each required in-runtime primary/retry/late exact "
+                        "semantic-definition authoring channel has trusted "
+                        "n_live_llm_attempted>0"
                     ),
                     "blocker": (
                         "retry authoring tasks exist but the live authoring "
@@ -73785,8 +73786,9 @@ def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     )
     assert learning_rows[0]["next_owner_subsystem"] == "FormalizationEvaluator"
     assert (
-        "sum(primary/retry/late exact semantic-definition authoring "
-        "n_live_llm_attempted)>0"
+        "each required in-runtime primary/retry/late exact "
+        "semantic-definition authoring channel has trusted "
+        "n_live_llm_attempted>0"
         in learning_rows[0]["success_metric"]
     )
 
@@ -76230,7 +76232,9 @@ def test_runtime_evidence_truth_table_reports_live_exact_semantic_authoring_boun
     assert authoring_row["status"] == "STATIC_OR_REPLAY_ATTEMPTED"
     assert authoring_row["count"] == 1
     assert authoring_row["proof_evidence"] is False
-    assert "no live Claude/OpenAI backend attempt" in authoring_row["blocker"]
+    assert "at least one required primary/retry/late lane lacked" in authoring_row[
+        "blocker"
+    ]
     assert "backend_provider=['static']" in authoring_row["blocker"]
     assert "n_live_llm_attempted=0" in authoring_row["blocker"]
     assert "static/replay attempts" in authoring_row["boundary"]
@@ -80702,6 +80706,90 @@ def test_runtime_capability_scorecard_requires_every_required_exact_semantic_aut
     assert row["passed"] is True
     assert "verifier_ready_channels=['primary', 'retry']" in row["evidence"]
     assert "missing_candidate_verifier_channels=[]" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_requires_every_required_exact_semantic_authoring_lane_live_attempted() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_backend_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted": 0,
+    }
+
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert truth_table["exact_semantic_definition_authoring_live_attempted"] is False
+    assert truth_rows["exact_semantic_definition_authoring_live_attempt"][
+        "status"
+    ] == "PARTIAL_LIVE_LLM_ATTEMPTED"
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is False
+    assert "required_channels=['primary', 'retry']" in capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    assert "missing_live_attempt_channels=['retry']" in capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
+    live_row = scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]
+    assert live_row["passed"] is False
+    assert "live_attempted_channels=['primary']" in live_row["evidence"]
+    assert "missing_live_attempt_channels=['retry']" in live_row["evidence"]
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
+    ] = 1
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    scorecard = _runtime_capability_scorecard(payload)
+    scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert truth_table["exact_semantic_definition_authoring_live_attempted"] is True
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["passed"] is True
+    assert "missing_live_attempt_channels=[]" in scorecard_rows[
+        "exact_semantic_definition_authoring_worker_live_attempted"
+    ]["evidence"]
 
 
 def test_runtime_capability_scorecard_rejects_reported_live_exact_semantic_authoring_without_live_backend() -> None:

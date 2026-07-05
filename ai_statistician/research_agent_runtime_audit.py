@@ -17986,8 +17986,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_definition_authoring_worker_ran = bool(
         exact_semantic_definition_authoring["ran"]
     )
-    exact_semantic_definition_authoring_worker_live_llm_attempted = int(
-        exact_semantic_definition_authoring["n_live_llm_attempted"]
+    exact_semantic_definition_authoring_worker_live_ready = bool(
+        exact_semantic_definition_authoring["live_ready"]
     )
     exact_semantic_definition_authoring_candidate_verifier_ready = bool(
         exact_semantic_definition_authoring["candidate_verifier_ready"]
@@ -22977,8 +22977,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "exact_semantic_definition_authoring_worker_live_attempted",
-            (not exact_semantic_definition_authoring_worker_required)
-            or exact_semantic_definition_authoring_worker_live_llm_attempted > 0,
+            exact_semantic_definition_authoring_worker_live_ready,
             (
                 "authoring_tasks="
                 f"{exact_semantic_definition_authoring['n_tasks']} "
@@ -23013,12 +23012,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "live_attempted_channels="
                 f"{exact_semantic_definition_authoring['live_attempted_channels']} "
                 "missing_live_attempt_channels="
-                f"{exact_semantic_definition_authoring['missing_live_attempt_channels']}"
+                f"{exact_semantic_definition_authoring['missing_live_attempt_channels']} "
+                "post_runtime_live_ready="
+                f"{exact_semantic_definition_authoring['post_runtime_live_ready']}"
             ),
             (
                 "exact semantic-definition authoring tasks were only staged or "
-                "blocked, or used static/replay backend; no live LLM authoring "
-                "attempt was recorded"
+                "blocked, used static/replay backend, or were only partially "
+                "live-attempted; every required primary/retry/late lane needs "
+                "a trusted live LLM authoring attempt unless lineage-checked "
+                "post-runtime recovery is live-ready"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -23029,8 +23032,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "candidates through materialization and local Lean/AXLE."
                 ),
                 success_metric=(
-                    "sum(primary/retry/late/post-runtime exact semantic-definition authoring "
-                    "n_live_llm_attempted)>0"
+                    "each required in-runtime primary/retry/late exact "
+                    "semantic-definition authoring channel has trusted "
+                    "n_live_llm_attempted>0, or a lineage-checked post-runtime "
+                    "channel is live-ready"
                 ),
                 recommended_command=(
                     _exact_semantic_authoring_worker_recovery_command(payload) or None

@@ -1391,7 +1391,13 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         (primary_required or retry_required or late_required)
         and live_attempts > 0
     )
+    post_runtime_live_ready = "post_runtime" in live_attempted_channels
     post_runtime_verifier_ready = "post_runtime" in verifier_ready_channels
+    live_ready = (
+        not (primary_required or retry_required or late_required)
+        or post_runtime_live_ready
+        or not missing_live_attempt_channels
+    )
     candidate_verifier_ready = (
         not candidate_verifier_required
         or post_runtime_verifier_ready
@@ -1419,10 +1425,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     ]
     return {
         "required": primary_required or retry_required or late_required,
-        "live_ready": not (
-            primary_required or retry_required or late_required
-        )
-        or live_attempts > 0,
+        "live_ready": live_ready,
         "primary_required": primary_required,
         "retry_required": retry_required,
         "late_required": late_required,
@@ -1464,6 +1467,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_materialized_feedback_rows": materialized_feedback_rows,
         "candidate_verifier_ready_channels": verifier_ready_channels,
         "n_candidate_verifier_ready_channels": len(verifier_ready_channels),
+        "post_runtime_live_ready": post_runtime_live_ready,
         "post_runtime_verifier_ready": post_runtime_verifier_ready,
         "provider_names": list(dict.fromkeys(provider_names)),
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
@@ -1626,13 +1630,18 @@ def _runtime_evidence_truth_table_from_manifest(
     exact_semantic_authoring_live_attempts = int(
         exact_semantic_authoring["n_live_llm_attempted"]
     )
+    exact_semantic_authoring_live_ready = bool(
+        exact_semantic_authoring["live_ready"]
+    )
     exact_semantic_authoring_generic_attempts = int(
         exact_semantic_authoring["n_llm_attempted"]
     )
     if not exact_semantic_authoring_required:
         exact_semantic_authoring_status = "NOT_REQUIRED"
-    elif exact_semantic_authoring_live_attempts > 0:
+    elif exact_semantic_authoring_live_ready:
         exact_semantic_authoring_status = "LIVE_LLM_ATTEMPTED"
+    elif exact_semantic_authoring_live_attempts > 0:
+        exact_semantic_authoring_status = "PARTIAL_LIVE_LLM_ATTEMPTED"
     elif exact_semantic_authoring_generic_attempts > 0:
         exact_semantic_authoring_status = "STATIC_OR_REPLAY_ATTEMPTED"
     elif bool(exact_semantic_authoring["ran"]) or int(
@@ -1644,17 +1653,25 @@ def _runtime_evidence_truth_table_from_manifest(
     exact_semantic_authoring_blocker = ""
     if (
         exact_semantic_authoring_required
-        and exact_semantic_authoring_live_attempts <= 0
+        and not exact_semantic_authoring_live_ready
     ):
         exact_semantic_authoring_blocker = (
-            "exact semantic-definition authoring was required, but no live "
-            "Claude/OpenAI backend attempt was recorded; provider="
+            "exact semantic-definition authoring was required, but at least "
+            "one required primary/retry/late lane lacked a trusted live "
+            "Claude/OpenAI backend attempt; provider="
             f"{exact_semantic_authoring['provider_names']} backend_provider="
             f"{exact_semantic_authoring['backend_provider_names']} "
             f"n_llm_attempted={exact_semantic_authoring_generic_attempts} "
             "n_reported_live_llm_attempted="
             f"{exact_semantic_authoring['n_reported_live_llm_attempted']} "
-            f"n_live_llm_attempted={exact_semantic_authoring_live_attempts}"
+            f"n_live_llm_attempted={exact_semantic_authoring_live_attempts} "
+            f"required_channels={exact_semantic_authoring['required_channels']} "
+            "live_attempted_channels="
+            f"{exact_semantic_authoring['live_attempted_channels']} "
+            "missing_live_attempt_channels="
+            f"{exact_semantic_authoring['missing_live_attempt_channels']} "
+            "post_runtime_live_ready="
+            f"{exact_semantic_authoring['post_runtime_live_ready']}"
         )
     architect_truth = _runtime_architect_control_truth(payload)
     rows = [
@@ -1806,7 +1823,7 @@ def _runtime_evidence_truth_table_from_manifest(
             exact_semantic_authoring_required
         ),
         "exact_semantic_definition_authoring_live_attempted": (
-            exact_semantic_authoring_live_attempts > 0
+            exact_semantic_authoring_live_ready
         ),
         "n_exact_semantic_definition_authoring_live_llm_attempted": (
             exact_semantic_authoring_live_attempts
@@ -2191,6 +2208,9 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     )
     exact_semantic_authoring_live_attempts = int(
         exact_semantic_authoring["n_live_llm_attempted"]
+    )
+    exact_semantic_authoring_live_ready = bool(
+        exact_semantic_authoring["live_ready"]
     )
     exact_semantic_authoring_generic_attempts = int(
         exact_semantic_authoring["n_llm_attempted"]
@@ -2707,8 +2727,7 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         },
         {
             "capability_id": "exact_semantic_definition_authoring_worker_live_attempted",
-            "passed": (not exact_semantic_authoring_required)
-            or exact_semantic_authoring_live_attempts > 0,
+            "passed": exact_semantic_authoring_live_ready,
             "count": exact_semantic_authoring_live_attempts,
             "evidence": (
                 "required="
@@ -2748,17 +2767,19 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "live_attempted_channels="
                 f"{exact_semantic_authoring['live_attempted_channels']}; "
                 "missing_live_attempt_channels="
-                f"{exact_semantic_authoring['missing_live_attempt_channels']}"
+                f"{exact_semantic_authoring['missing_live_attempt_channels']}; "
+                "post_runtime_live_ready="
+                f"{exact_semantic_authoring['post_runtime_live_ready']}"
             ),
             "blocker": (
                 ""
-                if (not exact_semantic_authoring_required)
-                or exact_semantic_authoring_live_attempts > 0
+                if exact_semantic_authoring_live_ready
                 else (
                     "exact semantic-definition authoring tasks were staged, "
-                    "blocked, or handled by a static/replay backend; generic "
-                    "n_llm_attempted does not demonstrate a live Claude/OpenAI "
-                    "definition-authoring loop"
+                    "blocked, handled by a static/replay backend, or only "
+                    "partially attempted; every required primary/retry/late "
+                    "lane needs a trusted live Claude/OpenAI attempt unless "
+                    "lineage-checked post-runtime recovery is live-ready"
                 )
             ),
         },
@@ -3242,9 +3263,11 @@ def _runtime_coding_agent_capability_learning_rows(
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "sum(primary/retry/late exact semantic-definition authoring "
-                "n_live_llm_attempted)>0 in the integrated AgentRuntime "
-                "manifest; generic n_llm_attempted or static/replay backend "
+                "each required in-runtime primary/retry/late exact "
+                "semantic-definition authoring channel has trusted "
+                "n_live_llm_attempted>0 in the integrated AgentRuntime "
+                "manifest, or a lineage-checked post-runtime channel is "
+                "live-ready; generic n_llm_attempted or static/replay backend "
                 "provenance does not satisfy this capability"
             )
         elif (
