@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .exact_semantic_definition_policy import (
+    exact_semantic_definition_placeholder_policy,
+)
 from .fingerprint import stable_hash
 from .formal_verifier_agentic_proof_execution_materializer import (
     _normalize_lean_statement_syntax,
@@ -88,6 +91,8 @@ BOUNDARY = (
 )
 EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "target_ids",
+    "placeholder_policy_id",
+    "placeholder_policy_scope",
     "exact_source_theorem_binders",
     "premise_semantic_anchor_binders",
     "premise_semantic_anchor_binder_names",
@@ -2358,6 +2363,7 @@ def _lookup_row(
     max_hits: int,
 ) -> dict[str, Any]:
     placeholder = str(work_order.get("placeholder_symbol", "") or "").strip()
+    placeholder_policy_context = _placeholder_policy_context(placeholder)
     search_terms = _search_terms(work_order)
     hits = _source_lookup_hits(
         source_roots=source_roots,
@@ -2404,6 +2410,7 @@ def _lookup_row(
         "question_title": str(work_order.get("question_title", "") or ""),
         "target_theorem_name": str(work_order.get("target_theorem_name", "") or ""),
         "placeholder_symbol": placeholder,
+        **placeholder_policy_context,
         "replacement_strategy": str(work_order.get("replacement_strategy", "") or ""),
         "search_terms": search_terms,
         "source_roots": [str(root) for root in source_roots],
@@ -2482,12 +2489,20 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
     """Preserve source-to-bridge authoring context across lookup/repair stages."""
 
     context: dict[str, Any] = {}
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    placeholder_symbol = str(
+        row.get("placeholder_symbol", "")
+        or input_summary.get("placeholder_symbol", "")
+        or ""
+    ).strip()
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
         value = row.get(key, None)
         if value in (None, "", [], {}):
-            input_summary = row.get("input_summary", {})
-            if isinstance(input_summary, Mapping):
-                value = input_summary.get(key, None)
+            value = input_summary.get(key, None)
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -2496,19 +2511,35 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = list(value)
         else:
             context[key] = value
+    if placeholder_symbol:
+        for key, value in _placeholder_policy_context(placeholder_symbol).items():
+            context.setdefault(key, value)
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
         target_theorem_name = str(row.get("target_theorem_name", "") or "")
-        placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
         target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
         normalized_request = dict(candidate_request)
         normalized_request.setdefault("target_theorem_name", target_theorem_name)
         if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
             normalized_request["placeholder_symbol"] = placeholder_symbol
+        if placeholder_symbol:
+            for key, value in _placeholder_policy_context(placeholder_symbol).items():
+                normalized_request.setdefault(key, value)
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
     return context
+
+
+def _placeholder_policy_context(placeholder_symbol: str) -> dict[str, str]:
+    placeholder = str(placeholder_symbol or "").strip()
+    if not placeholder:
+        return {}
+    policy = exact_semantic_definition_placeholder_policy(placeholder)
+    return {
+        "placeholder_policy_id": policy.policy_id,
+        "placeholder_policy_scope": policy.policy_scope,
+    }
 
 
 def _target_ids_from_row(

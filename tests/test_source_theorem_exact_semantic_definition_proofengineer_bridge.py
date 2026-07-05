@@ -523,8 +523,13 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     packet = packets[0]
     assert packet["repair_strategy"] == "review_typechecked_exact_definition_candidate"
     assert packet["placeholder_symbol"] == "covered"
+    assert packet["placeholder_policy_id"] == "split_conformal_coverage.covered"
+    assert packet["placeholder_policy_scope"] == "split_conformal_coverage"
     assert packet["target_ids"] == ["split_conformal_coverage"]
     assert packet["candidate_definition_request"]["placeholder_symbol"] == "covered"
+    assert packet["candidate_definition_request"]["placeholder_policy_id"] == (
+        "split_conformal_coverage.covered"
+    )
     assert packet["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]
@@ -557,8 +562,13 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     ]
     task = tasks[0]
     assert task["lean_repair_action"] == "review_typechecked_exact_definition_candidate"
+    assert task["placeholder_policy_id"] == "split_conformal_coverage.covered"
+    assert task["placeholder_policy_scope"] == "split_conformal_coverage"
     assert task["target_ids"] == ["split_conformal_coverage"]
     assert task["candidate_definition_request"]["placeholder_symbol"] == "covered"
+    assert task["candidate_definition_request"]["placeholder_policy_id"] == (
+        "split_conformal_coverage.covered"
+    )
     assert task["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]

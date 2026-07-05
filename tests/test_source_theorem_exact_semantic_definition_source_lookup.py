@@ -322,6 +322,71 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
     )
 
 
+def test_exact_semantic_definition_source_lookup_preserves_placeholder_policy_lineage(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    (source_root / "Rank.lean").write_text(
+        "def rank (s : Nat) (q_hat : Nat) := s + q_hat\n",
+        encoding="utf-8",
+    )
+    _write_work_order(
+        queue,
+        placeholder_symbol="rank",
+        extra={
+            "premise_semantic_anchor_binder_names": ["n2", "s", "q_hat", "hq"],
+        },
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    closure_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_work_orders_jsonl"]
+        ).read_text().splitlines()
+    ]
+    review_packets = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_review_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+
+    for row in (lookup_rows[0], closure_rows[0], review_packets[0]):
+        assert row["placeholder_policy_id"] == "split_conformal_coverage.rank"
+        assert row["placeholder_policy_scope"] == "split_conformal_coverage"
+
+    for learning_task in (
+        "source_theorem_exact_semantic_definition_source_lookup",
+        "source_theorem_exact_semantic_definition_closure_work_order",
+        "source_theorem_exact_semantic_definition_closure_review_packet",
+    ):
+        learning_row = next(
+            row for row in learning_rows if row["learning_task"] == learning_task
+        )
+        assert learning_row["placeholder_policy_id"] == (
+            "split_conformal_coverage.rank"
+        )
+        assert learning_row["input_summary"]["placeholder_policy_id"] == (
+            "split_conformal_coverage.rank"
+        )
+
+
 def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
     tmp_path: Path,
 ) -> None:
