@@ -72005,6 +72005,84 @@ def test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence(
     assert "source-theorem kernel verified total: 1" in report
 
 
+@pytest.mark.parametrize(
+    ("lane_id", "result_key", "local_lean_key"),
+    [
+        (
+            "exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+        (
+            "exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+        (
+            "exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+        (
+            "exact_semantic_definition_authoring_retry_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+    ],
+)
+def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_evidence(
+    tmp_path: Path,
+    lane_id: str,
+    result_key: str,
+    local_lean_key: str,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces = runtime_dir / "runtime_traces.jsonl"
+    agenda = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning = runtime_dir / "runtime_learning_rows.jsonl"
+    traces.write_text("", encoding="utf-8")
+    agenda.write_text("", encoding="utf-8")
+    learning.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "n_questions": 0,
+        "n_runtime_next_action_items": 0,
+        "n_runtime_learning_rows": 0,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces),
+            "runtime_next_action_agenda_jsonl": str(agenda),
+            "runtime_learning_rows_jsonl": str(learning),
+        },
+        result_key: 1,
+        local_lean_key: 1,
+        **_target_bound_source_theorem_payload(),
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 0,
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    same_lane_row = scorecard_rows[
+        "source_theorem_proof_body_same_lane_verifier_evidence"
+    ]
+
+    assert audit[local_lean_key] == 1
+    assert same_lane_row["passed"] is True
+    assert "same_lane_verified=True" in same_lane_row["evidence"]
+    assert lane_id in same_lane_row["evidence"]
+
+
 def test_runtime_audit_counts_source_theorem_promotion_kernel_evidence(
     tmp_path: Path,
 ) -> None:
@@ -78670,6 +78748,61 @@ def test_runtime_capability_scorecard_accepts_source_theorem_kernel_as_proof_bod
     assert "local_lean_checked=0" in row["evidence"]
     assert "source_theorem_kernel_verified=1" in row["evidence"]
     assert same_lane_row["passed"] is True
+
+
+@pytest.mark.parametrize(
+    ("lane_id", "result_key", "local_lean_key"),
+    [
+        (
+            "exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+        (
+            "exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+        (
+            "exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+        (
+            "exact_semantic_definition_authoring_retry_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+        ),
+    ],
+)
+def test_runtime_capability_scorecard_counts_verifier_approved_recheck_local_lean_as_same_lane_evidence(
+    lane_id: str,
+    result_key: str,
+    local_lean_key: str,
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        result_key: 1,
+        local_lean_key: 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
+
+    assert same_lane_row["passed"] is True
+    assert "same_lane_verified=True" in same_lane_row["evidence"]
+    assert lane_id in same_lane_row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_split_source_theorem_proof_body_same_lane_evidence() -> None:
