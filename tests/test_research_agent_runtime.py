@@ -40804,6 +40804,150 @@ def test_typechecked_semantic_review_work_orders_generate_next_action(
     )
 
 
+def test_typechecked_semantic_review_memory_becomes_authoring_prompt(
+    tmp_path: Path,
+) -> None:
+    review_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionTypecheckedSemanticReviewWorkOrder"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_typechecked_semantic_review_required"
+        ),
+        "action_type": "review_typechecked_exact_semantic_definition_candidate",
+        "trigger": (
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED"
+        ),
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "covered",
+        "definition_only_candidate_artifact_path": "runs/candidates/covered.lean",
+        "candidate_artifact_path": "runs/candidates/covered_full.lean",
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW"
+        ),
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED_"
+            "REVIEW_REQUIRED"
+        ),
+        "semantic_review_required_before_proof_body": True,
+        "semantic_review_status": "semantic_faithfulness_review_required",
+        "failure_classification": (
+            "typechecked_exact_semantic_definition_semantic_review_missing"
+        ),
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "semantic_goal": (
+                "Review covered against the source theorem coverage-event binders."
+            ),
+            "required_anchor_names": ["C", "hC"],
+            "available_anchor_names": ["n2", "alpha", "C", "hC"],
+            "missing_required_anchor_names": [],
+        },
+        "source_anchor_context": [
+            {
+                "kind": "proof_body_goal_context",
+                "proof_body_goal_excerpt": [
+                    "C : Set Y",
+                    "hC : coverage_event C alpha",
+                ],
+            }
+        ],
+        "required_next_checks": [
+            "compare the typechecked exact semantic-definition candidate against source theorem anchors",
+            "record an explicit semantic_review_decision",
+        ],
+        "recommended_next_action": (
+            "run semantic-faithfulness review before verifier gate or proof-body recheck"
+        ),
+        "source_theorem_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_SEMANTIC_REVIEW_WORK_ORDER_"
+            "NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [review_row],
+            }
+        }
+    )
+    assert len(repairs) == 1
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            repairs
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+    )
+    assert task["authoring_trigger"] == (
+        "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+    )
+    assert task["authoring_mode"] == (
+        "review_typechecked_semantic_definition_candidate"
+    )
+    assert task["semantic_review_required_before_proof_body"] is True
+    assert task["source_theorem_ready_for_exact_proof_body"] is False
+    assert task["source_theorem_kernel_verified"] is False
+    assert task["semantic_definition_kernel_verified"] is False
+    assert task["candidate_definition_request"]["required_anchor_names"] == [
+        "C",
+        "hC",
+    ]
+    assert task["source_anchor_context"][0]["kind"] == "proof_body_goal_context"
+    assert task["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+    assert "semantic-faithfulness review work items only" in task[
+        "proof_evidence_boundary"
+    ]
+
+    tasks_path = tmp_path / "semantic_review_authoring_tasks.jsonl"
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True, max_tasks=1),
+    )
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(prompt_packets) == 1
+    prompt_packet = prompt_packets[0]
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+    assert prompt_packet["authoring_mode"] == (
+        "review_typechecked_semantic_definition_candidate"
+    )
+    assert prompt_payload["semantic_review_required_before_proof_body"] is True
+    assert prompt_payload["source_theorem_ready_for_exact_proof_body"] is False
+    assert "known_gaps must be []" in prompt_payload[
+        "semantic_review_output_policy"
+    ]["review_mode_gate"]
+    assert prompt_packet["source_theorem_kernel_verified"] is False
+    assert prompt_packet["semantic_definition_kernel_verified"] is False
+    assert prompt_packet["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_generated_exact_semantic_next_action_merges_stronger_executor_status() -> None:
     work_order_id = "source_theorem_exact_semantic_definition_work_order:covered"
     stale_work_order = {

@@ -69165,6 +69165,11 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or input_summary.get("proof_evidence_status", "")
             or ""
         ).strip()
+        semantic_typecheck_status = str(
+            row.get("semantic_definition_typecheck_evidence_status", "")
+            or input_summary.get("semantic_definition_typecheck_evidence_status", "")
+            or ""
+        ).strip()
         authoring_prompt_response_pending = (
             runtime_queue_status
             == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
@@ -69212,6 +69217,47 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "exact_semantic_definition_verifier_gate_"
             )
         )
+        semantic_review_required = bool(
+            not authoring_prompt_response_pending
+            and (
+                runtime_queue_status
+                in {
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW",
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW",
+                }
+                or row_trigger
+                in {
+                    "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
+                    "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
+                }
+                or str(row.get("action_type", "") or "").strip()
+                == "review_typechecked_exact_semantic_definition_candidate"
+                or (
+                    bool(
+                        row.get("semantic_review_required_before_proof_body", False)
+                        or input_summary.get(
+                            "semantic_review_required_before_proof_body",
+                            False,
+                        )
+                    )
+                    and (
+                        semantic_typecheck_status
+                        == (
+                            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                            "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                        )
+                        or failure_classification
+                        in {
+                            "semantic_definition_review_blocked",
+                            (
+                                "typechecked_exact_semantic_definition_"
+                                "semantic_review_missing"
+                            ),
+                        }
+                    )
+                )
+            )
+        )
         verifier_gate_failure_classification = ""
         if verifier_gate_repair_required:
             verifier_gate_failure_classification = (
@@ -69240,12 +69286,14 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             and not structural_reformulation_required
             and not environment_port_authoring_required
             and not verifier_gate_repair_required
+            and not semantic_review_required
         ):
             continue
         if (
             not authoring_retry_required
             and not authoring_repair_required
             and not structural_reformulation_required
+            and not semantic_review_required
         ):
             continue
         candidate_definition_request_raw = row.get("candidate_definition_request", {})
@@ -69280,6 +69328,8 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             request_fingerprint,
             STRUCTURAL_REFORMULATION_QUEUE_STATUS
             if structural_reformulation_required
+            else "semantic_review"
+            if semantic_review_required
             else "",
         )
         if key in seen:
@@ -69289,6 +69339,9 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         next_queue_status = (
             STRUCTURAL_REFORMULATION_QUEUE_STATUS
             if structural_reformulation_required
+            else
+            "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+            if semantic_review_required
             else
             "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
             if authoring_repair_required
@@ -69315,6 +69368,9 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
                     if structural_reformulation_required
                     else
+                    "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+                    if semantic_review_required
+                    else
                     "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
                     if authoring_repair_required
                     else "EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY_REQUIRED"
@@ -69322,6 +69378,8 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "authoring_mode": (
                     "structural_reformulation_exact_semantic_definition_with_pseudo_formalization"
                     if structural_reformulation_required
+                    else "review_typechecked_semantic_definition_candidate"
+                    if semantic_review_required
                     else
                     (
                         "port_or_synthesize_exact_definition_for_active_lean_project"
@@ -69352,9 +69410,23 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 "repair_of_semantic_alignment_blockers": bool(
                     authoring_repair_required
                 ),
+                "semantic_review_required_before_proof_body": bool(
+                    semantic_review_required
+                    or row.get("semantic_review_required_before_proof_body", False)
+                    or input_summary.get(
+                        "semantic_review_required_before_proof_body",
+                        False,
+                    )
+                ),
+                "source_theorem_ready_for_exact_proof_body": False,
                 "retry_failure_classification": (
                     verifier_gate_failure_classification
                     if verifier_gate_repair_required
+                    else (
+                        failure_classification
+                        or "typechecked_exact_semantic_definition_semantic_review_missing"
+                    )
+                    if semantic_review_required
                     else failure_classification
                 ),
                 "retry_recommended_next_action": str(
@@ -69372,6 +69444,13 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                             "and source anchors before rerunning the verifier gate"
                         )
                         if verifier_gate_repair_required
+                        else (
+                            "review the locally typechecked exact semantic-definition "
+                            "candidate against source theorem anchors and record an "
+                            "explicit semantic_review_decision before verifier-gate "
+                            "or proof-body recheck"
+                        )
+                        if semantic_review_required
                         else (
                             "retry the same exact semantic-definition authoring "
                             "prompt with preserved candidate-definition request "
@@ -69392,6 +69471,13 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                         "the source theorem."
                     )
                     if structural_reformulation_required
+                    else (
+                        "Typechecked exact semantic-definition candidate review "
+                        "tasks are semantic-faithfulness review work items only. "
+                        "They are not local Lean/AXLE source-theorem evidence and "
+                        "cannot prove the source theorem."
+                    )
+                    if semantic_review_required
                     else (
                         "Retryable exact semantic-definition authoring tasks are "
                         "ProofEngineer work items only. They are not local Lean/AXLE "
