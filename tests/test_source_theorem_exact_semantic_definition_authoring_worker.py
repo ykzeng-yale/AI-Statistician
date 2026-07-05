@@ -1034,6 +1034,8 @@ def test_authoring_worker_filters_by_placeholder_symbol(
     assert prompt_packets[0]["candidate_definition_request_autofilled"] is True
     request = prompt_packets[0]["candidate_definition_request"]
     assert request["placeholder_symbol"] == "rank"
+    assert request["placeholder_policy_id"] == "split_conformal_coverage.rank"
+    assert request["placeholder_policy_scope"] == "split_conformal_coverage"
     assert request["required_anchor_names"] == ["n2", "s", "q_hat", "hq"]
     assert request["missing_required_anchor_names"] == []
     assert [binder["name"] for binder in request["required_binders"]] == [

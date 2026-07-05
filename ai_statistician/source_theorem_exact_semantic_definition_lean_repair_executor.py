@@ -7,6 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .exact_semantic_definition_policy import (
+    compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_placeholder_policy,
+)
 from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
 from .source_theorem_formal_environment_proofengineer_bridge import (
@@ -1311,7 +1315,6 @@ def _candidate_definition_request(
         row,
         fallback_target=target_theorem_name,
     )
-    normalized = _compact_identifier(placeholder_symbol)
     required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
     available_anchor_names = [
         str(value).strip()
@@ -1344,45 +1347,18 @@ def _candidate_definition_request(
         for name in required_adapter_object_names
         if name not in available_adapter_object_names
     ]
-    if normalized == "covered":
-        semantic_goal = (
-            "Define the source coverage event/object from the exact source theorem "
-            "coverage binder hC and the threshold q_hat, matching the event "
-            "{ω | s (Fin.last n2) ω ≤ q_hat ω}."
-        )
-    elif normalized == "rank":
-        semantic_goal = (
-            "Define the rank object from the exact score process s and the "
-            "order-statistic threshold equation hq; this must support good-rank "
-            "containment and bad-rank probability premises."
-        )
-    elif normalized == "badranks":
-        semantic_goal = (
-            "Define the finite bad-rank set from n2, alpha, halpha, and hq so it "
-            "matches the ranks that violate conformal coverage containment."
-        )
-    elif normalized in {"α", "alpha"}:
-        semantic_goal = (
-            "Define the rank-indexed probability budget α from the exact source "
-            "miscoverage level alpha and rank-uniformity/exchangeability anchor hexch."
-        )
-    elif normalized in {"αtotal", "alphatotal"}:
-        semantic_goal = (
-            "Define the total bad-rank budget α_total from alpha and BadRanks, "
-            "with the intended downstream finite-sum bound."
-        )
-    else:
-        semantic_goal = (
-            "Define the exact semantic replacement for the placeholder from the "
-            "listed source theorem binders and semantic constraints."
-        )
+    placeholder_policy = exact_semantic_definition_placeholder_policy(
+        placeholder_symbol
+    )
     return {
         "schema_version": 1,
         "request_kind": "source_theorem_exact_semantic_definition_candidate",
         "target_theorem_name": target_theorem_name,
         "target_ids": target_ids,
         "placeholder_symbol": placeholder_symbol,
-        "semantic_goal": semantic_goal,
+        "placeholder_policy_id": placeholder_policy.policy_id,
+        "placeholder_policy_scope": placeholder_policy.policy_scope,
+        "semantic_goal": placeholder_policy.semantic_goal,
         "required_anchor_names": required_anchor_names,
         "available_anchor_names": available_anchor_names,
         "missing_required_anchor_names": missing_required,
@@ -1430,29 +1406,21 @@ def _candidate_definition_request(
 
 
 def _required_anchor_names_for_placeholder(placeholder_symbol: str) -> list[str]:
-    normalized = _compact_identifier(placeholder_symbol)
-    if normalized == "covered":
-        return ["s", "q_hat", "C", "hC"]
-    if normalized == "rank":
-        return ["n2", "s", "q_hat", "hq"]
-    if normalized == "badranks":
-        return ["n2", "alpha", "halpha", "s", "q_hat", "hq"]
-    if normalized in {"α", "alpha"}:
-        return ["P", "n2", "alpha", "s", "hexch"]
-    if normalized in {"αtotal", "alphatotal"}:
-        return ["n2", "alpha", "halpha"]
-    return []
+    return list(
+        exact_semantic_definition_placeholder_policy(
+            placeholder_symbol
+        ).required_anchor_names
+    )
 
 
 def _required_adapter_object_names_for_placeholder(
     placeholder_symbol: str,
 ) -> list[str]:
-    normalized = _compact_identifier(placeholder_symbol)
-    if normalized == "badranks":
-        return ["rank"]
-    if normalized in {"αtotal", "alphatotal"}:
-        return ["BadRanks"]
-    return []
+    return list(
+        exact_semantic_definition_placeholder_policy(
+            placeholder_symbol
+        ).required_adapter_object_names
+    )
 
 
 def _available_semantic_binders_by_name(
@@ -2047,7 +2015,7 @@ def _exact_semantic_definition_target_ids(
 
 
 def _compact_identifier(value: str) -> str:
-    return "".join(ch.lower() for ch in str(value) if ch.isalnum())
+    return compact_exact_semantic_placeholder_key(value)
 
 
 def _boolish(value: Any) -> bool:

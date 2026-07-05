@@ -764,6 +764,8 @@ def test_authoring_task_exports_structured_candidate_definition_request(
     assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
     request = authoring_tasks[0]["candidate_definition_request"]
     assert request["placeholder_symbol"] == "covered"
+    assert request["placeholder_policy_id"] == "split_conformal_coverage.covered"
+    assert request["placeholder_policy_scope"] == "split_conformal_coverage"
     assert request["required_anchor_names"] == ["s", "q_hat", "C", "hC"]
     assert request["missing_required_anchor_names"] == []
     assert [binder["name"] for binder in request["required_binders"]] == [
@@ -920,6 +922,8 @@ def test_authoring_task_exports_adapter_object_dependencies(
     ]
     request = authoring_tasks[0]["candidate_definition_request"]
     assert request["placeholder_symbol"] == "α_total"
+    assert request["placeholder_policy_id"] == "split_conformal_coverage.alpha_total"
+    assert request["placeholder_policy_scope"] == "split_conformal_coverage"
     assert request["required_anchor_names"] == ["n2", "alpha", "halpha"]
     assert request["missing_required_anchor_names"] == []
     assert request["required_adapter_object_names"] == ["BadRanks"]

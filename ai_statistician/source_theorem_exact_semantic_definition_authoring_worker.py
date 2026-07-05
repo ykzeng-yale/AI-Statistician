@@ -8,6 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .exact_semantic_definition_policy import (
+    compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_placeholder_policy,
+)
 from .fingerprint import stable_hash
 from .llm_json_repair import (
     PacketValidationError,
@@ -735,7 +739,7 @@ def _candidate_required_adapter_object_names(packet: Mapping[str, Any]) -> list[
 
 
 def _adapter_object_key(value: str) -> str:
-    return _compact_identifier(str(value or ""))
+    return compact_exact_semantic_placeholder_key(str(value or ""))
 
 
 def _normalized_placeholder_filter(symbols: Sequence[str]) -> set[str]:
@@ -2882,6 +2886,7 @@ def _lean_authoring_environment_contract(
 
 def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str, Any]:
     placeholder_symbol = str(task.get("placeholder_symbol", "") or "")
+    placeholder_policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
     required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
     available_binders_by_name = _available_semantic_binders_by_name(task)
     available_anchor_names = list(available_binders_by_name)
@@ -2907,6 +2912,8 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
         "request_kind": "source_theorem_exact_semantic_definition_candidate",
         "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
         "placeholder_symbol": placeholder_symbol,
+        "placeholder_policy_id": placeholder_policy.policy_id,
+        "placeholder_policy_scope": placeholder_policy.policy_scope,
         "semantic_goal": _semantic_goal_for_placeholder(placeholder_symbol),
         "required_anchor_names": required_anchor_names,
         "available_anchor_names": available_anchor_names,
@@ -2945,53 +2952,15 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
 
 
 def _semantic_goal_for_placeholder(placeholder_symbol: str) -> str:
-    normalized = _adapter_object_key(placeholder_symbol)
-    if normalized == "covered":
-        return (
-            "Define the source coverage event/object from the exact source theorem "
-            "coverage binder hC and threshold q_hat, matching the held-out score "
-            "event {ω | s (Fin.last n2) ω ≤ q_hat ω}."
-        )
-    if normalized == "rank":
-        return (
-            "Define the rank object from the exact score process s and the "
-            "order-statistic threshold equation hq; it must support good-rank "
-            "containment and bad-rank probability premises."
-        )
-    if normalized == "badranks":
-        return (
-            "Define the finite bad-rank set from n2, alpha, halpha, and hq so it "
-            "matches the ranks that violate conformal coverage containment."
-        )
-    if normalized in {"α", "alpha"}:
-        return (
-            "Define the rank-indexed probability budget α from the exact source "
-            "miscoverage level alpha and rank-uniformity/exchangeability anchor hexch."
-        )
-    if normalized in {"αtotal", "alphatotal"}:
-        return (
-            "Define the total bad-rank budget α_total from alpha and BadRanks, "
-            "with the intended downstream finite-sum bound."
-        )
-    return (
-        "Define the exact semantic replacement for the placeholder from the "
-        "listed source theorem binders and semantic constraints."
-    )
+    return exact_semantic_definition_placeholder_policy(placeholder_symbol).semantic_goal
 
 
 def _required_anchor_names_for_placeholder(placeholder_symbol: str) -> list[str]:
-    normalized = _adapter_object_key(placeholder_symbol)
-    if normalized == "covered":
-        return ["s", "q_hat", "C", "hC"]
-    if normalized == "rank":
-        return ["n2", "s", "q_hat", "hq"]
-    if normalized == "badranks":
-        return ["n2", "alpha", "halpha", "s", "q_hat", "hq"]
-    if normalized in {"α", "alpha"}:
-        return ["P", "n2", "alpha", "s", "hexch"]
-    if normalized in {"αtotal", "alphatotal"}:
-        return ["n2", "alpha", "halpha"]
-    return []
+    return list(
+        exact_semantic_definition_placeholder_policy(
+            placeholder_symbol
+        ).required_anchor_names
+    )
 
 
 def _available_semantic_binders_by_name(
@@ -3016,12 +2985,11 @@ def _available_semantic_binders_by_name(
 def _required_adapter_object_names_for_placeholder(
     placeholder_symbol: str,
 ) -> list[str]:
-    normalized = _adapter_object_key(placeholder_symbol)
-    if normalized == "badranks":
-        return ["rank"]
-    if normalized in {"αtotal", "alphatotal"}:
-        return ["BadRanks"]
-    return []
+    return list(
+        exact_semantic_definition_placeholder_policy(
+            placeholder_symbol
+        ).required_adapter_object_names
+    )
 
 
 def _generate_candidate_packet(
@@ -4926,7 +4894,7 @@ def _safe_file_stem(values: Sequence[str]) -> str:
 
 
 def _compact_identifier(value: str) -> str:
-    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
+    return compact_exact_semantic_placeholder_key(value)
 
 
 def _extract_payload(text: str) -> dict[str, Any]:
