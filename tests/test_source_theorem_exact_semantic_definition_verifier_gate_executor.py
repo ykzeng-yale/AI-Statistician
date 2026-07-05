@@ -60,6 +60,26 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     work_orders = tmp_path / "work_orders.jsonl"
     row = {
         **_base_work_order(candidate),
+        "semantic_primitive": "good_rank_event",
+        "semantic_primitive_requirements": ["good_rank_event"],
+        "source_anchors": [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "pf:block:good_rank_event",
+                "excerpt": "rank event source block",
+            }
+        ],
+        "source_pseudo_formal_work_order_id": "pseudo_formal_work_order:good_rank",
+        "source_pseudo_formal_block_id": "pf:block:good_rank_event",
+        "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+        "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
+        "pseudo_formal_method_contract_id": (
+            "pseudo_formalization_block_verification_calibration_v1"
+        ),
+        "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+        "pseudo_formal_proof_evidence_status": (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        ),
         "source_reference_hints": [{"path": "Source.lean", "symbol": "hRank"}],
         "exact_source_theorem_binders": [
             {"name": "scores", "type": "List Nat", "role": "calibration scores"}
@@ -90,6 +110,11 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     assert results[0]["verifier_gate_status"] == (
         "VERIFIER_APPROVED_FOR_PROOF_BODY_RECHECK"
     )
+    assert results[0]["semantic_primitive_requirements"] == ["good_rank_event"]
+    assert results[0]["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert results[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
     assert results[0]["source_theorem_kernel_verified"] is False
     assert results[0]["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
@@ -103,9 +128,31 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     ]
     assert approved[0]["semantic_review_required_before_proof_body"] is False
     assert approved[0]["source_theorem_ready_for_exact_proof_body"] is True
+    assert approved[0]["semantic_primitive_requirements"] == ["good_rank_event"]
+    assert approved[0]["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert approved[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
     assert approved[0]["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_NOT_SOURCE_THEOREM_PROOF"
     )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert learning_rows[0]["semantic_primitive_requirements"] == [
+        "good_rank_event"
+    ]
+    assert learning_rows[0]["source_anchors"][0]["id"] == (
+        "pf:block:good_rank_event"
+    )
+    assert learning_rows[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert learning_rows[0]["source_theorem_kernel_verified"] is False
 
 
 def test_verifier_gate_executor_accepts_source_anchor_context(
@@ -233,6 +280,28 @@ def test_typechecked_recheck_verifier_work_order_preserves_semantic_context(
                 "target_theorem_name": "split_conformal_finite_sample_coverage",
                 "target_ids": ["split_conformal_finite_sample_coverage"],
                 "placeholder_symbol": "good_rank_event",
+                "semantic_primitive": "good_rank_event",
+                "semantic_primitive_requirements": ["good_rank_event"],
+                "source_anchors": [
+                    {
+                        "kind": "pseudo_formal_block",
+                        "id": "pf:block:good_rank_event",
+                        "excerpt": "rank event source block",
+                    }
+                ],
+                "source_pseudo_formal_work_order_id": (
+                    "pseudo_formal_work_order:good_rank"
+                ),
+                "source_pseudo_formal_block_id": "pf:block:good_rank_event",
+                "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+                "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
+                "pseudo_formal_method_contract_id": (
+                    "pseudo_formalization_block_verification_calibration_v1"
+                ),
+                "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+                "pseudo_formal_proof_evidence_status": (
+                    "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+                ),
                 "candidate_artifact_path": str(candidate),
                 "local_definition_lean_compiled": True,
                 "semantic_review_decision": "approved_definition_candidate",
@@ -298,6 +367,21 @@ def test_typechecked_recheck_verifier_work_order_preserves_semantic_context(
     assert verifier_gate_rows[0]["candidate_definition_request"][
         "required_anchor_names"
     ] == ["hRank"]
+    assert verifier_gate_rows[0]["semantic_primitive_requirements"] == [
+        "good_rank_event"
+    ]
+    assert verifier_gate_rows[0]["source_anchors"][0]["id"] == (
+        "pf:block:good_rank_event"
+    )
+    assert verifier_gate_rows[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert verifier_gate_rows[0]["input_summary"][
+        "semantic_primitive_requirements"
+    ] == ["good_rank_event"]
+    assert verifier_gate_rows[0]["input_summary"]["source_anchors"][0]["id"] == (
+        "pf:block:good_rank_event"
+    )
     assert verifier_gate_rows[0]["known_gaps"] == [
         "threshold binder still requires verifier check"
     ]

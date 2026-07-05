@@ -2020,7 +2020,15 @@ def _typechecked_review_semantic_context(row: Mapping[str, Any]) -> dict[str, An
     nested_mapping = nested if isinstance(nested, Mapping) else {}
     feedback = row.get("candidate_repair_feedback")
     feedback_mapping = feedback if isinstance(feedback, Mapping) else {}
-    context: dict[str, Any] = {}
+    context: dict[str, Any] = _exact_semantic_definition_context(row)
+    context = _merge_typechecked_review_semantic_context(
+        context,
+        _exact_semantic_definition_context(nested_mapping),
+    )
+    context = _merge_typechecked_review_semantic_context(
+        context,
+        _exact_semantic_definition_context(feedback_mapping),
+    )
     for key in (
         "semantic_alignment_constraints",
         "semantic_alignment_blockers",

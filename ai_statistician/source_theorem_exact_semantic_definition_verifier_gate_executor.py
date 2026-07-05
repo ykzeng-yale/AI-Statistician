@@ -15,6 +15,9 @@ from .source_theorem_formal_environment_proofengineer_bridge import (
     _lean_command,
     _run_local_lean,
 )
+from .source_theorem_exact_semantic_definition_source_lookup import (
+    EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+)
 
 
 ARTIFACT_KIND = (
@@ -314,6 +317,7 @@ def _verifier_gate_result(
         "semantic_review_status": str(row.get("semantic_review_status", "") or ""),
         "semantic_review_evidence": semantic_review_evidence,
         "semantic_review_required_before_proof_body": not source_theorem_ready,
+        **_exact_semantic_definition_context(row),
         "candidate_definition_request": dict(candidate_definition_request)
         if isinstance(candidate_definition_request, Mapping)
         else {},
@@ -379,6 +383,7 @@ def _approved_review_packet(result: Mapping[str, Any]) -> dict[str, Any]:
             "verifier_gate_approved_definition_candidate_not_proof"
         ),
         "semantic_review_evidence": evidence,
+        **_exact_semantic_definition_context(result),
         "source_anchor_context": source_anchor_context,
         "source_anchor_context_rows": len(source_anchor_context),
         "candidate_definition_request": dict(candidate_definition_request)
@@ -426,6 +431,7 @@ def _runtime_learning_row(result: Mapping[str, Any]) -> dict[str, Any]:
             result.get("failure_classification", "") or ""
         ),
         "runtime_queue_status": str(result.get("runtime_queue_status", "") or ""),
+        **_exact_semantic_definition_context(result),
         "source_theorem_ready_for_exact_proof_body": ready,
         "source_theorem_kernel_verified": False,
         "source_theorem_kernel_evidence_eligible": False,
@@ -440,6 +446,28 @@ def _runtime_learning_row(result: Mapping[str, Any]) -> dict[str, Any]:
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
     }
+
+
+def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]:
+    context: dict[str, Any] = {}
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
+        value = row.get(key, None)
+        if value in (None, "", [], {}):
+            value = input_summary.get(key, None)
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, Mapping):
+            context[key] = dict(value)
+        elif isinstance(value, list):
+            context[key] = list(value)
+        else:
+            context[key] = value
+    return context
 
 
 def _status_from_blockers(blockers: Sequence[str]) -> str:
