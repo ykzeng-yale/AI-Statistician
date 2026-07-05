@@ -1315,6 +1315,144 @@ def _runtime_learning_rows_contract_audit_summary(
     }
 
 
+def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
+    *,
+    learning_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    learning_task = "formalizer_pseudo_formal_packet_component_gate_feedback"
+    source_component_gate = "formalizer_pseudo_formal_packet_component_gate"
+    proof_evidence_status = (
+        "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+    rows: list[Mapping[str, Any]] = []
+    live_rows = 0
+    routable_rows = 0
+    exact_lane_rows = 0
+    nonproof_rows = 0
+    consumed_rows = 0
+    max_routable_work_order_rows = 0
+    manifest_paths: list[str] = []
+    target_lanes: list[str] = []
+    row_kinds: list[str] = []
+
+    def _row_field(row: Mapping[str, Any], key: str, default: Any = None) -> Any:
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        return row.get(key, input_summary.get(key, default))
+
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(_row_field(row, "learning_task", "") or "").strip() != learning_task:
+            continue
+        if str(_row_field(row, "source_component_gate", "") or "").strip() != (
+            source_component_gate
+        ):
+            continue
+        rows.append(row)
+        manifest_path = str(
+            _row_field(row, "component_eval_manifest_path", "")
+            or _row_field(row, "source_manifest_path", "")
+            or ""
+        ).strip()
+        if manifest_path:
+            manifest_paths.append(manifest_path)
+        row_target_lanes = _compact_string_list(
+            _row_field(row, "pseudo_formal_routable_target_lanes", [])
+        )
+        row_kinds.extend(
+            _compact_string_list(
+                _row_field(row, "pseudo_formal_routable_row_kinds", [])
+            )
+        )
+        target_lanes.extend(row_target_lanes)
+        n_routable_work_order_rows = _safe_int(
+            _row_field(row, "n_pseudo_formal_routable_work_order_rows", 0)
+        )
+        max_routable_work_order_rows = max(
+            max_routable_work_order_rows,
+            n_routable_work_order_rows,
+        )
+        live_ok = (
+            bool(_row_field(row, "capability_evidence_ok", False))
+            and bool(_row_field(row, "live_generator", False))
+            and not bool(_row_field(row, "static_or_fixture_only", False))
+        )
+        routable_ok = (
+            n_routable_work_order_rows > 0
+            and "source_theorem_exact_semantic_definition" in row_target_lanes
+        )
+        exact_lane_ok = bool(
+            _row_field(row, "exact_semantic_definition_lane_present", False)
+        )
+        nonproof_ok = (
+            bool(_row_field(row, "nonproof_boundary_preserved", False))
+            and not bool(_row_field(row, "raw_model_output_written", False))
+            and bool(_row_field(row, "proof_evidence_status_ok", False))
+            and bool(_row_field(row, "no_theorem_proof_claim", False))
+            and str(_row_field(row, "proof_evidence_status", "") or "").strip()
+            == proof_evidence_status
+        )
+        attachment_gate_ok = bool(
+            _row_field(row, "attachment_gate_recomputed", False)
+        )
+        if live_ok:
+            live_rows += 1
+        if routable_ok:
+            routable_rows += 1
+        if exact_lane_ok:
+            exact_lane_rows += 1
+        if nonproof_ok:
+            nonproof_rows += 1
+        if live_ok and routable_ok and exact_lane_ok and nonproof_ok and attachment_gate_ok:
+            consumed_rows += 1
+
+    return {
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": (
+            consumed_rows > 0
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": len(
+            rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows": (
+            live_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows": (
+            routable_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows": (
+            exact_lane_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows": (
+            nonproof_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": (
+            consumed_rows
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": (
+            max_routable_work_order_rows
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_manifest_paths": (
+            _compact_string_list(manifest_paths)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_target_lanes": (
+            _compact_string_list(target_lanes)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_row_kinds": (
+            _compact_string_list(row_kinds)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_boundary": (
+            "Formalizer PF/BV packet component-gate learning rows show that "
+            "AgentRuntime consumed attached non-proof component feedback into "
+            "bounded runtime memory. They are still not Lean proof, source "
+            "theorem proof, or full frontier theorem evidence."
+        ),
+    }
+
+
 def _runtime_next_action_agenda_contract_audit_summary(
     *,
     agenda_rows: list[dict[str, Any]],
@@ -3313,6 +3451,11 @@ def audit_research_agent_runtime(
             learning_rows=learning_rows,
         )
     )
+    runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary = (
+        _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
+            learning_rows=learning_rows,
+        )
+    )
     formalization_manifest_rows = (
         _runtime_formalization_manifest_rows_from_result_paths(
             result_paths=result_paths,
@@ -4577,6 +4720,64 @@ def audit_research_agent_runtime(
         "runtime_learning_rows_contract_issues": list(
             runtime_learning_rows_contract_summary[
                 "runtime_learning_rows_contract_issues"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary": (
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": bool(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_manifest_paths": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_manifest_paths"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_target_lanes": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_target_lanes"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_row_kinds": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_row_kinds"
             ]
         ),
         "runtime_pseudo_formal_block_routing_contract_audit_summary": (
@@ -17223,6 +17424,62 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
+    runtime_formalizer_pseudo_formal_component_learning_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_live_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_routable_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_exact_lane_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_nonproof_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_consumed_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_consumed = (
+        bool(
+            payload.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                False,
+            )
+        )
+        and runtime_formalizer_pseudo_formal_component_learning_rows > 0
+        and runtime_formalizer_pseudo_formal_component_learning_live_rows > 0
+        and runtime_formalizer_pseudo_formal_component_learning_routable_rows > 0
+        and runtime_formalizer_pseudo_formal_component_learning_exact_lane_rows > 0
+        and runtime_formalizer_pseudo_formal_component_learning_nonproof_rows > 0
+        and runtime_formalizer_pseudo_formal_component_learning_consumed_rows > 0
+    )
     attached_formalizer_pseudo_formal_live_gate_passed = (
         bool(
             attached_formalizer_pseudo_formal_packet_summary[
@@ -17243,6 +17500,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and attached_formalizer_pseudo_formal_attachment_gate_recomputed
         and "source_theorem_exact_semantic_definition"
         in attached_formalizer_pseudo_formal_target_lanes
+        and runtime_formalizer_pseudo_formal_component_learning_consumed
     )
     attached_pseudo_formal_source = _runtime_attached_component_gate_source(
         payload,
@@ -21298,16 +21556,31 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "attached_no_theorem_proof_claim="
                 f"{attached_formalizer_pseudo_formal_no_theorem_proof_claim} "
                 "attached_attachment_gate_recomputed="
-                f"{attached_formalizer_pseudo_formal_attachment_gate_recomputed}"
+                f"{attached_formalizer_pseudo_formal_attachment_gate_recomputed} "
+                "runtime_component_learning_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_rows} "
+                "runtime_component_learning_live_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_live_rows} "
+                "runtime_component_learning_routable_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_routable_rows} "
+                "runtime_component_learning_exact_lane_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_exact_lane_rows} "
+                "runtime_component_learning_nonproof_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_nonproof_rows} "
+                "runtime_component_learning_consumed_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_consumed_rows} "
+                "runtime_component_learning_consumed="
+                f"{runtime_formalizer_pseudo_formal_component_learning_consumed}"
             ),
             (
                 "attached live Formalizer PF/BV packet calibration did not show "
                 "schema-valid pseudo-formal packets with effective lane-routable "
                 "work-order rows, actionable source-anchored exact-semantic "
                 "definition rows, preserved non-proof boundary, no theorem-proof "
-                "claim, and a recomputed attachment gate; static fixtures and "
-                "generic or stale packets do not demonstrate this Formalizer "
-                "capacity"
+                "claim, a recomputed attachment gate, and AgentRuntime-consumed "
+                "non-proof learning memory; static fixtures, generic/stale "
+                "packets, and unattached harness evidence do not demonstrate "
+                "this Formalizer capacity"
             ),
             scope="component_calibration",
             **_runtime_resume_scorecard_routing(
@@ -21329,7 +21602,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "exact_semantic_definition_rows_lineage_complete=true, "
                     "nonproof_boundary_preserved=true, proof_evidence_status_ok=true, "
                     "no_theorem_proof_claim=true, raw_model_output_written=false, "
-                    "and attachment_gate_recomputed=true"
+                    "attachment_gate_recomputed=true, and "
+                    "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed=true "
+                    "with consumed_rows>0"
                 ),
             ),
         ),

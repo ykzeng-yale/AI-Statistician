@@ -3614,6 +3614,39 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
     exact_semantic_definition_lane_present = bool(
         attached.get("exact_semantic_definition_lane_present", False)
     )
+    n_exact_semantic_definition_rows = _int_like(
+        attached.get("n_pseudo_formal_exact_semantic_definition_rows", 0)
+    )
+    n_exact_semantic_definition_rows_with_source_anchors = _int_like(
+        attached.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
+            0,
+        )
+    )
+    n_exact_semantic_definition_rows_with_semantic_requirements = _int_like(
+        attached.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
+            0,
+        )
+    )
+    n_exact_semantic_definition_rows_with_lineage = _int_like(
+        attached.get(
+            "n_pseudo_formal_exact_semantic_definition_rows_with_lineage",
+            0,
+        )
+    )
+    exact_semantic_definition_rows_source_anchored = bool(
+        attached.get("exact_semantic_definition_rows_source_anchored", False)
+    )
+    exact_semantic_definition_rows_semantic_requirements_present = bool(
+        attached.get(
+            "exact_semantic_definition_rows_semantic_requirements_present",
+            False,
+        )
+    )
+    exact_semantic_definition_rows_lineage_complete = bool(
+        attached.get("exact_semantic_definition_rows_lineage_complete", False)
+    )
     proof_evidence_status_ok = bool(attached.get("proof_evidence_status_ok", False))
     no_theorem_proof_claim = bool(attached.get("no_theorem_proof_claim", False))
     attachment_gate_recomputed = bool(
@@ -3656,6 +3689,25 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "pseudo_formal_routable_row_kinds": row_kinds,
             "pseudo_formal_routable_target_lanes": target_lanes,
             "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
+            "n_pseudo_formal_exact_semantic_definition_rows": n_exact_semantic_definition_rows,
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": (
+                n_exact_semantic_definition_rows_with_source_anchors
+            ),
+            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": (
+                n_exact_semantic_definition_rows_with_semantic_requirements
+            ),
+            "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": (
+                n_exact_semantic_definition_rows_with_lineage
+            ),
+            "exact_semantic_definition_rows_source_anchored": (
+                exact_semantic_definition_rows_source_anchored
+            ),
+            "exact_semantic_definition_rows_semantic_requirements_present": (
+                exact_semantic_definition_rows_semantic_requirements_present
+            ),
+            "exact_semantic_definition_rows_lineage_complete": (
+                exact_semantic_definition_rows_lineage_complete
+            ),
             "nonproof_boundary_preserved": nonproof_boundary_preserved,
             "raw_model_output_written": bool(
                 attached.get("raw_model_output_written", False)
@@ -3692,6 +3744,27 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 "pseudo_formal_routable_row_kinds": row_kinds,
                 "pseudo_formal_routable_target_lanes": target_lanes,
                 "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
+                "n_pseudo_formal_exact_semantic_definition_rows": (
+                    n_exact_semantic_definition_rows
+                ),
+                "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": (
+                    n_exact_semantic_definition_rows_with_source_anchors
+                ),
+                "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": (
+                    n_exact_semantic_definition_rows_with_semantic_requirements
+                ),
+                "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": (
+                    n_exact_semantic_definition_rows_with_lineage
+                ),
+                "exact_semantic_definition_rows_source_anchored": (
+                    exact_semantic_definition_rows_source_anchored
+                ),
+                "exact_semantic_definition_rows_semantic_requirements_present": (
+                    exact_semantic_definition_rows_semantic_requirements_present
+                ),
+                "exact_semantic_definition_rows_lineage_complete": (
+                    exact_semantic_definition_rows_lineage_complete
+                ),
                 "nonproof_boundary_preserved": nonproof_boundary_preserved,
                 "raw_model_output_written": bool(
                     attached.get("raw_model_output_written", False)

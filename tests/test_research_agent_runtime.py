@@ -74640,6 +74640,13 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok": True,
         "internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim": True,
         "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed": True,
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": True,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": 1,
         "internal_pseudo_formal_block_verifier_eval_provider_name": "anthropic",
         "internal_pseudo_formal_block_verifier_eval_backend_provider_name": "anthropic",
         "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names": [
@@ -74823,6 +74830,25 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "formalizer_pseudo_formal_packet_component_gate"
     ]["passed"] is False
     assert "attached_attachment_gate_recomputed=False" in rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["evidence"]
+
+    unconsumed_pf_attachment_payload = dict(payload)
+    unconsumed_pf_attachment_payload[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+    ] = False
+    unconsumed_pf_attachment_payload[
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+    ] = 0
+    unconsumed_pf_attachment_payload[
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+    ] = 0
+    scorecard = _runtime_capability_scorecard(unconsumed_pf_attachment_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["passed"] is False
+    assert "runtime_component_learning_consumed=False" in rows[
         "formalizer_pseudo_formal_packet_component_gate"
     ]["evidence"]
 
@@ -75301,6 +75327,78 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows[
         "generated_simulation_metric_repair_loop_observed"
     ]["passed"] is False
+
+
+def test_runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary_requires_runtime_consumption() -> None:
+    learning_row = {
+        "learning_task": "formalizer_pseudo_formal_packet_component_gate_feedback",
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "component_eval_manifest_path": "runs/capability/formalizer_pf_manifest.json",
+        "capability_evidence_ok": True,
+        "live_generator": True,
+        "static_or_fixture_only": False,
+        "n_pseudo_formal_routable_work_order_rows": 8,
+        "pseudo_formal_routable_target_lanes": [
+            "source_theorem_exact_semantic_definition",
+            "source_to_bridge",
+        ],
+        "pseudo_formal_routable_row_kinds": [
+            "pseudo_formal_exact_semantic_definition_request",
+        ],
+        "exact_semantic_definition_lane_present": True,
+        "nonproof_boundary_preserved": True,
+        "raw_model_output_written": False,
+        "proof_evidence_status_ok": True,
+        "no_theorem_proof_claim": True,
+        "attachment_gate_recomputed": True,
+        "proof_evidence_status": (
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
+            "NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    summary = (
+        audit_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
+            learning_rows=[learning_row],
+        )
+    )
+
+    assert (
+        summary[
+            "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+        ]
+        is True
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+        ]
+        == 1
+    )
+    assert summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_target_lanes"
+    ] == ["source_theorem_exact_semantic_definition", "source_to_bridge"]
+
+    proof_claim_row = dict(learning_row)
+    proof_claim_row["proof_evidence_status"] = "SOURCE_THEOREM_PROOF_CLAIM"
+    summary = (
+        audit_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
+            learning_rows=[proof_claim_row],
+        )
+    )
+
+    assert (
+        summary[
+            "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+        ]
+        is False
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows"
+        ]
+        == 0
+    )
 
 
 def test_runtime_audit_recomputes_stale_research_path_control(
@@ -85476,23 +85574,46 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         == "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
         for row in learning_rows
     )
-    assert any(
-        row.get("learning_task")
-        == "formalizer_pseudo_formal_packet_component_gate_feedback"
-        and row.get("capability_evidence_ok") is True
-        and row.get("n_pseudo_formal_routable_work_order_rows") == 8
-        and row.get("exact_semantic_definition_lane_present") is True
-        and row.get("proof_evidence_status_ok") is True
-        and row.get("no_theorem_proof_claim") is True
-        and row.get("attachment_gate_recomputed") is True
-        and row.get("source_component_gate")
-        == "formalizer_pseudo_formal_packet_component_gate"
-        and row.get("proof_evidence_status")
-        == (
-            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
-            "NOT_PROOF_EVIDENCE"
-        )
+    formalizer_pf_learning_rows = [
+        row
         for row in learning_rows
+        if row.get("learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_feedback"
+    ]
+    assert formalizer_pf_learning_rows
+    formalizer_pf_row = formalizer_pf_learning_rows[0]
+    assert formalizer_pf_row["capability_evidence_ok"] is True
+    assert formalizer_pf_row["n_pseudo_formal_routable_work_order_rows"] == 8
+    assert formalizer_pf_row["exact_semantic_definition_lane_present"] is True
+    assert (
+        formalizer_pf_row["n_pseudo_formal_exact_semantic_definition_rows"] == 1
+    )
+    assert (
+        formalizer_pf_row[
+            "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors"
+        ]
+        == 1
+    )
+    assert (
+        formalizer_pf_row[
+            "exact_semantic_definition_rows_semantic_requirements_present"
+        ]
+        is True
+    )
+    assert (
+        formalizer_pf_row["exact_semantic_definition_rows_lineage_complete"]
+        is True
+    )
+    assert formalizer_pf_row["proof_evidence_status_ok"] is True
+    assert formalizer_pf_row["no_theorem_proof_claim"] is True
+    assert formalizer_pf_row["attachment_gate_recomputed"] is True
+    assert (
+        formalizer_pf_row["source_component_gate"]
+        == "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert formalizer_pf_row["proof_evidence_status"] == (
+        "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
+        "NOT_PROOF_EVIDENCE"
     )
     assert any(
         row.get("learning_task") == "pseudo_formal_block_verifier_component_gate_feedback"
