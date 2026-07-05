@@ -77130,6 +77130,90 @@ def test_runtime_capability_scorecard_flags_empty_semantic_promotion_bridge_outp
     assert "bridge_output_rows=0" in row["evidence"]
 
 
+def test_runtime_audit_preserves_missing_semantic_promotion_handoff_request_telemetry(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran": True,
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders": 1,
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified": 0,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    bridge_row = rows[
+        "source_semantic_promotion_formal_environment_bridge_handoff_not_dropped"
+    ]
+    executor_row = rows[
+        "source_semantic_promotion_formal_environment_proof_body_executor_handoff_not_dropped"
+    ]
+
+    assert (
+        audit[
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested_telemetry_present"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_requested"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_requested_telemetry_present"
+        ]
+        is False
+    )
+    assert bridge_row["passed"] is False
+    assert "bridge_requested_present=False" in bridge_row["evidence"]
+    assert executor_row["passed"] is False
+    assert "executor_requested_present=False" in executor_row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_dropped_post_executor_semantic_promotion_executor_queue() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

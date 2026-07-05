@@ -6027,6 +6027,10 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested_telemetry_present": (
+            "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested"
+            in manifest
+        ),
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran": bool(
             manifest.get(
                 "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
@@ -6066,6 +6070,10 @@ def audit_research_agent_runtime(
                 "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested",
                 False,
             )
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested_telemetry_present": (
+            "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested"
+            in manifest
         ),
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_ran": bool(
             manifest.get(
@@ -8716,6 +8724,10 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_requested_telemetry_present": (
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_requested"
+            in manifest
+        ),
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran": bool(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran",
@@ -8785,6 +8797,10 @@ def audit_research_agent_runtime(
                 "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested",
                 False,
             )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested_telemetry_present": (
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_requested"
+            in manifest
         ),
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_ran": bool(
             manifest.get(
@@ -17595,8 +17611,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         executor_prefix: str,
     ) -> list[dict[str, Any]]:
         bridge_requested_value = payload.get(f"{bridge_prefix}_requested")
-        bridge_requested_present = (
-            bridge_requested_value is True or bridge_requested_value is False
+        bridge_requested_present = _requested_telemetry_present(
+            f"{bridge_prefix}_requested",
+            bridge_requested_value,
         )
         bridge_requested = bridge_requested_value is True
         bridge_ran = payload.get(f"{bridge_prefix}_ran") is True
@@ -17617,8 +17634,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and bridge_output_rows > 0
         )
         executor_requested_value = payload.get(f"{executor_prefix}_requested")
-        executor_requested_present = (
-            executor_requested_value is True or executor_requested_value is False
+        executor_requested_present = _requested_telemetry_present(
+            f"{executor_prefix}_requested",
+            executor_requested_value,
         )
         executor_requested = executor_requested_value is True
         executor_ran = payload.get(f"{executor_prefix}_ran") is True
