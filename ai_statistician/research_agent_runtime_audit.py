@@ -5093,6 +5093,69 @@ def audit_research_agent_runtime(
             )
             or []
         ),
+        "n_runtime_formalization_gap_planner_execution_plan_rows": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_stage_rows": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_stage_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_schema_valid": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_schema_valid",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok",
+                0,
+            )
+            or 0
+        ),
+        "runtime_formalization_gap_planner_execution_plan_boundary": str(
+            manifest.get(
+                "runtime_formalization_gap_planner_execution_plan_boundary",
+                "",
+            )
+            or ""
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_requested": int(
             manifest.get(
                 "n_runtime_formalization_gap_planner_live_route_planner_requested",
@@ -16237,6 +16300,103 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         int(payload.get("n_runtime_formal_gap_planner_handoff_rows", 0) or 0),
         int(payload.get("n_runtime_formalization_gap_planner_handoffs", 0) or 0),
     )
+    runtime_gap_planner_execution_plan_rows = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_stage_rows = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_stage_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_schema_valid = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_schema_valid",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_row_schema_valid = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_row_schema_invalid = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_prompt_stage_cost_control_ok = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_live_stage_explicit_ok = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok = int(
+        payload.get(
+            "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok",
+            0,
+        )
+        or 0
+    )
+    runtime_gap_planner_execution_plan_required_telemetry_keys = (
+        "n_runtime_formalization_gap_planner_execution_plan_rows",
+        "n_runtime_formalization_gap_planner_execution_plan_stage_rows",
+        "n_runtime_formalization_gap_planner_execution_plan_schema_valid",
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid",
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid",
+        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok",
+        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok",
+        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok",
+    )
+    runtime_gap_planner_execution_plan_missing_telemetry_keys: tuple[str, ...] = ()
+    if runtime_formal_gap_planner_handoff_count > 0:
+        runtime_gap_planner_execution_plan_missing_telemetry_keys = tuple(
+            key
+            for key in runtime_gap_planner_execution_plan_required_telemetry_keys
+            if key not in payload or payload.get(key) is None
+        )
+    runtime_gap_planner_execution_plan_stage_rows_required = (
+        runtime_formal_gap_planner_handoff_count * 6
+    )
+    runtime_gap_planner_execution_plan_consumed = (
+        runtime_formal_gap_planner_handoff_count <= 0
+        or (
+            len(runtime_gap_planner_execution_plan_missing_telemetry_keys) == 0
+            and runtime_gap_planner_execution_plan_rows
+            >= runtime_formal_gap_planner_handoff_count
+            and runtime_gap_planner_execution_plan_stage_rows
+            >= runtime_gap_planner_execution_plan_stage_rows_required
+            and runtime_gap_planner_execution_plan_schema_valid
+            >= runtime_gap_planner_execution_plan_rows
+            and runtime_gap_planner_execution_plan_row_schema_valid
+            >= runtime_gap_planner_execution_plan_rows
+            and runtime_gap_planner_execution_plan_row_schema_invalid <= 0
+            and runtime_gap_planner_execution_plan_prompt_stage_cost_control_ok
+            >= runtime_formal_gap_planner_handoff_count
+            and runtime_gap_planner_execution_plan_live_stage_explicit_ok
+            >= runtime_formal_gap_planner_handoff_count
+            and runtime_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok
+            >= runtime_formal_gap_planner_handoff_count
+        )
+    )
     runtime_gap_planner_live_requests = int(
         payload.get(
             "n_runtime_formalization_gap_planner_live_route_planner_requested",
@@ -18750,6 +18910,56 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context=0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formal_gap_planner_handoff_execution_plan_consumed",
+            runtime_gap_planner_execution_plan_consumed,
+            (
+                "handoffs="
+                f"{runtime_formal_gap_planner_handoff_count} "
+                "missing_telemetry="
+                f"{runtime_gap_planner_execution_plan_missing_telemetry_keys} "
+                "execution_plan_rows="
+                f"{runtime_gap_planner_execution_plan_rows} "
+                "stage_rows="
+                f"{runtime_gap_planner_execution_plan_stage_rows}/"
+                f"{runtime_gap_planner_execution_plan_stage_rows_required} "
+                "schema_valid="
+                f"{runtime_gap_planner_execution_plan_schema_valid} "
+                "row_schema_valid="
+                f"{runtime_gap_planner_execution_plan_row_schema_valid} "
+                "row_schema_invalid="
+                f"{runtime_gap_planner_execution_plan_row_schema_invalid} "
+                "prompt_stage_cost_control_ok="
+                f"{runtime_gap_planner_execution_plan_prompt_stage_cost_control_ok} "
+                "live_stage_explicit_ok="
+                f"{runtime_gap_planner_execution_plan_live_stage_explicit_ok} "
+                "reuse_smoke_stage_cost_control_ok="
+                f"{runtime_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok}"
+            ),
+            (
+                "formal-gap planner handoffs exist, but the integrated runtime "
+                "did not consume schema-valid six-stage execution plans covering "
+                "standalone planning, target intake, component-resource registry, "
+                "bounded prompt staging, explicit live-provider staging, and "
+                "cost-controlled reuse smoke; this is planner handoff evidence, "
+                "not theorem proof evidence"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationGapPlanner",
+                target_behavior=(
+                    "Execute or rehydrate RuntimeFormalizationGapPlannerExecutionManifest "
+                    "artifacts so each formal-gap handoff emits one schema-valid "
+                    "six-stage execution plan with cost-controlled prompt and reuse "
+                    "stages plus an explicit live-provider stage."
+                ),
+                success_metric=(
+                    "n_runtime_formalization_gap_planner_execution_plan_rows covers "
+                    "handoffs, row_schema_invalid=0, stage_rows>=6*handoffs, and "
+                    "prompt/live/reuse stage checks cover every handoff"
                 ),
             ),
         ),

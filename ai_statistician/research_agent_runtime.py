@@ -80,6 +80,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS,
     audit_formalization_gap_planner_runtime_handoffs,
+    validate_runtime_handoff_execution_plan,
 )
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
@@ -20212,6 +20213,39 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "reuse_smoke_cost_control_ok": int(
                     audit_payload.get("n_reuse_smoke_cost_control_ok", 0) or 0
                 ),
+                "execution_plan_rows": int(
+                    audit_payload.get("n_execution_plan_rows", 0) or 0
+                ),
+                "execution_plan_stage_rows": int(
+                    audit_payload.get("n_execution_plan_stage_rows", 0) or 0
+                ),
+                "execution_plan_schema_valid": int(
+                    audit_payload.get("n_execution_plan_schema_valid", 0) or 0
+                ),
+                "execution_plan_row_schema_valid": int(
+                    audit_payload.get("n_execution_plan_row_schema_valid", 0) or 0
+                ),
+                "execution_plan_row_schema_invalid": int(
+                    audit_payload.get("n_execution_plan_row_schema_invalid", 0) or 0
+                ),
+                "execution_plan_prompt_stage_cost_control_ok": int(
+                    audit_payload.get(
+                        "n_execution_plan_prompt_stage_cost_control_ok",
+                        0,
+                    )
+                    or 0
+                ),
+                "execution_plan_live_stage_explicit_ok": int(
+                    audit_payload.get("n_execution_plan_live_stage_explicit_ok", 0)
+                    or 0
+                ),
+                "execution_plan_reuse_smoke_stage_cost_control_ok": int(
+                    audit_payload.get(
+                        "n_execution_plan_reuse_smoke_stage_cost_control_ok",
+                        0,
+                    )
+                    or 0
+                ),
             },
             "live_route_planner_requested": bool(
                 self.runtime_config.formalization_gap_planner_live_route_planner
@@ -20326,6 +20360,8 @@ class FormalizationGapPlannerRuntimeSubsystem:
             summary=(
                 f"bridge_rows={len(bridge_rows)} handoffs={len(handoff_rows)} "
                 f"audit_all_ok={all_ok} "
+                "execution_plan_rows="
+                f"{manifest['counts']['execution_plan_rows']} "
                 f"llm_prompt_packets={manifest['counts']['llm_prompt_packets']} "
                 f"live_followup_required={live_route_planner_followup_required} "
                 f"live_responses={live_counts.get('response_present', 0)} "
@@ -23115,6 +23151,19 @@ def run_research_agent_runtime(
         runtime_out_dir=out_dir,
         runtime_learning_rows=learning_rows,
     )
+    gap_planner_handoff_execution_plan_summary = (
+        _runtime_formalization_gap_planner_handoff_execution_plan_summary(
+            gap_planner_handoff_rows
+        )
+    )
+    for key, value in gap_planner_handoff_execution_plan_summary.items():
+        if key.startswith("n_runtime_formalization_gap_planner_execution_plan_"):
+            gap_planner_live_route_planner_summary[key] = max(
+                int(gap_planner_live_route_planner_summary.get(key, 0) or 0),
+                int(value or 0),
+            )
+        elif key not in gap_planner_live_route_planner_summary:
+            gap_planner_live_route_planner_summary[key] = value
     gap_planner_execution_context_rows = [
         *gap_planner_bridge_rows,
         *gap_planner_handoff_rows,
@@ -70634,6 +70683,126 @@ def _runtime_formalization_gap_planner_execution_manifests(
     return manifests
 
 
+def _runtime_formalization_gap_planner_handoff_execution_plan_summary(
+    handoff_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    counts: Counter[str] = Counter()
+    for row_index, handoff in enumerate(handoff_rows):
+        if not isinstance(handoff, Mapping):
+            continue
+        execution_plan = handoff.get("execution_plan", {})
+        if not isinstance(execution_plan, Mapping) or not execution_plan:
+            continue
+        execution_plan_row = dict(execution_plan)
+        execution_plan_row.setdefault(
+            "artifact_kind",
+            "RuntimeFormalizationGapPlannerHandoffExecutionPlan",
+        )
+        execution_plan_row["handoff_id"] = str(
+            handoff.get("handoff_id", f"row:{row_index}")
+        )
+        execution_plan_row["bridge_id"] = str(handoff.get("bridge_id", ""))
+        execution_plan_row["source_row_index"] = row_index
+        execution_plan_errors = validate_runtime_handoff_execution_plan(
+            execution_plan
+        )
+        execution_plan_row_errors = validate_runtime_handoff_execution_plan(
+            execution_plan_row
+        )
+        stages = [
+            stage
+            for stage in execution_plan.get("stages", []) or []
+            if isinstance(stage, Mapping)
+        ]
+        stages_by_id = {
+            str(stage.get("stage_id", "") or "").strip(): stage
+            for stage in stages
+            if str(stage.get("stage_id", "") or "").strip()
+        }
+        prompt_stage = stages_by_id.get("llm_route_planner_prompt", {})
+        live_stage = stages_by_id.get("llm_route_planner_live_optional", {})
+        reuse_stage = stages_by_id.get("reuse_smoke", {})
+        prompt_stage_argv = prompt_stage.get("argv", [])
+        prompt_stage_argv = (
+            prompt_stage_argv if isinstance(prompt_stage_argv, list) else []
+        )
+        live_stage_argv = live_stage.get("argv", [])
+        live_stage_argv = live_stage_argv if isinstance(live_stage_argv, list) else []
+        reuse_stage_argv = reuse_stage.get("argv", [])
+        reuse_stage_argv = (
+            reuse_stage_argv if isinstance(reuse_stage_argv, list) else []
+        )
+        counts["execution_plan_rows"] += 1
+        counts["execution_plan_stage_rows"] += len(stages)
+        if not execution_plan_errors:
+            counts["execution_plan_schema_valid"] += 1
+        if not execution_plan_row_errors:
+            counts["execution_plan_row_schema_valid"] += 1
+        else:
+            counts["execution_plan_row_schema_invalid"] += 1
+        if (
+            bool(prompt_stage)
+            and prompt_stage.get("cli") == handoff.get("llm_route_planner_prompt_cli")
+            and prompt_stage.get("requires_live_llm") is False
+            and prompt_stage.get("requires_operator_review_before_live") is False
+            and "--invoke-provider" not in prompt_stage_argv
+            and "--model-tier" in prompt_stage_argv
+            and "auto" in prompt_stage_argv
+        ):
+            counts["execution_plan_prompt_stage_cost_control_ok"] += 1
+        if (
+            bool(live_stage)
+            and live_stage.get("cli") == handoff.get("llm_route_planner_live_cli")
+            and live_stage.get("requires_live_llm") is True
+            and live_stage.get("requires_operator_review_before_live") is True
+            and "--invoke-provider" in live_stage_argv
+            and "--model-tier" in live_stage_argv
+            and "auto" in live_stage_argv
+        ):
+            counts["execution_plan_live_stage_explicit_ok"] += 1
+        if (
+            bool(reuse_stage)
+            and reuse_stage.get("cli") == handoff.get("reuse_smoke_cli")
+            and reuse_stage.get("requires_live_llm") is False
+            and reuse_stage.get("requires_operator_review_before_live") is False
+            and "--llm-route-planner-invoke-provider" not in reuse_stage_argv
+            and "--feedback-llm-route-planner-invoke-provider" not in reuse_stage_argv
+        ):
+            counts["execution_plan_reuse_smoke_stage_cost_control_ok"] += 1
+    return {
+        "n_runtime_formalization_gap_planner_execution_plan_rows": int(
+            counts["execution_plan_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_stage_rows": int(
+            counts["execution_plan_stage_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_schema_valid": int(
+            counts["execution_plan_schema_valid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid": int(
+            counts["execution_plan_row_schema_valid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid": int(
+            counts["execution_plan_row_schema_invalid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok": int(
+            counts["execution_plan_prompt_stage_cost_control_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok": int(
+            counts["execution_plan_live_stage_explicit_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok": int(
+            counts["execution_plan_reuse_smoke_stage_cost_control_ok"]
+        ),
+        "runtime_formalization_gap_planner_execution_plan_boundary": (
+            "Runtime FormalizationGapPlanner execution plans are schema-validated "
+            "handoff replay and prompt-staging evidence. They preserve the path "
+            "from a gap-planner handoff into target intake, bounded LLM route "
+            "planning, and reuse smoke, but they are not theorem proof evidence."
+        ),
+    }
+
+
 def _runtime_formalization_gap_planner_live_route_planner_summary(
     results: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -70692,6 +70861,7 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "provider_total_tokens_including_staged_followups",
     )
     aggregate_counts: Counter[str] = Counter()
+    handoff_execution_counts: Counter[str] = Counter()
     manifest_ids: list[str] = []
     live_manifest_paths: list[str] = []
     requested = 0
@@ -70738,6 +70908,39 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ).strip()
         if live_manifest_path:
             live_manifest_paths.append(live_manifest_path)
+        manifest_counts = execution_manifest.get("counts", {})
+        if not isinstance(manifest_counts, Mapping):
+            manifest_counts = {}
+        audit_payload = execution_manifest.get("audit_payload", {})
+        if not isinstance(audit_payload, Mapping):
+            audit_payload = {}
+        for count_key, audit_key in (
+            ("execution_plan_rows", "n_execution_plan_rows"),
+            ("execution_plan_stage_rows", "n_execution_plan_stage_rows"),
+            ("execution_plan_schema_valid", "n_execution_plan_schema_valid"),
+            (
+                "execution_plan_row_schema_valid",
+                "n_execution_plan_row_schema_valid",
+            ),
+            (
+                "execution_plan_row_schema_invalid",
+                "n_execution_plan_row_schema_invalid",
+            ),
+            (
+                "execution_plan_prompt_stage_cost_control_ok",
+                "n_execution_plan_prompt_stage_cost_control_ok",
+            ),
+            (
+                "execution_plan_live_stage_explicit_ok",
+                "n_execution_plan_live_stage_explicit_ok",
+            ),
+            (
+                "execution_plan_reuse_smoke_stage_cost_control_ok",
+                "n_execution_plan_reuse_smoke_stage_cost_control_ok",
+            ),
+        ):
+            value = manifest_counts.get(count_key, audit_payload.get(audit_key, 0))
+            handoff_execution_counts[count_key] += int(value or 0)
         live_counts = execution_manifest.get("live_route_planner_counts", {})
         if not isinstance(live_counts, Mapping):
             continue
@@ -70749,6 +70952,30 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             execution_manifests
         ),
         "runtime_formalization_gap_planner_execution_manifest_ids": manifest_ids,
+        "n_runtime_formalization_gap_planner_execution_plan_rows": int(
+            handoff_execution_counts["execution_plan_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_stage_rows": int(
+            handoff_execution_counts["execution_plan_stage_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_schema_valid": int(
+            handoff_execution_counts["execution_plan_schema_valid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid": int(
+            handoff_execution_counts["execution_plan_row_schema_valid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid": int(
+            handoff_execution_counts["execution_plan_row_schema_invalid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok": int(
+            handoff_execution_counts["execution_plan_prompt_stage_cost_control_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok": int(
+            handoff_execution_counts["execution_plan_live_stage_explicit_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok": int(
+            handoff_execution_counts["execution_plan_reuse_smoke_stage_cost_control_ok"]
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_requested": requested,
         "n_runtime_formalization_gap_planner_live_route_planner_followups_required": (
             followups_required
@@ -70927,6 +71154,12 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             "planning and feedback-loop evidence only. They are not theorem proof "
             "evidence and cannot close formal gaps without source grounding and "
             "target-prover replay."
+        ),
+        "runtime_formalization_gap_planner_execution_plan_boundary": (
+            "Runtime FormalizationGapPlanner execution plans are schema-validated "
+            "handoff replay and prompt-staging evidence. They preserve the path "
+            "from a gap-planner handoff into target intake, bounded LLM route "
+            "planning, and reuse smoke, but they are not theorem proof evidence."
         ),
     }
 

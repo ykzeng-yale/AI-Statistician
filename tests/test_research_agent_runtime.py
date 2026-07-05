@@ -1704,6 +1704,14 @@ def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_sm
     assert manifest["counts"]["bridge_rows"] == 1
     assert manifest["counts"]["handoff_rows"] == 1
     assert manifest["counts"]["llm_prompt_packets"] >= 1
+    assert manifest["counts"]["execution_plan_rows"] == 1
+    assert manifest["counts"]["execution_plan_stage_rows"] == 6
+    assert manifest["counts"]["execution_plan_schema_valid"] == 1
+    assert manifest["counts"]["execution_plan_row_schema_valid"] == 1
+    assert manifest["counts"]["execution_plan_row_schema_invalid"] == 0
+    assert manifest["counts"]["execution_plan_prompt_stage_cost_control_ok"] == 1
+    assert manifest["counts"]["execution_plan_live_stage_explicit_ok"] == 1
+    assert manifest["counts"]["execution_plan_reuse_smoke_stage_cost_control_ok"] == 1
     assert manifest["proof_evidence_status"] == (
         "FORMALIZATION_GAP_PLANNER_RUNTIME_HANDOFF_AUDIT_NOT_PROOF_EVIDENCE"
     )
@@ -1715,6 +1723,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_offline_handoff_sm
     assert any(
         row.evidence_type == "formalization_gap_planner_runtime_execution"
         and row.payload["live_llm_invoked"] is False
+        and row.payload["execution_plan_rows"] == 1
         for row in result.evidence_entries
     )
 
@@ -3459,6 +3468,16 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "runtime_formalization_gap_planner_live_route_planner/"
                                 "runtime_formalization_gap_planner_live_route_planner_manifest.json"
                             ),
+                            "counts": {
+                                "execution_plan_rows": 1,
+                                "execution_plan_stage_rows": 6,
+                                "execution_plan_schema_valid": 1,
+                                "execution_plan_row_schema_valid": 1,
+                                "execution_plan_row_schema_invalid": 0,
+                                "execution_plan_prompt_stage_cost_control_ok": 1,
+                                "execution_plan_live_stage_explicit_ok": 1,
+                                "execution_plan_reuse_smoke_stage_cost_control_ok": 1,
+                            },
                             "live_route_planner_counts": {
                                 "selected_handoffs": 1,
                                 "request_packets": 1,
@@ -3516,6 +3535,48 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
     )
 
     assert summary["n_runtime_formalization_gap_planner_execution_manifests"] == 1
+    assert (
+        summary["n_runtime_formalization_gap_planner_execution_plan_rows"]
+        == 1
+    )
+    assert (
+        summary["n_runtime_formalization_gap_planner_execution_plan_stage_rows"]
+        == 6
+    )
+    assert (
+        summary["n_runtime_formalization_gap_planner_execution_plan_schema_valid"]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok"
+        ]
+        == 1
+    )
     assert (
         summary["n_runtime_formalization_gap_planner_live_route_planner_requested"]
         == 1
@@ -7821,6 +7882,72 @@ def test_runtime_capability_scorecard_flags_formal_gap_planner_handoff_context_g
     assert "runtime_pending_task_environment_feedback" in handoff_score["evidence"]
     assert "executable CLI/path context" in handoff_score["blocker"]
     assert handoff_score["next_owner_subsystem"] == "FormalizationEvaluator"
+
+
+def test_runtime_capability_scorecard_requires_gap_planner_execution_plan_consumption() -> None:
+    clean_payload = _scorecard_theory_trace_consumption_payload()
+    clean_scorecard = _runtime_capability_scorecard(clean_payload)
+    clean_rows = {
+        row["requirement_id"]: row for row in clean_scorecard["rows"]
+    }
+    assert clean_rows[
+        "formal_gap_planner_handoff_execution_plan_consumed"
+    ]["passed"] is True
+
+    payload = _scorecard_theory_trace_consumption_payload()
+    payload.update(
+        {
+            "runtime_dir": "runs/previous_capability_eval",
+            "manifest": "runs/previous_capability_eval/research_agent_runtime_manifest.json",
+            "runtime_learning_rows_jsonl": (
+                "runs/previous_capability_eval/runtime_learning_rows.jsonl"
+            ),
+            "runtime_resume_manifest_has_pending_task": False,
+            "question_ids": ["causal_ate_aipw"],
+            "n_runtime_formalization_gap_planner_handoffs": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    execution_plan = rows[
+        "formal_gap_planner_handoff_execution_plan_consumed"
+    ]
+
+    assert execution_plan["passed"] is False
+    assert "execution_plan_rows=0" in execution_plan["evidence"]
+    assert "schema-valid six-stage execution plans" in execution_plan["blocker"]
+    assert execution_plan["next_owner_subsystem"] == "FormalizationGapPlanner"
+
+    payload.update(
+        {
+            "n_runtime_formalization_gap_planner_execution_plan_rows": 1,
+            "n_runtime_formalization_gap_planner_execution_plan_stage_rows": 6,
+            "n_runtime_formalization_gap_planner_execution_plan_schema_valid": 1,
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid": 1,
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid": 0,
+            "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok": 1,
+            "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok": 1,
+            "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "formal_gap_planner_handoff_execution_plan_consumed"
+    ]["passed"] is True
+
+    payload[
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    execution_plan = rows[
+        "formal_gap_planner_handoff_execution_plan_consumed"
+    ]
+    assert execution_plan["passed"] is False
+    assert "row_schema_invalid=1" in execution_plan["evidence"]
 
 
 def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() -> None:
@@ -69141,6 +69268,17 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         ]
         == 2
     )
+    assert manifest["n_runtime_formalization_gap_planner_execution_plan_rows"] == 2
+    assert (
+        manifest["n_runtime_formalization_gap_planner_execution_plan_stage_rows"]
+        == 12
+    )
+    assert (
+        manifest[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
+        ]
+        == 0
+    )
     assert runtime_handoff_audit["n_component_resource_registry_smoke_ok"] == 2
     assert (
         runtime_handoff_audit[
@@ -69499,6 +69637,17 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         == 0
     )
     assert audit["n_results_with_architect_initial_routing"] == 1
+    assert audit["n_runtime_formalization_gap_planner_execution_plan_rows"] == 2
+    assert (
+        audit["n_runtime_formalization_gap_planner_execution_plan_stage_rows"]
+        == 12
+    )
+    assert (
+        audit[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
+        ]
+        == 0
+    )
     assert audit["n_architect_initial_routing_decisions"] == 1
     assert audit["n_architect_initial_routing_prerequisite_theory"] == 0
     assert audit["architect_initial_routing_selected_subsystems"] == {
