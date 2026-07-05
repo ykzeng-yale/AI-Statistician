@@ -27,6 +27,9 @@ from .pseudo_formalization import (
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
+    pseudo_formal_work_order_row_has_required_lineage,
+    pseudo_formal_work_order_row_has_semantic_requirements,
+    pseudo_formal_work_order_row_has_source_anchor,
     pseudo_formalizer_prompt_contract,
     validate_pseudo_formal_packet,
 )
@@ -287,7 +290,7 @@ def _formalizer_repair_context(
                             }
                         ],
                         "semantic_primitive_requirements": [
-                            "<non-empty when routing source_to_bridge work>"
+                            "<non-empty primitive/source object id when routing exact-semantic-definition or source_to_bridge work>"
                         ],
                         "lean_feasibility": "needs_semantic_definition",
                         "faithfulness_status": "faithful",
@@ -311,6 +314,9 @@ def _formalizer_repair_context(
                     "required_block_fields": {
                         "faithfulness_status": "faithful",
                         "lean_feasibility": "needs_semantic_definition",
+                        "semantic_primitive_requirements": [
+                            "<one or more primitive/source object ids to define>"
+                        ],
                     },
                 },
                 {
@@ -351,6 +357,7 @@ def _formalizer_repair_context(
                 "do not omit top-level conclusion",
                 "do not omit source_anchors or leave id/excerpt empty",
                 "do not use needs_review as block_verification.verdict",
+                "do not emit exact semantic-definition rows without semantic_primitive_requirements",
                 "do not claim kernel verification or proof evidence",
                 "do not return only generic diagnostic rows when a target lane is required",
             ],
@@ -649,11 +656,12 @@ def build_formalizer_prompt(
             "block_verification verdict. Runtime target-lane routing is inferred "
             "from block fields, not from prose: to route exact semantic-definition "
             "work, set faithfulness_status=faithful and "
-            "lean_feasibility=needs_semantic_definition; to route Lean/RAG "
-            "grounding, set faithfulness_status=faithful and "
-            "lean_feasibility=needs_rag; to route source_to_bridge work, set "
-            "faithfulness_status=faithful and include non-empty "
-            "semantic_primitive_requirements. A packet with only needs_review or "
+            "lean_feasibility=needs_semantic_definition, and include non-empty "
+            "semantic_primitive_requirements naming the primitive/source object "
+            "that source lookup must define; to route Lean/RAG grounding, set "
+            "faithfulness_status=faithful and lean_feasibility=needs_rag; to route "
+            "source_to_bridge work, set faithfulness_status=faithful and include "
+            "non-empty semantic_primitive_requirements. A packet with only needs_review or "
             "generic not_run blocks produces generic review rows and does not "
             "satisfy required PF/BV activation. These packets are decomposition and "
             "routing artifacts only: "
@@ -1414,13 +1422,83 @@ def _validate_required_pseudo_formalization_packet(
                 + " or to independent block verification. Runtime routing is "
                 "field-inferred: for source_theorem_exact_semantic_definition use "
                 "faithfulness_status=faithful with "
-                "lean_feasibility=needs_semantic_definition; for lean_rag use "
+                "lean_feasibility=needs_semantic_definition and non-empty "
+                "semantic_primitive_requirements naming the primitive/source object "
+                "to define; for lean_rag use "
                 "faithfulness_status=faithful with lean_feasibility=needs_rag; "
                 "for source_to_bridge use faithfulness_status=faithful with "
                 "semantic_primitive_requirements; generic needs_review/not_run "
                 "blocks are diagnostic only"
             ]
+        exact_semantic_rows = [
+            row
+            for row in target_lane_rows
+            if str(row.get("target_lane", "") or "")
+            == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ]
+        if (
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+            in required_target_lanes
+            and not exact_semantic_rows
+        ):
+            return [
+                "pseudo_formalization_required: required "
+                "source_theorem_exact_semantic_definition routing was not "
+                "materialized as an exact semantic-definition work-order row. "
+                "Independent block verification alone is useful diagnostic PF/BV "
+                "feedback, but exact semantic-definition repair must also emit a "
+                "faithful block with lean_feasibility=needs_semantic_definition "
+                "and non-empty semantic_primitive_requirements."
+            ]
+        exact_semantic_row_errors = (
+            _required_exact_semantic_work_order_row_errors(exact_semantic_rows)
+        )
+        if exact_semantic_row_errors:
+            return exact_semantic_row_errors
     return []
+
+
+def _required_exact_semantic_work_order_row_errors(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    if not rows:
+        return []
+    missing_source_anchors = [
+        str(row.get("source_block_id", "") or f"row:{index}")
+        for index, row in enumerate(rows)
+        if not pseudo_formal_work_order_row_has_source_anchor(row)
+    ]
+    missing_semantic_requirements = [
+        str(row.get("source_block_id", "") or f"row:{index}")
+        for index, row in enumerate(rows)
+        if not pseudo_formal_work_order_row_has_semantic_requirements(row)
+    ]
+    missing_lineage = [
+        str(row.get("source_block_id", "") or f"row:{index}")
+        for index, row in enumerate(rows)
+        if not pseudo_formal_work_order_row_has_required_lineage(row)
+    ]
+    errors: list[str] = []
+    if missing_source_anchors:
+        errors.append(
+            "pseudo_formalization_required: source_theorem_exact_semantic_definition "
+            "rows must carry source_anchors with a non-empty id or excerpt; missing "
+            + ", ".join(missing_source_anchors)
+        )
+    if missing_semantic_requirements:
+        errors.append(
+            "pseudo_formalization_required: source_theorem_exact_semantic_definition "
+            "rows must carry non-empty semantic_primitive_requirements naming the "
+            "primitive/source object to define; missing "
+            + ", ".join(missing_semantic_requirements)
+        )
+    if missing_lineage:
+        errors.append(
+            "pseudo_formalization_required: source_theorem_exact_semantic_definition "
+            "rows must preserve PF work-order lineage; missing "
+            + ", ".join(missing_lineage)
+        )
+    return errors
 
 
 def _required_pseudo_formal_target_lanes(
@@ -1810,7 +1888,11 @@ def _pseudo_formal_seed_semantic_primitives(
     )
     if explicit:
         return explicit
-    if PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE not in required_target_lanes:
+    if not (
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE in required_target_lanes
+        or PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        in required_target_lanes
+    ):
         return []
     anchor_id = str(source_anchor.get("id", "") or "").strip() or conclusion
     suffix = re.sub(r"[^A-Za-z0-9_]+", "_", anchor_id).strip("_").lower()
@@ -6393,7 +6475,9 @@ def _formalizer_mode_specific_instructions(
             "using runtime-consumed fields, not a prose-only target_lane label: use "
             "faithfulness_status=faithful with "
             "lean_feasibility=needs_semantic_definition for "
-            "source_theorem_exact_semantic_definition work; use "
+            "source_theorem_exact_semantic_definition work, plus non-empty "
+            "semantic_primitive_requirements naming the primitive/source object "
+            "that source lookup must define; use "
             "faithfulness_status=faithful with lean_feasibility=needs_rag for "
             "lean_rag library grounding; use faithfulness_status=faithful plus "
             "non-empty semantic_primitive_requirements for source_to_bridge "

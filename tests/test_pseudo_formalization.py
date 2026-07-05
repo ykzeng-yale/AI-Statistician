@@ -1283,6 +1283,9 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
     prompt_contract = pseudo_formalizer_prompt_contract()
     assert "direct child" in prompt_contract["dependency_rule"]
     assert "same-level dependencies" in prompt_contract["dependency_scope_rule"]
+    assert "semantic_primitive_requirements" in prompt_contract[
+        "required_block_fields"
+    ]
     assert contract["packet_calibration_contract"]["aggregation_rule"] == (
         "parallel_pessimistic_aggregation"
     )
@@ -2039,6 +2042,49 @@ def test_structural_exact_semantic_memory_rejects_generic_review_only() -> None:
     assert any("only generic review rows" in error for error in errors)
     assert any("required target lanes" in error for error in errors)
     assert any("lean_feasibility=needs_semantic_definition" in error for error in errors)
+    assert any("semantic_primitive_requirements" in error for error in errors)
+
+
+def test_structural_exact_semantic_memory_rejects_unnamed_exact_row() -> None:
+    question = _pf_test_question()
+    proof_memory_summary = {
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": True,
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+    }
+    packet = _normalize_formalizer_packet(
+        _minimal_formalizer_response(
+            include_pseudo_formal=True,
+            pf_block_overrides={
+                "semantic_primitive_requirements": [],
+                "lean_feasibility": "needs_semantic_definition",
+                "faithfulness_status": "faithful",
+                "faithfulness_repair": {
+                    "status": "not_required",
+                    "attempts": 0,
+                    "flagged_discrepancies": [],
+                },
+                "block_verification": {"verdict": "unknown"},
+            },
+        ),
+        question=question,
+        model="static-formalizer",
+        model_tier="sonnet",
+        provider_name="static",
+        backend_provider_name="static",
+        raw_response="{}",
+        theory_packet=_pf_theory_packet(),
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+
+    errors = _validate_required_pseudo_formalization_packet(
+        packet,
+        environment_feedback={},
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+    )
+
+    assert any("source_theorem_exact_semantic_definition rows" in error for error in errors)
     assert any("semantic_primitive_requirements" in error for error in errors)
 
 

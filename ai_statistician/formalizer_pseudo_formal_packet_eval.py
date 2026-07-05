@@ -23,8 +23,12 @@ from .model_backend import (
 from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
+    pseudo_formal_work_order_row_has_required_lineage,
+    pseudo_formal_work_order_row_has_semantic_requirements,
+    pseudo_formal_work_order_row_has_source_anchor,
     validate_pseudo_formal_packet,
 )
 from .research_schema import OpenResearchQuestion
@@ -253,6 +257,10 @@ def _pseudo_formal_packet_eval_feedback() -> dict[str, Any]:
         "pseudo_formalization_required_reason": (
             "component eval for blocked proof-body/PF activation"
         ),
+        "pseudo_formal_block_routing_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+            PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+        ],
         "source_theorem_proof_body_adapter_feedback": {
             "diagnostics": [
                 {
@@ -315,13 +323,19 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
     ]
     exact_semantic_rows_with_source_anchors = [
-        row for row in exact_semantic_rows if _row_has_source_anchor(row)
+        row
+        for row in exact_semantic_rows
+        if pseudo_formal_work_order_row_has_source_anchor(row)
     ]
     exact_semantic_rows_with_semantic_requirements = [
-        row for row in exact_semantic_rows if _row_has_semantic_requirements(row)
+        row
+        for row in exact_semantic_rows
+        if pseudo_formal_work_order_row_has_semantic_requirements(row)
     ]
     exact_semantic_rows_with_lineage = [
-        row for row in exact_semantic_rows if _row_has_required_pf_lineage(row)
+        row
+        for row in exact_semantic_rows
+        if pseudo_formal_work_order_row_has_required_lineage(row)
     ]
     exact_semantic_rows_source_anchored = bool(exact_semantic_rows) and len(
         exact_semantic_rows_with_source_anchors
@@ -467,36 +481,6 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
         json.dumps(manifest, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
     )
-
-
-def _row_has_source_anchor(row: Mapping[str, Any]) -> bool:
-    for anchor in row.get("source_anchors", []) or []:
-        if not isinstance(anchor, Mapping):
-            continue
-        if str(anchor.get("id", "") or "").strip() or str(
-            anchor.get("excerpt", "") or ""
-        ).strip():
-            return True
-    return False
-
-
-def _row_has_semantic_requirements(row: Mapping[str, Any]) -> bool:
-    return any(
-        str(value or "").strip()
-        for value in row.get("semantic_primitive_requirements", []) or []
-    )
-
-
-def _row_has_required_pf_lineage(row: Mapping[str, Any]) -> bool:
-    required_fields = (
-        "pseudo_formal_method_contract_id",
-        "pseudo_formal_pipeline_stage",
-        "source_packet_id",
-        "source_block_id",
-        "target_lane",
-        "row_kind",
-    )
-    return all(str(row.get(field, "") or "").strip() for field in required_fields)
 
 
 def _formalizer_pseudo_formal_packet_eval_boundary() -> str:

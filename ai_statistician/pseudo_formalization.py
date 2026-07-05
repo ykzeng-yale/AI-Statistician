@@ -573,6 +573,7 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
             "scope_parent_id",
             "dependency_scope",
             "source_anchors",
+            "semantic_primitive_requirements",
             "lean_feasibility",
             "faithfulness_status",
             "faithfulness_repair",
@@ -917,6 +918,40 @@ def pseudo_formal_routable_work_order_rows(
         if str(row.get("row_kind", "") or "")
         not in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS
     ]
+
+
+def pseudo_formal_work_order_row_has_source_anchor(row: Mapping[str, Any]) -> bool:
+    for anchor in row.get("source_anchors", []) or []:
+        if not isinstance(anchor, Mapping):
+            continue
+        if str(anchor.get("id", "") or "").strip() or str(
+            anchor.get("excerpt", "") or ""
+        ).strip():
+            return True
+    return False
+
+
+def pseudo_formal_work_order_row_has_semantic_requirements(
+    row: Mapping[str, Any],
+) -> bool:
+    return any(
+        str(value or "").strip()
+        for value in row.get("semantic_primitive_requirements", []) or []
+    )
+
+
+def pseudo_formal_work_order_row_has_required_lineage(
+    row: Mapping[str, Any],
+) -> bool:
+    required_fields = (
+        "pseudo_formal_method_contract_id",
+        "pseudo_formal_pipeline_stage",
+        "source_packet_id",
+        "source_block_id",
+        "target_lane",
+        "row_kind",
+    )
+    return all(str(row.get(field, "") or "").strip() for field in required_fields)
 
 
 def pseudo_formal_block_structural_quality(block: Mapping[str, Any]) -> dict[str, Any]:

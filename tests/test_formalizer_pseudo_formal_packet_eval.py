@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from ai_statistician.cli import main
 from ai_statistician.formalizer_llm import build_formalizer_prompt
 from ai_statistician.formalizer_pseudo_formal_packet_eval import (
@@ -12,6 +14,7 @@ from ai_statistician.formalizer_pseudo_formal_packet_eval import (
     _pseudo_formal_packet_eval_theory_packet,
     run_formalizer_pseudo_formal_packet_eval,
 )
+from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -187,7 +190,12 @@ def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> No
     assert block["conclusion"]
     assert block["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
     assert block["lean_feasibility"] == "needs_semantic_definition"
+    assert block["semantic_primitive_requirements"]
     assert block["faithfulness_status"] == "faithful"
+    assert feedback["pseudo_formal_block_routing_target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "source_to_bridge",
+    ]
     assert "pseudo_formalization_required_packet_seed" in prompt
 
 
@@ -290,26 +298,16 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_missing_exact_lane(
     ] = "unknown"
     response_file.write_text(json.dumps(response), encoding="utf-8")
 
-    manifest = run_formalizer_pseudo_formal_packet_eval(
-        out_dir=tmp_path / "out",
-        provider_name="static",
-        static_response_file=response_file,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_formalizer_pseudo_formal_packet_eval(
+            out_dir=tmp_path / "out",
+            provider_name="static",
+            static_response_file=response_file,
+        )
 
-    assert manifest["result_status"] == "OK"
-    assert manifest["n_pseudo_formal_routable_work_order_rows"] > 0
-    assert "source_to_bridge" in manifest["pseudo_formal_routable_target_lanes"]
-    assert "source_theorem_exact_semantic_definition" not in (
-        manifest["pseudo_formal_routable_target_lanes"]
-    )
-    assert manifest["exact_semantic_definition_lane_present"] is False
-    assert manifest["fixture_plumbing_ok"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert (
-        manifest["fixture_plumbing_requirements"][
-            "exact_semantic_definition_lane_present"
-        ]
-        is False
+    assert any(
+        "required source_theorem_exact_semantic_definition routing" in error
+        for error in exc_info.value.errors
     )
 
 
@@ -324,32 +322,20 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_inactionable_exact_rows(
     ] = []
     response_file.write_text(json.dumps(response), encoding="utf-8")
 
-    manifest = run_formalizer_pseudo_formal_packet_eval(
-        out_dir=tmp_path / "out",
-        provider_name="static",
-        static_response_file=response_file,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_formalizer_pseudo_formal_packet_eval(
+            out_dir=tmp_path / "out",
+            provider_name="static",
+            static_response_file=response_file,
+        )
 
-    assert manifest["result_status"] == "OK"
-    assert manifest["exact_semantic_definition_lane_present"] is True
-    assert manifest["n_pseudo_formal_exact_semantic_definition_rows"] == 1
-    assert (
-        manifest[
-            "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements"
-        ]
-        == 0
+    assert any(
+        "source_theorem_exact_semantic_definition rows" in error
+        for error in exc_info.value.errors
     )
-    assert (
-        manifest["exact_semantic_definition_rows_semantic_requirements_present"]
-        is False
-    )
-    assert manifest["fixture_plumbing_ok"] is False
-    assert manifest["capability_evidence_ok"] is False
-    assert (
-        manifest["fixture_plumbing_requirements"][
-            "exact_semantic_definition_rows_semantic_requirements_present"
-        ]
-        is False
+    assert any(
+        "semantic_primitive_requirements" in error
+        for error in exc_info.value.errors
     )
 
 
