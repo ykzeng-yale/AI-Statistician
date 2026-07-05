@@ -1,7 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Mapping
+import re
+from dataclasses import dataclass, field, replace
+from typing import Any, Mapping
+
+
+@dataclass(frozen=True)
+class ExactSemanticDefinitionCandidateRiskRule:
+    message: str
+    scope: str = "definition_block"
+    present_any: tuple[str, ...] = ()
+    present_all: tuple[str, ...] = ()
+    absent_all: tuple[str, ...] = ()
+    absent_regex_all: tuple[str, ...] = ()
+    case_sensitive: bool = True
 
 
 @dataclass(frozen=True)
@@ -24,6 +36,14 @@ class ExactSemanticDefinitionPlaceholderPolicy:
         "SEMANTIC_REVIEW_REQUIRED_EXACT_SEMANTIC_SIGNAL_NOT_EXPOSED"
     )
     semantic_import_missing_required_signal_reason: str = ""
+    draft_definition: str = ""
+    draft_definition_semantic_risk: str = "draft definition requires semantic review"
+    source_lookup_search_terms: tuple[str, ...] = ()
+    definition_contract: Mapping[str, Any] = field(default_factory=dict)
+    candidate_risk_rules: tuple[
+        ExactSemanticDefinitionCandidateRiskRule,
+        ...,
+    ] = ()
 
 
 def compact_exact_semantic_placeholder_key(value: str) -> str:
@@ -45,6 +65,66 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
     ExactSemanticDefinitionPlaceholderPolicy,
     ...,
 ] = (
+    ExactSemanticDefinitionPlaceholderPolicy(
+        policy_id="split_conformal_coverage.exchangeable",
+        policy_scope="split_conformal_coverage",
+        placeholder_key="exchangeable",
+        semantic_goal=(
+            "Define finite exchangeability as permutation-invariant joint law of "
+            "the score process, not only pairwise score-order symmetry."
+        ),
+        required_anchor_names=("P", "s"),
+        source_lookup_search_terms=("exchangeability", "exchangeab"),
+        definition_contract={
+            "semantic_intent": (
+                "finite calibration/test score family has a permutation-invariant "
+                "joint law under the probability measure"
+            ),
+            "lean_target_shape": (
+                "predicate over `P : Measure Ω` and `s : Fin (n + 1) -> Ω -> ℝ`"
+            ),
+            "required_properties": [
+                "invariance under finite index permutations",
+                "sufficient to derive uniform rank or bad-rank budget support lemmas",
+                "compatible with MeasureTheory probability-measure assumptions",
+            ],
+            "forbidden_shortcuts": [
+                "do not define Exchangeable as True",
+                "do not add axiom/sorry/admit/unsafe",
+                "do not assume the split_conformal_coverage target theorem",
+            ],
+        },
+        draft_definition=(
+            "def Exchangeable {Ω : Type _} [MeasurableSpace Ω] {ι : Type _} [Fintype ι]\n"
+            "    (P : MeasureTheory.Measure Ω) (s : ι → Ω → ℝ) : Prop :=\n"
+            "  ∀ σ : Equiv.Perm ι,\n"
+            "    MeasureTheory.Measure.map (fun ω : Ω => fun i : ι => s (σ i) ω) P =\n"
+            "      MeasureTheory.Measure.map (fun ω : Ω => fun i : ι => s i ω) P"
+        ),
+        draft_definition_semantic_risk=(
+            "draft finite permutation-invariant joint-law exchangeability still "
+            "requires source review and downstream local Lean/AXLE verification"
+        ),
+        candidate_risk_rules=(
+            ExactSemanticDefinitionCandidateRiskRule(
+                message=(
+                    "semantic_definition_risk: Exchangeable candidate uses pairwise "
+                    "score-order probability symmetry rather than finite permutation-"
+                    "invariant joint-law exchangeability"
+                ),
+                present_any=("P.real",),
+                absent_all=("Equiv.Perm",),
+            ),
+            ExactSemanticDefinitionCandidateRiskRule(
+                message=(
+                    "semantic_definition_risk: Exchangeable candidate does not expose "
+                    "a finite permutation/invariance parameter"
+                ),
+                absent_all=("Equiv.Perm", "permutation"),
+                case_sensitive=False,
+            ),
+        ),
+    ),
     ExactSemanticDefinitionPlaceholderPolicy(
         policy_id="split_conformal_coverage.covered",
         policy_scope="split_conformal_coverage",
@@ -108,6 +188,70 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
         semantic_import_missing_required_signal_reason=(
             "candidate declaration does not visibly expose the requested rank "
             "parameter for orderStat"
+        ),
+        source_lookup_search_terms=("orderStatistic", "order statistic", "quantile"),
+        definition_contract={
+            "semantic_intent": (
+                "finite order statistic / conformal quantile of calibration scores "
+                "at the requested finite-sample rank"
+            ),
+            "lean_target_shape": (
+                "function from finite indexed real scores and a Nat rank to a real "
+                "threshold"
+            ),
+            "required_properties": [
+                "monotone containment of good-rank events",
+                "rank index matches the conformal ceiling expression",
+                "preserves duplicate score multiplicities and reviewed tie policy",
+                "compatible with finite `Fin (n + 1)` score families",
+            ],
+            "forbidden_shortcuts": [
+                "do not define orderStat as a constant unrelated to scores",
+                "do not use Finset.image/set sorting that collapses duplicate scores",
+                "do not add axiom/sorry/admit/unsafe",
+                "do not restate coverage as an order-statistic property",
+            ],
+        },
+        draft_definition=(
+            "def orderStat {Ω : Type _} {m : ℕ}\n"
+            "    (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ :=\n"
+            "  ((List.ofFn (fun i : Fin (m + 1) => s i ω)).mergeSort (· ≤ ·)).getD k 0"
+        ),
+        draft_definition_semantic_risk=(
+            "draft sorted finite order statistic uses a duplicate-preserving finite "
+            "score list and rank k, but still needs source review for indexing "
+            "convention, tie behavior, and conformal quantile rank; "
+            "the source theorem upper coverage bound is not eligible for proof-body search "
+            "until ties are handled by a reviewed tie policy/no-tie assumption or the "
+            "theorem is revised"
+        ),
+        candidate_risk_rules=(
+            ExactSemanticDefinitionCandidateRiskRule(
+                message=(
+                    "semantic_definition_risk: orderStat candidate is a finite maximum, "
+                    "not a reviewed rank-k order statistic/conformal quantile"
+                ),
+                scope="definition_body",
+                present_any=(".max'", ".max ", ".max\n"),
+            ),
+            ExactSemanticDefinitionCandidateRiskRule(
+                message=(
+                    "semantic_definition_risk: orderStat candidate uses Finset.image, "
+                    "which collapses duplicate score values and is not faithful to "
+                    "finite-sample order statistics unless a reviewed no-tie or "
+                    "multiplicity-preserving tie policy is supplied"
+                ),
+                scope="definition_body",
+                present_any=("Finset.univ.image",),
+            ),
+            ExactSemanticDefinitionCandidateRiskRule(
+                message=(
+                    "semantic_definition_risk: orderStat candidate body does not use "
+                    "the requested rank parameter k"
+                ),
+                scope="definition_body",
+                absent_regex_all=(r"\bk\b",),
+            ),
         ),
     ),
     ExactSemanticDefinitionPlaceholderPolicy(
@@ -213,6 +357,112 @@ def exact_semantic_definition_import_policy_blocker(
             ),
         }
     return {}
+
+
+def exact_semantic_definition_draft_definition(placeholder_symbol: str) -> str:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    return policy.draft_definition
+
+
+def exact_semantic_definition_draft_semantic_risk(placeholder_symbol: str) -> str:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    return policy.draft_definition_semantic_risk
+
+
+def exact_semantic_definition_source_lookup_terms(
+    placeholder_symbol: str,
+) -> tuple[str, ...]:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    return policy.source_lookup_search_terms
+
+
+def exact_semantic_definition_contract(placeholder_symbol: str) -> dict[str, Any]:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    if policy.definition_contract:
+        return {
+            str(key): _copy_contract_value(value)
+            for key, value in policy.definition_contract.items()
+        }
+    placeholder = str(placeholder_symbol or "").strip()
+    return {
+        "semantic_intent": (
+            "review or synthesize the exact Lean semantics needed to replace the "
+            f"`{placeholder}` placeholder"
+        ),
+        "lean_target_shape": "minimal reviewed Lean declaration matching the source theorem",
+        "required_properties": [
+            "matches the source theorem statement",
+            "supports downstream local Lean/AXLE verification",
+        ],
+        "forbidden_shortcuts": [
+            "do not define the placeholder as True",
+            "do not add axiom/sorry/admit/unsafe",
+            "do not assume the target theorem",
+        ],
+    }
+
+
+def _copy_contract_value(value: Any) -> Any:
+    if isinstance(value, tuple):
+        return list(value)
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, dict):
+        return {str(key): _copy_contract_value(item) for key, item in value.items()}
+    return value
+
+
+def exact_semantic_definition_candidate_risks(
+    placeholder_symbol: str,
+    *,
+    definition_block: str,
+) -> list[str]:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    risks = [
+        rule.message
+        for rule in policy.candidate_risk_rules
+        if _candidate_risk_rule_matches(
+            rule,
+            definition_block=definition_block,
+        )
+    ]
+    return list(dict.fromkeys(risks))
+
+
+def _candidate_risk_rule_matches(
+    rule: ExactSemanticDefinitionCandidateRiskRule,
+    *,
+    definition_block: str,
+) -> bool:
+    target = (
+        definition_block.split(":=", 1)[1]
+        if rule.scope == "definition_body" and ":=" in definition_block
+        else definition_block
+    )
+    if not rule.case_sensitive:
+        target_for_terms = target.lower()
+        present_any = tuple(value.lower() for value in rule.present_any)
+        present_all = tuple(value.lower() for value in rule.present_all)
+        absent_all = tuple(value.lower() for value in rule.absent_all)
+        regex_flags = re.IGNORECASE
+    else:
+        target_for_terms = target
+        present_any = rule.present_any
+        present_all = rule.present_all
+        absent_all = rule.absent_all
+        regex_flags = 0
+    if present_any and not any(value in target_for_terms for value in present_any):
+        return False
+    if present_all and not all(value in target_for_terms for value in present_all):
+        return False
+    if absent_all and not all(value not in target_for_terms for value in absent_all):
+        return False
+    if rule.absent_regex_all and not all(
+        re.search(pattern, target, flags=regex_flags) is None
+        for pattern in rule.absent_regex_all
+    ):
+        return False
+    return True
 
 
 def _semantic_import_required_signal_present(

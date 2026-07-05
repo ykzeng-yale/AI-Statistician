@@ -9,8 +9,13 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .exact_semantic_definition_policy import (
+    exact_semantic_definition_candidate_risks,
+    exact_semantic_definition_contract,
+    exact_semantic_definition_draft_definition,
+    exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_lookup_terms,
 )
 from .fingerprint import stable_hash
 from .formal_verifier_agentic_proof_execution_materializer import (
@@ -2846,66 +2851,7 @@ def _definition_closure_review_packet(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _definition_contract_for_placeholder(placeholder: str) -> dict[str, Any]:
-    normalized = placeholder.strip().lower()
-    if normalized == "exchangeable":
-        return {
-            "semantic_intent": (
-                "finite calibration/test score family has a permutation-invariant "
-                "joint law under the probability measure"
-            ),
-            "lean_target_shape": (
-                "predicate over `P : Measure Ω` and `s : Fin (n + 1) -> Ω -> ℝ`"
-            ),
-            "required_properties": [
-                "invariance under finite index permutations",
-                "sufficient to derive uniform rank or bad-rank budget support lemmas",
-                "compatible with MeasureTheory probability-measure assumptions",
-            ],
-            "forbidden_shortcuts": [
-                "do not define Exchangeable as True",
-                "do not add axiom/sorry/admit/unsafe",
-                "do not assume the split_conformal_coverage target theorem",
-            ],
-        }
-    if normalized == "orderstat":
-        return {
-            "semantic_intent": (
-                "finite order statistic / conformal quantile of calibration scores "
-                "at the requested finite-sample rank"
-            ),
-            "lean_target_shape": (
-                "function from finite indexed real scores and a Nat rank to a real "
-                "threshold"
-            ),
-            "required_properties": [
-                "monotone containment of good-rank events",
-                "rank index matches the conformal ceiling expression",
-                "preserves duplicate score multiplicities and reviewed tie policy",
-                "compatible with finite `Fin (n + 1)` score families",
-            ],
-            "forbidden_shortcuts": [
-                "do not define orderStat as a constant unrelated to scores",
-                "do not use Finset.image/set sorting that collapses duplicate scores",
-                "do not add axiom/sorry/admit/unsafe",
-                "do not restate coverage as an order-statistic property",
-            ],
-        }
-    return {
-        "semantic_intent": (
-            "review or synthesize the exact Lean semantics needed to replace the "
-            f"`{placeholder}` placeholder"
-        ),
-        "lean_target_shape": "minimal reviewed Lean declaration matching the source theorem",
-        "required_properties": [
-            "matches the source theorem statement",
-            "supports downstream local Lean/AXLE verification",
-        ],
-        "forbidden_shortcuts": [
-            "do not define the placeholder as True",
-            "do not add axiom/sorry/admit/unsafe",
-            "do not assume the target theorem",
-        ],
-    }
+    return exact_semantic_definition_contract(placeholder)
 
 
 def _learning_row_from_lookup(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -3972,41 +3918,11 @@ def _learning_row_from_semantic_definition_repair_queue(
 
 
 def _draft_definition_for_placeholder(placeholder: str) -> str:
-    normalized = placeholder.strip().lower()
-    if normalized == "exchangeable":
-        return (
-            "def Exchangeable {Ω : Type _} [MeasurableSpace Ω] {ι : Type _} [Fintype ι]\n"
-            "    (P : MeasureTheory.Measure Ω) (s : ι → Ω → ℝ) : Prop :=\n"
-            "  ∀ σ : Equiv.Perm ι,\n"
-            "    MeasureTheory.Measure.map (fun ω : Ω => fun i : ι => s (σ i) ω) P =\n"
-            "      MeasureTheory.Measure.map (fun ω : Ω => fun i : ι => s i ω) P"
-        )
-    if normalized == "orderstat":
-        return (
-            "def orderStat {Ω : Type _} {m : ℕ}\n"
-            "    (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ :=\n"
-            "  ((List.ofFn (fun i : Fin (m + 1) => s i ω)).mergeSort (· ≤ ·)).getD k 0"
-        )
-    return ""
+    return exact_semantic_definition_draft_definition(placeholder)
 
 
 def _draft_definition_semantic_risk(placeholder: str) -> str:
-    normalized = placeholder.strip().lower()
-    if normalized == "exchangeable":
-        return (
-            "draft finite permutation-invariant joint-law exchangeability still "
-            "requires source review and downstream local Lean/AXLE verification"
-        )
-    if normalized == "orderstat":
-        return (
-            "draft sorted finite order statistic uses a duplicate-preserving finite "
-            "score list and rank k, but still needs source review for indexing "
-            "convention, tie behavior, and conformal quantile rank; "
-            "the source theorem upper coverage bound is not eligible for proof-body search "
-            "until ties are handled by a reviewed tie policy/no-tie assumption or the "
-            "theorem is revised"
-        )
-    return "draft definition requires semantic review"
+    return exact_semantic_definition_draft_semantic_risk(placeholder)
 
 
 def _definition_only_candidate_text(candidate_text: str) -> str:
@@ -4189,40 +4105,10 @@ def _semantic_definition_risks(
     if block is None:
         return []
     _, block_text = block
-    normalized = placeholder.strip().lower()
-    risks: list[str] = []
-    if normalized == "exchangeable":
-        if "P.real" in block_text and "Equiv.Perm" not in block_text:
-            risks.append(
-                "semantic_definition_risk: Exchangeable candidate uses pairwise "
-                "score-order probability symmetry rather than finite permutation-"
-                "invariant joint-law exchangeability"
-            )
-        if "Equiv.Perm" not in block_text and "permutation" not in block_text.lower():
-            risks.append(
-                "semantic_definition_risk: Exchangeable candidate does not expose "
-                "a finite permutation/invariance parameter"
-            )
-    elif normalized == "orderstat":
-        body = block_text.split(":=", 1)[1] if ":=" in block_text else block_text
-        if ".max'" in body or ".max " in body or ".max\n" in body:
-            risks.append(
-                "semantic_definition_risk: orderStat candidate is a finite maximum, "
-                "not a reviewed rank-k order statistic/conformal quantile"
-            )
-        if "Finset.univ.image" in body:
-            risks.append(
-                "semantic_definition_risk: orderStat candidate uses Finset.image, "
-                "which collapses duplicate score values and is not faithful to "
-                "finite-sample order statistics unless a reviewed no-tie or "
-                "multiplicity-preserving tie policy is supplied"
-            )
-        if not re.search(r"\bk\b", body):
-            risks.append(
-                "semantic_definition_risk: orderStat candidate body does not use "
-                "the requested rank parameter k"
-            )
-    return list(dict.fromkeys(risks))
+    return exact_semantic_definition_candidate_risks(
+        placeholder,
+        definition_block=block_text,
+    )
 
 
 def _lean_definition_block(
@@ -4753,11 +4639,7 @@ def _search_terms(work_order: Mapping[str, Any]) -> list[str]:
     placeholder = str(work_order.get("placeholder_symbol", "") or "").strip()
     if placeholder:
         terms.append(placeholder)
-        placeholder_lower = placeholder.lower()
-        if placeholder_lower == "exchangeable":
-            terms.extend(["exchangeability", "exchangeab"])
-        elif placeholder_lower == "orderstat":
-            terms.extend(["orderStatistic", "order statistic", "quantile"])
+        terms.extend(exact_semantic_definition_source_lookup_terms(placeholder))
     for value in [
         *list(work_order.get("search_targets", []) or []),
         *list(work_order.get("candidate_registered_obligation_ids", []) or []),

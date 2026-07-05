@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from ai_statistician.exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_candidate_risks,
+    exact_semantic_definition_contract,
+    exact_semantic_definition_draft_definition,
+    exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_lookup_terms,
 )
 
 
@@ -97,3 +102,70 @@ def test_placeholder_policy_reviews_semantic_import_candidates() -> None:
     )
 
     assert accepted == {}
+
+
+def test_placeholder_policy_owns_draft_definitions_and_search_aliases() -> None:
+    exchangeable = exact_semantic_definition_placeholder_policy("Exchangeable")
+    assert exchangeable.policy_id == "split_conformal_coverage.exchangeable"
+    assert exchangeable.required_anchor_names == ("P", "s")
+
+    exchangeable_draft = exact_semantic_definition_draft_definition("Exchangeable")
+    assert "Equiv.Perm" in exchangeable_draft
+    assert "MeasureTheory.Measure.map" in exchangeable_draft
+    assert "joint-law exchangeability" in exact_semantic_definition_draft_semantic_risk(
+        "Exchangeable"
+    )
+    assert exact_semantic_definition_source_lookup_terms("Exchangeable") == (
+        "exchangeability",
+        "exchangeab",
+    )
+
+    order_stat_draft = exact_semantic_definition_draft_definition("orderStat")
+    assert "mergeSort" in order_stat_draft
+    assert "getD k" in order_stat_draft
+    assert exact_semantic_definition_source_lookup_terms("orderStat") == (
+        "orderStatistic",
+        "order statistic",
+        "quantile",
+    )
+    order_stat_contract = exact_semantic_definition_contract("orderStat")
+    assert "conformal quantile" in order_stat_contract["semantic_intent"]
+    assert "rank index matches" in order_stat_contract["required_properties"][1]
+
+    generic_contract = exact_semantic_definition_contract("newDomainObject")
+    assert "newDomainObject" in generic_contract["semantic_intent"]
+    assert "do not assume the target theorem" in generic_contract["forbidden_shortcuts"]
+
+
+def test_placeholder_policy_owns_candidate_semantic_risk_rules() -> None:
+    pairwise_exchangeability = (
+        "def Exchangeable {Ω : Type _} (P : MeasureTheory.Measure Ω)"
+        " (s : Nat -> Ω -> ℝ) : Prop := P.real {ω | s 0 ω <= s 1 ω} = 1"
+    )
+    exchangeability_risks = exact_semantic_definition_candidate_risks(
+        "Exchangeable",
+        definition_block=pairwise_exchangeability,
+    )
+    assert any("pairwise" in risk for risk in exchangeability_risks)
+    assert any("permutation" in risk for risk in exchangeability_risks)
+
+    finite_max_order_stat = (
+        "def orderStat (scores : Finset Nat) : Nat := scores.max' (by simp)"
+    )
+    order_stat_risks = exact_semantic_definition_candidate_risks(
+        "orderStat",
+        definition_block=finite_max_order_stat,
+    )
+    assert any("finite maximum" in risk for risk in order_stat_risks)
+    assert any("rank parameter k" in risk for risk in order_stat_risks)
+
+    reviewed_order_stat = (
+        "def orderStat (scores : List Nat) (k : Nat) : Nat := scores.getD k 0"
+    )
+    assert (
+        exact_semantic_definition_candidate_risks(
+            "orderStat",
+            definition_block=reviewed_order_stat,
+        )
+        == []
+    )
