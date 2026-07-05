@@ -68181,6 +68181,27 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                     or []
                 )
             ),
+            "semantic_primitive": str(
+                row.get("semantic_primitive", "")
+                or input_summary.get("semantic_primitive", "")
+                or ""
+            ),
+            "semantic_primitive_requirements": list(
+                _str_tuple(
+                    row.get("semantic_primitive_requirements", [])
+                    or input_summary.get("semantic_primitive_requirements", [])
+                    or []
+                )
+            ),
+            "source_anchors": [
+                dict(value)
+                for value in (
+                    row.get("source_anchors", [])
+                    or input_summary.get("source_anchors", [])
+                    or []
+                )
+                if isinstance(value, Mapping)
+            ],
             "placeholder_symbol": symbol,
             "replacement_strategy": str(
                 row.get("replacement_strategy", "")
@@ -68386,6 +68407,28 @@ _PSEUDO_FORMAL_EXACT_SEMANTIC_SEARCH_TARGET_STOPWORDS = frozenset(
 )
 
 
+def _runtime_pseudo_formal_exact_semantic_primitive_requirements(
+    item: Mapping[str, Any],
+) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        text = str(value or "").strip()
+        if not text:
+            return
+        normalized = text.casefold()
+        if normalized in seen:
+            return
+        seen.add(normalized)
+        values.append(text)
+
+    for value in _str_tuple(item.get("semantic_primitive_requirements", []) or []):
+        add(value)
+    add(item.get("semantic_primitive", ""))
+    return values
+
+
 def _runtime_compact_search_target_text(
     value: Any,
     *,
@@ -68438,8 +68481,12 @@ def _runtime_pseudo_formal_exact_semantic_search_targets(
         if text and text not in targets:
             targets.append(text)
 
+    semantic_primitive_requirements = (
+        _runtime_pseudo_formal_exact_semantic_primitive_requirements(item)
+    )
     identifier_values = [
         placeholder_symbol,
+        *semantic_primitive_requirements,
         item.get("semantic_primitive", ""),
         item.get("source_block_id", ""),
         target_theorem_name,
@@ -68494,8 +68541,16 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
             or item.get("target_lean_declaration", "")
             or ""
         ).strip()
+        semantic_primitive_requirements = (
+            _runtime_pseudo_formal_exact_semantic_primitive_requirements(item)
+        )
+        semantic_primitive = (
+            semantic_primitive_requirements[0]
+            if semantic_primitive_requirements
+            else ""
+        )
         placeholder_symbol = str(
-            item.get("semantic_primitive", "")
+            semantic_primitive
             or item.get("placeholder_symbol", "")
             or item.get("source_block_id", "")
             or ""
@@ -68586,6 +68641,13 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
                 item.get("semantic_alignment_constraints", []) or []
             ),
             "semantic_alignment_blockers": semantic_alignment_blockers,
+            "semantic_primitive": semantic_primitive,
+            "semantic_primitive_requirements": semantic_primitive_requirements,
+            "source_anchors": [
+                dict(value)
+                for value in (item.get("source_anchors", []) or [])
+                if isinstance(value, Mapping)
+            ],
             "placeholder_symbol": placeholder_symbol,
             "replacement_strategy": (
                 "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
@@ -68617,6 +68679,19 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
         source = source_by_work_order_id.get(str(row.get("work_order_id", "") or ""))
         if not isinstance(source, Mapping):
             continue
+        semantic_primitive_requirements = (
+            _runtime_pseudo_formal_exact_semantic_primitive_requirements(source)
+        )
+        if semantic_primitive_requirements:
+            row["semantic_primitive"] = semantic_primitive_requirements[0]
+            row["semantic_primitive_requirements"] = semantic_primitive_requirements
+        source_anchors = [
+            dict(value)
+            for value in (source.get("source_anchors", []) or [])
+            if isinstance(value, Mapping)
+        ]
+        if source_anchors:
+            row["source_anchors"] = source_anchors
         row["source_pseudo_formal_work_order_id"] = str(
             source.get("row_id", "") or source.get("work_order_id", "") or ""
         )

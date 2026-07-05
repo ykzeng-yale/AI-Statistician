@@ -445,6 +445,15 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
         "proof_evidence_status": (
             "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
         ),
+        "semantic_primitive": "exchangeable_setup",
+        "semantic_primitive_requirements": ["exchangeable_setup"],
+        "source_anchors": [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "blk_exchangeable_setup",
+                "excerpt": "exchangeable setup",
+            }
+        ],
     }
     _write_work_order(
         queue,
@@ -494,6 +503,15 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
         assert row["pseudo_formal_proof_evidence_status"] == (
             "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
         )
+        assert row["semantic_primitive"] == "exchangeable_setup"
+        assert row["semantic_primitive_requirements"] == ["exchangeable_setup"]
+        assert row["source_anchors"] == [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "blk_exchangeable_setup",
+                "excerpt": "exchangeable setup",
+            }
+        ]
         assert "KERNEL_VERIFIED" not in row["proof_evidence_status"]
         input_summary = row.get("input_summary", {})
         if isinstance(input_summary, dict) and input_summary:
@@ -503,6 +521,10 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
             assert input_summary["source_pseudo_formal_block_id"] == (
                 "blk_exchangeable_setup"
             )
+            assert input_summary["semantic_primitive"] == "exchangeable_setup"
+            assert input_summary["semantic_primitive_requirements"] == [
+                "exchangeable_setup"
+            ]
 
 
 def test_exact_semantic_definition_source_lookup_ignores_generated_cache_dirs(

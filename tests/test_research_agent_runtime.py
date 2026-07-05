@@ -43446,6 +43446,14 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
             "question_title": "Split conformal coverage",
             "source_theorem_id": "split_conformal_finite_sample_coverage",
             "source_block_id": "rank_uniformity_block",
+            "semantic_primitive_requirements": ["rank_uniformity"],
+            "source_anchors": [
+                {
+                    "kind": "theory_trace",
+                    "id": "equation:rank_uniformity",
+                    "excerpt": "rank uniformity",
+                }
+            ],
             "source_block_conclusion": "rank is uniform under exchangeability",
             "source_block_proof_text": (
                 "By exchangeability of the calibration and test scores, every "
@@ -43512,7 +43520,16 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
     assert row["target_theorem_name"] == (
         "split_conformal_finite_sample_coverage"
     )
-    assert row["placeholder_symbol"] == "rank_uniformity_block"
+    assert row["placeholder_symbol"] == "rank_uniformity"
+    assert row["semantic_primitive"] == "rank_uniformity"
+    assert row["semantic_primitive_requirements"] == ["rank_uniformity"]
+    assert row["source_anchors"] == [
+        {
+            "kind": "theory_trace",
+            "id": "equation:rank_uniformity",
+            "excerpt": "rank uniformity",
+        }
+    ]
     assert row["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:rank_uniformity"
     )
