@@ -6310,6 +6310,10 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested_telemetry_present": (
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
+            in manifest
+        ),
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran": bool(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_ran",
@@ -8307,6 +8311,10 @@ def audit_research_agent_runtime(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested",
                 False,
             )
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested_telemetry_present": (
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
+            in manifest
         ),
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": int(
             manifest.get(
@@ -17185,12 +17193,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    def _requested_telemetry_present(key: str, value: object) -> bool:
+        presence_key = f"{key}_telemetry_present"
+        if presence_key in payload:
+            return bool(payload.get(presence_key))
+        return value is True or value is False
+
     post_adapter_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
     )
-    post_adapter_exact_executor_requested_present = (
-        post_adapter_exact_executor_requested_value is True
-        or post_adapter_exact_executor_requested_value is False
+    post_adapter_exact_executor_requested_present = _requested_telemetry_present(
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested",
+        post_adapter_exact_executor_requested_value,
     )
     post_adapter_exact_executor_requested = (
         post_adapter_exact_executor_requested_value is True
@@ -17505,9 +17519,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     adapter_premise_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
     )
-    adapter_premise_exact_executor_requested_present = (
-        adapter_premise_exact_executor_requested_value is True
-        or adapter_premise_exact_executor_requested_value is False
+    adapter_premise_exact_executor_requested_present = _requested_telemetry_present(
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested",
+        adapter_premise_exact_executor_requested_value,
     )
     adapter_premise_exact_executor_requested = (
         adapter_premise_exact_executor_requested_value is True

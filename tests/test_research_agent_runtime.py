@@ -78894,6 +78894,96 @@ def test_runtime_capability_scorecard_flags_adapter_premise_exact_executor_reque
     )
 
 
+def test_runtime_audit_preserves_missing_adapter_premise_exact_executor_request_telemetry(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_proof_body_adapter_work_orders_from_adapter_premise_derivation_feedback": 1,
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_ran": True,
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_rows": 1,
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified": 1,
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_learning_rows": 1,
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_proof_evidence_status": (
+            "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
+        ),
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_learning_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    row = scorecard_rows[
+        "adapter_premise_verified_adapter_exact_executor_ran_when_requested"
+    ]
+
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested_telemetry_present"
+        ]
+        is False
+    )
+    assert row["passed"] is False
+    assert "exact_executor_requested_telemetry_present=False" in row["evidence"]
+    assert "explicit handoff telemetry" in row["blocker"]
+
+
 def test_runtime_capability_scorecard_flags_adapter_premise_verified_adapter_executor_gap() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
