@@ -49651,6 +49651,30 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     )
     assert (
         audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_materialized_candidate_review_required_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
             "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
         ]
         is False
@@ -78403,6 +78427,82 @@ def test_runtime_audit_exports_recovered_exact_semantic_authoring_retry_tasks(
     assert "not proof evidence" in audit[
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_boundary"
     ]
+
+
+@pytest.mark.parametrize(
+    ("activity_key", "required_key"),
+    [
+        (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_materialized_candidate_review_required",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required",
+        ),
+        (
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_n_typechecked_candidate_review_packets",
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required",
+        ),
+    ],
+)
+def test_runtime_audit_preserves_missing_exact_semantic_typechecked_review_required_telemetry(
+    tmp_path: Path,
+    activity_key: str,
+    required_key: str,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        activity_key: 1,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    row = rows["exact_semantic_definition_late_typechecked_review_not_hidden"]
+
+    assert audit[required_key] is False
+    assert audit[f"{required_key}_telemetry_present"] is False
+    assert row["passed"] is False
+    assert (
+        "required_telemetry_present=primary:0,materialized:0,"
+        "late_materialized:0,late:0"
+    ) in row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_hidden_late_typechecked_review() -> None:

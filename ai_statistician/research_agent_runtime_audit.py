@@ -7310,6 +7310,10 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required"
+            in manifest
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required_reason": str(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required_reason",
@@ -7357,6 +7361,10 @@ def audit_research_agent_runtime(
                 False,
             )
         ),
+        "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required"
+            in manifest
+        ),
         "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required_reason": str(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required_reason",
@@ -7376,6 +7384,10 @@ def audit_research_agent_runtime(
                 "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required",
                 False,
             )
+        ),
+        "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required"
+            in manifest
         ),
         "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required_reason": str(
             manifest.get(
@@ -7728,6 +7740,10 @@ def audit_research_agent_runtime(
                 "source_theorem_exact_semantic_definition_materialized_candidate_review_required",
                 False,
             )
+        ),
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_materialized_candidate_review_required"
+            in manifest
         ),
         "source_theorem_exact_semantic_definition_materialized_candidate_review_proofengineer_bridge_ran": bool(
             manifest.get(
@@ -16301,9 +16317,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     primary_typechecked_review_required_value = payload.get(
         "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required"
     )
-    primary_typechecked_review_required_present = (
-        primary_typechecked_review_required_value is True
-        or primary_typechecked_review_required_value is False
+    primary_typechecked_review_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_lean_repair_executor_typechecked_candidate_review_required",
+        primary_typechecked_review_required_value,
     )
     primary_typechecked_review_required = (
         primary_typechecked_review_required_value is True
@@ -16318,9 +16334,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     primary_materialized_typechecked_review_required_value = payload.get(
         "source_theorem_exact_semantic_definition_materialized_candidate_review_required"
     )
-    primary_materialized_typechecked_review_required_present = (
-        primary_materialized_typechecked_review_required_value is True
-        or primary_materialized_typechecked_review_required_value is False
+    primary_materialized_typechecked_review_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_materialized_candidate_review_required",
+        primary_materialized_typechecked_review_required_value,
     )
     primary_materialized_typechecked_review_required = (
         primary_materialized_typechecked_review_required_value is True
@@ -16335,9 +16351,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     late_materialized_typechecked_review_required_value = payload.get(
         "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required"
     )
-    late_materialized_typechecked_review_required_present = (
-        late_materialized_typechecked_review_required_value is True
-        or late_materialized_typechecked_review_required_value is False
+    late_materialized_typechecked_review_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_late_materialized_candidate_review_required",
+        late_materialized_typechecked_review_required_value,
     )
     late_materialized_typechecked_review_required = (
         late_materialized_typechecked_review_required_value is True
@@ -16352,9 +16368,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     late_lean_typechecked_review_required_value = payload.get(
         "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required"
     )
-    late_lean_typechecked_review_required_present = (
-        late_lean_typechecked_review_required_value is True
-        or late_lean_typechecked_review_required_value is False
+    late_lean_typechecked_review_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_late_lean_repair_executor_typechecked_candidate_review_required",
+        late_lean_typechecked_review_required_value,
     )
     late_lean_typechecked_review_required = (
         late_lean_typechecked_review_required_value is True
