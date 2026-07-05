@@ -474,6 +474,13 @@ SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS: tuple[str, ...] = (
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
     "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers",
 )
+SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS: tuple[
+    str, ...
+] = tuple(
+    key
+    for key in SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS
+    if key.endswith("_with_semantic_blockers")
+)
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows",

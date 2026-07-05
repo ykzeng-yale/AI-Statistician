@@ -76525,6 +76525,150 @@ def test_runtime_capability_scorecard_counts_proof_body_goal_excerpt_as_lane_evi
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
 
 
+def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_progress() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
+
+    assert proof_body_row["passed"] is True
+    assert semantic_row["passed"] is False
+    assert "semantic_review_blocked_goal_reached=1" in semantic_row["evidence"]
+    assert "exact semantic-definition repair routing" in semantic_row["blocker"]
+    assert semantic_row["proof_evidence_status"] == (
+        "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_runtime_capability_scorecard_flags_legacy_semantic_failure_hidden_after_goal_reached() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
+            "source_theorem_semantic_alignment_unreviewed"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
+
+    assert semantic_row["passed"] is False
+    assert "semantic_review_blocked_goal_reached=1" in semantic_row["evidence"]
+
+
+def test_runtime_capability_scorecard_does_not_count_before_goal_semantic_gate_as_hidden_progress() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status": {
+            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY": 1,
+        },
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
+
+    assert proof_body_row["passed"] is False
+    assert semantic_row["passed"] is True
+    assert "semantic_review_blocked_goal_reached=0" in semantic_row["evidence"]
+
+
+@pytest.mark.parametrize(
+    "repair_signal",
+    [
+        {
+            "source_theorem_exact_semantic_definition_repair_required": True,
+            "source_theorem_exact_semantic_definition_repair_required_reason": (
+                "proof_body_reached_semantic_alignment_unreviewed"
+            ),
+        },
+        {
+            "runtime_next_action_agenda_triggers": {
+                "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED": 1,
+            },
+        },
+        {
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        },
+    ],
+)
+def test_runtime_capability_scorecard_accepts_visible_semantic_blocker_repair(
+    repair_signal: dict[str, object],
+) -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 1,
+    }
+    payload.update(repair_signal)
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
+
+    assert semantic_row["passed"] is True
+    assert "semantic_review_blocked_goal_reached=1" in semantic_row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_source_theorem_proof_body_local_lean_request_without_check() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -76768,6 +76912,9 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
     }
     proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
 
     assert (
         audit[
@@ -76790,6 +76937,8 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 16
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
+    assert semantic_row["passed"] is False
+    assert "semantic_review_blocked_goal_reached=9" in semantic_row["evidence"]
 
 
 def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedback(
@@ -76839,6 +76988,9 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
     }
     local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
     proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
 
     assert (
         audit[
@@ -76868,6 +77020,8 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
     assert "local_lean_checked=5" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
+    assert semantic_row["passed"] is False
+    assert "semantic_review_blocked_goal_reached=12" in semantic_row["evidence"]
     proof_body_attempt = {
         row["evidence_id"]: row
         for row in audit["evidence_truth_table"]["rows"]
@@ -76928,6 +77082,9 @@ def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
     }
     local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
     proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    semantic_row = rows[
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden"
+    ]
 
     assert (
         audit[
@@ -76952,6 +77109,8 @@ def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
     assert "local_lean_checked=10" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=36" in proof_body_row["evidence"]
+    assert semantic_row["passed"] is False
+    assert "semantic_review_blocked_goal_reached=20" in semantic_row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_empty_post_adapter_exact_retry_queue() -> None:

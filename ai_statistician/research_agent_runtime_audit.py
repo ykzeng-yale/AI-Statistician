@@ -58,8 +58,12 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS,
     SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
+    _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES,
+    _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES,
     _effective_formal_verification_policy,
     _effective_recommended_research_path,
     _generated_sandbox_live_counts_from_rows,
@@ -10972,6 +10976,38 @@ def _payload_source_theorem_proof_body_goal_reached_count(
     )
 
 
+def _payload_source_theorem_proof_body_semantic_review_blocker_count(
+    payload: Mapping[str, Any],
+) -> int:
+    proof_body_goal_reached_count = (
+        _payload_source_theorem_proof_body_goal_reached_count(payload)
+    )
+    blocker_count = _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS,
+    )
+    gate_status_counts = payload.get(
+        "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+        {},
+    )
+    if isinstance(gate_status_counts, Mapping):
+        blocker_count += sum(
+            _safe_int(gate_status_counts.get(status, 0))
+            for status in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES
+            if status == "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+            or proof_body_goal_reached_count > 0
+        )
+    semantic_failure_hits = sum(
+        1
+        for key in SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS
+        if str(payload.get(key, "") or "")
+        in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+    )
+    if semantic_failure_hits > 0 and proof_body_goal_reached_count > 0:
+        blocker_count += semantic_failure_hits
+    return blocker_count
+
+
 def _payload_source_theorem_proof_body_result_row_count(
     payload: Mapping[str, Any],
 ) -> int:
@@ -11604,6 +11640,12 @@ def _runtime_capability_gap_default_target_behavior(
             "the proof-body goal is reached, while keeping result rows pre-proof "
             "until kernel verification exists."
         ),
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden": (
+            "When proof-body execution reaches the goal with semantic-review "
+            "blockers, expose exact semantic-definition repair routing, generated "
+            "next-action feedback, or source-theorem kernel closure in the same "
+            "runtime/audit payload."
+        ),
         "source_theorem_proof_body_executor_ran": (
             "Run the exact source-theorem proof-body executor for queued proof-body "
             "work orders and produce concrete result-row telemetry."
@@ -11889,6 +11931,12 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_proof_body_repair_executor",
             "source_theorem_formal_environment_proof_body_executor",
         ),
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden": (
+            "source_theorem_proof_body",
+            "source_theorem_exact_proof_body_repair_executor",
+            "source_theorem_exact_semantic_definition",
+            "runtime_next_action_agenda",
+        ),
         "source_theorem_proof_body_local_lean_gate_requested": (
             "source_theorem_proof_body",
             "source_theorem_exact_proof_body_repair_executor",
@@ -12026,6 +12074,21 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_formal_environment_proof_body_executor_n_result_rows",
             "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
             "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+        ),
+        "source_theorem_proof_body_semantic_review_blockers_not_hidden": (
+            "source_theorem_proof_body_goal_reached_evidence_count",
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
+            "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
+            "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
+            "source_theorem_exact_semantic_definition_repair_required",
+            "source_theorem_exact_semantic_definition_repair_required_reason",
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+            "source_theorem_exact_semantic_definition_source_lookup_required",
+            "source_theorem_exact_semantic_definition_source_lookup_ran",
+            "source_theorem_exact_semantic_definition_repair_queue_proofengineer_bridge_ran",
+            "source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_ran",
+            "runtime_next_action_agenda_triggers",
+            "source_theorem_kernel_verified_count",
         ),
         "source_theorem_proof_body_local_lean_gate_requested": (
             "source_theorem_formal_environment_proof_body_executor_local_lean_requested",
@@ -15607,6 +15670,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     proof_body_goal_reached_count = (
         _payload_source_theorem_proof_body_goal_reached_count(payload)
     )
+    proof_body_semantic_review_blocker_count = (
+        _payload_source_theorem_proof_body_semantic_review_blocker_count(payload)
+    )
     proof_body_result_row_count = _payload_source_theorem_proof_body_result_row_count(
         payload
     )
@@ -17709,6 +17775,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         else {}
     )
+    runtime_next_action_agenda_triggers = (
+        payload.get("runtime_next_action_agenda_triggers", {})
+        if isinstance(payload.get("runtime_next_action_agenda_triggers", {}), Mapping)
+        else {}
+    )
+    proof_body_semantic_review_next_action_rows = int(
+        runtime_next_action_agenda_triggers.get(
+            "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED",
+            0,
+        )
+        or 0
+    )
     post_adapter_semantic_next_action_rows = int(
         runtime_next_action_generated_queue_names.get(
             "source_theorem_semantic_primitives_from_proof_body_adapter_feedback",
@@ -17770,6 +17848,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             0,
         )
         or 0
+    )
+    proof_body_semantic_review_blocker_repair_visible = bool(
+        source_theorem_kernel_count > 0
+        or payload.get("source_theorem_exact_semantic_definition_repair_required")
+        is True
+        or proof_body_semantic_review_next_action_rows > 0
+        or exact_semantic_source_lookup_work_orders > 0
+        or exact_semantic_source_lookup_required
+        or payload.get("source_theorem_exact_semantic_definition_source_lookup_ran")
+        is True
+        or exact_semantic_proof_body_recheck_queue_rows > 0
+        or payload.get(
+            "source_theorem_exact_semantic_definition_repair_queue_proofengineer_bridge_ran"
+        )
+        is True
+        or payload.get(
+            "source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_ran"
+        )
+        is True
     )
     source_theorem_semantic_reroute_handoffs_complete = (
         (primary_semantic_work_orders <= 0 or primary_semantic_next_action_rows > 0)
@@ -20400,6 +20497,62 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "exact source-theorem proof-body goal was not reached; result "
                 "rows without goal evidence are pre-proof-body blockers, not "
                 "proof-body repair evidence"
+            ),
+        ),
+        _scorecard_row(
+            "source_theorem_proof_body_semantic_review_blockers_not_hidden",
+            proof_body_semantic_review_blocker_count <= 0
+            or proof_body_semantic_review_blocker_repair_visible,
+            (
+                "semantic_review_blocked_goal_reached="
+                f"{proof_body_semantic_review_blocker_count} "
+                "repair_required="
+                f"{payload.get('source_theorem_exact_semantic_definition_repair_required')} "
+                "repair_reason="
+                f"{payload.get('source_theorem_exact_semantic_definition_repair_required_reason')} "
+                "exact_semantic_work_orders="
+                f"{exact_semantic_source_lookup_work_orders} "
+                "semantic_review_next_action_rows="
+                f"{proof_body_semantic_review_next_action_rows} "
+                "source_lookup_required="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
+                "source_lookup_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
+                "recheck_queue_rows="
+                f"{exact_semantic_proof_body_recheck_queue_rows} "
+                "repair_queue_bridge_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_repair_queue_proofengineer_bridge_ran')} "
+                "repair_queue_lean_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_ran')} "
+                "source_kernel="
+                f"{source_theorem_kernel_count}"
+            ),
+            (
+                "proof-body goal was reached with semantic-review blockers, but "
+                "the runtime did not expose exact semantic-definition repair "
+                "routing, generated next-action feedback, repair-queue execution, "
+                "or source-theorem kernel closure"
+            ),
+            next_owner_subsystem="Formalizer/ProofEngineer",
+            target_behavior=(
+                "Route semantic-blocked source-theorem proof-body progress into "
+                "the exact semantic-definition repair/source-lookup/review queue "
+                "or close it with source-theorem kernel evidence; keep the "
+                "proof-body-reached signal as non-proof routing evidence until "
+                "local Lean/AXLE verifies the exact theorem."
+            ),
+            success_metric=(
+                "semantic_review_blocked_goal_reached=0, or the same audit records "
+                "source_theorem_exact_semantic_definition_repair_required=true, "
+                "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED next-action "
+                "rows, exact semantic-definition work orders/source lookup, repair "
+                "queue execution, or source-theorem kernel verification"
+            ),
+            proof_evidence_status="CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
+            routing_boundary=(
+                "This row prevents semantic-blocked proof-body progress from being "
+                "counted as closure. It is routing evidence for exact semantic "
+                "definition repair, not Lean proof evidence."
             ),
         ),
         _scorecard_row(
