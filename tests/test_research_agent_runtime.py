@@ -44382,6 +44382,136 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     )
 
 
+def test_nested_verifier_gate_context_becomes_authoring_repair_task() -> None:
+    learning_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_"
+            "typechecked_review_verifier_gate_execution"
+        ),
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "good_rank_event",
+        "candidate_artifact_path": (
+            "runs/candidates/good_rank_event_definition_only.lean"
+        ),
+        "local_lean_checked": True,
+        "local_lean_compiled": True,
+        "verifier_gate_status": (
+            "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+        ),
+        "verifier_gate_blockers": [
+            "known_gaps_unresolved",
+            "candidate_known_gaps_comment_present",
+        ],
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+        ),
+        "source_theorem_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_"
+            "NOT_SOURCE_THEOREM_PROOF"
+        ),
+        "input_summary": {
+            "exact_semantic_definition_context": {
+                "verifier_gate_result_id": (
+                    "source_theorem_exact_semantic_definition_verifier_gate_result:"
+                    "good_rank_event"
+                ),
+                "known_gaps": [
+                    "candidate still contains a known-gaps comment"
+                ],
+                "definition_contract": {
+                    "known_gaps": [
+                        "threshold k is not tied to the source quantile hypothesis"
+                    ]
+                },
+                "source_anchor_context": [
+                    {
+                        "kind": "proof_body_goal_context",
+                        "proof_body_goal_excerpt": [
+                            "q : Real",
+                            "hq : ae_coverage_quantile_condition score q alpha",
+                        ],
+                    }
+                ],
+                "candidate_definition_request": {
+                    "required_binders": ["score", "q"],
+                    "required_anchor_names": ["hq"],
+                },
+                "semantic_primitive": "good_rank_event",
+                "semantic_primitive_requirements": ["good_rank_event"],
+                "source_anchors": [
+                    {
+                        "kind": "pseudo_formal_block",
+                        "id": "pf:block:good_rank_event",
+                        "excerpt": "rank-event PF block",
+                    }
+                ],
+                "source_pseudo_formal_work_order_id": (
+                    "pseudo_formal_work_order:good_rank"
+                ),
+                "pseudo_formal_proof_evidence_status": (
+                    "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        },
+    }
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [learning_row],
+    }
+
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+
+    assert len(repairs) == 1
+    repair = repairs[0]
+    assert repair["failure_classification"] == (
+        "exact_semantic_definition_verifier_gate_known_gaps_unresolved"
+    )
+    assert repair["known_gaps"] == [
+        "candidate still contains a known-gaps comment",
+        "threshold k is not tied to the source quantile hypothesis",
+    ]
+    assert repair["source_anchor_context"][0]["kind"] == "proof_body_goal_context"
+    assert repair["source_anchor_context_rows"] == 1
+    assert repair["candidate_definition_request"]["required_anchor_names"] == ["hq"]
+    assert repair["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert repair["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert repair["verifier_gate_result_id"].endswith("good_rank_event")
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            repairs
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["authoring_mode"] == (
+        "repair_typechecked_semantic_definition_candidate_from_verifier_gate_feedback"
+    )
+    assert task["known_gaps"] == repair["known_gaps"]
+    assert task["source_anchor_context"] == repair["source_anchor_context"]
+    assert task["candidate_definition_request"]["required_binders"] == [
+        "score",
+        "q",
+    ]
+    assert task["candidate_repair_feedback"]["known_gaps"] == repair["known_gaps"]
+    assert task["candidate_repair_feedback"]["source_anchor_context_rows"] == 1
+    assert task["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_exact_semantic_definition_authoring_learning_row_preserves_source_binders() -> None:
     learning_rows = [
         {

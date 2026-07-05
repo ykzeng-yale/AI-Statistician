@@ -46326,12 +46326,21 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         verifier_gate_known_gaps: list[str] = []
         verifier_gate_source_anchor_context: list[Any] = []
         verifier_gate_result_id = ""
+        exact_semantic_context = _runtime_exact_semantic_definition_context(row)
         candidate_definition_request_raw = row.get("candidate_definition_request", {})
         if (
             not candidate_definition_request_raw
             and isinstance(input_summary, Mapping)
         ):
             candidate_definition_request_raw = input_summary.get(
+                "candidate_definition_request",
+                {},
+            )
+        if (
+            not candidate_definition_request_raw
+            and isinstance(exact_semantic_context, Mapping)
+        ):
+            candidate_definition_request_raw = exact_semantic_context.get(
                 "candidate_definition_request",
                 {},
             )
@@ -46564,23 +46573,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                         if isinstance(input_summary, Mapping)
                         else []
                     )
+                    or exact_semantic_context.get("verifier_gate_blockers", [])
                     or []
                 )
                 if str(value).strip()
             ][:12]
-            verifier_gate_known_gaps = [
-                str(value).strip()
-                for value in (
-                    row.get("known_gaps", [])
-                    or (
-                        input_summary.get("known_gaps", [])
-                        if isinstance(input_summary, Mapping)
-                        else []
-                    )
-                    or []
-                )
-                if str(value).strip()
-            ][:12]
+            verifier_gate_known_gaps = _runtime_exact_semantic_known_gaps_from_context(
+                row,
+                input_summary if isinstance(input_summary, Mapping) else {},
+                exact_semantic_context,
+            )[:12]
             raw_source_anchor_context = (
                 row.get("source_anchor_context", [])
                 or (
@@ -46588,6 +46590,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     if isinstance(input_summary, Mapping)
                     else []
                 )
+                or exact_semantic_context.get("source_anchor_context", [])
                 or []
             )
             verifier_gate_source_anchor_context = (
@@ -46601,6 +46604,10 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             if not verifier_gate_result_id and isinstance(input_summary, Mapping):
                 verifier_gate_result_id = str(
                     input_summary.get("verifier_gate_result_id", "") or ""
+                ).strip()
+            if not verifier_gate_result_id:
+                verifier_gate_result_id = str(
+                    exact_semantic_context.get("verifier_gate_result_id", "") or ""
                 ).strip()
             if verifier_gate_status:
                 diagnostics.append(f"verifier_gate_status={verifier_gate_status}")
@@ -67474,6 +67481,14 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         if isinstance(row.get("input_summary", {}), Mapping)
         else {}
     )
+    typechecked_candidate = (
+        row.get("source_theorem_exact_semantic_definition_typechecked_candidate", {})
+        if isinstance(
+            row.get("source_theorem_exact_semantic_definition_typechecked_candidate", {}),
+            Mapping,
+        )
+        else {}
+    )
     nested_context = (
         row.get("exact_semantic_definition_context", {})
         if isinstance(row.get("exact_semantic_definition_context", {}), Mapping)
@@ -67482,6 +67497,14 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
     nested_input_context = (
         input_summary.get("exact_semantic_definition_context", {})
         if isinstance(input_summary.get("exact_semantic_definition_context", {}), Mapping)
+        else {}
+    )
+    nested_typechecked_candidate_context = (
+        typechecked_candidate.get("exact_semantic_definition_context", {})
+        if isinstance(
+            typechecked_candidate.get("exact_semantic_definition_context", {}),
+            Mapping,
+        )
         else {}
     )
     keys = tuple(
@@ -67494,6 +67517,7 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
                 "semantic_alignment_constraints",
                 "semantic_alignment_blockers",
                 "source_theorem_exact_semantic_definition_typechecked_candidate",
+                "definition_contract",
                 "definition_only_candidate_artifact_path",
                 "candidate_artifact_path",
                 "local_definition_lean_checked",
@@ -67526,6 +67550,10 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
             value = nested_context.get(key, None)
         if value in (None, "", [], {}):
             value = nested_input_context.get(key, None)
+        if value in (None, "", [], {}):
+            value = typechecked_candidate.get(key, None)
+        if value in (None, "", [], {}):
+            value = nested_typechecked_candidate_context.get(key, None)
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -67565,6 +67593,26 @@ def _runtime_exact_semantic_definition_context_for_semantic_work_order(
     ):
         return dict(context)
     return {}
+
+
+def _runtime_exact_semantic_known_gaps_from_context(
+    row: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+    exact_semantic_context: Mapping[str, Any],
+) -> list[str]:
+    gaps: list[str] = []
+    for source in (row, input_summary, exact_semantic_context):
+        gaps.extend(
+            str(value).strip()
+            for value in _str_tuple(source.get("known_gaps", []))
+        )
+        definition_contract = source.get("definition_contract", {})
+        if isinstance(definition_contract, Mapping):
+            gaps.extend(
+                str(value).strip()
+                for value in _str_tuple(definition_contract.get("known_gaps", []))
+            )
+    return [value for value in dict.fromkeys(gaps) if value]
 
 
 def _runtime_normalized_semantic_context_key(value: str) -> str:
