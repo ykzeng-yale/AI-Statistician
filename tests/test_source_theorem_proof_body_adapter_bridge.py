@@ -51,7 +51,7 @@ def _adapter_work_order(**overrides: object) -> dict[str, object]:
         "proof_body_adapter_required": True,
         "proof_body_adapter_required_reasons": [
             "proof body goal exposes source-level hypotheses but no reusable bridge/reduction hypothesis",
-            "semantic alignment or evidence-eligibility gate is still open for the exact source theorem",
+            "reviewed semantic-alignment constraints identify exchangeability/rank/quantile bridge structure needed by an adapter",
         ],
         "semantic_alignment_constraints": [
             "Exchangeable predicate must permute all n2+1 indices jointly under P, not just pairwise",

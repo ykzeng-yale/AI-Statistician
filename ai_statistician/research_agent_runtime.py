@@ -48243,14 +48243,29 @@ def _source_theorem_proof_body_adapter_required_reasons(
     source_theorem_kernel_evidence_eligible = bool(
         repair.get("source_theorem_kernel_evidence_eligible", True)
     )
+    semantic_alignment_blockers = [
+        str(value)
+        for value in repair.get("semantic_alignment_blockers", []) or []
+        if str(value).strip()
+    ]
     semantic_or_review_gate_open = (
         not source_theorem_kernel_evidence_eligible
+        or bool(semantic_alignment_blockers)
         or any(
             marker in constraints_text
             for marker in (
                 "not eligible",
                 "requires source review",
                 "still requires source review",
+            )
+        )
+    )
+    alignment_constraints_indicate_adapter_shape = (
+        source_theorem_kernel_evidence_eligible
+        and not semantic_alignment_blockers
+        and any(
+            marker in constraints_text
+            for marker in (
                 "tie",
                 "indexing convention",
                 "exchangeab",
@@ -48282,6 +48297,10 @@ def _source_theorem_proof_body_adapter_required_reasons(
     if semantic_or_review_gate_open:
         reasons.append(
             "semantic alignment or evidence-eligibility gate is still open for the exact source theorem"
+        )
+    elif alignment_constraints_indicate_adapter_shape:
+        reasons.append(
+            "reviewed semantic-alignment constraints identify exchangeability/rank/quantile bridge structure needed by an adapter"
         )
     if attempted_missing_bridge_dependency:
         return reasons
@@ -52735,6 +52754,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "proof_body_goal_reached": bool(
                         row.get("proof_body_goal_reached", False)
                     ),
+                    "proof_body_attempted": bool(
+                        row.get("proof_body_attempted", False)
+                    ),
+                    "proof_body_attempt_count": int(
+                        row.get("proof_body_attempt_count", 0) or 0
+                    ),
                     "proof_body_goal_excerpt": list(
                         row.get("proof_body_goal_excerpt", []) or []
                     )[:8],
@@ -52750,6 +52775,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "semantic_alignment_constraints": list(
                         row.get("semantic_alignment_constraints", []) or []
                     )[:5],
+                    "semantic_alignment_blockers": list(
+                        row.get("semantic_alignment_blockers", []) or []
+                    )[:5],
+                    "source_theorem_kernel_evidence_eligible": bool(
+                        row.get("source_theorem_kernel_evidence_eligible", False)
+                    ),
                     "proof_body_adapter_required_reasons": list(
                         row.get("proof_body_adapter_required_reasons", []) or []
                     )[:5],
@@ -52869,6 +52900,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "proof_body_goal_excerpt": list(
                     row.get("proof_body_goal_excerpt", []) or []
                 )[:8],
+                "semantic_alignment_blockers": list(
+                    row.get("semantic_alignment_blockers", []) or []
+                )[:5],
+                "source_theorem_kernel_evidence_eligible": bool(
+                    row.get("source_theorem_kernel_evidence_eligible", False)
+                ),
                 "exact_goal_shape_obligation_ids": list(
                     row.get("exact_goal_shape_obligation_ids", []) or []
                 )[:8],

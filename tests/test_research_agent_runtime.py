@@ -55529,6 +55529,96 @@ def test_runtime_learning_memory_loader_routes_proof_body_incomplete_feedback(
     ] == long_candidate_path
 
 
+def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapter_shape(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "proof_body_incomplete_reviewed_runtime_learning_rows.jsonl"
+    learning_row = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_finite_sample_coverage_repair_v3",
+        "target_lean_declaration": "split_conformal_finite_sample_coverage_repair_v3",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "trigger": "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+        "failure_classification": "proof_body_incomplete",
+        "runtime_queue_status": "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR",
+        "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+        "proof_body_goal_reached": True,
+        "proof_body_attempted": True,
+        "proof_body_attempt_count": 5,
+        "proof_body_attempt_summaries": [
+            "1:assumption:returncode=1:compiled=False",
+            "3:simp:returncode=1:compiled=False:diagnostic_kind=unsolved_goals",
+        ],
+        "proof_body_goal_excerpt": [
+            "hExch : ∀ σ, P.map score = P.map (fun ω i => score (σ i) ω)",
+            "q : ℝ",
+            "hq : ∀ᵐ ω ∂P, ↑{i | score i.castSucc ω ≤ q}.card / ↑n ≥ 1 - alpha",
+            "⊢ ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}",
+        ],
+        "semantic_alignment_constraints": [
+            "Exchangeability hypothesis must range over all permutations of Fin (n+1)",
+            "Quantile threshold q is supplied as a hypothesis",
+            "No tie-breaking: continuous scores assumed implicitly via the quantile hypothesis",
+            "reviewed exact semantic-definition candidate approved for proof-body recheck",
+        ],
+        "semantic_alignment_blockers": [],
+        "source_theorem_kernel_evidence_eligible": True,
+        "source_theorem_kernel_verified": False,
+        "input_summary": {
+            "candidate_artifact_path": (
+                "runs/recheck/candidate_artifacts/"
+                "split_conformal_finite_sample_coverage_repair_v3.lean"
+            ),
+            "source_theorem_kernel_evidence_eligible": True,
+            "source_theorem_kernel_verified": False,
+            "failure_classification": "proof_body_incomplete",
+            "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+            "proof_body_goal_reached": True,
+        },
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+
+    memory = _load_runtime_learning_memory([learning_path])
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(
+            str(row["obligation_id"]) for row in catalog
+        ),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "derive_source_theorem_proof_body_adapter"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_proof_body_adapter_required"
+    )
+    assert summary["source_theorem_proof_body_adapter_required"] is True
+    diagnostic = summary["source_theorem_proof_body_adapter_diagnostics"][0]
+    assert diagnostic["source_theorem_kernel_evidence_eligible"] is True
+    assert diagnostic["semantic_alignment_blockers"] == []
+    assert diagnostic["proof_body_attempt_count"] == 5
+    assert diagnostic["proof_body_adapter_required_reasons"] == [
+        "proof body goal exposes source-level hypotheses but no reusable bridge/reduction hypothesis",
+        "reviewed semantic-alignment constraints identify exchangeability/rank/quantile bridge structure needed by an adapter",
+    ]
+    assert all(
+        "semantic alignment or evidence-eligibility gate is still open" not in reason
+        for reason in diagnostic["proof_body_adapter_required_reasons"]
+    )
+
+
 def test_runtime_learning_memory_loader_routes_missing_dependency_context_to_adapter(
     tmp_path: Path,
 ) -> None:
@@ -55810,6 +55900,7 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
         "cannot be instantiated" in reason
         for reason in adapter_diag["proof_body_adapter_required_reasons"]
     )
+    assert adapter_diag["source_theorem_kernel_evidence_eligible"] is True
     prompt = build_formalizer_prompt(
         question=question,
         theory_packet={"packet_id": "theory:test", "formalization_requests": []},
@@ -55833,6 +55924,7 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
     assert "source_theorem_target_provenance" in prompt
     assert "splitConformalFiniteSampleCoverage_reductionClosure" in prompt
     assert "proof_body_attempt_summaries" in prompt
+    assert "source_theorem_kernel_evidence_eligible" in prompt
     assert "memory_kernel_verified_theorem_reduction_closure_signature_excerpts" in prompt
     assert "splitConformalFiniteSampleCoverage_reductionClosure {Ω ρ : Type*}" in prompt
     assert "do not guess closure theorem fields" in prompt
