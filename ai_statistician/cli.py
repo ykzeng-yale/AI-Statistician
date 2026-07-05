@@ -460,6 +460,7 @@ from .research_agent_runtime import (
     _runtime_coding_agent_capability_table,
     _runtime_component_gate_summary,
     _runtime_formalizer_component_gate_learning_rows,
+    _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows,
     _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
     _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
@@ -1943,6 +1944,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
+    if learning_task == "formalizer_pseudo_formal_packet_component_gate_feedback":
+        return 88
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         return 87
     exact_semantic_definition_repair_priority = (
@@ -2371,6 +2374,22 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         ).strip()
         return (
             "formalizer_lean_candidate_component_gate_feedback:"
+            + (component_manifest or provider_name or "attached")
+        )
+    if learning_task == "formalizer_pseudo_formal_packet_component_gate_feedback":
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        provider_name = str(
+            row.get("provider_name", "")
+            or input_summary.get("provider_name", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_pseudo_formal_packet_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
         )
     if learning_task == "formalizer_runtime_capability_contract_feedback":
@@ -11369,6 +11388,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             args,
             manifest,
         )
+    if getattr(args, "run_formalizer_pseudo_formal_packet_eval", False):
+        manifest = _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
+            args,
+            manifest,
+        )
     if getattr(args, "run_pseudo_formal_block_verifier_eval", False):
         manifest = _attach_pseudo_formal_block_verifier_eval_to_runtime_manifest(
             args,
@@ -11814,6 +11838,188 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
     return manifest
 
 
+def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Run the Formalizer PF/BV packet gate and attach it to runtime output."""
+
+    provider_name = str(
+        getattr(args, "formalizer_pseudo_formal_packet_eval_provider", "same")
+        or "same"
+    )
+    if provider_name == "same":
+        provider_name = str(getattr(args, "provider", "anthropic") or "anthropic")
+    out_dir = Path(
+        getattr(args, "formalizer_pseudo_formal_packet_eval_out", "")
+        or Path(args.out) / "internal_formalizer_pseudo_formal_packet_eval"
+    )
+    existing_manifest_path = str(
+        getattr(args, "formalizer_pseudo_formal_packet_eval_existing_manifest", "")
+        or ""
+    ).strip()
+    if existing_manifest_path:
+        eval_manifest = _load_existing_component_eval_manifest(
+            Path(existing_manifest_path),
+            expected_artifact_kind="FormalizerPseudoFormalPacketEvalManifest",
+        )
+    else:
+        eval_manifest = run_formalizer_pseudo_formal_packet_eval(
+            out_dir=out_dir,
+            provider_name=provider_name,
+            model=str(
+                getattr(args, "formalizer_pseudo_formal_packet_eval_model", "")
+                or ""
+            ),
+            static_response_file=(
+                Path(
+                    getattr(
+                        args,
+                        "formalizer_pseudo_formal_packet_eval_static_response_file",
+                        "",
+                    )
+                )
+                if getattr(
+                    args,
+                    "formalizer_pseudo_formal_packet_eval_static_response_file",
+                    "",
+                )
+                else None
+            ),
+            llm_timeout_seconds=float(
+                getattr(
+                    args,
+                    "formalizer_pseudo_formal_packet_eval_llm_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+            ),
+            max_tokens=int(
+                getattr(args, "formalizer_pseudo_formal_packet_eval_max_tokens", 5000)
+            ),
+            temperature=float(
+                getattr(args, "formalizer_pseudo_formal_packet_eval_temperature", 0.1)
+            ),
+            max_repair_attempts=int(
+                getattr(
+                    args,
+                    "formalizer_pseudo_formal_packet_eval_max_repair_attempts",
+                    1,
+                )
+            ),
+        )
+    gate_summary = _runtime_component_gate_summary(eval_manifest)
+    capability_requirements = (
+        dict(eval_manifest.get("capability_evidence_requirements", {}) or {})
+        if isinstance(eval_manifest.get("capability_evidence_requirements", {}), Mapping)
+        else {}
+    )
+    attached = {
+        "artifact_kind": "RuntimeAttachedFormalizerPseudoFormalPacketEval",
+        "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
+        "provider_name": str(gate_summary["provider_name"]),
+        "backend_provider_name": str(gate_summary["backend_provider_name"]),
+        "model": str(eval_manifest.get("model", "")),
+        "live_generator": bool(gate_summary["live_generator"]),
+        "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
+        "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
+        "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
+        "n_pseudo_formal_packets": int(
+            eval_manifest.get("n_pseudo_formal_packets", 0) or 0
+        ),
+        "n_pseudo_formal_work_order_rows": int(
+            eval_manifest.get("n_pseudo_formal_work_order_rows", 0) or 0
+        ),
+        "n_pseudo_formal_routable_work_order_rows": int(
+            eval_manifest.get("n_pseudo_formal_routable_work_order_rows", 0) or 0
+        ),
+        "pseudo_formal_routable_row_kinds": [
+            str(value)
+            for value in eval_manifest.get("pseudo_formal_routable_row_kinds", [])
+            if str(value).strip()
+        ],
+        "pseudo_formal_routable_target_lanes": [
+            str(value)
+            for value in eval_manifest.get("pseudo_formal_routable_target_lanes", [])
+            if str(value).strip()
+        ],
+        "nonproof_boundary_preserved": bool(
+            capability_requirements.get("nonproof_boundary_preserved", False)
+        ),
+        "raw_model_output_written": bool(
+            eval_manifest.get("raw_model_output_written", False)
+        ),
+        "source_theorem_kernel_verified": bool(
+            eval_manifest.get("source_theorem_kernel_verified", False)
+        ),
+        "full_frontier_theorem_proved": bool(
+            eval_manifest.get("full_frontier_theorem_proved", False)
+        ),
+        "proof_evidence_status": str(
+            eval_manifest.get(
+                "proof_evidence_status",
+                "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE",
+            )
+        ),
+        "boundary": (
+            "This attached component gate checks whether Formalizer/ProofEngineer "
+            "can emit schema-valid pseudo-formal packets with effective "
+            "lane-routable work-order rows under required PF/BV activation. It is "
+            "not theorem proof evidence, not source theorem kernel verification, "
+            "and not full frontier theorem closure."
+        ),
+    }
+    manifest["internal_formalizer_pseudo_formal_packet_eval"] = attached
+    manifest["internal_formalizer_pseudo_formal_packet_eval_provider_name"] = str(
+        attached["provider_name"]
+    )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_backend_provider_name"
+    ] = str(attached["backend_provider_name"])
+    manifest["internal_formalizer_pseudo_formal_packet_eval_live_generator"] = bool(
+        attached["live_generator"]
+    )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_static_or_fixture_only"
+    ] = bool(attached["static_or_fixture_only"])
+    manifest["internal_formalizer_pseudo_formal_packet_eval_fixture_plumbing_ok"] = bool(
+        attached["fixture_plumbing_ok"]
+    )
+    manifest["internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"] = bool(
+        attached["capability_evidence_ok"]
+    )
+    manifest["internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets"] = int(
+        attached["n_pseudo_formal_packets"]
+    )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_work_order_rows"
+    ] = int(attached["n_pseudo_formal_work_order_rows"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows"
+    ] = int(attached["n_pseudo_formal_routable_work_order_rows"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds"
+    ] = list(attached["pseudo_formal_routable_row_kinds"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes"
+    ] = list(attached["pseudo_formal_routable_target_lanes"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved"
+    ] = bool(attached["nonproof_boundary_preserved"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written"
+    ] = bool(attached["raw_model_output_written"])
+    manifest.setdefault("artifacts", {})[
+        "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
+    ] = str(attached["manifest_path"])
+    _refresh_runtime_coding_agent_capability_manifest(
+        manifest,
+        runtime_out_dir=Path(args.out),
+    )
+    manifest_path = Path(args.out) / "research_agent_runtime_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
+    return manifest
+
+
 def _attach_pseudo_formal_block_verifier_eval_to_runtime_manifest(
     args: argparse.Namespace,
     manifest: dict[str, Any],
@@ -12156,6 +12362,11 @@ def _refresh_runtime_coding_agent_capability_manifest(
     component_gate_learning_rows = _runtime_formalizer_component_gate_learning_rows(
         manifest
     )
+    formalizer_pseudo_formal_packet_learning_rows = (
+        _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
+            manifest
+        )
+    )
     pseudo_formal_component_gate_learning_rows = (
         _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(manifest)
     )
@@ -12185,6 +12396,7 @@ def _refresh_runtime_coding_agent_capability_manifest(
             "coding_agent_generated_code_capability_feedback",
             "coding_agent_generated_code_component_gate_feedback",
             "formalizer_lean_candidate_component_gate_feedback",
+            "formalizer_pseudo_formal_packet_component_gate_feedback",
             "pseudo_formal_block_verifier_component_gate_feedback",
         }
         and row.get("source_component_gate")
@@ -12195,6 +12407,7 @@ def _refresh_runtime_coding_agent_capability_manifest(
         *capability_learning_rows,
         *coding_component_gate_learning_rows,
         *component_gate_learning_rows,
+        *formalizer_pseudo_formal_packet_learning_rows,
         *pseudo_formal_component_gate_learning_rows,
     ]
     learning_path.parent.mkdir(parents=True, exist_ok=True)
@@ -12210,6 +12423,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
     )
     manifest["n_runtime_formalizer_component_gate_learning_rows"] = len(
         component_gate_learning_rows
+    )
+    manifest["n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"] = len(
+        formalizer_pseudo_formal_packet_learning_rows
     )
     manifest["n_runtime_pseudo_formal_block_verifier_component_gate_learning_rows"] = len(
         pseudo_formal_component_gate_learning_rows
@@ -12414,6 +12630,12 @@ def _apply_research_agent_runtime_capability_eval_preset(
             getattr(args, "formalizer_repair_eval_provider", "same") or "same"
         ) in {"", "none", "static"}:
             args.formalizer_repair_eval_provider = "same"
+        args.run_formalizer_pseudo_formal_packet_eval = True
+        if str(
+            getattr(args, "formalizer_pseudo_formal_packet_eval_provider", "same")
+            or "same"
+        ) in {"", "none", "static"}:
+            args.formalizer_pseudo_formal_packet_eval_provider = "same"
         args.run_pseudo_formal_block_verifier_eval = True
         if str(
             getattr(args, "pseudo_formal_block_verifier_eval_provider", "same")
@@ -12623,6 +12845,12 @@ def _research_agent_runtime_capability_config_errors(
             "Formalizer Lean-candidate repair eval",
         ),
         (
+            "run_formalizer_pseudo_formal_packet_eval",
+            "formalizer_pseudo_formal_packet_eval_provider",
+            "formalizer_pseudo_formal_packet_eval_existing_manifest",
+            "Formalizer PF/BV packet eval",
+        ),
+        (
             "run_pseudo_formal_block_verifier_eval",
             "pseudo_formal_block_verifier_eval_provider",
             "pseudo_formal_block_verifier_eval_existing_manifest",
@@ -12772,6 +13000,12 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        for enabled_field, _, _, component_name in component_eval_provider_fields:
+            if not bool(getattr(args, enabled_field, False)):
+                errors.append(
+                    "capability eval preset full-live requires attached live "
+                    f"{component_name}; missing --{enabled_field.replace('_', '-')}"
+                )
         if not bool(
             getattr(args, "formalization_gap_planner_live_route_planner", False)
         ):
@@ -20263,6 +20497,74 @@ def build_parser() -> argparse.ArgumentParser:
             "attach an existing FormalizerLeanCandidateRepairEvalManifest instead "
             "of rerunning the Formalizer repair eval. The attachment remains "
             "component calibration evidence only."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--run-formalizer-pseudo-formal-packet-eval",
+        action="store_true",
+        help=(
+            "after AgentRuntime finishes, run the Formalizer/ProofEngineer PF/BV "
+            "packet-emission gate and attach its manifest to the runtime manifest. "
+            "This component gate is not theorem proof evidence."
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-provider",
+        choices=("same", "anthropic", "openai", "static"),
+        default="same",
+        help=(
+            "provider for --run-formalizer-pseudo-formal-packet-eval; same uses "
+            "the runtime --provider"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-model",
+        default="",
+        help="optional model for the attached Formalizer PF/BV packet eval",
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-static-response-file",
+        default="",
+        help=(
+            "Formalizer static JSON response for the attached PF/BV packet eval "
+            "when --formalizer-pseudo-formal-packet-eval-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-llm-timeout-seconds",
+        type=float,
+        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-max-tokens",
+        type=int,
+        default=5000,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-temperature",
+        type=float,
+        default=0.1,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-max-repair-attempts",
+        type=int,
+        default=1,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-out",
+        default="",
+        help=(
+            "optional output directory for the attached Formalizer PF/BV packet "
+            "eval; defaults to <runtime-out>/internal_formalizer_pseudo_formal_packet_eval"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-existing-manifest",
+        default="",
+        help=(
+            "attach an existing FormalizerPseudoFormalPacketEvalManifest instead "
+            "of rerunning the PF/BV packet eval. The attachment remains component "
+            "calibration evidence only."
         ),
     )
     research_agent_runtime.add_argument(

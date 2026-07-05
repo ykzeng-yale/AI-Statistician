@@ -3467,6 +3467,132 @@ def _runtime_formalizer_component_gate_learning_rows(
     ]
 
 
+def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
+    manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Turn an attached Formalizer PF/BV packet gate into bounded prompt memory."""
+
+    attached = manifest.get("internal_formalizer_pseudo_formal_packet_eval", {})
+    if not isinstance(attached, Mapping):
+        return []
+    manifest_path = str(attached.get("manifest_path", "") or "").strip()
+    if not manifest_path:
+        return []
+    question_ids = [
+        str(value)
+        for value in manifest.get("question_ids", []) or []
+        if str(value).strip()
+    ]
+    question_id = question_ids[0] if question_ids else ""
+    gate_summary = _runtime_component_gate_summary(attached)
+    provider_name = str(gate_summary["provider_name"])
+    backend_provider_name = str(gate_summary["backend_provider_name"])
+    capability_ok = bool(gate_summary["capability_evidence_ok"])
+    live_generator = bool(gate_summary["live_generator"])
+    static_or_fixture_only = bool(gate_summary["static_or_fixture_only"])
+    row_kinds = [
+        str(value)
+        for value in attached.get("pseudo_formal_routable_row_kinds", []) or []
+        if str(value).strip()
+    ]
+    target_lanes = [
+        str(value)
+        for value in attached.get("pseudo_formal_routable_target_lanes", []) or []
+        if str(value).strip()
+    ]
+    n_packets = _int_like(attached.get("n_pseudo_formal_packets", 0))
+    n_work_order_rows = _int_like(
+        attached.get("n_pseudo_formal_work_order_rows", 0)
+    )
+    n_routable_rows = _int_like(
+        attached.get("n_pseudo_formal_routable_work_order_rows", 0)
+    )
+    nonproof_boundary_preserved = bool(
+        attached.get("nonproof_boundary_preserved", False)
+    )
+    proof_evidence_status = str(
+        attached.get(
+            "proof_evidence_status",
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE",
+        )
+        or ""
+    )
+    boundary = (
+        "This learning row carries Formalizer PF/BV packet-emission component "
+        "feedback. It is not theorem proof evidence, not source theorem kernel "
+        "verification, and not full frontier theorem closure."
+    )
+    return [
+        {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeLearningRow",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question_id,
+            "learning_task": "formalizer_pseudo_formal_packet_component_gate_feedback",
+            "next_owner_subsystem": "Formalizer/ProofEngineer",
+            "source_manifest_path": manifest_path,
+            "component_eval_manifest_path": manifest_path,
+            "component_eval": "Formalizer/ProofEngineer PF/BV packet emission",
+            "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+            "provider_name": provider_name,
+            "backend_provider_name": backend_provider_name,
+            "model": str(attached.get("model", "") or ""),
+            "live_generator": live_generator,
+            "static_or_fixture_only": static_or_fixture_only,
+            "capability_evidence_ok": capability_ok,
+            "fixture_plumbing_ok": bool(attached.get("fixture_plumbing_ok", False)),
+            "n_pseudo_formal_packets": n_packets,
+            "n_pseudo_formal_work_order_rows": n_work_order_rows,
+            "n_pseudo_formal_routable_work_order_rows": n_routable_rows,
+            "pseudo_formal_routable_row_kinds": row_kinds,
+            "pseudo_formal_routable_target_lanes": target_lanes,
+            "nonproof_boundary_preserved": nonproof_boundary_preserved,
+            "raw_model_output_written": bool(
+                attached.get("raw_model_output_written", False)
+            ),
+            "target_behavior": (
+                "Use the attached Formalizer PF/BV packet gate as calibration "
+                "for required pseudo-formal activation: Formalizer should emit "
+                "source-anchored PF/BV packets with effective lane-routable work "
+                "orders before Lean/RAG/source-to-bridge follow-up."
+            ),
+            "acceptance_gate": (
+                "A future integrated AgentRuntime turn consumes the emitted "
+                "PF/BV routing rows, performs exact semantic-definition/RAG/BV "
+                "follow-up, and reaches target-prover kernel evidence before "
+                "promoting any theorem proof claim."
+            ),
+            "input_summary": {
+                "trigger": "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_ATTACHED",
+                "component_eval_manifest_path": manifest_path,
+                "source_component_gate": (
+                    "formalizer_pseudo_formal_packet_component_gate"
+                ),
+                "provider_name": provider_name,
+                "backend_provider_name": backend_provider_name,
+                "live_generator": live_generator,
+                "static_or_fixture_only": static_or_fixture_only,
+                "capability_evidence_ok": capability_ok,
+                "n_pseudo_formal_packets": n_packets,
+                "n_pseudo_formal_work_order_rows": n_work_order_rows,
+                "n_pseudo_formal_routable_work_order_rows": n_routable_rows,
+                "pseudo_formal_routable_row_kinds": row_kinds,
+                "pseudo_formal_routable_target_lanes": target_lanes,
+                "nonproof_boundary_preserved": nonproof_boundary_preserved,
+                "raw_model_output_written": bool(
+                    attached.get("raw_model_output_written", False)
+                ),
+                "proof_evidence_status": proof_evidence_status,
+            },
+            "proof_evidence_status": (
+                "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": boundary,
+            "boundary": boundary,
+        }
+    ]
+
+
 def _runtime_coding_agent_component_gate_learning_rows(
     manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:

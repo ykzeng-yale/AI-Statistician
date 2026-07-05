@@ -3493,6 +3493,66 @@ async def run_research_system_audit(
                 "internal_pseudo_formal_block_verifier_eval_backend_provider_name",
                 "",
             ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attached": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_attached",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_manifest_path": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_manifest_path",
+                "",
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_live_generator": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_live_generator",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_static_or_fixture_only": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_static_or_fixture_only",
+                True,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_fixture_plumbing_ok": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_fixture_plumbing_ok",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_pseudo_formal_packets": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_work_order_rows": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_work_order_rows",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows",
+                0,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_row_kinds": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds",
+                [],
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_target_lanes": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes",
+                [],
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_provider_name",
+                "",
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_backend_provider": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_backend_provider_name",
+                "",
+            ),
             "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders": research_agent_runtime_audit_manifest.get(
                 "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal",
                 0,
@@ -9185,6 +9245,78 @@ async def run_research_system_audit(
         payload["artifacts"]["formalizer_lean_candidate_repair_eval"] = str(
             formalizer_lean_repair_eval_manifest["manifest_path"]
         )
+    formalizer_pseudo_formal_packet_eval_manifest = (
+        _formalizer_pseudo_formal_packet_eval_overlay(out_dir)
+    )
+    payload["counts"].update(
+        {
+            "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "capability_evidence_ok"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_live_generator": bool(
+                formalizer_pseudo_formal_packet_eval_manifest["live_generator"]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_static_or_fixture_only": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "static_or_fixture_only"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_fixture_plumbing_ok": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "fixture_plumbing_ok"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_pseudo_formal_packets": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_packets"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_work_order_rows": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_work_order_rows"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows": int(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "n_pseudo_formal_routable_work_order_rows"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_routable_row_kinds": list(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "pseudo_formal_routable_row_kinds"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_routable_target_lanes": list(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "pseudo_formal_routable_target_lanes"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "nonproof_boundary_preserved"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "raw_model_output_written"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_provider": str(
+                formalizer_pseudo_formal_packet_eval_manifest["provider_name"]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_backend_provider": str(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "backend_provider_name"
+                ]
+            ),
+        }
+    )
+    if bool(formalizer_pseudo_formal_packet_eval_manifest["available"]):
+        payload["artifacts"]["formalizer_pseudo_formal_packet_eval"] = str(
+            formalizer_pseudo_formal_packet_eval_manifest["manifest_path"]
+        )
     pseudo_formal_block_verifier_component_gate_manifest = (
         _pseudo_formal_block_verifier_component_gate_overlay(out_dir)
     )
@@ -9907,6 +10039,173 @@ def _formalizer_lean_candidate_repair_eval_manifest_path(out_dir: Path) -> Path:
         out_dir.parent.glob(
             "formalizer_lean_candidate_repair_eval*/"
             "formalizer_lean_candidate_repair_eval_manifest.json"
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else canonical
+
+
+def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, object]:
+    manifest_path = _formalizer_pseudo_formal_packet_eval_manifest_path(out_dir)
+    empty = {
+        "available": False,
+        "manifest_path": "",
+        "provider_name": "",
+        "backend_provider_name": "",
+        "model": "",
+        "live_generator": False,
+        "capability_evidence_ok": False,
+        "artifact_kind_ok": False,
+        "proof_evidence_status_ok": False,
+        "n_pseudo_formal_packets": 0,
+        "n_pseudo_formal_work_order_rows": 0,
+        "n_pseudo_formal_routable_work_order_rows": 0,
+        "pseudo_formal_routable_row_kinds": [],
+        "pseudo_formal_routable_target_lanes": [],
+        "nonproof_boundary_preserved": False,
+        "raw_model_output_written": False,
+        "fixture_plumbing_ok": False,
+        "static_or_fixture_only": False,
+        "proof_evidence_status": "",
+        "all_ok": False,
+        "errors": ["formalizer_pseudo_formal_packet_eval_manifest_missing"],
+    }
+    if not manifest_path.exists():
+        return empty
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            **empty,
+            "manifest_path": str(manifest_path),
+            "errors": ["formalizer_pseudo_formal_packet_eval_manifest_unreadable"],
+        }
+    provider_name = normalize_generator_provider_name(payload.get("provider_name", ""))
+    backend_provider_name = normalize_generator_provider_name(
+        payload.get("backend_provider_name", provider_name)
+    )
+    live_generator = bool(
+        payload.get("live_generator", False)
+        and is_live_generator_backend(provider_name, backend_provider_name)
+    )
+    artifact_kind_ok = (
+        str(payload.get("artifact_kind", ""))
+        == "FormalizerPseudoFormalPacketEvalManifest"
+    )
+    proof_evidence_status = str(payload.get("proof_evidence_status", ""))
+    proof_evidence_status_ok = (
+        proof_evidence_status
+        == "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+    )
+    capability_requirements = (
+        payload.get("capability_evidence_requirements", {})
+        if isinstance(payload.get("capability_evidence_requirements", {}), Mapping)
+        else {}
+    )
+    n_pseudo_formal_packets = int(
+        payload.get("n_pseudo_formal_packets", 0) or 0
+    )
+    n_pseudo_formal_work_order_rows = int(
+        payload.get("n_pseudo_formal_work_order_rows", 0) or 0
+    )
+    n_pseudo_formal_routable_work_order_rows = int(
+        payload.get("n_pseudo_formal_routable_work_order_rows", 0) or 0
+    )
+    row_kinds = [
+        str(value)
+        for value in payload.get("pseudo_formal_routable_row_kinds", [])
+        if str(value)
+    ]
+    target_lanes = [
+        str(value)
+        for value in payload.get("pseudo_formal_routable_target_lanes", [])
+        if str(value)
+    ]
+    nonproof_boundary_preserved = bool(
+        capability_requirements.get("nonproof_boundary_preserved", False)
+        or payload.get("nonproof_boundary_preserved", False)
+    )
+    raw_model_output_written = bool(payload.get("raw_model_output_written", False))
+    static_or_fixture_only = bool(
+        payload.get("static_or_fixture_only", False) or not live_generator
+    )
+    fixture_plumbing_ok = bool(
+        payload.get("fixture_plumbing_ok", False)
+        and artifact_kind_ok
+        and proof_evidence_status_ok
+        and n_pseudo_formal_packets > 0
+        and n_pseudo_formal_routable_work_order_rows > 0
+        and nonproof_boundary_preserved
+        and not raw_model_output_written
+        and "source_theorem_exact_semantic_definition" in target_lanes
+    )
+    capability_evidence_ok = bool(
+        live_generator
+        and fixture_plumbing_ok
+        and payload.get("capability_evidence_ok", False)
+    )
+    errors = [
+        error
+        for error in (
+            "" if artifact_kind_ok else "artifact_kind_mismatch",
+            ""
+            if proof_evidence_status_ok
+            else "proof_evidence_status_must_remain_non_proof",
+            "" if live_generator else "live_generator_missing_or_static_backend",
+            "" if n_pseudo_formal_packets > 0 else "pseudo_formal_packets_missing",
+            ""
+            if n_pseudo_formal_routable_work_order_rows > 0
+            else "routable_work_order_rows_missing",
+            ""
+            if "source_theorem_exact_semantic_definition" in target_lanes
+            else "exact_semantic_definition_lane_missing",
+            ""
+            if nonproof_boundary_preserved
+            else "nonproof_boundary_not_preserved",
+            "" if not raw_model_output_written else "raw_model_output_written",
+        )
+        if error
+    ]
+    return {
+        "available": True,
+        "manifest_path": str(manifest_path),
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "model": str(payload.get("model", "")),
+        "live_generator": live_generator,
+        "capability_evidence_ok": capability_evidence_ok,
+        "artifact_kind_ok": artifact_kind_ok,
+        "proof_evidence_status_ok": proof_evidence_status_ok,
+        "n_pseudo_formal_packets": n_pseudo_formal_packets,
+        "n_pseudo_formal_work_order_rows": n_pseudo_formal_work_order_rows,
+        "n_pseudo_formal_routable_work_order_rows": n_pseudo_formal_routable_work_order_rows,
+        "pseudo_formal_routable_row_kinds": row_kinds,
+        "pseudo_formal_routable_target_lanes": target_lanes,
+        "nonproof_boundary_preserved": nonproof_boundary_preserved,
+        "raw_model_output_written": raw_model_output_written,
+        "fixture_plumbing_ok": fixture_plumbing_ok,
+        "static_or_fixture_only": static_or_fixture_only,
+        "proof_evidence_status": proof_evidence_status,
+        "all_ok": bool(
+            artifact_kind_ok and proof_evidence_status_ok and fixture_plumbing_ok
+        ),
+        "errors": errors,
+    }
+
+
+def _formalizer_pseudo_formal_packet_eval_manifest_path(out_dir: Path) -> Path:
+    canonical = (
+        out_dir.parent
+        / "formalizer_pseudo_formal_packet_eval"
+        / "formalizer_pseudo_formal_packet_eval_manifest.json"
+    )
+    if canonical.exists():
+        return canonical
+    candidates = sorted(
+        out_dir.parent.glob(
+            "formalizer_pseudo_formal_packet_eval*/"
+            "formalizer_pseudo_formal_packet_eval_manifest.json"
         ),
         key=lambda path: path.stat().st_mtime,
         reverse=True,

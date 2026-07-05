@@ -3524,6 +3524,17 @@ def audit_research_agent_runtime(
         )
         else {}
     )
+    attached_formalizer_pseudo_formal_packet_eval = (
+        dict(
+            manifest.get("internal_formalizer_pseudo_formal_packet_eval", {})
+            or {}
+        )
+        if isinstance(
+            manifest.get("internal_formalizer_pseudo_formal_packet_eval", {}),
+            Mapping,
+        )
+        else {}
+    )
     attached_pseudo_formal_block_verifier_eval = (
         dict(manifest.get("internal_pseudo_formal_block_verifier_eval", {}) or {})
         if isinstance(
@@ -3537,6 +3548,11 @@ def audit_research_agent_runtime(
     )
     attached_formalizer_repair_summary = _runtime_component_gate_summary(
         attached_formalizer_repair_eval
+    )
+    attached_formalizer_pseudo_formal_packet_summary = (
+        _runtime_component_gate_summary(
+            attached_formalizer_pseudo_formal_packet_eval
+        )
     )
     attached_pseudo_formal_block_verifier_summary = _runtime_component_gate_summary(
         attached_pseudo_formal_block_verifier_eval
@@ -5838,6 +5854,79 @@ def audit_research_agent_runtime(
         ),
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": (
             attached_formalizer_prior_feedback_executed_tool_calls
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_attached": bool(
+            attached_formalizer_pseudo_formal_packet_eval
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_manifest_path": str(
+            attached_formalizer_pseudo_formal_packet_eval.get("manifest_path", "")
+            or ""
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_provider_name": str(
+            attached_formalizer_pseudo_formal_packet_summary["provider_name"]
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_backend_provider_name": str(
+            attached_formalizer_pseudo_formal_packet_summary["backend_provider_name"]
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_live_generator": bool(
+            attached_formalizer_pseudo_formal_packet_summary["live_generator"]
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_static_or_fixture_only": bool(
+            attached_formalizer_pseudo_formal_packet_summary[
+                "static_or_fixture_only"
+            ]
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_fixture_plumbing_ok": bool(
+            attached_formalizer_pseudo_formal_packet_eval.get(
+                "fixture_plumbing_ok", False
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok": bool(
+            attached_formalizer_pseudo_formal_packet_summary[
+                "capability_evidence_ok"
+            ]
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets": int(
+            attached_formalizer_pseudo_formal_packet_eval.get(
+                "n_pseudo_formal_packets", 0
+            )
+            or 0
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_work_order_rows": int(
+            attached_formalizer_pseudo_formal_packet_eval.get(
+                "n_pseudo_formal_work_order_rows", 0
+            )
+            or 0
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows": int(
+            attached_formalizer_pseudo_formal_packet_eval.get(
+                "n_pseudo_formal_routable_work_order_rows", 0
+            )
+            or 0
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds": (
+            _compact_string_list(
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "pseudo_formal_routable_row_kinds", []
+                )
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes": (
+            _compact_string_list(
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "pseudo_formal_routable_target_lanes", []
+                )
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved": bool(
+            attached_formalizer_pseudo_formal_packet_eval.get(
+                "nonproof_boundary_preserved", False
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written": bool(
+            attached_formalizer_pseudo_formal_packet_eval.get(
+                "raw_model_output_written", False
+            )
         ),
         "internal_pseudo_formal_block_verifier_eval_attached": bool(
             attached_pseudo_formal_block_verifier_eval
@@ -16307,6 +16396,89 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and attached_formalizer_executed_tool_calls
         >= attached_formalizer_lean_lsp_mcp_tool_calls
     )
+    attached_formalizer_pseudo_formal_packet_source = (
+        _runtime_attached_component_gate_source(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+        )
+    )
+    attached_formalizer_pseudo_formal_packet_summary = (
+        _runtime_component_gate_summary(
+            attached_formalizer_pseudo_formal_packet_source
+        )
+    )
+    attached_formalizer_pseudo_formal_packets = int(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_packets", 0
+            ),
+        )
+        or 0
+    )
+    attached_formalizer_pseudo_formal_work_order_rows = int(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_work_order_rows",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_work_order_rows", 0
+            ),
+        )
+        or 0
+    )
+    attached_formalizer_pseudo_formal_routable_rows = int(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "n_pseudo_formal_routable_work_order_rows", 0
+            ),
+        )
+        or 0
+    )
+    attached_formalizer_pseudo_formal_row_kinds = _compact_string_list(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "pseudo_formal_routable_row_kinds", []
+            ),
+        )
+    )
+    attached_formalizer_pseudo_formal_target_lanes = _compact_string_list(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "pseudo_formal_routable_target_lanes", []
+            ),
+        )
+    )
+    attached_formalizer_pseudo_formal_nonproof_boundary = bool(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "nonproof_boundary_preserved", False
+            ),
+        )
+    )
+    attached_formalizer_pseudo_formal_raw_output_written = bool(
+        payload.get(
+            "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written",
+            attached_formalizer_pseudo_formal_packet_source.get(
+                "raw_model_output_written", False
+            ),
+        )
+    )
+    attached_formalizer_pseudo_formal_live_gate_passed = (
+        bool(
+            attached_formalizer_pseudo_formal_packet_summary[
+                "capability_evidence_ok"
+            ]
+        )
+        and attached_formalizer_pseudo_formal_packets > 0
+        and attached_formalizer_pseudo_formal_routable_rows > 0
+        and attached_formalizer_pseudo_formal_nonproof_boundary
+        and not attached_formalizer_pseudo_formal_raw_output_written
+        and "source_theorem_exact_semantic_definition"
+        in attached_formalizer_pseudo_formal_target_lanes
+    )
     attached_pseudo_formal_source = _runtime_attached_component_gate_source(
         payload,
         "internal_pseudo_formal_block_verifier_eval",
@@ -20052,6 +20224,59 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "formalizer_pseudo_formal_packet_component_gate",
+            attached_formalizer_pseudo_formal_live_gate_passed,
+            (
+                "attached_component_capability="
+                f"{attached_formalizer_pseudo_formal_packet_summary['capability_evidence_ok']} "
+                "attached_live_generator="
+                f"{attached_formalizer_pseudo_formal_packet_summary['live_generator']} "
+                "attached_static_or_fixture_only="
+                f"{attached_formalizer_pseudo_formal_packet_summary['static_or_fixture_only']} "
+                "attached_provider="
+                f"{attached_formalizer_pseudo_formal_packet_summary['provider_name']} "
+                "attached_backend_provider="
+                f"{attached_formalizer_pseudo_formal_packet_summary['backend_provider_name']} "
+                "attached_pf_packets="
+                f"{attached_formalizer_pseudo_formal_packets} "
+                "attached_work_order_rows="
+                f"{attached_formalizer_pseudo_formal_work_order_rows} "
+                "attached_routable_rows="
+                f"{attached_formalizer_pseudo_formal_routable_rows} "
+                "attached_row_kinds="
+                f"{attached_formalizer_pseudo_formal_row_kinds} "
+                "attached_target_lanes="
+                f"{attached_formalizer_pseudo_formal_target_lanes} "
+                "attached_nonproof_boundary="
+                f"{attached_formalizer_pseudo_formal_nonproof_boundary} "
+                "attached_raw_model_output_written="
+                f"{attached_formalizer_pseudo_formal_raw_output_written}"
+            ),
+            (
+                "attached live Formalizer PF/BV packet calibration did not show "
+                "schema-valid pseudo-formal packets with effective lane-routable "
+                "work-order rows, exact-semantic-definition routing, and preserved "
+                "non-proof boundary; static fixtures and generic packets do not "
+                "demonstrate this Formalizer capacity"
+            ),
+            scope="component_calibration",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Run the attached live Formalizer PF/BV packet-emission gate "
+                    "under required pseudo-formal activation and attach its "
+                    "non-proof manifest to runtime memory."
+                ),
+                success_metric=(
+                    "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok=true "
+                    "with pseudo_formal_packets>0, routable_work_order_rows>0, "
+                    "source_theorem_exact_semantic_definition in target lanes, "
+                    "nonproof_boundary_preserved=true, and raw_model_output_written=false"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "runtime_progress_observable",
             runtime_progress_export_complete,
             (
@@ -22398,6 +22623,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "attached_formalizer_repair_ready": attached_formalizer_live_gate_passed,
             "attached_formalizer_prover_tool_called": (
                 attached_formalizer_live_prover_tool_called
+            ),
+            "attached_formalizer_pseudo_formal_packet_ready": (
+                attached_formalizer_pseudo_formal_live_gate_passed
             ),
             "boundary": (
                 "Attached live component evals calibrate subsystem capacity and "

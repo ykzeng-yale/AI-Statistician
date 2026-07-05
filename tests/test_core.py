@@ -269,6 +269,7 @@ from ai_statistician.research_system_audit import (
     _architect_research_path_policy_eval_overlay,
     _coding_agent_generated_code_repair_eval_overlay,
     _formalizer_lean_candidate_repair_eval_overlay,
+    _formalizer_pseudo_formal_packet_eval_overlay,
     _formalization_gap_planner_evaluation_route_adoption_count_rollups,
     _pseudo_formal_block_verifier_component_gate_overlay,
     _research_agent_runtime_exact_semantic_definition_authoring_count_rollup,
@@ -5196,7 +5197,7 @@ class SystemTests(unittest.TestCase):
             system_audit_payload=payload,
         )
         self.assertTrue(guidance["all_ok"])
-        self.assertEqual(guidance["suites_defined"], 15)
+        self.assertEqual(guidance["suites_defined"], 16)
         self.assertEqual(guidance["frontier_entries"], 60)
         statuses = {row["suite_id"]: row["status"] for row in guidance["suites"]}
         self.assertEqual(statuses["S3_frontier_blind_theory_target"], "CAPACITY_GAP")
@@ -5216,6 +5217,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(statuses["S9_fresh_holdout_frontier"], "OK")
         self.assertEqual(statuses["S10_live_coding_agent_generated_repair"], "CAPACITY_GAP")
         self.assertEqual(statuses["S11_live_formalizer_lean_candidate_repair"], "CAPACITY_GAP")
+        self.assertEqual(statuses["S11c_live_formalizer_pseudo_formal_packet"], "CAPACITY_GAP")
         self.assertEqual(statuses["S11b_live_pseudo_formal_block_verifier"], "CAPACITY_GAP")
         self.assertEqual(statuses["S12_live_architect_research_path_policy"], "CAPACITY_GAP")
         self.assertEqual(statuses["S13_live_integrated_agent_runtime_capability"], "CAPACITY_GAP")
@@ -5230,6 +5232,10 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "no live Claude/OpenAI PF/BV BlockVerifier",
             suites["S11b_live_pseudo_formal_block_verifier"]["issues"][0],
+        )
+        self.assertIn(
+            "no live Claude/OpenAI Formalizer PF/BV packet-emission",
+            suites["S11c_live_formalizer_pseudo_formal_packet"]["issues"][0],
         )
         self.assertIn(
             "no live Claude/OpenAI Architect research-path policy",
@@ -5249,6 +5255,10 @@ class SystemTests(unittest.TestCase):
         )
         self.assertIn(
             "standalone S11b evidence does not substitute",
+            " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
+        )
+        self.assertIn(
+            "standalone S11c evidence does not substitute",
             " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
         )
         self.assertEqual(
@@ -5283,6 +5293,22 @@ class SystemTests(unittest.TestCase):
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
                 "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
             ]
+        )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attached"
+            ]
+        )
+        self.assertFalse(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok"
+            ]
+        )
+        self.assertEqual(
+            suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows"
+            ],
+            0,
         )
         self.assertEqual(
             suites["S13_live_integrated_agent_runtime_capability"]["key_counts"][
@@ -5774,6 +5800,29 @@ class SystemTests(unittest.TestCase):
                     "runs/example/internal_pseudo_formal_block_verifier_eval/"
                     "pseudo_formal_block_verifier_component_gate_manifest.json"
                 ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attached": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_live_generator": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_static_or_fixture_only": False,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_pseudo_formal_packets": 1,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_work_order_rows": 11,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows": 8,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_row_kinds": [
+                    "pseudo_formal_exact_semantic_definition_request",
+                    "pseudo_formal_independent_block_verification_request",
+                ],
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_target_lanes": [
+                    "source_theorem_exact_semantic_definition",
+                    "source_to_bridge",
+                ],
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": False,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": "anthropic",
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_backend_provider": "anthropic",
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_manifest_path": (
+                    "runs/example/internal_formalizer_pseudo_formal_packet_eval/"
+                    "formalizer_pseudo_formal_packet_eval_manifest.json"
+                ),
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": 1,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks": 1,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": 1,
@@ -5808,6 +5857,28 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attached"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows"
+            ],
+            8,
+        )
+        self.assertIn(
+            "source_theorem_exact_semantic_definition",
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_routable_target_lanes"
+            ],
+        )
+        self.assertFalse(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written"
             ]
         )
         self.assertEqual(
@@ -6194,6 +6265,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("post-runtime exact semantic candidates", s13_action["success_metric"])
         self.assertIn("n_live_llm_attempted>0 when required", s13_action["success_metric"])
         self.assertIn("PF+BV row-kind/effective-vs-diagnostic", s13_action["success_metric"])
+        self.assertIn("Formalizer PF/BV packet-emission", s13_action["success_metric"])
         self.assertIn("source-semantic ProofEngineer bridge", s13_action["success_metric"])
         self.assertIn("FormalizationGapPlanner executable handoff", s13_action["success_metric"])
         self.assertIn("priority_pinned_latest_rows retention", s13_action["success_metric"])
@@ -6356,6 +6428,63 @@ class SystemTests(unittest.TestCase):
             ]
         )
         self.assertEqual(live_formalizer_s11["issues"], ())
+        live_formalizer_pf_packet_payload = json.loads(json.dumps(payload))
+        live_formalizer_pf_packet_payload["artifacts"][
+            "formalizer_pseudo_formal_packet_eval"
+        ] = (
+            "runs/example/formalizer_pseudo_formal_packet_eval/"
+            "formalizer_pseudo_formal_packet_eval_manifest.json"
+        )
+        live_formalizer_pf_packet_payload["counts"].update(
+            {
+                "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok": True,
+                "formalizer_pseudo_formal_packet_component_gate_live_generator": True,
+                "formalizer_pseudo_formal_packet_component_gate_static_or_fixture_only": False,
+                "formalizer_pseudo_formal_packet_component_gate_pseudo_formal_packets": 1,
+                "formalizer_pseudo_formal_packet_component_gate_work_order_rows": 11,
+                "formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows": 8,
+                "formalizer_pseudo_formal_packet_component_gate_routable_row_kinds": [
+                    "pseudo_formal_exact_semantic_definition_request",
+                    "pseudo_formal_independent_block_verification_request",
+                ],
+                "formalizer_pseudo_formal_packet_component_gate_routable_target_lanes": [
+                    "source_theorem_exact_semantic_definition",
+                    "source_to_bridge",
+                ],
+                "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": True,
+                "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": False,
+            }
+        )
+        live_formalizer_pf_packet_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_live_formalizer_pf_packet"),
+            system_audit_payload=live_formalizer_pf_packet_payload,
+        )
+        live_formalizer_s11c = next(
+            row
+            for row in live_formalizer_pf_packet_guidance["suites"]
+            if row["suite_id"] == "S11c_live_formalizer_pseudo_formal_packet"
+        )
+        self.assertEqual(live_formalizer_s11c["status"], "OK")
+        self.assertEqual(
+            live_formalizer_s11c["key_counts"]["effective_pseudo_formal_packets"],
+            1,
+        )
+        self.assertEqual(
+            live_formalizer_s11c["key_counts"]["effective_routable_work_order_rows"],
+            8,
+        )
+        self.assertIn(
+            "source_theorem_exact_semantic_definition",
+            live_formalizer_s11c["key_counts"]["effective_routable_target_lanes"],
+        )
+        self.assertFalse(
+            live_formalizer_s11c["key_counts"]["effective_raw_model_output_written"]
+        )
+        self.assertIn(
+            "not Lean/AXLE kernel evidence",
+            live_formalizer_s11c["honesty_boundary"],
+        )
+        self.assertEqual(live_formalizer_s11c["issues"], ())
         live_pseudo_formal_payload = json.loads(json.dumps(payload))
         live_pseudo_formal_payload["artifacts"][
             "pseudo_formal_block_verifier_component_gate"
@@ -6922,6 +7051,143 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(fixture_overlay["live_generator"])
         self.assertFalse(fixture_overlay["capability_evidence_ok"])
         self.assertTrue(fixture_overlay["candidate_kernel_verified"])
+        self.assertTrue(fixture_overlay["fixture_plumbing_ok"])
+        self.assertTrue(fixture_overlay["static_or_fixture_only"])
+
+    def test_research_system_audit_reads_formalizer_pseudo_formal_packet_overlay(
+        self,
+    ) -> None:
+        root = Path("runs/test_research_system_audit_formalizer_pf_packet_overlay")
+        shutil.rmtree(root, ignore_errors=True)
+        manifest_dir = root / "formalizer_pseudo_formal_packet_eval"
+        manifest_dir.mkdir(parents=True)
+        manifest_path = (
+            manifest_dir / "formalizer_pseudo_formal_packet_eval_manifest.json"
+        )
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "static_or_fixture_only": False,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "n_pseudo_formal_packets": 1,
+                    "n_pseudo_formal_work_order_rows": 11,
+                    "n_pseudo_formal_routable_work_order_rows": 8,
+                    "pseudo_formal_routable_row_kinds": [
+                        "pseudo_formal_exact_semantic_definition_request",
+                        "pseudo_formal_independent_block_verification_request",
+                    ],
+                    "pseudo_formal_routable_target_lanes": [
+                        "source_theorem_exact_semantic_definition",
+                        "source_to_bridge",
+                    ],
+                    "raw_model_output_written": False,
+                    "capability_evidence_requirements": {
+                        "formalizer_packet_valid": True,
+                        "live_generator": True,
+                        "nonproof_boundary_preserved": True,
+                        "pseudo_formal_packets_present": True,
+                        "routable_work_order_rows_present": True,
+                    },
+                    "proof_evidence_status": (
+                        "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        overlay = _formalizer_pseudo_formal_packet_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(overlay["available"])
+        self.assertTrue(overlay["live_generator"])
+        self.assertTrue(overlay["capability_evidence_ok"])
+        self.assertEqual(overlay["backend_provider_name"], "anthropic")
+        self.assertEqual(overlay["n_pseudo_formal_packets"], 1)
+        self.assertEqual(overlay["n_pseudo_formal_routable_work_order_rows"], 8)
+        self.assertIn(
+            "source_theorem_exact_semantic_definition",
+            overlay["pseudo_formal_routable_target_lanes"],
+        )
+        self.assertTrue(overlay["nonproof_boundary_preserved"])
+        self.assertFalse(overlay["raw_model_output_written"])
+        self.assertEqual(overlay["manifest_path"], str(manifest_path))
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "static",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": True,
+                    "static_or_fixture_only": False,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "n_pseudo_formal_packets": 1,
+                    "n_pseudo_formal_routable_work_order_rows": 8,
+                    "pseudo_formal_routable_target_lanes": [
+                        "source_theorem_exact_semantic_definition"
+                    ],
+                    "capability_evidence_requirements": {
+                        "nonproof_boundary_preserved": True
+                    },
+                    "proof_evidence_status": (
+                        "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        mislabel_overlay = _formalizer_pseudo_formal_packet_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertFalse(mislabel_overlay["live_generator"])
+        self.assertFalse(mislabel_overlay["capability_evidence_ok"])
+        self.assertEqual(mislabel_overlay["backend_provider_name"], "static")
+        self.assertTrue(mislabel_overlay["static_or_fixture_only"])
+
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
+                    "provider_name": "static",
+                    "backend_provider_name": "static",
+                    "model": "fixture",
+                    "live_generator": False,
+                    "static_or_fixture_only": True,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "n_pseudo_formal_packets": 1,
+                    "n_pseudo_formal_routable_work_order_rows": 8,
+                    "pseudo_formal_routable_target_lanes": [
+                        "source_theorem_exact_semantic_definition"
+                    ],
+                    "capability_evidence_requirements": {
+                        "nonproof_boundary_preserved": True
+                    },
+                    "proof_evidence_status": (
+                        "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        fixture_overlay = _formalizer_pseudo_formal_packet_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(fixture_overlay["available"])
+        self.assertFalse(fixture_overlay["live_generator"])
+        self.assertFalse(fixture_overlay["capability_evidence_ok"])
         self.assertTrue(fixture_overlay["fixture_plumbing_ok"])
         self.assertTrue(fixture_overlay["static_or_fixture_only"])
 
@@ -8597,6 +8863,7 @@ class SystemTests(unittest.TestCase):
                 "S9_fresh_holdout_frontier",
                 "S10_live_coding_agent_generated_repair",
                 "S11_live_formalizer_lean_candidate_repair",
+                "S11c_live_formalizer_pseudo_formal_packet",
                 "S11b_live_pseudo_formal_block_verifier",
                 "S12_live_architect_research_path_policy",
                 "S13_live_integrated_agent_runtime_capability",
@@ -8635,6 +8902,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("S7_feedback_loop_repair_with_seeded_failures", payload["recommended_next_gate_stack"])
         self.assertIn("S10_live_coding_agent_generated_repair", payload["recommended_next_gate_stack"])
         self.assertIn("S11_live_formalizer_lean_candidate_repair", payload["recommended_next_gate_stack"])
+        self.assertIn("S11c_live_formalizer_pseudo_formal_packet", payload["recommended_next_gate_stack"])
         self.assertIn("S11b_live_pseudo_formal_block_verifier", payload["recommended_next_gate_stack"])
         self.assertIn("S12_live_architect_research_path_policy", payload["recommended_next_gate_stack"])
         self.assertIn("S13_live_integrated_agent_runtime_capability", payload["recommended_next_gate_stack"])
@@ -8713,6 +8981,44 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "not source theorem proof",
             suites["S11_live_formalizer_lean_candidate_repair"][
+                "honesty_boundary"
+            ],
+        )
+        self.assertIn(
+            "live Anthropic Claude Sonnet evidence present",
+            suites["S11c_live_formalizer_pseudo_formal_packet"]["current_status"],
+        )
+        self.assertTrue(
+            suites["S11c_live_formalizer_pseudo_formal_packet"][
+                "current_live_evidence"
+            ]["capability_evidence_ok"]
+        )
+        self.assertEqual(
+            suites["S11c_live_formalizer_pseudo_formal_packet"][
+                "current_live_evidence"
+            ]["n_pseudo_formal_packets"],
+            1,
+        )
+        self.assertEqual(
+            suites["S11c_live_formalizer_pseudo_formal_packet"][
+                "current_live_evidence"
+            ]["n_pseudo_formal_routable_work_order_rows"],
+            8,
+        )
+        self.assertIn(
+            "source_theorem_exact_semantic_definition",
+            suites["S11c_live_formalizer_pseudo_formal_packet"][
+                "current_live_evidence"
+            ]["target_lanes"],
+        )
+        self.assertFalse(
+            suites["S11c_live_formalizer_pseudo_formal_packet"][
+                "current_live_evidence"
+            ]["raw_model_output_written"]
+        )
+        self.assertIn(
+            "non-proof decomposition/routing evidence",
+            suites["S11c_live_formalizer_pseudo_formal_packet"][
                 "honesty_boundary"
             ],
         )
@@ -21862,7 +22168,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_production_patches"], 0)
         self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_promotion_ready"], 0)
-        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 15)
+        self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 16)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 8)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 0)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_capacity_gaps"], 1)

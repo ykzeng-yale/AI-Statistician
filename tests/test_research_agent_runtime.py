@@ -73551,6 +73551,24 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_local_lean_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_lean_lsp_mcp_tool_calls": 1,
         "internal_formalizer_lean_candidate_repair_eval_prior_feedback_executed_tool_calls": 2,
+        "internal_formalizer_pseudo_formal_packet_eval_provider_name": "anthropic",
+        "internal_formalizer_pseudo_formal_packet_eval_backend_provider_name": "anthropic",
+        "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok": True,
+        "internal_formalizer_pseudo_formal_packet_eval_live_generator": True,
+        "internal_formalizer_pseudo_formal_packet_eval_static_or_fixture_only": False,
+        "internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets": 1,
+        "internal_formalizer_pseudo_formal_packet_eval_work_order_rows": 11,
+        "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows": 8,
+        "internal_formalizer_pseudo_formal_packet_eval_routable_row_kinds": [
+            "pseudo_formal_exact_semantic_definition_request",
+            "pseudo_formal_independent_block_verification_request",
+        ],
+        "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes": [
+            "source_theorem_exact_semantic_definition",
+            "source_to_bridge",
+        ],
+        "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved": True,
+        "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written": False,
         "internal_pseudo_formal_block_verifier_eval_provider_name": "anthropic",
         "internal_pseudo_formal_block_verifier_eval_backend_provider_name": "anthropic",
         "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names": [
@@ -73614,6 +73632,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "formalizer_lean_candidate_repair_component_gate"
     ]["passed"] is True
     assert rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["passed"] is True
+    assert rows[
         "pseudo_formal_block_verifier_component_gate"
     ]["passed"] is True
     assert rows[
@@ -73671,6 +73692,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "internal_formalizer_lean_candidate_repair_eval_backend_provider_name"
     ] = "static"
     static_component_payload[
+        "internal_formalizer_pseudo_formal_packet_eval_backend_provider_name"
+    ] = "static"
+    static_component_payload[
         "internal_pseudo_formal_block_verifier_eval_backend_provider_name"
     ] = "static"
     static_component_payload[
@@ -73683,6 +73707,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is False
     assert rows[
         "formalizer_lean_candidate_repair_component_gate"
+    ]["passed"] is False
+    assert rows[
+        "formalizer_pseudo_formal_packet_component_gate"
     ]["passed"] is False
     assert rows[
         "pseudo_formal_block_verifier_component_gate"
@@ -82563,9 +82590,12 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=0,
         run_coding_agent_generated_code_repair_eval=False,
         run_formalizer_lean_candidate_repair_eval=False,
+        run_formalizer_pseudo_formal_packet_eval=False,
         run_pseudo_formal_block_verifier_eval=False,
         coding_agent_repair_eval_provider="same",
         formalizer_repair_eval_provider="same",
+        formalizer_pseudo_formal_packet_eval_provider="same",
+        formalizer_pseudo_formal_packet_eval_existing_manifest="",
         pseudo_formal_block_verifier_eval_provider="same",
         pseudo_formal_block_verifier_eval_existing_manifest="",
         formalizer_repair_eval_lean_project="",
@@ -82693,6 +82723,7 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     )
     assert args.run_coding_agent_generated_code_repair_eval is False
     assert args.run_formalizer_lean_candidate_repair_eval is False
+    assert args.run_formalizer_pseudo_formal_packet_eval is False
     assert args.run_pseudo_formal_block_verifier_eval is False
     assert _research_agent_runtime_capability_config_errors(args) == []
 
@@ -82797,9 +82828,11 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     )
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
+    assert args.run_formalizer_pseudo_formal_packet_eval is True
     assert args.run_pseudo_formal_block_verifier_eval is True
     assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
+    assert args.formalizer_pseudo_formal_packet_eval_provider == "same"
     assert args.pseudo_formal_block_verifier_eval_provider == "same"
     assert args.formalizer_repair_eval_lean_project == args.lean_project
     assert args.source_theorem_exact_semantic_definition_authoring_worker is True
@@ -83044,6 +83077,9 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     runtime_out.mkdir()
     coding_manifest_path = tmp_path / "coding_agent_generated_code_repair_eval_manifest.json"
     formalizer_manifest_path = tmp_path / "formalizer_lean_candidate_repair_eval_manifest.json"
+    formalizer_pf_packet_manifest_path = (
+        tmp_path / "formalizer_pseudo_formal_packet_eval_manifest.json"
+    )
     pseudo_formal_manifest_path = (
         tmp_path / "pseudo_formal_block_verifier_component_gate_manifest.json"
     )
@@ -83106,6 +83142,49 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
                 "proof_evidence_status": (
                     "FORMALIZER_LEAN_CANDIDATE_REPAIR_EVAL_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
                 ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    formalizer_pf_packet_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
+                "model": "claude-sonnet-4-6",
+                "live_generator": True,
+                "static_or_fixture_only": False,
+                "fixture_plumbing_ok": True,
+                "capability_evidence_ok": True,
+                "n_pseudo_formal_packets": 1,
+                "n_pseudo_formal_work_order_rows": 11,
+                "n_pseudo_formal_routable_work_order_rows": 8,
+                "pseudo_formal_routable_row_kinds": [
+                    "pseudo_formal_exact_semantic_definition_request",
+                    "pseudo_formal_independent_block_verification_request",
+                ],
+                "pseudo_formal_routable_target_lanes": [
+                    "source_theorem_exact_semantic_definition",
+                    "source_to_bridge",
+                ],
+                "capability_evidence_requirements": {
+                    "live_generator": True,
+                    "formalizer_packet_valid": True,
+                    "pseudo_formal_packets_present": True,
+                    "routable_work_order_rows_present": True,
+                    "nonproof_boundary_preserved": True,
+                },
+                "raw_model_output_written": False,
+                "source_theorem_kernel_verified": False,
+                "full_frontier_theorem_proved": False,
+                "proof_evidence_status": (
+                    "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+                ),
+                "artifacts": {
+                    "manifest_json": str(formalizer_pf_packet_manifest_path),
+                },
             }
         ),
         encoding="utf-8",
@@ -83198,6 +83277,11 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         formalizer_repair_eval_provider="static",
         formalizer_repair_eval_existing_manifest=str(formalizer_manifest_path),
         formalizer_repair_eval_out="",
+        formalizer_pseudo_formal_packet_eval_provider="static",
+        formalizer_pseudo_formal_packet_eval_existing_manifest=str(
+            formalizer_pf_packet_manifest_path
+        ),
+        formalizer_pseudo_formal_packet_eval_out="",
         pseudo_formal_block_verifier_eval_provider="static",
         pseudo_formal_block_verifier_eval_existing_manifest=str(
             pseudo_formal_manifest_path
@@ -83215,6 +83299,10 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         manifest,
     )
     manifest = cli_module._attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
+        args,
+        manifest,
+    )
+    manifest = cli_module._attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         args,
         manifest,
     )
@@ -83281,6 +83369,29 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         "internal_formalizer_lean_candidate_repair_eval_manifest_json"
     ] == str(formalizer_manifest_path)
     assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
+    ] is True
+    assert (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_routable_work_order_rows"
+        ]
+        == 8
+    )
+    assert "source_theorem_exact_semantic_definition" in (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes"
+        ]
+    )
+    assert (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved"
+        ]
+        is True
+    )
+    assert manifest["artifacts"][
+        "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
+    ] == str(formalizer_pf_packet_manifest_path)
+    assert manifest[
         "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok"
     ] is True
     assert (
@@ -83325,6 +83436,20 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         and row.get("prior_feedback_lean_lsp_mcp_tool_calls") == 3
         and row.get("proof_evidence_status")
         == "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+        for row in learning_rows
+    )
+    assert any(
+        row.get("learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_feedback"
+        and row.get("capability_evidence_ok") is True
+        and row.get("n_pseudo_formal_routable_work_order_rows") == 8
+        and row.get("source_component_gate")
+        == "formalizer_pseudo_formal_packet_component_gate"
+        and row.get("proof_evidence_status")
+        == (
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
+            "NOT_PROOF_EVIDENCE"
+        )
         for row in learning_rows
     )
     assert any(
@@ -83910,6 +84035,9 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     ]["passed"] is False
     assert scorecard_rows[
         "formalizer_lean_candidate_repair_component_gate"
+    ]["passed"] is False
+    assert scorecard_rows[
+        "formalizer_pseudo_formal_packet_component_gate"
     ]["passed"] is False
     assert scorecard_rows[
         "pseudo_formal_block_verifier_component_gate"
