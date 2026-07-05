@@ -4,14 +4,19 @@ import json
 from pathlib import Path
 
 from ai_statistician.cli import main
+from ai_statistician.formalizer_llm import build_formalizer_prompt
 from ai_statistician.formalizer_pseudo_formal_packet_eval import (
     FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE,
+    _pseudo_formal_packet_eval_feedback,
+    _pseudo_formal_packet_eval_question,
+    _pseudo_formal_packet_eval_theory_packet,
     run_formalizer_pseudo_formal_packet_eval,
 )
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
 )
 
@@ -142,6 +147,50 @@ def _write_static_formalizer_response(path: Path) -> None:
     path.write_text(json.dumps(response), encoding="utf-8")
 
 
+def _prompt_payload(prompt: str) -> dict[str, object]:
+    json_start = prompt.index('{"question":')
+    return json.loads(prompt[json_start:])
+
+
+def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> None:
+    question = _pseudo_formal_packet_eval_question()
+    theory_packet = _pseudo_formal_packet_eval_theory_packet()
+    feedback = _pseudo_formal_packet_eval_feedback()
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        simulation_manifest={
+            "manifest_id": "simulation:pf_seed_test",
+            "simulation_passed": True,
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:pf_seed_test", "n_executed": 1},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    payload = _prompt_payload(prompt)
+    seed = payload["pseudo_formalization_required_packet_seed"]
+    block = seed["blocks"][0]
+
+    assert seed["theorem_id"] == "theorem:coverage"
+    assert seed["source_artifact_id"] == "theory:formalizer_pseudo_formal_packet_eval"
+    assert seed["proof_evidence_status"] == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    assert seed["kernel_verified"] is False
+    assert seed["source_theorem_kernel_verified"] is False
+    assert PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in (
+        seed["required_target_lanes_to_satisfy"]
+    )
+    assert block["conclusion"]
+    assert block["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
+    assert block["lean_feasibility"] == "needs_semantic_definition"
+    assert block["faithfulness_status"] == "faithful"
+    assert "pseudo_formalization_required_packet_seed" in prompt
+
+
 def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     tmp_path: Path,
 ) -> None:
@@ -164,6 +213,13 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     assert all(manifest["fixture_plumbing_requirements"].values())
     assert manifest["n_pseudo_formal_packets"] == 1
     assert manifest["n_pseudo_formal_routable_work_order_rows"] >= 3
+    assert manifest["exact_semantic_definition_lane_present"] is True
+    assert (
+        manifest["fixture_plumbing_requirements"][
+            "exact_semantic_definition_lane_present"
+        ]
+        is True
+    )
     assert "source_theorem_exact_semantic_definition" in (
         manifest["pseudo_formal_routable_target_lanes"]
     )
@@ -183,6 +239,40 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     assert "not theorem proof evidence" in manifest["boundary"]
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
     assert Path(manifest["artifacts"]["result_json"]).exists()
+
+
+def test_formalizer_pseudo_formal_packet_eval_rejects_missing_exact_lane(
+    tmp_path: Path,
+) -> None:
+    response_file = tmp_path / "formalizer_response.json"
+    _write_static_formalizer_response(response_file)
+    response = json.loads(response_file.read_text(encoding="utf-8"))
+    response["pseudo_formal_proof_packets"][0]["blocks"][0][
+        "lean_feasibility"
+    ] = "unknown"
+    response_file.write_text(json.dumps(response), encoding="utf-8")
+
+    manifest = run_formalizer_pseudo_formal_packet_eval(
+        out_dir=tmp_path / "out",
+        provider_name="static",
+        static_response_file=response_file,
+    )
+
+    assert manifest["result_status"] == "OK"
+    assert manifest["n_pseudo_formal_routable_work_order_rows"] > 0
+    assert "source_to_bridge" in manifest["pseudo_formal_routable_target_lanes"]
+    assert "source_theorem_exact_semantic_definition" not in (
+        manifest["pseudo_formal_routable_target_lanes"]
+    )
+    assert manifest["exact_semantic_definition_lane_present"] is False
+    assert manifest["fixture_plumbing_ok"] is False
+    assert manifest["capability_evidence_ok"] is False
+    assert (
+        manifest["fixture_plumbing_requirements"][
+            "exact_semantic_definition_lane_present"
+        ]
+        is False
+    )
 
 
 def test_formalizer_pseudo_formal_packet_eval_cli_fixture_gate(

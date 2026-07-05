@@ -195,6 +195,8 @@ class LLMFormalizerProofEngineerAgent:
             max_repair_attempts=self.config.max_repair_attempts,
             repair_context_builder=lambda **kwargs: _formalizer_repair_context(
                 errors=kwargs.get("errors", []),
+                question=question,
+                theory_packet=theory_packet,
                 environment_feedback=environment_feedback or {},
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
                 or {},
@@ -205,6 +207,8 @@ class LLMFormalizerProofEngineerAgent:
 def _formalizer_repair_context(
     *,
     errors: Sequence[Any],
+    question: OpenResearchQuestion | None = None,
+    theory_packet: Mapping[str, Any] | None = None,
     environment_feedback: Mapping[str, Any] | None = None,
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -232,6 +236,12 @@ def _formalizer_repair_context(
         environment_feedback or {},
         proof_bank_runtime_memory_summary or {},
     )
+    packet_seed = _pseudo_formalization_required_packet_seed(
+        question=question,
+        theory_packet=theory_packet or {},
+        environment_feedback=environment_feedback or {},
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary or {},
+    )
     suggested_target_lanes = [
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
         PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
@@ -253,6 +263,7 @@ def _formalizer_repair_context(
             "required_target_lanes": required_target_lanes,
             "suggested_target_lanes_when_unspecified": suggested_target_lanes,
             "allowed_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+            "copy_or_complete_this_packet_seed": packet_seed,
             "minimum_valid_packet": {
                 "theorem_id": "<copy the blocked theorem/source theorem id>",
                 "source_artifact_id": "<copy theory packet, proof body, or source artifact id>",
@@ -424,6 +435,16 @@ def build_formalizer_prompt(
         environment_feedback or {},
         proof_memory_summary,
     )
+    pseudo_formalization_packet_seed = (
+        _pseudo_formalization_required_packet_seed(
+            question=question,
+            theory_packet=theory_packet,
+            environment_feedback=environment_feedback or {},
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+        if pseudo_formalization_required
+        else {}
+    )
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
@@ -505,6 +526,7 @@ def build_formalizer_prompt(
                 "boundary": "not theorem proof evidence",
             }
         ),
+        "pseudo_formalization_required_packet_seed": pseudo_formalization_packet_seed,
         "runtime_environment_feedback": runtime_environment_feedback,
         "formalizer_lean_candidate_contract": {
             "capability_eval_requires_formalizer_lean_candidate": requires_lean_candidate,
@@ -609,7 +631,12 @@ def build_formalizer_prompt(
             "following pseudo_formalization_contract. The packet must decompose the "
             "blocked proof text into source-anchored blocks, record faithfulness/"
             "block-verification status, and produce at least one lane-routable "
-            "residual block. Every block must carry a top-level conclusion field "
+            "residual block. Start from "
+            "pseudo_formalization_required_packet_seed: copy its theorem_id, "
+            "source_artifact_id, block_id pattern, conclusion, source_anchors, "
+            "faithfulness_status, lean_feasibility, and non-proof boundary unless "
+            "the runtime feedback gives a more specific source-bound replacement. "
+            "Every block must carry a top-level conclusion field "
             "and at least one source_anchors object with a non-empty id or excerpt, "
             "for example {\"kind\":\"theory_trace\",\"id\":\"coverage_threshold\","
             "\"excerpt\":\"C_n is the calibration quantile threshold\"}. Do not "
@@ -1452,6 +1479,427 @@ def _required_pseudo_formal_target_lanes(
             ]
         )
     return tuple(dict.fromkeys(lane for lane in lanes if lane))
+
+
+def _pseudo_formalization_required_packet_seed(
+    *,
+    question: OpenResearchQuestion | None,
+    theory_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build prompt-only PF/BV scaffolding from existing source context."""
+
+    required_target_lanes = list(
+        _required_pseudo_formal_target_lanes(
+            environment_feedback,
+            proof_bank_runtime_memory_summary,
+        )
+    )
+    if not required_target_lanes:
+        required_target_lanes = [PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION]
+    theorem_id = _pseudo_formal_seed_theorem_id(
+        question=question,
+        theory_packet=theory_packet,
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+    )
+    source_artifact_id = _pseudo_formal_seed_source_artifact_id(
+        question=question,
+        theory_packet=theory_packet,
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+    )
+    derivation_step = _pseudo_formal_seed_derivation_step(theory_packet)
+    conclusion = _pseudo_formal_seed_conclusion(
+        theory_packet=theory_packet,
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        derivation_step=derivation_step,
+    )
+    proof_text = _pseudo_formal_seed_proof_text(
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        derivation_step=derivation_step,
+    )
+    source_anchor = _pseudo_formal_seed_source_anchor(
+        theory_packet=theory_packet,
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        derivation_step=derivation_step,
+        fallback_excerpt=conclusion,
+    )
+    semantic_primitives = _pseudo_formal_seed_semantic_primitives(
+        required_target_lanes=required_target_lanes,
+        source_anchor=source_anchor,
+        conclusion=conclusion,
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+    )
+    lean_feasibility = _pseudo_formal_seed_lean_feasibility(required_target_lanes)
+    block_id = "pf_block:" + stable_hash(
+        {
+            "theorem_id": theorem_id,
+            "source_artifact_id": source_artifact_id,
+            "source_anchor": source_anchor,
+            "conclusion": conclusion,
+        }
+    )[:12]
+    packet_id = "pseudo_formal_packet_seed:" + stable_hash(
+        {
+            "theorem_id": theorem_id,
+            "source_artifact_id": source_artifact_id,
+            "block_id": block_id,
+            "required_target_lanes": required_target_lanes,
+        }
+    )[:16]
+    return {
+        "packet_id": packet_id,
+        "theorem_id": theorem_id,
+        "source_artifact_id": source_artifact_id,
+        "pseudo_formal_method_contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
+        "required_target_lanes_to_satisfy": required_target_lanes,
+        "blocks": [
+            {
+                "block_id": block_id,
+                "block_type": "claim",
+                "block_depth": 1,
+                "premises": _pseudo_formal_seed_premises(
+                    environment_feedback=environment_feedback,
+                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+                ),
+                "conclusion": conclusion,
+                "proof_text": proof_text,
+                "dependency_ids": [],
+                "scope_parent_id": "",
+                "dependency_scope": "earlier_block_statement_only",
+                "inherited_scope": [],
+                "source_anchors": [source_anchor],
+                "semantic_primitive_requirements": semantic_primitives,
+                "lean_feasibility": lean_feasibility,
+                "faithfulness_status": "faithful",
+                "faithfulness_repair": {
+                    "status": "not_required",
+                    "attempts": 0,
+                    "flagged_discrepancies": [],
+                },
+                "block_verification": {
+                    "verdict": "unknown",
+                    "reason": (
+                        "PF/BV packet seed for source-anchored decomposition; "
+                        "independent BlockVerifier has not accepted this block"
+                    ),
+                    "verifier_provenance": "not_run",
+                    "independent_verifier": False,
+                    "rollout_count": 0,
+                },
+                "kernel_verified": False,
+            }
+        ],
+        "seed_usage_instruction": (
+            "Prompt-only scaffold: copy or complete this packet in "
+            "pseudo_formal_proof_packets; do not treat the seed itself as proof "
+            "or as an emitted runtime artifact."
+        ),
+    }
+
+
+def _pseudo_formal_seed_derivation_step(
+    theory_packet: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    if not isinstance(theory_packet, Mapping):
+        return {}
+    for container_key in ("theory_derivation_trace", "theory_derivation_packet"):
+        container = theory_packet.get(container_key, {})
+        if not isinstance(container, Mapping):
+            continue
+        for step_key in ("derivation_steps", "steps", "equation_steps"):
+            rows = container.get(step_key, [])
+            if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)):
+                continue
+            for row in rows:
+                if isinstance(row, Mapping):
+                    return row
+    return {}
+
+
+def _pseudo_formal_seed_theorem_id(
+    *,
+    question: OpenResearchQuestion | None,
+    theory_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> str:
+    for value in _pseudo_formal_nested_strings(
+        (environment_feedback, proof_bank_runtime_memory_summary),
+        (
+            "source_theorem_id",
+            "target_theorem_id",
+            "target_theorem_name",
+            "source_theorem_goal_id",
+        ),
+    ):
+        return value
+    theorem_cards = theory_packet.get("theorem_cards", []) if isinstance(theory_packet, Mapping) else []
+    if isinstance(theorem_cards, Sequence) and not isinstance(theorem_cards, (str, bytes, bytearray)):
+        for row in theorem_cards:
+            if not isinstance(row, Mapping):
+                continue
+            for key in ("id", "theorem_id", "target_theorem_id", "title"):
+                value = str(row.get(key, "") or "").strip()
+                if value:
+                    return value
+    if question is not None and question.id:
+        return f"theorem:{question.id}"
+    return "source_theorem:unknown"
+
+
+def _pseudo_formal_seed_source_artifact_id(
+    *,
+    question: OpenResearchQuestion | None,
+    theory_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> str:
+    for source in (theory_packet, environment_feedback, proof_bank_runtime_memory_summary):
+        if not isinstance(source, Mapping):
+            continue
+        for key in (
+            "source_artifact_id",
+            "proof_body_id",
+            "source_proof_body_id",
+            "packet_id",
+            "trace_id",
+        ):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                return value
+    for value in _pseudo_formal_nested_strings(
+        (environment_feedback, proof_bank_runtime_memory_summary),
+        ("source_artifact_id", "proof_body_id", "source_proof_body_id"),
+    ):
+        return value
+    if question is not None and question.id:
+        return f"question:{question.id}"
+    return "source_artifact:unknown"
+
+
+def _pseudo_formal_seed_conclusion(
+    *,
+    theory_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    derivation_step: Mapping[str, Any],
+) -> str:
+    for source in (derivation_step,):
+        for key in ("claim", "conclusion", "statement", "goal"):
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                return value
+    for value in _pseudo_formal_nested_strings(
+        (environment_feedback, proof_bank_runtime_memory_summary),
+        ("source_block_conclusion", "blocked_conclusion", "desired_conclusion"),
+    ):
+        return value
+    theorem_cards = theory_packet.get("theorem_cards", []) if isinstance(theory_packet, Mapping) else []
+    if isinstance(theorem_cards, Sequence) and not isinstance(theorem_cards, (str, bytes, bytearray)):
+        for row in theorem_cards:
+            if not isinstance(row, Mapping):
+                continue
+            for key in ("claim", "conclusion", "statement", "title"):
+                value = str(row.get(key, "") or "").strip()
+                if value:
+                    return value
+    return (
+        "the blocked source proof step requires exact semantic grounding before "
+        "source theorem Lean replay"
+    )
+
+
+def _pseudo_formal_seed_proof_text(
+    *,
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    derivation_step: Mapping[str, Any],
+) -> str:
+    for key in ("proof_text", "proof", "rationale", "reason"):
+        value = str(derivation_step.get(key, "") or "").strip()
+        if value:
+            return _truncate_formalizer_text(value, 420)
+    for value in _pseudo_formal_nested_strings(
+        (environment_feedback, proof_bank_runtime_memory_summary),
+        ("message", "diagnostic", "reason", "failure_classification", "proof_text"),
+    ):
+        return _truncate_formalizer_text(value, 420)
+    return (
+        "Runtime feedback says proof-body repair is blocked; decompose this "
+        "source step into PF/BV blocks and route exact semantic-definition work."
+    )
+
+
+def _pseudo_formal_seed_source_anchor(
+    *,
+    theory_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    derivation_step: Mapping[str, Any],
+    fallback_excerpt: str,
+) -> dict[str, str]:
+    for source in (derivation_step,):
+        anchor_id = str(
+            source.get("anchor_id", "")
+            or source.get("step_id", "")
+            or source.get("id", "")
+            or ""
+        ).strip()
+        excerpt = str(
+            source.get("claim", "")
+            or source.get("conclusion", "")
+            or source.get("statement", "")
+            or fallback_excerpt
+            or ""
+        ).strip()
+        if anchor_id or excerpt:
+            return {
+                "kind": "theory_trace",
+                "id": anchor_id or "theory_trace:blocked_step",
+                "excerpt": _truncate_formalizer_text(excerpt, 280),
+            }
+    for value in _pseudo_formal_nested_strings(
+        (environment_feedback, proof_bank_runtime_memory_summary),
+        ("source_anchor_id", "anchor_id", "source_block_id", "proof_body_id"),
+    ):
+        return {
+            "kind": "proof_body",
+            "id": value,
+            "excerpt": _truncate_formalizer_text(fallback_excerpt, 280),
+        }
+    packet_id = str(
+        theory_packet.get("packet_id", "") if isinstance(theory_packet, Mapping) else ""
+    ).strip()
+    return {
+        "kind": "theory_trace" if packet_id else "proof_body",
+        "id": packet_id or "proof_body:blocked_step",
+        "excerpt": _truncate_formalizer_text(fallback_excerpt, 280),
+    }
+
+
+def _pseudo_formal_seed_semantic_primitives(
+    *,
+    required_target_lanes: Sequence[str],
+    source_anchor: Mapping[str, Any],
+    conclusion: str,
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> list[str]:
+    explicit = list(
+        _pseudo_formal_nested_strings(
+            (environment_feedback, proof_bank_runtime_memory_summary),
+            (
+                "semantic_primitive",
+                "semantic_primitive_id",
+                "missing_semantic_primitive",
+                "required_semantic_primitive",
+            ),
+            limit=3,
+        )
+    )
+    if explicit:
+        return explicit
+    if PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE not in required_target_lanes:
+        return []
+    anchor_id = str(source_anchor.get("id", "") or "").strip() or conclusion
+    suffix = re.sub(r"[^A-Za-z0-9_]+", "_", anchor_id).strip("_").lower()
+    return [f"semantic_primitive:{suffix or 'blocked_source_step'}"]
+
+
+def _pseudo_formal_seed_lean_feasibility(required_target_lanes: Sequence[str]) -> str:
+    if PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in required_target_lanes:
+        return "needs_semantic_definition"
+    if PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG in required_target_lanes:
+        return "needs_rag"
+    if PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS in required_target_lanes:
+        return "lean_now"
+    if PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP in required_target_lanes:
+        return "pseudo_only"
+    return "needs_semantic_definition"
+
+
+def _pseudo_formal_seed_premises(
+    *,
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> list[str]:
+    premises = list(
+        _pseudo_formal_nested_strings(
+            (environment_feedback, proof_bank_runtime_memory_summary),
+            ("premise", "source_premise", "assumption", "hypothesis"),
+            limit=2,
+        )
+    )
+    return premises or ["source proof context supplied by runtime feedback"]
+
+
+def _pseudo_formal_nested_strings(
+    sources: Sequence[Any],
+    keys: Sequence[str],
+    *,
+    limit: int = 1,
+    max_depth: int = 4,
+) -> tuple[str, ...]:
+    key_set = {key for key in keys}
+    out: list[str] = []
+
+    def visit(value: Any, depth: int) -> None:
+        if len(out) >= limit or depth > max_depth:
+            return
+        if isinstance(value, Mapping):
+            for key in keys:
+                raw = value.get(key)
+                if isinstance(raw, str) and raw.strip():
+                    out.append(raw.strip())
+                    if len(out) >= limit:
+                        return
+                elif isinstance(raw, Sequence) and not isinstance(
+                    raw,
+                    (str, bytes, bytearray),
+                ):
+                    for item in raw:
+                        if isinstance(item, str) and item.strip():
+                            out.append(item.strip())
+                            if len(out) >= limit:
+                                return
+            for nested_key, nested_value in value.items():
+                if nested_key in key_set:
+                    continue
+                visit(nested_value, depth + 1)
+                if len(out) >= limit:
+                    return
+        elif isinstance(value, Sequence) and not isinstance(
+            value,
+            (str, bytes, bytearray),
+        ):
+            for item in list(value)[:8]:
+                visit(item, depth + 1)
+                if len(out) >= limit:
+                    return
+
+    for source in sources:
+        visit(source, 0)
+        if len(out) >= limit:
+            break
+    return tuple(dict.fromkeys(item for item in out if item))
+
+
+def _truncate_formalizer_text(value: Any, max_chars: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars - 1)].rstrip() + "..."
 
 
 def _has_explicit_source_theorem_formal_gap_target(

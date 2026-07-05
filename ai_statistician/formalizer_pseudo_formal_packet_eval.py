@@ -22,6 +22,7 @@ from .model_backend import (
 )
 from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
     validate_pseudo_formal_packet,
@@ -301,6 +302,12 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
     valid_packet = not formalizer_errors and not required_errors and not pf_error_rows
     routable_rows_present = bool(routable_rows)
     packet_present = bool(pf_packets)
+    routable_target_lanes = sorted(
+        {str(row.get("target_lane", "") or "") for row in routable_rows}
+    )
+    exact_semantic_definition_lane_present = (
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in routable_target_lanes
+    )
     nonproof_boundary = (
         packet.get("kernel_verified") is False
         and packet.get("full_frontier_theorem_proved") is False
@@ -317,6 +324,7 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "formalizer_packet_valid": bool(valid_packet),
         "pseudo_formal_packets_present": packet_present,
         "routable_work_order_rows_present": routable_rows_present,
+        "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
         "nonproof_boundary_preserved": bool(nonproof_boundary),
     }
     fixture_requirements = {
@@ -344,11 +352,12 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "n_pseudo_formal_packet_validation_error_sets": len(pf_error_rows),
         "n_pseudo_formal_work_order_rows": len(work_order_rows),
         "n_pseudo_formal_routable_work_order_rows": len(routable_rows),
+        "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
         "pseudo_formal_routable_row_kinds": sorted(
             {str(row.get("row_kind", "") or "") for row in routable_rows}
         ),
         "pseudo_formal_routable_target_lanes": sorted(
-            {str(row.get("target_lane", "") or "") for row in routable_rows}
+            routable_target_lanes
         ),
         "formalizer_validation_errors": formalizer_errors,
         "required_pseudo_formalization_errors": required_errors,

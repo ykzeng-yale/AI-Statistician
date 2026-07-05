@@ -1774,8 +1774,12 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     repair_context = repair_payload["subsystem_repair_context"]
     blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
     block_template = blueprint["minimum_valid_packet"]["blocks"][0]
+    seed = blueprint["copy_or_complete_this_packet_seed"]
     assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
     assert repair_context["pseudo_formal_activation_required"] is True
+    assert seed["blocks"][0]["conclusion"]
+    assert seed["blocks"][0]["source_anchors"][0]["id"]
+    assert seed["blocks"][0]["lean_feasibility"] == "needs_semantic_definition"
     assert block_template["conclusion"].startswith("<required non-empty")
     assert block_template["source_anchors"][0]["id"].startswith("<required")
     assert blueprint["required_target_lanes"] == []
