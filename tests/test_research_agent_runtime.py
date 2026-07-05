@@ -73569,6 +73569,10 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         ],
         "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved": True,
         "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written": False,
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present": True,
+        "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok": True,
+        "internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim": True,
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed": True,
         "internal_pseudo_formal_block_verifier_eval_provider_name": "anthropic",
         "internal_pseudo_formal_block_verifier_eval_backend_provider_name": "anthropic",
         "internal_pseudo_formal_block_verifier_eval_component_backend_provider_names": [
@@ -73725,6 +73729,19 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "formalizer_pseudo_formal_packet_component_gate"
     ]["passed"] is False
     assert "attached_target_lanes=['source_to_bridge']" in rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["evidence"]
+
+    stale_pf_attachment_payload = dict(payload)
+    stale_pf_attachment_payload[
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
+    ] = False
+    scorecard = _runtime_capability_scorecard(stale_pf_attachment_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["passed"] is False
+    assert "attached_attachment_gate_recomputed=False" in rows[
         "formalizer_pseudo_formal_packet_component_gate"
     ]["evidence"]
 
@@ -83542,6 +83559,10 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         == "formalizer_pseudo_formal_packet_component_gate_feedback"
         and row.get("capability_evidence_ok") is True
         and row.get("n_pseudo_formal_routable_work_order_rows") == 8
+        and row.get("exact_semantic_definition_lane_present") is True
+        and row.get("proof_evidence_status_ok") is True
+        and row.get("no_theorem_proof_claim") is True
+        and row.get("attachment_gate_recomputed") is True
         and row.get("source_component_gate")
         == "formalizer_pseudo_formal_packet_component_gate"
         and row.get("proof_evidence_status")

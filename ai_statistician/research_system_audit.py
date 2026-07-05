@@ -3545,6 +3545,26 @@ async def run_research_system_audit(
                 "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written",
                 False,
             ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed",
+                False,
+            ),
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_requirements": research_agent_runtime_audit_manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_requirements",
+                {},
+            ),
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": research_agent_runtime_audit_manifest.get(
                 "internal_formalizer_pseudo_formal_packet_eval_provider_name",
                 "",
@@ -9340,6 +9360,16 @@ async def run_research_system_audit(
                     "fixture_plumbing_ok"
                 ]
             ),
+            "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "proof_evidence_status_ok"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "no_theorem_proof_claim"
+                ]
+            ),
             "formalizer_pseudo_formal_packet_component_gate_pseudo_formal_packets": int(
                 formalizer_pseudo_formal_packet_eval_manifest[
                     "n_pseudo_formal_packets"
@@ -9363,6 +9393,11 @@ async def run_research_system_audit(
             "formalizer_pseudo_formal_packet_component_gate_routable_target_lanes": list(
                 formalizer_pseudo_formal_packet_eval_manifest[
                     "pseudo_formal_routable_target_lanes"
+                ]
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": bool(
+                formalizer_pseudo_formal_packet_eval_manifest[
+                    "exact_semantic_definition_lane_present"
                 ]
             ),
             "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": bool(
@@ -10130,11 +10165,13 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         "capability_evidence_ok": False,
         "artifact_kind_ok": False,
         "proof_evidence_status_ok": False,
+        "no_theorem_proof_claim": False,
         "n_pseudo_formal_packets": 0,
         "n_pseudo_formal_work_order_rows": 0,
         "n_pseudo_formal_routable_work_order_rows": 0,
         "pseudo_formal_routable_row_kinds": [],
         "pseudo_formal_routable_target_lanes": [],
+        "exact_semantic_definition_lane_present": False,
         "nonproof_boundary_preserved": False,
         "raw_model_output_written": False,
         "fixture_plumbing_ok": False,
@@ -10194,11 +10231,19 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         for value in payload.get("pseudo_formal_routable_target_lanes", [])
         if str(value)
     ]
+    exact_semantic_definition_lane_present = bool(
+        payload.get("exact_semantic_definition_lane_present", False)
+        or "source_theorem_exact_semantic_definition" in target_lanes
+    )
     nonproof_boundary_preserved = bool(
         capability_requirements.get("nonproof_boundary_preserved", False)
         or payload.get("nonproof_boundary_preserved", False)
     )
     raw_model_output_written = bool(payload.get("raw_model_output_written", False))
+    no_theorem_proof_claim = (
+        payload.get("source_theorem_kernel_verified") is False
+        and payload.get("full_frontier_theorem_proved") is False
+    )
     static_or_fixture_only = bool(
         payload.get("static_or_fixture_only", False) or not live_generator
     )
@@ -10208,9 +10253,10 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         and proof_evidence_status_ok
         and n_pseudo_formal_packets > 0
         and n_pseudo_formal_routable_work_order_rows > 0
+        and exact_semantic_definition_lane_present
         and nonproof_boundary_preserved
         and not raw_model_output_written
-        and "source_theorem_exact_semantic_definition" in target_lanes
+        and no_theorem_proof_claim
     )
     capability_evidence_ok = bool(
         live_generator
@@ -10236,6 +10282,7 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
             if nonproof_boundary_preserved
             else "nonproof_boundary_not_preserved",
             "" if not raw_model_output_written else "raw_model_output_written",
+            "" if no_theorem_proof_claim else "theorem_proof_claim_present",
         )
         if error
     ]
@@ -10249,11 +10296,13 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         "capability_evidence_ok": capability_evidence_ok,
         "artifact_kind_ok": artifact_kind_ok,
         "proof_evidence_status_ok": proof_evidence_status_ok,
+        "no_theorem_proof_claim": no_theorem_proof_claim,
         "n_pseudo_formal_packets": n_pseudo_formal_packets,
         "n_pseudo_formal_work_order_rows": n_pseudo_formal_work_order_rows,
         "n_pseudo_formal_routable_work_order_rows": n_pseudo_formal_routable_work_order_rows,
         "pseudo_formal_routable_row_kinds": row_kinds,
         "pseudo_formal_routable_target_lanes": target_lanes,
+        "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
         "nonproof_boundary_preserved": nonproof_boundary_preserved,
         "raw_model_output_written": raw_model_output_written,
         "fixture_plumbing_ok": fixture_plumbing_ok,

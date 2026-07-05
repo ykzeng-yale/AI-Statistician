@@ -3510,6 +3510,14 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
     nonproof_boundary_preserved = bool(
         attached.get("nonproof_boundary_preserved", False)
     )
+    exact_semantic_definition_lane_present = bool(
+        attached.get("exact_semantic_definition_lane_present", False)
+    )
+    proof_evidence_status_ok = bool(attached.get("proof_evidence_status_ok", False))
+    no_theorem_proof_claim = bool(attached.get("no_theorem_proof_claim", False))
+    attachment_gate_recomputed = bool(
+        attached.get("attachment_gate_recomputed", False)
+    )
     proof_evidence_status = str(
         attached.get(
             "proof_evidence_status",
@@ -3546,10 +3554,14 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "n_pseudo_formal_routable_work_order_rows": n_routable_rows,
             "pseudo_formal_routable_row_kinds": row_kinds,
             "pseudo_formal_routable_target_lanes": target_lanes,
+            "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
             "nonproof_boundary_preserved": nonproof_boundary_preserved,
             "raw_model_output_written": bool(
                 attached.get("raw_model_output_written", False)
             ),
+            "proof_evidence_status_ok": proof_evidence_status_ok,
+            "no_theorem_proof_claim": no_theorem_proof_claim,
+            "attachment_gate_recomputed": attachment_gate_recomputed,
             "target_behavior": (
                 "Use the attached Formalizer PF/BV packet gate as calibration "
                 "for required pseudo-formal activation: Formalizer should emit "
@@ -3578,10 +3590,14 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 "n_pseudo_formal_routable_work_order_rows": n_routable_rows,
                 "pseudo_formal_routable_row_kinds": row_kinds,
                 "pseudo_formal_routable_target_lanes": target_lanes,
+                "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
                 "nonproof_boundary_preserved": nonproof_boundary_preserved,
                 "raw_model_output_written": bool(
                     attached.get("raw_model_output_written", False)
                 ),
+                "proof_evidence_status_ok": proof_evidence_status_ok,
+                "no_theorem_proof_claim": no_theorem_proof_claim,
+                "attachment_gate_recomputed": attachment_gate_recomputed,
                 "proof_evidence_status": proof_evidence_status,
             },
             "proof_evidence_status": (

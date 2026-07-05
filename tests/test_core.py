@@ -5851,6 +5851,10 @@ class SystemTests(unittest.TestCase):
                 ],
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": True,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": False,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed": True,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": "anthropic",
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_backend_provider": "anthropic",
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_manifest_path": (
@@ -5922,6 +5926,26 @@ class SystemTests(unittest.TestCase):
         self.assertFalse(
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"
             ]
         )
         self.assertEqual(
@@ -6001,6 +6025,40 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "source-theorem proof-body executor",
             semantic_bridge_ok_s13["honesty_boundary"],
+        )
+        stale_pf_attachment_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        stale_pf_attachment_payload["counts"][
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"
+        ] = False
+        stale_pf_attachment_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_attachment_stale"),
+            system_audit_payload=stale_pf_attachment_payload,
+        )
+        stale_pf_rows = {
+            row["suite_id"]: row for row in stale_pf_attachment_guidance["suites"]
+        }
+        self.assertEqual(
+            stale_pf_rows["S11c_live_formalizer_pseudo_formal_packet"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertEqual(
+            stale_pf_rows["S13_live_integrated_agent_runtime_capability"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertFalse(
+            stale_pf_rows["S13_live_integrated_agent_runtime_capability"][
+                "key_counts"
+            ][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"
+            ]
+        )
+        self.assertIn(
+            "recomputed attachment gate",
+            " ".join(
+                stale_pf_rows[
+                    "S13_live_integrated_agent_runtime_capability"
+                ]["issues"]
+            ),
         )
         exact_lookup_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         exact_lookup_missing_payload["counts"][
@@ -6530,6 +6588,9 @@ class SystemTests(unittest.TestCase):
                 ],
                 "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": True,
                 "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": False,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": True,
+                "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": True,
+                "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": True,
             }
         )
         live_formalizer_pf_packet_guidance = build_evaluation_benchmark_guidance(
@@ -6556,6 +6617,21 @@ class SystemTests(unittest.TestCase):
         )
         self.assertFalse(
             live_formalizer_s11c["key_counts"]["effective_raw_model_output_written"]
+        )
+        self.assertTrue(
+            live_formalizer_s11c["key_counts"][
+                "effective_exact_semantic_definition_lane_present"
+            ]
+        )
+        self.assertTrue(
+            live_formalizer_s11c["key_counts"][
+                "effective_proof_evidence_status_ok"
+            ]
+        )
+        self.assertTrue(
+            live_formalizer_s11c["key_counts"][
+                "effective_no_theorem_proof_claim"
+            ]
         )
         self.assertIn(
             "not Lean/AXLE kernel evidence",
@@ -7164,14 +7240,18 @@ class SystemTests(unittest.TestCase):
                         "source_theorem_exact_semantic_definition",
                         "source_to_bridge",
                     ],
+                    "exact_semantic_definition_lane_present": True,
                     "raw_model_output_written": False,
                     "capability_evidence_requirements": {
                         "formalizer_packet_valid": True,
                         "live_generator": True,
+                        "exact_semantic_definition_lane_present": True,
                         "nonproof_boundary_preserved": True,
                         "pseudo_formal_packets_present": True,
                         "routable_work_order_rows_present": True,
                     },
+                    "source_theorem_kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
                     "proof_evidence_status": (
                         "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
                     ),
@@ -7195,6 +7275,9 @@ class SystemTests(unittest.TestCase):
         )
         self.assertTrue(overlay["nonproof_boundary_preserved"])
         self.assertFalse(overlay["raw_model_output_written"])
+        self.assertTrue(overlay["exact_semantic_definition_lane_present"])
+        self.assertTrue(overlay["proof_evidence_status_ok"])
+        self.assertTrue(overlay["no_theorem_proof_claim"])
         self.assertEqual(overlay["manifest_path"], str(manifest_path))
 
         manifest_path.write_text(
@@ -7214,9 +7297,13 @@ class SystemTests(unittest.TestCase):
                     "pseudo_formal_routable_target_lanes": [
                         "source_theorem_exact_semantic_definition"
                     ],
+                    "exact_semantic_definition_lane_present": True,
                     "capability_evidence_requirements": {
+                        "exact_semantic_definition_lane_present": True,
                         "nonproof_boundary_preserved": True
                     },
+                    "source_theorem_kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
                     "proof_evidence_status": (
                         "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
                     ),
@@ -7249,9 +7336,13 @@ class SystemTests(unittest.TestCase):
                     "pseudo_formal_routable_target_lanes": [
                         "source_theorem_exact_semantic_definition"
                     ],
+                    "exact_semantic_definition_lane_present": True,
                     "capability_evidence_requirements": {
+                        "exact_semantic_definition_lane_present": True,
                         "nonproof_boundary_preserved": True
                     },
+                    "source_theorem_kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
                     "proof_evidence_status": (
                         "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
                     ),

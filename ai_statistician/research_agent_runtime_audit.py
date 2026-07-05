@@ -75,6 +75,7 @@ from .research_agent_runtime import (
     _runtime_architect_recommended_formal_verification_policy,
     _runtime_architect_recommended_research_path,
     _runtime_architect_initial_routing_summary,
+    _runtime_attached_component_field,
     _runtime_attached_component_gate_source,
     _runtime_component_gate_summary,
     _runtime_evidence_summary,
@@ -5927,6 +5928,58 @@ def audit_research_agent_runtime(
             attached_formalizer_pseudo_formal_packet_eval.get(
                 "raw_model_output_written", False
             )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "exact_semantic_definition_lane_present", False
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "proof_evidence_status_ok", False
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "no_theorem_proof_claim", False
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed": bool(
+            manifest.get(
+                "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed",
+                attached_formalizer_pseudo_formal_packet_eval.get(
+                    "attachment_gate_recomputed", False
+                ),
+            )
+        ),
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_requirements": (
+            dict(
+                manifest.get(
+                    "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_requirements",
+                    attached_formalizer_pseudo_formal_packet_eval.get(
+                        "attachment_gate_requirements", {}
+                    ),
+                )
+            )
+            if isinstance(
+                manifest.get(
+                    "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_requirements",
+                    attached_formalizer_pseudo_formal_packet_eval.get(
+                        "attachment_gate_requirements", {}
+                    ),
+                ),
+                Mapping,
+            )
+            else {}
         ),
         "internal_pseudo_formal_block_verifier_eval_attached": bool(
             attached_pseudo_formal_block_verifier_eval
@@ -16466,6 +16519,38 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         )
     )
+    attached_formalizer_pseudo_formal_exact_lane_present = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "exact_semantic_definition_lane_present",
+            False,
+        )
+    )
+    attached_formalizer_pseudo_formal_proof_evidence_status_ok = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "proof_evidence_status_ok",
+            False,
+        )
+    )
+    attached_formalizer_pseudo_formal_no_theorem_proof_claim = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "no_theorem_proof_claim",
+            False,
+        )
+    )
+    attached_formalizer_pseudo_formal_attachment_gate_recomputed = bool(
+        _runtime_attached_component_field(
+            payload,
+            "internal_formalizer_pseudo_formal_packet_eval",
+            "attachment_gate_recomputed",
+            False,
+        )
+    )
     attached_formalizer_pseudo_formal_live_gate_passed = (
         bool(
             attached_formalizer_pseudo_formal_packet_summary[
@@ -16474,8 +16559,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         and attached_formalizer_pseudo_formal_packets > 0
         and attached_formalizer_pseudo_formal_routable_rows > 0
+        and attached_formalizer_pseudo_formal_exact_lane_present
         and attached_formalizer_pseudo_formal_nonproof_boundary
         and not attached_formalizer_pseudo_formal_raw_output_written
+        and attached_formalizer_pseudo_formal_proof_evidence_status_ok
+        and attached_formalizer_pseudo_formal_no_theorem_proof_claim
+        and attached_formalizer_pseudo_formal_attachment_gate_recomputed
         and "source_theorem_exact_semantic_definition"
         in attached_formalizer_pseudo_formal_target_lanes
     )
@@ -20250,14 +20339,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "attached_nonproof_boundary="
                 f"{attached_formalizer_pseudo_formal_nonproof_boundary} "
                 "attached_raw_model_output_written="
-                f"{attached_formalizer_pseudo_formal_raw_output_written}"
+                f"{attached_formalizer_pseudo_formal_raw_output_written} "
+                "attached_exact_semantic_definition_lane_present="
+                f"{attached_formalizer_pseudo_formal_exact_lane_present} "
+                "attached_proof_evidence_status_ok="
+                f"{attached_formalizer_pseudo_formal_proof_evidence_status_ok} "
+                "attached_no_theorem_proof_claim="
+                f"{attached_formalizer_pseudo_formal_no_theorem_proof_claim} "
+                "attached_attachment_gate_recomputed="
+                f"{attached_formalizer_pseudo_formal_attachment_gate_recomputed}"
             ),
             (
                 "attached live Formalizer PF/BV packet calibration did not show "
                 "schema-valid pseudo-formal packets with effective lane-routable "
-                "work-order rows, exact-semantic-definition routing, and preserved "
-                "non-proof boundary; static fixtures and generic packets do not "
-                "demonstrate this Formalizer capacity"
+                "work-order rows, exact-semantic-definition routing, preserved "
+                "non-proof boundary, no theorem-proof claim, and a recomputed "
+                "attachment gate; static fixtures and generic or stale packets "
+                "do not demonstrate this Formalizer capacity"
             ),
             scope="component_calibration",
             **_runtime_resume_scorecard_routing(
@@ -20272,7 +20370,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok=true "
                     "with pseudo_formal_packets>0, routable_work_order_rows>0, "
                     "source_theorem_exact_semantic_definition in target lanes, "
-                    "nonproof_boundary_preserved=true, and raw_model_output_written=false"
+                    "exact_semantic_definition_lane_present=true, "
+                    "nonproof_boundary_preserved=true, proof_evidence_status_ok=true, "
+                    "no_theorem_proof_claim=true, raw_model_output_written=false, "
+                    "and attachment_gate_recomputed=true"
                 ),
             ),
         ),
