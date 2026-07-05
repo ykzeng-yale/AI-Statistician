@@ -77141,6 +77141,39 @@ def test_runtime_capability_scorecard_flags_empty_source_theorem_proof_body_exec
     assert "result-row telemetry" in row["blocker"]
 
 
+def test_runtime_capability_scorecard_rejects_aggregate_only_source_theorem_proof_body_executor_results() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proof_body_executor_counts_aggregate": True,
+        "source_theorem_formal_environment_proof_body_executor_ran": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows": 0,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 0,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_theorem_proof_body_executor_ran"]
+
+    assert row["passed"] is False
+    assert "proof_body_result_rows=1" in row["evidence"]
+    assert "aggregate_formal_environment_counts=True" in row["evidence"]
+    assert "concrete_result_lanes=[]" in row["evidence"]
+    assert "concrete leaf-lane result-row telemetry" in row["blocker"]
+
+
 def test_runtime_capability_scorecard_accepts_exact_semantic_recheck_proof_body_result_rows() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -77168,6 +77201,9 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_recheck_proof_body_
     assert "formal_environment_ran=False" in row["evidence"]
     assert "formal_environment_rows=0" in row["evidence"]
     assert "proof_body_result_rows=1" in row["evidence"]
+    assert "concrete_result_lanes=['exact_semantic_definition_proof_body_recheck']" in (
+        row["evidence"]
+    )
     assert rows["real_kernel_subclaim_verified"]["passed"] is False
 
 

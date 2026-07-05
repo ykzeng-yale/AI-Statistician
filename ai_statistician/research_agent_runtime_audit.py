@@ -11477,6 +11477,11 @@ def _runtime_source_theorem_proof_body_same_lane_verification_summary(
         for row in lane_rows
         if row["same_lane_local_lean_or_kernel_ok"] is True
     ]
+    result_lanes = [
+        str(row["lane_id"])
+        for row in lane_rows
+        if _safe_int(row.get("result_rows")) > 0
+    ]
     result_lanes_without_verifier = [
         str(row["lane_id"])
         for row in lane_rows
@@ -11497,6 +11502,7 @@ def _runtime_source_theorem_proof_body_same_lane_verification_summary(
         "same_lane_local_lean_or_kernel_ok": bool(verified_lanes),
         "aggregate_formal_environment_counts": aggregate_formal_environment_counts,
         "verified_lanes": verified_lanes,
+        "result_lanes": result_lanes,
         "result_lanes_without_verifier": result_lanes_without_verifier,
         "verifier_lanes_without_result": verifier_lanes_without_result,
         "lane_rows": lane_rows,
@@ -16290,6 +16296,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "same_lane_local_lean_or_kernel_ok",
             False,
         )
+    )
+    proof_body_concrete_result_lanes = tuple(
+        str(lane)
+        for lane in proof_body_same_lane_verification_summary.get("result_lanes", [])
+        if str(lane).strip()
     )
     exact_proof_body_repair_required = bool(
         payload.get("source_theorem_exact_proof_body_repair_required", False)
@@ -21514,18 +21525,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_proof_body_executor_ran",
-            proof_body_result_row_count > 0,
+            proof_body_result_row_count > 0
+            and (
+                payload.get(
+                    "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+                )
+                is not True
+                or bool(proof_body_concrete_result_lanes)
+            ),
             (
                 "formal_environment_ran="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_ran')} "
                 "formal_environment_rows="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_result_rows')} "
                 "proof_body_result_rows="
-                f"{proof_body_result_row_count}"
+                f"{proof_body_result_row_count} "
+                "aggregate_formal_environment_counts="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_counts_aggregate')} "
+                "concrete_result_lanes="
+                f"{list(proof_body_concrete_result_lanes)}"
             ),
             (
                 "exact source-theorem proof-body executor did not run inside the "
-                "runtime with concrete result-row telemetry"
+                "runtime with concrete leaf-lane result-row telemetry"
             ),
         ),
         *promotion_formal_environment_handoff_rows,
