@@ -438,6 +438,72 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     )
 
 
+def test_authoring_worker_completes_partial_candidate_definition_request(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    _write_authoring_tasks(tasks_path)
+    task = json.loads(tasks_path.read_text(encoding="utf-8"))
+    task["authoring_trigger"] = "EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+    task["authoring_mode"] = "review_typechecked_semantic_definition_candidate"
+    task["runtime_queue_status"] = (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+    )
+    task["semantic_review_required_before_proof_body"] = True
+    task["source_theorem_ready_for_exact_proof_body"] = False
+    task["candidate_definition_request"] = {
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "covered",
+    }
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    assert manifest["n_candidate_definition_requests_autofilled"] == 0
+    assert (
+        manifest["n_candidate_definition_requests_completed_from_task_policy"]
+        == 1
+    )
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(
+            manifest["authoring_prompt_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    request = prompt_packets[0]["candidate_definition_request"]
+    assert prompt_packets[0]["candidate_definition_request_autofilled"] is False
+    assert (
+        prompt_packets[0][
+            "candidate_definition_request_completed_from_task_policy"
+        ]
+        is True
+    )
+    assert request["target_theorem_name"] == "split_conformal_coverage"
+    assert request["placeholder_symbol"] == "covered"
+    assert request["placeholder_policy_id"] == "split_conformal_coverage.covered"
+    assert request["required_anchor_names"] == ["s", "q_hat", "C", "hC"]
+    assert request["missing_required_anchor_names"] == []
+    assert [binder["name"] for binder in request["required_binders"]] == [
+        "s",
+        "q_hat",
+        "C",
+        "hC",
+    ]
+    assert request["required_adapter_object_names"] == []
+    assert request["available_adapter_object_names"] == ["covered", "rank"]
+    prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
+    payload_request = prompt_payload["candidate_definition_request"]
+    assert payload_request["required_anchor_names"] == ["s", "q_hat", "C", "hC"]
+    assert "source coverage event" in payload_request["semantic_goal"]
+    assert prompt_payload["semantic_review_required_before_proof_body"] is True
+    assert prompt_payload["source_theorem_ready_for_exact_proof_body"] is False
+    assert prompt_packets[0]["source_theorem_kernel_verified"] is False
+
+
 def test_authoring_worker_prompt_contract_reports_project_verified_import_inventory(
     tmp_path: Path,
 ) -> None:

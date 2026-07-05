@@ -377,6 +377,11 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
             for row in prompt_packets
             if row.get("candidate_definition_request_autofilled")
         ),
+        "n_candidate_definition_requests_completed_from_task_policy": sum(
+            1
+            for row in prompt_packets
+            if row.get("candidate_definition_request_completed_from_task_policy")
+        ),
         "n_external_llm_export_review_packets": len(external_export_review_packets),
         "n_external_export_approved_tasks": len(approved_prompt_ids),
         "n_external_export_blocked_tasks": len(blocked_prompt_ids),
@@ -837,10 +842,12 @@ def resolve_source_theorem_exact_semantic_definition_authoring_candidate_packets
 def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dict[str, Any]:
     raw_request = dict(task.get("candidate_definition_request", {}) or {})
     request_autofilled = not bool(raw_request)
-    request = (
-        _candidate_definition_request_from_task(task)
-        if request_autofilled
-        else raw_request
+    task_policy_request = _candidate_definition_request_from_task(task)
+    request = dict(task_policy_request)
+    request.update(raw_request)
+    request_completed_from_task_policy = bool(
+        request_autofilled
+        or any(key not in raw_request for key in task_policy_request)
     )
     export_mode = _normalized_external_export_mode(export_mode)
     prompt_payload = _prompt_payload(
@@ -923,6 +930,9 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         **_exact_semantic_definition_context(task),
         "candidate_definition_request": request,
         "candidate_definition_request_autofilled": request_autofilled,
+        "candidate_definition_request_completed_from_task_policy": (
+            request_completed_from_task_policy
+        ),
         "external_export_mode": export_mode,
         "export_redaction_applied": export_mode == "redacted",
         "system_prompt": SYSTEM_PROMPT,
