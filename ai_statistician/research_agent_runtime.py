@@ -68828,6 +68828,40 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
                 for value in (item.get("source_anchors", []) or [])
                 if isinstance(value, Mapping)
             ],
+            "source_block_conclusion": str(
+                item.get("source_block_conclusion", "") or ""
+            )[:500],
+            "source_block_premises": [
+                str(value)
+                for value in (item.get("source_block_premises", []) or [])
+                if str(value).strip()
+            ][:12],
+            "source_block_proof_text": str(
+                item.get("source_block_proof_text", "") or ""
+            )[:1200],
+            "dependency_statement_context": [
+                dict(value)
+                for value in (item.get("dependency_statement_context", []) or [])
+                if isinstance(value, Mapping)
+            ][:8],
+            "inherited_scope": [
+                str(value)
+                for value in (item.get("inherited_scope", []) or [])
+                if str(value).strip()
+            ][:8],
+            "dependency_ids": [
+                str(value)
+                for value in (item.get("dependency_ids", []) or [])
+                if str(value).strip()
+            ][:8],
+            "scope_parent_id": str(item.get("scope_parent_id", "") or ""),
+            "dependency_scope": str(
+                item.get("dependency_scope", "")
+                or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+            ),
+            "block_depth": _pseudo_formal_safe_block_depth(
+                item.get("block_depth", 1)
+            ),
             "placeholder_symbol": placeholder_symbol,
             "replacement_strategy": (
                 "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
@@ -68872,6 +68906,31 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
         ]
         if source_anchors:
             row["source_anchors"] = source_anchors
+        for scalar_key in (
+            "source_block_conclusion",
+            "source_block_proof_text",
+            "scope_parent_id",
+            "dependency_scope",
+        ):
+            value = source.get(scalar_key, None)
+            if value not in (None, "", [], {}):
+                row[scalar_key] = value
+        if source.get("block_depth", None) not in (None, "", [], {}):
+            row["block_depth"] = _pseudo_formal_safe_block_depth(
+                source.get("block_depth", 1)
+            )
+        for list_key in (
+            "source_block_premises",
+            "dependency_statement_context",
+            "inherited_scope",
+            "dependency_ids",
+        ):
+            value = source.get(list_key, None)
+            if isinstance(value, list) and value:
+                row[list_key] = [
+                    dict(item) if isinstance(item, Mapping) else item
+                    for item in value
+                ]
         row["source_pseudo_formal_work_order_id"] = str(
             source.get("row_id", "") or source.get("work_order_id", "") or ""
         )

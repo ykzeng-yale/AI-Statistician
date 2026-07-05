@@ -43782,6 +43782,20 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
                 "By exchangeability of the calibration and test scores, every "
                 "rank order of the test score is equally likely."
             ),
+            "source_block_premises": [
+                "calibration scores and the test score are exchangeable"
+            ],
+            "dependency_statement_context": [
+                {
+                    "source_block_id": "exchangeability_block",
+                    "statement": "the joint score vector is exchangeable",
+                }
+            ],
+            "inherited_scope": ["finite calibration sample and one test point"],
+            "dependency_ids": ["exchangeability_block"],
+            "scope_parent_id": "coverage_root",
+            "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+            "block_depth": 2,
             "semantic_alignment_constraints": [
                 "preserve finite-sample rank uniformity semantics",
             ],
@@ -43853,6 +43867,23 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
             "excerpt": "rank uniformity",
         }
     ]
+    assert row["source_block_conclusion"] == (
+        "rank is uniform under exchangeability"
+    )
+    assert row["source_block_premises"] == [
+        "calibration scores and the test score are exchangeable"
+    ]
+    assert row["dependency_statement_context"] == [
+        {
+            "source_block_id": "exchangeability_block",
+            "statement": "the joint score vector is exchangeable",
+        }
+    ]
+    assert row["inherited_scope"] == ["finite calibration sample and one test point"]
+    assert row["dependency_ids"] == ["exchangeability_block"]
+    assert row["scope_parent_id"] == "coverage_root"
+    assert row["dependency_scope"] == PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    assert row["block_depth"] == 2
     assert row["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:rank_uniformity"
     )
@@ -43878,6 +43909,119 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
     )
     assert row["source_theorem_ready_for_exact_proof_body"] is False
     assert row["source_theorem_semantic_support_only"] is True
+
+
+def test_pseudo_formal_exact_semantic_context_reaches_authoring_prompt(
+    tmp_path: Path,
+) -> None:
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+        "authoring_task_id": "authoring-task:rank-uniformity",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "placeholder_symbol": "rank_uniformity",
+        "authoring_trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_REQUIRED",
+        "authoring_mode": "author_missing_exact_semantic_definition",
+        "semantic_primitive": "rank_uniformity",
+        "semantic_primitive_requirements": ["rank_uniformity"],
+        "source_anchors": [
+            {
+                "kind": "theory_trace",
+                "id": "equation:rank_uniformity",
+                "excerpt": "rank uniformity from exchangeability",
+            }
+        ],
+        "source_block_conclusion": "rank is uniform under exchangeability",
+        "source_block_premises": [
+            "calibration scores and the test score are exchangeable"
+        ],
+        "source_block_proof_text": (
+            "Exchangeability makes every insertion rank for the test score equally "
+            "likely among the calibration scores."
+        ),
+        "dependency_statement_context": [
+            {
+                "source_block_id": "exchangeability_block",
+                "statement": "the joint score vector is exchangeable",
+            }
+        ],
+        "inherited_scope": ["finite calibration sample and one test point"],
+        "dependency_ids": ["exchangeability_block"],
+        "scope_parent_id": "coverage_root",
+        "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+        "block_depth": 2,
+        "source_pseudo_formal_work_order_id": (
+            "pseudo_formal_work_order:rank_uniformity"
+        ),
+        "source_pseudo_formal_block_id": "rank_uniformity_block",
+        "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "pseudo_formal_proof_evidence_status": (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        ),
+        "semantic_review_required_before_proof_body": True,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True, max_tasks=1),
+    )
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+
+    assert len(prompt_packets) == 1
+    prompt_packet = prompt_packets[0]
+    prompt_payload = json.loads(prompt_packet["user_prompt"])
+    exact_context = prompt_payload["exact_semantic_definition_context"]
+    assert prompt_packet["source_block_conclusion"] == (
+        "rank is uniform under exchangeability"
+    )
+    assert prompt_packet["source_block_premises"] == [
+        "calibration scores and the test score are exchangeable"
+    ]
+    assert prompt_packet["dependency_statement_context"][0]["source_block_id"] == (
+        "exchangeability_block"
+    )
+    assert exact_context["source_block_conclusion"] == (
+        "rank is uniform under exchangeability"
+    )
+    assert exact_context["source_block_premises"] == [
+        "calibration scores and the test score are exchangeable"
+    ]
+    assert exact_context["source_block_proof_text"].startswith("Exchangeability")
+    assert exact_context["dependency_statement_context"][0]["statement"] == (
+        "the joint score vector is exchangeable"
+    )
+    assert exact_context["inherited_scope"] == [
+        "finite calibration sample and one test point"
+    ]
+    assert exact_context["dependency_ids"] == ["exchangeability_block"]
+    assert exact_context["scope_parent_id"] == "coverage_root"
+    assert exact_context["dependency_scope"] == PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+    assert exact_context["block_depth"] == 2
+    assert exact_context["source_anchors"][0]["id"] == "equation:rank_uniformity"
+    assert exact_context["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:rank_uniformity"
+    )
+    assert "not proof evidence" in exact_context["proof_evidence_boundary"]
+    assert prompt_packet["source_theorem_kernel_verified"] is False
+    assert prompt_packet["semantic_definition_kernel_verified"] is False
 
 
 def test_exact_semantic_definition_work_orders_from_semantic_alignment_feedback(
