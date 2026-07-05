@@ -25268,6 +25268,10 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_authoring_worker_manifest: (
         dict[str, Any] | None
     ) = None
+    source_theorem_exact_semantic_definition_authoring_worker_auto_requested = False
+    source_theorem_exact_semantic_definition_authoring_worker_enabled = bool(
+        config.source_theorem_exact_semantic_definition_authoring_worker
+    )
     source_theorem_exact_semantic_definition_authoring_candidate_materializer_manifest: (
         dict[str, Any] | None
     ) = None
@@ -25824,7 +25828,22 @@ def run_research_agent_runtime(
                 )
                 _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                 _write_jsonl(learning_path, learning_rows)
-        if config.source_theorem_exact_semantic_definition_authoring_worker:
+        source_theorem_exact_semantic_definition_authoring_worker_auto_requested = bool(
+            str(config.evaluation_mode or "").strip() == "capability_eval"
+            and int(
+                source_theorem_exact_semantic_definition_lean_repair_executor_manifest.get(
+                    "n_exact_semantic_definition_authoring_tasks",
+                    0,
+                )
+                or 0
+            )
+            > 0
+        )
+        source_theorem_exact_semantic_definition_authoring_worker_enabled = bool(
+            config.source_theorem_exact_semantic_definition_authoring_worker
+            or source_theorem_exact_semantic_definition_authoring_worker_auto_requested
+        )
+        if source_theorem_exact_semantic_definition_authoring_worker_enabled:
             executor_manifest_path = Path(
                 str(
                     source_theorem_exact_semantic_definition_lean_repair_executor_manifest.get(
@@ -33524,7 +33543,10 @@ def run_research_agent_runtime(
     )
     manifest[
         "source_theorem_exact_semantic_definition_authoring_worker_requested"
-    ] = bool(config.source_theorem_exact_semantic_definition_authoring_worker)
+    ] = bool(source_theorem_exact_semantic_definition_authoring_worker_enabled)
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_auto_requested"
+    ] = bool(source_theorem_exact_semantic_definition_authoring_worker_auto_requested)
     manifest[
         "source_theorem_exact_semantic_definition_authoring_worker_ran"
     ] = source_theorem_exact_semantic_definition_authoring_worker_manifest is not None
@@ -33534,7 +33556,7 @@ def run_research_agent_runtime(
         ""
         if source_theorem_exact_semantic_definition_authoring_worker_manifest is not None
         else "authoring_worker_disabled"
-        if not config.source_theorem_exact_semantic_definition_authoring_worker
+        if not source_theorem_exact_semantic_definition_authoring_worker_enabled
         else "no_lean_repair_executor_manifest"
         if source_theorem_exact_semantic_definition_lean_repair_executor_manifest is None
         else "lean_repair_executor_manifest_missing"

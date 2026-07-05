@@ -48454,6 +48454,9 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             out_dir
             / "source_theorem_exact_semantic_definition_lean_environment_repair_tasks.jsonl"
         )
+        authoring_tasks_path = (
+            out_dir / "source_theorem_exact_semantic_definition_authoring_tasks.jsonl"
+        )
         learning_path = out_dir / "runtime_learning_rows.jsonl"
         manifest_path = (
             out_dir
@@ -48704,6 +48707,21 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
                 "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_TASK_NOT_PROOF_EVIDENCE"
             ),
         }
+        authoring_task = {
+            "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+            "authoring_task_id": "authoring-task:orderStat",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "orderStat",
+            "source_execution_result_id": "lean-repair-result:orderStat",
+            "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+            "candidate_definition_request": {
+                "replacement_strategy": "formalize reviewed order statistic semantics",
+                "required_semantic_anchor_reference_names": ["q_hat", "hq"],
+            },
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+            ),
+        }
         learning_row = {
             "learning_task": (
                 "source_theorem_exact_semantic_definition_lean_repair_execution"
@@ -48725,6 +48743,9 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
         environment_repair_tasks_path.write_text(
             json.dumps(environment_repair_task) + "\n", encoding="utf-8"
         )
+        authoring_tasks_path.write_text(
+            json.dumps(authoring_task) + "\n", encoding="utf-8"
+        )
         learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
         manifest = {
             "schema_version": 1,
@@ -48733,11 +48754,15 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             "lean_environment_repair_tasks_jsonl": str(
                 environment_repair_tasks_path
             ),
+            "exact_semantic_definition_authoring_tasks_jsonl": str(
+                authoring_tasks_path
+            ),
             "runtime_learning_rows_jsonl": str(learning_path),
             "n_results": 1,
             "n_local_lean_checked": 1 if local_lean else 0,
             "n_local_lean_compiled": 0,
             "n_lean_environment_repair_tasks": 1,
+            "n_exact_semantic_definition_authoring_tasks": 1,
             "proofengineer_state": "LEAN_ENVIRONMENT_REPAIR_REQUIRED",
             "proofengineer_state_reason": (
                 "at least one exact semantic-definition candidate cannot be checked "
@@ -49253,6 +49278,7 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
             seed=20260528,
+            evaluation_mode="capability_eval",
             max_iterations=2,
             source_theorem_exact_semantic_definition_source_lookup=True,
             source_theorem_exact_semantic_definition_source_roots=(str(source_root),),
@@ -49264,7 +49290,7 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
                 source_root
             ),
             source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout=11,
-            source_theorem_exact_semantic_definition_authoring_worker=True,
+            source_theorem_exact_semantic_definition_authoring_worker=False,
             source_theorem_exact_semantic_definition_authoring_worker_max_tasks=1,
             source_theorem_exact_semantic_definition_authoring_worker_external_export_mode=(
                 "redacted"
@@ -49507,6 +49533,12 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_worker_requested"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_worker_auto_requested"
         ]
         is True
     )
