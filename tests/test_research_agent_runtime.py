@@ -49891,6 +49891,12 @@ def test_capability_eval_auto_runs_exact_semantic_source_lookup_for_work_orders(
         row["requirement_id"]: row
         for row in audit["capability_scorecard"]["rows"]
     }
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_source_lookup_required_telemetry_present"
+        ]
+        is True
+    )
     assert scorecard_rows[
         "exact_semantic_definition_source_lookup_handoff_not_dropped"
     ]["passed"] is True
@@ -75263,6 +75269,66 @@ def test_runtime_capability_scorecard_flags_exact_semantic_handoff_required_tele
 
     assert rows[requirement_id]["passed"] is False
     assert "explicit handoff telemetry" in rows[requirement_id]["blocker"]
+
+
+def test_runtime_audit_preserves_missing_exact_semantic_source_lookup_required_telemetry(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    row = rows["exact_semantic_definition_source_lookup_handoff_not_dropped"]
+
+    assert (
+        audit["source_theorem_exact_semantic_definition_source_lookup_required"]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_source_lookup_required_telemetry_present"
+        ]
+        is False
+    )
+    assert row["passed"] is False
+    assert "required_telemetry_present=False" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_empty_exact_semantic_source_lookup_outputs() -> None:

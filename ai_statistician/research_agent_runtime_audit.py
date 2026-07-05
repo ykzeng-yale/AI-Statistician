@@ -6549,15 +6549,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_source_lookup_required": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_source_lookup_required",
-                False,
+                bool(
+                    int(
+                        manifest.get(
+                            "n_runtime_source_theorem_exact_semantic_definition_work_orders",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
             )
-            or int(
-                manifest.get(
-                    "n_runtime_source_theorem_exact_semantic_definition_work_orders",
-                    0,
-                )
-                or 0
-            )
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_source_lookup_required"
+            in manifest
         ),
         "source_theorem_exact_semantic_definition_source_lookup_ran": bool(
             manifest.get("source_theorem_exact_semantic_definition_source_lookup_ran", False)
@@ -17029,9 +17034,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_source_lookup_required_value = payload.get(
         "source_theorem_exact_semantic_definition_source_lookup_required"
     )
-    exact_semantic_source_lookup_required_present = (
-        exact_semantic_source_lookup_required_value is True
-        or exact_semantic_source_lookup_required_value is False
+    exact_semantic_source_lookup_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_source_lookup_required",
+        exact_semantic_source_lookup_required_value,
     )
     exact_semantic_source_lookup_required = (
         exact_semantic_source_lookup_required_value is True
