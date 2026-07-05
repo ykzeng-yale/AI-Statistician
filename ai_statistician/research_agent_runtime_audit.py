@@ -15,6 +15,9 @@ from .exact_source_theorem_proof_body_executor import (
     PROOF_EVIDENCE_STATUS as EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
     SOURCE_KERNEL_STATUS as EXACT_PROOF_BODY_SOURCE_KERNEL_STATUS,
 )
+from .formalization_gap_planner_runtime_handoff_audit import (
+    validate_runtime_handoff_execution_plan,
+)
 from .model_backend import (
     SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS as MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS,
@@ -2966,6 +2969,11 @@ def audit_research_agent_runtime(
             artifacts.get("runtime_formalization_gap_planner_handoffs_jsonl")
         ),
     )
+    gap_planner_handoff_execution_plan_summary = (
+        _runtime_formal_gap_planner_handoff_execution_plan_summary(
+            gap_planner_handoff_rows
+        )
+    )
     exact_semantic_definition_authoring_task_rows = (
         _runtime_exact_semantic_definition_authoring_task_rows(
             runtime_dir=runtime_dir,
@@ -5094,65 +5102,156 @@ def audit_research_agent_runtime(
             or []
         ),
         "n_runtime_formalization_gap_planner_execution_plan_rows": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_rows",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_rows",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_rows",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_stage_rows": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_stage_rows",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_stage_rows",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_stage_rows",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_schema_valid": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_schema_valid",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_schema_valid",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_schema_valid",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok": int(
-            manifest.get(
-                "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok",
-                0,
+            max(
+                int(
+                    manifest.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok",
+                        0,
+                    )
+                    or 0
+                ),
+                int(
+                    gap_planner_handoff_execution_plan_summary.get(
+                        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok",
+                        0,
+                    )
+                    or 0
+                ),
             )
-            or 0
         ),
         "runtime_formalization_gap_planner_execution_plan_boundary": str(
             manifest.get(
                 "runtime_formalization_gap_planner_execution_plan_boundary",
-                "",
+                gap_planner_handoff_execution_plan_summary.get(
+                    "runtime_formalization_gap_planner_execution_plan_boundary",
+                    "",
+                ),
             )
             or ""
         ),
@@ -13160,6 +13259,125 @@ def _runtime_formal_gap_planner_handoff_context_audit_summary(
     }
 
 
+def _runtime_formal_gap_planner_handoff_execution_plan_summary(
+    handoff_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    counts: Counter[str] = Counter()
+    for row_index, handoff in enumerate(handoff_rows):
+        if not isinstance(handoff, Mapping):
+            continue
+        execution_plan = handoff.get("execution_plan", {})
+        if not isinstance(execution_plan, Mapping) or not execution_plan:
+            continue
+        execution_plan_row = dict(execution_plan)
+        execution_plan_row.setdefault(
+            "artifact_kind",
+            "RuntimeFormalizationGapPlannerHandoffExecutionPlan",
+        )
+        execution_plan_row["handoff_id"] = str(
+            handoff.get("handoff_id", f"row:{row_index}") or f"row:{row_index}"
+        )
+        execution_plan_row["bridge_id"] = str(handoff.get("bridge_id", "") or "")
+        execution_plan_row["source_row_index"] = row_index
+        execution_plan_errors = validate_runtime_handoff_execution_plan(
+            execution_plan
+        )
+        execution_plan_row_errors = validate_runtime_handoff_execution_plan(
+            execution_plan_row
+        )
+        stages = [
+            stage
+            for stage in execution_plan.get("stages", []) or []
+            if isinstance(stage, Mapping)
+        ]
+        stages_by_id = {
+            str(stage.get("stage_id", "") or "").strip(): stage
+            for stage in stages
+            if str(stage.get("stage_id", "") or "").strip()
+        }
+        prompt_stage = stages_by_id.get("llm_route_planner_prompt", {})
+        live_stage = stages_by_id.get("llm_route_planner_live_optional", {})
+        reuse_stage = stages_by_id.get("reuse_smoke", {})
+        prompt_stage_argv = prompt_stage.get("argv", [])
+        prompt_stage_argv = (
+            prompt_stage_argv if isinstance(prompt_stage_argv, list) else []
+        )
+        live_stage_argv = live_stage.get("argv", [])
+        live_stage_argv = live_stage_argv if isinstance(live_stage_argv, list) else []
+        reuse_stage_argv = reuse_stage.get("argv", [])
+        reuse_stage_argv = (
+            reuse_stage_argv if isinstance(reuse_stage_argv, list) else []
+        )
+        counts["execution_plan_rows"] += 1
+        counts["execution_plan_stage_rows"] += len(stages)
+        if not execution_plan_errors:
+            counts["execution_plan_schema_valid"] += 1
+        if not execution_plan_row_errors:
+            counts["execution_plan_row_schema_valid"] += 1
+        else:
+            counts["execution_plan_row_schema_invalid"] += 1
+        if (
+            bool(prompt_stage)
+            and prompt_stage.get("cli") == handoff.get("llm_route_planner_prompt_cli")
+            and prompt_stage.get("requires_live_llm") is False
+            and prompt_stage.get("requires_operator_review_before_live") is False
+            and "--invoke-provider" not in prompt_stage_argv
+            and "--model-tier" in prompt_stage_argv
+            and "auto" in prompt_stage_argv
+        ):
+            counts["execution_plan_prompt_stage_cost_control_ok"] += 1
+        if (
+            bool(live_stage)
+            and live_stage.get("cli") == handoff.get("llm_route_planner_live_cli")
+            and live_stage.get("requires_live_llm") is True
+            and live_stage.get("requires_operator_review_before_live") is True
+            and "--invoke-provider" in live_stage_argv
+            and "--model-tier" in live_stage_argv
+            and "auto" in live_stage_argv
+        ):
+            counts["execution_plan_live_stage_explicit_ok"] += 1
+        if (
+            bool(reuse_stage)
+            and reuse_stage.get("cli") == handoff.get("reuse_smoke_cli")
+            and reuse_stage.get("requires_live_llm") is False
+            and reuse_stage.get("requires_operator_review_before_live") is False
+            and "--llm-route-planner-invoke-provider" not in reuse_stage_argv
+            and "--feedback-llm-route-planner-invoke-provider" not in reuse_stage_argv
+        ):
+            counts["execution_plan_reuse_smoke_stage_cost_control_ok"] += 1
+    return {
+        "n_runtime_formalization_gap_planner_execution_plan_rows": int(
+            counts["execution_plan_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_stage_rows": int(
+            counts["execution_plan_stage_rows"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_schema_valid": int(
+            counts["execution_plan_schema_valid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid": int(
+            counts["execution_plan_row_schema_valid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid": int(
+            counts["execution_plan_row_schema_invalid"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok": int(
+            counts["execution_plan_prompt_stage_cost_control_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok": int(
+            counts["execution_plan_live_stage_explicit_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok": int(
+            counts["execution_plan_reuse_smoke_stage_cost_control_ok"]
+        ),
+        "runtime_formalization_gap_planner_execution_plan_boundary": (
+            "Runtime FormalizationGapPlanner execution plans are recovered from "
+            "handoff JSONL as schema-validated handoff replay and prompt-staging "
+            "evidence. They are not theorem proof evidence."
+        ),
+    }
+
+
 def _runtime_target_prover_replay_route_revision_feedback_audit_summary(
     *,
     agenda_rows: list[Any],
@@ -16300,6 +16518,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         int(payload.get("n_runtime_formal_gap_planner_handoff_rows", 0) or 0),
         int(payload.get("n_runtime_formalization_gap_planner_handoffs", 0) or 0),
     )
+    runtime_formal_gap_planner_canonical_handoff_count = int(
+        payload.get("n_runtime_formalization_gap_planner_handoffs", 0) or 0
+    )
+    runtime_gap_planner_execution_plan_required_handoffs = (
+        runtime_formal_gap_planner_canonical_handoff_count
+        or runtime_formal_gap_planner_handoff_count
+    )
     runtime_gap_planner_execution_plan_rows = int(
         payload.get(
             "n_runtime_formalization_gap_planner_execution_plan_rows",
@@ -16374,14 +16599,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             if key not in payload or payload.get(key) is None
         )
     runtime_gap_planner_execution_plan_stage_rows_required = (
-        runtime_formal_gap_planner_handoff_count * 6
+        runtime_gap_planner_execution_plan_required_handoffs * 6
     )
     runtime_gap_planner_execution_plan_consumed = (
-        runtime_formal_gap_planner_handoff_count <= 0
+        runtime_gap_planner_execution_plan_required_handoffs <= 0
         or (
             len(runtime_gap_planner_execution_plan_missing_telemetry_keys) == 0
             and runtime_gap_planner_execution_plan_rows
-            >= runtime_formal_gap_planner_handoff_count
+            >= runtime_gap_planner_execution_plan_required_handoffs
             and runtime_gap_planner_execution_plan_stage_rows
             >= runtime_gap_planner_execution_plan_stage_rows_required
             and runtime_gap_planner_execution_plan_schema_valid
@@ -16390,11 +16615,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             >= runtime_gap_planner_execution_plan_rows
             and runtime_gap_planner_execution_plan_row_schema_invalid <= 0
             and runtime_gap_planner_execution_plan_prompt_stage_cost_control_ok
-            >= runtime_formal_gap_planner_handoff_count
+            >= runtime_gap_planner_execution_plan_required_handoffs
             and runtime_gap_planner_execution_plan_live_stage_explicit_ok
-            >= runtime_formal_gap_planner_handoff_count
+            >= runtime_gap_planner_execution_plan_required_handoffs
             and runtime_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok
-            >= runtime_formal_gap_planner_handoff_count
+            >= runtime_gap_planner_execution_plan_required_handoffs
         )
     )
     runtime_gap_planner_live_requests = int(
@@ -18919,6 +19144,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "handoffs="
                 f"{runtime_formal_gap_planner_handoff_count} "
+                "canonical_handoffs="
+                f"{runtime_formal_gap_planner_canonical_handoff_count} "
+                "required_handoffs="
+                f"{runtime_gap_planner_execution_plan_required_handoffs} "
                 "missing_telemetry="
                 f"{runtime_gap_planner_execution_plan_missing_telemetry_keys} "
                 "execution_plan_rows="

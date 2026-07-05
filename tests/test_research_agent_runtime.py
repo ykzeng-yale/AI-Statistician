@@ -278,6 +278,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_scorecard,
     _runtime_component_calibration_gaps_from_scorecard,
     _runtime_formal_gap_planner_handoff_context_audit_summary,
+    _runtime_formal_gap_planner_handoff_execution_plan_summary,
     _merge_runtime_theory_summaries,
     _runtime_source_to_bridge_feedback_contract_audit_summary,
     _runtime_evidence_truth_table,
@@ -7938,6 +7939,15 @@ def test_runtime_capability_scorecard_requires_gap_planner_execution_plan_consum
         "formal_gap_planner_handoff_execution_plan_consumed"
     ]["passed"] is True
 
+    payload["n_runtime_formal_gap_planner_handoff_rows"] = 3
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    execution_plan = rows[
+        "formal_gap_planner_handoff_execution_plan_consumed"
+    ]
+    assert execution_plan["passed"] is True
+    assert "required_handoffs=1" in execution_plan["evidence"]
+
     payload[
         "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
     ] = 1
@@ -8561,6 +8571,120 @@ def test_formal_gap_planner_handoff_context_allows_compact_sibling_marker() -> N
     assert (
         summary["n_runtime_formal_gap_planner_handoff_rows_missing_execution_context"]
         == 0
+    )
+
+
+def test_formal_gap_planner_handoff_execution_plan_summary_recovers_rows() -> None:
+    prompt_cli = (
+        "python -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
+        "--model-tier auto"
+    )
+    live_cli = f"{prompt_cli} --invoke-provider"
+    reuse_cli = (
+        "python -m ai_statistician.cli formalization-gap-planner-reuse-smoke "
+        "--llm-route-planner-provider anthropic"
+    )
+    proof_status = "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+    proof_boundary = "Planner handoff metadata is not theorem proof evidence."
+
+    def stage(
+        stage_id: str,
+        cli: str,
+        *,
+        requires_live_llm: bool = False,
+        review: bool = False,
+    ) -> dict[str, object]:
+        return {
+            "stage_id": stage_id,
+            "command": stage_id,
+            "cli": cli,
+            "argv": cli.split(),
+            "requires_live_llm": requires_live_llm,
+            "requires_operator_review_before_live": review,
+            "required_inputs": ["runtime_handoff"],
+            "expected_outputs": ["runtime_artifact"],
+            "purpose": "recover execution-plan evidence",
+            "proof_evidence_status": proof_status,
+            "proof_evidence_boundary": proof_boundary,
+        }
+
+    execution_plan = {
+        "plan_kind": "runtime_formalization_gap_planner_handoff_execution_plan",
+        "schema_version": 1,
+        "recommended_llm_provider": "anthropic",
+        "recommended_model_tier": "auto",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4",
+        "stage_count": 6,
+        "stages": [
+            stage("standalone_plan", "python -m planner standalone"),
+            stage("target_intake", "python -m planner target-intake"),
+            stage(
+                "component_resource_registry",
+                "python -m planner component-resource-registry",
+            ),
+            stage("llm_route_planner_prompt", prompt_cli),
+            stage(
+                "llm_route_planner_live_optional",
+                live_cli,
+                requires_live_llm=True,
+                review=True,
+            ),
+            stage("reuse_smoke", reuse_cli),
+        ],
+        "cost_control_boundary": "Only the live Claude API stage may invoke provider calls.",
+        "proof_evidence_status": proof_status,
+        "proof_evidence_boundary": proof_boundary,
+    }
+    handoff = {
+        "handoff_id": "runtime_formalization_gap_planner_handoff:test",
+        "bridge_id": "runtime_formalization_gap_planner_bridge:test",
+        "llm_route_planner_prompt_cli": prompt_cli,
+        "llm_route_planner_live_cli": live_cli,
+        "reuse_smoke_cli": reuse_cli,
+        "execution_plan": execution_plan,
+    }
+
+    summary = _runtime_formal_gap_planner_handoff_execution_plan_summary([handoff])
+
+    assert summary["n_runtime_formalization_gap_planner_execution_plan_rows"] == 1
+    assert (
+        summary["n_runtime_formalization_gap_planner_execution_plan_stage_rows"]
+        == 6
+    )
+    assert (
+        summary["n_runtime_formalization_gap_planner_execution_plan_schema_valid"]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_valid"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_prompt_stage_cost_control_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_live_stage_explicit_ok"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_execution_plan_reuse_smoke_stage_cost_control_ok"
+        ]
+        == 1
     )
 
 
@@ -69644,6 +69768,47 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert (
         audit[
+            "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
+        ]
+        == 0
+    )
+    manifest_path = out_dir / "research_agent_runtime_manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    legacy_manifest_payload = dict(manifest_payload)
+    for key in tuple(legacy_manifest_payload):
+        if key.startswith("n_runtime_formalization_gap_planner_execution_plan_"):
+            legacy_manifest_payload.pop(key, None)
+    legacy_manifest_payload.pop(
+        "runtime_formalization_gap_planner_execution_plan_boundary",
+        None,
+    )
+    manifest_path.write_text(
+        json.dumps(legacy_manifest_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    try:
+        legacy_audit = audit_research_agent_runtime(
+            out_dir,
+            out_dir / "runtime_alignment_audit_legacy_execution_plan_recovery",
+        )
+    finally:
+        manifest_path.write_text(
+            json.dumps(manifest_payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+    assert legacy_audit["all_ok"] is True
+    assert (
+        legacy_audit["n_runtime_formalization_gap_planner_execution_plan_rows"]
+        == 2
+    )
+    assert (
+        legacy_audit[
+            "n_runtime_formalization_gap_planner_execution_plan_stage_rows"
+        ]
+        == 12
+    )
+    assert (
+        legacy_audit[
             "n_runtime_formalization_gap_planner_execution_plan_row_schema_invalid"
         ]
         == 0
