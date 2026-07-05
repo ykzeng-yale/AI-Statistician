@@ -106,6 +106,10 @@ class SourceToBridgePremiseDerivationCheckRow:
     exact_goal_shape_obligation_ids: tuple[str, ...]
     proof_body_goal_excerpt: tuple[str, ...]
     proof_body_attempt_summaries: tuple[str, ...]
+    proof_body_attempt_count: int
+    semantic_alignment_constraints: tuple[str, ...]
+    semantic_alignment_blockers: tuple[str, ...]
+    source_theorem_kernel_evidence_eligible: bool
     kernel_verified_theorem_reduction_closure_declarations: tuple[str, ...]
     verified_theorem_reduction_closure_artifact_paths: tuple[str, ...]
     kernel_verified_source_theorem_semantic_support_obligation_ids: tuple[str, ...]
@@ -724,6 +728,16 @@ def _premise_derivation_check_row(
         proof_body_attempt_summaries=_str_tuple(
             row.get("proof_body_attempt_summaries", [])
         ),
+        proof_body_attempt_count=_int_like(row.get("proof_body_attempt_count", 0)),
+        semantic_alignment_constraints=_str_tuple(
+            row.get("semantic_alignment_constraints", [])
+        ),
+        semantic_alignment_blockers=_str_tuple(
+            row.get("semantic_alignment_blockers", [])
+        ),
+        source_theorem_kernel_evidence_eligible=bool(
+            row.get("source_theorem_kernel_evidence_eligible", False)
+        ),
         kernel_verified_theorem_reduction_closure_declarations=_str_tuple(
             row.get("kernel_verified_theorem_reduction_closure_declarations", [])
         ),
@@ -1098,6 +1112,11 @@ def _generated_premise_derivation_skeleton(
     )[:12]
     goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
     attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
+    attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
+    semantic_constraints = _str_tuple(row.get("semantic_alignment_constraints", []))[:8]
+    semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
+    source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
+    source_kernel_eligible = bool(source_kernel_eligible_raw)
     exact_goal_shape_ids = _str_tuple(row.get("exact_goal_shape_obligation_ids", []))[:12]
     comment_lines = [
         "This is a generated source-to-bridge premise derivation skeleton, not proof evidence.",
@@ -1142,6 +1161,25 @@ def _generated_premise_derivation_skeleton(
     attempt_comment = "\n".join(
         f"-- proof body attempt: {_sanitize_comment_text(value)}"
         for value in attempt_summaries
+    )
+    attempt_count_comment = (
+        f"-- proof body attempt count: {attempt_count}" if attempt_count else ""
+    )
+    source_kernel_eligible_comment = (
+        (
+            "-- source theorem kernel evidence eligible before premise derivation: "
+            + ("true" if source_kernel_eligible else "false")
+        )
+        if source_kernel_eligible_raw is not None
+        else ""
+    )
+    semantic_constraint_comment = "\n".join(
+        f"-- semantic alignment constraint: {_sanitize_comment_text(value)}"
+        for value in semantic_constraints
+    )
+    semantic_blocker_comment = "\n".join(
+        f"-- semantic alignment blocker: {_sanitize_comment_text(value)}"
+        for value in semantic_blockers
     )
     source_signature_comment = "\n".join(
         f"-- exact source theorem signature: {_sanitize_comment_text(value)}"
@@ -1240,6 +1278,10 @@ def _generated_premise_derivation_skeleton(
         f"{semantic_support_comment}\n"
         f"{goal_comment}\n"
         f"{attempt_comment}\n"
+        f"{attempt_count_comment}\n"
+        f"{source_kernel_eligible_comment}\n"
+        f"{semantic_constraint_comment}\n"
+        f"{semantic_blocker_comment}\n"
         f"-- source context status: {_sanitize_comment_text(source_context['status'])}\n"
         f"{source_signature_comment}\n"
         f"{adapter_signature_comment}\n"
@@ -1481,6 +1523,18 @@ def _export_runtime_learning_rows(
                     else []
                 ),
                 "failure_classification": row.failure_classification,
+                "semantic_alignment_constraints": list(
+                    row.semantic_alignment_constraints
+                ),
+                "semantic_alignment_blockers": list(row.semantic_alignment_blockers),
+                "source_theorem_kernel_evidence_eligible": (
+                    row.source_theorem_kernel_evidence_eligible
+                ),
+                "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
+                "proof_body_attempt_summaries": list(
+                    row.proof_body_attempt_summaries
+                ),
+                "proof_body_attempt_count": row.proof_body_attempt_count,
                 "runtime_queue_status": (
                     "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
                     if row.premise_derivation_kernel_verified
@@ -1566,6 +1620,24 @@ def _export_runtime_learning_rows(
             ),
             "premise_semantic_dependency_requirements": list(
                 grouped_request.get("premise_semantic_dependency_requirements", []) or []
+            ),
+            "semantic_alignment_constraints": list(
+                grouped_request.get("semantic_alignment_constraints", []) or []
+            ),
+            "semantic_alignment_blockers": list(
+                grouped_request.get("semantic_alignment_blockers", []) or []
+            ),
+            "source_theorem_kernel_evidence_eligible": bool(
+                grouped_request.get("source_theorem_kernel_evidence_eligible", False)
+            ),
+            "proof_body_attempt_count": _int_like(
+                grouped_request.get("proof_body_attempt_count", 0)
+            ),
+            "proof_body_goal_excerpt": list(
+                grouped_request.get("proof_body_goal_excerpt", []) or []
+            ),
+            "proof_body_attempt_summaries": list(
+                grouped_request.get("proof_body_attempt_summaries", []) or []
             ),
             "runtime_queue_status": "PENDING_GROUPED_SOURCE_TO_BRIDGE_PREMISE_DERIVATION",
             "input_summary": dict(grouped_request),
@@ -2369,6 +2441,29 @@ def _grouped_premise_derivation_candidate_request_rows(
                 if value
             )
         )
+        semantic_alignment_constraints = tuple(
+            dict.fromkeys(
+                value
+                for row in group_rows
+                for value in row.semantic_alignment_constraints
+                if value
+            )
+        )
+        semantic_alignment_blockers = tuple(
+            dict.fromkeys(
+                value
+                for row in group_rows
+                for value in row.semantic_alignment_blockers
+                if value
+            )
+        )
+        proof_body_attempt_count = max(
+            (row.proof_body_attempt_count for row in group_rows),
+            default=0,
+        )
+        source_theorem_kernel_evidence_eligible = any(
+            row.source_theorem_kernel_evidence_eligible for row in group_rows
+        )
         shared_contract = next(
             (
                 row.shared_adapter_instantiation_contract
@@ -2465,6 +2560,30 @@ def _grouped_premise_derivation_candidate_request_rows(
                 "premise_semantic_dependency_requirements": list(
                     semantic_requirements
                 ),
+                "semantic_alignment_constraints": list(
+                    semantic_alignment_constraints
+                ),
+                "semantic_alignment_blockers": list(semantic_alignment_blockers),
+                "source_theorem_kernel_evidence_eligible": (
+                    source_theorem_kernel_evidence_eligible
+                ),
+                "proof_body_attempt_count": proof_body_attempt_count,
+                "proof_body_goal_excerpt": list(
+                    dict.fromkeys(
+                        value
+                        for row in group_rows
+                        for value in row.proof_body_goal_excerpt
+                        if value
+                    )
+                )[:12],
+                "proof_body_attempt_summaries": list(
+                    dict.fromkeys(
+                        value
+                        for row in group_rows
+                        for value in row.proof_body_attempt_summaries
+                        if value
+                    )
+                )[:12],
                 "required_formalizer_output_key": (
                     "source_to_bridge_premise_derivation_candidates"
                 ),
@@ -2653,6 +2772,12 @@ def _premise_derivation_candidate_request_row(
         "exact_goal_shape_obligation_ids": list(row.exact_goal_shape_obligation_ids),
         "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
         "proof_body_attempt_summaries": list(row.proof_body_attempt_summaries),
+        "proof_body_attempt_count": row.proof_body_attempt_count,
+        "semantic_alignment_constraints": list(row.semantic_alignment_constraints),
+        "semantic_alignment_blockers": list(row.semantic_alignment_blockers),
+        "source_theorem_kernel_evidence_eligible": (
+            row.source_theorem_kernel_evidence_eligible
+        ),
         "kernel_verified_theorem_reduction_closure_declarations": list(
             row.kernel_verified_theorem_reduction_closure_declarations
         ),
@@ -3342,6 +3467,13 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     if isinstance(values, str):
         values = [values]
     return tuple(str(value).strip() for value in values or [] if str(value).strip())
+
+
+def _int_like(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _request_mapping_tuple(values: Any) -> tuple[dict[str, object], ...]:

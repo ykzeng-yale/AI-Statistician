@@ -236,6 +236,9 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert premise_queue_rows[0]["source_candidate_artifact_path"] == (
         "runs/split_conformal_coverage_attempt.lean"
     )
+    assert premise_queue_rows[0]["source_theorem_kernel_evidence_eligible"] is True
+    assert premise_queue_rows[0]["semantic_alignment_blockers"] == []
+    assert premise_queue_rows[0]["proof_body_attempt_count"] == 1
     assert premise_queue_rows[0]["forbidden_as_adapter_assumption"] is True
     assert premise_queue_rows[0]["proof_evidence_status"] == (
         "WORK_ORDER_NOT_PROOF_EVIDENCE"

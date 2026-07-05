@@ -1328,6 +1328,16 @@ def _export_source_to_bridge_premise_derivation_queue(
                     "proof_body_attempt_summaries": list(
                         row.proof_body_attempt_summaries
                     ),
+                    "proof_body_attempt_count": row.proof_body_attempt_count,
+                    "semantic_alignment_constraints": list(
+                        row.semantic_alignment_constraints
+                    ),
+                    "semantic_alignment_blockers": list(
+                        row.semantic_alignment_blockers
+                    ),
+                    "source_theorem_kernel_evidence_eligible": (
+                        row.source_theorem_kernel_evidence_eligible
+                    ),
                     "kernel_verified_theorem_reduction_closure_declarations": (
                         list(row.kernel_verified_theorem_reduction_closure_declarations)
                     ),

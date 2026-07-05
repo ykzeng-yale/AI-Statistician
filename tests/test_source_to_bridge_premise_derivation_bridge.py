@@ -54,6 +54,12 @@ def _premise_work_order(**overrides: object) -> dict[str, object]:
         "proof_body_attempt_summaries": [
             "1:exact split_conformal_coverage_source_to_bridge_adapter:returncode=1"
         ],
+        "proof_body_attempt_count": 1,
+        "semantic_alignment_constraints": [
+            "covered must be instantiated from the exact source coverage event"
+        ],
+        "semantic_alignment_blockers": [],
+        "source_theorem_kernel_evidence_eligible": True,
         "kernel_verified_theorem_reduction_closure_declarations": [
             "splitConformalFiniteSampleCoverage_reductionClosure"
         ],
@@ -198,6 +204,9 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "proofengineer_generated_premise_derivation_skeleton"
     )
     assert row["premise_candidate_evidence_eligible"] is False
+    assert row["source_theorem_kernel_evidence_eligible"] is True
+    assert row["semantic_alignment_blockers"] == ()
+    assert row["proof_body_attempt_count"] == 1
     assert row["failure_classification"] == (
         "premise_derivation_candidate_missing_nonvacuous_source"
     )
@@ -218,6 +227,15 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert "-- exact source theorem signature: theorem split_conformal_coverage" in (
         candidate_source
     )
+    assert "-- proof body attempt count: 1" in candidate_source
+    assert (
+        "-- source theorem kernel evidence eligible before premise derivation: true"
+        in candidate_source
+    )
+    assert (
+        "-- semantic alignment constraint: covered must be instantiated from "
+        "the exact source coverage event"
+    ) in candidate_source
     assert (
         "-- current adapter signature: theorem split_conformal_coverage_source_to_bridge_adapter"
         in candidate_source
@@ -327,6 +345,9 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         {"name": "hq", "type": "Prop", "role": "quantile_definition_anchor"},
         {"name": "hC", "type": "Prop", "role": "coverage_event_anchor"},
     ]
+    assert request["source_theorem_kernel_evidence_eligible"] is True
+    assert request["semantic_alignment_blockers"] == []
+    assert request["proof_body_attempt_count"] == 1
     assert request["premise_semantic_anchor_binder_names"] == ["hq", "hC"]
     assert request["premise_semantic_anchor_binders"] == [
         {"name": "hq", "type": "Prop", "role": "quantile_definition_anchor"},
@@ -358,6 +379,13 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["learning_task"] == (
         "source_to_bridge_premise_derivation_feedback"
     )
+    assert learning_rows[0]["source_theorem_kernel_evidence_eligible"] is True
+    assert learning_rows[0]["semantic_alignment_blockers"] == []
+    assert learning_rows[0]["proof_body_attempt_count"] == 1
+    assert learning_rows[0]["input_summary"][
+        "source_theorem_kernel_evidence_eligible"
+    ] is True
+    assert learning_rows[0]["input_summary"]["proof_body_attempt_count"] == 1
     assert learning_rows[0]["premise_name"] == "hGoodCovered"
     assert learning_rows[0]["premise_target_type"] == "covered ⊆ covered"
     assert learning_rows[0]["adapter_instantiation_group_id"].startswith(
@@ -737,6 +765,9 @@ def test_premise_bridge_groups_shared_adapter_instantiation_requests(
     assert grouped_request[
         "required_bridge_premise_names_for_shared_instantiation"
     ] == ["hGoodCovered", "hRank"]
+    assert grouped_request["source_theorem_kernel_evidence_eligible"] is True
+    assert grouped_request["semantic_alignment_blockers"] == []
+    assert grouped_request["proof_body_attempt_count"] == 1
     assert grouped_request["required_candidate_fields"] == [
         "premise_names",
         "adapter_instantiation_group_id",
@@ -791,6 +822,9 @@ def test_premise_bridge_groups_shared_adapter_instantiation_requests(
     assert len(grouped_learning_rows) == 1
     grouped_learning_row = grouped_learning_rows[0]
     assert grouped_learning_row["premise_names"] == ["hGoodCovered", "hRank"]
+    assert grouped_learning_row["source_theorem_kernel_evidence_eligible"] is True
+    assert grouped_learning_row["semantic_alignment_blockers"] == []
+    assert grouped_learning_row["proof_body_attempt_count"] == 1
     assert grouped_learning_row["adapter_instantiation_group_id"] == grouped_request[
         "adapter_instantiation_group_id"
     ]
