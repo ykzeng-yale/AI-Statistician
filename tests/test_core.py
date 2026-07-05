@@ -6203,6 +6203,53 @@ class SystemTests(unittest.TestCase):
             "runtime proof-body executor scorecard rejected aggregate-only rows",
             " ".join(runtime_executor_scorecard_failed_s13["issues"]),
         )
+        runtime_goal_scorecard_failed_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        runtime_goal_scorecard_failed_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 0,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present": True,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok": True,
+                "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present": True,
+                "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok": False,
+                "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_blocker": (
+                    "runtime proof-body goal scorecard did not reach the proof-body boundary"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": True,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": True,
+            }
+        )
+        runtime_goal_scorecard_failed_guidance = build_evaluation_benchmark_guidance(
+            Path(
+                "runs/test_evaluation_benchmark_guidance_runtime_goal_scorecard_failed"
+            ),
+            system_audit_payload=runtime_goal_scorecard_failed_payload,
+        )
+        runtime_goal_scorecard_failed_s13 = next(
+            row
+            for row in runtime_goal_scorecard_failed_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(
+            runtime_goal_scorecard_failed_s13["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertTrue(
+            runtime_goal_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_executor_ran"
+            ]
+        )
+        self.assertFalse(
+            runtime_goal_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_goal_reached"
+            ]
+        )
+        self.assertIn(
+            "runtime proof-body goal scorecard did not reach the proof-body boundary",
+            " ".join(runtime_goal_scorecard_failed_s13["issues"]),
+        )
         runtime_scorecard_failed_payload = json.loads(
             json.dumps(semantic_bridge_ok_payload)
         )
