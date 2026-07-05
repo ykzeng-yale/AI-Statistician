@@ -63203,6 +63203,22 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
                 "kernel_verified_source_to_bridge_premise_derivation_ids": [
                     "source_to_bridge_premise_derivation_check:hGoodCovered"
                 ],
+                "source_theorem_kernel_evidence_eligible": True,
+                "semantic_alignment_constraints": [
+                    "covered/rank bridge objects were reviewed for exact source semantics"
+                ],
+                "semantic_alignment_blockers": [],
+                "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                "proof_body_goal_reached": True,
+                "proof_body_goal_excerpt": [
+                    "hexch : Exchangeable P s",
+                    "⊢ bridge_premises",
+                ],
+                "proof_body_attempt_summaries": [
+                    "1:simpa using split_conformal_coverage_source_to_bridge_adapter:returncode=1"
+                ],
+                "proof_body_attempt_count": 5,
+                "candidate_artifact_path": str(tmp_path / "split_conformal_attempt.lean"),
                 "source_to_bridge_premise_candidate_artifact_path": str(
                     premise_artifact
                 ),
@@ -63248,6 +63264,19 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     assert summary["source_theorem_proof_body_adapter_diagnostics"][0][
         "verified_source_to_bridge_premise_derivation_signature_excerpts"
     ] == summary["verified_source_to_bridge_premise_derivation_signature_excerpts"]
+    adapter_diag = summary["source_theorem_proof_body_adapter_diagnostics"][0]
+    assert adapter_diag["source_theorem_kernel_evidence_eligible"] is True
+    assert adapter_diag["semantic_alignment_blockers"] == []
+    assert adapter_diag["proof_body_attempt_count"] == 5
+    assert adapter_diag["proof_body_goal_reached"] is True
+    assert adapter_diag["proof_body_goal_excerpt"] == [
+        "hexch : Exchangeable P s",
+        "⊢ bridge_premises",
+    ]
+    assert any(
+        "source_to_bridge_adapter" in attempt
+        for attempt in adapter_diag["proof_body_attempt_summaries"]
+    )
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -63325,6 +63354,13 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     )
     assert work_order["source_to_bridge_premise_derivation_work_items"] == []
     assert work_order["source_to_bridge_premise_derivation_all_required_verified"] is True
+    assert work_order["source_theorem_kernel_evidence_eligible"] is True
+    assert work_order["semantic_alignment_blockers"] == []
+    assert work_order["proof_body_attempt_count"] == 5
+    assert work_order["proof_body_goal_excerpt"] == [
+        "hexch : Exchangeable P s",
+        "⊢ bridge_premises",
+    ]
     assert work_order["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
         "source_to_bridge_premise_derivation_check:hGoodCovered"
     ]

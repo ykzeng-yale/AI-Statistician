@@ -51361,6 +51361,105 @@ def _formalizer_proof_bank_runtime_memory_summary(
             )
         )
     )
+    def verified_premise_row_bool(row: Mapping[str, Any], key: str) -> bool:
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        return bool(row.get(key, input_summary.get(key, False)))
+
+    def verified_premise_row_int(row: Mapping[str, Any], key: str) -> int:
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        return _int_like(row.get(key, input_summary.get(key, 0)))
+
+    verified_source_to_bridge_premise_candidate_artifact_paths = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(
+                row,
+                "proof_body_candidate_artifact_path",
+                "source_candidate_artifact_path",
+                "candidate_artifact_path",
+            )
+        )
+    )
+    verified_source_to_bridge_premise_proof_body_goal_excerpt = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(row, "proof_body_goal_excerpt")
+        )
+    )
+    verified_source_to_bridge_premise_proof_body_attempt_summaries = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(row, "proof_body_attempt_summaries")
+        )
+    )
+    verified_source_to_bridge_premise_proof_body_attempt_count = max(
+        (
+            verified_premise_row_int(row, "proof_body_attempt_count")
+            for row in verified_source_to_bridge_premise_derivation_rows
+        ),
+        default=0,
+    )
+    verified_source_to_bridge_premise_exact_goal_shape_obligation_ids = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(row, "exact_goal_shape_obligation_ids")
+        )
+    )
+    verified_source_to_bridge_premise_exact_goal_shape_obligations = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(row, "exact_goal_shape_obligations")
+        )
+    )
+    verified_source_to_bridge_premise_semantic_constraints = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(
+                row,
+                "semantic_alignment_constraints",
+            )
+        )
+    )
+    verified_source_to_bridge_premise_semantic_blockers = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(row, "semantic_alignment_blockers")
+        )
+    )
+    verified_source_to_bridge_premise_kernel_evidence_eligible = any(
+        verified_premise_row_bool(row, "source_theorem_kernel_evidence_eligible")
+        for row in verified_source_to_bridge_premise_derivation_rows
+    )
+    verified_source_to_bridge_premise_proof_body_goal_reached = bool(
+        verified_source_to_bridge_premise_proof_body_goal_excerpt
+        or any(
+            verified_premise_row_bool(row, "proof_body_goal_reached")
+            for row in verified_source_to_bridge_premise_derivation_rows
+        )
+    )
+    verified_source_to_bridge_premise_proof_body_gate_status = next(
+        (
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _runtime_row_string_values(row, "proof_body_gate_status")
+        ),
+        "",
+    )
     verified_source_proof_body_adapter_ids = tuple(
         dict.fromkeys(
             value
@@ -51429,14 +51528,45 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "runtime_queue_status": (
                     "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
                 ),
-                "candidate_artifact_path": "",
-                "proof_body_gate_status": "",
-                "proof_body_goal_reached": False,
-                "proof_body_goal_excerpt": [],
-                "proof_body_attempt_summaries": [],
-                "exact_goal_shape_obligation_ids": [],
-                "exact_goal_shape_obligations": [],
-                "semantic_alignment_constraints": [],
+                "candidate_artifact_path": (
+                    verified_source_to_bridge_premise_candidate_artifact_paths[0]
+                    if verified_source_to_bridge_premise_candidate_artifact_paths
+                    else ""
+                ),
+                "proof_body_gate_status": (
+                    verified_source_to_bridge_premise_proof_body_gate_status
+                ),
+                "proof_body_goal_reached": (
+                    verified_source_to_bridge_premise_proof_body_goal_reached
+                ),
+                "proof_body_attempted": bool(
+                    verified_source_to_bridge_premise_proof_body_attempt_count
+                    or verified_source_to_bridge_premise_proof_body_attempt_summaries
+                ),
+                "proof_body_attempt_count": (
+                    verified_source_to_bridge_premise_proof_body_attempt_count
+                ),
+                "proof_body_goal_excerpt": list(
+                    verified_source_to_bridge_premise_proof_body_goal_excerpt
+                )[:8],
+                "proof_body_attempt_summaries": list(
+                    verified_source_to_bridge_premise_proof_body_attempt_summaries
+                )[:5],
+                "exact_goal_shape_obligation_ids": list(
+                    verified_source_to_bridge_premise_exact_goal_shape_obligation_ids
+                )[:8],
+                "exact_goal_shape_obligations": list(
+                    verified_source_to_bridge_premise_exact_goal_shape_obligations
+                )[:8],
+                "semantic_alignment_constraints": list(
+                    verified_source_to_bridge_premise_semantic_constraints
+                )[:5],
+                "semantic_alignment_blockers": list(
+                    verified_source_to_bridge_premise_semantic_blockers
+                )[:5],
+                "source_theorem_kernel_evidence_eligible": (
+                    verified_source_to_bridge_premise_kernel_evidence_eligible
+                ),
                 "proof_body_adapter_required_reasons": [
                     "kernel-verified source-to-bridge premise derivations are now available for the adapter retry",
                     "rerun the source-to-bridge adapter and exact source theorem proof body without treating premise rows as full source theorem proof",
