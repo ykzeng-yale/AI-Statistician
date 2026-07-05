@@ -79067,6 +79067,59 @@ def test_runtime_capability_scorecard_flags_empty_adapter_premise_verified_adapt
     assert "exact_executor_results=0" in row["evidence"]
 
 
+def test_runtime_capability_scorecard_flags_adapter_premise_exact_executor_proof_boundary_mismatch() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_proof_body_adapter_from_adapter_premise_derivation_feedback_bridge_n_adapter_kernel_verified": 1,
+        "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows": 1,
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested": True,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran": True,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_learning_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "adapter_premise_verified_adapter_exact_executor_ran_when_requested"
+    ]
+
+    assert rows["adapter_premise_verified_adapter_exact_retry_queued"][
+        "passed"
+    ] is True
+    assert row["passed"] is False
+    assert "exact_executor_source_kernel_verified=0" in row["evidence"]
+    assert (
+        "exact_executor_proof_status=EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+        in row["evidence"]
+    )
+    assert "proof-evidence boundary status" in row["blocker"]
+
+
 def test_runtime_capability_scorecard_accepts_context_bearing_adapter_premise_exact_executor() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -79096,6 +79149,10 @@ def test_runtime_capability_scorecard_accepts_context_bearing_adapter_premise_ex
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": [
             "source_to_bridge_premise_derivation_check:hGoodCovered"
         ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
     }
 
     scorecard = _runtime_capability_scorecard(payload)

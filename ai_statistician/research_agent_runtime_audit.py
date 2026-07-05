@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .exact_source_theorem_proof_body_executor import (
+    ARTIFACT_KERNEL_NOT_SOURCE_STATUS as EXACT_PROOF_BODY_ARTIFACT_KERNEL_NOT_SOURCE_STATUS,
+    PROOF_EVIDENCE_STATUS as EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
+    SOURCE_KERNEL_STATUS as EXACT_PROOF_BODY_SOURCE_KERNEL_STATUS,
+)
 from .model_backend import (
     SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS as MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS,
@@ -108,6 +113,12 @@ REQUIRED_SUBSYSTEMS = (
 )
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 ROUTEABLE_RUNTIME_SUBSYSTEMS = (*REQUIRED_ARCHITECT_SUBSYSTEMS, "ProofEngineer")
+EXACT_PROOF_BODY_NON_SOURCE_STATUSES = frozenset(
+    {
+        EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
+        EXACT_PROOF_BODY_ARTIFACT_KERNEL_NOT_SOURCE_STATUS,
+    }
+)
 SUPPORTED_GENERATOR_PROVIDERS = set(MODEL_SUPPORTED_GENERATOR_PROVIDERS)
 SUPPORTED_LIVE_GENERATOR_PROVIDERS = set(MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS)
 SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS = set(
@@ -8345,6 +8356,13 @@ def audit_research_agent_runtime(
                 0,
             )
             or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_evidence_status": str(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_evidence_status",
+                "",
+            )
+            or ""
         ),
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached": int(
             manifest.get(
@@ -17533,6 +17551,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or []
     )
+    adapter_premise_exact_executor_source_kernel_verified = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    adapter_premise_exact_executor_proof_evidence_status = str(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_evidence_status",
+            "",
+        )
+        or ""
+    ).strip()
+    adapter_premise_exact_executor_proof_boundary_ok = (
+        adapter_premise_exact_executor_proof_evidence_status
+        == EXACT_PROOF_BODY_SOURCE_KERNEL_STATUS
+        if adapter_premise_exact_executor_source_kernel_verified > 0
+        else adapter_premise_exact_executor_proof_evidence_status
+        in EXACT_PROOF_BODY_NON_SOURCE_STATUSES
+    )
 
     def _promotion_formal_environment_handoff_rows(
         *,
@@ -20963,6 +21002,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and adapter_premise_exact_executor_learning_rows > 0
                 and adapter_premise_exact_executor_premise_context_rows > 0
                 and bool(adapter_premise_exact_executor_premise_ids)
+                and adapter_premise_exact_executor_proof_boundary_ok
             ),
             (
                 "exact_executor_required="
@@ -20986,14 +21026,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "executor_verified_premise_context_rows="
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows')} "
                 "executor_verified_premise_ids="
-                f"{adapter_premise_exact_executor_premise_ids}"
+                f"{adapter_premise_exact_executor_premise_ids} "
+                "exact_executor_source_kernel_verified="
+                f"{adapter_premise_exact_executor_source_kernel_verified} "
+                "exact_executor_proof_status="
+                f"{adapter_premise_exact_executor_proof_evidence_status}"
             ),
             (
                 "Adapter-premise verified-adapter exact source-theorem proof-body "
                 "executor was required/requested but did not record explicit "
                 "handoff telemetry or produce concrete result-row telemetry, "
                 "learning-row telemetry, and verified source-to-bridge "
-                "premise-derivation context"
+                "premise-derivation context with a source-theorem proof-evidence "
+                "boundary status that matches the executor source-kernel count"
             ),
         ),
         _scorecard_row(
