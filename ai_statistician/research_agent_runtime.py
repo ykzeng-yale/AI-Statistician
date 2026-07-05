@@ -31029,6 +31029,30 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows"
+    ] = int(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
+            "n_kernel_verified_source_to_bridge_premise_derivation_context_rows",
+            0,
+        )
+        if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] = [
+        str(value).strip()
+        for value in _str_tuple(
+            source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
+                "kernel_verified_source_to_bridge_premise_derivation_ids",
+                [],
+            )
+            if source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+            else []
+        )
+        if str(value).strip()
+    ]
+    manifest[
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked"
     ] = int(
         source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest.get(
