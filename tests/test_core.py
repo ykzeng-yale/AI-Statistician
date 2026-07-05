@@ -6299,6 +6299,50 @@ class SystemTests(unittest.TestCase):
             "runtime semantic-review blocker scorecard hid proof-body blockers",
             " ".join(runtime_semantic_blocker_failed_s13["issues"]),
         )
+        runtime_local_lean_gate_failed_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        runtime_local_lean_gate_failed_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present": True,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok": True,
+                "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present": True,
+                "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok": True,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_present": True,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok": True,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_present": True,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok": False,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_blocker": (
+                    "runtime local Lean gate scorecard did not observe verifier feedback"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": True,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": True,
+            }
+        )
+        runtime_local_lean_gate_failed_guidance = build_evaluation_benchmark_guidance(
+            Path(
+                "runs/test_evaluation_benchmark_guidance_runtime_local_lean_gate_failed"
+            ),
+            system_audit_payload=runtime_local_lean_gate_failed_payload,
+        )
+        runtime_local_lean_gate_failed_s13 = next(
+            row
+            for row in runtime_local_lean_gate_failed_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(
+            runtime_local_lean_gate_failed_s13["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertFalse(
+            runtime_local_lean_gate_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok"
+            ]
+        )
+        self.assertIn(
+            "runtime local Lean gate scorecard did not observe verifier feedback",
+            " ".join(runtime_local_lean_gate_failed_s13["issues"]),
+        )
         runtime_scorecard_failed_payload = json.loads(
             json.dumps(semantic_bridge_ok_payload)
         )

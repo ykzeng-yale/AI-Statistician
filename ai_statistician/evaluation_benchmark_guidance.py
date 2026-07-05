@@ -243,6 +243,10 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok",
                         "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_evidence",
                         "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_blocker",
+                        "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_present",
+                        "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok",
+                        "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_evidence",
+                        "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_blocker",
                         "research_agent_runtime_source_theorem_kernel_verified_count",
                         "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present",
                         "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok",
@@ -1155,6 +1159,38 @@ def _suite_rows(
             and runtime_source_theorem_proof_body_same_lane_gate_ok
         )
     )
+    runtime_source_theorem_local_lean_gate_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_present",
+            "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok"
+            in counts,
+        )
+    )
+    runtime_source_theorem_local_lean_gate_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok",
+            False,
+        )
+    )
+    runtime_source_theorem_local_lean_gate_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_local_lean_gate_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok = (
+        runtime_source_theorem_local_lean_gate_scorecard_ok
+        if runtime_source_theorem_local_lean_gate_scorecard_present
+        else runtime_source_theorem_proof_body_local_lean_gate_ok
+    )
     runtime_formal_gap_planner_handoff_rows = _int(
         counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
     )
@@ -1435,6 +1471,14 @@ def _suite_rows(
             if runtime_source_theorem_semantic_blockers_scorecard_present
             and runtime_source_theorem_semantic_blockers_scorecard_blocker
             else "exact source-theorem proof-body goal was reached with semantic-review blockers, but the runtime has not exposed exact semantic-definition repair routing or source-theorem kernel closure"
+        )
+    elif (
+        runtime_source_theorem_local_lean_gate_scorecard_present
+        and not runtime_source_theorem_local_lean_gate_scorecard_ok
+    ):
+        s13_issues.append(
+            runtime_source_theorem_local_lean_gate_scorecard_blocker
+            or "runtime capability scorecard reports that exact source-theorem proof-body execution did not reach local Lean/AXLE feedback or source-theorem kernel verification"
         )
     elif (
         runtime_source_theorem_proof_body_same_lane_scorecard_present
@@ -2114,7 +2158,7 @@ def _suite_rows(
                 and runtime_source_theorem_proof_body_authoritative_executor_ran
                 and runtime_source_theorem_proof_body_authoritative_goal_reached
                 and runtime_source_theorem_semantic_blockers_authoritative_ok
-                and runtime_source_theorem_proof_body_local_lean_gate_ok
+                and runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok
             )
             else "CAPACITY_GAP",
             evidence_paths=(
@@ -2561,6 +2605,11 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_effective_goal_reached_with_semantic_blockers": runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers,
                 "research_agent_runtime_source_theorem_effective_kernel_verified": runtime_source_theorem_kernel_verified,
                 "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok,
+                "research_agent_runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok": runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_present": runtime_source_theorem_local_lean_gate_scorecard_present,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok": runtime_source_theorem_local_lean_gate_scorecard_ok,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_evidence": runtime_source_theorem_local_lean_gate_scorecard_evidence,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_blocker": runtime_source_theorem_local_lean_gate_scorecard_blocker,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_same_lane_gate_ok,
                 "research_agent_runtime_source_theorem_proof_body_authoritative_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": runtime_source_theorem_proof_body_same_lane_scorecard_present,

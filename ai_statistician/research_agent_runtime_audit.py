@@ -22777,6 +22777,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     or 0
                 )
                 > 0
+                or source_theorem_kernel_count > 0
                 or exact_proof_body_materialization_blocking
             ),
             (
@@ -22784,6 +22785,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')} "
                 "local_lean_checked="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')} "
+                "source_theorem_kernel_verified="
+                f"{source_theorem_kernel_count} "
                 "candidate_materialization_blocking="
                 f"{exact_proof_body_materialization_blocking} "
                 "queue_ready="
