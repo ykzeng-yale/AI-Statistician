@@ -6564,6 +6564,26 @@ def audit_research_agent_runtime(
             "source_theorem_exact_semantic_definition_source_lookup_required"
             in manifest
         ),
+        "source_theorem_exact_semantic_definition_source_lookup_requested": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_requested_telemetry_present": (
+            "source_theorem_exact_semantic_definition_source_lookup_requested"
+            in manifest
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_effective": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_effective",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_effective_telemetry_present": (
+            "source_theorem_exact_semantic_definition_source_lookup_effective"
+            in manifest
+        ),
         "source_theorem_exact_semantic_definition_source_lookup_ran": bool(
             manifest.get("source_theorem_exact_semantic_definition_source_lookup_ran", False)
         ),
@@ -6613,6 +6633,16 @@ def audit_research_agent_runtime(
             "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
             in manifest
         ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_requested_telemetry_present": (
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_requested"
+            in manifest
+        ),
         "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_ran",
@@ -6649,6 +6679,16 @@ def audit_research_agent_runtime(
         ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_required_telemetry_present": (
             "source_theorem_exact_semantic_definition_lean_repair_executor_required"
+            in manifest
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested": bool(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_requested",
+                False,
+            )
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested_telemetry_present": (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_requested"
             in manifest
         ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_ran": bool(
@@ -17067,6 +17107,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_source_lookup_required = (
         exact_semantic_source_lookup_required_value is True
     )
+    exact_semantic_source_lookup_requested_value = payload.get(
+        "source_theorem_exact_semantic_definition_source_lookup_requested"
+    )
+    exact_semantic_source_lookup_requested_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_source_lookup_requested",
+        exact_semantic_source_lookup_requested_value,
+    )
+    exact_semantic_source_lookup_requested = (
+        exact_semantic_source_lookup_requested_value is True
+    )
+    exact_semantic_source_lookup_effective_value = payload.get(
+        "source_theorem_exact_semantic_definition_source_lookup_effective"
+    )
+    exact_semantic_source_lookup_effective_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_source_lookup_effective",
+        exact_semantic_source_lookup_effective_value,
+    )
+    exact_semantic_source_lookup_effective = (
+        exact_semantic_source_lookup_effective_value is True
+    )
     exact_semantic_source_lookup_ran = (
         payload.get("source_theorem_exact_semantic_definition_source_lookup_ran")
         is True
@@ -17100,6 +17160,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         or (
             exact_semantic_source_lookup_required_present
             and exact_semantic_source_lookup_required
+            and exact_semantic_source_lookup_effective_present
+            and exact_semantic_source_lookup_effective
             and exact_semantic_source_lookup_ran
             and (
                 exact_semantic_source_lookup_learning_rows > 0
@@ -17115,6 +17177,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         exact_semantic_bridge_required_value,
     )
     exact_semantic_bridge_required = exact_semantic_bridge_required_value is True
+    exact_semantic_bridge_requested_value = payload.get(
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_requested"
+    )
+    exact_semantic_bridge_requested_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_requested",
+        exact_semantic_bridge_requested_value,
+    )
+    exact_semantic_bridge_requested = exact_semantic_bridge_requested_value is True
     exact_semantic_bridge_ran = (
         payload.get("source_theorem_exact_semantic_definition_proofengineer_bridge_ran")
         is True
@@ -17138,6 +17208,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     exact_semantic_lean_repair_required = (
         exact_semantic_lean_repair_required_value is True
+    )
+    exact_semantic_lean_repair_requested_value = payload.get(
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested"
+    )
+    exact_semantic_lean_repair_requested_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_lean_repair_executor_requested",
+        exact_semantic_lean_repair_requested_value,
+    )
+    exact_semantic_lean_repair_requested = (
+        exact_semantic_lean_repair_requested_value is True
     )
     exact_semantic_lean_repair_ran = (
         payload.get(
@@ -20409,6 +20489,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 exact_semantic_source_lookup_required_present
                 and exact_semantic_source_lookup_required
+                and exact_semantic_source_lookup_effective_present
+                and exact_semantic_source_lookup_effective
                 and exact_semantic_source_lookup_ran
                 and (
                     exact_semantic_source_lookup_learning_rows > 0
@@ -20430,6 +20512,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_source_lookup_required_present} "
                 "required="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
+                "requested_telemetry_present="
+                f"{exact_semantic_source_lookup_requested_present} "
+                "requested="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_requested')} "
+                "effective_telemetry_present="
+                f"{exact_semantic_source_lookup_effective_present} "
+                "effective="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_effective')} "
                 "ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
                 "skipped="
@@ -20447,6 +20537,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 exact_semantic_bridge_required_present
                 and exact_semantic_bridge_required
+                and exact_semantic_bridge_requested_present
+                and exact_semantic_bridge_requested
                 and exact_semantic_bridge_ran
                 and exact_semantic_lean_repair_tasks > 0
             ),
@@ -20461,6 +20553,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_bridge_required_present} "
                 "required="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_required')} "
+                "requested_telemetry_present="
+                f"{exact_semantic_bridge_requested_present} "
+                "requested="
+                f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_requested')} "
                 "ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_proofengineer_bridge_ran')} "
                 "skipped="
@@ -20478,6 +20574,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 exact_semantic_lean_repair_required_present
                 and exact_semantic_lean_repair_required
+                and exact_semantic_lean_repair_requested_present
+                and exact_semantic_lean_repair_requested
                 and exact_semantic_lean_repair_ran
                 and exact_semantic_lean_repair_chain_results > 0
                 and (
@@ -20508,6 +20606,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_lean_repair_required_present} "
                 "required="
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_required')} "
+                "requested_telemetry_present="
+                f"{exact_semantic_lean_repair_requested_present} "
+                "requested="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_requested')} "
                 "ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_lean_repair_executor_ran')} "
                 "skipped="
