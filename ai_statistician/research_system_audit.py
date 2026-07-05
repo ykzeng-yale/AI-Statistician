@@ -2011,6 +2011,20 @@ async def run_research_system_audit(
             {},
         )
     )
+    runtime_live_lean_lsp_mcp_scorecard_row = runtime_scorecard_rows_by_id.get(
+        "live_lean_lsp_mcp_called",
+        {},
+    )
+    runtime_real_kernel_subclaim_scorecard_row = runtime_scorecard_rows_by_id.get(
+        "real_kernel_subclaim_verified",
+        {},
+    )
+    runtime_full_frontier_theorem_kernel_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "full_frontier_theorem_kernel_proved",
+            {},
+        )
+    )
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -3251,6 +3265,18 @@ async def run_research_system_audit(
             "research_agent_runtime_lean_lsp_mcp_live_calls": research_agent_runtime_audit_manifest[
                 "n_lean_lsp_mcp_live_calls"
             ],
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present": bool(
+                runtime_live_lean_lsp_mcp_scorecard_row
+            ),
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok": bool(
+                runtime_live_lean_lsp_mcp_scorecard_row.get("passed", False)
+            ),
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_evidence": str(
+                runtime_live_lean_lsp_mcp_scorecard_row.get("evidence", "") or ""
+            ),
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_blocker": str(
+                runtime_live_lean_lsp_mcp_scorecard_row.get("blocker", "") or ""
+            ),
             "research_agent_runtime_algorithm_sandbox_executed": research_agent_runtime_audit_manifest[
                 "n_algorithm_sandbox_executed"
             ],
@@ -3943,9 +3969,38 @@ async def run_research_system_audit(
             "research_agent_runtime_real_kernel_verified_subclaims": research_agent_runtime_audit_manifest[
                 "n_real_kernel_verified_subclaims"
             ],
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_present": bool(
+                runtime_real_kernel_subclaim_scorecard_row
+            ),
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok": bool(
+                runtime_real_kernel_subclaim_scorecard_row.get("passed", False)
+            ),
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_evidence": str(
+                runtime_real_kernel_subclaim_scorecard_row.get("evidence", "") or ""
+            ),
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_blocker": str(
+                runtime_real_kernel_subclaim_scorecard_row.get("blocker", "") or ""
+            ),
             "research_agent_runtime_non_real_kernel_verified_subclaims": research_agent_runtime_audit_manifest[
                 "n_non_real_kernel_verified_subclaims"
             ],
+            "research_agent_runtime_full_frontier_theorem_proved": bool(
+                research_agent_runtime_audit_manifest.get("n_full_frontier_theorem_proved", 0)
+            ),
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present": bool(
+                runtime_full_frontier_theorem_kernel_scorecard_row
+            ),
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok": bool(
+                runtime_full_frontier_theorem_kernel_scorecard_row.get("passed", False)
+            ),
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_evidence": str(
+                runtime_full_frontier_theorem_kernel_scorecard_row.get("evidence", "")
+                or ""
+            ),
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_blocker": str(
+                runtime_full_frontier_theorem_kernel_scorecard_row.get("blocker", "")
+                or ""
+            ),
             "research_agent_runtime_kernel_verified_verifiers": research_agent_runtime_audit_manifest[
                 "kernel_verified_verifiers"
             ],

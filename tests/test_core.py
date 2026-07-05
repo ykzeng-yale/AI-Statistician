@@ -6379,6 +6379,53 @@ class SystemTests(unittest.TestCase):
             "runtime same-lane proof-body scorecard failed",
             " ".join(runtime_scorecard_failed_s13["issues"]),
         )
+        runtime_final_kernel_scorecard_failed_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        runtime_final_kernel_scorecard_failed_payload["counts"].update(
+            {
+                "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present": True,
+                "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok": True,
+                "research_agent_runtime_real_kernel_subclaim_verified_scorecard_present": True,
+                "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok": True,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present": True,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok": False,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_blocker": (
+                    "runtime full-frontier theorem kernel scorecard failed"
+                ),
+            }
+        )
+        runtime_final_kernel_scorecard_failed_guidance = (
+            build_evaluation_benchmark_guidance(
+                Path(
+                    "runs/test_evaluation_benchmark_guidance_runtime_final_kernel_scorecard_failed"
+                ),
+                system_audit_payload=runtime_final_kernel_scorecard_failed_payload,
+            )
+        )
+        runtime_final_kernel_scorecard_failed_s13 = next(
+            row
+            for row in runtime_final_kernel_scorecard_failed_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(
+            runtime_final_kernel_scorecard_failed_s13["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertTrue(
+            runtime_final_kernel_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present"
+            ]
+        )
+        self.assertFalse(
+            runtime_final_kernel_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok"
+            ]
+        )
+        self.assertIn(
+            "runtime full-frontier theorem kernel scorecard failed",
+            " ".join(runtime_final_kernel_scorecard_failed_s13["issues"]),
+        )
         stale_pf_attachment_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         stale_pf_attachment_payload["counts"][
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"

@@ -256,6 +256,18 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker",
+                        "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present",
+                        "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok",
+                        "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_evidence",
+                        "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_blocker",
+                        "research_agent_runtime_real_kernel_subclaim_verified_scorecard_present",
+                        "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok",
+                        "research_agent_runtime_real_kernel_subclaim_verified_scorecard_evidence",
+                        "research_agent_runtime_real_kernel_subclaim_verified_scorecard_blocker",
+                        "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present",
+                        "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok",
+                        "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_evidence",
+                        "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_blocker",
                         "research_agent_runtime_formal_gap_planner_handoff_rows",
                         "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context",
                         "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete",
@@ -1191,6 +1203,86 @@ def _suite_rows(
         if runtime_source_theorem_local_lean_gate_scorecard_present
         else runtime_source_theorem_proof_body_local_lean_gate_ok
     )
+    runtime_live_lean_lsp_mcp_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present",
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok" in counts,
+        )
+    )
+    runtime_live_lean_lsp_mcp_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok",
+            False,
+        )
+    )
+    runtime_live_lean_lsp_mcp_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_live_lean_lsp_mcp_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
+    runtime_real_kernel_subclaim_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_present",
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok"
+            in counts,
+        )
+    )
+    runtime_real_kernel_subclaim_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok",
+            False,
+        )
+    )
+    runtime_real_kernel_subclaim_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_real_kernel_subclaim_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_real_kernel_subclaim_verified_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
+    runtime_full_frontier_theorem_kernel_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present",
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok"
+            in counts,
+        )
+    )
+    runtime_full_frontier_theorem_kernel_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok",
+            False,
+        )
+    )
+    runtime_full_frontier_theorem_kernel_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_full_frontier_theorem_kernel_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
     runtime_formal_gap_planner_handoff_rows = _int(
         counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
     )
@@ -1495,6 +1587,30 @@ def _suite_rows(
     elif not runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok:
         s13_issues.append(
             "exact source-theorem proof-body executor evidence is split across lanes; one proof-body executor lane must show result rows plus local Lean/AXLE feedback or source-theorem kernel verification before S13 can count the path as integrated"
+        )
+    if (
+        runtime_live_lean_lsp_mcp_scorecard_present
+        and not runtime_live_lean_lsp_mcp_scorecard_ok
+    ):
+        s13_issues.append(
+            runtime_live_lean_lsp_mcp_scorecard_blocker
+            or "runtime capability scorecard reports that live Lean LSP/MCP proof-state diagnostics did not run"
+        )
+    if (
+        runtime_real_kernel_subclaim_scorecard_present
+        and not runtime_real_kernel_subclaim_scorecard_ok
+    ):
+        s13_issues.append(
+            runtime_real_kernel_subclaim_scorecard_blocker
+            or "runtime capability scorecard reports that no real AXLE/local Lean kernel-verified subclaim or source/frontier target evidence was recorded"
+        )
+    if (
+        runtime_full_frontier_theorem_kernel_scorecard_present
+        and not runtime_full_frontier_theorem_kernel_scorecard_ok
+    ):
+        s13_issues.append(
+            runtime_full_frontier_theorem_kernel_scorecard_blocker
+            or "runtime capability scorecard reports that the current source/frontier theorem target was not kernel-proved"
         )
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -2159,6 +2275,18 @@ def _suite_rows(
                 and runtime_source_theorem_proof_body_authoritative_goal_reached
                 and runtime_source_theorem_semantic_blockers_authoritative_ok
                 and runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok
+                and (
+                    not runtime_live_lean_lsp_mcp_scorecard_present
+                    or runtime_live_lean_lsp_mcp_scorecard_ok
+                )
+                and (
+                    not runtime_real_kernel_subclaim_scorecard_present
+                    or runtime_real_kernel_subclaim_scorecard_ok
+                )
+                and (
+                    not runtime_full_frontier_theorem_kernel_scorecard_present
+                    or runtime_full_frontier_theorem_kernel_scorecard_ok
+                )
             )
             else "CAPACITY_GAP",
             evidence_paths=(
@@ -2616,6 +2744,18 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_ok,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_evidence,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker": runtime_source_theorem_proof_body_same_lane_scorecard_blocker,
+                "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present": runtime_live_lean_lsp_mcp_scorecard_present,
+                "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok": runtime_live_lean_lsp_mcp_scorecard_ok,
+                "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_evidence": runtime_live_lean_lsp_mcp_scorecard_evidence,
+                "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_blocker": runtime_live_lean_lsp_mcp_scorecard_blocker,
+                "research_agent_runtime_real_kernel_subclaim_verified_scorecard_present": runtime_real_kernel_subclaim_scorecard_present,
+                "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok": runtime_real_kernel_subclaim_scorecard_ok,
+                "research_agent_runtime_real_kernel_subclaim_verified_scorecard_evidence": runtime_real_kernel_subclaim_scorecard_evidence,
+                "research_agent_runtime_real_kernel_subclaim_verified_scorecard_blocker": runtime_real_kernel_subclaim_scorecard_blocker,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present": runtime_full_frontier_theorem_kernel_scorecard_present,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok": runtime_full_frontier_theorem_kernel_scorecard_ok,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_evidence": runtime_full_frontier_theorem_kernel_scorecard_evidence,
+                "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_blocker": runtime_full_frontier_theorem_kernel_scorecard_blocker,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_lane_ok": runtime_source_theorem_formal_environment_proof_body_lane_ok,
                 "research_agent_runtime_source_theorem_exact_proof_body_repair_lane_ok": runtime_source_theorem_exact_proof_body_repair_lane_ok,
                 "research_agent_runtime_source_theorem_approved_proof_body_recheck_lane_ok": runtime_source_theorem_approved_proof_body_recheck_lane_ok,
