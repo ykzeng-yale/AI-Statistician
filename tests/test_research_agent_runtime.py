@@ -59405,6 +59405,148 @@ def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
     )
 
 
+def test_source_theorem_promotion_bridge_exports_blocked_semantic_seed_work_order(
+    tmp_path: Path,
+) -> None:
+    seed_queue_dir = tmp_path / "source_theorem_seed_queue"
+    seed_queue_dir.mkdir()
+    blocked_seed = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremPromotionMaterializationSeed",
+        "materialization_seed_id": "runtime_source_theorem_promotion_seed:blocked",
+        "execution_queue_id": "runtime_source_theorem_promotion_seed:blocked",
+        "source_theorem_promotion_work_order_id": "source_theorem_promotion_work_order:blocked",
+        "question_id": "conformal_prediction_coverage",
+        "question_title": "Split conformal prediction interval coverage",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_lean_declaration": "split_conformal_finite_sample_coverage",
+        "candidate_artifact_path": str(tmp_path / "blocked_source_candidate.lean"),
+        "source_theorem_target_known": True,
+        "source_theorem_target_provenance": {
+            "source_theorem_target_known": True,
+            "target_lean_declaration": "split_conformal_finite_sample_coverage",
+            "semantic_alignment_constraints": [
+                "use reviewed exact coverage-event semantics"
+            ],
+        },
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols": [
+            "good_rank_event",
+            "coverage_event",
+            "covered",
+        ],
+        "target_location_preflight": {
+            "execution_preflight_status": (
+                "NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+            ),
+            "target_lean_declaration": "split_conformal_finite_sample_coverage",
+        },
+        "execution_status": "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS",
+        "materialization_seed_status": (
+            "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+        ),
+        "errors": [
+            "reviewed exact semantic definitions missing",
+            "covered",
+        ],
+        "proof_evidence_status": "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE",
+    }
+    (
+        seed_queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [],
+                "blocked_rows": [blocked_seed],
+                "n_execution_queue_items": 0,
+                "n_blocked": 1,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (seed_queue_dir / "blocked_materialization_seeds.jsonl").write_text(
+        json.dumps(blocked_seed) + "\n",
+        encoding="utf-8",
+    )
+
+    bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
+        seed_queue_dir=seed_queue_dir,
+        out_dir=tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge",
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=30,
+    )
+
+    assert bridge_payload["n_materializer_rows"] == 0
+    assert bridge_payload["local_lean_skipped_reason"] == "no_materializer_rows"
+    assert bridge_payload["n_source_theorem_kernel_verified"] == 0
+    assert bridge_payload["n_source_theorem_formal_environment_work_orders"] == 1
+    assert (
+        bridge_payload[
+            "n_blocked_materialization_seed_formal_environment_work_orders"
+        ]
+        == 1
+    )
+    work_orders_path = Path(
+        bridge_payload["source_theorem_formal_environment_work_orders_jsonl"]
+    )
+    work_order_manifest_path = Path(
+        bridge_payload["source_theorem_formal_environment_work_order_manifest"]
+    )
+    assert work_orders_path.exists()
+    assert work_order_manifest_path.exists()
+    work_orders = [
+        json.loads(line)
+        for line in work_orders_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["artifact_kind"] == "SourceTheoremFormalEnvironmentWorkOrder"
+    assert work_order["source_materialization_seed_id"] == (
+        "runtime_source_theorem_promotion_seed:blocked"
+    )
+    assert work_order["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert work_order["failure_classification"] == (
+        "formal_environment_placeholder_primitives"
+    )
+    assert work_order["exact_semantic_definition_repair_required"] is True
+    assert work_order["missing_formal_symbols"] == [
+        "good_rank_event",
+        "coverage_event",
+        "covered",
+    ]
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert (
+        "reviewed exact semantic definitions"
+        in work_order["recommended_repair_tasks"][0]
+    )
+    (
+        formal_env_bridge_manifest,
+        proof_body_executor_manifest,
+        formal_env_learning_rows,
+        proof_body_learning_rows,
+    ) = _run_runtime_source_theorem_formal_environment_bridge_stack_from_promotion_bridge(
+        promotion_bridge_manifest=bridge_payload,
+        out_dir=tmp_path
+        / "runtime_source_theorem_formal_environment_proofengineer_bridge_from_blocked_promotion_seed",
+        question_id="conformal_prediction_coverage",
+        config=ResearchAgentRuntimeConfig(
+            source_theorem_formal_environment_proofengineer_bridge=True,
+            source_theorem_formal_environment_proofengineer_execute_proof_body=False,
+        ),
+    )
+    assert formal_env_bridge_manifest is not None
+    assert proof_body_executor_manifest is None
+    assert formal_env_bridge_manifest["n_repair_packets"] == 1
+    assert formal_env_learning_rows
+    assert proof_body_learning_rows == []
+
+
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",

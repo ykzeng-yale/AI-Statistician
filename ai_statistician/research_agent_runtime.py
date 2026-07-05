@@ -56961,6 +56961,219 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
     return rows
 
 
+def _source_theorem_formal_environment_work_order_rows_from_blocked_promotion_seed_queue(
+    *,
+    seed_queue_dir: Path,
+) -> list[dict[str, Any]]:
+    """Preserve preflight-blocked promotion seeds as formal-environment repair work."""
+
+    queue_manifest_path = (
+        seed_queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+    )
+    blocked_rows_path = seed_queue_dir / "blocked_materialization_seeds.jsonl"
+    payload: dict[str, Any] = {}
+    if queue_manifest_path.exists():
+        try:
+            raw_payload = json.loads(queue_manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raw_payload = {}
+        if isinstance(raw_payload, Mapping):
+            payload = dict(raw_payload)
+    blocked_rows = [
+        row for row in payload.get("blocked_rows", []) or [] if isinstance(row, Mapping)
+    ]
+    if not blocked_rows and blocked_rows_path.exists():
+        blocked_rows = [
+            row for row in _read_jsonl(blocked_rows_path) if isinstance(row, Mapping)
+        ]
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in blocked_rows:
+        execution_status = str(row.get("execution_status", "") or "").strip()
+        materialization_seed_status = str(
+            row.get("materialization_seed_status", "") or ""
+        ).strip()
+        target_preflight = row.get("target_location_preflight", {})
+        preflight_status = (
+            str(target_preflight.get("execution_preflight_status", "") or "").strip()
+            if isinstance(target_preflight, Mapping)
+            else ""
+        )
+        unresolved_symbols = [
+            str(value).strip()
+            for value in row.get(
+                "unresolved_source_theorem_semantic_primitive_placeholder_symbols",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        exact_semantic_blocked = bool(
+            execution_status == "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+            or materialization_seed_status
+            == "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+            or preflight_status == "NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+            or unresolved_symbols
+        )
+        if not exact_semantic_blocked:
+            continue
+        if _source_theorem_target_known_value(row) is not True:
+            continue
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or row.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        if not target_theorem_name:
+            continue
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        source_target_provenance["source_theorem_target_known"] = True
+        source_target_provenance.setdefault(
+            "source_theorem_promotion_work_order_id",
+            str(row.get("source_theorem_promotion_work_order_id", "") or ""),
+        )
+        source_target_provenance.setdefault(
+            "materialization_seed_id",
+            str(row.get("materialization_seed_id", "") or ""),
+        )
+        source_target_provenance.setdefault(
+            "materialization_seed_queue_manifest",
+            str(queue_manifest_path),
+        )
+        target_ids = _source_theorem_work_order_target_ids(
+            row,
+            source_target_provenance=source_target_provenance,
+            fallback_target_theorem_name=target_theorem_name,
+        )
+        errors = [
+            str(value).strip()
+            for value in row.get("errors", []) or []
+            if str(value).strip()
+        ]
+        target_blockers: list[str] = []
+        kernel_overlay_context = row.get("kernel_overlay_context", {})
+        if isinstance(kernel_overlay_context, Mapping):
+            target_blockers = [
+                str(value).strip()
+                for value in kernel_overlay_context.get("target_blockers", []) or []
+                if str(value).strip()
+            ]
+        diagnostics = list(
+            dict.fromkeys(
+                [
+                    preflight_status,
+                    execution_status,
+                    materialization_seed_status,
+                    *errors,
+                    *unresolved_symbols,
+                    *target_blockers,
+                ]
+            )
+        )[:12]
+        failure_classification = "formal_environment_placeholder_primitives"
+        context = _source_theorem_formal_environment_context(
+            diagnostics=diagnostics,
+            failure_classification=failure_classification,
+        )
+        missing_symbols = unresolved_symbols or context["missing_formal_symbols"]
+        recommended_repair_tasks = [
+            (
+                "formalize or import reviewed exact semantic definitions for "
+                "source-theorem placeholders: "
+                + ", ".join(missing_symbols)
+            )
+            if missing_symbols
+            else (
+                "formalize or import reviewed exact semantic definitions for the "
+                "blocked source theorem"
+            ),
+            (
+                "rerun runtime-source-theorem-promotion-proofengineer-bridge after "
+                "exact semantic-definition repair emits typechecked definitions"
+            ),
+        ]
+        for task in context["recommended_repair_tasks"]:
+            if task not in recommended_repair_tasks:
+                recommended_repair_tasks.append(task)
+        work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
+            [
+                row.get("materialization_seed_id", ""),
+                row.get("source_theorem_promotion_work_order_id", ""),
+                target_theorem_name,
+                target_ids,
+                failure_classification,
+                missing_symbols,
+                diagnostics,
+                source_target_provenance,
+            ]
+        )[:20]
+        if work_order_id in seen:
+            continue
+        seen.add(work_order_id)
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": work_order_id,
+                "source_learning_task": "source_theorem_promotion_materialization_seed_queue",
+                "source_materialization_seed_id": str(
+                    row.get("materialization_seed_id", "") or ""
+                ),
+                "source_execution_queue_id": str(
+                    row.get("execution_queue_id", "") or ""
+                ),
+                "source_work_order_id": str(
+                    row.get("source_theorem_promotion_work_order_id", "") or ""
+                ),
+                "materialization_seed_queue_manifest": str(queue_manifest_path),
+                "target_theorem_name": target_theorem_name,
+                "target_ids": target_ids,
+                "target_lean_declaration": str(
+                    source_target_provenance.get("target_lean_declaration", "")
+                    or target_theorem_name
+                ),
+                "target_theorem_goal_ids": list(target_ids),
+                "candidate_artifact_path": str(
+                    row.get("candidate_artifact_path", "") or ""
+                ),
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": list(
+                    source_target_provenance.get("semantic_alignment_constraints", [])
+                    or []
+                ),
+                "failure_classification": failure_classification,
+                "execution_preflight_status": preflight_status,
+                "materialization_seed_status": materialization_seed_status,
+                "execution_status": execution_status,
+                "diagnostics": diagnostics,
+                "missing_formal_symbols": missing_symbols,
+                "typeclass_blockers": context["typeclass_blockers"],
+                "unresolved_source_theorem_semantic_primitive_placeholder_symbols": unresolved_symbols,
+                "exact_semantic_definition_repair_required": True,
+                "recommended_repair_tasks": recommended_repair_tasks[:8],
+                "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                "action_type": "repair_exact_source_theorem_formal_environment",
+                "required_outputs": [
+                    "reviewed exact semantic definitions for the blocked source theorem placeholders",
+                    "local Lean project or AXLE environment for the exact source theorem",
+                    "rerunnable source-theorem promotion materialization seed queue",
+                    "kernel verification before any source theorem proof claim",
+                ],
+                "acceptance_gate": (
+                    "reviewed exact semantic definitions are typechecked and the "
+                    "source-theorem promotion materializer can produce a rerunnable "
+                    "exact source theorem candidate; proof evidence still requires "
+                    "local Lean/AXLE kernel verification of the exact source target"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
 def _formalizer_source_theorem_promotion_work_orders(
     *,
     proposal_packet: Mapping[str, Any],
@@ -69870,6 +70083,12 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
     source_theorem_formal_environment_work_order_rows: list[dict[str, Any]] = []
     source_theorem_formal_environment_work_order_jsonl = Path()
     source_theorem_formal_environment_work_order_manifest = Path()
+    source_theorem_formal_environment_work_order_manifest_written = False
+    blocked_seed_formal_environment_work_order_rows = (
+        _source_theorem_formal_environment_work_order_rows_from_blocked_promotion_seed_queue(
+            seed_queue_dir=seed_queue_dir,
+        )
+    )
     if artifact_verifier_payload is not None:
         source_theorem_formal_environment_work_order_rows = (
             _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
@@ -69877,6 +70096,22 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
                 artifact_verifier_manifest=str(artifact_verifier_manifest_path),
             )
         )
+    if blocked_seed_formal_environment_work_order_rows:
+        seen_work_order_ids = {
+            str(row.get("work_order_id", "") or "")
+            for row in source_theorem_formal_environment_work_order_rows
+        }
+        for row in blocked_seed_formal_environment_work_order_rows:
+            work_order_id = str(row.get("work_order_id", "") or "")
+            if work_order_id and work_order_id in seen_work_order_ids:
+                continue
+            if work_order_id:
+                seen_work_order_ids.add(work_order_id)
+            source_theorem_formal_environment_work_order_rows.append(row)
+    if (
+        artifact_verifier_payload is not None
+        or source_theorem_formal_environment_work_order_rows
+    ):
         source_theorem_formal_environment_work_order_dir = (
             out_dir
             / "formal_verifier_agentic_proof_source_theorem_formal_environment_work_orders"
@@ -69905,12 +70140,23 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
                     "artifact_kind": (
                         "SourceTheoremFormalEnvironmentWorkOrderManifest"
                     ),
-                    "artifact_verifier_manifest": str(artifact_verifier_manifest_path),
+                    "artifact_verifier_manifest": (
+                        str(artifact_verifier_manifest_path)
+                        if artifact_verifier_payload is not None
+                        else ""
+                    ),
+                    "materialization_seed_queue_manifest": str(
+                        seed_queue_dir
+                        / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+                    ),
                     "source_theorem_formal_environment_work_orders_jsonl": str(
                         source_theorem_formal_environment_work_order_jsonl
                     ),
                     "n_source_theorem_formal_environment_work_orders": len(
                         source_theorem_formal_environment_work_order_rows
+                    ),
+                    "n_blocked_materialization_seed_work_orders": len(
+                        blocked_seed_formal_environment_work_order_rows
                     ),
                     "rows": source_theorem_formal_environment_work_order_rows,
                     "proof_evidence_status": "WORK_ORDER_MANIFEST_NOT_PROOF_EVIDENCE",
@@ -69921,6 +70167,7 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             ),
             encoding="utf-8",
         )
+        source_theorem_formal_environment_work_order_manifest_written = True
     local_lean_skipped_reason = (
         ""
         if artifact_verifier_payload is not None
@@ -69953,12 +70200,12 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
         ),
         "source_theorem_formal_environment_work_orders_jsonl": (
             str(source_theorem_formal_environment_work_order_jsonl)
-            if artifact_verifier_payload is not None
+            if source_theorem_formal_environment_work_order_manifest_written
             else ""
         ),
         "source_theorem_formal_environment_work_order_manifest": (
             str(source_theorem_formal_environment_work_order_manifest)
-            if artifact_verifier_payload is not None
+            if source_theorem_formal_environment_work_order_manifest_written
             else ""
         ),
         "source_theorem_promotion_queue_dir": (
@@ -70013,6 +70260,9 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
         ),
         "n_source_theorem_formal_environment_work_orders": len(
             source_theorem_formal_environment_work_order_rows
+        ),
+        "n_blocked_materialization_seed_formal_environment_work_orders": len(
+            blocked_seed_formal_environment_work_order_rows
         ),
         "n_source_theorem_kernel_verified": int(
             source_theorem_integrator_payload.get(
