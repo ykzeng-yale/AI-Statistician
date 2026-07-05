@@ -19907,6 +19907,59 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
         "Mathlib.Data.Int.Order"
     ]
 
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
+    prompt_feedback = prompt_payload["runtime_environment_feedback"]
+    prompt_contract = prompt_feedback["pseudo_formalization_repair_contract"]
+    prompt_seed = prompt_payload["pseudo_formalization_required_packet_seed"]
+
+    assert prompt_feedback["pseudo_formalization_required"] is True
+    assert prompt_feedback[
+        "pseudo_formalization_required_missing_work_order_rows"
+    ] is True
+    assert prompt_feedback["pseudo_formalization_validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
+    assert any(
+        row["issue_kind"] == "missing_required_packet"
+        and "emit pseudo_formal_proof_packets" in row["required_repair_action"]
+        for row in prompt_feedback[
+            "pseudo_formalization_validation_issue_repair_actions"
+        ]
+    )
+    assert prompt_contract["required_output_key"] == "pseudo_formal_proof_packets"
+    assert prompt_contract["target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "lean_rag",
+        "source_to_bridge",
+    ]
+    assert prompt_contract["placeholder_symbols"] == ["C_n"]
+    assert prompt_contract["validation_issue_summary"][
+        "n_missing_required_packet"
+    ] == 1
+    assert "lean_feasibility=needs_semantic_definition" in prompt_contract[
+        "lane_activation_hints"
+    ]["source_theorem_exact_semantic_definition"]
+    assert prompt_contract["hard_negative_rejected_imports"] == [
+        "Mathlib.Data.Int.Order"
+    ]
+    assert prompt_seed["blocks"][0]["conclusion"]
+    assert prompt_seed["blocks"][0]["source_anchors"][0]["id"]
+    assert prompt_seed["blocks"][0]["lean_feasibility"] == (
+        "needs_semantic_definition"
+    )
+    assert prompt_seed["blocks"][0]["semantic_primitive_requirements"]
+
 
 def test_formalizer_validation_failure_preserves_nested_pf_bv_repair_targets() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]

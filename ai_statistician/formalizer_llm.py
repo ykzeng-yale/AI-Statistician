@@ -647,7 +647,12 @@ def build_formalizer_prompt(
             "following pseudo_formalization_contract. The packet must decompose the "
             "blocked proof text into source-anchored blocks, record faithfulness/"
             "block-verification status, and produce at least one lane-routable "
-            "residual block. Start from "
+            "residual block. Treat "
+            "runtime_environment_feedback.pseudo_formalization_repair_contract, "
+            "pseudo_formalization_validation_issue_summary, and "
+            "pseudo_formalization_validation_issue_repair_actions as binding "
+            "retry feedback when present; repair those exact issues before "
+            "changing Lean targets. Start from "
             "pseudo_formalization_required_packet_seed: copy its theorem_id, "
             "source_artifact_id, block_id pattern, conclusion, source_anchors, "
             "faithfulness_status, lean_feasibility, and non-proof boundary unless "
@@ -6675,6 +6680,69 @@ def _compact_formalizer_environment_feedback(
             feedback.get("validation_repair_directives", [])
             or input_summary.get("validation_repair_directives", [])
         ),
+        "pseudo_formalization_required": bool(
+            feedback.get("pseudo_formalization_required", False)
+            or input_summary.get("pseudo_formalization_required", False)
+        ),
+        "requires_pseudo_formalization": bool(
+            feedback.get("requires_pseudo_formalization", False)
+            or input_summary.get("requires_pseudo_formalization", False)
+        ),
+        "pseudo_formalization_required_reason": _compact_value(
+            feedback.get("pseudo_formalization_required_reason", "")
+            or input_summary.get("pseudo_formalization_required_reason", "")
+        ),
+        "pseudo_formalization_required_missing_work_order_rows": bool(
+            feedback.get(
+                "pseudo_formalization_required_missing_work_order_rows",
+                False,
+            )
+            or input_summary.get(
+                "pseudo_formalization_required_missing_work_order_rows",
+                False,
+            )
+        ),
+        "pseudo_formalization_required_invalid_packets": bool(
+            feedback.get(
+                "pseudo_formalization_required_invalid_packets",
+                False,
+            )
+            or input_summary.get(
+                "pseudo_formalization_required_invalid_packets",
+                False,
+            )
+        ),
+        "pseudo_formalization_required_no_lane_routable_rows": bool(
+            feedback.get(
+                "pseudo_formalization_required_no_lane_routable_rows",
+                False,
+            )
+            or input_summary.get(
+                "pseudo_formalization_required_no_lane_routable_rows",
+                False,
+            )
+        ),
+        "pseudo_formalization_validation_issue_summary": _compact_value(
+            feedback.get("pseudo_formalization_validation_issue_summary", {})
+            or input_summary.get(
+                "pseudo_formalization_validation_issue_summary",
+                {},
+            )
+        ),
+        "pseudo_formalization_validation_issue_repair_actions": _compact_value(
+            feedback.get(
+                "pseudo_formalization_validation_issue_repair_actions",
+                [],
+            )
+            or input_summary.get(
+                "pseudo_formalization_validation_issue_repair_actions",
+                [],
+            )
+        ),
+        "pseudo_formalization_repair_contract": _compact_value(
+            feedback.get("pseudo_formalization_repair_contract", {})
+            or input_summary.get("pseudo_formalization_repair_contract", {})
+        ),
         "attempts": _compact_value(
             feedback.get("attempts", "")
             or input_summary.get("attempts", "")
@@ -8278,11 +8346,24 @@ def _compact_value(value: Any) -> Any:
         priority_keys = (
             "feedback_kind",
             "contract_kind",
+            "required_output_key",
+            "pseudo_formalization_required_reason",
+            "target_lanes",
+            "target_names",
+            "placeholder_symbols",
+            "response_validation_feedback",
+            "unverified_required_imports",
+            "hard_negative_rejected_imports",
+            "source_failed_candidate_packet_id",
+            "required_block_schema_hints",
+            "lane_activation_hints",
+            "validation_issue_summary",
+            "validation_issue_repair_actions",
+            "validation_issue_kinds",
             "source",
             "source_theorem_proof_body_adapter_required",
             "source_theorem_proof_body_adapter_feedback_available",
             "adapter_kernel_verified",
-            "target_names",
             "diagnostics",
             "diagnostic_classes",
             "required_behavior",

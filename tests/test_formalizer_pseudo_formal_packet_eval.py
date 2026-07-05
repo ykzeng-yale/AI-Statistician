@@ -330,7 +330,9 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_inactionable_exact_rows(
         )
 
     assert any(
-        "source_theorem_exact_semantic_definition rows" in error
+        "required source_theorem_exact_semantic_definition routing was not materialized"
+        in error
+        and "non-empty semantic_primitive_requirements" in error
         for error in exc_info.value.errors
     )
     assert any(
