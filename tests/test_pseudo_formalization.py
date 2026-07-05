@@ -28,6 +28,7 @@ from ai_statistician.pseudo_formalization import (
     pseudo_formal_work_order_row_json_schema,
     pseudo_formalizer_output_contract,
     pseudo_formalizer_prompt_contract,
+    pseudo_formal_validation_issue_repair_actions,
     pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
 )
@@ -320,6 +321,17 @@ def test_pseudo_formal_validation_issue_summary_classifies_repair_targets() -> N
     assert "missing_source_anchors" in summary["blocking_issue_kinds"]
     assert summary["proof_evidence_status"] == (
         PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    )
+    actions = pseudo_formal_validation_issue_repair_actions(summary)
+    assert any(
+        row["issue_kind"] == "missing_required_packet"
+        and "emit pseudo_formal_proof_packets" in row["required_repair_action"]
+        for row in actions
+    )
+    assert any(
+        row["issue_kind"] == "no_lane_routable_work_order_rows"
+        and "lane-routable" in row["required_repair_action"]
+        for row in actions
     )
 
 

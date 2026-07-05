@@ -167,6 +167,7 @@ from .pseudo_formalization import (
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
+    pseudo_formal_validation_issue_repair_actions,
     pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
 )
@@ -11983,6 +11984,11 @@ def _formalizer_packet_validation_failure_result(
             pseudo_formalization_validation_errors
         )
     )
+    pseudo_formalization_issue_repair_actions = (
+        pseudo_formal_validation_issue_repair_actions(
+            pseudo_formalization_validation_issue_summary
+        )
+    )
     pseudo_formalization_required_missing_work_order_rows = bool(
         pseudo_formalization_required and pseudo_formalization_validation_errors
     )
@@ -12193,6 +12199,9 @@ def _formalizer_packet_validation_failure_result(
             "validation_issue_summary": (
                 pseudo_formalization_validation_issue_summary
             ),
+            "validation_issue_repair_actions": (
+                pseudo_formalization_issue_repair_actions
+            ),
             "validation_issue_kinds": list(
                 pseudo_formalization_validation_issue_summary.get(
                     "issue_kinds",
@@ -12229,6 +12238,9 @@ def _formalizer_packet_validation_failure_result(
         ),
         "pseudo_formalization_validation_issue_summary": (
             pseudo_formalization_validation_issue_summary
+        ),
+        "pseudo_formalization_validation_issue_repair_actions": (
+            pseudo_formalization_issue_repair_actions
         ),
         "pseudo_formalization_repair_contract": (
             pseudo_formalization_repair_contract
@@ -54573,12 +54585,21 @@ def _pseudo_formal_packet_validation_quarantine_required_repair(
         if str(value).strip()
     ]
     issue_focus = ", ".join(issue_kinds[:6]) or "packet validation errors"
+    issue_actions = pseudo_formal_validation_issue_repair_actions(
+        validation_issue_summary
+    )
+    action_focus = "; ".join(
+        str(row.get("required_repair_action", "") or "").strip()
+        for row in issue_actions[:3]
+        if str(row.get("required_repair_action", "") or "").strip()
+    )
     return (
         "Repair the pseudo_formal_proof_packets entry before any downstream "
         "Lean/RAG/source-to-bridge work: emit schema-valid PF/BV blocks with "
         "top-level conclusion, source_anchors, valid faithfulness_status, and "
         "valid block_verification metadata; current PF/BV validation issue "
         f"kinds: {issue_focus}."
+        + (f" Required repair actions: {action_focus}." if action_focus else "")
     )
 
 
@@ -54599,6 +54620,11 @@ def _formalizer_pseudo_formal_work_order_rows(
         if packet_validation_errors:
             validation_issue_summary = pseudo_formal_validation_issue_summary(
                 packet_validation_errors
+            )
+            validation_issue_repair_actions = (
+                pseudo_formal_validation_issue_repair_actions(
+                    validation_issue_summary
+                )
             )
             source_packet_id = str(
                 normalized_packet.get("packet_id", "")
@@ -54682,6 +54708,7 @@ def _formalizer_pseudo_formal_work_order_rows(
                     )
                     else {}
                 ),
+                "validation_issue_repair_actions": validation_issue_repair_actions,
                 "required_repair": (
                     _pseudo_formal_packet_validation_quarantine_required_repair(
                         validation_issue_summary
