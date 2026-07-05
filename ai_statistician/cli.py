@@ -490,7 +490,34 @@ from .trace_audit import audit_run_traces
 from .verifier import AxleProofVerifier, LocalLeanProofVerifier, MockProofVerifier
 
 
+_DEFAULT_DOTENV = Path(".env")
+_OPERATOR_DOTENV_ENV_VAR = "AI_STATISTICIAN_ENV_FILE"
+_OPERATOR_DOTENV_FILENAMES = (
+    "api_key_AI_statistician.md",
+    "api_keys_AI_statistician.md",
+)
+
+
+def _resolve_dotenv_path(path: Path | str | None) -> Path:
+    requested = Path(path or _DEFAULT_DOTENV).expanduser()
+    if requested.exists():
+        return requested
+    if requested != _DEFAULT_DOTENV:
+        return requested
+
+    operator_env_file = os.environ.get(_OPERATOR_DOTENV_ENV_VAR, "").strip()
+    if operator_env_file:
+        return Path(os.path.expandvars(operator_env_file)).expanduser()
+
+    for filename in _OPERATOR_DOTENV_FILENAMES:
+        candidate = Path.home() / "Downloads" / filename
+        if candidate.exists():
+            return candidate
+    return requested
+
+
 def _load_dotenv(path: Path) -> None:
+    path = _resolve_dotenv_path(path)
     if not path.exists():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -9849,9 +9876,11 @@ def _theorem_composition_export(args: argparse.Namespace) -> int:
 
 
 def _doctor(args: argparse.Namespace) -> int:
+    env_file = _resolve_dotenv_path(Path(args.env_file))
+    _load_dotenv(env_file)
     report = build_doctor_report(
         root=Path(args.root),
-        env_file=Path(args.env_file),
+        env_file=env_file,
         max_manifests=args.max_manifests,
     )
     if args.out:
