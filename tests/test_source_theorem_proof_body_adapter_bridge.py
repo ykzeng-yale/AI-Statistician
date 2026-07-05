@@ -48,6 +48,7 @@ def _adapter_work_order(**overrides: object) -> dict[str, object]:
             "⊢ 1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧",
         ],
         "proof_body_attempt_summaries": ["1:simpa:returncode=1:compiled=False"],
+        "proof_body_attempt_count": 1,
         "proof_body_adapter_required": True,
         "proof_body_adapter_required_reasons": [
             "proof body goal exposes source-level hypotheses but no reusable bridge/reduction hypothesis",
@@ -57,6 +58,8 @@ def _adapter_work_order(**overrides: object) -> dict[str, object]:
             "Exchangeable predicate must permute all n2+1 indices jointly under P, not just pairwise",
             "orderStat must match the conformal quantile rank and tie policy",
         ],
+        "semantic_alignment_blockers": [],
+        "source_theorem_kernel_evidence_eligible": True,
         "kernel_verified_theorem_reduction_closure_target_ids": [
             "split_conformal_finite_sample_coverage_reduction_closure"
         ],
@@ -147,6 +150,9 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "runs/split_conformal_coverage_attempt.lean"
     )
     assert row["failure_classification"] == "adapter_candidate_not_evidence_eligible"
+    assert row["source_theorem_kernel_evidence_eligible"] is True
+    assert row["semantic_alignment_blockers"] == ()
+    assert row["proof_body_attempt_count"] == 1
     assert row["source_to_bridge_premise_derivation_work_items"][0][
         "premise_name"
     ] == "hGoodCovered"
@@ -178,6 +184,11 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     )
     assert "-- forbidden as adapter assumption: true" in adapter_source
     assert "-- proof-body attempt: 1:simpa:returncode=1:compiled=False" in adapter_source
+    assert "-- proof-body attempt count: 1" in adapter_source
+    assert (
+        "-- source theorem kernel evidence eligible before adapter: true"
+        in adapter_source
+    )
     assert "materialize/import the missing dependency context" in adapter_source
     learning_rows = [
         json.loads(line)
@@ -235,6 +246,16 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     )
     assert learning_rows[0]["adapter_kernel_verified"] is False
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
+    assert learning_rows[0]["source_theorem_kernel_evidence_eligible"] is True
+    assert learning_rows[0]["semantic_alignment_blockers"] == []
+    assert learning_rows[0]["proof_body_attempt_count"] == 1
+    assert learning_rows[0]["proof_body_attempt_summaries"] == [
+        "1:simpa:returncode=1:compiled=False"
+    ]
+    assert learning_rows[0]["input_summary"][
+        "source_theorem_kernel_evidence_eligible"
+    ] is True
+    assert learning_rows[0]["input_summary"]["proof_body_attempt_count"] == 1
     assert learning_rows[0]["source_to_bridge_premise_derivation_work_items"][0][
         "premise_name"
     ] == "hGoodCovered"

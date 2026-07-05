@@ -55782,6 +55782,9 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
             "returncode=1:compiled=False:diagnostic_kind=type_mismatch:"
             "diagnostic=application type mismatch",
         ],
+        "proof_body_attempt_count": 2,
+        "semantic_alignment_blockers": [],
+        "source_theorem_kernel_evidence_eligible": True,
         "kernel_verified_theorem_reduction_closure_declarations": [
             "splitConformalFiniteSampleCoverage_reductionClosure"
         ],
@@ -55829,6 +55832,8 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
                 "returncode=1:compiled=False:diagnostic_kind=type_mismatch:"
                 "diagnostic=application type mismatch",
             ],
+            "proof_body_attempt_count": 2,
+            "semantic_alignment_blockers": [],
             "diagnostics": [
                 "closure theorem available but exact source hypotheses do not instantiate it",
                 "typeclass instance problem is stuck",
@@ -55976,6 +55981,9 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
         "proof_body_reduction_closure_adapter_instantiation_missing"
     )
     assert work_orders[0]["proof_body_candidate_artifact_path"] == candidate_path
+    assert work_orders[0]["proof_body_attempt_count"] == 2
+    assert work_orders[0]["source_theorem_kernel_evidence_eligible"] is True
+    assert work_orders[0]["semantic_alignment_blockers"] == []
     assert work_orders[0]["target_theorem_name"] == "split_conformal_coverage"
     assert work_orders[0]["question_id"] == "conformal_prediction_coverage"
     assert work_orders[0]["question_title"] == (

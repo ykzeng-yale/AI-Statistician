@@ -56949,6 +56949,25 @@ def _formalizer_source_theorem_promotion_work_orders(
                 ),
                 "source_theorem_target_provenance": source_target_provenance,
                 "semantic_alignment_constraints": semantic_alignment_constraints[:8],
+                "semantic_alignment_blockers": (
+                    list(
+                        active_proof_body_diagnostic.get(
+                            "semantic_alignment_blockers", []
+                        )
+                        or []
+                    )[:8]
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else []
+                ),
+                "source_theorem_kernel_evidence_eligible": (
+                    bool(
+                        active_proof_body_diagnostic.get(
+                            "source_theorem_kernel_evidence_eligible", False
+                        )
+                    )
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else False
+                ),
                 "source_theorem_exact_proof_body_repair_diagnostics": (
                     proof_body_repair_diagnostics
                 ),
@@ -57043,6 +57062,16 @@ def _formalizer_source_theorem_promotion_work_orders(
                     )[:8]
                     if (proof_body_repair_mode or proof_body_adapter_mode)
                     else []
+                ),
+                "proof_body_attempt_count": (
+                    int(
+                        active_proof_body_diagnostic.get(
+                            "proof_body_attempt_count", 0
+                        )
+                        or 0
+                    )
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else 0
                 ),
                 "exact_goal_shape_obligation_ids": (
                     list(
@@ -63745,6 +63774,8 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_theorem_target_known",
                         "source_theorem_target_provenance",
                         "semantic_alignment_constraints",
+                        "semantic_alignment_blockers",
+                        "source_theorem_kernel_evidence_eligible",
                         "kernel_verified_theorem_reduction_closure_declarations",
                         "verified_theorem_reduction_closure_artifact_paths",
                         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -63752,6 +63783,7 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "proof_body_candidate_artifact_path",
                         "proof_body_goal_excerpt",
                         "proof_body_attempt_summaries",
+                        "proof_body_attempt_count",
                         "proof_body_failure_classification",
                         "proof_body_gate_status",
                         "source_theorem_exact_proof_body_reached",
@@ -65083,6 +65115,8 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "source_theorem_target_known",
                         "source_theorem_target_provenance",
                         "semantic_alignment_constraints",
+                        "semantic_alignment_blockers",
+                        "source_theorem_kernel_evidence_eligible",
                         "kernel_verified_theorem_reduction_closure_declarations",
                         "verified_theorem_reduction_closure_artifact_paths",
                         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -65090,6 +65124,7 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "proof_body_candidate_artifact_path",
                         "proof_body_goal_excerpt",
                         "proof_body_attempt_summaries",
+                        "proof_body_attempt_count",
                         "proof_body_failure_classification",
                         "proof_body_gate_status",
                         "source_theorem_exact_proof_body_reached",

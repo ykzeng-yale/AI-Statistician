@@ -81,12 +81,15 @@ class SourceTheoremProofBodyAdapterCheckRow:
     adapter_candidate_evidence_eligible: bool
     proof_body_goal_excerpt: tuple[str, ...]
     proof_body_attempt_summaries: tuple[str, ...]
+    proof_body_attempt_count: int
     proof_body_adapter_required_reasons: tuple[str, ...]
     exact_goal_shape_obligation_id: str
     exact_goal_shape_obligation: str
     target_artifact_kind: str
     source_acceptance_gate: str
     semantic_alignment_constraints: tuple[str, ...]
+    semantic_alignment_blockers: tuple[str, ...]
+    source_theorem_kernel_evidence_eligible: bool
     kernel_verified_theorem_reduction_closure_target_ids: tuple[str, ...]
     kernel_verified_theorem_reduction_closure_declarations: tuple[str, ...]
     verified_theorem_reduction_closure_artifact_paths: tuple[str, ...]
@@ -438,6 +441,7 @@ def _adapter_check_row(
         proof_body_attempt_summaries=_str_tuple(
             row.get("proof_body_attempt_summaries", [])
         ),
+        proof_body_attempt_count=_int_like(row.get("proof_body_attempt_count", 0)),
         proof_body_adapter_required_reasons=_proof_body_adapter_required_reasons(row),
         exact_goal_shape_obligation_id=str(
             row.get("exact_goal_shape_obligation_id", "") or ""
@@ -449,6 +453,12 @@ def _adapter_check_row(
         source_acceptance_gate=str(row.get("acceptance_gate", "") or ""),
         semantic_alignment_constraints=_str_tuple(
             row.get("semantic_alignment_constraints", [])
+        ),
+        semantic_alignment_blockers=_str_tuple(
+            row.get("semantic_alignment_blockers", [])
+        ),
+        source_theorem_kernel_evidence_eligible=bool(
+            row.get("source_theorem_kernel_evidence_eligible", False)
         ),
         kernel_verified_theorem_reduction_closure_target_ids=_str_tuple(
             row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
@@ -492,6 +502,10 @@ def _generated_adapter_skeleton(
     reasons = _proof_body_adapter_required_reasons(row)
     goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
     attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
+    attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
+    semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
+    source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
+    source_kernel_eligible = bool(source_kernel_eligible_raw)
     exact_goal_shape_obligation_id = str(
         row.get("exact_goal_shape_obligation_id", "") or ""
     ).strip()
@@ -535,6 +549,21 @@ def _generated_adapter_skeleton(
     attempt_comment = "\n".join(
         f"-- proof-body attempt: {_sanitize_comment_text(line)}"
         for line in attempt_summaries
+    )
+    attempt_count_comment = (
+        f"-- proof-body attempt count: {attempt_count}" if attempt_count else ""
+    )
+    source_kernel_eligible_comment = (
+        (
+            "-- source theorem kernel evidence eligible before adapter: "
+            + ("true" if source_kernel_eligible else "false")
+        )
+        if source_kernel_eligible_raw is not None
+        else ""
+    )
+    semantic_blocker_comment = "\n".join(
+        f"-- semantic alignment blocker: {_sanitize_comment_text(line)}"
+        for line in semantic_blockers
     )
     closure_comment = "\n".join(
         f"-- verified reduction/closure target id: {_sanitize_comment_text(line)}"
@@ -661,6 +690,9 @@ def _generated_adapter_skeleton(
         f"{premise_work_item_comment}\n"
         f"{goal_comment}\n"
         f"{attempt_comment}\n"
+        f"{attempt_count_comment}\n"
+        f"{source_kernel_eligible_comment}\n"
+        f"{semantic_blocker_comment}\n"
         "-- adapter task: materialize/import the missing dependency context above,\n"
         "-- then derive the bridge or reduction premise from exact source-level hypotheses.\n"
         f"theorem {adapter_declaration} (source_hypotheses bridge_premises : Prop) "
@@ -1136,6 +1168,9 @@ def _export_runtime_learning_rows(
                 "target_artifact_kind": row.target_artifact_kind,
                 "source_acceptance_gate": row.source_acceptance_gate,
                 "source_theorem_kernel_verified": False,
+                "source_theorem_kernel_evidence_eligible": (
+                    row.source_theorem_kernel_evidence_eligible
+                ),
                 "adapter_kernel_verified": row.adapter_kernel_verified,
                 "adapter_candidate_imports": list(row.adapter_candidate_imports),
                 "unavailable_import": row.unavailable_import,
@@ -1164,6 +1199,18 @@ def _export_runtime_learning_rows(
                     [row.adapter_check_id] if row.adapter_kernel_verified else []
                 ),
                 "failure_classification": row.failure_classification,
+                "semantic_alignment_constraints": list(
+                    row.semantic_alignment_constraints
+                ),
+                "semantic_alignment_blockers": list(row.semantic_alignment_blockers),
+                "proof_body_attempt_count": row.proof_body_attempt_count,
+                "proof_body_attempt_summaries": list(
+                    row.proof_body_attempt_summaries
+                ),
+                "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
+                "proof_body_adapter_required_reasons": list(
+                    row.proof_body_adapter_required_reasons
+                ),
                 "runtime_queue_status": (
                     "SOURCE_THEOREM_PROOF_BODY_ADAPTER_KERNEL_VERIFIED"
                     if row.adapter_kernel_verified
@@ -1397,3 +1444,10 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
         for value in values or []
         if str(value).strip()
     )
+
+
+def _int_like(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
