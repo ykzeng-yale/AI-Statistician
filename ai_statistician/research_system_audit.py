@@ -1981,6 +1981,12 @@ async def run_research_system_audit(
             {},
         )
     )
+    runtime_source_theorem_proof_body_same_lane_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "source_theorem_proof_body_same_lane_verifier_evidence",
+            {},
+        )
+    )
 
     benchmark_gate_ok = (
         int(benchmark_manifest["n_questions"]) == len(questions)
@@ -3717,6 +3723,29 @@ async def run_research_system_audit(
             "research_agent_runtime_source_theorem_kernel_verified_count": research_agent_runtime_audit_manifest.get(
                 "source_theorem_kernel_verified_count",
                 0,
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": bool(
+                runtime_source_theorem_proof_body_same_lane_scorecard_row
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": bool(
+                runtime_source_theorem_proof_body_same_lane_scorecard_row.get(
+                    "passed",
+                    False,
+                )
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": str(
+                runtime_source_theorem_proof_body_same_lane_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker": str(
+                runtime_source_theorem_proof_body_same_lane_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
             ),
             "research_agent_runtime_formal_gap_planner_handoff_rows": research_agent_runtime_audit_manifest.get(
                 "n_runtime_formal_gap_planner_handoff_rows",

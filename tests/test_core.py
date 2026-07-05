@@ -6093,6 +6093,95 @@ class SystemTests(unittest.TestCase):
             "split across lanes",
             " ".join(split_proof_body_lane_s13["issues"]),
         )
+        runtime_scorecard_lane_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        runtime_scorecard_lane_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
+                "research_agent_runtime_source_theorem_kernel_verified_count": 0,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": True,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": True,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": (
+                    "verified_lanes=['exact_semantic_definition_proof_body_recheck']"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker": "",
+            }
+        )
+        runtime_scorecard_lane_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_runtime_scorecard_lane"),
+            system_audit_payload=runtime_scorecard_lane_payload,
+        )
+        runtime_scorecard_lane_s13 = next(
+            row
+            for row in runtime_scorecard_lane_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(runtime_scorecard_lane_s13["status"], "OK")
+        self.assertFalse(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertFalse(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertTrue(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertTrue(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present"
+            ]
+        )
+        runtime_scorecard_failed_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        runtime_scorecard_failed_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": True,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": False,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker": (
+                    "runtime same-lane proof-body scorecard failed"
+                ),
+            }
+        )
+        runtime_scorecard_failed_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_runtime_scorecard_failed"),
+            system_audit_payload=runtime_scorecard_failed_payload,
+        )
+        runtime_scorecard_failed_s13 = next(
+            row
+            for row in runtime_scorecard_failed_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(runtime_scorecard_failed_s13["status"], "CAPACITY_GAP")
+        self.assertTrue(
+            runtime_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertFalse(
+            runtime_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertIn(
+            "runtime same-lane proof-body scorecard failed",
+            " ".join(runtime_scorecard_failed_s13["issues"]),
+        )
         stale_pf_attachment_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         stale_pf_attachment_payload["counts"][
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"

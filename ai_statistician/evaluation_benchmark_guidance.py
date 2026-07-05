@@ -236,6 +236,10 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
                         "research_agent_runtime_source_theorem_kernel_verified_count",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker",
                         "research_agent_runtime_formal_gap_planner_handoff_rows",
                         "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context",
                         "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete",
@@ -996,6 +1000,38 @@ def _suite_rows(
         or runtime_source_theorem_exact_proof_body_repair_lane_ok
         or runtime_source_theorem_approved_proof_body_recheck_lane_ok
     )
+    runtime_source_theorem_proof_body_same_lane_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present",
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence"
+            in counts,
+        )
+    )
+    runtime_source_theorem_proof_body_same_lane_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
+            False,
+        )
+    )
+    runtime_source_theorem_proof_body_same_lane_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_proof_body_same_lane_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok = (
+        runtime_source_theorem_proof_body_same_lane_scorecard_ok
+        if runtime_source_theorem_proof_body_same_lane_scorecard_present
+        else runtime_source_theorem_proof_body_same_lane_gate_ok
+    )
     runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok = (
         runtime_source_theorem_proof_body_result_rows > 0
         and (
@@ -1004,8 +1040,12 @@ def _suite_rows(
         )
     )
     runtime_source_theorem_proof_body_local_lean_gate_ok = (
-        runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok
-        and runtime_source_theorem_proof_body_same_lane_gate_ok
+        runtime_source_theorem_proof_body_same_lane_scorecard_ok
+        if runtime_source_theorem_proof_body_same_lane_scorecard_present
+        else (
+            runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok
+            and runtime_source_theorem_proof_body_same_lane_gate_ok
+        )
     )
     runtime_formal_gap_planner_handoff_rows = _int(
         counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
@@ -1271,11 +1311,19 @@ def _suite_rows(
         s13_issues.append(
             "integrated AgentRuntime has not run an exact source-theorem proof-body executor after exact semantic-definition/source lookup work; Formalizer local Lean feedback is still calibration unless a proof-body worker attempts the source theorem boundary in-loop"
         )
+    elif (
+        runtime_source_theorem_proof_body_same_lane_scorecard_present
+        and not runtime_source_theorem_proof_body_same_lane_scorecard_ok
+    ):
+        s13_issues.append(
+            runtime_source_theorem_proof_body_same_lane_scorecard_blocker
+            or "runtime capability scorecard reports that exact source-theorem proof-body executor evidence is not bound to local Lean/AXLE or source-theorem kernel evidence in the same lane"
+        )
     elif not runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok:
         s13_issues.append(
             "exact source-theorem proof-body executor result rows exist, but no local Lean/AXLE check or source-theorem kernel verification is visible; proof-body rows must stay non-proof feedback until the verifier boundary is exercised"
         )
-    elif not runtime_source_theorem_proof_body_same_lane_gate_ok:
+    elif not runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok:
         s13_issues.append(
             "exact source-theorem proof-body executor evidence is split across lanes; one proof-body executor lane must show result rows plus local Lean/AXLE feedback or source-theorem kernel verification before S13 can count the path as integrated"
         )
@@ -2371,6 +2419,11 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_effective_kernel_verified": runtime_source_theorem_kernel_verified,
                 "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_same_lane_gate_ok,
+                "research_agent_runtime_source_theorem_proof_body_authoritative_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": runtime_source_theorem_proof_body_same_lane_scorecard_present,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_ok,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_evidence,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker": runtime_source_theorem_proof_body_same_lane_scorecard_blocker,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_lane_ok": runtime_source_theorem_formal_environment_proof_body_lane_ok,
                 "research_agent_runtime_source_theorem_exact_proof_body_repair_lane_ok": runtime_source_theorem_exact_proof_body_repair_lane_ok,
                 "research_agent_runtime_source_theorem_approved_proof_body_recheck_lane_ok": runtime_source_theorem_approved_proof_body_recheck_lane_ok,
