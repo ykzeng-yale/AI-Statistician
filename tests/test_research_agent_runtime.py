@@ -50370,6 +50370,10 @@ def test_runtime_exact_semantic_bridge_effective_requires_lookup_manifest_path(
 
     assert bridge_calls == []
     assert (
+        manifest["source_theorem_exact_semantic_definition_source_lookup_effective"]
+        is False
+    )
+    assert (
         manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_requested"]
         is True
     )
@@ -50492,7 +50496,7 @@ def test_runtime_exact_semantic_lean_repair_effective_requires_bridge_manifest_p
     assert executor_calls == []
     assert (
         manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_effective"]
-        is True
+        is False
     )
     assert (
         manifest["source_theorem_exact_semantic_definition_proofengineer_bridge_ran"]

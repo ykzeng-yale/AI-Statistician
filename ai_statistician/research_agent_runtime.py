@@ -25295,7 +25295,7 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_proof_body_recheck_executor_learning_rows: list[
         dict[str, Any]
     ] = []
-    source_theorem_exact_semantic_definition_source_lookup_effective = bool(
+    source_theorem_exact_semantic_definition_source_lookup_enabled = bool(
         config.source_theorem_exact_semantic_definition_source_lookup
         or (
             str(config.evaluation_mode or "").strip() == "capability_eval"
@@ -25303,7 +25303,7 @@ def run_research_agent_runtime(
         )
     )
     if (
-        source_theorem_exact_semantic_definition_source_lookup_effective
+        source_theorem_exact_semantic_definition_source_lookup_enabled
         and source_theorem_exact_semantic_definition_work_order_rows
     ):
         source_theorem_exact_semantic_definition_source_lookup_manifest = (
@@ -25347,13 +25347,13 @@ def run_research_agent_runtime(
                 or ""
             )
         )
-    source_theorem_exact_semantic_definition_proofengineer_bridge_effective = bool(
+    source_theorem_exact_semantic_definition_proofengineer_bridge_enabled = bool(
         config.source_theorem_exact_semantic_definition_proofengineer_bridge
         and source_theorem_exact_semantic_definition_proofengineer_bridge_lookup_manifest_path
         is not None
         and source_theorem_exact_semantic_definition_proofengineer_bridge_lookup_manifest_path.exists()
     )
-    if source_theorem_exact_semantic_definition_proofengineer_bridge_effective:
+    if source_theorem_exact_semantic_definition_proofengineer_bridge_enabled:
         source_theorem_exact_semantic_definition_proofengineer_bridge_manifest = (
             run_source_theorem_exact_semantic_definition_proofengineer_bridge(
                 out_dir=out_dir
@@ -25388,13 +25388,13 @@ def run_research_agent_runtime(
                 or ""
             )
         )
-    source_theorem_exact_semantic_definition_lean_repair_executor_effective = bool(
+    source_theorem_exact_semantic_definition_lean_repair_executor_enabled = bool(
         config.source_theorem_exact_semantic_definition_lean_repair_executor
         and source_theorem_exact_semantic_definition_lean_repair_executor_bridge_manifest_path
         is not None
         and source_theorem_exact_semantic_definition_lean_repair_executor_bridge_manifest_path.exists()
     )
-    if source_theorem_exact_semantic_definition_lean_repair_executor_effective:
+    if source_theorem_exact_semantic_definition_lean_repair_executor_enabled:
         source_theorem_exact_semantic_definition_lean_repair_executor_manifest = (
             run_source_theorem_exact_semantic_definition_lean_repair_executor(
                 out_dir=out_dir
@@ -31412,9 +31412,6 @@ def run_research_agent_runtime(
     manifest["source_theorem_exact_semantic_definition_source_lookup_requested"] = bool(
         config.source_theorem_exact_semantic_definition_source_lookup
     )
-    manifest["source_theorem_exact_semantic_definition_source_lookup_effective"] = bool(
-        source_theorem_exact_semantic_definition_source_lookup_effective
-    )
     manifest["source_theorem_exact_semantic_definition_source_lookup_ran"] = (
         source_theorem_exact_semantic_definition_source_lookup_manifest is not None
     )
@@ -31425,10 +31422,10 @@ def run_research_agent_runtime(
             "source_lookup_required_but_disabled"
             if (
                 source_theorem_exact_semantic_definition_work_order_rows
-                and not source_theorem_exact_semantic_definition_source_lookup_effective
+                and not source_theorem_exact_semantic_definition_source_lookup_enabled
             )
             else "lookup_disabled"
-            if not source_theorem_exact_semantic_definition_source_lookup_effective
+            if not source_theorem_exact_semantic_definition_source_lookup_enabled
             else "no_exact_semantic_definition_work_orders"
         )
     )
@@ -32613,6 +32610,25 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_n_closure_review_packets"
     ] = exact_semantic_definition_review_packet_count
+    source_theorem_exact_semantic_definition_source_lookup_effective = bool(
+        _runtime_manifest_path_exists(
+            source_theorem_exact_semantic_definition_source_lookup_manifest
+        )
+        and (
+            int(
+                manifest.get(
+                    "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows",
+                    0,
+                )
+                or 0
+            )
+            > 0
+            or exact_semantic_definition_review_packet_count > 0
+        )
+    )
+    manifest["source_theorem_exact_semantic_definition_source_lookup_effective"] = bool(
+        source_theorem_exact_semantic_definition_source_lookup_effective
+    )
     manifest[
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
     ] = bool(
@@ -32624,9 +32640,6 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_proofengineer_bridge_requested"
     ] = bool(config.source_theorem_exact_semantic_definition_proofengineer_bridge)
-    manifest[
-        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective"
-    ] = bool(source_theorem_exact_semantic_definition_proofengineer_bridge_effective)
     manifest[
         "source_theorem_exact_semantic_definition_proofengineer_bridge_ran"
     ] = source_theorem_exact_semantic_definition_proofengineer_bridge_manifest is not None
@@ -32714,6 +32727,22 @@ def run_research_agent_runtime(
             or {}
         ).get("placeholder_policy_lineage_complete", False)
     )
+    source_theorem_exact_semantic_definition_proofengineer_bridge_effective = bool(
+        _runtime_manifest_path_exists(
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+        )
+        and int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective"
+    ] = bool(source_theorem_exact_semantic_definition_proofengineer_bridge_effective)
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_required"
     ] = bool(
@@ -32788,9 +32817,6 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_requested"
     ] = bool(config.source_theorem_exact_semantic_definition_lean_repair_executor)
-    manifest[
-        "source_theorem_exact_semantic_definition_lean_repair_executor_effective"
-    ] = bool(source_theorem_exact_semantic_definition_lean_repair_executor_effective)
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested"
     ] = bool(
@@ -36180,6 +36206,32 @@ def run_research_agent_runtime(
             ]
         ),
     )
+    source_theorem_exact_semantic_definition_lean_repair_executor_effective = bool(
+        any(
+            _runtime_manifest_path_exists(row)
+            for row in [
+                source_theorem_exact_semantic_definition_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_typechecked_candidate_review_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_materialized_candidate_review_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_repair_queue_lean_repair_executor_manifest,
+                source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_manifest,
+                *late_source_theorem_exact_semantic_definition_lean_repair_executor_manifests,
+                *late_source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifests,
+            ]
+        )
+        and int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_total_results",
+                0,
+            )
+            or 0
+        )
+        > 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective"
+    ] = bool(source_theorem_exact_semantic_definition_lean_repair_executor_effective)
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
     )
@@ -73343,6 +73395,13 @@ def _runtime_safe_int(value: Any) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _runtime_manifest_path_exists(manifest: Mapping[str, Any] | None) -> bool:
+    if not isinstance(manifest, Mapping):
+        return False
+    manifest_path = str(manifest.get("manifest_path", "") or "").strip()
+    return bool(manifest_path and Path(manifest_path).is_file())
 
 
 def _source_theorem_exact_semantic_definition_lean_repair_executor_counts(
