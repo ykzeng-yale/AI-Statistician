@@ -41064,6 +41064,28 @@ def test_exact_semantic_work_orders_export_review_gate_to_learning_rows() -> Non
                     ),
                 }
             ],
+            "semantic_primitive": "coverage_event",
+            "semantic_primitive_requirements": ["coverage_event"],
+            "source_anchors": [
+                {
+                    "kind": "pseudo_formal_block",
+                    "id": "pf:block:coverage_event",
+                    "excerpt": "coverage-event source block",
+                }
+            ],
+            "source_pseudo_formal_work_order_id": (
+                "pseudo_formal_work_order:coverage_event"
+            ),
+            "source_pseudo_formal_block_id": "pf:block:coverage_event",
+            "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+            "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
+            "pseudo_formal_method_contract_id": (
+                "pseudo_formalization_block_verification_calibration_v1"
+            ),
+            "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+            "pseudo_formal_proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
         }
     ]
 
@@ -41093,6 +41115,14 @@ def test_exact_semantic_work_orders_export_review_gate_to_learning_rows() -> Non
     assert nested_candidate["proof_body_gate_status"] == (
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     )
+    assert work_order["semantic_primitive_requirements"] == ["coverage_event"]
+    assert work_order["source_anchors"][0]["id"] == "pf:block:coverage_event"
+    assert work_order["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:coverage_event"
+    )
+    assert work_order["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
 
     learning_rows = (
         runtime_module._runtime_source_theorem_exact_semantic_definition_learning_rows(
@@ -41117,6 +41147,23 @@ def test_exact_semantic_work_orders_export_review_gate_to_learning_rows() -> Non
     ]["runtime_queue_status"] == (
         "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
     )
+    assert learning_row["semantic_primitive_requirements"] == ["coverage_event"]
+    assert learning_row["source_anchors"][0]["id"] == "pf:block:coverage_event"
+    assert learning_row["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:coverage_event"
+    )
+    assert learning_row["input_summary"]["semantic_primitive_requirements"] == [
+        "coverage_event"
+    ]
+    assert learning_row["input_summary"]["source_anchors"][0]["id"] == (
+        "pf:block:coverage_event"
+    )
+    assert learning_row["input_summary"]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:coverage_event"
+    )
+    assert learning_row["input_summary"]["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
 
     replayed_rows = (
         runtime_module._runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
@@ -41128,6 +41175,18 @@ def test_exact_semantic_work_orders_export_review_gate_to_learning_rows() -> Non
     )
     assert replayed_rows[0]["proof_body_gate_status"] == (
         "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    )
+    assert replayed_rows[0]["semantic_primitive_requirements"] == [
+        "coverage_event"
+    ]
+    assert replayed_rows[0]["source_anchors"][0]["id"] == (
+        "pf:block:coverage_event"
+    )
+    assert replayed_rows[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:coverage_event"
+    )
+    assert replayed_rows[0]["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
     )
 
 
@@ -43953,6 +44012,30 @@ def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory(
         "proof_evidence_status": (
             "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
         ),
+        "input_summary": {
+            "semantic_primitive": "good_rank_event",
+            "semantic_primitive_requirements": ["good_rank_event"],
+            "source_anchors": [
+                {
+                    "kind": "pseudo_formal_block",
+                    "id": "pf:block:good_rank_event",
+                    "excerpt": "rank-event PF block",
+                }
+            ],
+            "source_pseudo_formal_work_order_id": (
+                "pseudo_formal_work_order:good_rank"
+            ),
+            "source_pseudo_formal_block_id": "pf:block:good_rank_event",
+            "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+            "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
+            "pseudo_formal_method_contract_id": (
+                "pseudo_formalization_block_verification_calibration_v1"
+            ),
+            "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+            "pseudo_formal_proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
     }
     memory = {
         "artifact_kind": "RuntimeLearningMemoryContext",
@@ -43988,6 +44071,14 @@ def test_verifier_gate_execution_known_gaps_enter_exact_candidate_repair_memory(
     assert repair["known_gaps"] == learning_row["known_gaps"]
     assert repair["source_anchor_context"] == source_anchor_context
     assert repair["source_anchor_context_rows"] == 3
+    assert repair["semantic_primitive_requirements"] == ["good_rank_event"]
+    assert repair["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert repair["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert repair["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
     assert "verifier_gate_blocker=known_gaps_unresolved" in repair["diagnostics"]
     assert (
         "known_gap=threshold k is not tied to the source quantile hypothesis"
@@ -44098,6 +44189,30 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
             "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_"
             "NOT_SOURCE_THEOREM_PROOF"
         ),
+        "input_summary": {
+            "semantic_primitive": "good_rank_event",
+            "semantic_primitive_requirements": ["good_rank_event"],
+            "source_anchors": [
+                {
+                    "kind": "pseudo_formal_block",
+                    "id": "pf:block:good_rank_event",
+                    "excerpt": "rank-event PF block",
+                }
+            ],
+            "source_pseudo_formal_work_order_id": (
+                "pseudo_formal_work_order:good_rank"
+            ),
+            "source_pseudo_formal_block_id": "pf:block:good_rank_event",
+            "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+            "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
+            "pseudo_formal_method_contract_id": (
+                "pseudo_formalization_block_verification_calibration_v1"
+            ),
+            "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+            "pseudo_formal_proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
     }
     memory = {
         "artifact_kind": "RuntimeLearningMemoryContext",
@@ -44152,6 +44267,14 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     assert task["known_gaps"] == learning_row["known_gaps"]
     assert task["source_anchor_context"] == source_anchor_context
     assert task["source_anchor_context_rows"] == 3
+    assert task["semantic_primitive_requirements"] == ["good_rank_event"]
+    assert task["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert task["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert task["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
     assert task["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )
@@ -44191,6 +44314,14 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     ]
     assert prompt_packet["known_gaps"] == learning_row["known_gaps"]
     assert prompt_packet["source_anchor_context_rows"] == 3
+    assert prompt_packet["semantic_primitive_requirements"] == ["good_rank_event"]
+    assert prompt_packet["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert prompt_packet["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert prompt_packet["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
     prompt_payload = json.loads(prompt_packet["user_prompt"])
     prompt_feedback = prompt_payload["candidate_repair_feedback"]
     assert prompt_feedback["verifier_gate_blockers"] == learning_row[
@@ -44199,6 +44330,18 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     assert prompt_feedback["known_gaps"] == learning_row["known_gaps"]
     assert prompt_feedback["source_anchor_context"] == source_anchor_context
     assert prompt_feedback["source_anchor_context_rows"] == 3
+    assert prompt_feedback["semantic_primitive_requirements"] == [
+        "good_rank_event"
+    ]
+    assert prompt_feedback["source_anchors"][0]["id"] == (
+        "pf:block:good_rank_event"
+    )
+    assert prompt_feedback["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:good_rank"
+    )
+    assert prompt_feedback["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
     assert "hq" in prompt_feedback["source_anchor_context_summary"][
         "source_theorem_binder_names"
     ]

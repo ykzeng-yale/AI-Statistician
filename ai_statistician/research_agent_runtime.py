@@ -221,6 +221,7 @@ from .source_theorem_formal_environment_proofengineer_bridge import (
     run_source_theorem_formal_environment_proofengineer_bridge,
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
+    EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
     run_source_theorem_exact_semantic_definition_candidate_synthesis,
     run_source_theorem_exact_semantic_definition_closure_review,
     run_source_theorem_exact_semantic_definition_source_lookup,
@@ -48256,6 +48257,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "target_theorem_goal_ids": list(
                     dict.fromkeys(target_theorem_goal_ids or target_ids)
                 ),
+                **_runtime_exact_semantic_definition_context(row),
                 "trigger": trigger,
                 "placeholder_symbol": placeholder_symbol,
                 "source_theorem_target_identity_status": (
@@ -67456,18 +67458,31 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         if isinstance(row.get("input_summary", {}), Mapping)
         else {}
     )
-    keys = (
-        "target_ids",
-        "exact_source_theorem_binders",
-        "premise_semantic_anchor_binders",
-        "premise_semantic_anchor_binder_names",
-        "required_bridge_premise_names_for_shared_instantiation",
-        "source_to_bridge_adapter_instantiation_group_id",
-        "source_to_bridge_adapter_object_names_requiring_source_instantiation",
-        "source_to_bridge_grouped_premise_derivation_candidate_request_id",
-        "exact_goal_shape_obligation_ids",
-        "target_lean_declaration",
-        "candidate_definition_request",
+    keys = tuple(
+        dict.fromkeys(
+            (
+                *EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+                "target_theorem_goal_ids",
+                "source_theorem_target_provenance",
+                "source_theorem_target_identity_status",
+                "semantic_alignment_constraints",
+                "semantic_alignment_blockers",
+                "source_theorem_exact_semantic_definition_typechecked_candidate",
+                "definition_only_candidate_artifact_path",
+                "candidate_artifact_path",
+                "local_definition_lean_checked",
+                "local_definition_lean_compiled",
+                "semantic_definition_typecheck_evidence_status",
+                "runtime_queue_status",
+                "runtime_queue_boundary",
+                "acceptance_gate",
+                "source_theorem_semantic_support_only",
+                "semantic_closure_status",
+                "placeholder_definition_status",
+            )
+        )
+    )
+    premise_derivation_keys = (
         "premise_name",
         "premise_target_type",
         "premise_derivation_gap_kind",
@@ -67477,7 +67492,7 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         "missing_premise_semantic_anchor_binder_names",
     )
     context: dict[str, Any] = {}
-    for key in keys:
+    for key in (*keys, *premise_derivation_keys):
         value = row.get(key, None)
         if value in (None, "", [], {}):
             value = input_summary.get(key, None)
@@ -68361,6 +68376,9 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
             "proof_evidence_status": "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE",
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         }
+        for key_name, value in _runtime_exact_semantic_definition_context(row).items():
+            if work_order.get(key_name) in (None, "", [], {}):
+                work_order[key_name] = value
         _normalize_exact_semantic_work_order_status_from_local_definition(work_order)
         rows.append(work_order)
     return rows
@@ -69323,6 +69341,9 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             value = input_summary.get(key_name)
             if value not in (None, "", [], {}):
                 task[key_name] = value
+        for key_name, value in _runtime_exact_semantic_definition_context(row).items():
+            if task.get(key_name) in (None, "", [], {}):
+                task[key_name] = value
         if (
             task.get("source_anchor_context_rows") in (None, "", [], {})
             and isinstance(task.get("source_anchor_context", []), list)
@@ -69422,6 +69443,7 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             else:
                 candidate_repair_feedback = dict(candidate_repair_feedback)
             for key_name in (
+                *EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
                 "verifier_gate_status",
                 "verifier_gate_blockers",
                 "known_gaps",
