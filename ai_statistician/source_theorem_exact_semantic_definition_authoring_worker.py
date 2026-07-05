@@ -5108,6 +5108,7 @@ def _source_reference_redaction_summary(
 PROMPT_EXACT_SEMANTIC_CONTEXT_KEYS = (
     "semantic_primitive",
     "semantic_primitive_requirements",
+    "source_block_semantic_primitive_requirements",
     "source_anchors",
     "source_block_conclusion",
     "source_block_premises",

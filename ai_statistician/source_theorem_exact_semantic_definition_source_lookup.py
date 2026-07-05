@@ -110,6 +110,7 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "target_lean_declaration",
     "semantic_primitive",
     "semantic_primitive_requirements",
+    "source_block_semantic_primitive_requirements",
     "source_anchors",
     "source_block_conclusion",
     "source_block_premises",

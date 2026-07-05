@@ -447,6 +447,10 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
         ),
         "semantic_primitive": "exchangeable_setup",
         "semantic_primitive_requirements": ["exchangeable_setup"],
+        "source_block_semantic_primitive_requirements": [
+            "exchangeable_setup",
+            "rank_uniformity",
+        ],
         "source_anchors": [
             {
                 "kind": "pseudo_formal_block",
@@ -517,6 +521,10 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
         )
         assert row["semantic_primitive"] == "exchangeable_setup"
         assert row["semantic_primitive_requirements"] == ["exchangeable_setup"]
+        assert row["source_block_semantic_primitive_requirements"] == [
+            "exchangeable_setup",
+            "rank_uniformity",
+        ]
         assert row["source_anchors"] == [
             {
                 "kind": "pseudo_formal_block",
@@ -536,6 +544,10 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
             assert input_summary["semantic_primitive"] == "exchangeable_setup"
             assert input_summary["semantic_primitive_requirements"] == [
                 "exchangeable_setup"
+            ]
+            assert input_summary["source_block_semantic_primitive_requirements"] == [
+                "exchangeable_setup",
+                "rank_uniformity",
             ]
 
 

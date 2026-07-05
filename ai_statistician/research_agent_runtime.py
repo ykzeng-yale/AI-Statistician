@@ -69167,7 +69167,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
     work_order_rows: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     learning_like_rows: list[dict[str, Any]] = []
-    source_by_work_order_id: dict[str, Mapping[str, Any]] = {}
+    source_by_work_order_id: dict[str, tuple[Mapping[str, Any], str, list[str]]] = {}
     for item in work_order_rows:
         if not isinstance(item, Mapping):
             continue
@@ -69185,33 +69185,11 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
         semantic_primitive_requirements = (
             _runtime_pseudo_formal_exact_semantic_primitive_requirements(item)
         )
-        semantic_primitive = (
-            semantic_primitive_requirements[0]
-            if semantic_primitive_requirements
-            else ""
-        )
-        placeholder_symbol = str(
-            semantic_primitive
-            or item.get("placeholder_symbol", "")
-            or item.get("source_block_id", "")
-            or ""
-        ).strip()
-        if not target_theorem_name or not placeholder_symbol:
+        if not target_theorem_name or not semantic_primitive_requirements:
             continue
         source_work_order_id = str(
             item.get("row_id", "") or item.get("work_order_id", "") or ""
         ).strip()
-        generated_work_order_id = (
-            "source_theorem_exact_semantic_definition_work_order:"
-            + stable_hash(
-                [
-                    "pseudo_formal",
-                    source_work_order_id,
-                    target_theorem_name,
-                    placeholder_symbol,
-                ]
-            )[:20]
-        )
         source_target_provenance = (
             dict(item.get("source_theorem_target_provenance", {}))
             if isinstance(item.get("source_theorem_target_provenance", {}), Mapping)
@@ -69241,125 +69219,156 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
             )
             if str(value).strip()
         ]
-        search_targets = _runtime_pseudo_formal_exact_semantic_search_targets(
-            item,
-            placeholder_symbol=placeholder_symbol,
-            target_theorem_name=target_theorem_name,
-            semantic_alignment_blockers=semantic_alignment_blockers,
-        )
-        learning_like_row = {
-            "schema_version": RUNTIME_SCHEMA_VERSION,
-            "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
-            "learning_task": "source_theorem_exact_semantic_definition_work_order",
-            "work_order_id": generated_work_order_id,
-            "source_materialization_seed_id": source_work_order_id,
-            "question_id": str(item.get("question_id", "") or ""),
-            "question_title": str(item.get("question_title", "") or ""),
-            "target_theorem_name": target_theorem_name,
-            "target_lean_declaration": target_theorem_name,
-            "target_ids": [
-                value
-                for value in (
-                    str(item.get("source_theorem_id", "") or "").strip(),
-                    target_theorem_name,
-                )
-                if value
-            ],
-            "target_theorem_goal_ids": [
-                value
-                for value in (
-                    str(item.get("source_theorem_id", "") or "").strip(),
-                    target_theorem_name,
-                )
-                if value
-            ],
-            "source_theorem_target_provenance": source_target_provenance,
-            "source_theorem_target_identity_status": str(
-                item.get("source_theorem_target_identity_status", "")
-                or "PSEUDO_FORMAL_BLOCK_TARGET_BOUND_UNPROMOTED"
-            ),
-            "semantic_alignment_constraints": list(
-                item.get("semantic_alignment_constraints", []) or []
-            ),
-            "semantic_alignment_blockers": semantic_alignment_blockers,
-            "semantic_primitive": semantic_primitive,
-            "semantic_primitive_requirements": semantic_primitive_requirements,
-            "source_anchors": [
-                dict(value)
-                for value in (item.get("source_anchors", []) or [])
-                if isinstance(value, Mapping)
-            ],
-            "source_block_conclusion": str(
-                item.get("source_block_conclusion", "") or ""
-            )[:500],
-            "source_block_premises": [
-                str(value)
-                for value in (item.get("source_block_premises", []) or [])
-                if str(value).strip()
-            ][:12],
-            "source_block_proof_text": str(
-                item.get("source_block_proof_text", "") or ""
-            )[:1200],
-            "dependency_statement_context": [
-                dict(value)
-                for value in (item.get("dependency_statement_context", []) or [])
-                if isinstance(value, Mapping)
-            ][:8],
-            "inherited_scope": [
-                str(value)
-                for value in (item.get("inherited_scope", []) or [])
-                if str(value).strip()
-            ][:8],
-            "dependency_ids": [
-                str(value)
-                for value in (item.get("dependency_ids", []) or [])
-                if str(value).strip()
-            ][:8],
-            "scope_parent_id": str(item.get("scope_parent_id", "") or ""),
-            "dependency_scope": str(
-                item.get("dependency_scope", "")
-                or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
-            ),
-            "block_depth": _pseudo_formal_safe_block_depth(
-                item.get("block_depth", 1)
-            ),
-            "placeholder_symbol": placeholder_symbol,
-            "replacement_strategy": (
-                "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
-            ),
-            "search_targets": search_targets,
-            "candidate_registered_obligation_ids": [],
-            "runtime_queue_status": (
-                "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
-            ),
-            "runtime_queue_boundary": (
-                "This exact semantic-definition work order was derived from a "
-                "pseudo-formal block routing row. It is not proof evidence; it "
-                "only asks Formalizer/ProofEngineer to author or import the exact "
-                "definition needed before target-prover kernel replay."
-            ),
-            "acceptance_gate": (
-                "AXLE/local Lean verifies the reviewed exact semantic definition "
-                "or source import that replaces the pseudo-formal block placeholder."
-            ),
-            "proof_evidence_status": "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE",
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        }
-        learning_like_rows.append(learning_like_row)
-        source_by_work_order_id[generated_work_order_id] = item
+        for semantic_primitive in semantic_primitive_requirements:
+            placeholder_symbol = str(semantic_primitive or "").strip()
+            if not placeholder_symbol:
+                continue
+            generated_work_order_id = (
+                "source_theorem_exact_semantic_definition_work_order:"
+                + stable_hash(
+                    [
+                        "pseudo_formal",
+                        source_work_order_id,
+                        target_theorem_name,
+                        placeholder_symbol,
+                    ]
+                )[:20]
+            )
+            search_targets = _runtime_pseudo_formal_exact_semantic_search_targets(
+                item,
+                placeholder_symbol=placeholder_symbol,
+                target_theorem_name=target_theorem_name,
+                semantic_alignment_blockers=semantic_alignment_blockers,
+            )
+            learning_like_row = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": (
+                    "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+                ),
+                "learning_task": "source_theorem_exact_semantic_definition_work_order",
+                "work_order_id": generated_work_order_id,
+                "source_materialization_seed_id": source_work_order_id,
+                "question_id": str(item.get("question_id", "") or ""),
+                "question_title": str(item.get("question_title", "") or ""),
+                "target_theorem_name": target_theorem_name,
+                "target_lean_declaration": target_theorem_name,
+                "target_ids": [
+                    value
+                    for value in (
+                        str(item.get("source_theorem_id", "") or "").strip(),
+                        target_theorem_name,
+                    )
+                    if value
+                ],
+                "target_theorem_goal_ids": [
+                    value
+                    for value in (
+                        str(item.get("source_theorem_id", "") or "").strip(),
+                        target_theorem_name,
+                    )
+                    if value
+                ],
+                "source_theorem_target_provenance": source_target_provenance,
+                "source_theorem_target_identity_status": str(
+                    item.get("source_theorem_target_identity_status", "")
+                    or "PSEUDO_FORMAL_BLOCK_TARGET_BOUND_UNPROMOTED"
+                ),
+                "semantic_alignment_constraints": list(
+                    item.get("semantic_alignment_constraints", []) or []
+                ),
+                "semantic_alignment_blockers": semantic_alignment_blockers,
+                "semantic_primitive": semantic_primitive,
+                "semantic_primitive_requirements": [semantic_primitive],
+                "source_block_semantic_primitive_requirements": (
+                    semantic_primitive_requirements
+                ),
+                "source_anchors": [
+                    dict(value)
+                    for value in (item.get("source_anchors", []) or [])
+                    if isinstance(value, Mapping)
+                ],
+                "source_block_conclusion": str(
+                    item.get("source_block_conclusion", "") or ""
+                )[:500],
+                "source_block_premises": [
+                    str(value)
+                    for value in (item.get("source_block_premises", []) or [])
+                    if str(value).strip()
+                ][:12],
+                "source_block_proof_text": str(
+                    item.get("source_block_proof_text", "") or ""
+                )[:1200],
+                "dependency_statement_context": [
+                    dict(value)
+                    for value in (item.get("dependency_statement_context", []) or [])
+                    if isinstance(value, Mapping)
+                ][:8],
+                "inherited_scope": [
+                    str(value)
+                    for value in (item.get("inherited_scope", []) or [])
+                    if str(value).strip()
+                ][:8],
+                "dependency_ids": [
+                    str(value)
+                    for value in (item.get("dependency_ids", []) or [])
+                    if str(value).strip()
+                ][:8],
+                "scope_parent_id": str(item.get("scope_parent_id", "") or ""),
+                "dependency_scope": str(
+                    item.get("dependency_scope", "")
+                    or PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE
+                ),
+                "block_depth": _pseudo_formal_safe_block_depth(
+                    item.get("block_depth", 1)
+                ),
+                "placeholder_symbol": placeholder_symbol,
+                "replacement_strategy": (
+                    "review_or_author_exact_semantic_definition_from_pseudo_formal_block"
+                ),
+                "search_targets": search_targets,
+                "candidate_registered_obligation_ids": [],
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
+                ),
+                "runtime_queue_boundary": (
+                    "This exact semantic-definition work order was derived from a "
+                    "pseudo-formal block routing row. It is not proof evidence; it "
+                    "only asks Formalizer/ProofEngineer to author or import the exact "
+                    "definition needed before target-prover kernel replay."
+                ),
+                "acceptance_gate": (
+                    "AXLE/local Lean verifies the reviewed exact semantic definition "
+                    "or source import that replaces the pseudo-formal block placeholder."
+                ),
+                "proof_evidence_status": (
+                    "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+            learning_like_rows.append(learning_like_row)
+            source_by_work_order_id[generated_work_order_id] = (
+                item,
+                semantic_primitive,
+                semantic_primitive_requirements,
+            )
     rows = _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
         learning_like_rows
     )
     for row in rows:
-        source = source_by_work_order_id.get(str(row.get("work_order_id", "") or ""))
-        if not isinstance(source, Mapping):
-            continue
-        semantic_primitive_requirements = (
-            _runtime_pseudo_formal_exact_semantic_primitive_requirements(source)
+        source_info = source_by_work_order_id.get(
+            str(row.get("work_order_id", "") or "")
         )
-        if semantic_primitive_requirements:
-            row["semantic_primitive"] = semantic_primitive_requirements[0]
-            row["semantic_primitive_requirements"] = semantic_primitive_requirements
+        if source_info is None:
+            continue
+        source, semantic_primitive, source_semantic_requirements = source_info
+        if semantic_primitive:
+            row["semantic_primitive"] = semantic_primitive
+            row["semantic_primitive_requirements"] = [semantic_primitive]
+            row["placeholder_symbol"] = semantic_primitive
+        if source_semantic_requirements:
+            row["source_block_semantic_primitive_requirements"] = (
+                source_semantic_requirements
+            )
         source_anchors = [
             dict(value)
             for value in (source.get("source_anchors", []) or [])

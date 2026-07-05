@@ -43896,6 +43896,9 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
     assert row["placeholder_symbol"] == "rank_uniformity"
     assert row["semantic_primitive"] == "rank_uniformity"
     assert row["semantic_primitive_requirements"] == ["rank_uniformity"]
+    assert row["source_block_semantic_primitive_requirements"] == [
+        "rank_uniformity"
+    ]
     assert row["source_anchors"] == [
         {
             "kind": "theory_trace",
@@ -43947,6 +43950,78 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
     assert row["source_theorem_semantic_support_only"] is True
 
 
+def test_pseudo_formal_exact_semantic_multi_primitives_expand_to_work_orders() -> None:
+    pseudo_formal_rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "PseudoFormalizerWorkOrder",
+            "row_id": "pseudo_formal_work_order:coverage_and_rank",
+            "row_kind": "pseudo_formal_exact_semantic_definition_request",
+            "target_lane": PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+            "question_id": "conformal_prediction_coverage",
+            "question_title": "Split conformal coverage",
+            "source_theorem_id": "split_conformal_finite_sample_coverage",
+            "source_block_id": "coverage_rank_bridge_block",
+            "semantic_primitive_requirements": [
+                "coverage_event",
+                "rank_uniformity",
+            ],
+            "source_anchors": [
+                {
+                    "kind": "proof_body",
+                    "id": "proof:coverage-rank-bridge",
+                    "excerpt": "coverage event follows from the rank-uniformity step",
+                }
+            ],
+            "source_block_conclusion": (
+                "coverage follows once the coverage event and rank uniformity "
+                "are both defined"
+            ),
+            "source_block_proof_text": (
+                "The source proof first identifies the coverage event, then "
+                "uses rank uniformity to bound its probability."
+            ),
+            "source_packet_id": "pseudo_formal_packet:coverage",
+            "source_formalizer_proposal_id": "formalizer_proposal:pf_bv",
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+            "pseudo_formal_method_contract_id": (
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+            ),
+            "pseudo_formal_pipeline_stage": (
+                PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+            ),
+        }
+    ]
+
+    work_orders = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+            pseudo_formal_rows
+        )
+    )
+    by_symbol = {row["placeholder_symbol"]: row for row in work_orders}
+
+    assert set(by_symbol) == {"coverage_event", "rank_uniformity"}
+    assert len({row["work_order_id"] for row in work_orders}) == 2
+    for symbol, row in by_symbol.items():
+        assert row["semantic_primitive"] == symbol
+        assert row["semantic_primitive_requirements"] == [symbol]
+        assert row["source_block_semantic_primitive_requirements"] == [
+            "coverage_event",
+            "rank_uniformity",
+        ]
+        assert row["source_pseudo_formal_work_order_id"] == (
+            "pseudo_formal_work_order:coverage_and_rank"
+        )
+        assert row["source_pseudo_formal_block_id"] == "coverage_rank_bridge_block"
+        assert row["source_anchors"][0]["id"] == "proof:coverage-rank-bridge"
+        assert row["proof_evidence_status"] == (
+            "WORK_ORDER_FROM_PSEUDO_FORMAL_NOT_PROOF_EVIDENCE"
+        )
+        assert symbol in row["search_targets"]
+
+
 def test_pseudo_formal_exact_semantic_context_reaches_authoring_prompt(
     tmp_path: Path,
 ) -> None:
@@ -43961,6 +44036,10 @@ def test_pseudo_formal_exact_semantic_context_reaches_authoring_prompt(
         "authoring_mode": "author_missing_exact_semantic_definition",
         "semantic_primitive": "rank_uniformity",
         "semantic_primitive_requirements": ["rank_uniformity"],
+        "source_block_semantic_primitive_requirements": [
+            "coverage_event",
+            "rank_uniformity",
+        ],
         "source_anchors": [
             {
                 "kind": "theory_trace",
@@ -44025,6 +44104,11 @@ def test_pseudo_formal_exact_semantic_context_reaches_authoring_prompt(
     prompt_packet = prompt_packets[0]
     prompt_payload = json.loads(prompt_packet["user_prompt"])
     exact_context = prompt_payload["exact_semantic_definition_context"]
+    assert prompt_packet["semantic_primitive_requirements"] == ["rank_uniformity"]
+    assert prompt_packet["source_block_semantic_primitive_requirements"] == [
+        "coverage_event",
+        "rank_uniformity",
+    ]
     assert prompt_packet["source_block_conclusion"] == (
         "rank is uniform under exchangeability"
     )
@@ -44037,6 +44121,11 @@ def test_pseudo_formal_exact_semantic_context_reaches_authoring_prompt(
     assert exact_context["source_block_conclusion"] == (
         "rank is uniform under exchangeability"
     )
+    assert exact_context["semantic_primitive_requirements"] == ["rank_uniformity"]
+    assert exact_context["source_block_semantic_primitive_requirements"] == [
+        "coverage_event",
+        "rank_uniformity",
+    ]
     assert exact_context["source_block_premises"] == [
         "calibration scores and the test score are exchangeable"
     ]
