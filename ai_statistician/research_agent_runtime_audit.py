@@ -8264,6 +8264,27 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_ready": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_ready",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids",
+                [],
+            )
+            or []
+        ),
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran": bool(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran",
@@ -17428,6 +17449,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    adapter_premise_exact_queue_premise_context_rows = int(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows",
+            0,
+        )
+        or 0
+    )
+    adapter_premise_exact_queue_premise_ids = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids",
+            [],
+        )
+        or []
+    )
     adapter_premise_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
     )
@@ -20852,6 +20887,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 )
                 is True
                 and adapter_premise_exact_queue_rows > 0
+                and adapter_premise_exact_queue_premise_context_rows > 0
+                and bool(adapter_premise_exact_queue_premise_ids)
             ),
             (
                 "adapter_retry_kernel_verified="
@@ -20861,12 +20898,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "exact_queue_ran="
                 f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_ran')} "
                 "exact_queue_rows="
-                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows')}"
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_rows')} "
+                "verified_premise_context_rows="
+                f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows')} "
+                "verified_premise_ids="
+                f"{adapter_premise_exact_queue_premise_ids}"
             ),
             (
                 "Adapter-premise feedback produced a kernel-verified source-to-bridge "
                 "adapter, but the runtime did not queue the exact source-theorem "
-                "proof-body retry with concrete row telemetry"
+                "proof-body retry with concrete row telemetry and verified "
+                "source-to-bridge premise-derivation context"
             ),
         ),
         _scorecard_row(

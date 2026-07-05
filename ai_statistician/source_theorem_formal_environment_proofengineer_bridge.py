@@ -1526,6 +1526,36 @@ def _export_proof_body_execution_queue(
         "n_live_goal_location_ready": sum(
             1 for row in rows if row.get("live_goal_location_ready")
         ),
+        "n_source_theorem_proof_body_adapter_context_rows": sum(
+            1
+            for row in rows
+            if row.get("source_theorem_proof_body_adapter_feedback_available")
+            or row.get("source_theorem_proof_body_adapter_kernel_verified")
+            or row.get("kernel_verified_source_theorem_proof_body_adapter_ids")
+        ),
+        "n_source_theorem_proof_body_adapter_kernel_verified_context_rows": sum(
+            1
+            for row in rows
+            if row.get("source_theorem_proof_body_adapter_kernel_verified")
+        ),
+        "n_kernel_verified_source_to_bridge_premise_derivation_context_rows": sum(
+            1
+            for row in rows
+            if row.get("kernel_verified_source_to_bridge_premise_derivation_ids")
+            or row.get("verified_source_to_bridge_premise_derivation_artifact_paths")
+            or row.get("verified_source_to_bridge_premise_derivation_declarations")
+        ),
+        "kernel_verified_source_to_bridge_premise_derivation_ids": list(
+            dict.fromkeys(
+                str(premise_id).strip()
+                for row in rows
+                for premise_id in _str_list(
+                    row.get("kernel_verified_source_to_bridge_premise_derivation_ids")
+                    or []
+                )
+                if str(premise_id).strip()
+            )
+        ),
         "proof_evidence_status": PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS,
         "boundary": PROOF_BODY_EXECUTION_QUEUE_BOUNDARY,
         "rows": rows,
@@ -1541,6 +1571,18 @@ def _export_proof_body_execution_queue(
         "n_ready": manifest["n_ready"],
         "n_live_goal_requests": manifest["n_live_goal_requests"],
         "n_live_goal_location_ready": manifest["n_live_goal_location_ready"],
+        "n_source_theorem_proof_body_adapter_context_rows": manifest[
+            "n_source_theorem_proof_body_adapter_context_rows"
+        ],
+        "n_source_theorem_proof_body_adapter_kernel_verified_context_rows": manifest[
+            "n_source_theorem_proof_body_adapter_kernel_verified_context_rows"
+        ],
+        "n_kernel_verified_source_to_bridge_premise_derivation_context_rows": manifest[
+            "n_kernel_verified_source_to_bridge_premise_derivation_context_rows"
+        ],
+        "kernel_verified_source_to_bridge_premise_derivation_ids": manifest[
+            "kernel_verified_source_to_bridge_premise_derivation_ids"
+        ],
         "rows": rows,
         "proof_evidence_status": PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS,
         "boundary": PROOF_BODY_EXECUTION_QUEUE_BOUNDARY,

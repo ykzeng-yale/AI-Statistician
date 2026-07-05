@@ -179,6 +179,15 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     )
     assert queue_result["n_execution_queue_rows"] == 1
     assert queue_result["n_ready"] == 1
+    assert (
+        queue_result[
+            "n_kernel_verified_source_to_bridge_premise_derivation_context_rows"
+        ]
+        == 1
+    )
+    assert queue_result["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
+        "source_to_bridge_premise_derivation_check:hGoodCovered"
+    ]
     execution_row = queue_result["rows"][0]
     assert execution_row["execution_status"] == (
         "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
