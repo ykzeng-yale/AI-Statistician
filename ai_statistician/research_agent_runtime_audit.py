@@ -6598,15 +6598,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_required",
-                False,
+                bool(
+                    int(
+                        manifest.get(
+                            "source_theorem_exact_semantic_definition_n_closure_review_packets",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
             )
-            or int(
-                manifest.get(
-                    "source_theorem_exact_semantic_definition_n_closure_review_packets",
-                    0,
-                )
-                or 0
-            )
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
+            in manifest
         ),
         "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": bool(
             manifest.get(
@@ -6631,15 +6636,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_lean_repair_executor_required": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_required",
-                False,
+                bool(
+                    int(
+                        manifest.get(
+                            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
             )
-            or int(
-                manifest.get(
-                    "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks",
-                    0,
-                )
-                or 0
-            )
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required_telemetry_present": (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_required"
+            in manifest
         ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_ran": bool(
             manifest.get(
@@ -17084,9 +17094,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_bridge_required_value = payload.get(
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
     )
-    exact_semantic_bridge_required_present = (
-        exact_semantic_bridge_required_value is True
-        or exact_semantic_bridge_required_value is False
+    exact_semantic_bridge_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_required",
+        exact_semantic_bridge_required_value,
     )
     exact_semantic_bridge_required = exact_semantic_bridge_required_value is True
     exact_semantic_bridge_ran = (
@@ -17106,9 +17116,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_lean_repair_required_value = payload.get(
         "source_theorem_exact_semantic_definition_lean_repair_executor_required"
     )
-    exact_semantic_lean_repair_required_present = (
-        exact_semantic_lean_repair_required_value is True
-        or exact_semantic_lean_repair_required_value is False
+    exact_semantic_lean_repair_required_present = _requested_telemetry_present(
+        "source_theorem_exact_semantic_definition_lean_repair_executor_required",
+        exact_semantic_lean_repair_required_value,
     )
     exact_semantic_lean_repair_required = (
         exact_semantic_lean_repair_required_value is True

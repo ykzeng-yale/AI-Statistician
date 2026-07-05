@@ -49639,6 +49639,18 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     ] == ["blk_order_stat"]
     assert (
         audit[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_required_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_required_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
             "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
         ]
         is False
@@ -75324,6 +75336,132 @@ def test_runtime_audit_preserves_missing_exact_semantic_source_lookup_required_t
     assert (
         audit[
             "source_theorem_exact_semantic_definition_source_lookup_required_telemetry_present"
+        ]
+        is False
+    )
+    assert row["passed"] is False
+    assert "required_telemetry_present=False" in row["evidence"]
+
+
+def test_runtime_audit_preserves_missing_exact_semantic_proofengineer_bridge_required_telemetry(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    row = rows["exact_semantic_definition_proofengineer_bridge_handoff_not_dropped"]
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_required"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_required_telemetry_present"
+        ]
+        is False
+    )
+    assert row["passed"] is False
+    assert "required_telemetry_present=False" in row["evidence"]
+
+
+def test_runtime_audit_preserves_missing_exact_semantic_lean_repair_required_telemetry(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 1,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    row = rows["exact_semantic_definition_lean_repair_executor_handoff_not_dropped"]
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_required"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_required_telemetry_present"
         ]
         is False
     )
