@@ -504,6 +504,16 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
     assert manifest["source_pseudo_formal_block_ids"] == [
         "blk_exchangeable_setup"
     ]
+    assert manifest["source_pseudo_formal_placeholder_symbols"] == [
+        "blk_exchangeable_setup"
+    ]
+    assert manifest["source_pseudo_formal_semantic_primitives"] == [
+        "exchangeable_setup"
+    ]
+    assert manifest["source_pseudo_formal_semantic_primitive_requirements"] == [
+        "exchangeable_setup",
+        "rank_uniformity",
+    ]
     assert manifest["pseudo_formal_origin_lineage_complete"] is True
     for row in [lookup_rows[0], closure_rows[0], review_packets[0], *learning_rows]:
         assert row["source_pseudo_formal_work_order_id"] == (

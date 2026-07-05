@@ -252,6 +252,25 @@ def run_source_theorem_exact_semantic_definition_source_lookup(
             [*work_orders, *lookup_rows, *definition_closure_work_orders],
             "source_pseudo_formal_block_id",
         ),
+        "source_pseudo_formal_placeholder_symbols": (
+            _source_pseudo_formal_origin_values(
+                [*work_orders, *lookup_rows, *definition_closure_work_orders],
+                "placeholder_symbol",
+            )
+        ),
+        "source_pseudo_formal_semantic_primitives": (
+            _source_pseudo_formal_origin_values(
+                [*work_orders, *lookup_rows, *definition_closure_work_orders],
+                "semantic_primitive",
+            )
+        ),
+        "source_pseudo_formal_semantic_primitive_requirements": (
+            _source_pseudo_formal_origin_list_values(
+                [*work_orders, *lookup_rows, *definition_closure_work_orders],
+                "semantic_primitive_requirements",
+                "source_block_semantic_primitive_requirements",
+            )
+        ),
         "pseudo_formal_origin_lineage_complete": (
             _pseudo_formal_origin_lineage_complete(
                 lookup_rows,
@@ -4758,6 +4777,39 @@ def _source_pseudo_formal_ids(
         if value and value not in ids:
             ids.append(value)
     return ids
+
+
+def _source_pseudo_formal_origin_values(
+    rows: Sequence[Mapping[str, Any]],
+    key: str,
+) -> list[str]:
+    values: list[str] = []
+    for row in rows:
+        if not _has_pseudo_formal_origin(row):
+            continue
+        value = str(row.get(key, "") or "").strip()
+        if value and value not in values:
+            values.append(value)
+    return values
+
+
+def _source_pseudo_formal_origin_list_values(
+    rows: Sequence[Mapping[str, Any]],
+    *keys: str,
+) -> list[str]:
+    values: list[str] = []
+    for row in rows:
+        if not _has_pseudo_formal_origin(row):
+            continue
+        for key in keys:
+            raw_values = row.get(key, []) or []
+            if not isinstance(raw_values, list):
+                raw_values = [raw_values]
+            for raw_value in raw_values:
+                value = str(raw_value or "").strip()
+                if value and value not in values:
+                    values.append(value)
+    return values
 
 
 def _pseudo_formal_origin_lineage_complete(

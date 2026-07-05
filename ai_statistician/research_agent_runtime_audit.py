@@ -521,6 +521,8 @@ def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summar
     effective_count = max(manifest_count, len(rows))
     target_ids: list[str] = []
     placeholder_symbols: list[str] = []
+    semantic_primitives: list[str] = []
+    source_block_semantic_primitive_requirements: list[str] = []
     proof_statuses: list[str] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -530,6 +532,13 @@ def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summar
         placeholder = str(row.get("placeholder_symbol", "") or "").strip()
         if placeholder:
             placeholder_symbols.append(placeholder)
+        semantic_primitive = str(row.get("semantic_primitive", "") or "").strip()
+        if semantic_primitive:
+            semantic_primitives.append(semantic_primitive)
+        for value in _compact_string_list(
+            row.get("source_block_semantic_primitive_requirements", [])
+        ):
+            source_block_semantic_primitive_requirements.append(value)
         proof_status = str(row.get("proof_evidence_status", "") or "").strip()
         if proof_status:
             proof_statuses.append(proof_status)
@@ -545,6 +554,10 @@ def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summar
         "n_pseudo_formal_work_order_rows": len(pseudo_formal_rows),
         "target_ids": list(dict.fromkeys(target_ids)),
         "placeholder_symbols": list(dict.fromkeys(placeholder_symbols)),
+        "semantic_primitives": list(dict.fromkeys(semantic_primitives)),
+        "source_block_semantic_primitive_requirements": list(
+            dict.fromkeys(source_block_semantic_primitive_requirements)
+        ),
         "proof_evidence_statuses": list(dict.fromkeys(proof_statuses)),
         "manifest_snapshot": {
             "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": manifest_count,
@@ -7052,6 +7065,27 @@ def audit_research_agent_runtime(
         "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_block_ids": list(
             manifest.get(
                 "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitives": list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitives",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitive_requirements": list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitive_requirements",
                 [],
             )
             or []
@@ -18811,6 +18845,63 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    pseudo_formal_exact_semantic_summary = payload.get(
+        "runtime_pseudo_formal_exact_semantic_definition_work_order_summary",
+        {},
+    )
+    if not isinstance(pseudo_formal_exact_semantic_summary, Mapping):
+        pseudo_formal_exact_semantic_summary = {}
+    pseudo_formal_exact_semantic_placeholder_symbols = _compact_string_list(
+        pseudo_formal_exact_semantic_summary.get("placeholder_symbols", [])
+    )
+    pseudo_formal_exact_semantic_semantic_primitives = _compact_string_list(
+        pseudo_formal_exact_semantic_summary.get("semantic_primitives", [])
+    )
+    pseudo_formal_exact_semantic_source_block_requirements = _compact_string_list(
+        pseudo_formal_exact_semantic_summary.get(
+            "source_block_semantic_primitive_requirements",
+            [],
+        )
+    )
+    pseudo_formal_exact_semantic_expected_symbols = list(
+        dict.fromkeys(
+            pseudo_formal_exact_semantic_placeholder_symbols
+            + pseudo_formal_exact_semantic_semantic_primitives
+            + pseudo_formal_exact_semantic_source_block_requirements
+        )
+    )
+    exact_semantic_source_lookup_pf_placeholder_symbols = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols",
+            [],
+        )
+    )
+    exact_semantic_source_lookup_pf_semantic_primitives = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitives",
+            [],
+        )
+    )
+    exact_semantic_source_lookup_pf_semantic_requirements = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitive_requirements",
+            [],
+        )
+    )
+    exact_semantic_source_lookup_pf_symbol_pool = set(
+        exact_semantic_source_lookup_pf_placeholder_symbols
+        + exact_semantic_source_lookup_pf_semantic_primitives
+        + exact_semantic_source_lookup_pf_semantic_requirements
+    )
+    missing_exact_semantic_source_lookup_pf_symbols = [
+        symbol
+        for symbol in pseudo_formal_exact_semantic_expected_symbols
+        if symbol not in exact_semantic_source_lookup_pf_symbol_pool
+    ]
+    exact_semantic_source_lookup_pf_symbol_coverage_ready = (
+        not pseudo_formal_exact_semantic_expected_symbols
+        or not missing_exact_semantic_source_lookup_pf_symbols
+    )
     exact_semantic_source_lookup_policy_lineage_complete = (
         payload.get(
             "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
@@ -18839,6 +18930,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 or exact_semantic_source_lookup_pf_review_packets > 0
             )
             and exact_semantic_source_lookup_pf_lineage_complete
+            and exact_semantic_source_lookup_pf_symbol_coverage_ready
         )
     )
     exact_semantic_bridge_required_value = payload.get(
@@ -22412,6 +22504,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_source_lookup_pf_review_packets} "
                 "pf_origin_lineage_complete="
                 f"{exact_semantic_source_lookup_pf_lineage_complete} "
+                "pf_expected_symbols="
+                f"{pseudo_formal_exact_semantic_expected_symbols} "
+                "pf_lookup_placeholder_symbols="
+                f"{exact_semantic_source_lookup_pf_placeholder_symbols} "
+                "pf_lookup_semantic_primitives="
+                f"{exact_semantic_source_lookup_pf_semantic_primitives} "
+                "pf_lookup_semantic_requirements="
+                f"{exact_semantic_source_lookup_pf_semantic_requirements} "
+                "pf_missing_lookup_symbols="
+                f"{missing_exact_semantic_source_lookup_pf_symbols} "
                 "lookup_skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_skipped_reason')}"
             ),
@@ -22435,7 +22537,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_exact_semantic_definition_source_lookup_ran=true, "
                     "PF-origin lookup rows are produced, PF-origin learning rows "
                     "or closure review packets are produced, and PF/BV origin "
-                    "lineage is preserved"
+                    "lineage is preserved; when recomputed PF exact-semantic "
+                    "symbols are available, every expected symbol appears in "
+                    "PF-origin lookup placeholder/semantic telemetry"
                 ),
             ),
         ),

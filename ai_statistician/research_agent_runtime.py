@@ -31834,6 +31834,30 @@ def run_research_agent_runtime(
         or []
     )
     manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols"
+    ] = list(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("source_pseudo_formal_placeholder_symbols", [])
+        or []
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitives"
+    ] = list(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("source_pseudo_formal_semantic_primitives", [])
+        or []
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_semantic_primitive_requirements"
+    ] = list(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("source_pseudo_formal_semantic_primitive_requirements", [])
+        or []
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
     ] = bool(
         (
