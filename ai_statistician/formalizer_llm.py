@@ -27,6 +27,7 @@ from .pseudo_formalization import (
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
+    pseudo_formal_validation_issue_summary,
     pseudo_formal_work_order_row_has_required_lineage,
     pseudo_formal_work_order_row_has_semantic_requirements,
     pseudo_formal_work_order_row_has_source_anchor,
@@ -215,7 +216,9 @@ def _formalizer_repair_context(
     environment_feedback: Mapping[str, Any] | None = None,
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    error_rows = [str(error) for error in errors if str(error).strip()]
+    error_rows = list(
+        dict.fromkeys(str(error) for error in errors if str(error).strip())
+    )
     error_text = " ".join(error_rows).lower()
     pseudo_formal_required = _feedback_requires_pseudo_formalization(
         environment_feedback or {},
@@ -235,6 +238,10 @@ def _formalizer_repair_context(
     if not pseudo_formal_required and not pseudo_formal_error:
         return {}
 
+    validation_issue_summary = pseudo_formal_validation_issue_summary(error_rows)
+    issue_specific_repair_actions = (
+        _pseudo_formal_issue_specific_repair_actions(validation_issue_summary)
+    )
     required_target_lanes = _required_pseudo_formal_target_lanes(
         environment_feedback or {},
         proof_bank_runtime_memory_summary or {},
@@ -255,6 +262,8 @@ def _formalizer_repair_context(
         "context_reason": "pseudo_formal_packet_repair",
         "pseudo_formal_activation_required": pseudo_formal_required,
         "detected_validation_errors": error_rows[:6],
+        "pseudo_formal_validation_issue_summary": validation_issue_summary,
+        "pseudo_formal_issue_specific_repair_actions": issue_specific_repair_actions,
         "validation_repair_policy": formalizer_validation_repair_policy(error_rows),
         "pseudo_formal_required_repair_blueprint": {
             "output_key": "pseudo_formal_proof_packets",
@@ -363,6 +372,93 @@ def _formalizer_repair_context(
             ],
         },
     }
+
+
+def _pseudo_formal_issue_specific_repair_actions(
+    validation_issue_summary: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    issue_kinds = [
+        str(value)
+        for value in validation_issue_summary.get("blocking_issue_kinds", []) or []
+        if str(value).strip()
+    ]
+    actions: list[dict[str, str]] = []
+    action_by_issue_kind = {
+        "missing_required_packet": (
+            "emit pseudo_formal_proof_packets with at least one concrete PF block "
+            "instead of returning only formal_targets/gap_taxonomy"
+        ),
+        "missing_blocks": (
+            "populate blocks with a bounded local PF module containing premises, "
+            "conclusion, proof_text, source_anchors, dependency metadata, and BV status"
+        ),
+        "missing_conclusion": (
+            "add a non-empty top-level conclusion field to every PF block; do not "
+            "hide the local claim inside proof_text or next_actions"
+        ),
+        "missing_source_anchors": (
+            "add source_anchors entries with non-empty id or excerpt for every "
+            "nontrivial PF block, copied from theory trace, proof body, theorem card, or paper source"
+        ),
+        "unsupported_block_type": (
+            "replace unsupported block_type labels with theorem, proposition, lemma, "
+            "claim, fact, definition, calculation, or case"
+        ),
+        "unsupported_faithfulness_status": (
+            "use lowercase faithfulness_status values only: faithful, needs_review, "
+            "unfaithful, or unchecked"
+        ),
+        "unsupported_lean_feasibility": (
+            "use lean_feasibility values from the PF/BV contract such as "
+            "needs_semantic_definition, needs_rag, lean_now, needs_library, pseudo_only, or unknown"
+        ),
+        "unsupported_block_verdict": (
+            "use block_verification.verdict values not_run, unknown, failed, or "
+            "accepted; keep needs_review as faithfulness_status only"
+        ),
+        "accepted_without_rollout_count": (
+            "if verdict=accepted, set block_verification.rollout_count to an "
+            "integer >= 1; otherwise use not_run, unknown, or failed"
+        ),
+        "forbidden_kernel_claim": (
+            "set kernel_verified=false, source_theorem_kernel_verified=false, and "
+            "preserve PF/BV as non-proof routing evidence"
+        ),
+        "dependency_or_scope_order": (
+            "order PF blocks so dependency_ids and scope_parent_id reference only "
+            "earlier blocks unless direct-child dependency scope explicitly applies"
+        ),
+        "no_lane_routable_work_order_rows": (
+            "make at least one faithful block lane-routable by setting "
+            "lean_feasibility=needs_semantic_definition with semantic_primitive_requirements, "
+            "lean_feasibility=needs_rag, or non-empty semantic_primitive_requirements for source_to_bridge"
+        ),
+        "missing_required_target_lane": (
+            "route at least one PF block to the required target lane using "
+            "field-inferred lane values, not only prose or generic needs_review rows"
+        ),
+    }
+    for issue_kind in issue_kinds:
+        action = action_by_issue_kind.get(issue_kind)
+        if not action:
+            continue
+        actions.append(
+            {
+                "issue_kind": issue_kind,
+                "required_repair_action": action,
+            }
+        )
+    if issue_kinds and not actions:
+        actions.append(
+            {
+                "issue_kind": "other",
+                "required_repair_action": (
+                    "repair the PF/BV packet against pseudo_formalization_contract "
+                    "and rerun local packet validation before emitting downstream work"
+                ),
+            }
+        )
+    return actions
 
 
 def build_formalizer_prompt(

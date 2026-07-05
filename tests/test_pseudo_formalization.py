@@ -1778,8 +1778,24 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
     block_template = blueprint["minimum_valid_packet"]["blocks"][0]
     seed = blueprint["copy_or_complete_this_packet_seed"]
+    issue_summary = repair_context["pseudo_formal_validation_issue_summary"]
+    issue_actions = repair_context["pseudo_formal_issue_specific_repair_actions"]
     assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
     assert repair_context["pseudo_formal_activation_required"] is True
+    assert issue_summary["n_missing_conclusion"] == 1
+    assert issue_summary["n_missing_source_anchors"] == 1
+    assert "missing_conclusion" in issue_summary["blocking_issue_kinds"]
+    assert "missing_source_anchors" in issue_summary["blocking_issue_kinds"]
+    assert any(
+        row["issue_kind"] == "missing_conclusion"
+        and "top-level conclusion" in row["required_repair_action"]
+        for row in issue_actions
+    )
+    assert any(
+        row["issue_kind"] == "missing_source_anchors"
+        and "source_anchors" in row["required_repair_action"]
+        for row in issue_actions
+    )
     assert seed["blocks"][0]["conclusion"]
     assert seed["blocks"][0]["source_anchors"][0]["id"]
     assert seed["blocks"][0]["lean_feasibility"] == "needs_semantic_definition"

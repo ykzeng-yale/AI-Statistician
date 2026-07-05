@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from copy import deepcopy
+import re
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
@@ -844,12 +845,19 @@ def pseudo_formal_validation_issue_summary(
 
     errors = [str(error) for error in validation_errors if str(error).strip()]
     counts: Counter[str] = Counter()
+    seen_issue_occurrences: set[tuple[str, str]] = set()
     for error in errors:
         lowered = error.lower()
         matched = False
         for issue_kind, markers in PSEUDO_FORMAL_VALIDATION_ISSUE_MARKERS:
             if any(marker in lowered for marker in markers):
-                counts[issue_kind] += 1
+                occurrence_key = _pseudo_formal_validation_issue_occurrence_key(
+                    lowered,
+                    issue_kind,
+                )
+                if occurrence_key not in seen_issue_occurrences:
+                    seen_issue_occurrences.add(occurrence_key)
+                    counts[issue_kind] += 1
                 matched = True
         if not matched:
             counts["other"] += 1
@@ -869,6 +877,36 @@ def pseudo_formal_validation_issue_summary(
     for issue_kind, count in issue_counts.items():
         result[f"n_{issue_kind}"] = count
     return result
+
+
+def _pseudo_formal_validation_issue_occurrence_key(
+    lowered_error: str,
+    issue_kind: str,
+) -> tuple[str, str]:
+    packet_block_match = re.search(
+        r"(?:pseudo_formal_proof_packets\[(?P<packet>\d+)\].*?)?"
+        r"blocks\[(?P<block>\d+)\]",
+        lowered_error,
+    )
+    if packet_block_match:
+        packet_index = packet_block_match.group("packet") or "*"
+        return (
+            issue_kind,
+            "pseudo_formal_proof_packets[{}].blocks[{}]".format(
+                packet_index,
+                packet_block_match.group("block"),
+            ),
+        )
+    packet_match = re.search(
+        r"pseudo_formal_proof_packets\[(?P<packet>\d+)\]",
+        lowered_error,
+    )
+    if packet_match:
+        return (
+            issue_kind,
+            "pseudo_formal_proof_packets[{}]".format(packet_match.group("packet")),
+        )
+    return (issue_kind, lowered_error)
 
 
 def _pseudo_formal_dependency_cycle_nodes(
