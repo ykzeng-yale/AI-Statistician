@@ -80484,7 +80484,7 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is False
     assert (
-        "authoring tasks but the LLM authoring worker did not run"
+        "one or more required primary/retry/late authoring lanes"
         in rows[
             "exact_semantic_definition_authoring_worker_handoff_not_dropped"
         ]["blocker"]
@@ -80641,6 +80641,73 @@ def test_runtime_capability_scorecard_requires_same_lane_exact_semantic_authorin
     assert "verifier_ready_channels=['primary']" in rows[
         "exact_semantic_definition_authoring_candidate_verifier_checked"
     ]["evidence"]
+
+
+def test_runtime_capability_scorecard_requires_every_required_exact_semantic_authoring_lane_handoff() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": False,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_authoring_worker_handoff_not_dropped"]
+
+    assert row["passed"] is False
+    assert "required_channels=['primary', 'retry']" in row["evidence"]
+    assert "prompt_ready_channels=['primary']" in row["evidence"]
+    assert "missing_handoff_channels=['retry']" in row["evidence"]
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": True,
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_authoring_worker_handoff_not_dropped"]
+
+    assert row["passed"] is True
+    assert "prompt_ready_channels=['primary', 'retry']" in row["evidence"]
+    assert "missing_handoff_channels=[]" in row["evidence"]
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": False,
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 0,
+            "post_runtime_exact_semantic_definition_authoring_worker_attached": True,
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": True,
+            "post_runtime_exact_semantic_definition_authoring_worker_ran": True,
+            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        }
+    )
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["exact_semantic_definition_authoring_worker_handoff_not_dropped"]
+
+    assert row["passed"] is True
+    assert "prompt_ready_channels=['primary', 'post_runtime']" in row["evidence"]
+    assert "missing_handoff_channels=['retry']" in row["evidence"]
+    assert "post_runtime_handoff_ready=True" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_requires_every_required_exact_semantic_authoring_lane_verified() -> None:

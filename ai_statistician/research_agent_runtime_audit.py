@@ -13002,6 +13002,7 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
             "post_runtime_exact_semantic_definition_authoring_worker_attached",
             "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_worker_ran",
             "post_runtime_exact_semantic_definition_authoring_worker_manifest_path",
             "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
             "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets",
@@ -22934,15 +22935,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "exact_semantic_definition_authoring_worker_handoff_not_dropped",
-            (not exact_semantic_definition_authoring_worker_required)
-            or (
-                exact_semantic_definition_authoring_worker_ran
-                and exact_semantic_definition_authoring["n_prompt_packets"] > 0
-                and (
-                    not exact_semantic_definition_authoring["post_runtime_attached"]
-                    or exact_semantic_definition_authoring["post_runtime_lineage_ok"]
-                )
-            ),
+            exact_semantic_definition_authoring["handoff_ready"],
             (
                 "authoring_tasks="
                 f"{exact_semantic_definition_authoring['n_tasks']} "
@@ -22954,25 +22947,52 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['retry_required']} "
                 "late_required="
                 f"{exact_semantic_definition_authoring['late_required']} "
+                "required_channels="
+                f"{exact_semantic_definition_authoring['required_channels']} "
                 "requested="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_requested')} "
                 "ran="
                 f"{exact_semantic_definition_authoring['ran']} "
                 "prompt_packets="
                 f"{exact_semantic_definition_authoring['n_prompt_packets']} "
+                "prompt_ready_channels="
+                f"{exact_semantic_definition_authoring['prompt_ready_channels']} "
+                "missing_handoff_channels="
+                f"{exact_semantic_definition_authoring['missing_handoff_channels']} "
                 "candidate_packets="
                 f"{exact_semantic_definition_authoring['n_candidate_packets']} "
                 "post_runtime_attached="
                 f"{exact_semantic_definition_authoring['post_runtime_attached']} "
                 "post_runtime_lineage_ok="
                 f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
+                "post_runtime_handoff_ready="
+                f"{exact_semantic_definition_authoring['post_runtime_handoff_ready']} "
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_skipped_reason')}"
             ),
             (
                 "exact semantic-definition Lean repair emitted authoring tasks "
-                "but the LLM authoring worker did not run with prompt-packet "
-                "output and valid post-runtime lineage"
+                "but one or more required primary/retry/late authoring lanes "
+                "did not run with prompt-packet output, and no valid "
+                "post-runtime lineage-checked handoff recovered them"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="Formalizer/ProofEngineer",
+                target_behavior=(
+                    "Dispatch every required exact semantic-definition "
+                    "authoring lane to an LLM worker and persist prompt "
+                    "packets as lane-routable artifacts."
+                ),
+                success_metric=(
+                    "each required in-runtime primary/retry/late exact "
+                    "semantic-definition authoring channel has worker_ran "
+                    "and n_prompt_packets>0, or a lineage-checked "
+                    "post-runtime channel has recovered the handoff"
+                ),
+                recommended_command=(
+                    _exact_semantic_authoring_worker_recovery_command(payload) or None
+                ),
             ),
         ),
         _scorecard_row(

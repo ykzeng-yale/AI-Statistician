@@ -988,6 +988,24 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         payload,
         "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
     )
+    primary_ran = (
+        payload.get("source_theorem_exact_semantic_definition_authoring_worker_ran")
+        is True
+    )
+    retry_ran = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+        )
+        is True
+    )
+    late_ran = (
+        payload.get("source_theorem_exact_semantic_definition_late_authoring_worker_ran")
+        is True
+    )
+    post_runtime_ran = (
+        payload.get("post_runtime_exact_semantic_definition_authoring_worker_ran")
+        is True
+    )
     prompt_packets = (
         primary_prompt_packets
         + retry_prompt_packets
@@ -1325,6 +1343,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         {
             "name": "primary",
             "required": primary_required,
+            "ran": primary_ran,
+            "prompt_packets": primary_prompt_packets,
             "live_attempts": primary_live_attempts,
             "candidate_packets": primary_candidate_packets,
             "materialized_lean_repair_tasks": primary_materialized_lean_repair_tasks,
@@ -1334,6 +1354,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         {
             "name": "retry",
             "required": retry_required,
+            "ran": retry_ran,
+            "prompt_packets": retry_prompt_packets,
             "live_attempts": retry_live_attempts,
             "candidate_packets": retry_candidate_packets,
             "materialized_lean_repair_tasks": retry_materialized_lean_repair_tasks,
@@ -1343,6 +1365,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         {
             "name": "late",
             "required": late_required,
+            "ran": late_ran,
+            "prompt_packets": late_prompt_packets,
             "live_attempts": late_live_attempts,
             "candidate_packets": late_candidate_packets,
             "materialized_lean_repair_tasks": late_materialized_lean_repair_tasks,
@@ -1352,6 +1376,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         {
             "name": "post_runtime",
             "required": False,
+            "ran": post_runtime_ran,
+            "prompt_packets": post_runtime_prompt_packets,
             "live_attempts": post_runtime_live_attempts,
             "candidate_packets": post_runtime_candidate_packets,
             "materialized_lean_repair_tasks": post_runtime_materialized_lean_repair_tasks,
@@ -1370,6 +1396,17 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     ]
     required_channels = [
         str(channel["name"]) for channel in channel_states if bool(channel["required"])
+    ]
+    prompt_ready_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if bool(channel["ran"]) and int(channel["prompt_packets"]) > 0
+    ]
+    missing_handoff_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if bool(channel["required"])
+        and str(channel["name"]) not in prompt_ready_channels
     ]
     live_attempted_channels = [
         str(channel["name"])
@@ -1393,6 +1430,16 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     )
     post_runtime_live_ready = "post_runtime" in live_attempted_channels
     post_runtime_verifier_ready = "post_runtime" in verifier_ready_channels
+    post_runtime_handoff_ready = (
+        post_runtime_attached
+        and post_runtime_lineage_ok
+        and "post_runtime" in prompt_ready_channels
+    )
+    handoff_ready = (
+        not (primary_required or retry_required or late_required)
+        or post_runtime_handoff_ready
+        or not missing_handoff_channels
+    )
     live_ready = (
         not (primary_required or retry_required or late_required)
         or post_runtime_live_ready
@@ -1433,22 +1480,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_primary_tasks": primary_tasks,
         "n_retry_tasks": retry_tasks,
         "n_late_manifests": late_manifests,
-        "ran": (
-            payload.get("source_theorem_exact_semantic_definition_authoring_worker_ran")
-            is True
-            or payload.get(
-                "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
-            )
-            is True
-            or payload.get(
-                "source_theorem_exact_semantic_definition_late_authoring_worker_ran"
-            )
-            is True
-            or payload.get(
-                "post_runtime_exact_semantic_definition_authoring_worker_ran"
-            )
-            is True
-        ),
+        "ran": primary_ran or retry_ran or late_ran or post_runtime_ran,
+        "handoff_ready": handoff_ready,
         "n_prompt_packets": prompt_packets,
         "n_llm_attempted": generic_attempts,
         "n_live_llm_attempted": live_attempts,
@@ -1456,6 +1489,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "candidate_verifier_required": candidate_verifier_required,
         "candidate_verifier_ready": candidate_verifier_ready,
         "required_channels": required_channels,
+        "prompt_ready_channels": prompt_ready_channels,
+        "missing_handoff_channels": missing_handoff_channels,
         "live_attempted_channels": live_attempted_channels,
         "missing_live_attempt_channels": missing_live_attempt_channels,
         "missing_candidate_verifier_channels": missing_candidate_verifier_channels,
@@ -1467,6 +1502,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_materialized_feedback_rows": materialized_feedback_rows,
         "candidate_verifier_ready_channels": verifier_ready_channels,
         "n_candidate_verifier_ready_channels": len(verifier_ready_channels),
+        "post_runtime_handoff_ready": post_runtime_handoff_ready,
         "post_runtime_live_ready": post_runtime_live_ready,
         "post_runtime_verifier_ready": post_runtime_verifier_ready,
         "provider_names": list(dict.fromkeys(provider_names)),
