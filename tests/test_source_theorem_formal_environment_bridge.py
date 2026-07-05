@@ -115,9 +115,12 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                 "proof_body_attempt_summaries": [
                     "1:simp:returncode=1:compiled=False"
                 ],
+                "proof_body_attempt_count": 7,
                 "proof_body_failure_classification": "proof_body_incomplete",
                 "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
                 "source_theorem_exact_proof_body_reached": True,
+                "semantic_alignment_blockers": [],
+                "source_theorem_kernel_evidence_eligible": True,
                 "kernel_verified_theorem_reduction_closure_declarations": [
                     "splitConformalFiniteSampleCoverage_reductionClosure"
                 ],
@@ -184,10 +187,16 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
     assert execution_row["source_theorem_target_known"] is True
     assert execution_row["signature_probe_artifact_path"] == str(candidate)
+    assert execution_row["semantic_alignment_blockers"] == []
+    assert execution_row["source_theorem_kernel_evidence_eligible"] is True
     assert execution_row["already_repaired_environment"][
         "signature_typecheck_reached_proof_body"
     ] is True
     assert execution_row["proof_body_goal_excerpt"] == ["claim : Prop", "⊢ claim"]
+    assert execution_row["previous_proof_body_attempt_count"] == 7
+    assert execution_row["previous_proof_body_attempt_summaries"] == [
+        "1:simp:returncode=1:compiled=False"
+    ]
     assert execution_row["source_theorem_proof_body_adapter_kernel_verified"] is True
     assert execution_row["kernel_verified_source_theorem_proof_body_adapter_ids"] == [
         "source_theorem_proof_body_adapter_check:verified"
@@ -226,6 +235,12 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
         ]
         is True
     )
+    assert execution_row["live_proof_state_request"][
+        "source_theorem_kernel_evidence_eligible"
+    ] is True
+    assert execution_row["live_proof_state_request"][
+        "previous_proof_body_attempt_count"
+    ] == 7
     assert execution_row["live_proof_state_request"][
         "kernel_verified_source_to_bridge_premise_derivation_ids"
     ] == ["source_to_bridge_premise_derivation_check:hGoodCovered"]

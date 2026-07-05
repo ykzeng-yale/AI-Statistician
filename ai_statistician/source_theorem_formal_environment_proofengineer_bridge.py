@@ -1330,6 +1330,15 @@ def _proof_body_work_order(
         or source_target_provenance.get("semantic_alignment_constraints", [])
         or []
     )
+    semantic_alignment_blockers = _str_list(
+        repair_packet.get("semantic_alignment_blockers", []) or []
+    )
+    source_theorem_kernel_evidence_eligible = bool(
+        repair_packet.get(
+            "source_theorem_kernel_evidence_eligible",
+            not semantic_alignment_blockers,
+        )
+    ) and not semantic_alignment_blockers
     target_lean_declaration = str(
         repair_packet.get("target_lean_declaration", "")
         or source_target_provenance.get("target_lean_declaration", "")
@@ -1388,6 +1397,10 @@ def _proof_body_work_order(
         ),
         "source_theorem_target_provenance": source_target_provenance,
         "semantic_alignment_constraints": semantic_alignment_constraints,
+        "semantic_alignment_blockers": semantic_alignment_blockers,
+        "source_theorem_kernel_evidence_eligible": (
+            source_theorem_kernel_evidence_eligible
+        ),
         "kernel_verified_source_to_bridge_premise_derivation_ids": _str_list(
             repair_packet.get("kernel_verified_source_to_bridge_premise_derivation_ids", [])
             or []
@@ -1632,6 +1645,32 @@ def _proof_body_repair_execution_work_order(
         or primary.get("proof_body_attempt_summaries", [])
         or []
     )[:8]
+    semantic_alignment_constraints = _str_list(
+        row.get("semantic_alignment_constraints", [])
+        or source_target_provenance.get("semantic_alignment_constraints", [])
+        or []
+    )
+    semantic_alignment_blockers = _str_list(
+        row.get("semantic_alignment_blockers", [])
+        or primary.get("semantic_alignment_blockers", [])
+        or []
+    )
+    source_theorem_kernel_evidence_eligible = bool(
+        row.get(
+            "source_theorem_kernel_evidence_eligible",
+            primary.get(
+                "source_theorem_kernel_evidence_eligible",
+                not semantic_alignment_blockers,
+            ),
+        )
+    ) and not semantic_alignment_blockers
+    previous_proof_body_attempt_count = int(
+        row.get(
+            "proof_body_attempt_count",
+            primary.get("proof_body_attempt_count", len(proof_body_attempt_summaries)),
+        )
+        or 0
+    )
     adapter_artifact_paths = _str_list(
         row.get("verified_source_theorem_proof_body_adapter_artifact_paths", [])
         or primary.get("verified_source_theorem_proof_body_adapter_artifact_paths", [])
@@ -1695,10 +1734,10 @@ def _proof_body_repair_execution_work_order(
         "question_title": str(row.get("question_title", "") or ""),
         "source_candidate_artifact_path": candidate_artifact_path,
         "signature_probe_artifact_path": candidate_artifact_path,
-        "semantic_alignment_constraints": _str_list(
-            row.get("semantic_alignment_constraints", [])
-            or source_target_provenance.get("semantic_alignment_constraints", [])
-            or []
+        "semantic_alignment_constraints": semantic_alignment_constraints,
+        "semantic_alignment_blockers": semantic_alignment_blockers,
+        "source_theorem_kernel_evidence_eligible": (
+            source_theorem_kernel_evidence_eligible
         ),
         "already_repaired_environment": {
             "missing_formal_symbols": [],
@@ -1714,6 +1753,7 @@ def _proof_body_repair_execution_work_order(
         },
         "proof_body_goal_excerpt": proof_body_goal_excerpt,
         "previous_proof_body_attempt_summaries": proof_body_attempt_summaries,
+        "previous_proof_body_attempt_count": previous_proof_body_attempt_count,
         "kernel_verified_theorem_reduction_closure_declarations": _str_list(
             row.get("kernel_verified_theorem_reduction_closure_declarations", [])
             or primary.get(
@@ -1862,6 +1902,15 @@ def _proof_body_execution_queue_row(
         or source_target_provenance.get("semantic_alignment_constraints", [])
         or []
     )
+    semantic_alignment_blockers = _str_list(
+        work_order.get("semantic_alignment_blockers", []) or []
+    )
+    source_theorem_kernel_evidence_eligible = bool(
+        work_order.get(
+            "source_theorem_kernel_evidence_eligible",
+            not semantic_alignment_blockers,
+        )
+    ) and not semantic_alignment_blockers
     adapter_kernel_verified = bool(
         work_order.get("source_theorem_proof_body_adapter_kernel_verified", False)
     )
@@ -1967,6 +2016,10 @@ def _proof_body_execution_queue_row(
         "source_theorem_target_identity_status": source_theorem_target_identity_status,
         "source_theorem_target_provenance": source_target_provenance,
         "semantic_alignment_constraints": semantic_alignment_constraints,
+        "semantic_alignment_blockers": semantic_alignment_blockers,
+        "source_theorem_kernel_evidence_eligible": (
+            source_theorem_kernel_evidence_eligible
+        ),
         "owner_agent": "FormalizerProofEngineer",
         "action_class": "fill_exact_source_theorem_proof_body",
         "source_candidate_artifact_path": source_artifact_path,
@@ -2024,6 +2077,12 @@ def _proof_body_execution_queue_row(
             adapter_context_boundary
         ),
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
+        "previous_proof_body_attempt_count": int(
+            work_order.get("previous_proof_body_attempt_count", 0) or 0
+        ),
+        "previous_proof_body_attempt_summaries": list(
+            work_order.get("previous_proof_body_attempt_summaries", []) or []
+        ),
         "proof_body_attempts": _str_list(work_order.get("proof_body_attempts", []) or []),
         "proof_body_attempt_source": str(
             work_order.get("proof_body_attempt_source", "") or ""
@@ -2171,6 +2230,15 @@ def _proof_body_live_proof_state_request(
         or source_target_provenance.get("semantic_alignment_constraints", [])
         or []
     )
+    semantic_alignment_blockers = _str_list(
+        work_order.get("semantic_alignment_blockers", []) or []
+    )
+    source_theorem_kernel_evidence_eligible = bool(
+        work_order.get(
+            "source_theorem_kernel_evidence_eligible",
+            not semantic_alignment_blockers,
+        )
+    ) and not semantic_alignment_blockers
     source_theorem_target_known = bool(
         work_order.get("source_theorem_target_known", False)
         or source_target_provenance.get("source_theorem_target_known", False)
@@ -2234,6 +2302,10 @@ def _proof_body_live_proof_state_request(
         "source_theorem_target_identity_status": source_theorem_target_identity_status,
         "source_theorem_target_provenance": source_target_provenance,
         "semantic_alignment_constraints": semantic_alignment_constraints,
+        "semantic_alignment_blockers": semantic_alignment_blockers,
+        "source_theorem_kernel_evidence_eligible": (
+            source_theorem_kernel_evidence_eligible
+        ),
         "source_theorem_proof_body_adapter_feedback_available": bool(
             work_order.get("source_theorem_proof_body_adapter_feedback_available", False)
             or work_order.get("source_theorem_proof_body_adapter_kernel_verified", False)
@@ -2284,6 +2356,12 @@ def _proof_body_live_proof_state_request(
             or ""
         ),
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
+        "previous_proof_body_attempt_count": int(
+            work_order.get("previous_proof_body_attempt_count", 0) or 0
+        ),
+        "previous_proof_body_attempt_summaries": list(
+            work_order.get("previous_proof_body_attempt_summaries", []) or []
+        ),
         "proof_body_attempts": proof_body_attempts,
         "proof_body_attempt_source": str(
             work_order.get("proof_body_attempt_source", "") or ""

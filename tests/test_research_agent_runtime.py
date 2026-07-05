@@ -58356,6 +58356,61 @@ def test_post_executor_promotion_waits_for_executor_placeholder_support() -> Non
         "kernel_verified_source_theorem_semantic_support_obligation_ids"
     ]
 
+    premise_derivation_strengthened_row = dict(complete_rows[0])
+    premise_derivation_strengthened_row[
+        "source_to_bridge_premise_derivation_all_required_verified"
+    ] = True
+    premise_derivation_strengthened_row[
+        "kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] = [
+        "source_to_bridge_premise_derivation_check:hGoodCovered",
+    ]
+    premise_derivation_strengthened_row[
+        "verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] = [
+        "runs/premise_derivations/hGoodCovered.lean",
+    ]
+    premise_derivation_strengthened_row[
+        "verified_source_to_bridge_premise_derivation_declarations"
+    ] = [
+        "split_conformal_hGoodCovered_source_to_bridge_derivation",
+    ]
+    prior_without_premise_derivation_row = dict(complete_rows[0])
+    prior_without_premise_derivation_row.pop(
+        "source_to_bridge_premise_derivation_all_required_verified",
+        None,
+    )
+    prior_without_premise_derivation_row.pop(
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
+        None,
+    )
+    prior_without_premise_derivation_row.pop(
+        "verified_source_to_bridge_premise_derivation_artifact_paths",
+        None,
+    )
+    prior_without_premise_derivation_row.pop(
+        "verified_source_to_bridge_premise_derivation_declarations",
+        None,
+    )
+
+    premise_derivation_rerun_rows = _new_or_strengthened_source_theorem_promotion_rows(
+        [premise_derivation_strengthened_row],
+        [prior_without_premise_derivation_row],
+        rerun_reason="adapter_premise_derivation_support_strengthened",
+    )
+
+    assert len(premise_derivation_rerun_rows) == 1
+    assert premise_derivation_rerun_rows[0][
+        "kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] == [
+        "source_to_bridge_premise_derivation_check:hGoodCovered",
+    ]
+    assert premise_derivation_rerun_rows[0][
+        "source_theorem_promotion_rerun_support_state"
+    ]["verified_source_to_bridge_premise_derivation_declarations"] == (
+        "split_conformal_hGoodCovered_source_to_bridge_derivation",
+    )
+
     prior_pre_executor_row = dict(complete_rows[0])
     prior_pre_executor_row.pop("source_runtime_learning_task", None)
     prior_pre_executor_row.pop("same_run_post_executor_promotion", None)
@@ -66093,6 +66148,16 @@ def test_source_theorem_promotion_dedupe_refreshes_exact_proof_body_mode() -> No
         "verified_source_theorem_proof_body_adapter_declarations": [
             "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
         ],
+        "source_to_bridge_premise_derivation_all_required_verified": True,
+        "kernel_verified_source_to_bridge_premise_derivation_ids": [
+            "source_to_bridge_premise_derivation_check:hGoodCovered"
+        ],
+        "verified_source_to_bridge_premise_derivation_artifact_paths": [
+            "runs/premise_derivations/hGoodCovered.lean"
+        ],
+        "verified_source_to_bridge_premise_derivation_declarations": [
+            "split_conformal_hGoodCovered_source_to_bridge_derivation"
+        ],
         "source_theorem_exact_proof_body_repair_diagnostics": [
             {
                 "target_theorem_name": "split_conformal_finite_sample_coverage",
@@ -66140,6 +66205,16 @@ def test_source_theorem_promotion_dedupe_refreshes_exact_proof_body_mode() -> No
     )
     assert row["kernel_verified_source_theorem_proof_body_adapter_ids"] == [
         "source_theorem_proof_body_adapter_check:verified"
+    ]
+    assert row["source_to_bridge_premise_derivation_all_required_verified"] is True
+    assert row["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
+        "source_to_bridge_premise_derivation_check:hGoodCovered"
+    ]
+    assert row["verified_source_to_bridge_premise_derivation_artifact_paths"] == [
+        "runs/premise_derivations/hGoodCovered.lean"
+    ]
+    assert row["verified_source_to_bridge_premise_derivation_declarations"] == [
+        "split_conformal_hGoodCovered_source_to_bridge_derivation"
     ]
     assert row["proof_body_adapter_required"] is False
 

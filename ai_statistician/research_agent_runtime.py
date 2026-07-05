@@ -63926,6 +63926,10 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_theorem_proof_body_adapter_unproven_bridge_premise_names",
                         "source_theorem_proof_body_adapter_unproven_bridge_premise_target_names",
                         "source_to_bridge_premise_derivation_work_items",
+                        "source_to_bridge_premise_derivation_all_required_verified",
+                        "kernel_verified_source_to_bridge_premise_derivation_ids",
+                        "verified_source_to_bridge_premise_derivation_artifact_paths",
+                        "verified_source_to_bridge_premise_derivation_declarations",
                         "kernel_verified_source_theorem_proof_body_adapter_ids",
                         "verified_source_theorem_proof_body_adapter_artifact_paths",
                         "verified_source_theorem_proof_body_adapter_declarations",
@@ -65267,6 +65271,10 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "source_theorem_proof_body_adapter_unproven_bridge_premise_names",
                         "source_theorem_proof_body_adapter_unproven_bridge_premise_target_names",
                         "source_to_bridge_premise_derivation_work_items",
+                        "source_to_bridge_premise_derivation_all_required_verified",
+                        "kernel_verified_source_to_bridge_premise_derivation_ids",
+                        "verified_source_to_bridge_premise_derivation_artifact_paths",
+                        "verified_source_to_bridge_premise_derivation_declarations",
                         "kernel_verified_source_theorem_proof_body_adapter_ids",
                         "verified_source_theorem_proof_body_adapter_artifact_paths",
                         "verified_source_theorem_proof_body_adapter_declarations",
@@ -65365,6 +65373,15 @@ def _source_theorem_promotion_support_state(
     adapter_ids = _sorted_str_tuple(
         row.get("kernel_verified_source_theorem_proof_body_adapter_ids", [])
     )
+    premise_derivation_ids = _sorted_str_tuple(
+        row.get("kernel_verified_source_to_bridge_premise_derivation_ids", [])
+    )
+    premise_derivation_artifacts = _sorted_str_tuple(
+        row.get("verified_source_to_bridge_premise_derivation_artifact_paths", [])
+    )
+    premise_derivation_declarations = _sorted_str_tuple(
+        row.get("verified_source_to_bridge_premise_derivation_declarations", [])
+    )
     source_runtime_tasks = _sorted_str_tuple(row.get("source_runtime_learning_task", ""))
     same_run_bridge_promotion = (
         ("same_run_bridge_promotion",)
@@ -65382,6 +65399,13 @@ def _source_theorem_promotion_support_state(
         "theorem_reduction_closure_declarations": closure_declarations,
         "theorem_reduction_closure_artifact_paths": closure_artifact_paths,
         "kernel_verified_source_theorem_proof_body_adapter_ids": adapter_ids,
+        "kernel_verified_source_to_bridge_premise_derivation_ids": premise_derivation_ids,
+        "verified_source_to_bridge_premise_derivation_artifact_paths": (
+            premise_derivation_artifacts
+        ),
+        "verified_source_to_bridge_premise_derivation_declarations": (
+            premise_derivation_declarations
+        ),
         "source_runtime_learning_tasks": source_runtime_tasks,
         "same_run_bridge_promotion": same_run_bridge_promotion,
     }
@@ -65419,6 +65443,24 @@ def _source_theorem_promotion_support_state_is_stronger(
     existing_adapter_ids = set(
         existing_state["kernel_verified_source_theorem_proof_body_adapter_ids"]
     )
+    candidate_premise_derivation_ids = set(
+        candidate_state["kernel_verified_source_to_bridge_premise_derivation_ids"]
+    )
+    existing_premise_derivation_ids = set(
+        existing_state["kernel_verified_source_to_bridge_premise_derivation_ids"]
+    )
+    candidate_premise_derivation_artifacts = set(
+        candidate_state["verified_source_to_bridge_premise_derivation_artifact_paths"]
+    )
+    existing_premise_derivation_artifacts = set(
+        existing_state["verified_source_to_bridge_premise_derivation_artifact_paths"]
+    )
+    candidate_premise_derivation_declarations = set(
+        candidate_state["verified_source_to_bridge_premise_derivation_declarations"]
+    )
+    existing_premise_derivation_declarations = set(
+        existing_state["verified_source_to_bridge_premise_derivation_declarations"]
+    )
     if candidate_support < existing_support:
         return False
     if candidate_primitives < existing_primitives:
@@ -65433,6 +65475,12 @@ def _source_theorem_promotion_support_state_is_stronger(
         return False
     if candidate_adapter_ids < existing_adapter_ids:
         return False
+    if candidate_premise_derivation_ids < existing_premise_derivation_ids:
+        return False
+    if candidate_premise_derivation_artifacts < existing_premise_derivation_artifacts:
+        return False
+    if candidate_premise_derivation_declarations < existing_premise_derivation_declarations:
+        return False
     if candidate_support > existing_support:
         return True
     if candidate_primitives > existing_primitives:
@@ -65446,6 +65494,12 @@ def _source_theorem_promotion_support_state_is_stronger(
     if candidate_closure_artifacts > existing_closure_artifacts:
         return True
     if candidate_adapter_ids > existing_adapter_ids:
+        return True
+    if candidate_premise_derivation_ids > existing_premise_derivation_ids:
+        return True
+    if candidate_premise_derivation_artifacts > existing_premise_derivation_artifacts:
+        return True
+    if candidate_premise_derivation_declarations > existing_premise_derivation_declarations:
         return True
     candidate_missing = set(candidate_state["missing_semantic_support_ids"])
     existing_missing = set(existing_state["missing_semantic_support_ids"])
