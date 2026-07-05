@@ -185,12 +185,18 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
 
     assert manifest["n_work_orders"] == 1
     assert manifest["n_rows_with_source_hits"] == 1
+    assert manifest["n_definition_closure_review_packets_with_placeholder_policy_lineage"] == 1
+    assert manifest["placeholder_policy_lineage_complete"] is True
     assert manifest["proof_evidence_status"] == "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE"
     lookup_rows = [
         json.loads(line)
         for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
     ]
     assert lookup_rows[0]["lookup_status"] == "CANDIDATE_SOURCE_DECLARATIONS_FOUND"
+    assert lookup_rows[0]["placeholder_policy_id"] == (
+        "split_conformal_coverage.order_statistic_threshold"
+    )
+    assert lookup_rows[0]["placeholder_policy_scope"] == "split_conformal_coverage"
     assert lookup_rows[0]["source_lookup_hits"][0]["candidate_kind"] == (
         "lean_declaration"
     )
@@ -269,6 +275,12 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
     assert review_packets[0]["semantic_definition_typecheck_evidence_status"] == (
         "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
     )
+    assert review_packets[0]["placeholder_policy_id"] == (
+        "split_conformal_coverage.order_statistic_threshold"
+    )
+    assert review_packets[0]["placeholder_policy_scope"] == (
+        "split_conformal_coverage"
+    )
     assert "finite order statistic" in review_packets[0]["definition_contract"][
         "semantic_intent"
     ]
@@ -278,6 +290,15 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
 
     memory = _load_runtime_learning_memory(
         [Path(manifest["runtime_learning_rows_jsonl"])]
+    )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert all(
+        row["placeholder_policy_id"]
+        == "split_conformal_coverage.order_statistic_threshold"
+        for row in learning_rows
     )
     repairs = _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         {"runtime_learning_memory": memory}

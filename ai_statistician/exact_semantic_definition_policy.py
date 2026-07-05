@@ -56,6 +56,19 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
         required_anchor_names=("n2", "s", "q_hat", "hq"),
     ),
     ExactSemanticDefinitionPlaceholderPolicy(
+        policy_id="split_conformal_coverage.order_statistic_threshold",
+        policy_scope="split_conformal_coverage",
+        placeholder_key="orderstat",
+        semantic_goal=(
+            "Define the finite-sample conformal order-statistic threshold from "
+            "the exact score process s and the order-statistic threshold equation "
+            "hq. The definition must preserve the requested rank, duplicate score "
+            "multiplicities, and the reviewed tie policy instead of collapsing "
+            "scores through a set/image shortcut."
+        ),
+        required_anchor_names=("n2", "s", "q_hat", "hq"),
+    ),
+    ExactSemanticDefinitionPlaceholderPolicy(
         policy_id="split_conformal_coverage.BadRanks",
         policy_scope="split_conformal_coverage",
         placeholder_key="badranks",

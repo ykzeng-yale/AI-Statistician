@@ -20,6 +20,13 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     assert rank.required_anchor_names == ("n2", "s", "q_hat", "hq")
     assert "order-statistic threshold equation hq" in rank.semantic_goal
 
+    order_stat = exact_semantic_definition_placeholder_policy("orderStat")
+    assert order_stat.policy_id == (
+        "split_conformal_coverage.order_statistic_threshold"
+    )
+    assert order_stat.required_anchor_names == ("n2", "s", "q_hat", "hq")
+    assert "duplicate score multiplicities" in order_stat.semantic_goal
+
     assert bad_ranks.policy_id == "split_conformal_coverage.BadRanks"
     assert bad_ranks.required_anchor_names == (
         "n2",
