@@ -200,6 +200,38 @@ def export_exact_source_theorem_proof_body_execution_results(
         "n_source_theorem_kernel_verified": sum(
             1 for row in rows if row.source_theorem_kernel_verified
         ),
+        "n_execution_result_rows_from_pseudo_formal": sum(
+            1 for row in rows if _row_has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_checked_from_pseudo_formal": sum(
+            1
+            for row in rows
+            if row.local_lean_checked and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_compiled_from_pseudo_formal": sum(
+            1
+            for row in rows
+            if row.local_lean_compiled and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_proof_body_goal_reached_from_pseudo_formal": sum(
+            1
+            for row in rows
+            if row.proof_body_goal_reached and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_source_theorem_kernel_verified_from_pseudo_formal": sum(
+            1
+            for row in rows
+            if row.source_theorem_kernel_verified
+            and _row_has_pseudo_formal_origin(row)
+        ),
+        "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
+            rows,
+            "source_pseudo_formal_work_order_id",
+        ),
+        "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
+            rows,
+            "source_pseudo_formal_block_id",
+        ),
         "n_formal_environment_semantically_closed": sum(
             1 for row in rows if row.formal_environment_semantically_closed
         ),
@@ -1888,6 +1920,23 @@ def _export_runtime_learning_rows(
         "n_source_theorem_kernel_verified": sum(
             1 for row in rows if row.source_theorem_kernel_verified
         ),
+        "n_runtime_learning_rows_from_pseudo_formal": sum(
+            1 for row in rows if _row_has_pseudo_formal_origin(row)
+        ),
+        "n_source_theorem_kernel_verified_from_pseudo_formal": sum(
+            1
+            for row in rows
+            if row.source_theorem_kernel_verified
+            and _row_has_pseudo_formal_origin(row)
+        ),
+        "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
+            rows,
+            "source_pseudo_formal_work_order_id",
+        ),
+        "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
+            rows,
+            "source_pseudo_formal_block_id",
+        ),
         "n_artifact_kernel_verified": sum(1 for row in rows if row.artifact_kernel_verified),
         "n_source_theorem_target_known": sum(
             1 for row in rows if row.source_theorem_target_known
@@ -1965,6 +2014,18 @@ def _export_runtime_learning_rows(
         "runtime_learning_rows_jsonl": str(rows_path),
         "runtime_learning_manifest": str(manifest_path),
         "n_runtime_learning_rows": len(learning_rows),
+        "n_runtime_learning_rows_from_pseudo_formal": manifest[
+            "n_runtime_learning_rows_from_pseudo_formal"
+        ],
+        "n_source_theorem_kernel_verified_from_pseudo_formal": manifest[
+            "n_source_theorem_kernel_verified_from_pseudo_formal"
+        ],
+        "source_pseudo_formal_work_order_ids": manifest[
+            "source_pseudo_formal_work_order_ids"
+        ],
+        "source_pseudo_formal_block_ids": manifest[
+            "source_pseudo_formal_block_ids"
+        ],
         "n_source_theorem_target_known": manifest["n_source_theorem_target_known"],
         "n_source_theorem_target_unpromoted_rows": manifest[
             "n_source_theorem_target_unpromoted_rows"
@@ -2623,6 +2684,33 @@ def _dominant_failure_classification(
     if not failures:
         return ""
     return failures.most_common(1)[0][0]
+
+
+def _row_has_pseudo_formal_origin(
+    row: ExactSourceTheoremProofBodyExecutionResultRow,
+) -> bool:
+    return bool(
+        str(
+            row.exact_semantic_definition_context.get(
+                "source_pseudo_formal_work_order_id",
+                "",
+            )
+            or ""
+        ).strip()
+    )
+
+
+def _source_pseudo_formal_ids(
+    rows: list[ExactSourceTheoremProofBodyExecutionResultRow],
+    key: str,
+) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(row.exact_semantic_definition_context.get(key, "") or "")
+            for row in rows
+            if str(row.exact_semantic_definition_context.get(key, "") or "").strip()
+        )
+    )
 
 
 def _markdown_report(payload: Mapping[str, object]) -> str:

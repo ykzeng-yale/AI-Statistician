@@ -8400,6 +8400,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
@@ -8407,6 +8421,52 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_source_pseudo_formal_work_order_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_source_pseudo_formal_work_order_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_source_pseudo_formal_block_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_source_pseudo_formal_block_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ],
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
@@ -18313,6 +18373,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_verifier_approved_recheck_executor_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_verifier_approved_recheck_executor_goal_reached = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_verifier_approved_recheck_executor_source_kernel = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
@@ -18323,6 +18397,37 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     primary_typechecked_review_verifier_approved_recheck_executor_output_rows = (
         primary_typechecked_review_verifier_approved_recheck_executor_results
         + primary_typechecked_review_verifier_approved_recheck_executor_source_kernel
+    )
+    primary_typechecked_review_pf_verifier_approved_recheck_executor_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_approved_recheck_executor_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_approved_recheck_executor_goal_reached = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_approved_recheck_executor_source_kernel = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_verifier_approved_recheck_required = (
+        primary_typechecked_review_pf_verifier_gate_approved > 0
     )
     materialized_typechecked_review_recheck_executor_ran = (
         payload.get(
@@ -22699,6 +22804,58 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "required verifier-gate processing, but the verifier gate did "
                 "not report PF-origin local Lean feedback and an approved or "
                 "blocked PF-origin outcome"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_typechecked_review_verifier_approved_proof_body_pf_handoff_not_dropped",
+            (not primary_typechecked_review_pf_verifier_approved_recheck_required)
+            or (
+                primary_typechecked_review_verifier_approved_recheck_rows > 0
+                and primary_typechecked_review_verifier_approved_recheck_executor_ran
+                and primary_typechecked_review_verifier_approved_recheck_executor_results
+                > 0
+                and primary_typechecked_review_pf_verifier_approved_recheck_executor_results
+                > 0
+                and (
+                    primary_typechecked_review_pf_verifier_approved_recheck_executor_local_lean_checked
+                    > 0
+                    or primary_typechecked_review_pf_verifier_approved_recheck_executor_goal_reached
+                    > 0
+                    or primary_typechecked_review_pf_verifier_approved_recheck_executor_source_kernel
+                    > 0
+                )
+            ),
+            (
+                "pf_verifier_gate_approved="
+                f"{primary_typechecked_review_pf_verifier_gate_approved} "
+                "verifier_approved_queue_rows="
+                f"{primary_typechecked_review_verifier_approved_recheck_rows} "
+                "executor_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran')} "
+                "executor_results="
+                f"{primary_typechecked_review_verifier_approved_recheck_executor_results} "
+                "executor_local_lean_checked="
+                f"{primary_typechecked_review_verifier_approved_recheck_executor_local_lean_checked} "
+                "executor_goal_reached="
+                f"{primary_typechecked_review_verifier_approved_recheck_executor_goal_reached} "
+                "executor_source_kernel="
+                f"{primary_typechecked_review_verifier_approved_recheck_executor_source_kernel} "
+                "pf_executor_results="
+                f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_results} "
+                "pf_executor_local_lean_checked="
+                f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_local_lean_checked} "
+                "pf_executor_goal_reached="
+                f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_goal_reached} "
+                "pf_executor_source_kernel="
+                f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_source_kernel} "
+                "pf_handoff_required="
+                f"{primary_typechecked_review_pf_verifier_approved_recheck_required}"
+            ),
+            (
+                "PF-origin exact semantic-definition verifier approvals reached "
+                "proof-body eligibility, but the verifier-approved proof-body "
+                "executor did not report PF-origin feedback rows with local Lean, "
+                "goal, or kernel evidence"
             ),
         ),
         _scorecard_row(

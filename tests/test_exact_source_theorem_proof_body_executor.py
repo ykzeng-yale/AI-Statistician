@@ -197,6 +197,18 @@ def test_exact_source_executor_preserves_exact_semantic_context_in_learning(
     )
 
     assert manifest["n_exact_semantic_definition_context_rows"] == 1
+    assert manifest["n_execution_result_rows_from_pseudo_formal"] == 1
+    assert manifest["n_local_lean_checked_from_pseudo_formal"] == 0
+    assert manifest["n_source_theorem_kernel_verified_from_pseudo_formal"] == 0
+    assert manifest["source_pseudo_formal_work_order_ids"] == [
+        "pf-work-order:covered"
+    ]
+    assert manifest["source_pseudo_formal_block_ids"] == ["pf-block:coverage"]
+    learning_manifest = manifest["runtime_learning_export"]
+    assert learning_manifest["n_runtime_learning_rows_from_pseudo_formal"] == 1
+    assert learning_manifest["source_pseudo_formal_work_order_ids"] == [
+        "pf-work-order:covered"
+    ]
     row = manifest["rows"][0]
     assert row["exact_semantic_definition_context"]["source_anchors"] == (
         exact_context["source_anchors"]

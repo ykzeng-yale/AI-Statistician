@@ -33806,8 +33806,84 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_checked", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = primary_typechecked_review_verifier_approved_recheck_executor_n_source_theorem_kernel_verified
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_execution_result_rows_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_checked_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_source_theorem_kernel_verified_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_source_pseudo_formal_work_order_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_work_order_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_source_pseudo_formal_block_ids"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_runtime_learning_rows"
     ] = len(
