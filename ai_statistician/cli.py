@@ -333,6 +333,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES,
     PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
 )
 from .pseudo_formal_block_verifier_worker import (
@@ -477,6 +478,7 @@ from .formalizer_lean_candidate_repair_eval import (
     write_formalizer_lean_candidate_repair_eval_failure_manifest,
 )
 from .formalizer_pseudo_formal_packet_eval import (
+    FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE,
     run_formalizer_pseudo_formal_packet_eval,
     write_formalizer_pseudo_formal_packet_eval_failure_manifest,
 )
@@ -11488,6 +11490,88 @@ def _load_existing_component_eval_manifest(
     return payload
 
 
+def _strict_formalizer_pseudo_formal_packet_attachment_summary(
+    eval_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recompute the runtime-attached Formalizer PF/BV gate from manifest facts."""
+
+    gate_summary = _runtime_component_gate_summary(eval_manifest)
+    capability_requirements = (
+        dict(eval_manifest.get("capability_evidence_requirements", {}) or {})
+        if isinstance(eval_manifest.get("capability_evidence_requirements", {}), Mapping)
+        else {}
+    )
+    routable_target_lanes = [
+        str(value)
+        for value in eval_manifest.get("pseudo_formal_routable_target_lanes", [])
+        if str(value).strip()
+    ]
+    n_pseudo_formal_packets = int(
+        eval_manifest.get("n_pseudo_formal_packets", 0) or 0
+    )
+    n_routable_rows = int(
+        eval_manifest.get("n_pseudo_formal_routable_work_order_rows", 0) or 0
+    )
+    nonproof_boundary_preserved = bool(
+        capability_requirements.get("nonproof_boundary_preserved", False)
+        or eval_manifest.get("nonproof_boundary_preserved", False)
+    )
+    raw_model_output_written = bool(
+        eval_manifest.get("raw_model_output_written", False)
+    )
+    exact_lane_present = (
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        in routable_target_lanes
+    )
+    proof_evidence_status_ok = (
+        str(eval_manifest.get("proof_evidence_status", "") or "")
+        == FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE
+    )
+    no_theorem_proof_claim = (
+        eval_manifest.get("source_theorem_kernel_verified") is False
+        and eval_manifest.get("full_frontier_theorem_proved") is False
+    )
+    strict_fixture_plumbing_ok = bool(
+        eval_manifest.get("fixture_plumbing_ok", False)
+        and n_pseudo_formal_packets > 0
+        and n_routable_rows > 0
+        and exact_lane_present
+        and nonproof_boundary_preserved
+        and not raw_model_output_written
+        and proof_evidence_status_ok
+        and no_theorem_proof_claim
+    )
+    strict_capability_evidence_ok = bool(
+        gate_summary["capability_evidence_ok"]
+        and strict_fixture_plumbing_ok
+    )
+    return {
+        **gate_summary,
+        "fixture_plumbing_ok": strict_fixture_plumbing_ok,
+        "capability_evidence_ok": strict_capability_evidence_ok,
+        "exact_semantic_definition_lane_present": exact_lane_present,
+        "nonproof_boundary_preserved": nonproof_boundary_preserved,
+        "raw_model_output_written": raw_model_output_written,
+        "proof_evidence_status_ok": proof_evidence_status_ok,
+        "no_theorem_proof_claim": no_theorem_proof_claim,
+        "attachment_gate_recomputed": True,
+        "attachment_gate_requirements": {
+            "live_generator": bool(gate_summary["live_generator"]),
+            "manifest_capability_evidence_ok": bool(
+                eval_manifest.get("capability_evidence_ok", False)
+            ),
+            "fixture_plumbing_ok": strict_fixture_plumbing_ok,
+            "pseudo_formal_packets_present": n_pseudo_formal_packets > 0,
+            "routable_work_order_rows_present": n_routable_rows > 0,
+            "exact_semantic_definition_lane_present": exact_lane_present,
+            "nonproof_boundary_preserved": nonproof_boundary_preserved,
+            "raw_model_output_not_written": not raw_model_output_written,
+            "proof_evidence_status_ok": proof_evidence_status_ok,
+            "no_theorem_proof_claim": no_theorem_proof_claim,
+        },
+    }
+
+
 def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
     args: argparse.Namespace,
     manifest: dict[str, Any],
@@ -11907,11 +11991,8 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
                 )
             ),
         )
-    gate_summary = _runtime_component_gate_summary(eval_manifest)
-    capability_requirements = (
-        dict(eval_manifest.get("capability_evidence_requirements", {}) or {})
-        if isinstance(eval_manifest.get("capability_evidence_requirements", {}), Mapping)
-        else {}
+    gate_summary = _strict_formalizer_pseudo_formal_packet_attachment_summary(
+        eval_manifest
     )
     attached = {
         "artifact_kind": "RuntimeAttachedFormalizerPseudoFormalPacketEval",
@@ -11921,7 +12002,7 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         "model": str(eval_manifest.get("model", "")),
         "live_generator": bool(gate_summary["live_generator"]),
         "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
-        "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
+        "fixture_plumbing_ok": bool(gate_summary["fixture_plumbing_ok"]),
         "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
         "n_pseudo_formal_packets": int(
             eval_manifest.get("n_pseudo_formal_packets", 0) or 0
@@ -11943,10 +12024,21 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
             if str(value).strip()
         ],
         "nonproof_boundary_preserved": bool(
-            capability_requirements.get("nonproof_boundary_preserved", False)
+            gate_summary["nonproof_boundary_preserved"]
         ),
         "raw_model_output_written": bool(
-            eval_manifest.get("raw_model_output_written", False)
+            gate_summary["raw_model_output_written"]
+        ),
+        "exact_semantic_definition_lane_present": bool(
+            gate_summary["exact_semantic_definition_lane_present"]
+        ),
+        "proof_evidence_status_ok": bool(gate_summary["proof_evidence_status_ok"]),
+        "no_theorem_proof_claim": bool(gate_summary["no_theorem_proof_claim"]),
+        "attachment_gate_recomputed": bool(
+            gate_summary["attachment_gate_recomputed"]
+        ),
+        "attachment_gate_requirements": dict(
+            gate_summary["attachment_gate_requirements"]
         ),
         "source_theorem_kernel_verified": bool(
             eval_manifest.get("source_theorem_kernel_verified", False)
@@ -12008,6 +12100,12 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest[
         "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written"
     ] = bool(attached["raw_model_output_written"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
+    ] = bool(attached["exact_semantic_definition_lane_present"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
+    ] = bool(attached["attachment_gate_recomputed"])
     manifest.setdefault("artifacts", {})[
         "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
     ] = str(attached["manifest_path"])

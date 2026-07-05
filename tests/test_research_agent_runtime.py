@@ -73715,6 +73715,19 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "pseudo_formal_block_verifier_component_gate"
     ]["passed"] is False
 
+    missing_exact_lane_payload = dict(payload)
+    missing_exact_lane_payload[
+        "internal_formalizer_pseudo_formal_packet_eval_routable_target_lanes"
+    ] = ["source_to_bridge"]
+    scorecard = _runtime_capability_scorecard(missing_exact_lane_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["passed"] is False
+    assert "attached_target_lanes=['source_to_bridge']" in rows[
+        "formalizer_pseudo_formal_packet_component_gate"
+    ]["evidence"]
+
     external_pseudo_formal_payload = dict(payload)
     external_pseudo_formal_payload[
         "internal_pseudo_formal_block_verifier_eval_source_runtime_learning_lineage_ok"
@@ -83384,6 +83397,24 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     )
     assert (
         manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
+        ]
+        is True
+    )
+    assert (
+        manifest["internal_formalizer_pseudo_formal_packet_eval"][
+            "attachment_gate_requirements"
+        ]["exact_semantic_definition_lane_present"]
+        is True
+    )
+    assert (
+        manifest[
             "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved"
         ]
         is True
@@ -83391,6 +83422,74 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert manifest["artifacts"][
         "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
     ] == str(formalizer_pf_packet_manifest_path)
+    stale_pf_packet_manifest_path = (
+        tmp_path / "stale_formalizer_pseudo_formal_packet_eval_manifest.json"
+    )
+    stale_pf_packet_manifest = json.loads(
+        formalizer_pf_packet_manifest_path.read_text(encoding="utf-8")
+    )
+    stale_pf_packet_manifest["pseudo_formal_routable_row_kinds"] = [
+        "pseudo_formal_independent_block_verification_request",
+    ]
+    stale_pf_packet_manifest["pseudo_formal_routable_target_lanes"] = [
+        "source_to_bridge",
+    ]
+    stale_pf_packet_manifest["capability_evidence_requirements"][
+        "exact_semantic_definition_lane_present"
+    ] = False
+    stale_pf_packet_manifest["exact_semantic_definition_lane_present"] = False
+    stale_pf_packet_manifest["artifacts"] = {
+        "manifest_json": str(stale_pf_packet_manifest_path),
+    }
+    stale_pf_packet_manifest_path.write_text(
+        json.dumps(stale_pf_packet_manifest),
+        encoding="utf-8",
+    )
+    stale_runtime_out = tmp_path / "runtime_stale_pf"
+    stale_runtime_out.mkdir()
+    stale_args = argparse.Namespace(
+        **{
+            **vars(args),
+            "out": str(stale_runtime_out),
+            "formalizer_pseudo_formal_packet_eval_existing_manifest": str(
+                stale_pf_packet_manifest_path
+            ),
+        }
+    )
+    stale_manifest = cli_module._attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
+        stale_args,
+        {
+            "artifacts": {
+                "runtime_learning_rows_jsonl": str(
+                    stale_runtime_out / "runtime_learning_rows.jsonl"
+                )
+            }
+        },
+    )
+    assert (
+        stale_manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
+        ]
+        is False
+    )
+    assert (
+        stale_manifest[
+            "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
+        ]
+        is False
+    )
+    assert (
+        stale_manifest["internal_formalizer_pseudo_formal_packet_eval"][
+            "attachment_gate_requirements"
+        ]["manifest_capability_evidence_ok"]
+        is True
+    )
+    assert (
+        stale_manifest["internal_formalizer_pseudo_formal_packet_eval"][
+            "attachment_gate_requirements"
+        ]["exact_semantic_definition_lane_present"]
+        is False
+    )
     assert manifest[
         "internal_pseudo_formal_block_verifier_eval_capability_evidence_ok"
     ] is True
