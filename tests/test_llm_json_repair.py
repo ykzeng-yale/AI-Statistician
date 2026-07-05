@@ -131,6 +131,56 @@ def test_generate_validated_json_packet_feeds_validation_errors_into_repair_prom
     assert '"invalid_response_excerpt": "{\\"ok\\": false}"' in repair_prompt
 
 
+def test_generate_validated_json_packet_includes_subsystem_repair_context() -> None:
+    class SequencedBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.responses = ['{"ok": false}', '{"ok": true}']
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=self.responses.pop(0),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = SequencedBackend()
+    request = GeneratorRequest(
+        system_prompt="Return JSON.",
+        user_prompt="Produce a packet.",
+        model="test-model",
+        max_tokens=128,
+    )
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=request,
+        extract_payload=lambda text: extract_json_object(text, label="test packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: []
+        if candidate.get("ok") is True
+        else ["missing subsystem-specific field"],
+        validation_label="test packet",
+        max_repair_attempts=1,
+        repair_context_builder=lambda **kwargs: {
+            "context_kind": "subsystem_repair_context",
+            "errors_seen": kwargs["errors"],
+            "required_field": "semantic_anchor",
+        },
+    )
+
+    assert packet["ok"] is True
+    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
+    assert repair_payload["subsystem_repair_context"] == {
+        "context_kind": "subsystem_repair_context",
+        "errors_seen": ["missing subsystem-specific field"],
+        "required_field": "semantic_anchor",
+    }
+
+
 def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:
     class TruncatingThenValidBackend:
         provider_name = "test"

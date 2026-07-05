@@ -8,12 +8,22 @@ from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .formalizer_repair_policy import (
+    formalizer_validation_repair_policy,
     render_formalizer_validation_repair_policy_instructions,
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+    PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMALIZATION_PROMOTION_GATE,
+    PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+    PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+    PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
@@ -183,7 +193,158 @@ class LLMFormalizerProofEngineerAgent:
             validate_packet=validate_packet,
             validation_label="LLM Formalizer/ProofEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=lambda **kwargs: _formalizer_repair_context(
+                errors=kwargs.get("errors", []),
+                environment_feedback=environment_feedback or {},
+                proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
+                or {},
+            ),
         )
+
+
+def _formalizer_repair_context(
+    *,
+    errors: Sequence[Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    error_rows = [str(error) for error in errors if str(error).strip()]
+    error_text = " ".join(error_rows).lower()
+    pseudo_formal_required = _feedback_requires_pseudo_formalization(
+        environment_feedback or {},
+        proof_bank_runtime_memory_summary or {},
+    )
+    pseudo_formal_error = any(
+        marker in error_text
+        for marker in (
+            "pseudo_formal",
+            "pf/bv",
+            "missing source_anchors",
+            "missing conclusion",
+            "lane-routable",
+            "block_verification",
+        )
+    )
+    if not pseudo_formal_required and not pseudo_formal_error:
+        return {}
+
+    required_target_lanes = _required_pseudo_formal_target_lanes(
+        environment_feedback or {},
+        proof_bank_runtime_memory_summary or {},
+    )
+    suggested_target_lanes = [
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+        PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+    ]
+    return {
+        "context_kind": "formalizer_validation_repair_context",
+        "context_reason": "pseudo_formal_packet_repair",
+        "pseudo_formal_activation_required": pseudo_formal_required,
+        "detected_validation_errors": error_rows[:6],
+        "validation_repair_policy": formalizer_validation_repair_policy(error_rows),
+        "pseudo_formal_required_repair_blueprint": {
+            "output_key": "pseudo_formal_proof_packets",
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+            "kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
+            "method_contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
+            "required_target_lanes": required_target_lanes,
+            "suggested_target_lanes_when_unspecified": suggested_target_lanes,
+            "allowed_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+            "minimum_valid_packet": {
+                "theorem_id": "<copy the blocked theorem/source theorem id>",
+                "source_artifact_id": "<copy theory packet, proof body, or source artifact id>",
+                "blocks": [
+                    {
+                        "block_id": "pf_block_1",
+                        "block_type": "lemma",
+                        "block_depth": 1,
+                        "premises": ["<bounded local premise text>"],
+                        "conclusion": "<required non-empty local mathematical claim>",
+                        "proof_text": "<bounded local source proof text or blocker rationale>",
+                        "dependency_ids": [],
+                        "scope_parent_id": "",
+                        "dependency_scope": "earlier_block_statement_only",
+                        "inherited_scope": [],
+                        "source_anchors": [
+                            {
+                                "kind": "theory_trace|paper|proof_body|theorem_card|other",
+                                "id": "<required non-empty source id>",
+                                "excerpt": "<required bounded source excerpt or pointer>",
+                            }
+                        ],
+                        "semantic_primitive_requirements": [
+                            "<non-empty when routing source_to_bridge work>"
+                        ],
+                        "lean_feasibility": "needs_semantic_definition",
+                        "faithfulness_status": "faithful",
+                        "faithfulness_repair": {
+                            "status": "not_required",
+                            "attempts": 0,
+                            "flagged_discrepancies": [],
+                        },
+                        "block_verification": {
+                            "verdict": "unknown",
+                            "verifier_provenance": "not_run",
+                            "independent_verifier": False,
+                            "rollout_count": 0,
+                        },
+                    }
+                ],
+            },
+            "field_inferred_lane_recipes": [
+                {
+                    "target_lane": PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+                    "required_block_fields": {
+                        "faithfulness_status": "faithful",
+                        "lean_feasibility": "needs_semantic_definition",
+                    },
+                },
+                {
+                    "target_lane": PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+                    "required_block_fields": {
+                        "faithfulness_status": "faithful",
+                        "lean_feasibility": "needs_rag",
+                    },
+                },
+                {
+                    "target_lane": PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                    "required_block_fields": {
+                        "faithfulness_status": "faithful",
+                        "semantic_primitive_requirements": ["<one or more primitive ids>"],
+                    },
+                },
+                {
+                    "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+                    "required_block_fields": {
+                        "faithfulness_status": "faithful",
+                        "lean_feasibility": "lean_now",
+                        "block_verification": {
+                            "verdict": "accepted",
+                            "rollout_count": "integer >= 1",
+                            "independent_verifier": True,
+                        },
+                    },
+                },
+                {
+                    "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    "required_block_fields": {
+                        "faithfulness_status": "needs_review|unfaithful|unchecked",
+                        "repair_metadata": "faithfulness_repair explains the blocker",
+                    },
+                },
+            ],
+            "do_not_repeat": [
+                "do not omit top-level conclusion",
+                "do not omit source_anchors or leave id/excerpt empty",
+                "do not use needs_review as block_verification.verdict",
+                "do not claim kernel verification or proof evidence",
+                "do not return only generic diagnostic rows when a target lane is required",
+            ],
+        },
+    }
 
 
 def build_formalizer_prompt(

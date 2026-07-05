@@ -21191,6 +21191,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_source_lookup_required_present} "
                 "lookup_required="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_required')} "
+                "lookup_effective_present="
+                f"{exact_semantic_source_lookup_effective_present} "
+                "lookup_effective="
+                f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_effective')} "
                 "lookup_ran="
                 f"{payload.get('source_theorem_exact_semantic_definition_source_lookup_ran')} "
                 "lookup_learning_rows="
@@ -21216,8 +21220,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal>0 "
                     "implies source_theorem_exact_semantic_definition_source_lookup_required=true, "
-                    "source_theorem_exact_semantic_definition_source_lookup_ran=true, and "
-                    "lookup learning rows or closure review packets are produced"
+                    "source_theorem_exact_semantic_definition_source_lookup_effective=true, "
+                    "source_theorem_exact_semantic_definition_source_lookup_ran=true, "
+                    "and lookup learning rows or closure review packets are produced"
                 ),
             ),
         ),

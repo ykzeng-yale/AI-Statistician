@@ -78139,6 +78139,7 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_definition_sou
         "n_runtime_source_theorem_exact_semantic_definition_work_orders": 2,
         "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 2,
         "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_effective": True,
         "source_theorem_exact_semantic_definition_source_lookup_ran": True,
         "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
         "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,

@@ -10,6 +10,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, GeneratorResponse
 PacketBuilder = Callable[[Mapping[str, Any], GeneratorResponse, str], dict[str, Any]]
 PacketValidator = Callable[[Mapping[str, Any]], list[str]]
 PayloadExtractor = Callable[[str], dict[str, Any]]
+RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
 
 
 class PacketValidationError(ValueError):
@@ -43,6 +44,7 @@ def generate_validated_json_packet(
     validate_packet: PacketValidator,
     validation_label: str,
     max_repair_attempts: int = 1,
+    repair_context_builder: RepairContextBuilder | None = None,
 ) -> dict[str, Any]:
     """Generate, locally validate, and retry a structured LLM packet.
 
@@ -109,6 +111,21 @@ def generate_validated_json_packet(
             packet["llm_json_repair_history"] = history
             return packet
         if attempt_index < attempts - 1:
+            repair_context = (
+                repair_context_builder(
+                    original_user_prompt=original_user_prompt,
+                    bad_response=raw_text,
+                    errors=last_errors,
+                    validation_label=validation_label,
+                    truncation_detected=_response_indicates_truncation(
+                        response,
+                        request_max_tokens=request_max_tokens,
+                    )
+                    or truncation_repair_mode,
+                )
+                if repair_context_builder is not None
+                else None
+            )
             user_prompt = _repair_prompt(
                 original_user_prompt=original_user_prompt,
                 bad_response=raw_text,
@@ -119,6 +136,7 @@ def generate_validated_json_packet(
                     request_max_tokens=request_max_tokens,
                 )
                 or truncation_repair_mode,
+                repair_context=repair_context,
             )
     raise PacketValidationError(
         validation_label=validation_label,
@@ -266,6 +284,7 @@ def _repair_prompt(
     errors: list[str],
     validation_label: str,
     truncation_detected: bool = False,
+    repair_context: Mapping[str, Any] | None = None,
 ) -> str:
     original_request = (
         _compact_original_request(original_user_prompt, head_chars=1600, tail_chars=2600)
@@ -314,6 +333,8 @@ def _repair_prompt(
         "repair_instructions": repair_instructions,
         "original_request": original_request,
     }
+    if repair_context:
+        payload["subsystem_repair_context"] = repair_context
     return (
         "Your previous response failed AI Statistician local validation. "
         "Repair the packet. Return ONLY corrected JSON.\n\n"

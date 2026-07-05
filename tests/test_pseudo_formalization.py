@@ -1724,6 +1724,81 @@ def test_formalizer_repair_loop_requires_pf_packet_for_proof_body_blocker() -> N
     assert validate_formalizer_packet(packet) == []
 
 
+def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() -> None:
+    first_response = _minimal_formalizer_response(include_pseudo_formal=True)
+    first_block = first_response["pseudo_formal_proof_packets"][0]["blocks"][0]
+    first_block.pop("conclusion")
+    first_block.pop("source_anchors")
+    first_block["anchors"] = {}
+    first_block["faithfulness_status"] = "faithful"
+    first_block["lean_feasibility"] = "needs_semantic_definition"
+    first_block["block_verification"] = {"verdict": "unknown"}
+    repaired_response = _minimal_formalizer_response(
+        include_pseudo_formal=True,
+        pf_block_overrides={
+            "faithfulness_status": "faithful",
+            "faithfulness_repair": {
+                "status": "not_required",
+                "attempts": 0,
+                "flagged_discrepancies": [],
+            },
+            "lean_feasibility": "needs_semantic_definition",
+            "block_verification": {"verdict": "unknown"},
+        },
+    )
+    backend = _SequenceStaticGeneratorBackend([first_response, repaired_response])
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=backend,
+        config=FormalizerConfig(
+            provider_name="static",
+            model="static-formalizer",
+            max_repair_attempts=1,
+        ),
+    )
+
+    packet = formalizer.propose(
+        question=_pf_test_question(),
+        theory_packet=_pf_theory_packet(),
+        simulation_manifest={"manifest_id": "simulation:test"},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"question_id": "pf_blocker", "problem_class": "coverage"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=_pf_required_feedback(),
+    )
+
+    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["llm_json_repair_history"][0]["ok"] is False
+    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
+    repair_context = repair_payload["subsystem_repair_context"]
+    blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
+    block_template = blueprint["minimum_valid_packet"]["blocks"][0]
+    assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
+    assert repair_context["pseudo_formal_activation_required"] is True
+    assert block_template["conclusion"].startswith("<required non-empty")
+    assert block_template["source_anchors"][0]["id"].startswith("<required")
+    assert blueprint["required_target_lanes"] == []
+    assert (
+        "source_theorem_exact_semantic_definition"
+        in blueprint["suggested_target_lanes_when_unspecified"]
+    )
+    assert any(
+        row["rule_id"] == "pseudo_formalization_required"
+        for row in repair_context["validation_repair_policy"]["rules"]
+    )
+    assert (
+        "do not return only generic diagnostic rows when a target lane is required"
+        in blueprint["do_not_repeat"]
+    )
+    assert _validate_required_pseudo_formalization_packet(
+        packet,
+        environment_feedback=_pf_required_feedback(),
+        proof_bank_runtime_memory_summary={},
+    ) == []
+    assert validate_formalizer_packet(packet) == []
+
+
 def test_required_pf_validator_rejects_independently_verified_but_unrouted_packet() -> None:
     question = _pf_test_question()
     feedback = _pf_required_feedback()
@@ -2000,8 +2075,10 @@ class _SequenceStaticGeneratorBackend:
             for row in responses
         ]
         self._index = 0
+        self.requests: list[GeneratorRequest] = []
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        self.requests.append(request)
         response = self._responses[min(self._index, len(self._responses) - 1)]
         self._index += 1
         return GeneratorResponse(
