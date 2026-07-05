@@ -111,6 +111,126 @@ def test_exact_source_executor_materializes_verified_closure_dependency(
     assert "theorem split_conformal_coverage : True := by" in candidate_text
 
 
+def test_exact_source_executor_preserves_exact_semantic_context_in_learning(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir()
+    signature = tmp_path / "signature.lean"
+    signature.write_text(
+        "theorem split_conformal_coverage : True := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate.lean"
+    transcript = tmp_path / "transcript.jsonl"
+    exact_context = {
+        "semantic_primitive": "covered",
+        "semantic_primitive_requirements": [
+            "covered must denote the source event from the paper, not a theorem-shaped placeholder"
+        ],
+        "source_anchors": [
+            {
+                "label": "paper-def-covered",
+                "source_path": "paper/sec2.tex",
+                "quote": "covered event source anchor",
+            }
+        ],
+        "source_pseudo_formal_work_order_id": "pf-work-order:covered",
+        "source_pseudo_formal_block_id": "pf-block:coverage",
+        "source_pseudo_formal_packet_id": "pf-packet:split",
+        "pseudo_formal_pipeline_stage": "PF/BV_semantic_bridge",
+        "pseudo_formal_proof_evidence_status": (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    queue_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "execution_queue_id": "exact_source_queue:semantic_context",
+                "source_work_order_id": "exact_source_work_order:semantic_context",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "target_lean_declaration": "split_conformal_coverage",
+                "expected_target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "source_theorem_target_identity_status": (
+                    "SOURCE_THEOREM_TARGET_KNOWN"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_question_id": "conformal_prediction_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+                "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                "target_identity_errors": [],
+                "signature_probe_artifact_path": str(signature),
+                "candidate_artifact_path": str(candidate),
+                "execution_transcript_path": str(transcript),
+                "live_goal_location_ready": True,
+                "live_proof_state_request": {
+                    "request_id": "live_goal:semantic_context",
+                    "mcp_tool_calls": [],
+                },
+                "already_repaired_environment": {
+                    "missing_formal_symbols": [],
+                    "typeclass_blockers": [],
+                    "signature_typecheck_reached_proof_body": True,
+                },
+                "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+                **exact_context,
+            }
+        ],
+    }
+    (queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json").write_text(
+        json.dumps(queue_manifest),
+        encoding="utf-8",
+    )
+
+    manifest = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "executor",
+        local_lean=False,
+    )
+
+    assert manifest["n_exact_semantic_definition_context_rows"] == 1
+    row = manifest["rows"][0]
+    assert row["exact_semantic_definition_context"]["source_anchors"] == (
+        exact_context["source_anchors"]
+    )
+    assert row["candidate_live_proof_state_request"]["source_pseudo_formal_work_order_id"] == (
+        "pf-work-order:covered"
+    )
+    assert row["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+    )
+
+    learning_path = Path(manifest["runtime_learning_rows_jsonl"])
+    learning_row = json.loads(learning_path.read_text(encoding="utf-8").splitlines()[0])
+    assert learning_row["semantic_primitive_requirements"] == (
+        exact_context["semantic_primitive_requirements"]
+    )
+    assert learning_row["source_anchors"] == exact_context["source_anchors"]
+    assert learning_row["source_pseudo_formal_work_order_id"] == (
+        "pf-work-order:covered"
+    )
+    assert learning_row["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
+    assert learning_row["source_theorem_kernel_verified"] is False
+    assert learning_row["input_summary"]["exact_semantic_definition_context"][
+        "source_pseudo_formal_packet_id"
+    ] == "pf-packet:split"
+
+    transcript_event = json.loads(transcript.read_text(encoding="utf-8").splitlines()[0])
+    assert transcript_event["exact_semantic_definition_context"][
+        "source_pseudo_formal_block_id"
+    ] == "pf-block:coverage"
+
+
 def test_exact_source_executor_materializes_verified_adapter_dependency(
     tmp_path: Path,
 ) -> None:

@@ -153,6 +153,23 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                 "source_theorem_proof_body_adapter_context_boundary": (
                     "adapter guides proof-body retry but is not source theorem proof"
                 ),
+                "semantic_primitive": "covered",
+                "semantic_primitive_requirements": [
+                    "covered must be sourced from the paper event definition"
+                ],
+                "source_anchors": [
+                    {
+                        "label": "paper-def-covered",
+                        "source_path": "paper/sec2.tex",
+                    }
+                ],
+                "source_pseudo_formal_work_order_id": "pf-work-order:covered",
+                "source_pseudo_formal_block_id": "pf-block:coverage",
+                "source_pseudo_formal_packet_id": "pf-packet:split",
+                "pseudo_formal_pipeline_stage": "PF/BV_semantic_bridge",
+                "pseudo_formal_proof_evidence_status": (
+                    "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+                ),
                 "source_theorem_exact_proof_body_repair_diagnostics": [
                     {
                         "target_theorem_name": "split_conformal_coverage",
@@ -234,6 +251,12 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["kernel_verified_theorem_reduction_closure_target_ids"] == [
         "split_conformal_finite_sample_coverage_reduction_closure"
     ]
+    assert execution_row["source_pseudo_formal_work_order_id"] == (
+        "pf-work-order:covered"
+    )
+    assert execution_row["exact_semantic_definition_context"][
+        "pseudo_formal_proof_evidence_status"
+    ] == "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
     assert execution_row["proof_body_attempts"][:2] == [
         "simpa using splitConformalFiniteSampleCoverage_reductionClosure",
         "exact splitConformalFiniteSampleCoverage_reductionClosure",
@@ -253,6 +276,9 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["live_proof_state_request"][
         "kernel_verified_source_to_bridge_premise_derivation_ids"
     ] == ["source_to_bridge_premise_derivation_check:hGoodCovered"]
+    assert execution_row["live_proof_state_request"][
+        "source_pseudo_formal_packet_id"
+    ] == "pf-packet:split"
     assert "lean_multi_attempt" in execution_row["required_dynamic_checks"]
 
     executor_manifest = export_exact_source_theorem_proof_body_execution_results(
@@ -266,6 +292,7 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
         ),
     )
     assert executor_manifest["n_execution_result_rows"] == 1
+    assert executor_manifest["n_exact_semantic_definition_context_rows"] == 1
     assert executor_manifest["n_source_theorem_proof_body_adapter_context_rows"] == 1
     assert (
         executor_manifest[
@@ -290,7 +317,11 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert executor_row["proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
     )
+    assert executor_row["exact_semantic_definition_context"][
+        "source_pseudo_formal_block_id"
+    ] == "pf-block:coverage"
     learning_export = executor_manifest["runtime_learning_export"]
+    assert learning_export["n_exact_semantic_definition_context_rows"] == 1
     assert learning_export["n_source_theorem_proof_body_adapter_context_rows"] == 1
     learning_rows_path = Path(str(learning_export["runtime_learning_rows_jsonl"]))
     learning_rows = [
@@ -308,6 +339,15 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert learning_rows[0][
         "kernel_verified_source_to_bridge_premise_derivation_ids"
     ] == ["source_to_bridge_premise_derivation_check:hGoodCovered"]
+    assert learning_rows[0]["source_anchors"] == [
+        {
+            "label": "paper-def-covered",
+            "source_path": "paper/sec2.tex",
+        }
+    ]
+    assert learning_rows[0]["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
 
     cli_out = tmp_path / "cli_direct_executor"

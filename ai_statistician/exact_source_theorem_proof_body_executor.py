@@ -15,6 +15,9 @@ from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     _lean_command,
     _run_local_lean,
 )
+from .source_theorem_exact_semantic_definition_source_lookup import (
+    EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+)
 
 
 SCHEMA_VERSION = 1
@@ -64,6 +67,7 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     source_theorem_target_provenance: dict[str, object]
     semantic_alignment_constraints: tuple[str, ...]
     semantic_alignment_blockers: tuple[str, ...]
+    exact_semantic_definition_context: dict[str, object]
     source_theorem_proof_body_adapter_feedback_available: bool
     source_theorem_proof_body_adapter_kernel_verified: bool
     kernel_verified_source_theorem_proof_body_adapter_ids: tuple[str, ...]
@@ -231,6 +235,9 @@ def export_exact_source_theorem_proof_body_execution_results(
         "n_semantic_alignment_blocker_rows": sum(
             1 for row in rows if row.semantic_alignment_blockers
         ),
+        "n_exact_semantic_definition_context_rows": sum(
+            1 for row in rows if row.exact_semantic_definition_context
+        ),
         "n_source_theorem_proof_body_adapter_context_rows": sum(
             1
             for row in rows
@@ -370,6 +377,7 @@ def _execution_result_row(
         explicit_blockers=explicit_semantic_alignment_blockers,
         semantic_review_approved=semantic_review_approved,
     )
+    exact_semantic_definition_context = _exact_semantic_definition_context(row)
     target_identity_status = str(row.get("target_identity_status", "") or "")
     target_identity_errors = _str_tuple(row.get("target_identity_errors", []))
     source_theorem_target_identity_status = str(
@@ -715,6 +723,7 @@ def _execution_result_row(
         source_theorem_target_provenance=source_theorem_target_provenance,
         semantic_alignment_constraints=semantic_alignment_constraints,
         semantic_alignment_blockers=semantic_alignment_blockers,
+        exact_semantic_definition_context=exact_semantic_definition_context,
         source_theorem_proof_body_adapter_feedback_available=(
             source_theorem_proof_body_adapter_feedback_available
         ),
@@ -801,6 +810,7 @@ def _execution_result_row(
         source_theorem_target_provenance=source_theorem_target_provenance,
         semantic_alignment_constraints=semantic_alignment_constraints,
         semantic_alignment_blockers=semantic_alignment_blockers,
+        exact_semantic_definition_context=exact_semantic_definition_context,
         source_theorem_proof_body_adapter_feedback_available=(
             source_theorem_proof_body_adapter_feedback_available
         ),
@@ -1418,6 +1428,7 @@ def _candidate_live_proof_state_request(
     if not isinstance(request, Mapping) or not request:
         return {}
     candidate_request = dict(request)
+    exact_semantic_context = _exact_semantic_definition_context(row)
     candidate_request["request_id"] = (
         "exact_source_theorem_candidate_live_goal:"
         + stable_hash([row.get("execution_queue_id", ""), candidate_artifact_path])[:20]
@@ -1447,6 +1458,9 @@ def _candidate_live_proof_state_request(
     ):
         if key in row:
             candidate_request[key] = row.get(key)
+    for key, value in exact_semantic_context.items():
+        candidate_request.setdefault(key, value)
+    candidate_request["exact_semantic_definition_context"] = exact_semantic_context
     proof_body_attempts = list(_proof_body_attempts(row))
     formal_environment_open = bool(
         placeholder_symbols or typeclass_blockers or semantic_alignment_blockers
@@ -1485,6 +1499,44 @@ def _candidate_live_proof_state_request(
         )
     candidate_request["proof_evidence_status"] = "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE"
     return candidate_request
+
+
+def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, object]:
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    nested_context = (
+        row.get("exact_semantic_definition_context", {})
+        if isinstance(row.get("exact_semantic_definition_context", {}), Mapping)
+        else {}
+    )
+    nested_input_context = (
+        input_summary.get("exact_semantic_definition_context", {})
+        if isinstance(input_summary.get("exact_semantic_definition_context", {}), Mapping)
+        else {}
+    )
+    sources: tuple[Mapping[str, Any], ...] = (
+        row,
+        input_summary,
+        nested_context,
+        nested_input_context,
+    )
+    context: dict[str, object] = {}
+    for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
+        for source in sources:
+            value = source.get(key, None)
+            if value in (None, "", [], {}):
+                continue
+            if isinstance(value, Mapping):
+                context[key] = dict(value)
+            elif isinstance(value, list):
+                context[key] = list(value)
+            else:
+                context[key] = value
+            break
+    return context
 
 
 def _lean_declaration_proof_body_location(
@@ -1554,6 +1606,7 @@ def _append_transcript_event(
     source_theorem_target_provenance: dict[str, object],
     semantic_alignment_constraints: tuple[str, ...],
     semantic_alignment_blockers: tuple[str, ...],
+    exact_semantic_definition_context: dict[str, object],
     source_theorem_proof_body_adapter_feedback_available: bool,
     source_theorem_proof_body_adapter_kernel_verified: bool,
     kernel_verified_source_theorem_proof_body_adapter_ids: tuple[str, ...],
@@ -1620,6 +1673,7 @@ def _append_transcript_event(
             "source_theorem_target_provenance": source_theorem_target_provenance,
             "semantic_alignment_constraints": semantic_alignment_constraints,
             "semantic_alignment_blockers": semantic_alignment_blockers,
+            "exact_semantic_definition_context": exact_semantic_definition_context,
             "source_theorem_proof_body_adapter_feedback_available": (
                 source_theorem_proof_body_adapter_feedback_available
             ),
@@ -1703,12 +1757,14 @@ def _export_runtime_learning_rows(
     learning_rows: list[dict[str, object]] = []
     for row in rows:
         trigger = _runtime_learning_trigger(row)
+        exact_semantic_context = dict(row.exact_semantic_definition_context)
         learning_rows.append(
             {
                 "schema_version": SCHEMA_VERSION,
                 "question_id": row.question_id,
                 "question_title": row.question_title,
                 "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                **exact_semantic_context,
                 "target_theorem_name": row.target_theorem_name,
                 "target_ids": list(row.target_ids),
                 "target_lean_declaration": row.target_lean_declaration,
@@ -1777,6 +1833,7 @@ def _export_runtime_learning_rows(
                     if _row_requires_source_candidate_materialization(row)
                     else ""
                 ),
+                "exact_semantic_definition_context": exact_semantic_context,
                 "missing_formal_symbols": list(
                     row.formal_environment_placeholder_symbols
                 ),
@@ -1847,6 +1904,9 @@ def _export_runtime_learning_rows(
         "n_semantic_alignment_blocker_rows": sum(
             1 for row in rows if row.semantic_alignment_blockers
         ),
+        "n_exact_semantic_definition_context_rows": sum(
+            1 for row in rows if row.exact_semantic_definition_context
+        ),
         "n_source_theorem_proof_body_adapter_context_rows": sum(
             1
             for row in rows
@@ -1914,6 +1974,9 @@ def _export_runtime_learning_rows(
         ],
         "n_semantic_alignment_blocker_rows": manifest[
             "n_semantic_alignment_blocker_rows"
+        ],
+        "n_exact_semantic_definition_context_rows": manifest[
+            "n_exact_semantic_definition_context_rows"
         ],
         "n_source_theorem_proof_body_adapter_context_rows": manifest[
             "n_source_theorem_proof_body_adapter_context_rows"

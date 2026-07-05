@@ -14,6 +14,9 @@ from .formal_verifier_agentic_proof_execution_materializer import (
     _normalize_lean_statement_syntax,
 )
 from .research_architect import KERNEL_PROOF_BOUNDARY
+from .source_theorem_exact_semantic_definition_source_lookup import (
+    EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+)
 
 
 ARTIFACT_KIND = "SourceTheoremFormalEnvironmentProofEngineerBridgeManifest"
@@ -1644,6 +1647,37 @@ def _is_exact_source_theorem_proof_body_repair_work_order(
     )
 
 
+def _exact_semantic_definition_context(
+    row: Mapping[str, Any],
+    *fallback_rows: Mapping[str, Any],
+) -> dict[str, Any]:
+    context: dict[str, Any] = {}
+    sources: list[Mapping[str, Any]] = []
+    for source in (row, *fallback_rows):
+        if not isinstance(source, Mapping):
+            continue
+        sources.append(source)
+        input_summary = source.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            sources.append(input_summary)
+        nested = source.get("exact_semantic_definition_context", {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+    for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
+        for source in sources:
+            value = source.get(key, None)
+            if value in (None, "", [], {}):
+                continue
+            if isinstance(value, Mapping):
+                context[key] = dict(value)
+            elif isinstance(value, list):
+                context[key] = list(value)
+            else:
+                context[key] = value
+            break
+    return context
+
+
 def _proof_body_repair_execution_work_order(
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -1753,9 +1787,11 @@ def _proof_body_repair_execution_work_order(
     source_target_provenance.setdefault("target_lean_declaration", target_declaration)
     source_target_provenance.setdefault("source_theorem_target_known", True)
     target_ids = _target_ids_from_work_order(row, fallback_target=target)
+    exact_semantic_context = _exact_semantic_definition_context(row, primary)
     return {
         "schema_version": 1,
         "artifact_kind": PROOF_BODY_WORK_ORDER_ARTIFACT_KIND,
+        **exact_semantic_context,
         "work_order_id": str(row.get("work_order_id", "") or ""),
         "source_formal_target_id": str(row.get("source_formal_target_id", "") or ""),
         "target_theorem_name": target,
@@ -1851,6 +1887,7 @@ def _proof_body_repair_execution_work_order(
                 "proof evidence until the exact theorem itself kernel-checks."
             )
         ),
+        "exact_semantic_definition_context": exact_semantic_context,
         "proof_body_attempts": _proof_body_repair_attempts(
             row=row,
             primary_diagnostic=primary,
@@ -2018,6 +2055,7 @@ def _proof_body_execution_queue_row(
         expected_target_lean_declaration=expected_target_declaration,
         target_lean_declaration=str(location["target_lean_declaration"]),
     )
+    exact_semantic_context = _exact_semantic_definition_context(work_order)
     live_ready = (
         bool(location["target_lean_file"] and location["target_lean_line"])
         and not target_identity_errors
@@ -2043,6 +2081,7 @@ def _proof_body_execution_queue_row(
     return {
         "schema_version": 1,
         "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+        **exact_semantic_context,
         "execution_queue_id": queue_id,
         "source_work_order_id": work_order_id,
         "source_signature_probe_id": str(
@@ -2118,6 +2157,7 @@ def _proof_body_execution_queue_row(
         "source_theorem_proof_body_adapter_context_boundary": (
             adapter_context_boundary
         ),
+        "exact_semantic_definition_context": exact_semantic_context,
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
         "previous_proof_body_attempt_count": int(
             work_order.get("previous_proof_body_attempt_count", 0) or 0
@@ -2304,9 +2344,11 @@ def _proof_body_live_proof_state_request(
             location.get("target_lean_declaration", ""),
         ]
     )[:20]
+    exact_semantic_context = _exact_semantic_definition_context(work_order)
     return {
         "schema_version": 1,
         "request_id": request_id,
+        **exact_semantic_context,
         "source_work_order_id": str(work_order.get("work_order_id", "") or ""),
         "question_id": question_id,
         "question_title": question_title,
@@ -2397,6 +2439,7 @@ def _proof_body_live_proof_state_request(
             work_order.get("source_theorem_proof_body_adapter_context_boundary", "")
             or ""
         ),
+        "exact_semantic_definition_context": exact_semantic_context,
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
         "previous_proof_body_attempt_count": int(
             work_order.get("previous_proof_body_attempt_count", 0) or 0
