@@ -23007,7 +23007,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "reported_live_llm_attempted="
                 f"{exact_semantic_definition_authoring['n_reported_live_llm_attempted']} "
                 "live_llm_attempted="
-                f"{exact_semantic_definition_authoring['n_live_llm_attempted']}"
+                f"{exact_semantic_definition_authoring['n_live_llm_attempted']} "
+                "required_channels="
+                f"{exact_semantic_definition_authoring['required_channels']} "
+                "live_attempted_channels="
+                f"{exact_semantic_definition_authoring['live_attempted_channels']} "
+                "missing_live_attempt_channels="
+                f"{exact_semantic_definition_authoring['missing_live_attempt_channels']}"
             ),
             (
                 "exact semantic-definition authoring tasks were only staged or "
@@ -23041,6 +23047,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['required']} "
                 "live_llm_attempted="
                 f"{exact_semantic_definition_authoring['n_live_llm_attempted']} "
+                "required_channels="
+                f"{exact_semantic_definition_authoring['required_channels']} "
+                "live_attempted_channels="
+                f"{exact_semantic_definition_authoring['live_attempted_channels']} "
                 "candidate_packets="
                 f"{exact_semantic_definition_authoring['n_candidate_packets']} "
                 "worker_candidate_packets="
@@ -23055,6 +23065,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['n_materialized_feedback_rows']} "
                 "verifier_ready_channels="
                 f"{exact_semantic_definition_authoring['candidate_verifier_ready_channels']} "
+                "missing_candidate_verifier_channels="
+                f"{exact_semantic_definition_authoring['missing_candidate_verifier_channels']} "
+                "post_runtime_verifier_ready="
+                f"{exact_semantic_definition_authoring['post_runtime_verifier_ready']} "
                 "post_runtime_attached="
                 f"{exact_semantic_definition_authoring['post_runtime_attached']} "
                 "post_runtime_lineage_ok="
@@ -23066,9 +23080,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "live exact semantic-definition authoring was recorded, but "
-                "its definition candidates were not materialized and checked "
-                "by local Lean/AXLE and persisted as runtime learning feedback "
-                "in the integrated loop"
+                "one or more required primary/retry/late definition-candidate "
+                "lanes were not materialized, checked by local Lean/AXLE, and "
+                "persisted as runtime learning feedback in the integrated loop; "
+                "lineage-checked post-runtime verifier-ready attachments can "
+                "satisfy recovered tasks"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -23082,9 +23098,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "after live exact semantic-definition authoring, "
+                    "each required in-runtime primary/retry/late channel has "
                     "candidate_packets>0, materialized_lean_repair_tasks>0, "
                     "materialized_local_lean_checked>0, and "
-                    "materialized_feedback_rows>0"
+                    "materialized_feedback_rows>0, or a lineage-checked "
+                    "post-runtime channel is verifier-ready"
                 ),
             ),
         ),

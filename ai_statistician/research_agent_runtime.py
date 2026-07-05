@@ -1321,62 +1321,81 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         candidate_packets_from_materializers,
         materialized_lean_repair_tasks,
     )
+    channel_states = (
+        {
+            "name": "primary",
+            "required": primary_required,
+            "live_attempts": primary_live_attempts,
+            "candidate_packets": primary_candidate_packets,
+            "materialized_lean_repair_tasks": primary_materialized_lean_repair_tasks,
+            "local_lean_checked": primary_materialized_local_lean_checked,
+            "feedback_rows": primary_materialized_feedback_rows,
+        },
+        {
+            "name": "retry",
+            "required": retry_required,
+            "live_attempts": retry_live_attempts,
+            "candidate_packets": retry_candidate_packets,
+            "materialized_lean_repair_tasks": retry_materialized_lean_repair_tasks,
+            "local_lean_checked": retry_materialized_local_lean_checked,
+            "feedback_rows": retry_materialized_feedback_rows,
+        },
+        {
+            "name": "late",
+            "required": late_required,
+            "live_attempts": late_live_attempts,
+            "candidate_packets": late_candidate_packets,
+            "materialized_lean_repair_tasks": late_materialized_lean_repair_tasks,
+            "local_lean_checked": late_materialized_local_lean_checked,
+            "feedback_rows": late_materialized_feedback_rows,
+        },
+        {
+            "name": "post_runtime",
+            "required": False,
+            "live_attempts": post_runtime_live_attempts,
+            "candidate_packets": post_runtime_candidate_packets,
+            "materialized_lean_repair_tasks": post_runtime_materialized_lean_repair_tasks,
+            "local_lean_checked": post_runtime_materialized_local_lean_checked,
+            "feedback_rows": post_runtime_materialized_feedback_rows,
+        },
+    )
     verifier_ready_channels = [
-        channel_name
-        for (
-            channel_name,
-            channel_live_attempts,
-            channel_candidate_packets,
-            channel_materialized_lean_repair_tasks,
-            channel_local_lean_checked,
-            channel_feedback_rows,
-        ) in (
-            (
-                "primary",
-                primary_live_attempts,
-                primary_candidate_packets,
-                primary_materialized_lean_repair_tasks,
-                primary_materialized_local_lean_checked,
-                primary_materialized_feedback_rows,
-            ),
-            (
-                "retry",
-                retry_live_attempts,
-                retry_candidate_packets,
-                retry_materialized_lean_repair_tasks,
-                retry_materialized_local_lean_checked,
-                retry_materialized_feedback_rows,
-            ),
-            (
-                "late",
-                late_live_attempts,
-                late_candidate_packets,
-                late_materialized_lean_repair_tasks,
-                late_materialized_local_lean_checked,
-                late_materialized_feedback_rows,
-            ),
-            (
-                "post_runtime",
-                post_runtime_live_attempts,
-                post_runtime_candidate_packets,
-                post_runtime_materialized_lean_repair_tasks,
-                post_runtime_materialized_local_lean_checked,
-                post_runtime_materialized_feedback_rows,
-            ),
-        )
-        if channel_live_attempts > 0
-        and channel_candidate_packets > 0
-        and channel_materialized_lean_repair_tasks > 0
-        and channel_local_lean_checked > 0
-        and channel_feedback_rows > 0
+        str(channel["name"])
+        for channel in channel_states
+        if int(channel["live_attempts"]) > 0
+        and int(channel["candidate_packets"]) > 0
+        and int(channel["materialized_lean_repair_tasks"]) > 0
+        and int(channel["local_lean_checked"]) > 0
+        and int(channel["feedback_rows"]) > 0
+    ]
+    required_channels = [
+        str(channel["name"]) for channel in channel_states if bool(channel["required"])
+    ]
+    live_attempted_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if int(channel["live_attempts"]) > 0
+    ]
+    missing_live_attempt_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if bool(channel["required"]) and int(channel["live_attempts"]) <= 0
+    ]
+    missing_candidate_verifier_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if bool(channel["required"])
+        and str(channel["name"]) not in verifier_ready_channels
     ]
     candidate_verifier_required = (
         (primary_required or retry_required or late_required)
         and live_attempts > 0
     )
+    post_runtime_verifier_ready = "post_runtime" in verifier_ready_channels
     candidate_verifier_ready = (
         not candidate_verifier_required
-        or bool(verifier_ready_channels)
+        or post_runtime_verifier_ready
+        or not missing_candidate_verifier_channels
     )
     provider_names = [
         str(value or "").strip()
@@ -1433,6 +1452,10 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_reported_live_llm_attempted": reported_live_attempts,
         "candidate_verifier_required": candidate_verifier_required,
         "candidate_verifier_ready": candidate_verifier_ready,
+        "required_channels": required_channels,
+        "live_attempted_channels": live_attempted_channels,
+        "missing_live_attempt_channels": missing_live_attempt_channels,
+        "missing_candidate_verifier_channels": missing_candidate_verifier_channels,
         "n_candidate_packets": candidate_packets,
         "n_worker_candidate_packets": candidate_packets_from_workers,
         "n_materializer_candidate_packets": candidate_packets_from_materializers,
@@ -1441,6 +1464,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "n_materialized_feedback_rows": materialized_feedback_rows,
         "candidate_verifier_ready_channels": verifier_ready_channels,
         "n_candidate_verifier_ready_channels": len(verifier_ready_channels),
+        "post_runtime_verifier_ready": post_runtime_verifier_ready,
         "provider_names": list(dict.fromkeys(provider_names)),
         "backend_provider_names": list(dict.fromkeys(backend_provider_names)),
         "post_runtime_attached": post_runtime_attached,
@@ -2718,7 +2742,13 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "n_reported_live_llm_attempted="
                 f"{exact_semantic_authoring['n_reported_live_llm_attempted']}; "
                 "n_live_llm_attempted="
-                f"{exact_semantic_authoring_live_attempts}"
+                f"{exact_semantic_authoring_live_attempts}; "
+                "required_channels="
+                f"{exact_semantic_authoring['required_channels']}; "
+                "live_attempted_channels="
+                f"{exact_semantic_authoring['live_attempted_channels']}; "
+                "missing_live_attempt_channels="
+                f"{exact_semantic_authoring['missing_live_attempt_channels']}"
             ),
             "blocker": (
                 ""
@@ -2745,8 +2775,16 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring_required}; "
                 "n_live_llm_attempted="
                 f"{exact_semantic_authoring_live_attempts}; "
+                "required_channels="
+                f"{exact_semantic_authoring['required_channels']}; "
+                "live_attempted_channels="
+                f"{exact_semantic_authoring['live_attempted_channels']}; "
                 "verifier_ready_channels="
                 f"{exact_semantic_authoring['candidate_verifier_ready_channels']}; "
+                "missing_candidate_verifier_channels="
+                f"{exact_semantic_authoring['missing_candidate_verifier_channels']}; "
+                "post_runtime_verifier_ready="
+                f"{exact_semantic_authoring['post_runtime_verifier_ready']}; "
                 "candidate_packets="
                 f"{exact_semantic_authoring['n_candidate_packets']}; "
                 "worker_candidate_packets="
@@ -2773,9 +2811,11 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 if exact_semantic_authoring_candidate_verifier_ready
                 else (
                     "live exact semantic-definition authoring produced or should "
-                    "have produced definition candidates, but no materialized "
-                    "candidate was routed through local Lean/AXLE diagnostics "
-                    "and persisted as runtime learning feedback"
+                    "have produced definition candidates, but one or more "
+                    "required primary/retry/late lanes did not route their own "
+                    "candidate through local Lean/AXLE diagnostics and persisted "
+                    "runtime learning feedback; a lineage-checked post-runtime "
+                    "verifier-ready attachment may satisfy recovered tasks"
                 )
             ),
         },
