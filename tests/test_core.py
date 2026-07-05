@@ -6022,9 +6022,76 @@ class SystemTests(unittest.TestCase):
             ],
             0,
         )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_lane_ok"
+            ]
+        )
+        self.assertFalse(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_lane_ok"
+            ]
+        )
+        self.assertFalse(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_source_theorem_approved_proof_body_recheck_lane_ok"
+            ]
+        )
         self.assertIn(
             "source-theorem proof-body executor",
             semantic_bridge_ok_s13["honesty_boundary"],
+        )
+        split_proof_body_lane_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        split_proof_body_lane_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran": True,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 1,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
+                "research_agent_runtime_source_theorem_kernel_verified_count": 0,
+            }
+        )
+        split_proof_body_lane_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_split_proof_body_lane"),
+            system_audit_payload=split_proof_body_lane_payload,
+        )
+        split_proof_body_lane_s13 = next(
+            row
+            for row in split_proof_body_lane_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(split_proof_body_lane_s13["status"], "CAPACITY_GAP")
+        self.assertTrue(
+            split_proof_body_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertFalse(
+            split_proof_body_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertIn(
+            "split across lanes",
+            " ".join(split_proof_body_lane_s13["issues"]),
         )
         stale_pf_attachment_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         stale_pf_attachment_payload["counts"][

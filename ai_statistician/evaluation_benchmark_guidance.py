@@ -973,10 +973,39 @@ def _suite_rows(
         or runtime_source_theorem_approved_proof_body_recheck_executor_ran
         or runtime_source_theorem_proof_body_result_rows > 0
     )
+    runtime_source_theorem_formal_environment_proof_body_lane_ok = (
+        runtime_source_theorem_formal_environment_proof_body_result_rows > 0
+        and (
+            runtime_source_theorem_formal_environment_proof_body_local_lean_checked > 0
+            or runtime_source_theorem_formal_environment_proof_body_kernel_verified > 0
+        )
+    )
+    runtime_source_theorem_exact_proof_body_repair_lane_ok = (
+        runtime_source_theorem_exact_proof_body_repair_result_rows > 0
+        and (
+            runtime_source_theorem_exact_proof_body_repair_local_lean_checked > 0
+            or runtime_source_theorem_exact_proof_body_repair_kernel_verified > 0
+        )
+    )
+    runtime_source_theorem_approved_proof_body_recheck_lane_ok = (
+        runtime_source_theorem_approved_proof_body_recheck_result_rows > 0
+        and runtime_source_theorem_approved_proof_body_recheck_kernel_verified > 0
+    )
+    runtime_source_theorem_proof_body_same_lane_gate_ok = bool(
+        runtime_source_theorem_formal_environment_proof_body_lane_ok
+        or runtime_source_theorem_exact_proof_body_repair_lane_ok
+        or runtime_source_theorem_approved_proof_body_recheck_lane_ok
+    )
+    runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok = (
+        runtime_source_theorem_proof_body_result_rows > 0
+        and (
+            runtime_source_theorem_proof_body_local_lean_checked > 0
+            or runtime_source_theorem_kernel_verified > 0
+        )
+    )
     runtime_source_theorem_proof_body_local_lean_gate_ok = (
-        runtime_source_theorem_proof_body_result_rows <= 0
-        or runtime_source_theorem_proof_body_local_lean_checked > 0
-        or runtime_source_theorem_kernel_verified > 0
+        runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok
+        and runtime_source_theorem_proof_body_same_lane_gate_ok
     )
     runtime_formal_gap_planner_handoff_rows = _int(
         counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
@@ -1242,9 +1271,13 @@ def _suite_rows(
         s13_issues.append(
             "integrated AgentRuntime has not run an exact source-theorem proof-body executor after exact semantic-definition/source lookup work; Formalizer local Lean feedback is still calibration unless a proof-body worker attempts the source theorem boundary in-loop"
         )
-    elif not runtime_source_theorem_proof_body_local_lean_gate_ok:
+    elif not runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok:
         s13_issues.append(
             "exact source-theorem proof-body executor result rows exist, but no local Lean/AXLE check or source-theorem kernel verification is visible; proof-body rows must stay non-proof feedback until the verifier boundary is exercised"
+        )
+    elif not runtime_source_theorem_proof_body_same_lane_gate_ok:
+        s13_issues.append(
+            "exact source-theorem proof-body executor evidence is split across lanes; one proof-body executor lane must show result rows plus local Lean/AXLE feedback or source-theorem kernel verification before S13 can count the path as integrated"
         )
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -2336,6 +2369,11 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_effective_goal_reached": runtime_source_theorem_proof_body_goal_reached,
                 "research_agent_runtime_source_theorem_proof_body_effective_goal_reached_with_semantic_blockers": runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers,
                 "research_agent_runtime_source_theorem_effective_kernel_verified": runtime_source_theorem_kernel_verified,
+                "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_same_lane_gate_ok,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_lane_ok": runtime_source_theorem_formal_environment_proof_body_lane_ok,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_lane_ok": runtime_source_theorem_exact_proof_body_repair_lane_ok,
+                "research_agent_runtime_source_theorem_approved_proof_body_recheck_lane_ok": runtime_source_theorem_approved_proof_body_recheck_lane_ok,
                 "research_agent_runtime_formal_gap_planner_handoff_rows": counts.get(
                     "research_agent_runtime_formal_gap_planner_handoff_rows"
                 ),
