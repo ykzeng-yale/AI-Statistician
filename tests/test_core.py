@@ -6108,6 +6108,12 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
                 "research_agent_runtime_source_theorem_kernel_verified_count": 0,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present": True,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok": True,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_evidence": (
+                    "concrete_result_lanes=['exact_semantic_definition_proof_body_recheck']"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_blocker": "",
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": True,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": True,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": (
@@ -6145,6 +6151,57 @@ class SystemTests(unittest.TestCase):
             runtime_scorecard_lane_s13["key_counts"][
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present"
             ]
+        )
+        self.assertTrue(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_executor_ran"
+            ]
+        )
+        self.assertTrue(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok"
+            ]
+        )
+        runtime_executor_scorecard_failed_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        runtime_executor_scorecard_failed_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present": True,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok": False,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_blocker": (
+                    "runtime proof-body executor scorecard rejected aggregate-only rows"
+                ),
+            }
+        )
+        runtime_executor_scorecard_failed_guidance = build_evaluation_benchmark_guidance(
+            Path(
+                "runs/test_evaluation_benchmark_guidance_runtime_executor_scorecard_failed"
+            ),
+            system_audit_payload=runtime_executor_scorecard_failed_payload,
+        )
+        runtime_executor_scorecard_failed_s13 = next(
+            row
+            for row in runtime_executor_scorecard_failed_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(
+            runtime_executor_scorecard_failed_s13["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertTrue(
+            runtime_executor_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_raw_executor_ran"
+            ]
+        )
+        self.assertFalse(
+            runtime_executor_scorecard_failed_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_executor_ran"
+            ]
+        )
+        self.assertIn(
+            "runtime proof-body executor scorecard rejected aggregate-only rows",
+            " ".join(runtime_executor_scorecard_failed_s13["issues"]),
         )
         runtime_scorecard_failed_payload = json.loads(
             json.dumps(semantic_bridge_ok_payload)

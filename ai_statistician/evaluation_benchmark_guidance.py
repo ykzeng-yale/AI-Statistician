@@ -236,6 +236,10 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
                         "research_agent_runtime_source_theorem_kernel_verified_count",
+                        "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present",
+                        "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok",
+                        "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_evidence",
+                        "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_blocker",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence",
@@ -977,6 +981,38 @@ def _suite_rows(
         or runtime_source_theorem_approved_proof_body_recheck_executor_ran
         or runtime_source_theorem_proof_body_result_rows > 0
     )
+    runtime_source_theorem_proof_body_executor_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present",
+            "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok"
+            in counts,
+        )
+    )
+    runtime_source_theorem_proof_body_executor_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok",
+            False,
+        )
+    )
+    runtime_source_theorem_proof_body_executor_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_proof_body_executor_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_proof_body_authoritative_executor_ran = (
+        runtime_source_theorem_proof_body_executor_scorecard_ok
+        if runtime_source_theorem_proof_body_executor_scorecard_present
+        else runtime_source_theorem_proof_body_executor_ran
+    )
     runtime_source_theorem_formal_environment_proof_body_lane_ok = (
         runtime_source_theorem_formal_environment_proof_body_result_rows > 0
         and (
@@ -1307,9 +1343,12 @@ def _suite_rows(
         s13_issues.append(
             "integrated AgentRuntime has not attached live Formalizer PF/BV packet-emission evidence with source-anchored pseudo-formal packets, exact-semantic-definition lane routing, nonzero routable work-order rows, no raw model output leakage, preserved non-proof boundary, no theorem-proof claim, and a recomputed attachment gate; standalone S11c evidence does not substitute for in-loop calibration"
         )
-    if not runtime_source_theorem_proof_body_executor_ran:
+    if not runtime_source_theorem_proof_body_authoritative_executor_ran:
         s13_issues.append(
-            "integrated AgentRuntime has not run an exact source-theorem proof-body executor after exact semantic-definition/source lookup work; Formalizer local Lean feedback is still calibration unless a proof-body worker attempts the source theorem boundary in-loop"
+            runtime_source_theorem_proof_body_executor_scorecard_blocker
+            if runtime_source_theorem_proof_body_executor_scorecard_present
+            and runtime_source_theorem_proof_body_executor_scorecard_blocker
+            else "integrated AgentRuntime has not run an exact source-theorem proof-body executor after exact semantic-definition/source lookup work; Formalizer local Lean feedback is still calibration unless a proof-body worker attempts the source theorem boundary in-loop"
         )
     elif (
         runtime_source_theorem_proof_body_same_lane_scorecard_present
@@ -1986,7 +2025,7 @@ def _suite_rows(
                 and runtime_gap_routing_retention_ok
                 and runtime_gap_routing_retention_selection_ok
                 and runtime_deferred_meta_gaps_ok
-                and runtime_source_theorem_proof_body_executor_ran
+                and runtime_source_theorem_proof_body_authoritative_executor_ran
                 and runtime_source_theorem_proof_body_local_lean_gate_ok
             )
             else "CAPACITY_GAP",
@@ -2411,6 +2450,12 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_kernel_verified_count": counts.get(
                     "research_agent_runtime_source_theorem_kernel_verified_count"
                 ),
+                "research_agent_runtime_source_theorem_proof_body_raw_executor_ran": runtime_source_theorem_proof_body_executor_ran,
+                "research_agent_runtime_source_theorem_proof_body_authoritative_executor_ran": runtime_source_theorem_proof_body_authoritative_executor_ran,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present": runtime_source_theorem_proof_body_executor_scorecard_present,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok": runtime_source_theorem_proof_body_executor_scorecard_ok,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_evidence": runtime_source_theorem_proof_body_executor_scorecard_evidence,
+                "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_blocker": runtime_source_theorem_proof_body_executor_scorecard_blocker,
                 "research_agent_runtime_source_theorem_proof_body_effective_result_rows": runtime_source_theorem_proof_body_result_rows,
                 "research_agent_runtime_source_theorem_proof_body_effective_local_lean_requested": runtime_source_theorem_formal_environment_proof_body_local_lean_requested,
                 "research_agent_runtime_source_theorem_proof_body_effective_local_lean_checked": runtime_source_theorem_proof_body_local_lean_checked,
