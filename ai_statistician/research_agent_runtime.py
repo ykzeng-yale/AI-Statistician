@@ -59534,6 +59534,17 @@ def _append_runtime_generated_next_action_rows(
                 row
             )
         )
+        candidate_definition_request_raw = row.get("candidate_definition_request", {})
+        if not isinstance(candidate_definition_request_raw, Mapping):
+            candidate_definition_request_raw = input_summary.get(
+                "candidate_definition_request",
+                {},
+            )
+        candidate_definition_request = (
+            dict(candidate_definition_request_raw)
+            if isinstance(candidate_definition_request_raw, Mapping)
+            else {}
+        )
         exact_semantic_definition_repair_queue_ready = bool(
             source_trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS
             or learning_task == "source_theorem_exact_semantic_definition_repair_queue"
@@ -59770,6 +59781,7 @@ def _append_runtime_generated_next_action_rows(
                 or input_summary.get("source_authoring_task_id", "")
                 or ""
             ),
+            "candidate_definition_request": candidate_definition_request,
             "provider_requested": bool(
                 row.get("provider_requested", False)
                 or input_summary.get("provider_requested", False)
@@ -60141,6 +60153,14 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "source_authoring_task_id": str(
                         row.get("source_authoring_task_id", "") or ""
+                    ),
+                    "candidate_definition_request": (
+                        dict(row.get("candidate_definition_request", {}))
+                        if isinstance(
+                            row.get("candidate_definition_request", {}),
+                            Mapping,
+                        )
+                        else {}
                     ),
                     "provider_requested": bool(
                         row.get("provider_requested", False)

@@ -40470,6 +40470,13 @@ def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None
         "target_ids": ["split_conformal_coverage"],
         "placeholder_symbol": "covered",
         "runtime_queue_status": "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "required_anchor_names": ["s", "q_hat", "C", "hC"],
+            "missing_required_anchor_names": [],
+        },
         "semantic_review_required_before_proof_body": True,
         "source_theorem_ready_for_exact_proof_body": False,
         "provider_requested": False,
@@ -40489,6 +40496,13 @@ def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None
             ),
             "source_prompt_packet_id": "authoring-prompt:covered",
             "source_authoring_task_id": "authoring-task:covered",
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "covered",
+                "required_anchor_names": ["s", "q_hat", "C", "hC"],
+                "missing_required_anchor_names": [],
+            },
             "provider_requested": False,
             "external_export_blocked": False,
             "semantic_review_required_before_proof_body": True,
@@ -40518,6 +40532,12 @@ def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None
     assert row["work_order_id"] == "authoring-prompt:covered"
     assert row["source_prompt_packet_id"] == "authoring-prompt:covered"
     assert row["source_authoring_task_id"] == "authoring-task:covered"
+    assert row["candidate_definition_request"]["required_anchor_names"] == [
+        "s",
+        "q_hat",
+        "C",
+        "hC",
+    ]
     assert row["provider_requested"] is False
     assert row["external_export_blocked"] is False
     assert row["runtime_queue_status"] == (
@@ -40533,6 +40553,12 @@ def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None
     assert generated_learning_rows[0]["input_summary"][
         "source_prompt_packet_id"
     ] == "authoring-prompt:covered"
+    assert generated_learning_rows[0]["input_summary"][
+        "candidate_definition_request"
+    ]["placeholder_symbol"] == "covered"
+    assert generated_learning_rows[0]["input_summary"][
+        "candidate_definition_request"
+    ]["required_anchor_names"] == ["s", "q_hat", "C", "hC"]
     assert generated_learning_rows[0]["input_summary"]["trigger"] == (
         "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
     )
@@ -45436,6 +45462,9 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
                     "target_theorem_name": "split_conformal_coverage",
                     "target_ids": ["split_conformal_coverage"],
                     "placeholder_symbol": "rank",
+                    "candidate_definition_request": task_rows[0][
+                        "candidate_definition_request"
+                    ],
                     "runtime_queue_status": (
                         "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
                     ),
@@ -45566,6 +45595,12 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
         "source_theorem_exact_semantic_definition_authoring_prompt:rank"
     )
     assert backend_rows[0]["source_authoring_task_id"] == "authoring-task:rank"
+    assert backend_rows[0]["candidate_definition_request"][
+        "required_anchor_names"
+    ] == ["n2", "s", "q_hat", "hq"]
+    assert backend_rows[0]["candidate_definition_request"][
+        "missing_required_anchor_names"
+    ] == []
     assert backend_rows[0]["runtime_queue_status"] == (
         "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
     )
@@ -45585,6 +45620,10 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
         == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
         and row.get("input_summary", {}).get("source_prompt_packet_id")
         == "source_theorem_exact_semantic_definition_authoring_prompt:rank"
+        and row.get("input_summary", {})
+        .get("candidate_definition_request", {})
+        .get("required_anchor_names")
+        == ["n2", "s", "q_hat", "hq"]
         for row in runtime_learning_rows
     )
 
