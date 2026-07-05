@@ -239,6 +239,10 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_evidence",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_blocker",
+                        "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_present",
+                        "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok",
+                        "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_evidence",
+                        "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_blocker",
                         "research_agent_runtime_source_theorem_kernel_verified_count",
                         "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present",
                         "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok",
@@ -1005,6 +1009,38 @@ def _suite_rows(
         if runtime_source_theorem_signature_probe_scorecard_present
         else runtime_source_theorem_proof_body_goal_reached > 0
     )
+    runtime_source_theorem_semantic_blockers_scorecard_present = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_present",
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok"
+            in counts,
+        )
+    )
+    runtime_source_theorem_semantic_blockers_scorecard_ok = bool(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok",
+            False,
+        )
+    )
+    runtime_source_theorem_semantic_blockers_scorecard_evidence = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_evidence",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_semantic_blockers_scorecard_blocker = str(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_blocker",
+            "",
+        )
+        or ""
+    )
+    runtime_source_theorem_semantic_blockers_authoritative_ok = (
+        runtime_source_theorem_semantic_blockers_scorecard_ok
+        if runtime_source_theorem_semantic_blockers_scorecard_present
+        else runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers <= 0
+    )
     runtime_source_theorem_kernel_verified = max(
         runtime_source_theorem_formal_environment_proof_body_kernel_verified,
         runtime_source_theorem_exact_proof_body_repair_kernel_verified,
@@ -1392,6 +1428,13 @@ def _suite_rows(
             if runtime_source_theorem_signature_probe_scorecard_present
             and runtime_source_theorem_signature_probe_scorecard_blocker
             else "exact source-theorem proof-body executor produced rows, but the runtime has not shown that the signature/proof-body goal was reached; result rows remain pre-proof-body feedback until that boundary is explicit"
+        )
+    elif not runtime_source_theorem_semantic_blockers_authoritative_ok:
+        s13_issues.append(
+            runtime_source_theorem_semantic_blockers_scorecard_blocker
+            if runtime_source_theorem_semantic_blockers_scorecard_present
+            and runtime_source_theorem_semantic_blockers_scorecard_blocker
+            else "exact source-theorem proof-body goal was reached with semantic-review blockers, but the runtime has not exposed exact semantic-definition repair routing or source-theorem kernel closure"
         )
     elif (
         runtime_source_theorem_proof_body_same_lane_scorecard_present
@@ -2070,6 +2113,7 @@ def _suite_rows(
                 and runtime_deferred_meta_gaps_ok
                 and runtime_source_theorem_proof_body_authoritative_executor_ran
                 and runtime_source_theorem_proof_body_authoritative_goal_reached
+                and runtime_source_theorem_semantic_blockers_authoritative_ok
                 and runtime_source_theorem_proof_body_local_lean_gate_ok
             )
             else "CAPACITY_GAP",
@@ -2496,6 +2540,11 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok": runtime_source_theorem_signature_probe_scorecard_ok,
                 "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_evidence": runtime_source_theorem_signature_probe_scorecard_evidence,
                 "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_blocker": runtime_source_theorem_signature_probe_scorecard_blocker,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_authoritative_ok": runtime_source_theorem_semantic_blockers_authoritative_ok,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_present": runtime_source_theorem_semantic_blockers_scorecard_present,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok": runtime_source_theorem_semantic_blockers_scorecard_ok,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_evidence": runtime_source_theorem_semantic_blockers_scorecard_evidence,
+                "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_blocker": runtime_source_theorem_semantic_blockers_scorecard_blocker,
                 "research_agent_runtime_source_theorem_kernel_verified_count": counts.get(
                     "research_agent_runtime_source_theorem_kernel_verified_count"
                 ),

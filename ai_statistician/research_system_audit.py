@@ -1993,6 +1993,12 @@ async def run_research_system_audit(
             {},
         )
     )
+    runtime_source_theorem_semantic_blockers_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "source_theorem_proof_body_semantic_review_blockers_not_hidden",
+            {},
+        )
+    )
     runtime_source_theorem_proof_body_same_lane_scorecard_row = (
         runtime_scorecard_rows_by_id.get(
             "source_theorem_proof_body_same_lane_verifier_evidence",
@@ -3750,6 +3756,29 @@ async def run_research_system_audit(
             ),
             "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_blocker": str(
                 runtime_source_theorem_signature_probe_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_present": bool(
+                runtime_source_theorem_semantic_blockers_scorecard_row
+            ),
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok": bool(
+                runtime_source_theorem_semantic_blockers_scorecard_row.get(
+                    "passed",
+                    False,
+                )
+            ),
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_evidence": str(
+                runtime_source_theorem_semantic_blockers_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_blocker": str(
+                runtime_source_theorem_semantic_blockers_scorecard_row.get(
                     "blocker",
                     "",
                 )
