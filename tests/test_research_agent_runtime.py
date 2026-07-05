@@ -40570,6 +40570,100 @@ def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None
     )
 
 
+def test_exact_semantic_authoring_backend_routing_survives_memory_compaction(
+    tmp_path: Path,
+) -> None:
+    generated_routing_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeGeneratedNextActionLearningRow",
+        "learning_task": "generated_next_action_routing",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "covered",
+        "runtime_queue_status": (
+            "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+        ),
+        "source_prompt_packet_id": "authoring-prompt:covered",
+        "source_authoring_task_id": "authoring-task:covered",
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "covered",
+            "required_anchor_names": ["s", "q_hat", "C", "hC"],
+            "missing_required_anchor_names": [],
+        },
+        "input_summary": {
+            "trigger": (
+                "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+            ),
+            "runtime_queue_status": (
+                "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+            ),
+            "source_prompt_packet_id": "authoring-prompt:covered",
+            "source_authoring_task_id": "authoring-task:covered",
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "covered",
+                "required_anchor_names": ["s", "q_hat", "C", "hC"],
+                "missing_required_anchor_names": [],
+            },
+        },
+        "proof_evidence_status": "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE",
+    }
+
+    assert cli_module._runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
+        generated_routing_row
+    )
+    assert (
+        cli_module._runtime_learning_memory_exact_semantic_definition_repair_priority(
+            generated_routing_row
+        )
+        == 94
+    )
+    assert (
+        cli_module._runtime_learning_memory_exact_semantic_definition_repair_pin_stage(
+            generated_routing_row
+        )
+        == "authoring_backend_required"
+    )
+
+    learning_path = tmp_path / "generated_backend_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(generated_routing_row, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+
+    assert len(memory["rows"]) == 1
+    compact_row = memory["rows"][0]
+    assert compact_row["learning_task"] == "generated_next_action_routing"
+    assert compact_row["runtime_queue_status"] == (
+        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+    )
+    assert compact_row["source_prompt_packet_id"] == "authoring-prompt:covered"
+    assert compact_row["source_authoring_task_id"] == "authoring-task:covered"
+    assert compact_row["candidate_definition_request"]["placeholder_symbol"] == (
+        "covered"
+    )
+    assert compact_row["candidate_definition_request"]["required_anchor_names"] == [
+        "s",
+        "q_hat",
+        "C",
+        "hC",
+    ]
+    assert compact_row["input_summary"]["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+    )
+    assert compact_row["input_summary"]["source_prompt_packet_id"] == (
+        "authoring-prompt:covered"
+    )
+    assert compact_row["input_summary"]["candidate_definition_request"][
+        "required_anchor_names"
+    ] == ["s", "q_hat", "C", "hC"]
+
+
 def test_typechecked_review_blocked_manifest_rows_generate_next_action(
     tmp_path: Path,
 ) -> None:

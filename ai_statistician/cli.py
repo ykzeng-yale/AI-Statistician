@@ -2698,6 +2698,9 @@ def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED",
         "PENDING_EXACT_SEMANTIC_DEFINITION_LOCAL_LEAN_CHECK",
         "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR",
+        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+        "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED",
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING",
         "PENDING_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_SEMANTIC_DEFINITION",
     }:
         return True
@@ -2705,6 +2708,9 @@ def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
         "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_SOURCE_LOOKUP",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED",
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_EXTERNAL_EXPORT_REVIEW_REQUIRED",
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_MATERIALIZED",
         "EXACT_SEMANTIC_DEFINITION_LEAN_IMPORT_ENVIRONMENT_REPAIR",
         "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT",
@@ -2724,6 +2730,7 @@ def _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(
         "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE",
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_NOT_SOURCE_THEOREM_PROOF",
         "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE",
+        "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE",
     } and (
         "semantic_definition" in learning_task
         or "semantic_definition" in trigger.lower()
@@ -2786,6 +2793,21 @@ def _runtime_learning_memory_exact_semantic_definition_repair_priority(
     ):
         return 95
     if (
+        runtime_queue_status
+        in {
+            "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+            "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED",
+            "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING",
+        }
+        or trigger
+        in {
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED",
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_EXTERNAL_EXPORT_REVIEW_REQUIRED",
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
+        }
+    ):
+        return 94
+    if (
         artifact_path
         or semantic_status
         or runtime_queue_status
@@ -2840,6 +2862,24 @@ def _runtime_learning_memory_exact_semantic_definition_repair_pin_stage(
         )
     ):
         return "verifier_gate_repair"
+    if (
+        runtime_queue_status == "BLOCKED_EXTERNAL_LLM_EXPORT_REVIEW_REQUIRED"
+        or trigger == "EXACT_SOURCE_SEMANTIC_DEFINITION_EXTERNAL_EXPORT_REVIEW_REQUIRED"
+    ):
+        return "authoring_external_export_review_required"
+    if (
+        runtime_queue_status
+        in {
+            "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING",
+            "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING",
+        }
+        or trigger
+        in {
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED",
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
+        }
+    ):
+        return "authoring_backend_required"
     return (
         trigger.strip()
         or runtime_queue_status
@@ -2913,6 +2953,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_rows_path",
         "source_formalizer_packet_id",
         "source_agenda_id",
+        "source_prompt_packet_id",
+        "source_authoring_task_id",
         "source_pseudo_formal_work_order_id",
         "source_formalizer_proposal_id",
         "source_formalization_manifest_id",
@@ -3531,6 +3573,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "boundary",
         "priority",
         "work_order_id",
+        "source_prompt_packet_id",
+        "source_authoring_task_id",
         "semantic_primitive_id",
         "target_theorem_name",
         "placeholder_symbol",
