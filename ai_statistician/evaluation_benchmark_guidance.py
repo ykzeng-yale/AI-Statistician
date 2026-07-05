@@ -212,6 +212,15 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim",
                         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows",
+                        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows",
+                        "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                        "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows",
+                        "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows",
+                        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows",
+                        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_attached",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok",
                         "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets",
@@ -739,6 +748,51 @@ def _suite_rows(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
         )
     )
+    runtime_formalizer_pf_packet_component_learning_consumed = bool(
+        counts.get(
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+        )
+        or counts.get(
+            "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+        )
+        or counts.get(
+            "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+        )
+    )
+    runtime_formalizer_pf_packet_component_learning_rows = max(
+        _int(
+            counts.get(
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+            )
+        ),
+        _int(
+            counts.get(
+                "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+            )
+        ),
+        _int(
+            counts.get(
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+            )
+        ),
+    )
+    runtime_formalizer_pf_packet_component_learning_consumed_rows = max(
+        _int(
+            counts.get(
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+            )
+        ),
+        _int(
+            counts.get(
+                "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+            )
+        ),
+        _int(
+            counts.get(
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+            )
+        ),
+    )
     runtime_formalizer_pf_packet_component_ok = bool(
         runtime_formalizer_pf_packet_component_exercised
         and runtime_formalizer_pf_packet_component_capability_evidence_ok
@@ -754,6 +808,9 @@ def _suite_rows(
         and runtime_formalizer_pf_packet_component_proof_evidence_status_ok
         and runtime_formalizer_pf_packet_component_no_theorem_proof_claim
         and runtime_formalizer_pf_packet_component_attachment_gate_recomputed
+        and runtime_formalizer_pf_packet_component_learning_consumed
+        and runtime_formalizer_pf_packet_component_learning_rows > 0
+        and runtime_formalizer_pf_packet_component_learning_consumed_rows > 0
         and "source_theorem_exact_semantic_definition"
         in runtime_formalizer_pf_packet_component_target_lanes
     )
@@ -1642,7 +1699,7 @@ def _suite_rows(
         )
     if not runtime_formalizer_pf_packet_component_ok:
         s13_issues.append(
-            "integrated AgentRuntime has not attached live Formalizer PF/BV packet-emission evidence with source-anchored pseudo-formal packets, exact-semantic-definition lane routing, nonzero routable work-order rows, no raw model output leakage, preserved non-proof boundary, no theorem-proof claim, and a recomputed attachment gate; standalone S11c evidence does not substitute for in-loop calibration"
+            "integrated AgentRuntime has not attached and consumed live Formalizer PF/BV packet-emission evidence into non-proof runtime learning memory with source-anchored pseudo-formal packets, exact-semantic-definition lane routing, nonzero routable work-order rows, no raw model output leakage, preserved non-proof boundary, no theorem-proof claim, and a recomputed attachment gate; standalone S11c evidence or unattached harness evidence does not substitute for in-loop calibration"
         )
     if not runtime_source_theorem_proof_body_authoritative_executor_ran:
         s13_issues.append(
@@ -2236,6 +2293,18 @@ def _suite_rows(
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed": counts.get(
                     "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"
                 ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                    runtime_formalizer_pf_packet_component_learning_consumed,
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows",
+                    runtime_formalizer_pf_packet_component_learning_rows,
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows",
+                    runtime_formalizer_pf_packet_component_learning_consumed_rows,
+                ),
                 "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok": counts.get(
                     "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
                 ),
@@ -2273,6 +2342,9 @@ def _suite_rows(
                 ),
                 "effective_exact_semantic_definition_lane_present": formalizer_pf_packet_exact_lane_present,
                 "effective_exact_semantic_definition_rows": formalizer_pf_packet_exact_rows,
+                "effective_runtime_component_learning_consumed": runtime_formalizer_pf_packet_component_learning_consumed,
+                "effective_runtime_component_learning_rows": runtime_formalizer_pf_packet_component_learning_rows,
+                "effective_runtime_component_learning_consumed_rows": runtime_formalizer_pf_packet_component_learning_consumed_rows,
                 "effective_exact_semantic_definition_rows_source_anchored": formalizer_pf_packet_exact_rows_source_anchored,
                 "effective_exact_semantic_definition_rows_semantic_requirements_present": formalizer_pf_packet_exact_rows_semantic_requirements_present,
                 "effective_exact_semantic_definition_rows_lineage_complete": formalizer_pf_packet_exact_rows_lineage_complete,
@@ -2290,7 +2362,7 @@ def _suite_rows(
             issues=()
             if formalizer_pf_packet_component_ok
             else (
-                "no live Claude/OpenAI Formalizer PF/BV packet-emission evidence with exact-semantic-definition lane routing, actionable source-anchored exact rows, nonzero routable rows, preserved non-proof boundary, and no theorem-proof claim is present",
+                "no live Claude/OpenAI Formalizer PF/BV packet-emission evidence with exact-semantic-definition lane routing, actionable source-anchored exact rows, nonzero routable rows, preserved non-proof boundary, no theorem-proof claim, and integrated runtime-consumed non-proof learning memory when using AgentRuntime evidence is present",
             ),
         ),
         BenchmarkSuiteGuidanceRow(
@@ -2622,6 +2694,18 @@ def _suite_rows(
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed": counts.get(
                     "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed",
                     runtime_formalizer_pf_packet_component_attachment_gate_recomputed,
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                    runtime_formalizer_pf_packet_component_learning_consumed,
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows",
+                    runtime_formalizer_pf_packet_component_learning_rows,
+                ),
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": counts.get(
+                    "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows",
+                    runtime_formalizer_pf_packet_component_learning_consumed_rows,
                 ),
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": counts.get(
                     "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider"
@@ -3040,7 +3124,7 @@ def _top_actions(
             "owner_suite": "S13_live_integrated_agent_runtime_capability",
             "action": "Run one integrated live AgentRuntime capability gate with Architect enabled, generated algorithm/simulation repair, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission calibration, attached PF/BV BlockVerifier calibration, aggregate exact semantic-definition authoring, and internal ProofEngineer handoffs in the same run.",
             "why": "S10/S11/S11c/S11b/S12 prove component capabilities separately, but they do not prove the full Claude/OpenAI-driven AI Statistician loop works end to end without static/no-Architect/template-only substitution or staged-only semantic authoring.",
-            "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission evidence with capability_evidence_ok=true, pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, exact_semantic_definition_lane_present=true, nonproof_boundary_preserved=true, proof_evidence_status_ok=true, no_theorem_proof_claim=true, raw_model_output_written=false, and attachment_gate_recomputed=true, attached internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, and runtime_learning_rows>0 from a live backend, zero unresolved AgentRuntime/Architect deferred meta capability gaps with owner/requirement telemetry if any are detected, architect_deferred_meta_capability_gaps_resolved priority-pinned in capability-gap replay whenever such a gap remains open, aggregate primary/retry/late/post-runtime exact semantic-definition authoring n_live_llm_attempted>0 when required, post-runtime exact semantic candidates materialized and locally Lean-checked with repair state exposed, exact source-theorem proof-body executor evidence with result rows plus local Lean/AXLE feedback or source-theorem kernel verification, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, PF+BV row-kind/effective-vs-diagnostic split/method-lineage/non-proof contract complete for any pseudo-formal routing rows, source-semantic ProofEngineer bridge consumption for pseudo-formal semantic primitive work orders with semantic-support/not-source-theorem-proof status, FormalizationGapPlanner executable handoff context plus live route-planner target-prover route-revision followthrough, and priority_pinned_latest_rows retention plus row-level retention_selection whenever capability-gap routing input is truncated.",
+            "success_metric": "research_agent_runtime_capability_ready_for_full_ai_statistician=true with zero static providers, ArchitectCoordinator enabled, generated code and simulation repair evidence, Formalizer local Lean feedback, attached Formalizer PF/BV packet-emission evidence with capability_evidence_ok=true, pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, exact_semantic_definition_lane_present=true, nonproof_boundary_preserved=true, proof_evidence_status_ok=true, no_theorem_proof_claim=true, raw_model_output_written=false, attachment_gate_recomputed=true, and runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed=true with consumed_rows>0, attached internal_pseudo_formal_block_verifier_eval_capability_evidence_ok=true with prompt_packets>0, valid_responses>0, and runtime_learning_rows>0 from a live backend, zero unresolved AgentRuntime/Architect deferred meta capability gaps with owner/requirement telemetry if any are detected, architect_deferred_meta_capability_gaps_resolved priority-pinned in capability-gap replay whenever such a gap remains open, aggregate primary/retry/late/post-runtime exact semantic-definition authoring n_live_llm_attempted>0 when required, post-runtime exact semantic candidates materialized and locally Lean-checked with repair state exposed, exact source-theorem proof-body executor evidence with result rows plus local Lean/AXLE feedback or source-theorem kernel verification, ProofEngineer handoff feedback, explicit theorem-proof boundary fields, PF+BV row-kind/effective-vs-diagnostic split/method-lineage/non-proof contract complete for any pseudo-formal routing rows, source-semantic ProofEngineer bridge consumption for pseudo-formal semantic primitive work orders with semantic-support/not-source-theorem-proof status, FormalizationGapPlanner executable handoff context plus live route-planner target-prover route-revision followthrough, and priority_pinned_latest_rows retention plus row-level retention_selection whenever capability-gap routing input is truncated.",
         }
         if s13_followup_commands:
             s13_action["recommended_commands"] = s13_followup_commands
@@ -3083,7 +3167,7 @@ def _top_actions(
                 "owner_suite": "S11c_live_formalizer_pseudo_formal_packet",
                 "action": "Run the live Formalizer PF/BV packet-emission gate with Claude/OpenAI and require schema-valid source-anchored packets with nonzero lane-routable work-order rows.",
                 "why": "Formalizer must reliably turn proof-body semantic blockers into PF/BV work packets before the BlockVerifier, RAG, source-to-bridge, or exact semantic-definition lanes can help.",
-                "success_metric": "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok=true with pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, exact_semantic_definition_lane_present=true, nonproof_boundary_preserved=true, proof_evidence_status_ok=true, no_theorem_proof_claim=true, and raw_model_output_written=false for standalone S11c; for integrated S13 the runtime attachment must also report attachment_gate_recomputed=true.",
+                "success_metric": "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok=true with pseudo_formal_packets>0, routable_work_order_rows>0, source_theorem_exact_semantic_definition in target lanes, exact_semantic_definition_lane_present=true, nonproof_boundary_preserved=true, proof_evidence_status_ok=true, no_theorem_proof_claim=true, and raw_model_output_written=false for standalone S11c; for integrated S13 the runtime attachment must also report attachment_gate_recomputed=true and runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed=true with consumed_rows>0.",
             }
         )
     if (

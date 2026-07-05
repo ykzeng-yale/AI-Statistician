@@ -291,6 +291,7 @@ from ai_statistician.model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
 )
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
+from ai_statistician.task_family import cross_task_generalization_family_pair
 from ai_statistician.agent_runtime import (
     AgentRuntime,
     AgentStepResult,
@@ -75511,6 +75512,14 @@ def test_runtime_audit_recomputes_stale_research_path_control(
 
 
 def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization() -> None:
+    assert cross_task_generalization_family_pair([]) == (
+        "experimental_design",
+        "multiple_testing",
+    )
+    assert cross_task_generalization_family_pair(["experimental_design"]) == (
+        "experimental_design",
+        "multiple_testing",
+    )
     payload = {
         "n_results": 1,
         "n_distinct_question_ids": 1,

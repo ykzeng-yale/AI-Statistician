@@ -99,6 +99,7 @@ from .research_agent_runtime import (
     _normalize_source_to_bridge_metadata_authoring_request_row,
 )
 from .task_family import (
+    cross_task_generalization_family_pair,
     explicit_task_family_list,
     is_explicit_task_family,
     primary_task_family_from_mapping,
@@ -25076,12 +25077,8 @@ def _scorecard_row(
 def _cross_task_generalization_scorecard_routing(
     payload: Mapping[str, Any],
 ) -> dict[str, Any]:
-    families = explicit_task_family_list(payload.get("task_families", []))
-    first_family = families[0] if families else "conformal"
-    second_family = (
-        "experimental_design"
-        if first_family != "experimental_design"
-        else "multiple_testing"
+    first_family, second_family = cross_task_generalization_family_pair(
+        payload.get("task_families", [])
     )
     command = (
         ".venv/bin/python -m ai_statistician.cli research-agent-runtime "

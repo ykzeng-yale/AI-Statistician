@@ -5276,7 +5276,7 @@ class SystemTests(unittest.TestCase):
             " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
         )
         self.assertIn(
-            "standalone S11c evidence does not substitute",
+            "unattached harness evidence does not substitute",
             " ".join(suites["S13_live_integrated_agent_runtime_capability"]["issues"]),
         )
         self.assertIn(
@@ -5852,9 +5852,19 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": True,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": False,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": 1,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors": 1,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage": 1,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": True,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": True,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": True,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": True,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": 1,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": 1,
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": "anthropic",
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_backend_provider": "anthropic",
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_manifest_path": (
@@ -5947,6 +5957,17 @@ class SystemTests(unittest.TestCase):
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"
             ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+            ],
+            1,
         )
         self.assertEqual(
             semantic_bridge_ok_s13["key_counts"][
@@ -6456,6 +6477,45 @@ class SystemTests(unittest.TestCase):
             "recomputed attachment gate",
             " ".join(
                 stale_pf_rows[
+                    "S13_live_integrated_agent_runtime_capability"
+                ]["issues"]
+            ),
+        )
+        unconsumed_pf_attachment_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        unconsumed_pf_attachment_payload["counts"].update(
+            {
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": False,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": 0,
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": 0,
+            }
+        )
+        unconsumed_pf_attachment_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_attachment_unconsumed"),
+            system_audit_payload=unconsumed_pf_attachment_payload,
+        )
+        unconsumed_pf_rows = {
+            row["suite_id"]: row
+            for row in unconsumed_pf_attachment_guidance["suites"]
+        }
+        self.assertEqual(
+            unconsumed_pf_rows["S13_live_integrated_agent_runtime_capability"][
+                "status"
+            ],
+            "CAPACITY_GAP",
+        )
+        self.assertFalse(
+            unconsumed_pf_rows["S13_live_integrated_agent_runtime_capability"][
+                "key_counts"
+            ][
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+            ]
+        )
+        self.assertIn(
+            "runtime learning memory",
+            " ".join(
+                unconsumed_pf_rows[
                     "S13_live_integrated_agent_runtime_capability"
                 ]["issues"]
             ),
@@ -6989,6 +7049,13 @@ class SystemTests(unittest.TestCase):
                 "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": True,
                 "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": False,
                 "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": True,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": True,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": True,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": True,
                 "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": True,
                 "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": True,
             }
