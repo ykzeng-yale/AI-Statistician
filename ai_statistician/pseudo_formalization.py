@@ -250,6 +250,10 @@ PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS = (
     "pseudo_formal_formal_library_grounding_query_blocked_by_faithfulness",
     "pseudo_formal_library_gap_blocked_by_faithfulness",
     "pseudo_formal_exact_semantic_definition_request_blocked_by_faithfulness",
+    (
+        "pseudo_formal_exact_semantic_definition_request"
+        "_blocked_by_missing_semantic_requirements"
+    ),
     "pseudo_formal_nonlean_residual_gap_blocked_by_faithfulness",
     "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness",
 )
@@ -1577,6 +1581,7 @@ def _work_order_rows_for_block(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     feasibility = str(block.get("lean_feasibility", "unknown") or "unknown")
+    semantic_requirements = _string_list(block.get("semantic_primitive_requirements"))
     verdict = _block_verdict(block)
     faithfulness = str(block.get("faithfulness_status", "unchecked") or "unchecked")
     faithfulness_ready = faithfulness == "faithful"
@@ -1799,7 +1804,7 @@ def _work_order_rows_for_block(
                 )
             )
     elif feasibility == "needs_semantic_definition":
-        if faithfulness_ready:
+        if faithfulness_ready and semantic_requirements:
             rows.append(
                 _work_order_row(
                     packet,
@@ -1809,6 +1814,33 @@ def _work_order_rows_for_block(
                     reason=(
                         "block requires exact semantic definitions before Lean replay"
                     ),
+                )
+            )
+        elif faithfulness_ready:
+            rows.append(
+                _work_order_row(
+                    packet,
+                    block,
+                    row_kind=(
+                        "pseudo_formal_exact_semantic_definition_request"
+                        "_blocked_by_missing_semantic_requirements"
+                    ),
+                    target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+                    reason=(
+                        "exact semantic-definition routing requires the block to "
+                        "name the primitive/source object to define in "
+                        "semantic_primitive_requirements"
+                    ),
+                    extra={
+                        "blocked_row_kind": (
+                            "pseudo_formal_exact_semantic_definition_request"
+                        ),
+                        "blocked_target_lane": (
+                            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                        ),
+                        "blocked_by": "semantic_primitive_requirements_missing",
+                        "requested_owner_subsystem": "Formalizer/ProofEngineer",
+                    },
                 )
             )
         else:
@@ -1854,7 +1886,7 @@ def _work_order_rows_for_block(
                     reason="non-Lean residual classification waits for faithful PF rewrite",
                 )
             )
-    for primitive in _string_list(block.get("semantic_primitive_requirements")):
+    for primitive in semantic_requirements:
         if faithfulness_ready:
             rows.append(
                 _work_order_row(

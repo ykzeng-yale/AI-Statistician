@@ -251,6 +251,71 @@ def test_pseudo_formal_packet_normalizes_and_routes_non_kernel_work_orders() -> 
     )
 
 
+def test_pseudo_formal_exact_semantic_routing_requires_named_semantic_requirement() -> None:
+    blocked_row_kind = (
+        "pseudo_formal_exact_semantic_definition_request"
+        "_blocked_by_missing_semantic_requirements"
+    )
+    packet = normalize_pseudo_formal_packet(
+        {
+            "theorem_id": "split_conformal_coverage",
+            "source_artifact_id": "theory_packet:split_conformal",
+            "blocks": [
+                {
+                    "block_id": "coverage_semantic_block",
+                    "block_type": "claim",
+                    "premises": ["the proof invokes a threshold event"],
+                    "conclusion": "coverage follows from the threshold event",
+                    "proof_text": (
+                        "The source proof needs the exact event whose definition "
+                        "will be consumed by Lean repair."
+                    ),
+                    "source_anchors": [
+                        {
+                            "kind": "proof_body",
+                            "id": "proof:coverage-threshold-step",
+                            "excerpt": "coverage follows from threshold event",
+                        }
+                    ],
+                    "scope_parent_id": "",
+                    "semantic_primitive_requirements": [],
+                    "lean_feasibility": "needs_semantic_definition",
+                    "faithfulness_status": "faithful",
+                    "faithfulness_repair": {
+                        "status": "not_required",
+                        "attempts": 0,
+                        "flagged_discrepancies": [],
+                    },
+                    "block_verification": {"verdict": "unknown"},
+                }
+            ],
+        }
+    )
+
+    rows = pseudo_formal_block_work_order_rows(packet)
+    row_kinds = {row["row_kind"] for row in rows}
+    routable_row_kinds = {
+        row["row_kind"] for row in pseudo_formal_routable_work_order_rows(rows)
+    }
+
+    assert validate_pseudo_formal_packet(packet) == []
+    assert "pseudo_formal_exact_semantic_definition_request" not in row_kinds
+    assert (
+        "pseudo_formal_exact_semantic_definition_request"
+        not in routable_row_kinds
+    )
+    assert blocked_row_kind in row_kinds
+    blocked = [
+        row
+        for row in rows
+        if row["row_kind"] == blocked_row_kind
+    ][0]
+    assert blocked["target_lane"] == "formal_gap"
+    assert blocked["blocked_target_lane"] == "source_theorem_exact_semantic_definition"
+    assert blocked["blocked_by"] == "semantic_primitive_requirements_missing"
+    assert blocked["requested_owner_subsystem"] == "Formalizer/ProofEngineer"
+
+
 def test_pseudo_formal_block_normalizer_accepts_llm_aliases_without_weakening_anchors() -> None:
     packet = normalize_pseudo_formal_packet(
         {
@@ -2112,7 +2177,11 @@ def test_structural_exact_semantic_memory_rejects_unnamed_exact_row() -> None:
         proof_bank_runtime_memory_summary=proof_memory_summary,
     )
 
-    assert any("source_theorem_exact_semantic_definition rows" in error for error in errors)
+    assert any(
+        "source_theorem_exact_semantic_definition routing was not materialized"
+        in error
+        for error in errors
+    )
     assert any("semantic_primitive_requirements" in error for error in errors)
 
 
