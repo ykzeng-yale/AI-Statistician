@@ -953,6 +953,10 @@ def _prompt_payload(
         task,
         export_mode=export_mode,
     )
+    exact_context = _exact_semantic_definition_context_for_prompt(
+        task,
+        export_mode=export_mode,
+    )
     response_validation_feedback = _response_validation_feedback(task)
     return {
         "task": "author_exact_semantic_definition_candidate",
@@ -964,6 +968,7 @@ def _prompt_payload(
         "source_execution_status": str(task.get("source_execution_status", "") or ""),
         "authoring_trigger": str(task.get("authoring_trigger", "") or ""),
         "authoring_mode": str(task.get("authoring_mode", "") or ""),
+        "exact_semantic_definition_context": exact_context,
         "candidate_definition_request": dict(candidate_definition_request),
         "source_theorem_binders": list(
             task.get("exact_source_theorem_binders", []) or []
@@ -5079,6 +5084,72 @@ def _source_reference_redaction_summary(
         "paths_redacted": sum(1 for row in original_rows if row.get("path")) if redacted else 0,
         "snippets_redacted": sum(1 for row in original_rows if row.get("snippet")) if redacted else 0,
     }
+
+
+PROMPT_EXACT_SEMANTIC_CONTEXT_KEYS = (
+    "semantic_primitive",
+    "semantic_primitive_requirements",
+    "source_anchors",
+    "source_pseudo_formal_work_order_id",
+    "source_pseudo_formal_block_id",
+    "source_pseudo_formal_packet_id",
+    "source_formalizer_proposal_id",
+    "pseudo_formal_method_contract_id",
+    "pseudo_formal_pipeline_stage",
+    "pseudo_formal_proof_evidence_status",
+)
+
+
+def _exact_semantic_definition_context_for_prompt(
+    task: Mapping[str, Any],
+    *,
+    export_mode: str,
+) -> dict[str, Any]:
+    context = _exact_semantic_definition_context(task)
+    prompt_context: dict[str, Any] = {}
+    for key in PROMPT_EXACT_SEMANTIC_CONTEXT_KEYS:
+        value = context.get(key, None)
+        if value in (None, "", [], {}):
+            continue
+        if key == "source_anchors":
+            anchors = _source_anchors_for_prompt(value, export_mode=export_mode)
+            if anchors:
+                prompt_context[key] = anchors
+            continue
+        if isinstance(value, Mapping):
+            prompt_context[key] = dict(value)
+        elif isinstance(value, list):
+            prompt_context[key] = list(value)
+        else:
+            prompt_context[key] = value
+    if prompt_context:
+        prompt_context["proof_evidence_boundary"] = (
+            "This context identifies the exact semantic object/source anchors to "
+            "author. It is routing and grounding context only, not proof evidence."
+        )
+    return prompt_context
+
+
+def _source_anchors_for_prompt(
+    value: Any,
+    *,
+    export_mode: str,
+) -> list[dict[str, Any]]:
+    rows = [dict(row) for row in value or [] if isinstance(row, Mapping)][:8]
+    if _normalized_external_export_mode(export_mode) != "redacted":
+        return rows
+    redacted: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        redacted.append(
+            {
+                "anchor_index": index,
+                "kind": str(row.get("kind", "") or ""),
+                "id": str(row.get("id", "") or ""),
+                "excerpt_redacted": bool(row.get("excerpt")),
+                "excerpt_chars": len(str(row.get("excerpt", "") or "")),
+            }
+        )
+    return redacted
 
 
 def _source_reference_summary_from_user_prompt(user_prompt: str) -> list[dict[str, Any]]:

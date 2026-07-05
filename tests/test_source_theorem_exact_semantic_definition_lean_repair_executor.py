@@ -194,7 +194,9 @@ def test_exact_semantic_definition_lean_repair_executor_checks_import_candidate(
         "source_theorem_exact_semantic_definition_candidate"
     )
     assert request["placeholder_symbol"] == "Exchangeable"
-    assert request["required_anchor_names"] == []
+    assert request["required_anchor_names"] == ["P", "s"]
+    assert request["available_anchor_names"] == ["P", "s", "hexch"]
+    assert request["missing_required_anchor_names"] == []
     assert request["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )

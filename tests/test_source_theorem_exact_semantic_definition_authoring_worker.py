@@ -89,6 +89,26 @@ def _write_authoring_tasks(path: Path) -> None:
         "question_title": "Split conformal prediction interval coverage",
         "target_theorem_name": "split_conformal_coverage",
         "placeholder_symbol": "covered",
+        "semantic_primitive": "covered",
+        "semantic_primitive_requirements": ["covered"],
+        "source_anchors": [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "pf:block:covered",
+                "excerpt": "coverage event is grounded by q_hat and hC",
+            }
+        ],
+        "source_pseudo_formal_work_order_id": "pseudo_formal_work_order:covered",
+        "source_pseudo_formal_block_id": "pf:block:covered",
+        "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+        "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
+        "pseudo_formal_method_contract_id": (
+            "pseudo_formalization_block_verification_calibration_v1"
+        ),
+        "pseudo_formal_pipeline_stage": "pseudo_formal_block_routing",
+        "pseudo_formal_proof_evidence_status": (
+            "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        ),
         "source_execution_status": (
             "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
         ),
@@ -237,6 +257,18 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     assert prompt_packets[0]["source_definition_closure_work_order_id"] == (
         "source_theorem_exact_semantic_definition_closure_work_order:covered"
     )
+    assert prompt_packets[0]["semantic_primitive"] == "covered"
+    assert prompt_packets[0]["semantic_primitive_requirements"] == ["covered"]
+    assert prompt_packets[0]["source_anchors"] == [
+        {
+            "kind": "pseudo_formal_block",
+            "id": "pf:block:covered",
+            "excerpt": "coverage event is grounded by q_hat and hC",
+        }
+    ]
+    assert prompt_packets[0]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:covered"
+    )
     assert prompt_packets[0]["source_to_bridge_adapter_instantiation_group_id"] == (
         "source_to_bridge_adapter_instantiation_group:covered"
     )
@@ -274,6 +306,22 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
     ]
     assert prompt_payload["authoring_trigger"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
+    )
+    exact_context = prompt_payload["exact_semantic_definition_context"]
+    assert exact_context["semantic_primitive"] == "covered"
+    assert exact_context["semantic_primitive_requirements"] == ["covered"]
+    assert exact_context["source_anchors"] == [
+        {
+            "kind": "pseudo_formal_block",
+            "id": "pf:block:covered",
+            "excerpt": "coverage event is grounded by q_hat and hC",
+        }
+    ]
+    assert exact_context["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:covered"
+    )
+    assert exact_context["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
     )
     assert prompt_payload["candidate_repair_feedback"]["local_lean_diagnostics"] == [
         "application type mismatch",
@@ -1233,6 +1281,17 @@ def test_authoring_worker_redacted_external_export_removes_paths_and_snippets(
     assert all("snippet" not in row for row in refs)
     assert all(row["path_redacted"] is True for row in refs)
     assert all(row["snippet_redacted"] is True for row in refs)
+    exact_context = prompt_payload["exact_semantic_definition_context"]
+    assert exact_context["semantic_primitive_requirements"] == ["covered"]
+    assert exact_context["source_anchors"] == [
+        {
+            "anchor_index": 0,
+            "kind": "pseudo_formal_block",
+            "id": "pf:block:covered",
+            "excerpt_redacted": True,
+            "excerpt_chars": len("coverage event is grounded by q_hat and hC"),
+        }
+    ]
     summary = prompt_payload["source_reference_redaction_summary"]
     assert summary["redaction_applied"] is True
     assert summary["paths_redacted"] == 1
