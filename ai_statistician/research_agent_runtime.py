@@ -63889,6 +63889,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
         input_summary = row.get("input_summary", {})
         if not isinstance(input_summary, Mapping):
             input_summary = {}
+        exact_semantic_context = _runtime_exact_semantic_definition_context(row)
         trigger = _runtime_learning_row_trigger(row, input_summary)
         learning_task = str(row.get("learning_task", "") or "").strip()
         if not learning_task and str(row.get("id", "") or "").startswith(
@@ -64170,6 +64171,11 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                    **_runtime_exact_semantic_definition_context_for_semantic_work_order(
+                        exact_semantic_context,
+                        semantic_target=premise_name,
+                        context_text=premise_target_type,
+                    ),
                     "work_order_id": work_order_id,
                     "semantic_primitive_id": primitive_id,
                     "semantic_primitive_gap": gap,
@@ -64492,6 +64498,11 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                    **_runtime_exact_semantic_definition_context_for_semantic_work_order(
+                        exact_semantic_context,
+                        semantic_target=symbol,
+                        context_text=gap,
+                    ),
                     "work_order_id": work_order_id,
                     "semantic_primitive_id": primitive_id,
                     "semantic_primitive_gap": gap,
@@ -64584,6 +64595,11 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                    **_runtime_exact_semantic_definition_context_for_semantic_work_order(
+                        exact_semantic_context,
+                        semantic_target=obligation_id,
+                        context_text=f"{gap} {obligation_text}",
+                    ),
                     "work_order_id": work_order_id,
                     "semantic_primitive_id": primitive_id,
                     "semantic_primitive_gap": gap,
@@ -67458,6 +67474,16 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         if isinstance(row.get("input_summary", {}), Mapping)
         else {}
     )
+    nested_context = (
+        row.get("exact_semantic_definition_context", {})
+        if isinstance(row.get("exact_semantic_definition_context", {}), Mapping)
+        else {}
+    )
+    nested_input_context = (
+        input_summary.get("exact_semantic_definition_context", {})
+        if isinstance(input_summary.get("exact_semantic_definition_context", {}), Mapping)
+        else {}
+    )
     keys = tuple(
         dict.fromkeys(
             (
@@ -67497,6 +67523,10 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         if value in (None, "", [], {}):
             value = input_summary.get(key, None)
         if value in (None, "", [], {}):
+            value = nested_context.get(key, None)
+        if value in (None, "", [], {}):
+            value = nested_input_context.get(key, None)
+        if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
             context[key] = dict(value)
@@ -67505,6 +67535,40 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         else:
             context[key] = value
     return context
+
+
+def _runtime_exact_semantic_definition_context_for_semantic_work_order(
+    context: Mapping[str, Any],
+    *,
+    semantic_target: str = "",
+    context_text: str = "",
+) -> dict[str, Any]:
+    if not context:
+        return {}
+    semantic_primitive = str(context.get("semantic_primitive", "") or "").strip()
+    if not semantic_primitive:
+        return dict(context)
+    normalized_primitive = _runtime_normalized_semantic_context_key(
+        semantic_primitive
+    )
+    normalized_target = _runtime_normalized_semantic_context_key(semantic_target)
+    normalized_context_text = _runtime_normalized_semantic_context_key(context_text)
+    if (
+        normalized_primitive
+        and (
+            normalized_primitive == normalized_target
+            or (
+                normalized_context_text
+                and normalized_primitive in normalized_context_text
+            )
+        )
+    ):
+        return dict(context)
+    return {}
+
+
+def _runtime_normalized_semantic_context_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
 
 
 def _runtime_exact_semantic_definition_target_ids(

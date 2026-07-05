@@ -55340,6 +55340,26 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
         "input_summary": {
             "target_theorem_name": "split_conformal_coverage",
             "candidate_artifact_path": "runs/split_conformal_coverage_attempt.lean",
+            "exact_semantic_definition_context": {
+                "semantic_primitive": "Exchangeable",
+                "semantic_primitive_requirements": [
+                    "exchangeability must match the source theorem joint-law requirement"
+                ],
+                "source_anchors": [
+                    {
+                        "id": "pf:block:exchangeability",
+                        "kind": "pseudo_formal_block",
+                    }
+                ],
+                "source_pseudo_formal_work_order_id": (
+                    "pseudo_formal_work_order:exchangeability"
+                ),
+                "source_pseudo_formal_block_id": "pf:block:exchangeability",
+                "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+                "pseudo_formal_proof_evidence_status": (
+                    "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+                ),
+            },
             "source_theorem_kernel_verified": False,
             "failure_classification": "formal_environment_placeholder_primitives",
             "formal_environment_placeholder_symbols": [
@@ -55382,6 +55402,7 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     assert by_symbol["MeasureProbability"]["candidate_registered_obligation_ids"] == [
         "prob_measure_univ"
     ]
+    assert "source_pseudo_formal_work_order_id" not in by_symbol["MeasureProbability"]
     assert by_symbol["Exchangeable"]["semantic_primitive_id"] == (
         "exchangeability_to_uniform_rank_semantics"
     )
@@ -55404,6 +55425,18 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     assert by_symbol["Exchangeable"]["semantic_alignment_constraints"] == [
         "preserve marginal coverage target"
     ]
+    assert by_symbol["Exchangeable"]["semantic_primitive_requirements"] == [
+        "exchangeability must match the source theorem joint-law requirement"
+    ]
+    assert by_symbol["Exchangeable"]["source_anchors"][0]["id"] == (
+        "pf:block:exchangeability"
+    )
+    assert by_symbol["Exchangeable"]["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:exchangeability"
+    )
+    assert by_symbol["Exchangeable"]["pseudo_formal_proof_evidence_status"] == (
+        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    )
     assert by_symbol["Exchangeable"]["formal_environment_typeclass_blockers"] == [
         "HSub ℕ ℝ ENNReal"
     ]
@@ -55447,6 +55480,9 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     assert "post-executor formal-environment bridge" in post_executor_by_symbol[
         "Exchangeable"
     ]["runtime_queue_boundary"]
+    assert post_executor_by_symbol["Exchangeable"]["source_pseudo_formal_block_id"] == (
+        "pf:block:exchangeability"
+    )
     agenda_rows = [
         {
             "id": "formal_gap:source_theorem_formal_environment_repair",
