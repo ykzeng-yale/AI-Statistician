@@ -12,6 +12,18 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     semantic_goal: str
     required_anchor_names: tuple[str, ...] = ()
     required_adapter_object_names: tuple[str, ...] = ()
+    semantic_import_incompatible_terms: tuple[str, ...] = ()
+    semantic_import_incompatible_status: str = (
+        "SEMANTIC_MISMATCH_NOT_EXACT_SEMANTIC_DEFINITION"
+    )
+    semantic_import_incompatible_reason: str = ""
+    semantic_import_required_signal_terms: tuple[str, ...] = ()
+    semantic_import_allowed_declaration_names: tuple[str, ...] = ()
+    semantic_import_allowed_declaration_prefixes: tuple[str, ...] = ()
+    semantic_import_missing_required_signal_status: str = (
+        "SEMANTIC_REVIEW_REQUIRED_EXACT_SEMANTIC_SIGNAL_NOT_EXPOSED"
+    )
+    semantic_import_missing_required_signal_reason: str = ""
 
 
 def compact_exact_semantic_placeholder_key(value: str) -> str:
@@ -67,6 +79,36 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
             "scores through a set/image shortcut."
         ),
         required_anchor_names=("n2", "s", "q_hat", "hq"),
+        semantic_import_incompatible_terms=(
+            "samplemean",
+            "trimmedmean",
+            "winsorizedmean",
+            "lstatistic",
+            "interquantilerange",
+            "samplerange",
+            "conditionalcdf",
+            "cdf",
+            "projection",
+            "variance",
+        ),
+        semantic_import_incompatible_status=(
+            "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC"
+        ),
+        semantic_import_incompatible_reason=(
+            "declaration name matches order-statistic literature but defines an "
+            "aggregate/range/CDF display, not the rank-k conformal orderStat "
+            "placeholder"
+        ),
+        semantic_import_required_signal_terms=("k", "rank"),
+        semantic_import_allowed_declaration_names=("orderstat", "orderstatistic"),
+        semantic_import_allowed_declaration_prefixes=("orderstatreview",),
+        semantic_import_missing_required_signal_status=(
+            "SEMANTIC_REVIEW_REQUIRED_ORDER_STATISTIC_RANK_NOT_EXPOSED"
+        ),
+        semantic_import_missing_required_signal_reason=(
+            "candidate declaration does not visibly expose the requested rank "
+            "parameter for orderStat"
+        ),
     ),
     ExactSemanticDefinitionPlaceholderPolicy(
         policy_id="split_conformal_coverage.BadRanks",
@@ -126,3 +168,84 @@ def exact_semantic_definition_placeholder_policy(
     if policy is not None:
         return policy
     return replace(_GENERIC_POLICY, placeholder_key=key)
+
+
+def exact_semantic_definition_import_policy_blocker(
+    placeholder_symbol: str,
+    *,
+    snippet: str = "",
+    declaration_name: str = "",
+    require_required_signal: bool = False,
+) -> dict[str, str]:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    snippet_text = str(snippet or "")
+    declaration_text = str(declaration_name or "")
+    snippet_key = compact_exact_semantic_placeholder_key(snippet_text)
+    declaration_key = compact_exact_semantic_placeholder_key(declaration_text)
+    haystack = f"{declaration_key} {snippet_key}"
+    incompatible_terms = tuple(
+        compact_exact_semantic_placeholder_key(term)
+        for term in policy.semantic_import_incompatible_terms
+        if compact_exact_semantic_placeholder_key(term)
+    )
+    if incompatible_terms and any(term in haystack for term in incompatible_terms):
+        return {
+            "source_semantic_review_status": (
+                policy.semantic_import_incompatible_status
+            ),
+            "source_semantic_review_reason": (
+                policy.semantic_import_incompatible_reason
+                or "candidate declaration is incompatible with the placeholder policy"
+            ),
+        }
+    if require_required_signal and not _semantic_import_required_signal_present(
+        policy,
+        snippet=snippet_text,
+        declaration_name=declaration_text,
+    ):
+        return {
+            "source_semantic_review_status": (
+                policy.semantic_import_missing_required_signal_status
+            ),
+            "source_semantic_review_reason": (
+                policy.semantic_import_missing_required_signal_reason
+                or "candidate declaration does not expose a required semantic signal"
+            ),
+        }
+    return {}
+
+
+def _semantic_import_required_signal_present(
+    policy: ExactSemanticDefinitionPlaceholderPolicy,
+    *,
+    snippet: str,
+    declaration_name: str,
+) -> bool:
+    required_terms = tuple(
+        compact_exact_semantic_placeholder_key(term)
+        for term in policy.semantic_import_required_signal_terms
+        if compact_exact_semantic_placeholder_key(term)
+    )
+    if not required_terms:
+        return True
+    declaration_key = compact_exact_semantic_placeholder_key(declaration_name)
+    allowed_names = {
+        compact_exact_semantic_placeholder_key(value)
+        for value in policy.semantic_import_allowed_declaration_names
+        if compact_exact_semantic_placeholder_key(value)
+    }
+    if declaration_key in allowed_names:
+        return True
+    allowed_prefixes = tuple(
+        compact_exact_semantic_placeholder_key(value)
+        for value in policy.semantic_import_allowed_declaration_prefixes
+        if compact_exact_semantic_placeholder_key(value)
+    )
+    if allowed_prefixes and any(
+        declaration_key.startswith(prefix) for prefix in allowed_prefixes
+    ):
+        return True
+    snippet_key = compact_exact_semantic_placeholder_key(snippet)
+    if "k" in required_terms and (" k " in f" {snippet} " or "(k :" in snippet):
+        return True
+    return any(term != "k" and term in snippet_key for term in required_terms)

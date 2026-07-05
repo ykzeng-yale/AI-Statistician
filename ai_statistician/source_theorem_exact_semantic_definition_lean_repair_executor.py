@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 
 from .exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
 )
 from .fingerprint import stable_hash
@@ -1969,24 +1970,17 @@ def _semantic_import_candidate_blocker(
         )
     normalized_placeholder = _compact_identifier(placeholder_symbol)
     snippet = str(candidate_declaration.get("snippet", "") or "")
-    snippet_normalized = _compact_identifier(snippet)
-    if normalized_placeholder == "orderstat":
-        incompatible_terms = {
-            "samplemean",
-            "trimmedmean",
-            "winsorizedmean",
-            "lstatistic",
-            "interquantilerange",
-            "samplerange",
-            "conditionalcdf",
-            "projection",
-            "variance",
-        }
-        if any(term in snippet_normalized for term in incompatible_terms):
-            return (
-                "semantic import candidate is an aggregate/range/CDF display, "
-                "not the rank-k conformal orderStat placeholder"
-            )
+    policy_blocker = exact_semantic_definition_import_policy_blocker(
+        normalized_placeholder,
+        snippet=snippet,
+    )
+    if policy_blocker:
+        status = str(policy_blocker.get("source_semantic_review_status", "") or "")
+        reason = str(policy_blocker.get("source_semantic_review_reason", "") or "")
+        return (
+            f"semantic import candidate blocked by placeholder policy: {status}"
+            + (f"; {reason}" if reason else "")
+        )
     return ""
 
 

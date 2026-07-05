@@ -1444,13 +1444,6 @@ def test_exact_semantic_definition_lean_repair_executor_blocks_semantic_mismatch
                 "path": "StatInference/AsymptoticStatistics/LStatistics.lean",
                 "line": 35,
                 "snippet": "def vaart1998_orderStatisticSampleMean",
-                "semantic_import_candidate_allowed": False,
-                "source_semantic_review_status": (
-                    "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC"
-                ),
-                "source_semantic_review_reason": (
-                    "sample mean is not the rank-k conformal order statistic"
-                ),
             }
         ],
     }
@@ -1471,7 +1464,11 @@ def test_exact_semantic_definition_lean_repair_executor_blocks_semantic_mismatch
     assert results[0]["execution_status"] == "IMPORT_CANDIDATE_SEMANTIC_REVIEW_BLOCKED"
     assert results[0]["local_lean_checked"] is False
     assert results[0]["local_lean_compiled"] is False
-    assert "sample mean" in results[0]["semantic_import_blocker"]
+    assert "aggregate/range/CDF display" in results[0]["semantic_import_blocker"]
+    assert "placeholder policy" in results[0]["semantic_import_blocker"]
+    assert "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC" in results[0][
+        "semantic_import_blocker"
+    ]
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()

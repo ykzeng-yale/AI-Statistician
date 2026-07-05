@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ai_statistician.exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
 )
 
@@ -26,6 +27,8 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     )
     assert order_stat.required_anchor_names == ("n2", "s", "q_hat", "hq")
     assert "duplicate score multiplicities" in order_stat.semantic_goal
+    assert "samplemean" in order_stat.semantic_import_incompatible_terms
+    assert order_stat.semantic_import_required_signal_terms == ("k", "rank")
 
     assert bad_ranks.policy_id == "split_conformal_coverage.BadRanks"
     assert bad_ranks.required_anchor_names == (
@@ -60,3 +63,37 @@ def test_placeholder_policy_keeps_alpha_aliases_and_generic_fallback() -> None:
     assert generic.placeholder_key == "newdomainobject"
     assert generic.required_anchor_names == ()
     assert generic.required_adapter_object_names == ()
+
+
+def test_placeholder_policy_reviews_semantic_import_candidates() -> None:
+    blocker = exact_semantic_definition_import_policy_blocker(
+        "orderStat",
+        declaration_name="vaart1998_orderStatisticSampleMean",
+        snippet="def vaart1998_orderStatisticSampleMean (n i : Nat) := n + i",
+        require_required_signal=True,
+    )
+
+    assert blocker["source_semantic_review_status"] == (
+        "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC"
+    )
+    assert "aggregate/range/CDF" in blocker["source_semantic_review_reason"]
+
+    missing_rank = exact_semantic_definition_import_policy_blocker(
+        "orderStat",
+        declaration_name="candidateOrderStatistic",
+        snippet="def candidateOrderStatistic (scores : Nat) := scores",
+        require_required_signal=True,
+    )
+
+    assert missing_rank["source_semantic_review_status"] == (
+        "SEMANTIC_REVIEW_REQUIRED_ORDER_STATISTIC_RANK_NOT_EXPOSED"
+    )
+
+    accepted = exact_semantic_definition_import_policy_blocker(
+        "orderStat",
+        declaration_name="conformalQuantile",
+        snippet="def conformalQuantile (scores : Nat) (k : Nat) := scores + k",
+        require_required_signal=True,
+    )
+
+    assert accepted == {}

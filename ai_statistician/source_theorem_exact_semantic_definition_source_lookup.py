@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .exact_semantic_definition_policy import (
+    exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
 )
 from .fingerprint import stable_hash
@@ -4424,8 +4425,6 @@ def _source_lookup_semantic_import_review(
     primary_normalized = _compact_identifier(primary)
     snippet = str(hit.get("snippet", "") or "")
     declaration_name = _lean_declaration_name(snippet)
-    declaration_name_normalized = _compact_identifier(declaration_name)
-    snippet_normalized = _compact_identifier(snippet)
     if not _source_lookup_declaration_has_exact_or_high_signal_match(
         hit=hit,
         normalized_terms=normalized_terms,
@@ -4442,49 +4441,17 @@ def _source_lookup_semantic_import_review(
                 "semantic-definition import candidate"
             ),
         }
-    if primary_normalized == "orderstat":
-        incompatible_terms = {
-            "samplemean",
-            "trimmedmean",
-            "winsorizedmean",
-            "lstatistic",
-            "interquantilerange",
-            "samplerange",
-            "conditionalcdf",
-            "cdf",
-            "projection",
-            "variance",
+    policy_blocker = exact_semantic_definition_import_policy_blocker(
+        primary_normalized,
+        snippet=snippet,
+        declaration_name=declaration_name,
+        require_required_signal=True,
+    )
+    if policy_blocker:
+        return {
+            "semantic_import_candidate_allowed": False,
+            **policy_blocker,
         }
-        if any(term in declaration_name_normalized for term in incompatible_terms):
-            return {
-                "semantic_import_candidate_allowed": False,
-                "source_semantic_review_status": (
-                    "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC"
-                ),
-                "source_semantic_review_reason": (
-                    "declaration name matches order-statistic literature but defines "
-                    "an aggregate/range/CDF display, not the rank-k conformal "
-                    "orderStat placeholder"
-                ),
-            }
-        rank_like = (
-            " k " in f" {snippet} "
-            or "(k :" in snippet
-            or "rank" in snippet_normalized
-            or declaration_name_normalized in {"orderstat", "orderstatistic"}
-            or declaration_name_normalized.startswith("orderstatreview")
-        )
-        if not rank_like:
-            return {
-                "semantic_import_candidate_allowed": False,
-                "source_semantic_review_status": (
-                    "SEMANTIC_REVIEW_REQUIRED_ORDER_STATISTIC_RANK_NOT_EXPOSED"
-                ),
-                "source_semantic_review_reason": (
-                    "candidate declaration does not visibly expose the requested "
-                    "rank parameter for orderStat"
-                ),
-            }
     return {
         "semantic_import_candidate_allowed": True,
         "source_semantic_review_status": "SEMANTIC_IMPORT_CANDIDATE_REQUIRES_REVIEW",
