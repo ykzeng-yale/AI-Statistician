@@ -23599,6 +23599,36 @@ def run_research_agent_runtime(
                         source_theorem_exact_semantic_definition_authoring_retry_worker_learning_rows
                     )
                     _write_jsonl(learning_path, learning_rows)
+                    authoring_retry_prompt_next_action_rows = (
+                        _append_runtime_generated_next_action_rows(
+                            agenda_rows,
+                            [
+                                row
+                                for row in source_theorem_exact_semantic_definition_authoring_retry_worker_learning_rows
+                                if _source_theorem_exact_semantic_definition_authoring_prompt_backend_pending(
+                                    row
+                                )
+                            ],
+                            queue_name=(
+                                "source_theorem_exact_semantic_definition_"
+                                "authoring_retry_prompts"
+                            ),
+                        )
+                    )
+                    if authoring_retry_prompt_next_action_rows:
+                        generated_next_action_rows.extend(
+                            authoring_retry_prompt_next_action_rows
+                        )
+                        learning_rows.extend(
+                            _runtime_generated_next_action_learning_rows(
+                                authoring_retry_prompt_next_action_rows
+                            )
+                        )
+                        _write_runtime_next_action_agenda_jsonl(
+                            agenda_path,
+                            agenda_rows,
+                        )
+                        _write_jsonl(learning_path, learning_rows)
             if int(
                 source_theorem_exact_semantic_definition_authoring_retry_worker_manifest.get(
                     "n_candidate_packets",

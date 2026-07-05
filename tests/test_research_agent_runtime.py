@@ -45421,14 +45421,28 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
         learning_rows_path.write_text(
             json.dumps(
                 {
+                    "artifact_kind": (
+                        "SourceTheoremExactSemanticDefinitionAuthoringLearningRow"
+                    ),
                     "learning_task": (
                         "source_theorem_exact_semantic_definition_authoring_worker"
                     ),
+                    "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
+                    "source_prompt_packet_id": (
+                        "source_theorem_exact_semantic_definition_authoring_prompt:"
+                        "rank"
+                    ),
+                    "source_authoring_task_id": "authoring-task:rank",
                     "target_theorem_name": "split_conformal_coverage",
+                    "target_ids": ["split_conformal_coverage"],
                     "placeholder_symbol": "rank",
                     "runtime_queue_status": (
                         "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
                     ),
+                    "provider_requested": False,
+                    "external_export_blocked": False,
+                    "semantic_review_required_before_proof_body": True,
+                    "source_theorem_ready_for_exact_proof_body": False,
                     "proof_evidence_status": (
                         "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
                     ),
@@ -45531,6 +45545,48 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
             "runtime_source_theorem_exact_semantic_definition_authoring_retry_worker_manifest"
         ]
     ).exists()
+    agenda_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_next_action_agenda_jsonl"]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    backend_rows = [
+        row
+        for row in agenda_rows
+        if row.get("trigger")
+        == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+    ]
+    assert len(backend_rows) == 1
+    assert backend_rows[0]["owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert backend_rows[0]["source_prompt_packet_id"] == (
+        "source_theorem_exact_semantic_definition_authoring_prompt:rank"
+    )
+    assert backend_rows[0]["source_authoring_task_id"] == "authoring-task:rank"
+    assert backend_rows[0]["runtime_queue_status"] == (
+        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+    )
+    assert "approved authoring backend" in backend_rows[0]["acceptance_gate"]
+    runtime_learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("learning_task") == "generated_next_action_routing"
+        and row.get("input_summary", {}).get("trigger")
+        == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+        and row.get("input_summary", {}).get("source_prompt_packet_id")
+        == "source_theorem_exact_semantic_definition_authoring_prompt:rank"
+        for row in runtime_learning_rows
+    )
 
 
 def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
