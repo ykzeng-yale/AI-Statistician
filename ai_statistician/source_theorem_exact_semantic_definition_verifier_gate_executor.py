@@ -450,15 +450,13 @@ def _runtime_learning_row(result: Mapping[str, Any]) -> dict[str, Any]:
 
 def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]:
     context: dict[str, Any] = {}
-    input_summary = (
-        row.get("input_summary", {})
-        if isinstance(row.get("input_summary", {}), Mapping)
-        else {}
-    )
+    sources = _exact_semantic_context_sources(row)
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
-        value = row.get(key, None)
-        if value in (None, "", [], {}):
-            value = input_summary.get(key, None)
+        value = None
+        for source in sources:
+            value = source.get(key, None)
+            if value not in (None, "", [], {}):
+                break
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -468,6 +466,28 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         else:
             context[key] = value
     return context
+
+
+def _exact_semantic_context_sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = [row]
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    if input_summary:
+        sources.append(input_summary)
+    typechecked_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if isinstance(typechecked_candidate, Mapping):
+        sources.append(typechecked_candidate)
+    for source in list(sources):
+        nested_context = source.get("exact_semantic_definition_context", {})
+        if isinstance(nested_context, Mapping):
+            sources.append(nested_context)
+    return sources
 
 
 def _status_from_blockers(blockers: Sequence[str]) -> str:
@@ -514,43 +534,57 @@ def _failure_classification(status: str, blockers: Sequence[str]) -> str:
 
 def _source_anchor_context(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     context: list[dict[str, Any]] = []
-    for key in (
-        "source_anchor_context",
-        "source_reference_hints",
-        "candidate_source_references",
-        "source_anchors",
-        "exact_source_theorem_binders",
-        "premise_semantic_anchor_binders",
-    ):
-        value = row.get(key)
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            for item in value:
-                if isinstance(item, Mapping):
-                    context.append({"source": key, **dict(item)})
-                elif str(item).strip():
-                    context.append({"source": key, "value": str(item)})
-    for key in (
-        "premise_semantic_anchor_binder_names",
-        "required_anchor_names",
-        "required_semantic_anchor_reference_names",
-    ):
-        for item in _string_list(row.get(key, [])):
-            context.append({"source": key, "name": item})
-    request = row.get("candidate_definition_request")
-    if isinstance(request, Mapping):
+    for source in _exact_semantic_context_sources(row):
         for key in (
-            "required_binders",
-            "required_anchor_names",
-            "available_anchor_names",
+            "source_anchor_context",
+            "source_reference_hints",
+            "candidate_source_references",
+            "source_anchors",
+            "exact_source_theorem_binders",
+            "premise_semantic_anchor_binders",
         ):
-            for item in _string_list(request.get(key, [])):
-                context.append(
-                    {
-                        "source": f"candidate_definition_request.{key}",
-                        "name": item,
-                    }
-                )
-    return context
+            value = source.get(key)
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                for item in value:
+                    if isinstance(item, Mapping):
+                        context.append({"source": key, **dict(item)})
+                    elif str(item).strip():
+                        context.append({"source": key, "value": str(item)})
+        for key in (
+            "premise_semantic_anchor_binder_names",
+            "required_anchor_names",
+            "required_semantic_anchor_reference_names",
+        ):
+            for item in _string_list(source.get(key, [])):
+                context.append({"source": key, "name": item})
+        request = source.get("candidate_definition_request")
+        if isinstance(request, Mapping):
+            for key in (
+                "required_binders",
+                "required_anchor_names",
+                "available_anchor_names",
+            ):
+                for item in _string_list(request.get(key, [])):
+                    context.append(
+                        {
+                            "source": f"candidate_definition_request.{key}",
+                            "name": item,
+                        }
+                    )
+    return _dedupe_context_rows(context)
+
+
+def _dedupe_context_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        item = dict(row)
+        key = json.dumps(item, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
 
 
 def _known_gaps(row: Mapping[str, Any]) -> list[str]:
