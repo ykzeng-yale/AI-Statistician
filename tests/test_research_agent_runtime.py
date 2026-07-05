@@ -49034,6 +49034,18 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_requested"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_effective"
+        ]
+        is True
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason"
         ]
         == ""
@@ -49109,6 +49121,18 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_lean_repair_executor_required"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_requested"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_effective"
         ]
         is True
     )
@@ -49651,6 +49675,12 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     )
     assert (
         audit[
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_effective_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
             "source_theorem_exact_semantic_definition_lean_repair_executor_required_telemetry_present"
         ]
         is True
@@ -49658,6 +49688,12 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     assert (
         audit[
             "source_theorem_exact_semantic_definition_lean_repair_executor_requested_telemetry_present"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_effective_telemetry_present"
         ]
         is True
     )
@@ -75240,6 +75276,7 @@ def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_ha
         "source_theorem_exact_semantic_definition_n_closure_review_packets": 2,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": False,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_skipped_reason": (
             "proofengineer_bridge_required_but_disabled"
@@ -75350,23 +75387,25 @@ def test_runtime_capability_scorecard_flags_exact_semantic_handoff_required_tele
             {
                 "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": True,
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
             },
             "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped",
-            "requested_telemetry_present=False",
+            "effective_telemetry_present=False",
         ),
         (
             {
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
                 "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
+                "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
                 "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
                 "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked": 1,
             },
             "exact_semantic_definition_lean_repair_executor_handoff_not_dropped",
-            "requested_telemetry_present=False",
+            "effective_telemetry_present=False",
         ),
     ],
 )
@@ -75688,6 +75727,7 @@ def test_runtime_capability_scorecard_flags_empty_exact_semantic_proofengineer_b
         "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 0,
     }
@@ -75717,6 +75757,7 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_proofengineer_bridg
         "source_theorem_exact_semantic_definition_n_closure_review_packets": 1,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_required": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_requested": True,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_effective": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_ran": True,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
     }
@@ -75745,6 +75786,7 @@ def test_runtime_capability_scorecard_flags_empty_exact_semantic_lean_repair_exe
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 0,
@@ -75777,6 +75819,7 @@ def test_runtime_capability_scorecard_flags_exact_semantic_lean_repair_without_l
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": False,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
@@ -75809,6 +75852,7 @@ def test_runtime_capability_scorecard_accepts_exact_semantic_lean_repair_local_l
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_required": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_requested": True,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_effective": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_ran": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_requested": True,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results": 1,
