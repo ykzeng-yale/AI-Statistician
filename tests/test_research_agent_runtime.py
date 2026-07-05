@@ -63731,6 +63731,12 @@ def test_runtime_runs_formalizer_premise_derivation_candidate_bridge(
     )
     assert (
         manifest[
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+        ]
+        is True
+    )
+    assert (
+        manifest[
             "source_to_bridge_premise_derivation_from_formalizer_bridge_requested"
         ]
         is True
@@ -78701,6 +78707,80 @@ def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_derivatio
     )
 
 
+def test_runtime_audit_preserves_missing_formalizer_premise_required_telemetry(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    traces_path = runtime_dir / "runtime_traces.jsonl"
+    agenda_path = runtime_dir / "runtime_next_action_agenda.jsonl"
+    learning_path = runtime_dir / "runtime_learning_rows.jsonl"
+    traces_path.write_text("", encoding="utf-8")
+    agenda_path.write_text("", encoding="utf-8")
+    learning_path.write_text("", encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "runtime_stage": (
+            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+        ),
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer": 1,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested": True,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": True,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows": 1,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified": 1,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_n_learning_rows": 1,
+        "artifacts": {
+            "per_question_results": [],
+            "runtime_traces_jsonl": str(traces_path),
+            "runtime_next_action_agenda_jsonl": str(agenda_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+        },
+    }
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+    rows = {row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]}
+    row = rows[
+        "source_to_bridge_premise_derivation_from_formalizer_handoff_not_dropped"
+    ]
+
+    assert (
+        audit[
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+        ]
+        is True
+    )
+    assert (
+        audit[
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_required_telemetry_present"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_requested_telemetry_present"
+        ]
+        is True
+    )
+    assert row["passed"] is False
+    assert "required_telemetry_present=0" in row["evidence"]
+    assert "requested_telemetry_present=1" in row["evidence"]
+
+
 def test_runtime_capability_scorecard_flags_empty_formalizer_premise_derivation_outputs() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -78716,6 +78796,7 @@ def test_runtime_capability_scorecard_flags_empty_formalizer_premise_derivation_
         "n_runtime_traces": 6,
         "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer": 2,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_required": True,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested": True,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": True,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows": 0,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_n_kernel_verified": 0,
@@ -78748,6 +78829,7 @@ def test_runtime_capability_scorecard_flags_dropped_formalizer_premise_feedback_
         "n_runtime_traces": 6,
         "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer": 1,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_required": True,
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested": True,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": True,
         "source_to_bridge_premise_derivation_from_formalizer_bridge_skipped_reason": "",
         "source_to_bridge_premise_derivation_from_formalizer_bridge_n_rows": 1,

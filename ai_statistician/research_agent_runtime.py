@@ -30471,6 +30471,9 @@ def run_research_agent_runtime(
         source_to_bridge_premise_derivation_formalizer_work_order_rows
     )
     manifest[
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+    ] = formalizer_premise_work_order_rows > 0
+    manifest[
         "source_to_bridge_premise_derivation_from_formalizer_bridge_requested"
     ] = bool(
         config.source_to_bridge_premise_derivation_proofengineer_bridge

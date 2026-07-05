@@ -8132,15 +8132,30 @@ def audit_research_agent_runtime(
         "source_to_bridge_premise_derivation_from_formalizer_bridge_required": bool(
             manifest.get(
                 "source_to_bridge_premise_derivation_from_formalizer_bridge_required",
+                bool(
+                    int(
+                        manifest.get(
+                            "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
+            )
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required_telemetry_present": (
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
+            in manifest
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested": bool(
+            manifest.get(
+                "source_to_bridge_premise_derivation_from_formalizer_bridge_requested",
                 False,
             )
-            or int(
-                manifest.get(
-                    "n_runtime_source_to_bridge_premise_derivation_work_orders_from_formalizer",
-                    0,
-                )
-                or 0
-            )
+        ),
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested_telemetry_present": (
+            "source_to_bridge_premise_derivation_from_formalizer_bridge_requested"
+            in manifest
         ),
         "source_to_bridge_premise_derivation_from_formalizer_bridge_ran": bool(
             manifest.get(
@@ -16887,12 +16902,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     source_to_bridge_formalizer_bridge_required_value = payload.get(
         "source_to_bridge_premise_derivation_from_formalizer_bridge_required"
     )
-    source_to_bridge_formalizer_bridge_required_present = (
-        source_to_bridge_formalizer_bridge_required_value is True
-        or source_to_bridge_formalizer_bridge_required_value is False
+    source_to_bridge_formalizer_bridge_required_present = _requested_telemetry_present(
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_required",
+        source_to_bridge_formalizer_bridge_required_value,
     )
     source_to_bridge_formalizer_bridge_required = (
         source_to_bridge_formalizer_bridge_required_value is True
+    )
+    source_to_bridge_formalizer_bridge_requested_value = payload.get(
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested"
+    )
+    source_to_bridge_formalizer_bridge_requested_present = _requested_telemetry_present(
+        "source_to_bridge_premise_derivation_from_formalizer_bridge_requested",
+        source_to_bridge_formalizer_bridge_requested_value,
+    )
+    source_to_bridge_formalizer_bridge_requested = (
+        source_to_bridge_formalizer_bridge_requested_value is True
     )
     source_to_bridge_formalizer_bridge_ran = (
         payload.get("source_to_bridge_premise_derivation_from_formalizer_bridge_ran")
@@ -20906,6 +20931,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             or (
                 source_to_bridge_formalizer_bridge_required_present
                 and source_to_bridge_formalizer_bridge_required
+                and source_to_bridge_formalizer_bridge_requested_present
+                and source_to_bridge_formalizer_bridge_requested
                 and source_to_bridge_formalizer_bridge_ran
                 and source_to_bridge_formalizer_bridge_output_rows > 0
             ),
@@ -20916,6 +20943,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{int(source_to_bridge_formalizer_bridge_required_present)} "
                 "required="
                 f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_required')} "
+                "requested_telemetry_present="
+                f"{int(source_to_bridge_formalizer_bridge_requested_present)} "
+                "requested="
+                f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_requested')} "
                 "ran="
                 f"{payload.get('source_to_bridge_premise_derivation_from_formalizer_bridge_ran')} "
                 "skipped="
