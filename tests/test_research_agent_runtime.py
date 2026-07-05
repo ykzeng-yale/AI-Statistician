@@ -77446,6 +77446,50 @@ def test_runtime_capability_scorecard_accepts_source_theorem_proof_body_local_le
     assert rows[
         "source_theorem_proof_body_local_lean_gate_requested"
     ]["passed"] is True
+    same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
+    assert same_lane_row["passed"] is True
+    assert "same_lane_verified=True" in same_lane_row["evidence"]
+    assert "formal_environment" in same_lane_row["evidence"]
+
+
+def test_runtime_capability_scorecard_flags_split_source_theorem_proof_body_same_lane_evidence() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_formal_environment_proof_body_executor_counts_aggregate": True,
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 1,
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked": 0,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
+    same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
+
+    assert local_lean_row["passed"] is True
+    assert "local_lean_checked=1" in local_lean_row["evidence"]
+    assert same_lane_row["passed"] is False
+    assert "same_lane_verified=False" in same_lane_row["evidence"]
+    assert "aggregate_formal_environment_counts=True" in same_lane_row["evidence"]
+    assert "formal_environment_source_semantic_promotion" in same_lane_row["evidence"]
+    assert "exact_proof_body_repair" in same_lane_row["evidence"]
+    assert "split across executor lanes" in same_lane_row["blocker"]
 
 
 def test_runtime_capability_scorecard_accepts_observed_proof_body_local_lean_without_primary_request() -> None:

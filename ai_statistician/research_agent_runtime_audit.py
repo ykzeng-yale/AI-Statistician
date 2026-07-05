@@ -11342,6 +11342,167 @@ def _payload_source_theorem_proof_body_result_row_count(
     )
 
 
+def _runtime_source_theorem_proof_body_same_lane_verification_summary(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    aggregate_formal_environment_counts = (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is True
+    )
+    lane_specs: list[tuple[str, str, str, str, bool]] = [
+        (
+            "formal_environment",
+            "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+            "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+            "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+            not aggregate_formal_environment_counts,
+        ),
+        (
+            "formal_environment_source_semantic_promotion",
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked",
+            "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "formal_environment_post_executor_semantic_promotion",
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked",
+            "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_proof_body_repair",
+            "source_theorem_exact_proof_body_repair_executor_n_result_rows",
+            "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
+            "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_proof_body_repair_from_proof_body_adapter_feedback",
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows",
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_local_lean_checked",
+            "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_proof_body_repair_from_adapter_premise_derivation_feedback",
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows",
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked",
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_typechecked_review_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_materialized_typechecked_review_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_late_typechecked_review_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_checked",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+        (
+            "exact_semantic_definition_authoring_retry_verifier_approved_proof_body_recheck",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
+            True,
+        ),
+    ]
+    lane_rows: list[dict[str, Any]] = []
+    for lane_id, result_key, local_lean_key, kernel_key, enabled in lane_specs:
+        if not enabled:
+            continue
+        result_rows = _safe_int(payload.get(result_key))
+        local_lean_checked = _safe_int(payload.get(local_lean_key)) if local_lean_key else 0
+        kernel_verified = _safe_int(payload.get(kernel_key)) if kernel_key else 0
+        if result_rows <= 0 and local_lean_checked <= 0 and kernel_verified <= 0:
+            continue
+        lane_rows.append(
+            {
+                "lane_id": lane_id,
+                "result_rows": result_rows,
+                "local_lean_checked": local_lean_checked,
+                "source_theorem_kernel_verified": kernel_verified,
+                "same_lane_local_lean_or_kernel_ok": (
+                    result_rows > 0
+                    and (local_lean_checked > 0 or kernel_verified > 0)
+                ),
+            }
+        )
+    verified_lanes = [
+        str(row["lane_id"])
+        for row in lane_rows
+        if row["same_lane_local_lean_or_kernel_ok"] is True
+    ]
+    result_lanes_without_verifier = [
+        str(row["lane_id"])
+        for row in lane_rows
+        if _safe_int(row.get("result_rows")) > 0
+        and _safe_int(row.get("local_lean_checked")) <= 0
+        and _safe_int(row.get("source_theorem_kernel_verified")) <= 0
+    ]
+    verifier_lanes_without_result = [
+        str(row["lane_id"])
+        for row in lane_rows
+        if _safe_int(row.get("result_rows")) <= 0
+        and (
+            _safe_int(row.get("local_lean_checked")) > 0
+            or _safe_int(row.get("source_theorem_kernel_verified")) > 0
+        )
+    ]
+    return {
+        "same_lane_local_lean_or_kernel_ok": bool(verified_lanes),
+        "aggregate_formal_environment_counts": aggregate_formal_environment_counts,
+        "verified_lanes": verified_lanes,
+        "result_lanes_without_verifier": result_lanes_without_verifier,
+        "verifier_lanes_without_result": verifier_lanes_without_result,
+        "lane_rows": lane_rows,
+    }
+
+
 def _runtime_architect_trace_count(payload: Mapping[str, Any]) -> int:
     return int(payload.get("n_runtime_architect_coordinator_traces", 0) or 0)
 
@@ -11958,6 +12119,12 @@ def _runtime_capability_gap_default_target_behavior(
             "Require the exact source-theorem proof-body executor to request the "
             "local Lean gate before any source-theorem proof evidence is accepted."
         ),
+        "source_theorem_proof_body_same_lane_verifier_evidence": (
+            "Bind exact source-theorem proof-body result rows to local Lean/AXLE "
+            "or source-theorem kernel evidence in the same proof-body executor "
+            "lane; aggregate counters and cross-lane evidence cannot satisfy "
+            "runtime proof-body readiness."
+        ),
         "live_lean_lsp_mcp_called": (
             "Drive live Lean LSP/MCP proof-state diagnostics from integrated "
             "formalizer/proof-engineering work, not only offline artifacts."
@@ -12246,6 +12413,12 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_proof_body_repair_executor",
             "source_theorem_formal_environment_proof_body_executor",
         ),
+        "source_theorem_proof_body_same_lane_verifier_evidence": (
+            "source_theorem_proof_body",
+            "source_theorem_exact_proof_body_repair_executor",
+            "source_theorem_formal_environment_proof_body_executor",
+            "source_theorem_exact_semantic_definition",
+        ),
         "no_formal_gaps_remaining": (
             "n_formal_gaps",
             "has_formal_gaps",
@@ -12405,6 +12578,16 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
             "source_theorem_proof_body_result_row_count",
             "source_theorem_proof_body_goal_reached_evidence_count",
+        ),
+        "source_theorem_proof_body_same_lane_verifier_evidence": (
+            *SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
+            *SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS,
+            *SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate",
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
         ),
         "no_formal_gaps_remaining": (
             "n_formal_gaps",
@@ -16098,6 +16281,15 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proof_body_result_row_count = _payload_source_theorem_proof_body_result_row_count(
         payload
+    )
+    proof_body_same_lane_verification_summary = (
+        _runtime_source_theorem_proof_body_same_lane_verification_summary(payload)
+    )
+    proof_body_same_lane_verifier_ok = bool(
+        proof_body_same_lane_verification_summary.get(
+            "same_lane_local_lean_or_kernel_ok",
+            False,
+        )
     )
     exact_proof_body_repair_required = bool(
         payload.get("source_theorem_exact_proof_body_repair_required", False)
@@ -22580,6 +22772,57 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "exact source-theorem proof-body executor did not record an "
                 "observed local Lean check"
+            ),
+        ),
+        _scorecard_row(
+            "source_theorem_proof_body_same_lane_verifier_evidence",
+            (
+                proof_body_result_row_count <= 0
+                or proof_body_same_lane_verifier_ok
+                or exact_proof_body_materialization_blocking
+            ),
+            (
+                "proof_body_result_rows="
+                f"{proof_body_result_row_count} "
+                "same_lane_verified="
+                f"{proof_body_same_lane_verifier_ok} "
+                "aggregate_formal_environment_counts="
+                f"{proof_body_same_lane_verification_summary.get('aggregate_formal_environment_counts')} "
+                "verified_lanes="
+                f"{proof_body_same_lane_verification_summary.get('verified_lanes')} "
+                "result_lanes_without_verifier="
+                f"{proof_body_same_lane_verification_summary.get('result_lanes_without_verifier')} "
+                "verifier_lanes_without_result="
+                f"{proof_body_same_lane_verification_summary.get('verifier_lanes_without_result')} "
+                "candidate_materialization_blocking="
+                f"{exact_proof_body_materialization_blocking}"
+            ),
+            (
+                "exact source-theorem proof-body result rows and local Lean/AXLE "
+                "or source-theorem kernel evidence are split across executor "
+                "lanes; one proof-body executor lane must record both before "
+                "runtime capability can count the source-theorem proof-body path"
+            ),
+            next_owner_subsystem="FormalizationEvaluator",
+            target_behavior=(
+                "Rerun or repair the exact source-theorem proof-body executor "
+                "so the same lane that emits result rows also records local "
+                "Lean/AXLE feedback or source-theorem kernel verification. "
+                "Aggregate formal-environment counters must retain leaf-lane "
+                "telemetry instead of being treated as proof-path evidence."
+            ),
+            success_metric=(
+                "source_theorem_proof_body_result_row_count>0 and a single "
+                "proof-body lane has n_result_rows>0 plus "
+                "n_local_lean_checked>0 or n_source_theorem_kernel_verified>0; "
+                "aggregate formal-environment counters alone do not satisfy "
+                "this row"
+            ),
+            proof_evidence_status="CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
+            routing_boundary=(
+                "This scorecard row is an evidence-binding gate. It is not "
+                "theorem proof; only source-theorem kernel verification closes "
+                "the proof claim."
             ),
         ),
         _scorecard_row(
