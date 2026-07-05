@@ -314,6 +314,73 @@ def test_verifier_gate_executor_accepts_nested_exact_semantic_context(
     )
 
 
+def test_verifier_gate_executor_blocks_nested_known_gaps(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate.lean"
+    candidate.write_text(
+        "def good_rank_event (scores : List Nat) (test_score : Nat) (k : Nat) : Prop :=\n"
+        "  scores.length + 1 <= k\n",
+        encoding="utf-8",
+    )
+    work_orders = tmp_path / "work_orders.jsonl"
+    row = {
+        **_base_work_order(candidate),
+        "input_summary": {
+            "exact_semantic_definition_context": {
+                "source_anchor_context": [
+                    {
+                        "kind": "proof_body_goal_context",
+                        "proof_body_goal_excerpt": [
+                            "scores : List Nat",
+                            "k : Nat",
+                        ],
+                    }
+                ],
+                "definition_contract": {
+                    "known_gaps": [
+                        "threshold binder still requires verifier check"
+                    ]
+                },
+            }
+        },
+    }
+    _write_jsonl(work_orders, [row])
+
+    manifest = run_source_theorem_exact_semantic_definition_verifier_gate_executor(
+        out_dir=tmp_path / "verifier",
+        work_orders_jsonl=work_orders,
+        local_lean=True,
+        lean_command=("true",),
+    )
+
+    assert manifest["n_verifier_approved"] == 0
+    assert manifest["n_known_gaps_unresolved"] == 1
+    assert manifest["n_source_anchor_context_missing"] == 0
+    results = [
+        json.loads(line)
+        for line in Path(manifest["verifier_gate_results_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert results[0]["known_gaps"] == [
+        "threshold binder still requires verifier check"
+    ]
+    assert results[0]["verifier_gate_status"] == (
+        "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT"
+    )
+    assert "known_gaps_unresolved" in results[0]["verifier_gate_blockers"]
+    approved = [
+        json.loads(line)
+        for line in Path(manifest["verifier_approved_review_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert approved == []
+
+
 def test_verifier_gate_executor_blocks_missing_source_anchor_context(
     tmp_path: Path,
 ) -> None:

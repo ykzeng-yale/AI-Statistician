@@ -588,10 +588,12 @@ def _dedupe_context_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, An
 
 
 def _known_gaps(row: Mapping[str, Any]) -> list[str]:
-    gaps = _string_list(row.get("known_gaps", []))
-    contract = row.get("definition_contract")
-    if isinstance(contract, Mapping):
-        gaps.extend(_string_list(contract.get("known_gaps", [])))
+    gaps: list[str] = []
+    for source in _exact_semantic_context_sources(row):
+        gaps.extend(_string_list(source.get("known_gaps", [])))
+        contract = source.get("definition_contract")
+        if isinstance(contract, Mapping):
+            gaps.extend(_string_list(contract.get("known_gaps", [])))
     return list(dict.fromkeys(gaps))
 
 
