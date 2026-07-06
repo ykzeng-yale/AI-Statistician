@@ -49852,6 +49852,34 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "source_theorem_kernel_evidence_eligible": (
                     source_theorem_kernel_evidence_eligible
                 ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
+                        {
+                            "trigger": trigger,
+                            "failure_classification": failure_classification,
+                            "runtime_queue_status": runtime_queue_status,
+                            "proof_body_gate_status": proof_body_gate_status,
+                            "proof_body_goal_reached": proof_body_goal_reached,
+                            "source_theorem_kernel_evidence_eligible": (
+                                source_theorem_kernel_evidence_eligible
+                            ),
+                            "source_theorem_kernel_verified": bool(
+                                row.get("source_theorem_kernel_verified", False)
+                                or (
+                                    input_summary.get(
+                                        "source_theorem_kernel_verified", False
+                                    )
+                                    if isinstance(input_summary, Mapping)
+                                    else False
+                                )
+                            ),
+                            "semantic_alignment_blockers": semantic_alignment_blockers,
+                            "verifier_gate_blockers": verifier_gate_blockers,
+                            "known_gaps": verifier_gate_known_gaps,
+                            "semantic_definition_risks": semantic_definition_risks,
+                        }
+                    )
+                ),
                 "candidate_materialization_required": (
                     candidate_materialization_required
                 ),
@@ -50355,6 +50383,83 @@ def _source_theorem_proof_body_adapter_required_reasons(
     if len(reasons) < 2:
         return []
     return reasons
+
+
+def _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
+    repair: Mapping[str, Any],
+) -> bool:
+    """Return true once exact proof-body repair can proceed past semantic review."""
+
+    proof_body_gate_status = str(
+        repair.get("proof_body_gate_status", "") or ""
+    ).strip()
+    failure_classification = str(
+        repair.get("failure_classification", "") or ""
+    ).strip()
+    runtime_queue_status = str(
+        repair.get("runtime_queue_status", "") or ""
+    ).strip()
+    trigger = str(repair.get("trigger", "") or "").strip()
+    proof_body_reached = bool(
+        repair.get("proof_body_goal_reached", False)
+        or repair.get("source_theorem_exact_proof_body_reached", False)
+    )
+    source_theorem_kernel_evidence_eligible = bool(
+        repair.get("source_theorem_kernel_evidence_eligible", False)
+    )
+    source_theorem_kernel_verified = bool(
+        repair.get("source_theorem_kernel_verified", False)
+    )
+    semantic_blockers = [
+        str(value).strip()
+        for value in repair.get("semantic_alignment_blockers", []) or []
+        if str(value).strip()
+    ]
+    verifier_gate_blockers = [
+        str(value).strip()
+        for value in repair.get("verifier_gate_blockers", []) or []
+        if str(value).strip()
+    ]
+    known_gaps = [
+        str(value).strip()
+        for value in repair.get("known_gaps", []) or []
+        if str(value).strip()
+    ]
+    semantic_definition_risks = [
+        str(value).strip()
+        for value in repair.get("semantic_definition_risks", []) or []
+        if str(value).strip()
+    ]
+    proof_body_repair_status = (
+        failure_classification
+        in {
+            "proof_body_incomplete",
+            "proof_body_dependency_context_missing",
+            *_SOURCE_THEOREM_PROOF_BODY_ADAPTER_INSTANTIATION_FAILURES,
+            *_SOURCE_THEOREM_PROOF_BODY_VERIFIED_ADAPTER_INSUFFICIENT_FAILURES,
+        }
+        or runtime_queue_status
+        in {
+            "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR",
+            "PENDING_EXACT_SOURCE_THEOREM_PROOF_DEPENDENCY_CONTEXT",
+            *_SOURCE_THEOREM_PROOF_BODY_ADAPTER_INSTANTIATION_STATUSES,
+            *_SOURCE_THEOREM_PROOF_BODY_VERIFIED_ADAPTER_INSUFFICIENT_STATUSES,
+        }
+        or trigger in _SOURCE_THEOREM_PROOF_BODY_ADAPTER_INSTANTIATION_TRIGGERS
+        or trigger in _SOURCE_THEOREM_PROOF_BODY_VERIFIED_ADAPTER_INSUFFICIENT_TRIGGERS
+        or proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    return bool(
+        proof_body_repair_status
+        and proof_body_reached
+        and source_theorem_kernel_evidence_eligible
+        and not source_theorem_kernel_verified
+        and proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+        and not semantic_blockers
+        and not verifier_gate_blockers
+        and not known_gaps
+        and not semantic_definition_risks
+    )
 
 
 def _runtime_learning_memory_formalizer_lean_candidate_feedback(
@@ -52818,6 +52923,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
     exact_source_proof_body_goal_feedback_by_target = (
         _exact_proof_body_goal_feedback_by_target(exact_source_proof_body_repair_rows)
     )
+    exact_source_proof_body_gate_open_rows = tuple(
+        row
+        for row in exact_source_proof_body_repair_rows
+        if _source_theorem_exact_proof_body_gate_open_for_kernel_repair(row)
+    )
+    exact_source_proof_body_gate_open_target_names = tuple(
+        dict.fromkeys(
+            str(row.get("target_theorem_name", "") or "").strip()
+            for row in exact_source_proof_body_gate_open_rows
+            if str(row.get("target_theorem_name", "") or "").strip()
+        )
+    )
     exact_source_proof_body_verified_adapter_insufficient_rows = tuple(
         row
         for row in exact_source_proof_body_repair_rows
@@ -54140,6 +54257,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "source_theorem_exact_proof_body_repair_required": (
             exact_source_proof_body_repair_required
         ),
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": bool(
+            exact_source_proof_body_gate_open_rows
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": list(
+            exact_source_proof_body_gate_open_target_names
+        ),
         "source_theorem_exact_proof_body_verified_adapter_context_insufficient": bool(
             exact_source_proof_body_verified_adapter_insufficient_rows
         ),
@@ -55161,6 +55284,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "source_theorem_kernel_evidence_eligible": bool(
                         row.get("source_theorem_kernel_evidence_eligible", False)
                     ),
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                        _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
+                            row
+                        )
+                    ),
                     "proof_body_adapter_required_reasons": list(
                         row.get("proof_body_adapter_required_reasons", []) or []
                     )[:5],
@@ -55285,6 +55413,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 )[:5],
                 "source_theorem_kernel_evidence_eligible": bool(
                     row.get("source_theorem_kernel_evidence_eligible", False)
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    _source_theorem_exact_proof_body_gate_open_for_kernel_repair(row)
                 ),
                 "exact_goal_shape_obligation_ids": list(
                     row.get("exact_goal_shape_obligation_ids", []) or []

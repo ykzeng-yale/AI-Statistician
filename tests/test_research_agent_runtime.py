@@ -57451,8 +57451,17 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         "source_theorem_proof_body_adapter_required"
     )
     assert summary["source_theorem_proof_body_adapter_required"] is True
+    assert summary[
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+    ] is True
+    assert summary["source_theorem_exact_proof_body_gate_open_target_names"] == [
+        "split_conformal_finite_sample_coverage_repair_v3"
+    ]
     diagnostic = summary["source_theorem_proof_body_adapter_diagnostics"][0]
     assert diagnostic["source_theorem_kernel_evidence_eligible"] is True
+    assert diagnostic[
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+    ] is True
     assert diagnostic["semantic_alignment_blockers"] == []
     assert diagnostic["proof_body_attempt_count"] == 5
     assert diagnostic["proof_body_adapter_required_reasons"] == [
@@ -57463,6 +57472,27 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         "semantic alignment or evidence-eligibility gate is still open" not in reason
         for reason in diagnostic["proof_body_adapter_required_reasons"]
     )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": problem.problem_class},
+        theorem_goals=[
+            {
+                "id": row.id,
+                "title": row.title,
+                "proof_obligations": list(row.proof_obligations),
+            }
+            for row in theorem_goals
+        ],
+        proof_bank_obligation_catalog=catalog,
+        proof_bank_runtime_memory_summary=summary,
+    )
+    assert "source_theorem_exact_proof_body_gate_open_for_kernel_repair" in prompt
+    assert "exact source proof-body gate is open for kernel-eligible repair" in prompt
+    assert "Do not route this target back to exact semantic-definition review" in prompt
+    assert "source_theorem_kernel_verified is still false" in prompt
 
 
 def test_runtime_learning_memory_loader_routes_missing_dependency_context_to_adapter(

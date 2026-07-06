@@ -6831,6 +6831,35 @@ def _formalizer_mode_specific_instructions(
             "preserve the kernel-verified adapter artifact/declaration as context and "
             "repair the exact source theorem proof body against the true Lean goal shape."
         )
+    if proof_memory_summary.get(
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+    ):
+        open_targets = [
+            str(value).strip()
+            for value in proof_memory_summary.get(
+                "source_theorem_exact_proof_body_gate_open_target_names", []
+            )
+            or []
+            if str(value).strip()
+        ]
+        target_clause = (
+            " Targets: " + ", ".join(open_targets[:5]) + "."
+            if open_targets
+            else ""
+        )
+        instructions.append(
+            "The exact source proof-body gate is open for kernel-eligible repair: "
+            "a local Lean proof-body goal was reached, semantic blockers are empty, "
+            "and source_theorem_kernel_evidence_eligible=true, but "
+            "source_theorem_kernel_verified is still false."
+            + target_clause
+            + " Do not route this target back to exact semantic-definition review "
+            "unless new semantic_alignment_blockers, verifier_gate_blockers, known_gaps, "
+            "or semantic_definition_risks are present. Continue with exact proof-body "
+            "repair or the required source-to-bridge adapter using proof_body_goal_excerpt "
+            "and proof_body_attempt_summaries, then require local Lean/AXLE kernel "
+            "verification before claiming proof evidence."
+        )
     if (
         mode == "source_theorem_proof_body_adapter_required"
         or proof_memory_summary.get("source_theorem_proof_body_adapter_required")
@@ -7856,6 +7885,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "requires_pseudo_formalization",
         "pseudo_formalization_required_reason",
         "source_theorem_exact_proof_body_repair_required",
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+        "source_theorem_exact_proof_body_gate_open_target_names",
         "formalizer_diagnostic_helper_integration_required",
         "formalizer_diagnostic_helper_memory",
         "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
@@ -8025,6 +8056,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_body_goal_excerpt",
                 "semantic_alignment_blockers",
                 "source_theorem_kernel_evidence_eligible",
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
                 "exact_goal_shape_obligation_ids",
                 "exact_goal_shape_obligations",
                 "adapter_kernel_verified",
@@ -8062,6 +8094,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "semantic_alignment_constraints",
                 "semantic_alignment_blockers",
                 "source_theorem_kernel_evidence_eligible",
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
                 "proof_body_adapter_required_reasons",
                 "kernel_verified_theorem_reduction_closure_declarations",
                 "verified_theorem_reduction_closure_artifact_paths",
