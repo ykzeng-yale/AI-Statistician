@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "policy_pack_id": "split_conformal_exact_semantic_definition_placeholder_policies_v1",
+  "scope": "task_family:split_conformal_finite_sample_coverage",
+  "description": "Data-backed exact semantic-definition placeholder policies for the split-conformal source-theorem frontier. These policies guide source lookup, authoring, and semantic review only; they are not Lean proof evidence.",
+  "placeholder_policies": [
+    {
+      "policy_id": "split_conformal_coverage.exchangeable",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "exchangeable",
+      "semantic_goal": "Define finite exchangeability as permutation-invariant joint law of the score process, not only pairwise score-order symmetry.",
+      "required_anchor_names": ["P", "s"],
+      "source_lookup_search_terms": ["exchangeability", "exchangeab"],
+      "source_lookup_aliases": ["exchangeable", "exchangeability"],
+      "definition_contract": {
+        "semantic_intent": "finite calibration/test score family has a permutation-invariant joint law under the probability measure",
+        "lean_target_shape": "predicate over `P : Measure \u03a9` and `s : Fin (n + 1) -> \u03a9 -> \u211d`",
+        "required_properties": [
+          "invariance under finite index permutations",
+          "sufficient to derive uniform rank or bad-rank budget support lemmas",
+          "compatible with MeasureTheory probability-measure assumptions"
+        ],
+        "forbidden_shortcuts": [
+          "do not define Exchangeable as True",
+          "do not add axiom/sorry/admit/unsafe",
+          "do not assume the split_conformal_coverage target theorem"
+        ]
+      },
+      "draft_definition": "def Exchangeable {\u03a9 : Type _} [MeasurableSpace \u03a9] {\u03b9 : Type _} [Fintype \u03b9]\n    (P : MeasureTheory.Measure \u03a9) (s : \u03b9 \u2192 \u03a9 \u2192 \u211d) : Prop :=\n  \u2200 \u03c3 : Equiv.Perm \u03b9,\n    MeasureTheory.Measure.map (fun \u03c9 : \u03a9 => fun i : \u03b9 => s (\u03c3 i) \u03c9) P =\n      MeasureTheory.Measure.map (fun \u03c9 : \u03a9 => fun i : \u03b9 => s i \u03c9) P",
+      "draft_definition_semantic_risk": "draft finite permutation-invariant joint-law exchangeability still requires source review and downstream local Lean/AXLE verification",
+      "candidate_risk_rules": [
+        {
+          "message": "semantic_definition_risk: Exchangeable candidate uses pairwise score-order probability symmetry rather than finite permutation-invariant joint-law exchangeability",
+          "present_any": ["P.real"],
+          "absent_all": ["Equiv.Perm"]
+        },
+        {
+          "message": "semantic_definition_risk: Exchangeable candidate does not expose a finite permutation/invariance parameter",
+          "absent_all": ["Equiv.Perm", "permutation"],
+          "case_sensitive": false
+        }
+      ]
+    },
+    {
+      "policy_id": "split_conformal_coverage.covered",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "covered",
+      "semantic_goal": "Define the source coverage event/object from the exact source theorem coverage binder hC and threshold q_hat, matching the held-out score event {\u03c9 | s (Fin.last n2) \u03c9 \u2264 q_hat \u03c9}.",
+      "required_anchor_names": ["s", "q_hat", "C", "hC"]
+    },
+    {
+      "policy_id": "split_conformal_coverage.rank",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "rank",
+      "semantic_goal": "Define the rank object from the exact score process s and the order-statistic threshold equation hq; it must support good-rank containment and bad-rank probability premises.",
+      "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+      "source_lookup_aliases": ["rank", "rank_uniformity"]
+    },
+    {
+      "policy_id": "split_conformal_coverage.order_statistic_threshold",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "orderstat",
+      "placeholder_aliases": ["orderStat", "orderStatistic"],
+      "semantic_goal": "Define the finite-sample conformal order-statistic threshold from the exact score process s and the order-statistic threshold equation hq. The definition must preserve the requested rank, duplicate score multiplicities, and the reviewed tie policy instead of collapsing scores through a set/image shortcut.",
+      "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+      "semantic_import_incompatible_terms": [
+        "samplemean",
+        "trimmedmean",
+        "winsorizedmean",
+        "lstatistic",
+        "interquantilerange",
+        "samplerange",
+        "conditionalcdf",
+        "cdf",
+        "projection",
+        "variance"
+      ],
+      "semantic_import_incompatible_status": "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC",
+      "semantic_import_incompatible_reason": "declaration name matches order-statistic literature but defines an aggregate/range/CDF display, not the rank-k conformal orderStat placeholder",
+      "semantic_import_required_signal_terms": ["k", "rank"],
+      "semantic_import_allowed_declaration_names": ["orderstat", "orderstatistic"],
+      "semantic_import_allowed_declaration_prefixes": ["orderstatreview"],
+      "semantic_import_missing_required_signal_status": "SEMANTIC_REVIEW_REQUIRED_ORDER_STATISTIC_RANK_NOT_EXPOSED",
+      "semantic_import_missing_required_signal_reason": "candidate declaration does not visibly expose the requested rank parameter for orderStat",
+      "source_lookup_search_terms": ["orderStatistic", "order statistic", "quantile"],
+      "source_lookup_aliases": ["orderStat", "orderStatistic", "quantile"],
+      "definition_contract": {
+        "semantic_intent": "finite order statistic / conformal quantile of calibration scores at the requested finite-sample rank",
+        "lean_target_shape": "function from finite indexed real scores and a Nat rank to a real threshold",
+        "required_properties": [
+          "monotone containment of good-rank events",
+          "rank index matches the conformal ceiling expression",
+          "preserves duplicate score multiplicities and reviewed tie policy",
+          "compatible with finite `Fin (n + 1)` score families"
+        ],
+        "forbidden_shortcuts": [
+          "do not define orderStat as a constant unrelated to scores",
+          "do not use Finset.image/set sorting that collapses duplicate scores",
+          "do not add axiom/sorry/admit/unsafe",
+          "do not restate coverage as an order-statistic property"
+        ]
+      },
+      "draft_definition": "def orderStat {\u03a9 : Type _} {m : \u2115}\n    (s : Fin (m + 1) \u2192 \u03a9 \u2192 \u211d) (k : \u2115) (\u03c9 : \u03a9) : \u211d :=\n  ((List.ofFn (fun i : Fin (m + 1) => s i \u03c9)).mergeSort (\u00b7 \u2264 \u00b7)).getD k 0",
+      "draft_definition_semantic_risk": "draft sorted finite order statistic uses a duplicate-preserving finite score list and rank k, but still needs source review for indexing convention, tie behavior, and conformal quantile rank; the source theorem upper coverage bound is not eligible for proof-body search until ties are handled by a reviewed tie policy/no-tie assumption or the theorem is revised",
+      "candidate_risk_rules": [
+        {
+          "message": "semantic_definition_risk: orderStat candidate is a finite maximum, not a reviewed rank-k order statistic/conformal quantile",
+          "scope": "definition_body",
+          "present_any": [".max'", ".max ", ".max\n"]
+        },
+        {
+          "message": "semantic_definition_risk: orderStat candidate uses Finset.image, which collapses duplicate score values and is not faithful to finite-sample order statistics unless a reviewed no-tie or multiplicity-preserving tie policy is supplied",
+          "scope": "definition_body",
+          "present_any": ["Finset.univ.image"]
+        },
+        {
+          "message": "semantic_definition_risk: orderStat candidate body does not use the requested rank parameter k",
+          "scope": "definition_body",
+          "absent_regex_all": ["\\bk\\b"]
+        }
+      ]
+    },
+    {
+      "policy_id": "split_conformal_coverage.BadRanks",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "badranks",
+      "placeholder_aliases": ["BadRanks", "bad_ranks", "bad-ranks"],
+      "semantic_goal": "Define the finite bad-rank set from n2, alpha, halpha, and hq so it matches the ranks that violate conformal coverage containment.",
+      "required_anchor_names": ["n2", "alpha", "halpha", "s", "q_hat", "hq"],
+      "required_adapter_object_names": ["rank"],
+      "source_lookup_aliases": ["BadRanks", "bad ranks", "bad-rank"]
+    },
+    {
+      "policy_id": "split_conformal_coverage.alpha",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "alpha",
+      "placeholder_aliases": ["\u03b1"],
+      "semantic_goal": "Define the rank-indexed probability budget \u03b1 from the exact source miscoverage level alpha and rank-uniformity/exchangeability anchor hexch.",
+      "required_anchor_names": ["P", "n2", "alpha", "s", "hexch"],
+      "source_lookup_search_terms": ["alpha", "\u03b1", "miscoverage"],
+      "source_lookup_aliases": ["alpha", "\u03b1"]
+    },
+    {
+      "policy_id": "split_conformal_coverage.alpha_total",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "alphatotal",
+      "placeholder_aliases": ["alpha_total", "\u03b1_total", "\u03b1total"],
+      "semantic_goal": "Define the total bad-rank budget \u03b1_total from alpha and BadRanks, with the intended downstream finite-sum bound.",
+      "required_anchor_names": ["n2", "alpha", "halpha"],
+      "required_adapter_object_names": ["BadRanks"],
+      "source_lookup_search_terms": ["alpha_total", "\u03b1_total", "alpha", "bad-rank budget"],
+      "source_lookup_aliases": ["alpha_total", "\u03b1_total", "alphatotal", "alpha", "\u03b1"]
+    }
+  ]
+}

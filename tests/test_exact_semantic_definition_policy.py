@@ -7,6 +7,7 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_draft_definition,
     exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_import_policy_blocker,
+    exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
@@ -14,6 +15,10 @@ from ai_statistician.exact_semantic_definition_policy import (
 
 
 def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
+    assert "split_conformal_exact_semantic_definition_placeholder_policies_v1" in (
+        exact_semantic_definition_policy_pack_ids()
+    )
+
     covered = exact_semantic_definition_placeholder_policy("covered")
     rank = exact_semantic_definition_placeholder_policy("rank")
     bad_ranks = exact_semantic_definition_placeholder_policy("BadRanks")

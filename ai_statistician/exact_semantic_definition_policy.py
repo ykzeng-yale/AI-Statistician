@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any, Mapping
+
+
+_POLICY_PACK_GLOB = (
+    "source_theorem_exact_semantic_definition_placeholders.*.json"
+)
 
 
 @dataclass(frozen=True)
@@ -22,6 +29,7 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     policy_scope: str
     placeholder_key: str
     semantic_goal: str
+    placeholder_aliases: tuple[str, ...] = ()
     required_anchor_names: tuple[str, ...] = ()
     required_adapter_object_names: tuple[str, ...] = ()
     semantic_import_incompatible_terms: tuple[str, ...] = ()
@@ -310,18 +318,184 @@ _SPLIT_CONFORMAL_POLICIES: tuple[
 
 
 def _split_conformal_registry() -> dict[str, ExactSemanticDefinitionPlaceholderPolicy]:
-    registry: dict[str, ExactSemanticDefinitionPlaceholderPolicy] = {}
-    for policy in _SPLIT_CONFORMAL_POLICIES:
-        registry[policy.placeholder_key] = policy
+    registry = _registry_from_policies(_SPLIT_CONFORMAL_POLICIES)
     registry["\u03b1"] = registry["alpha"]
     registry["\u03b1total"] = registry["alphatotal"]
     return registry
 
 
-EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES: Mapping[
-    str,
-    ExactSemanticDefinitionPlaceholderPolicy,
-] = _split_conformal_registry()
+def _registry_from_policies(
+    policies: tuple[ExactSemanticDefinitionPlaceholderPolicy, ...],
+) -> dict[str, ExactSemanticDefinitionPlaceholderPolicy]:
+    registry: dict[str, ExactSemanticDefinitionPlaceholderPolicy] = {}
+    for policy in policies:
+        keys = (policy.placeholder_key, *policy.placeholder_aliases)
+        for key in keys:
+            compact_key = compact_exact_semantic_placeholder_key(key)
+            if compact_key:
+                registry[compact_key] = policy
+    return registry
+
+
+def _load_policy_pack_policies() -> tuple[
+    tuple[ExactSemanticDefinitionPlaceholderPolicy, ...],
+    tuple[str, ...],
+]:
+    policy_dir = Path(__file__).resolve().parent / "policies"
+    if not policy_dir.exists():
+        return (), ()
+    policies: list[ExactSemanticDefinitionPlaceholderPolicy] = []
+    policy_pack_ids: list[str] = []
+    for path in sorted(policy_dir.glob(_POLICY_PACK_GLOB)):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"policy pack must be a JSON object: {path}")
+        policy_pack_id = str(payload.get("policy_pack_id", "") or "").strip()
+        if policy_pack_id:
+            policy_pack_ids.append(policy_pack_id)
+        raw_policies = payload.get("placeholder_policies", [])
+        if not isinstance(raw_policies, list):
+            raise ValueError(
+                "policy pack placeholder_policies must be a list: "
+                f"{path}"
+            )
+        policies.extend(
+            _policy_from_mapping(row, source_path=path)
+            for row in raw_policies
+            if isinstance(row, Mapping)
+        )
+    return tuple(policies), tuple(dict.fromkeys(policy_pack_ids))
+
+
+def _policy_from_mapping(
+    row: Mapping[str, Any],
+    *,
+    source_path: Path,
+) -> ExactSemanticDefinitionPlaceholderPolicy:
+    def required_text(key: str) -> str:
+        text = str(row.get(key, "") or "").strip()
+        if not text:
+            raise ValueError(f"policy pack {source_path} missing {key}")
+        return text
+
+    return ExactSemanticDefinitionPlaceholderPolicy(
+        policy_id=required_text("policy_id"),
+        policy_scope=required_text("policy_scope"),
+        placeholder_key=required_text("placeholder_key"),
+        semantic_goal=required_text("semantic_goal"),
+        placeholder_aliases=_string_tuple(row.get("placeholder_aliases")),
+        required_anchor_names=_string_tuple(row.get("required_anchor_names")),
+        required_adapter_object_names=_string_tuple(
+            row.get("required_adapter_object_names")
+        ),
+        semantic_import_incompatible_terms=_string_tuple(
+            row.get("semantic_import_incompatible_terms")
+        ),
+        semantic_import_incompatible_status=str(
+            row.get(
+                "semantic_import_incompatible_status",
+                "SEMANTIC_MISMATCH_NOT_EXACT_SEMANTIC_DEFINITION",
+            )
+            or "SEMANTIC_MISMATCH_NOT_EXACT_SEMANTIC_DEFINITION"
+        ),
+        semantic_import_incompatible_reason=str(
+            row.get("semantic_import_incompatible_reason", "") or ""
+        ),
+        semantic_import_required_signal_terms=_string_tuple(
+            row.get("semantic_import_required_signal_terms")
+        ),
+        semantic_import_allowed_declaration_names=_string_tuple(
+            row.get("semantic_import_allowed_declaration_names")
+        ),
+        semantic_import_allowed_declaration_prefixes=_string_tuple(
+            row.get("semantic_import_allowed_declaration_prefixes")
+        ),
+        semantic_import_missing_required_signal_status=str(
+            row.get(
+                "semantic_import_missing_required_signal_status",
+                "SEMANTIC_REVIEW_REQUIRED_EXACT_SEMANTIC_SIGNAL_NOT_EXPOSED",
+            )
+            or "SEMANTIC_REVIEW_REQUIRED_EXACT_SEMANTIC_SIGNAL_NOT_EXPOSED"
+        ),
+        semantic_import_missing_required_signal_reason=str(
+            row.get("semantic_import_missing_required_signal_reason", "") or ""
+        ),
+        draft_definition=str(row.get("draft_definition", "") or ""),
+        draft_definition_semantic_risk=str(
+            row.get(
+                "draft_definition_semantic_risk",
+                "draft definition requires semantic review",
+            )
+            or "draft definition requires semantic review"
+        ),
+        source_lookup_search_terms=_string_tuple(
+            row.get("source_lookup_search_terms")
+        ),
+        source_lookup_aliases=_string_tuple(row.get("source_lookup_aliases")),
+        definition_contract=_mapping_or_empty(row.get("definition_contract")),
+        candidate_risk_rules=tuple(
+            _risk_rule_from_mapping(rule)
+            for rule in row.get("candidate_risk_rules", [])
+            if isinstance(rule, Mapping)
+        ),
+    )
+
+
+def _risk_rule_from_mapping(
+    row: Mapping[str, Any],
+) -> ExactSemanticDefinitionCandidateRiskRule:
+    return ExactSemanticDefinitionCandidateRiskRule(
+        message=str(row.get("message", "") or ""),
+        scope=str(row.get("scope", "definition_block") or "definition_block"),
+        present_any=_string_tuple(row.get("present_any")),
+        present_all=_string_tuple(row.get("present_all")),
+        absent_all=_string_tuple(row.get("absent_all")),
+        absent_regex_all=_string_tuple(row.get("absent_regex_all")),
+        case_sensitive=bool(row.get("case_sensitive", True)),
+    )
+
+
+def _string_tuple(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        items: list[Any] = [value]
+    elif isinstance(value, (list, tuple)):
+        items = list(value)
+    else:
+        items = []
+    strings: list[str] = []
+    for item in items:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if text:
+            strings.append(text)
+    return tuple(strings)
+
+
+def _mapping_or_empty(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _build_policy_registry() -> tuple[
+    Mapping[str, ExactSemanticDefinitionPlaceholderPolicy],
+    tuple[str, ...],
+]:
+    registry = _split_conformal_registry()
+    policy_pack_policies, policy_pack_ids = _load_policy_pack_policies()
+    if policy_pack_policies:
+        registry.update(_registry_from_policies(policy_pack_policies))
+        return registry, policy_pack_ids
+    return registry, ()
+
+
+(
+    EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
+    EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS,
+) = _build_policy_registry()
+
+
+def exact_semantic_definition_policy_pack_ids() -> tuple[str, ...]:
+    return EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS
 
 
 def exact_semantic_definition_placeholder_policy(
