@@ -107,6 +107,10 @@ class SourceToBridgePremiseDerivationCheckRow:
     proof_body_goal_excerpt: tuple[str, ...]
     proof_body_attempt_summaries: tuple[str, ...]
     proof_body_attempt_count: int
+    proof_body_gate_status: str
+    source_theorem_exact_proof_body_reached: bool
+    source_theorem_exact_proof_body_gate_open_for_kernel_repair: bool
+    source_theorem_exact_proof_body_gate_open_target_names: tuple[str, ...]
     semantic_alignment_constraints: tuple[str, ...]
     semantic_alignment_blockers: tuple[str, ...]
     source_theorem_kernel_evidence_eligible: bool
@@ -332,6 +336,21 @@ def run_source_to_bridge_premise_derivation_proofengineer_bridge(
         ),
         "n_source_to_bridge_adapter_object_semantic_definition_work_orders": len(
             adapter_object_semantic_definition_work_order_rows
+        ),
+        "proof_body_gate_statuses": sorted(
+            {
+                row.proof_body_gate_status
+                for row in rows
+                if row.proof_body_gate_status
+            }
+        ),
+        "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": sum(
+            1
+            for row in rows
+            if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": (
+            _proof_body_gate_open_target_names_for_rows(rows)
         ),
         "source_to_bridge_adapter_object_semantic_definition_placeholder_symbols": [
             str(row.get("placeholder_symbol", "") or "")
@@ -729,6 +748,19 @@ def _premise_derivation_check_row(
             row.get("proof_body_attempt_summaries", [])
         ),
         proof_body_attempt_count=_int_like(row.get("proof_body_attempt_count", 0)),
+        proof_body_gate_status=str(row.get("proof_body_gate_status", "") or ""),
+        source_theorem_exact_proof_body_reached=_bool_like(
+            row.get("source_theorem_exact_proof_body_reached", False)
+        ),
+        source_theorem_exact_proof_body_gate_open_for_kernel_repair=_bool_like(
+            row.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
+        ),
+        source_theorem_exact_proof_body_gate_open_target_names=_str_tuple(
+            row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
+        ),
         semantic_alignment_constraints=_str_tuple(
             row.get("semantic_alignment_constraints", [])
         ),
@@ -1113,6 +1145,13 @@ def _generated_premise_derivation_skeleton(
     goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
     attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
     attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
+    proof_body_gate_status = str(row.get("proof_body_gate_status", "") or "").strip()
+    proof_body_gate_open = _bool_like(
+        row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
+    )
+    proof_body_gate_open_targets = _str_tuple(
+        row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
+    )[:12]
     semantic_constraints = _str_tuple(row.get("semantic_alignment_constraints", []))[:8]
     semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
     source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
@@ -1164,6 +1203,23 @@ def _generated_premise_derivation_skeleton(
     )
     attempt_count_comment = (
         f"-- proof body attempt count: {attempt_count}" if attempt_count else ""
+    )
+    proof_body_gate_status_comment = (
+        "-- proof body gate status: "
+        + _sanitize_comment_text(proof_body_gate_status)
+        if proof_body_gate_status
+        else ""
+    )
+    proof_body_gate_open_comment = (
+        "-- exact source proof-body gate open for kernel repair: "
+        + ("true" if proof_body_gate_open else "false")
+        if row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair")
+        is not None
+        else ""
+    )
+    proof_body_gate_open_target_comment = "\n".join(
+        f"-- exact source proof-body gate-open target: {_sanitize_comment_text(value)}"
+        for value in proof_body_gate_open_targets
     )
     source_kernel_eligible_comment = (
         (
@@ -1279,6 +1335,9 @@ def _generated_premise_derivation_skeleton(
         f"{goal_comment}\n"
         f"{attempt_comment}\n"
         f"{attempt_count_comment}\n"
+        f"{proof_body_gate_status_comment}\n"
+        f"{proof_body_gate_open_comment}\n"
+        f"{proof_body_gate_open_target_comment}\n"
         f"{source_kernel_eligible_comment}\n"
         f"{semantic_constraint_comment}\n"
         f"{semantic_blocker_comment}\n"
@@ -1535,6 +1594,16 @@ def _export_runtime_learning_rows(
                     row.proof_body_attempt_summaries
                 ),
                 "proof_body_attempt_count": row.proof_body_attempt_count,
+                "proof_body_gate_status": row.proof_body_gate_status,
+                "source_theorem_exact_proof_body_reached": (
+                    row.source_theorem_exact_proof_body_reached
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_names": list(
+                    row.source_theorem_exact_proof_body_gate_open_target_names
+                ),
                 "runtime_queue_status": (
                     "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
                     if row.premise_derivation_kernel_verified
@@ -1633,6 +1702,31 @@ def _export_runtime_learning_rows(
             "proof_body_attempt_count": _int_like(
                 grouped_request.get("proof_body_attempt_count", 0)
             ),
+            "proof_body_gate_status": str(
+                grouped_request.get("proof_body_gate_status", "") or ""
+            ),
+            "source_theorem_exact_proof_body_reached": _bool_like(
+                grouped_request.get(
+                    "source_theorem_exact_proof_body_reached",
+                    False,
+                )
+            ),
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                _bool_like(
+                    grouped_request.get(
+                        "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                        False,
+                    )
+                )
+            ),
+            "source_theorem_exact_proof_body_gate_open_target_names": list(
+                _str_tuple(
+                    grouped_request.get(
+                        "source_theorem_exact_proof_body_gate_open_target_names",
+                        [],
+                    )
+                )
+            ),
             "proof_body_goal_excerpt": list(
                 grouped_request.get("proof_body_goal_excerpt", []) or []
             ),
@@ -1678,6 +1772,21 @@ def _export_runtime_learning_rows(
             adapter_object_semantic_definition_work_orders or []
         ),
         "n_grouped_premise_derivation_learning_rows": len(grouped_learning_rows),
+        "proof_body_gate_statuses": sorted(
+            {
+                row.proof_body_gate_status
+                for row in rows
+                if row.proof_body_gate_status
+            }
+        ),
+        "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": sum(
+            1
+            for row in rows
+            if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": (
+            _proof_body_gate_open_target_names_for_rows(rows)
+        ),
         "n_premise_derivation_kernel_verified": sum(
             1 for row in rows if row.premise_derivation_kernel_verified
         ),
@@ -1744,10 +1853,19 @@ def _adapter_object_semantic_definition_work_order_rows(
             "target_theorem_name",
             "target_lean_declaration",
             "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+            "proof_body_gate_status",
         )
         for field in scalar_fields:
             if not existing.get(field) and candidate.get(field):
                 existing[field] = candidate[field]
+        for field in (
+            "source_theorem_exact_proof_body_reached",
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+        ):
+            if not _bool_like(existing.get(field)) and _bool_like(
+                candidate.get(field)
+            ):
+                existing[field] = True
         for field in (
             "target_ids",
             "target_theorem_goal_ids",
@@ -1767,6 +1885,7 @@ def _adapter_object_semantic_definition_work_order_rows(
             "semantic_alignment_constraints",
             "semantic_alignment_blockers",
             "exact_goal_shape_obligation_ids",
+            "source_theorem_exact_proof_body_gate_open_target_names",
             "kernel_verified_theorem_reduction_closure_declarations",
             "verified_theorem_reduction_closure_artifact_paths",
         ):
@@ -1786,9 +1905,18 @@ def _adapter_object_semantic_definition_work_order_rows(
             "adapter_object_name",
             "source_to_bridge_adapter_instantiation_group_id",
             "work_order_id",
+            "proof_body_gate_status",
         ):
             if not existing_summary.get(field) and candidate_summary.get(field):
                 existing_summary[field] = candidate_summary[field]
+        for field in (
+            "source_theorem_exact_proof_body_reached",
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+        ):
+            if not _bool_like(existing_summary.get(field)) and _bool_like(
+                candidate_summary.get(field)
+            ):
+                existing_summary[field] = True
         for field in (
             "target_ids",
             "source_to_bridge_adapter_instantiation_group_ids",
@@ -1799,6 +1927,7 @@ def _adapter_object_semantic_definition_work_order_rows(
             "premise_semantic_dependency_requirements",
             "semantic_alignment_blockers",
             "candidate_registered_obligation_ids",
+            "source_theorem_exact_proof_body_gate_open_target_names",
         ):
             extend_unique(
                 existing_summary,
@@ -1939,6 +2068,29 @@ def _adapter_object_semantic_definition_work_order_rows(
                 if value
             )
         )
+        proof_body_gate_status = next(
+            (row.proof_body_gate_status for row in group_rows if row.proof_body_gate_status),
+            "",
+        )
+        source_theorem_exact_proof_body_reached = any(
+            row.source_theorem_exact_proof_body_reached for row in group_rows
+        )
+        source_theorem_exact_proof_body_gate_open_for_kernel_repair = any(
+            row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+            for row in group_rows
+        )
+        proof_body_gate_open_target_names = tuple(
+            dict.fromkeys(
+                value
+                for row in group_rows
+                if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                for value in (
+                    row.source_theorem_exact_proof_body_gate_open_target_names
+                    or ((row.target_theorem_name,) if row.target_theorem_name else ())
+                )
+                if value
+            )
+        )
         shared_contract = next(
             (
                 row.shared_adapter_instantiation_contract
@@ -2017,6 +2169,16 @@ def _adapter_object_semantic_definition_work_order_rows(
                     semantic_anchor_names=semantic_anchor_names,
                     semantic_requirements=semantic_requirements,
                     adapter_objects=adapter_objects,
+                    proof_body_gate_status=proof_body_gate_status,
+                    source_theorem_exact_proof_body_reached=(
+                        source_theorem_exact_proof_body_reached
+                    ),
+                    source_theorem_exact_proof_body_gate_open_for_kernel_repair=(
+                        source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                    ),
+                    source_theorem_exact_proof_body_gate_open_target_names=(
+                        proof_body_gate_open_target_names
+                    ),
                 )
             )
             work_orders.append(
@@ -2034,6 +2196,16 @@ def _adapter_object_semantic_definition_work_order_rows(
                     "target_lean_declaration": target_lean_declaration,
                     "target_ids": list(target_ids),
                     "target_theorem_goal_ids": list(target_goal_ids),
+                    "proof_body_gate_status": proof_body_gate_status,
+                    "source_theorem_exact_proof_body_reached": (
+                        source_theorem_exact_proof_body_reached
+                    ),
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                        source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                    ),
+                    "source_theorem_exact_proof_body_gate_open_target_names": list(
+                        proof_body_gate_open_target_names
+                    ),
                     "placeholder_symbol": adapter_object,
                     "candidate_definition_request": candidate_definition_request,
                     "replacement_strategy": (
@@ -2124,6 +2296,16 @@ def _adapter_object_semantic_definition_work_order_rows(
                         "target_theorem_name": target_theorem_name,
                         "target_lean_declaration": target_lean_declaration,
                         "target_ids": list(target_ids),
+                        "proof_body_gate_status": proof_body_gate_status,
+                        "source_theorem_exact_proof_body_reached": (
+                            source_theorem_exact_proof_body_reached
+                        ),
+                        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                            source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                        ),
+                        "source_theorem_exact_proof_body_gate_open_target_names": list(
+                            proof_body_gate_open_target_names
+                        ),
                         "placeholder_symbol": adapter_object,
                         "candidate_definition_request": (
                             candidate_definition_request
@@ -2197,6 +2379,10 @@ def _adapter_object_candidate_definition_request(
     semantic_anchor_names: Sequence[str],
     semantic_requirements: Sequence[str],
     adapter_objects: Sequence[str],
+    proof_body_gate_status: str,
+    source_theorem_exact_proof_body_reached: bool,
+    source_theorem_exact_proof_body_gate_open_for_kernel_repair: bool,
+    source_theorem_exact_proof_body_gate_open_target_names: Sequence[str],
 ) -> dict[str, Any]:
     available_adapter_object_names = [
         str(value).strip()
@@ -2215,6 +2401,16 @@ def _adapter_object_candidate_definition_request(
         "target_theorem_name": target_theorem_name,
         "target_lean_declaration": target_lean_declaration,
         "target_ids": list(target_ids),
+        "proof_body_gate_status": proof_body_gate_status,
+        "source_theorem_exact_proof_body_reached": (
+            source_theorem_exact_proof_body_reached
+        ),
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+            source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": list(
+            source_theorem_exact_proof_body_gate_open_target_names
+        ),
         "placeholder_symbol": placeholder_symbol,
         "semantic_goal": (
             "Define this source-to-bridge adapter object from the exact source "
@@ -2286,9 +2482,18 @@ def _merge_candidate_definition_request(
         "semantic_goal",
         "local_lean_gate",
         "proof_evidence_status",
+        "proof_body_gate_status",
     ):
         if not current.get(field) and candidate_request.get(field):
             current[field] = candidate_request[field]
+    for field in (
+        "source_theorem_exact_proof_body_reached",
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+    ):
+        if not _bool_like(current.get(field)) and _bool_like(
+            candidate_request.get(field)
+        ):
+            current[field] = True
     for field in (
         "target_ids",
         "required_anchor_names",
@@ -2302,6 +2507,7 @@ def _merge_candidate_definition_request(
         "source_to_bridge_adapter_instantiation_group_ids",
         "required_bridge_premise_names_for_shared_instantiation",
         "premise_semantic_dependency_requirements",
+        "source_theorem_exact_proof_body_gate_open_target_names",
         "forbidden_shortcuts",
     ):
         current_values = list(current.get(field, []) or [])
@@ -2461,6 +2667,29 @@ def _grouped_premise_derivation_candidate_request_rows(
             (row.proof_body_attempt_count for row in group_rows),
             default=0,
         )
+        proof_body_gate_status = next(
+            (row.proof_body_gate_status for row in group_rows if row.proof_body_gate_status),
+            "",
+        )
+        source_theorem_exact_proof_body_reached = any(
+            row.source_theorem_exact_proof_body_reached for row in group_rows
+        )
+        source_theorem_exact_proof_body_gate_open_for_kernel_repair = any(
+            row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+            for row in group_rows
+        )
+        proof_body_gate_open_target_names = tuple(
+            dict.fromkeys(
+                value
+                for row in group_rows
+                if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                for value in (
+                    row.source_theorem_exact_proof_body_gate_open_target_names
+                    or ((row.target_theorem_name,) if row.target_theorem_name else ())
+                )
+                if value
+            )
+        )
         source_theorem_kernel_evidence_eligible = any(
             row.source_theorem_kernel_evidence_eligible for row in group_rows
         )
@@ -2584,6 +2813,16 @@ def _grouped_premise_derivation_candidate_request_rows(
                         if value
                     )
                 )[:12],
+                "proof_body_gate_status": proof_body_gate_status,
+                "source_theorem_exact_proof_body_reached": (
+                    source_theorem_exact_proof_body_reached
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_names": list(
+                    proof_body_gate_open_target_names
+                ),
                 "required_formalizer_output_key": (
                     "source_to_bridge_premise_derivation_candidates"
                 ),
@@ -2773,6 +3012,16 @@ def _premise_derivation_candidate_request_row(
         "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
         "proof_body_attempt_summaries": list(row.proof_body_attempt_summaries),
         "proof_body_attempt_count": row.proof_body_attempt_count,
+        "proof_body_gate_status": row.proof_body_gate_status,
+        "source_theorem_exact_proof_body_reached": (
+            row.source_theorem_exact_proof_body_reached
+        ),
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+            row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": list(
+            row.source_theorem_exact_proof_body_gate_open_target_names
+        ),
         "semantic_alignment_constraints": list(row.semantic_alignment_constraints),
         "semantic_alignment_blockers": list(row.semantic_alignment_blockers),
         "source_theorem_kernel_evidence_eligible": (
@@ -3474,6 +3723,30 @@ def _int_like(value: Any) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def _proof_body_gate_open_target_names_for_rows(
+    rows: Sequence[SourceToBridgePremiseDerivationCheckRow],
+) -> list[str]:
+    names: list[str] = []
+    for row in rows:
+        if not row.source_theorem_exact_proof_body_gate_open_for_kernel_repair:
+            continue
+        candidates = row.source_theorem_exact_proof_body_gate_open_target_names or (
+            (row.target_theorem_name,) if row.target_theorem_name else ()
+        )
+        for value in candidates:
+            if value and value not in names:
+                names.append(value)
+    return sorted(names)
 
 
 def _request_mapping_tuple(values: Any) -> tuple[dict[str, object], ...]:

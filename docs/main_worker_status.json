@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T21:28:55Z",
+  "updated_at": "2026-07-06T21:31:41Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1101,6 +1101,25 @@
       "prompt_has_reviewed_adapter_reason": true,
       "prompt_mentions_semantic_gate_open": false,
       "proof_boundary": "Runtime memory and Formalizer prompt compaction now preserve proof-body goal/attempt feedback plus the exact source-theorem eligibility boundary. Reviewed semantic-alignment constraints route adapter work as proof-structure guidance, not as an open semantic-review gate."
+    },
+    "proof_body_gate_open_premise_bridge_memory_patch": {
+      "status": "implemented",
+      "component": "source_to_bridge_premise_derivation_proofengineer_bridge",
+      "n_bridge_tests": 22,
+      "runtime_proof_body_slice_tests": 67,
+      "propagates_to": [
+        "premise_derivation_check_rows",
+        "generated_premise_derivation_skeleton_comments",
+        "premise_derivation_candidate_requests",
+        "grouped_premise_derivation_candidate_requests",
+        "runtime_learning_rows",
+        "runtime_learning_export_manifest",
+        "adapter_object_semantic_definition_work_orders",
+        "adapter_object_candidate_definition_requests"
+      ],
+      "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+      "source_theorem_exact_proof_body_gate_open_for_kernel_repair_preserved": true,
+      "proof_boundary": "This preserves downstream routing context from the adapter bridge into premise-derivation and semantic-definition work orders. It does not promote premise derivations or adapter-object definitions to source-theorem proof evidence; source_theorem_kernel_verified remains false until the exact source theorem itself passes local Lean/AXLE."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2452,6 +2471,13 @@
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_proof_body_adapter_bridge.py -q # 14 passed after proof-body adapter bridge gate-open memory propagation patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body_adapter or proof_body_gate_open or verified_premise_routing_row_unblocks_adapter_retry or proof_body_incomplete_eligible_reviewed_constraints_route_adapter_shape\" # 7 passed, 880 deselected after proof-body adapter bridge gate-open memory propagation patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 67 passed, 820 deselected after proof-body adapter bridge gate-open memory propagation patch",
-    "git diff --check # passed after proof-body adapter bridge gate-open memory propagation patch"
+    "git diff --check # passed after proof-body adapter bridge gate-open memory propagation patch",
+    "python3 -m py_compile ai_statistician/source_to_bridge_premise_derivation_proofengineer_bridge.py tests/test_source_to_bridge_premise_derivation_bridge.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after proof-body premise-derivation bridge gate-open memory propagation patch",
+    ".venv/bin/python -m pytest tests/test_source_to_bridge_premise_derivation_bridge.py::test_premise_bridge_materializes_nonproof_skeleton -q # 1 passed after proof-body premise-derivation bridge gate-open memory propagation patch",
+    ".venv/bin/python -m pytest tests/test_source_to_bridge_premise_derivation_bridge.py -q # 22 passed after proof-body premise-derivation bridge gate-open memory propagation patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"source_to_bridge_premise_derivation or proof_body_adapter or proof_body_gate_open\" # 11 passed, 876 deselected after proof-body premise-derivation bridge gate-open memory propagation patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 67 passed, 820 deselected after proof-body premise-derivation bridge gate-open memory propagation patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body premise-derivation bridge gate-open memory propagation patch",
+    "git diff --check # passed after proof-body premise-derivation bridge gate-open memory propagation patch"
   ]
 }
