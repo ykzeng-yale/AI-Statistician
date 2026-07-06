@@ -7665,6 +7665,37 @@ class SystemTests(unittest.TestCase):
             ]
         )
 
+        stale_or_missing = _research_system_full_ai_statistician_readiness(
+            {
+                "all_gates_passed": True,
+                "counts": {
+                    "research_agent_runtime_audit_requested": True,
+                    "research_agent_runtime_audit_available": True,
+                    "research_agent_runtime_audit_source": "configured_runtime_dir",
+                    "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                    "research_agent_runtime_capability_status": "READY",
+                    "evaluation_benchmark_guidance_stale_or_missing": 1,
+                    "evaluation_benchmark_guidance_capacity_gaps": 0,
+                },
+            }
+        )
+        self.assertFalse(stale_or_missing["ready_for_full_ai_statistician"])
+        self.assertEqual(
+            stale_or_missing["full_ai_statistician_readiness_status"],
+            "EVALUATION_BENCHMARK_GUIDANCE_STALE_OR_MISSING",
+        )
+        self.assertEqual(
+            stale_or_missing[
+                "full_ai_statistician_readiness_guidance_stale_or_missing_count"
+            ],
+            1,
+        )
+        self.assertFalse(
+            stale_or_missing[
+                "full_ai_statistician_readiness_guidance_blockers_clear"
+            ]
+        )
+
     def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:
         manifest = {
             "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [
@@ -23481,6 +23512,28 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ]
         )
         self.assertEqual(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_count"
+            ],
+            0,
+        )
+        self.assertTrue(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_clear"
+            ]
+        )
+        self.assertFalse(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_blockers_clear"
+            ]
+        )
+        self.assertEqual(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_blocker_status"
+            ],
+            "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
+        )
+        self.assertEqual(
             payload["full_ai_statistician_readiness_status"],
             "CONTRACT_OK_WITH_CAPABILITY_GAPS_AND_EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
         )
@@ -23533,6 +23586,28 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             guidance_s13["key_counts"][
                 "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear"
             ]
+        )
+        self.assertEqual(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_count"
+            ],
+            0,
+        )
+        self.assertTrue(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_clear"
+            ]
+        )
+        self.assertFalse(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_blockers_clear"
+            ]
+        )
+        self.assertEqual(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_blocker_status"
+            ],
+            "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
         )
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 1)
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_ok"], 1)

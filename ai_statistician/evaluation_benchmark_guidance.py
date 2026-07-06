@@ -338,6 +338,10 @@ def build_evaluation_benchmark_guidance(
                         "system_full_ai_statistician_readiness_runtime_audit_source",
                         "system_full_ai_statistician_readiness_guidance_capacity_gap_count",
                         "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear",
+                        "system_full_ai_statistician_readiness_guidance_stale_or_missing_count",
+                        "system_full_ai_statistician_readiness_guidance_stale_or_missing_clear",
+                        "system_full_ai_statistician_readiness_guidance_blockers_clear",
+                        "system_full_ai_statistician_readiness_guidance_blocker_status",
                     }
                 },
                 "suite_rows": [asdict(row) for row in suite_rows],
@@ -2589,6 +2593,18 @@ def _suite_rows(
                 ),
                 "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear": counts.get(
                     "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear"
+                ),
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_count": counts.get(
+                    "system_full_ai_statistician_readiness_guidance_stale_or_missing_count"
+                ),
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_clear": counts.get(
+                    "system_full_ai_statistician_readiness_guidance_stale_or_missing_clear"
+                ),
+                "system_full_ai_statistician_readiness_guidance_blockers_clear": counts.get(
+                    "system_full_ai_statistician_readiness_guidance_blockers_clear"
+                ),
+                "system_full_ai_statistician_readiness_guidance_blocker_status": counts.get(
+                    "system_full_ai_statistician_readiness_guidance_blocker_status"
                 ),
                 "research_agent_runtime_architect_enabled": counts.get(
                     "research_agent_runtime_architect_enabled"

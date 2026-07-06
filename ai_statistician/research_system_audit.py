@@ -9878,15 +9878,44 @@ def _research_system_full_ai_statistician_readiness(
         "evaluation_benchmark_guidance_capacity_gaps",
         None,
     )
+    guidance_stale_or_missing_count_raw = counts.get(
+        "evaluation_benchmark_guidance_stale_or_missing",
+        None,
+    )
     guidance_capacity_gap_count = (
         int(guidance_capacity_gap_count_raw or 0)
         if guidance_capacity_gap_count_raw is not None
         else 0
     )
+    guidance_stale_or_missing_count = (
+        int(guidance_stale_or_missing_count_raw or 0)
+        if guidance_stale_or_missing_count_raw is not None
+        else 0
+    )
     guidance_capacity_gaps_known = guidance_capacity_gap_count_raw is not None
+    guidance_stale_or_missing_known = (
+        guidance_stale_or_missing_count_raw is not None
+    )
     guidance_capacity_gaps_clear = (
         not guidance_capacity_gaps_known or guidance_capacity_gap_count <= 0
     )
+    guidance_stale_or_missing_clear = (
+        not guidance_stale_or_missing_known
+        or guidance_stale_or_missing_count <= 0
+    )
+    guidance_blockers_clear = (
+        guidance_capacity_gaps_clear and guidance_stale_or_missing_clear
+    )
+    if not guidance_capacity_gaps_clear and not guidance_stale_or_missing_clear:
+        guidance_blocker_status = (
+            "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS_AND_STALE_OR_MISSING"
+        )
+    elif not guidance_capacity_gaps_clear:
+        guidance_blocker_status = "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS"
+    elif not guidance_stale_or_missing_clear:
+        guidance_blocker_status = "EVALUATION_BENCHMARK_GUIDANCE_STALE_OR_MISSING"
+    else:
+        guidance_blocker_status = ""
     if not runtime_status:
         runtime_status = (
             "NOT_REQUESTED"
@@ -9900,14 +9929,14 @@ def _research_system_full_ai_statistician_readiness(
         and runtime_requested
         and runtime_available
         and runtime_ready
-        and guidance_capacity_gaps_clear
+        and guidance_blockers_clear
     )
     if ready:
         status = "READY_FOR_FULL_AI_STATISTICIAN"
         boundary = (
             "all system audit gates passed and the AgentRuntime capability audit "
-            "reported ready_for_full_ai_statistician=true with no evaluation "
-            "benchmark guidance capacity gaps"
+            "reported ready_for_full_ai_statistician=true with no stale, missing, "
+            "saturated, or capacity-gap evaluation guidance suites"
         )
     elif not all_gates_passed:
         status = "AUDIT_GATES_FAILED"
@@ -9929,27 +9958,29 @@ def _research_system_full_ai_statistician_readiness(
             "Statistician readiness requires an available AgentRuntime capability "
             "audit manifest"
         )
-    elif not runtime_ready and not guidance_capacity_gaps_clear:
-        status = (
-            f"{runtime_status}_AND_EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS"
-        )
+    elif not runtime_ready and not guidance_blockers_clear:
+        status = f"{runtime_status}_AND_{guidance_blocker_status}"
         boundary = (
             "all_gates_passed only means audit artifacts completed; full AI "
             "Statistician readiness additionally requires "
             "research_agent_runtime_capability_ready_for_full_ai_statistician=true "
-            "with authoritative runtime evidence and zero saturated or "
-            "capacity-gap evaluation guidance suites. Current AgentRuntime "
-            f"capability status is {runtime_status} from "
-            f"{runtime_source or 'unknown source'}, and current guidance "
+            "with authoritative runtime evidence, zero stale/missing evaluation "
+            "guidance suites, and zero saturated or capacity-gap evaluation "
+            "guidance suites. Current AgentRuntime capability status is "
+            f"{runtime_status} from {runtime_source or 'unknown source'}, "
+            "current guidance stale/missing suite count is "
+            f"{guidance_stale_or_missing_count}, and current guidance "
             f"capacity-gap suite count is {guidance_capacity_gap_count}."
         )
-    elif not guidance_capacity_gaps_clear:
-        status = "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS"
+    elif not guidance_blockers_clear:
+        status = guidance_blocker_status
         boundary = (
             "all_gates_passed only means audit artifacts completed; full AI "
-            "Statistician readiness also requires zero saturated or capacity-gap "
-            "evaluation guidance suites. Current guidance capacity-gap suite count "
-            f"is {guidance_capacity_gap_count}."
+            "Statistician readiness also requires zero stale/missing evaluation "
+            "guidance suites and zero saturated or capacity-gap evaluation "
+            "guidance suites. Current guidance stale/missing suite count is "
+            f"{guidance_stale_or_missing_count}, and current guidance "
+            f"capacity-gap suite count is {guidance_capacity_gap_count}."
         )
     else:
         status = runtime_status
@@ -9978,6 +10009,21 @@ def _research_system_full_ai_statistician_readiness(
         ),
         "full_ai_statistician_readiness_guidance_capacity_gaps_clear": (
             guidance_capacity_gaps_clear
+        ),
+        "full_ai_statistician_readiness_guidance_stale_or_missing_count": (
+            guidance_stale_or_missing_count
+        ),
+        "full_ai_statistician_readiness_guidance_stale_or_missing_known": (
+            guidance_stale_or_missing_known
+        ),
+        "full_ai_statistician_readiness_guidance_stale_or_missing_clear": (
+            guidance_stale_or_missing_clear
+        ),
+        "full_ai_statistician_readiness_guidance_blockers_clear": (
+            guidance_blockers_clear
+        ),
+        "full_ai_statistician_readiness_guidance_blocker_status": (
+            guidance_blocker_status
         ),
     }
 
@@ -10018,6 +10064,26 @@ def _apply_research_system_full_ai_statistician_readiness(
                 "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear": (
                     full_readiness[
                         "full_ai_statistician_readiness_guidance_capacity_gaps_clear"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_count": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_stale_or_missing_count"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_clear": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_stale_or_missing_clear"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_blockers_clear": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_blockers_clear"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_blocker_status": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_blocker_status"
                     ]
                 ),
             }
