@@ -1381,6 +1381,8 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     nonproof_rows = 0
     consumed_rows = 0
     max_routable_work_order_rows = 0
+    failed_rows = 0
+    failure_repair_seed_rows = 0
     manifest_paths: list[str] = []
     work_order_rows_paths: list[str] = []
     routable_work_order_rows_paths: list[str] = []
@@ -1388,6 +1390,8 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     diagnostic_work_order_rows_paths: list[str] = []
     target_lanes: list[str] = []
     row_kinds: list[str] = []
+    failure_required_target_lanes: list[str] = []
+    failure_types: list[str] = []
 
     def _row_field(row: Mapping[str, Any], key: str, default: Any = None) -> Any:
         input_summary = (
@@ -1465,6 +1469,38 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         attachment_gate_ok = bool(
             _row_field(row, "attachment_gate_recomputed", False)
         )
+        result_status = str(_row_field(row, "result_status", "") or "").strip()
+        failure_type = str(_row_field(row, "failure_type", "") or "").strip()
+        if result_status == "FAILED" or failure_type:
+            failed_rows += 1
+            if failure_type:
+                failure_types.append(failure_type)
+        repair_seed = _row_field(
+            row,
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+            {},
+        )
+        if (
+            bool(
+                _row_field(
+                    row,
+                    "pseudo_formal_failure_repair_seed_available",
+                    False,
+                )
+            )
+            or isinstance(repair_seed, Mapping)
+            and bool(repair_seed.get("blocks", []) or [])
+        ):
+            failure_repair_seed_rows += 1
+        failure_required_target_lanes.extend(
+            _compact_string_list(
+                _row_field(
+                    row,
+                    "pseudo_formal_failure_required_target_lanes",
+                    [],
+                )
+            )
+        )
         if live_ok:
             live_rows += 1
         if routable_ok:
@@ -1498,6 +1534,12 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": (
             consumed_rows
         ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": (
+            failed_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": (
+            failure_repair_seed_rows
+        ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": (
             max_routable_work_order_rows
         ),
@@ -1521,6 +1563,12 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_row_kinds": (
             _compact_string_list(row_kinds)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": (
+            _compact_string_list(failure_required_target_lanes)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_types": (
+            _compact_string_list(failure_types)
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_boundary": (
             "Formalizer PF/BV packet component-gate learning rows show that "

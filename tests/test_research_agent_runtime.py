@@ -86206,6 +86206,99 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
             "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
         ]
     ).exists()
+    learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    pf_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_feedback"
+    ]
+    assert len(pf_rows) == 1
+    pf_row = pf_rows[0]
+    assert pf_row["capability_evidence_ok"] is False
+    assert pf_row["result_status"] == "FAILED"
+    assert pf_row["failure_type"] == "PacketValidationError"
+    assert pf_row["pseudo_formal_failure_repair_seed_available"] is True
+    assert pf_row["pseudo_formal_failure_required_target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "source_to_bridge",
+    ]
+    assert pf_row["pseudo_formal_failure_validation_issue_summary"][
+        "n_no_lane_routable_work_order_rows"
+    ] == 1
+    assert pf_row[
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed"
+    ]["blocks"][0]["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
+
+    proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": learning_rows,
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert proof_memory_summary["pseudo_formalization_required"] is True
+    assert proof_memory_summary["requires_pseudo_formalization"] is True
+    assert proof_memory_summary["pseudo_formalization_required_reason"] == (
+        "formalizer_pseudo_formal_packet_component_gate_failed_required_repair"
+    )
+    assert proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_feedback_available"
+    ] is True
+    assert proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_failure_available"
+    ] is True
+    failure_memory = proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ]
+    assert failure_memory[0]["required_target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "source_to_bridge",
+    ]
+    assert failure_memory[0]["concrete_lane_routable_repair_seed"]["blocks"][0][
+        "semantic_primitive_requirements"
+    ]
+
+    prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="pf_failure_resume",
+            title="PF failure resume",
+            description="Resume failed PF/BV packet repair.",
+            tags=("formalizer", "pseudo_formal"),
+        ),
+        theory_packet={"packet_id": "theory:pf-failure-resume"},
+        simulation_manifest={
+            "manifest_id": "simulation:pf-failure-resume",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:pf-failure-resume"},
+        registered_problem={"question_id": "pf_failure_resume"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+    prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
+    assert prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ][0]["concrete_lane_routable_repair_seed"]["blocks"][0]["source_anchors"][0][
+        "id"
+    ] == "proof_body:rank_threshold_step"
+    assert (
+        "Formalizer PF/BV packet component-gate failure memory is active"
+        in prompt
+    )
 
 
 def test_capability_eval_resume_defaults_through_configured_architect() -> None:

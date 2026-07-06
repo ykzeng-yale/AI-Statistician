@@ -5409,6 +5409,73 @@ def _formalizer_mode_specific_instructions(
         or []
         if isinstance(row, Mapping)
     ]
+    pseudo_formal_packet_gate_failure_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_failure_available",
+            False,
+        )
+        or pseudo_formal_packet_gate_failure_memory
+    ):
+        target_lanes: list[str] = []
+        issue_kinds: list[str] = []
+        manifest_paths: list[str] = []
+        for row in pseudo_formal_packet_gate_failure_memory[:3]:
+            manifest_path = str(row.get("component_eval_manifest_path", "") or "")
+            if manifest_path:
+                manifest_paths.append(manifest_path)
+            target_lanes.extend(
+                str(value).strip()
+                for value in row.get("required_target_lanes", []) or []
+                if str(value).strip()
+            )
+            issue_summary = row.get("validation_issue_summary", {})
+            if isinstance(issue_summary, Mapping):
+                issue_kinds.extend(
+                    str(value).strip()
+                    for value in issue_summary.get("blocking_issue_kinds", []) or []
+                    if str(value).strip()
+                )
+        instruction = (
+            "Formalizer PF/BV packet component-gate failure memory is active: "
+            "proof_bank_runtime_memory_summary."
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory "
+            "contains a concrete_lane_routable_repair_seed and validation issue "
+            "taxonomy from the prior failed packet eval. Copy or minimally adapt "
+            "that seed into pseudo_formal_proof_packets before changing Lean "
+            "targets. The seed is non-proof repair guidance only; do not count it "
+            "as Lean proof, source theorem proof, source faithfulness evidence, or "
+            "kernel verification. Preserve its source_anchors, conclusion, "
+            "semantic_primitive_requirements, required target lanes, and PF/BV "
+            "non-proof boundary."
+        )
+        if target_lanes:
+            instruction += (
+                " Required target lane(s): "
+                + ", ".join(list(dict.fromkeys(target_lanes))[:5])
+                + "."
+            )
+        if issue_kinds:
+            instruction += (
+                " Prior issue kind(s): "
+                + ", ".join(list(dict.fromkeys(issue_kinds))[:6])
+                + "."
+            )
+        if manifest_paths:
+            instruction += (
+                " Source component manifest(s): "
+                + ", ".join(list(dict.fromkeys(manifest_paths))[:3])
+                + "."
+            )
+        instructions.append(instruction)
     if proof_memory_summary.get("pseudo_formal_block_routing_active") or pseudo_formal_memory:
         target_lanes = [
             str(value).strip()
@@ -7877,12 +7944,16 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_repair_required",
         "formalizer_lean_candidate_proof_state_feedback_available",
         "formalizer_lean_candidate_component_gate_feedback_available",
+        "formalizer_pseudo_formal_packet_component_gate_feedback_available",
+        "formalizer_pseudo_formal_packet_component_gate_failure_available",
         "formalizer_lean_candidate_capability_feedback_available",
         "formalizer_runtime_capability_contract_feedback_available",
         "formalizer_lean_candidate_repair_manifest_paths",
         "formalizer_lean_candidate_repair_memory",
         "formalizer_lean_candidate_proof_state_feedback_memory",
         "formalizer_lean_candidate_component_gate_feedback_memory",
+        "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory",
         "formalizer_lean_candidate_capability_feedback_memory",
         "formalizer_runtime_capability_contract_feedback_memory",
         "recommended_source_theorem_integration_action",

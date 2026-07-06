@@ -3590,6 +3590,24 @@ def _runtime_formalizer_component_gate_learning_rows(
             "provider_name": provider_name,
             "backend_provider_name": backend_provider_name,
             "model": str(attached.get("model", "") or ""),
+            "result_status": result_status,
+            "failure_type": failure_type,
+            "errors": failure_errors,
+            "pseudo_formal_failure_required_target_lanes": (
+                failure_required_target_lanes
+            ),
+            "pseudo_formal_failure_validation_issue_summary": (
+                failure_issue_summary
+            ),
+            "pseudo_formal_failure_issue_specific_repair_actions": (
+                failure_issue_actions
+            ),
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+                failure_repair_seed
+            ),
+            "pseudo_formal_failure_repair_seed_available": (
+                failure_repair_seed_available
+            ),
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
             "capability_evidence_ok": capability_ok,
@@ -3781,6 +3799,59 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
     exact_semantic_definition_rows_lineage_complete = bool(
         attached.get("exact_semantic_definition_rows_lineage_complete", False)
     )
+    result_status = str(attached.get("result_status", "") or "")
+    failure_type = str(attached.get("failure_type", "") or "")
+    failure_errors = [
+        str(value)
+        for value in attached.get("errors", []) or []
+        if str(value).strip()
+    ][:8]
+    failure_required_target_lanes = [
+        str(value)
+        for value in attached.get(
+            "pseudo_formal_failure_required_target_lanes",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    failure_issue_summary = (
+        dict(attached.get("pseudo_formal_failure_validation_issue_summary", {}) or {})
+        if isinstance(
+            attached.get("pseudo_formal_failure_validation_issue_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    failure_issue_actions = [
+        dict(row)
+        for row in attached.get(
+            "pseudo_formal_failure_issue_specific_repair_actions",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ][:8]
+    failure_repair_seed = (
+        dict(
+            attached.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            )
+            or {}
+        )
+        if isinstance(
+            attached.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
+    failure_repair_seed_available = bool(
+        failure_repair_seed.get("blocks", []) if failure_repair_seed else []
+    )
     proof_evidence_status_ok = bool(attached.get("proof_evidence_status_ok", False))
     no_theorem_proof_claim = bool(attached.get("no_theorem_proof_claim", False))
     attachment_gate_recomputed = bool(
@@ -3819,6 +3890,24 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "provider_name": provider_name,
             "backend_provider_name": backend_provider_name,
             "model": str(attached.get("model", "") or ""),
+            "result_status": result_status,
+            "failure_type": failure_type,
+            "errors": failure_errors,
+            "pseudo_formal_failure_required_target_lanes": (
+                failure_required_target_lanes
+            ),
+            "pseudo_formal_failure_validation_issue_summary": (
+                failure_issue_summary
+            ),
+            "pseudo_formal_failure_issue_specific_repair_actions": (
+                failure_issue_actions
+            ),
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+                failure_repair_seed
+            ),
+            "pseudo_formal_failure_repair_seed_available": (
+                failure_repair_seed_available
+            ),
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
             "capability_evidence_ok": capability_ok,
@@ -3881,6 +3970,24 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 ),
                 "provider_name": provider_name,
                 "backend_provider_name": backend_provider_name,
+                "result_status": result_status,
+                "failure_type": failure_type,
+                "errors": failure_errors,
+                "pseudo_formal_failure_required_target_lanes": (
+                    failure_required_target_lanes
+                ),
+                "pseudo_formal_failure_validation_issue_summary": (
+                    failure_issue_summary
+                ),
+                "pseudo_formal_failure_issue_specific_repair_actions": (
+                    failure_issue_actions
+                ),
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+                    failure_repair_seed
+                ),
+                "pseudo_formal_failure_repair_seed_available": (
+                    failure_repair_seed_available
+                ),
                 "live_generator": live_generator,
                 "static_or_fixture_only": static_or_fixture_only,
                 "capability_evidence_ok": capability_ok,
@@ -38499,6 +38606,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = frozenset(
         "formalizer_lean_candidate_kernel_feedback",
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
+        "formalizer_pseudo_formal_packet_component_gate_feedback",
         "formalizer_runtime_capability_contract_feedback",
         PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
         "coding_agent_generated_code_component_gate_feedback",
@@ -39472,6 +39580,16 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         return 89
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
+    if learning_task == "formalizer_pseudo_formal_packet_component_gate_feedback":
+        if bool(
+            row.get("pseudo_formal_failure_repair_seed_available", False)
+            or input_summary.get(
+                "pseudo_formal_failure_repair_seed_available",
+                False,
+            )
+        ):
+            return 89
+        return 88
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         return 87
     exact_semantic_definition_repair_priority = (
@@ -39806,6 +39924,29 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         return (
             "formalizer_lean_candidate_component_gate_feedback:"
             + (component_manifest or provider_name or "attached")
+        )
+    if learning_task == "formalizer_pseudo_formal_packet_component_gate_feedback":
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        provider_name = str(
+            row.get("provider_name", "")
+            or input_summary.get("provider_name", "")
+            or ""
+        ).strip()
+        failure_type = str(
+            row.get("failure_type", "")
+            or input_summary.get("failure_type", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_pseudo_formal_packet_component_gate_feedback:"
+            + (component_manifest or provider_name or "attached")
+            + ":"
+            + failure_type
         )
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         question_id = str(
@@ -51085,6 +51226,191 @@ def _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feedback(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return Formalizer PF/BV packet-gate feedback from runtime memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows", []), list) else []
+    feedback_rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_pseudo_formal_packet_component_gate_feedback"
+        ):
+            continue
+        manifest_path = str(
+            row.get("component_eval_manifest_path", "")
+            or row.get("source_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        key = manifest_path or json.dumps(row, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        gate_summary = _runtime_component_gate_summary(
+            _runtime_learning_component_gate_source(row, input_summary)
+        )
+        raw_failure_seed = row.get(
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+            input_summary.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            ),
+        )
+        failure_seed = (
+            dict(raw_failure_seed)
+            if isinstance(raw_failure_seed, Mapping)
+            else {}
+        )
+        raw_issue_summary = row.get(
+            "pseudo_formal_failure_validation_issue_summary",
+            input_summary.get(
+                "pseudo_formal_failure_validation_issue_summary",
+                {},
+            ),
+        )
+        issue_summary = (
+            dict(raw_issue_summary)
+            if isinstance(raw_issue_summary, Mapping)
+            else {}
+        )
+        issue_actions = [
+            dict(item)
+            for item in row.get(
+                "pseudo_formal_failure_issue_specific_repair_actions",
+                input_summary.get(
+                    "pseudo_formal_failure_issue_specific_repair_actions",
+                    [],
+                ),
+            )
+            or []
+            if isinstance(item, Mapping)
+        ][:8]
+        feedback_rows.append(
+            {
+                "learning_task": "formalizer_pseudo_formal_packet_component_gate_feedback",
+                "component_eval": str(
+                    _runtime_learning_row_value(row, input_summary, "component_eval")
+                    or ""
+                ),
+                "component_eval_manifest_path": manifest_path,
+                "provider_name": str(gate_summary["provider_name"]),
+                "backend_provider_name": str(gate_summary["backend_provider_name"]),
+                "model": str(
+                    _runtime_learning_row_value(row, input_summary, "model") or ""
+                ),
+                "live_generator": bool(gate_summary["live_generator"]),
+                "static_or_fixture_only": bool(
+                    gate_summary["static_or_fixture_only"]
+                ),
+                "capability_evidence_ok": bool(
+                    gate_summary["capability_evidence_ok"]
+                ),
+                "fixture_plumbing_ok": bool(
+                    row.get(
+                        "fixture_plumbing_ok",
+                        input_summary.get("fixture_plumbing_ok", False),
+                    )
+                ),
+                "result_status": str(
+                    row.get("result_status", input_summary.get("result_status", ""))
+                    or ""
+                ),
+                "failure_type": str(
+                    row.get("failure_type", input_summary.get("failure_type", ""))
+                    or ""
+                ),
+                "errors": [
+                    str(value)
+                    for value in row.get("errors", input_summary.get("errors", []))
+                    or []
+                    if str(value).strip()
+                ][:8],
+                "pseudo_formal_failure_required_target_lanes": [
+                    str(value)
+                    for value in row.get(
+                        "pseudo_formal_failure_required_target_lanes",
+                        input_summary.get(
+                            "pseudo_formal_failure_required_target_lanes",
+                            [],
+                        ),
+                    )
+                    or []
+                    if str(value).strip()
+                ],
+                "pseudo_formal_failure_validation_issue_summary": issue_summary,
+                "pseudo_formal_failure_issue_specific_repair_actions": (
+                    issue_actions
+                ),
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+                    failure_seed
+                ),
+                "pseudo_formal_failure_repair_seed_available": bool(
+                    failure_seed.get("blocks", []) if failure_seed else []
+                ),
+                "pseudo_formal_routable_target_lanes": [
+                    str(value)
+                    for value in row.get(
+                        "pseudo_formal_routable_target_lanes",
+                        input_summary.get("pseudo_formal_routable_target_lanes", []),
+                    )
+                    or []
+                    if str(value).strip()
+                ],
+                "n_pseudo_formal_routable_work_order_rows": _int_like(
+                    row.get(
+                        "n_pseudo_formal_routable_work_order_rows",
+                        input_summary.get(
+                            "n_pseudo_formal_routable_work_order_rows",
+                            0,
+                        ),
+                    )
+                ),
+                "exact_semantic_definition_lane_present": bool(
+                    row.get(
+                        "exact_semantic_definition_lane_present",
+                        input_summary.get(
+                            "exact_semantic_definition_lane_present",
+                            False,
+                        ),
+                    )
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or input_summary.get("proof_evidence_status", "")
+                    or ""
+                ),
+                "boundary": str(
+                    row.get("boundary", "")
+                    or row.get("proof_evidence_boundary", "")
+                    or input_summary.get("boundary", "")
+                    or input_summary.get("proof_evidence_boundary", "")
+                    or ""
+                )[:500],
+            }
+        )
+    return tuple(feedback_rows)
+
+
 def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -52223,6 +52549,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
         _runtime_learning_memory_formalizer_lean_candidate_component_gate_feedback(
             context
         )
+    )
+    formalizer_pseudo_formal_packet_component_gate_feedback_rows = (
+        _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feedback(
+            context
+        )
+    )
+    formalizer_pseudo_formal_packet_component_gate_failure_rows = tuple(
+        row
+        for row in formalizer_pseudo_formal_packet_component_gate_feedback_rows
+        if not bool(row.get("capability_evidence_ok", False))
+        and bool(row.get("pseudo_formal_failure_repair_seed_available", False))
     )
     formalizer_lean_candidate_capability_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
@@ -53785,14 +54122,20 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "pseudo_formalization_required": bool(
             exact_semantic_definition_structural_reformulation_rows
+            or formalizer_pseudo_formal_packet_component_gate_failure_rows
         ),
         "requires_pseudo_formalization": bool(
             exact_semantic_definition_structural_reformulation_rows
+            or formalizer_pseudo_formal_packet_component_gate_failure_rows
         ),
         "pseudo_formalization_required_reason": (
             "exact_semantic_definition_structural_reformulation_required"
             if exact_semantic_definition_structural_reformulation_rows
-            else ""
+            else (
+                "formalizer_pseudo_formal_packet_component_gate_failed_required_repair"
+                if formalizer_pseudo_formal_packet_component_gate_failure_rows
+                else ""
+            )
         ),
         "source_theorem_exact_proof_body_repair_required": (
             exact_source_proof_body_repair_required
@@ -55165,6 +55508,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_component_gate_feedback_available": bool(
             formalizer_lean_candidate_component_gate_feedback_rows
         ),
+        "formalizer_pseudo_formal_packet_component_gate_feedback_available": bool(
+            formalizer_pseudo_formal_packet_component_gate_feedback_rows
+        ),
+        "formalizer_pseudo_formal_packet_component_gate_failure_available": bool(
+            formalizer_pseudo_formal_packet_component_gate_failure_rows
+        ),
         "formalizer_lean_candidate_capability_feedback_available": bool(
             formalizer_lean_candidate_capability_feedback_rows
         ),
@@ -55307,6 +55656,150 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "boundary": str(row.get("boundary", "") or ""),
             }
             for row in formalizer_lean_candidate_component_gate_feedback_rows[:3]
+        ],
+        "formalizer_pseudo_formal_packet_component_gate_feedback_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "component_eval": str(row.get("component_eval", "") or ""),
+                "component_eval_manifest_path": str(
+                    row.get("component_eval_manifest_path", "") or ""
+                ),
+                "provider_name": str(row.get("provider_name", "") or ""),
+                "model": str(row.get("model", "") or ""),
+                "live_generator": bool(row.get("live_generator", False)),
+                "static_or_fixture_only": bool(
+                    row.get("static_or_fixture_only", False)
+                ),
+                "capability_evidence_ok": bool(
+                    row.get("capability_evidence_ok", False)
+                ),
+                "fixture_plumbing_ok": bool(row.get("fixture_plumbing_ok", False)),
+                "result_status": str(row.get("result_status", "") or ""),
+                "failure_type": str(row.get("failure_type", "") or ""),
+                "errors": list(row.get("errors", []) or [])[:8],
+                "pseudo_formal_failure_required_target_lanes": list(
+                    row.get("pseudo_formal_failure_required_target_lanes", [])
+                    or []
+                )[:8],
+                "pseudo_formal_failure_validation_issue_summary": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_validation_issue_summary",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_validation_issue_summary",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "pseudo_formal_failure_issue_specific_repair_actions": [
+                    dict(item)
+                    for item in row.get(
+                        "pseudo_formal_failure_issue_specific_repair_actions",
+                        [],
+                    )
+                    or []
+                    if isinstance(item, Mapping)
+                ][:6],
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "pseudo_formal_failure_repair_seed_available": bool(
+                    row.get("pseudo_formal_failure_repair_seed_available", False)
+                ),
+                "pseudo_formal_routable_target_lanes": list(
+                    row.get("pseudo_formal_routable_target_lanes", []) or []
+                )[:8],
+                "n_pseudo_formal_routable_work_order_rows": _int_like(
+                    row.get("n_pseudo_formal_routable_work_order_rows", 0)
+                ),
+                "exact_semantic_definition_lane_present": bool(
+                    row.get("exact_semantic_definition_lane_present", False)
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_pseudo_formal_packet_component_gate_feedback_rows[:3]
+        ],
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory": [
+            {
+                "component_eval_manifest_path": str(
+                    row.get("component_eval_manifest_path", "") or ""
+                ),
+                "result_status": str(row.get("result_status", "") or ""),
+                "failure_type": str(row.get("failure_type", "") or ""),
+                "errors": list(row.get("errors", []) or [])[:8],
+                "required_target_lanes": list(
+                    row.get("pseudo_formal_failure_required_target_lanes", [])
+                    or []
+                )[:8],
+                "validation_issue_summary": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_validation_issue_summary",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_validation_issue_summary",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "issue_specific_repair_actions": [
+                    dict(item)
+                    for item in row.get(
+                        "pseudo_formal_failure_issue_specific_repair_actions",
+                        [],
+                    )
+                    or []
+                    if isinstance(item, Mapping)
+                ][:6],
+                "concrete_lane_routable_repair_seed": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_pseudo_formal_packet_component_gate_failure_rows[:3]
         ],
         "formalizer_lean_candidate_proof_state_feedback_memory": [
             {
