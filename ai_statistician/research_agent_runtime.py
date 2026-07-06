@@ -46402,13 +46402,15 @@ def _runtime_learning_memory_source_theorem_promotion_ready_unproved_targets(
             and trigger != "SOURCE_THEOREM_PROMOTION_READY_BUT_UNPROVED"
         ):
             continue
-        source_theorem_kernel_verified = bool(
+        source_theorem_kernel_verified = _bool_like(
             row.get("source_theorem_kernel_verified", False)
         )
         if isinstance(input_summary, Mapping):
             source_theorem_kernel_verified = bool(
                 source_theorem_kernel_verified
-                or input_summary.get("source_theorem_kernel_verified", False)
+                or _bool_like(
+                    input_summary.get("source_theorem_kernel_verified", False)
+                )
             )
         if source_theorem_kernel_verified:
             continue
@@ -47404,13 +47406,15 @@ def _runtime_learning_memory_source_theorem_integrator_blockers(
             and trigger not in _SOURCE_THEOREM_INTEGRATOR_BLOCKER_TRIGGERS
         ):
             continue
-        source_theorem_kernel_verified = bool(
+        source_theorem_kernel_verified = _bool_like(
             row.get("source_theorem_kernel_verified", False)
         )
         if isinstance(input_summary, Mapping):
             source_theorem_kernel_verified = bool(
                 source_theorem_kernel_verified
-                or input_summary.get("source_theorem_kernel_verified", False)
+                or _bool_like(
+                    input_summary.get("source_theorem_kernel_verified", False)
+                )
             )
         if source_theorem_kernel_verified:
             continue
@@ -47692,19 +47696,23 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             truth_proof_body_status = str(
                 input_summary.get("proof_body_status", "") or ""
             ).strip()
-        truth_proof_body_goal_reached = bool(row.get("proof_body_goal_reached", False))
+        truth_proof_body_goal_reached = _bool_like(
+            row.get("proof_body_goal_reached", False)
+        )
         if isinstance(input_summary, Mapping):
             truth_proof_body_goal_reached = bool(
                 truth_proof_body_goal_reached
-                or input_summary.get("proof_body_goal_reached", False)
+                or _bool_like(input_summary.get("proof_body_goal_reached", False))
             )
-        truth_proof_body_semantic_review_blocked = bool(
+        truth_proof_body_semantic_review_blocked = _bool_like(
             row.get("proof_body_semantic_review_blocked", False)
         )
         if isinstance(input_summary, Mapping):
             truth_proof_body_semantic_review_blocked = bool(
                 truth_proof_body_semantic_review_blocked
-                or input_summary.get("proof_body_semantic_review_blocked", False)
+                or _bool_like(
+                    input_summary.get("proof_body_semantic_review_blocked", False)
+                )
             )
         truth_proof_body_gate_open_for_kernel_repair = _bool_like(
             row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
@@ -47719,13 +47727,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     )
                 )
             )
-        truth_proof_body_attempt_blocked_before_goal = bool(
+        truth_proof_body_attempt_blocked_before_goal = _bool_like(
             row.get("proof_body_attempt_blocked_before_goal", False)
         )
         if isinstance(input_summary, Mapping):
             truth_proof_body_attempt_blocked_before_goal = bool(
                 truth_proof_body_attempt_blocked_before_goal
-                or input_summary.get("proof_body_attempt_blocked_before_goal", False)
+                or _bool_like(
+                    input_summary.get("proof_body_attempt_blocked_before_goal", False)
+                )
             )
         is_source_to_bridge_premise_derivation_feedback = (
             learning_task == "source_to_bridge_premise_derivation_feedback"
@@ -47897,13 +47907,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
         ):
             continue
-        source_theorem_kernel_verified = bool(
+        source_theorem_kernel_verified = _bool_like(
             row.get("source_theorem_kernel_verified", False)
         )
         if isinstance(input_summary, Mapping):
             source_theorem_kernel_verified = bool(
                 source_theorem_kernel_verified
-                or input_summary.get("source_theorem_kernel_verified", False)
+                or _bool_like(
+                    input_summary.get("source_theorem_kernel_verified", False)
+                )
             )
         if source_theorem_kernel_verified:
             continue
@@ -48432,11 +48444,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     f"semantic_alignment_blocker={value[:160]}"
                     for value in semantic_alignment_blockers[:3]
                 )
-            source_theorem_kernel_evidence_eligible = bool(
+            source_theorem_kernel_evidence_eligible = _bool_like(
                 row.get("source_theorem_kernel_evidence_eligible", True)
             )
             if isinstance(input_summary, Mapping):
-                source_theorem_kernel_evidence_eligible = bool(
+                source_theorem_kernel_evidence_eligible = _bool_like(
                     input_summary.get(
                         "source_theorem_kernel_evidence_eligible",
                         source_theorem_kernel_evidence_eligible,
@@ -48802,7 +48814,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 proof_body_gate_status = "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
             if proof_body_gate_status:
                 diagnostics.append(f"proof_body_gate_status={proof_body_gate_status}")
-            proof_body_goal_reached = bool(
+            proof_body_goal_reached = _bool_like(
                 input_summary.get(
                     "proof_body_goal_reached",
                     row.get("proof_body_goal_reached", False),
@@ -48816,7 +48828,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 proof_body_goal_reached = True
             if proof_body_goal_reached:
                 diagnostics.append("proof_body_goal_reached=true")
-            source_theorem_kernel_evidence_eligible = bool(
+            source_theorem_kernel_evidence_eligible = _bool_like(
                 input_summary.get("source_theorem_kernel_evidence_eligible", True)
             )
         else:
@@ -49012,27 +49024,31 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             proof_body_status = str(
                 input_summary.get("proof_body_status", "") or ""
             ).strip()
-        proof_body_goal_reached = bool(row.get("proof_body_goal_reached", False))
+        proof_body_goal_reached = _bool_like(row.get("proof_body_goal_reached", False))
         if isinstance(input_summary, Mapping):
             proof_body_goal_reached = bool(
                 proof_body_goal_reached
-                or input_summary.get("proof_body_goal_reached", False)
+                or _bool_like(input_summary.get("proof_body_goal_reached", False))
             )
-        proof_body_semantic_review_blocked = bool(
+        proof_body_semantic_review_blocked = _bool_like(
             row.get("proof_body_semantic_review_blocked", False)
         )
         if isinstance(input_summary, Mapping):
             proof_body_semantic_review_blocked = bool(
                 proof_body_semantic_review_blocked
-                or input_summary.get("proof_body_semantic_review_blocked", False)
+                or _bool_like(
+                    input_summary.get("proof_body_semantic_review_blocked", False)
+                )
             )
-        proof_body_attempt_blocked_before_goal = bool(
+        proof_body_attempt_blocked_before_goal = _bool_like(
             row.get("proof_body_attempt_blocked_before_goal", False)
         )
         if isinstance(input_summary, Mapping):
             proof_body_attempt_blocked_before_goal = bool(
                 proof_body_attempt_blocked_before_goal
-                or input_summary.get("proof_body_attempt_blocked_before_goal", False)
+                or _bool_like(
+                    input_summary.get("proof_body_attempt_blocked_before_goal", False)
+                )
             )
         proof_body_attempted = bool(row.get("proof_body_attempted", False))
         if isinstance(input_summary, Mapping):
@@ -50051,10 +50067,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                                 source_theorem_kernel_evidence_eligible
                             ),
                             "source_theorem_kernel_verified": bool(
-                                row.get("source_theorem_kernel_verified", False)
+                                _bool_like(
+                                    row.get("source_theorem_kernel_verified", False)
+                                )
                                 or (
-                                    input_summary.get(
-                                        "source_theorem_kernel_verified", False
+                                    _bool_like(
+                                        input_summary.get(
+                                            "source_theorem_kernel_verified", False
+                                        )
                                     )
                                     if isinstance(input_summary, Mapping)
                                     else False
@@ -50588,13 +50608,13 @@ def _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
     ).strip()
     trigger = str(repair.get("trigger", "") or "").strip()
     proof_body_reached = bool(
-        repair.get("proof_body_goal_reached", False)
-        or repair.get("source_theorem_exact_proof_body_reached", False)
+        _bool_like(repair.get("proof_body_goal_reached", False))
+        or _bool_like(repair.get("source_theorem_exact_proof_body_reached", False))
     )
-    source_theorem_kernel_evidence_eligible = bool(
+    source_theorem_kernel_evidence_eligible = _bool_like(
         repair.get("source_theorem_kernel_evidence_eligible", False)
     )
-    source_theorem_kernel_verified = bool(
+    source_theorem_kernel_verified = _bool_like(
         repair.get("source_theorem_kernel_verified", False)
     )
     semantic_blockers = [
@@ -55463,7 +55483,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "runtime_queue_status": str(
                         row.get("runtime_queue_status", "") or ""
                     ),
-                    "proof_body_goal_reached": bool(
+                    "proof_body_goal_reached": _bool_like(
                         row.get("proof_body_goal_reached", False)
                     ),
                     "proof_body_attempted": bool(
@@ -55602,7 +55622,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "runtime_queue_status": str(
                     row.get("runtime_queue_status", "") or ""
                 ),
-                "proof_body_goal_reached": bool(
+                "proof_body_goal_reached": _bool_like(
                     row.get("proof_body_goal_reached", False)
                 ),
                 "proof_body_attempted": bool(
@@ -55620,7 +55640,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "semantic_alignment_blockers": list(
                     row.get("semantic_alignment_blockers", []) or []
                 )[:5],
-                "source_theorem_kernel_evidence_eligible": bool(
+                "source_theorem_kernel_evidence_eligible": _bool_like(
                     row.get("source_theorem_kernel_evidence_eligible", False)
                 ),
                 "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
@@ -61676,16 +61696,20 @@ def _append_runtime_generated_next_action_rows(
             or ""
         ).strip()
         proof_body_semantic_review_blocked_for_routing = bool(
-            row.get("proof_body_semantic_review_blocked", False)
-            or input_summary.get("proof_body_semantic_review_blocked", False)
+            _bool_like(row.get("proof_body_semantic_review_blocked", False))
+            or _bool_like(
+                input_summary.get("proof_body_semantic_review_blocked", False)
+            )
         )
         proof_body_attempt_blocked_before_goal_for_routing = bool(
-            row.get("proof_body_attempt_blocked_before_goal", False)
-            or input_summary.get("proof_body_attempt_blocked_before_goal", False)
+            _bool_like(row.get("proof_body_attempt_blocked_before_goal", False))
+            or _bool_like(
+                input_summary.get("proof_body_attempt_blocked_before_goal", False)
+            )
         )
         proof_body_goal_reached_for_routing = bool(
-            row.get("proof_body_goal_reached", False)
-            or input_summary.get("proof_body_goal_reached", False)
+            _bool_like(row.get("proof_body_goal_reached", False))
+            or _bool_like(input_summary.get("proof_body_goal_reached", False))
         )
         proof_body_gate_open_for_kernel_repair = bool(
             _bool_like(
@@ -61844,14 +61868,18 @@ def _append_runtime_generated_next_action_rows(
             or ""
         ).strip()
         semantic_review_required_before_proof_body = bool(
-            row.get("semantic_review_required_before_proof_body", False)
-            or input_summary.get("semantic_review_required_before_proof_body", False)
+            _bool_like(row.get("semantic_review_required_before_proof_body", False))
+            or _bool_like(
+                input_summary.get("semantic_review_required_before_proof_body", False)
+            )
         )
         source_theorem_ready_for_exact_proof_body = bool(
-            row.get("source_theorem_ready_for_exact_proof_body", False)
-            or input_summary.get("source_theorem_ready_for_exact_proof_body", False)
+            _bool_like(row.get("source_theorem_ready_for_exact_proof_body", False))
+            or _bool_like(
+                input_summary.get("source_theorem_ready_for_exact_proof_body", False)
+            )
         )
-        source_theorem_kernel_evidence_eligible = bool(
+        source_theorem_kernel_evidence_eligible = _bool_like(
             row.get(
                 "source_theorem_kernel_evidence_eligible",
                 input_summary.get("source_theorem_kernel_evidence_eligible", True),
@@ -62531,10 +62559,10 @@ def _runtime_generated_next_action_learning_rows(
                             "source_theorem_exact_proof_body_gate_open_target_names",
                         )
                     ),
-                    "proof_body_semantic_review_blocked": bool(
+                    "proof_body_semantic_review_blocked": _bool_like(
                         row.get("proof_body_semantic_review_blocked", False)
                     ),
-                    "proof_body_attempt_blocked_before_goal": bool(
+                    "proof_body_attempt_blocked_before_goal": _bool_like(
                         row.get("proof_body_attempt_blocked_before_goal", False)
                     ),
                     "environment_repair_status": str(
@@ -62572,7 +62600,7 @@ def _runtime_generated_next_action_learning_rows(
                     "failure_classification": str(
                         row.get("failure_classification", "") or ""
                     ),
-                    "source_theorem_kernel_evidence_eligible": bool(
+                    "source_theorem_kernel_evidence_eligible": _bool_like(
                         row.get("source_theorem_kernel_evidence_eligible", True)
                     ),
                     "recommended_next_action": recommended_next_action,

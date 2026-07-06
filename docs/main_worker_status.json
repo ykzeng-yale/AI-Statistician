@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T21:40:00Z",
+  "updated_at": "2026-07-06T21:45:45Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1131,6 +1131,18 @@
       "runtime_proof_body_slice_tests": 68,
       "routing_boundary": "AgentRuntime now parses serialized gate-open booleans with string-aware normalization before promotion work-order routing, truth-table next-action routing, and generated-learning compaction. A JSONL value of \"false\" no longer opens the exact proof-body kernel-repair lane.",
       "proof_boundary": "This is routing truth maintenance only. It prevents false-positive proof-body gate-open state and does not promote any source theorem, adapter, premise derivation, or semantic-definition row to proof evidence."
+    },
+    "proof_body_runtime_evidence_boolean_normalization_patch": {
+      "status": "implemented",
+      "component": "research_agent_runtime",
+      "new_regression_tests": [
+        "test_gate_open_string_false_goal_reached_stays_closed_in_promotion",
+        "test_generated_next_action_string_false_goal_reached_blocks_exact_repair",
+        "test_generated_next_action_string_true_semantic_blocker_wins_gate_open"
+      ],
+      "runtime_proof_body_slice_tests": 68,
+      "routing_boundary": "AgentRuntime now parses serialized proof_body_goal_reached, proof_body_semantic_review_blocked, proof_body_attempt_blocked_before_goal, source_theorem_kernel_evidence_eligible, and source_theorem_kernel_verified values with the same string-aware bool normalization used for gate-open routing. A serialized \"false\" goal-reached row can no longer open exact proof-body repair, and a serialized \"true\" semantic-review blocker wins over gate-open hints.",
+      "proof_boundary": "This only preserves the truth of routing/evidence gates across JSONL compaction. It does not mark any exact source theorem, adapter, premise derivation, or semantic-definition artifact as kernel proof evidence."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2495,6 +2507,10 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body_gate_open or gate_open_string_false or runtime_truth_table_gate_open or proof_body_adapter\" # 8 passed, 881 deselected after proof-body gate-open runtime bool-normalization patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 821 deselected after proof-body gate-open runtime bool-normalization patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body gate-open runtime bool-normalization patch",
-    "git diff --check # passed after proof-body gate-open runtime bool-normalization patch"
+    "git diff --check # passed after proof-body gate-open runtime bool-normalization patch",
+    "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after proof-body runtime evidence boolean-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_gate_open_string_false_does_not_route_exact_proof_body_repair tests/test_research_agent_runtime.py::test_gate_open_string_false_goal_reached_stays_closed_in_promotion tests/test_research_agent_runtime.py::test_generated_next_action_gate_open_string_false_stays_closed tests/test_research_agent_runtime.py::test_generated_next_action_string_false_goal_reached_blocks_exact_repair tests/test_research_agent_runtime.py::test_generated_next_action_string_true_semantic_blocker_wins_gate_open -q # 5 passed after proof-body runtime evidence boolean-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body_gate_open or gate_open_string_false or string_false_goal_reached or string_true_semantic_blocker or runtime_truth_table_gate_open or proof_body_adapter\" # 11 passed, 881 deselected after proof-body runtime evidence boolean-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 824 deselected after proof-body runtime evidence boolean-normalization patch"
   ]
 }
