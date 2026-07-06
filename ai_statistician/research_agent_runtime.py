@@ -613,6 +613,115 @@ def _runtime_manifest_int_sum(payload: Mapping[str, Any], keys: tuple[str, ...])
     return sum(_runtime_manifest_int(payload, key) for key in keys)
 
 
+def _runtime_manifest_string_list(payload: Mapping[str, Any], key: str) -> list[str]:
+    value = payload.get(key, [])
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if str(item).strip()]
+    return []
+
+
+def _runtime_attach_proof_body_pf_lineage_counters(
+    manifest: dict[str, Any],
+    *,
+    prefix: str,
+    executor_manifest: Mapping[str, Any] | None,
+) -> None:
+    """Copy PF-origin proof-body executor counters without changing proof status."""
+
+    source = executor_manifest or {}
+    manifest[f"{prefix}_n_result_rows_from_pseudo_formal"] = _runtime_manifest_int(
+        source,
+        "n_execution_result_rows_from_pseudo_formal",
+    )
+    manifest[
+        f"{prefix}_n_result_rows_from_formalizer_pf_component_gate"
+    ] = _runtime_manifest_int(
+        source,
+        "n_execution_result_rows_from_formalizer_pf_component_gate",
+    )
+    manifest[
+        f"{prefix}_n_local_lean_checked_from_pseudo_formal"
+    ] = _runtime_manifest_int(source, "n_local_lean_checked_from_pseudo_formal")
+    manifest[
+        f"{prefix}_n_local_lean_checked_from_formalizer_pf_component_gate"
+    ] = _runtime_manifest_int(
+        source,
+        "n_local_lean_checked_from_formalizer_pf_component_gate",
+    )
+    manifest[
+        f"{prefix}_n_proof_body_goal_reached_from_pseudo_formal"
+    ] = _runtime_manifest_int(source, "n_proof_body_goal_reached_from_pseudo_formal")
+    manifest[
+        f"{prefix}_n_proof_body_goal_reached_from_formalizer_pf_component_gate"
+    ] = _runtime_manifest_int(
+        source,
+        "n_proof_body_goal_reached_from_formalizer_pf_component_gate",
+    )
+    manifest[
+        f"{prefix}_n_source_theorem_kernel_verified_from_pseudo_formal"
+    ] = _runtime_manifest_int(
+        source,
+        "n_source_theorem_kernel_verified_from_pseudo_formal",
+    )
+    manifest[
+        f"{prefix}_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate"
+    ] = _runtime_manifest_int(
+        source,
+        "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
+    )
+    manifest[f"{prefix}_source_pseudo_formal_work_order_ids"] = (
+        _runtime_manifest_string_list(source, "source_pseudo_formal_work_order_ids")
+    )
+    manifest[f"{prefix}_source_pseudo_formal_block_ids"] = (
+        _runtime_manifest_string_list(source, "source_pseudo_formal_block_ids")
+    )
+    manifest[f"{prefix}_formalizer_pf_component_gate_exact_rows_jsonl_paths"] = (
+        _runtime_manifest_string_list(
+            source,
+            "formalizer_pf_component_gate_exact_rows_jsonl_paths",
+        )
+    )
+
+
+def _runtime_attach_aggregate_proof_body_pf_lineage_counters(
+    manifest: dict[str, Any],
+    *,
+    prefix: str,
+    executor_manifests: Sequence[Mapping[str, Any]],
+) -> None:
+    source_rows = [row for row in executor_manifests if isinstance(row, Mapping)]
+    aggregate: dict[str, Any] = {}
+    for key in (
+        "n_execution_result_rows_from_pseudo_formal",
+        "n_execution_result_rows_from_formalizer_pf_component_gate",
+        "n_local_lean_checked_from_pseudo_formal",
+        "n_local_lean_checked_from_formalizer_pf_component_gate",
+        "n_proof_body_goal_reached_from_pseudo_formal",
+        "n_proof_body_goal_reached_from_formalizer_pf_component_gate",
+        "n_source_theorem_kernel_verified_from_pseudo_formal",
+        "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
+    ):
+        aggregate[key] = sum(_runtime_manifest_int(row, key) for row in source_rows)
+    for key in (
+        "source_pseudo_formal_work_order_ids",
+        "source_pseudo_formal_block_ids",
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths",
+    ):
+        values: list[str] = []
+        for row in source_rows:
+            for value in _runtime_manifest_string_list(row, key):
+                if value not in values:
+                    values.append(value)
+        aggregate[key] = values
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=prefix,
+        executor_manifest=aggregate,
+    )
+
+
 def _runtime_formalizer_lean_candidate_kernel_boundary_fields(
     payload: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -32516,6 +32625,16 @@ def run_research_agent_runtime(
         int(row.get("n_source_theorem_kernel_verified", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifests
     )
+    _runtime_attach_aggregate_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_semantic_definition_late_typechecked_review_"
+            "verifier_approved_proof_body_recheck_executor"
+        ),
+        executor_manifests=(
+            late_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifests
+        ),
+    )
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran"
     ] = bool(
@@ -32544,6 +32663,16 @@ def run_research_agent_runtime(
     ] = sum(
         int(row.get("n_source_theorem_kernel_verified", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
+    )
+    _runtime_attach_aggregate_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_semantic_definition_late_typechecked_review_"
+            "proof_body_recheck_executor"
+        ),
+        executor_manifests=(
+            late_source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifests
+        ),
     )
     manifest[
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached"
@@ -33077,6 +33206,16 @@ def run_research_agent_runtime(
             or {}
         ).get("n_source_theorem_kernel_verified", 0)
         or 0
+    )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_semantic_definition_authoring_retry_materialized_"
+            "typechecked_review_verifier_approved_proof_body_recheck_executor"
+        ),
+        executor_manifest=(
+            source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_executor_manifest
+        ),
     )
     manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_runtime_learning_rows"
@@ -34490,6 +34629,16 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_source_theorem_kernel_verified"
     ] = primary_typechecked_review_recheck_executor_n_source_theorem_kernel_verified
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_semantic_definition_typechecked_review_"
+            "proof_body_recheck_executor"
+        ),
+        executor_manifest=(
+            source_theorem_exact_semantic_definition_typechecked_review_recheck_executor_manifest
+        ),
+    )
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached"
     ] = int(
@@ -35252,6 +35401,16 @@ def run_research_agent_runtime(
         ).get("n_source_theorem_kernel_verified", 0)
         or 0
     )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_"
+            "verifier_approved_proof_body_recheck_executor"
+        ),
+        executor_manifest=(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_recheck_executor_manifest
+        ),
+    )
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_runtime_learning_rows"
     ] = len(
@@ -35298,6 +35457,16 @@ def run_research_agent_runtime(
             or {}
         ).get("n_source_theorem_kernel_verified", 0)
         or 0
+    )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_"
+            "proof_body_recheck_executor"
+        ),
+        executor_manifest=(
+            source_theorem_exact_semantic_definition_materialized_typechecked_review_recheck_executor_manifest
+        ),
     )
     manifest[
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached"
@@ -35852,6 +36021,13 @@ def run_research_agent_runtime(
             or {}
         ).get("n_source_theorem_kernel_verified", 0)
         or 0
+    )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix="source_theorem_exact_semantic_definition_proof_body_recheck_executor",
+        executor_manifest=(
+            source_theorem_exact_semantic_definition_proof_body_recheck_executor_manifest
+        ),
     )
     manifest[
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached"

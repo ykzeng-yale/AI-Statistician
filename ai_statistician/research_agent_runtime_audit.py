@@ -190,6 +190,33 @@ def _compact_string_list(values: Any) -> list[str]:
     return list(dict.fromkeys(compacted))
 
 
+def _copy_proof_body_pf_lineage_counters(
+    *,
+    target: dict[str, Any],
+    source: Mapping[str, Any],
+    prefix: str,
+) -> None:
+    for suffix in (
+        "n_result_rows_from_pseudo_formal",
+        "n_result_rows_from_formalizer_pf_component_gate",
+        "n_local_lean_checked_from_pseudo_formal",
+        "n_local_lean_checked_from_formalizer_pf_component_gate",
+        "n_proof_body_goal_reached_from_pseudo_formal",
+        "n_proof_body_goal_reached_from_formalizer_pf_component_gate",
+        "n_source_theorem_kernel_verified_from_pseudo_formal",
+        "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
+    ):
+        key = f"{prefix}_{suffix}"
+        target[key] = int(source.get(key, 0) or 0)
+    for suffix in (
+        "source_pseudo_formal_work_order_ids",
+        "source_pseudo_formal_block_ids",
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths",
+    ):
+        key = f"{prefix}_{suffix}"
+        target[key] = _compact_string_list(source.get(key, []))
+
+
 def _runtime_learning_candidate_materialization_summary(
     learning_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
@@ -10695,6 +10722,21 @@ def audit_research_agent_runtime(
             "full frontier theorem proof remains false unless a separate kernel-verified reduction closes formal gaps",
         ],
     }
+    for proof_body_prefix in (
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor",
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor",
+    ):
+        _copy_proof_body_pf_lineage_counters(
+            target=payload,
+            source=manifest,
+            prefix=proof_body_prefix,
+        )
     payload["runtime_architect_control_status"] = _runtime_architect_control_status(
         payload
     )
@@ -24043,8 +24085,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran')} "
                 "executor_results="
                 f"{exact_semantic_definition_candidate_synthesis_recheck_executor_results} "
+                "pf_executor_results="
+                f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows_from_pseudo_formal')} "
+                "pf_component_gate_executor_results="
+                f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate')} "
                 "source_kernel="
                 f"{exact_semantic_definition_candidate_synthesis_recheck_executor_source_kernel} "
+                "pf_component_gate_source_kernel="
+                f"{payload.get('source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate')} "
                 "executor_output_rows="
                 f"{exact_semantic_definition_candidate_synthesis_recheck_executor_output_rows} "
                 "skipped="
@@ -24232,6 +24280,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_ran')} "
                 "materialized_result_rows="
                 f"{materialized_typechecked_review_recheck_executor_results} "
+                "materialized_pf_result_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows_from_pseudo_formal')} "
+                "materialized_pf_component_gate_result_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate')} "
                 "materialized_source_kernel_verified="
                 f"{materialized_typechecked_review_recheck_executor_source_kernel} "
                 "materialized_output_rows="
@@ -24242,6 +24294,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran')} "
                 "materialized_verifier_approved_result_rows="
                 f"{materialized_typechecked_review_verifier_approved_recheck_executor_results} "
+                "materialized_verifier_approved_pf_component_gate_result_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate')} "
                 "materialized_verifier_approved_source_kernel_verified="
                 f"{materialized_typechecked_review_verifier_approved_recheck_executor_source_kernel} "
                 "materialized_verifier_approved_output_rows="
@@ -24262,6 +24316,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_ran')} "
                 "late_result_rows="
                 f"{late_typechecked_review_recheck_executor_results} "
+                "late_pf_result_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows_from_pseudo_formal')} "
+                "late_pf_component_gate_result_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate')} "
                 "late_source_kernel_verified="
                 f"{late_typechecked_review_recheck_executor_source_kernel} "
                 "late_output_rows="
@@ -24272,6 +24330,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_ran')} "
                 "late_verifier_approved_result_rows="
                 f"{late_typechecked_review_verifier_approved_recheck_executor_results} "
+                "late_verifier_approved_pf_component_gate_result_rows="
+                f"{payload.get('source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate')} "
                 "late_verifier_approved_source_kernel_verified="
                 f"{late_typechecked_review_verifier_approved_recheck_executor_source_kernel} "
                 "late_verifier_approved_output_rows="

@@ -72442,7 +72442,13 @@ def test_runtime_audit_counts_candidate_synthesis_recheck_kernel_evidence(
         "source_theorem_exact_semantic_definition_candidate_synthesis_n_proof_body_recheck_queue_rows": 1,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran": True,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate": 1,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths": [
+            "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+        ],
         **_target_bound_source_theorem_payload(),
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_dominant_failure_classification": "",
         "n_full_frontier_theorem_proved": 0,
@@ -72464,10 +72470,22 @@ def test_runtime_audit_counts_candidate_synthesis_recheck_kernel_evidence(
         ]
         == 1
     )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate"
+        ]
+        == 1
+    )
+    assert audit[
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] == ["runs/formalizer_pf/exact_semantic_definition_rows.jsonl"]
     assert audit["evidence_truth_table"]["source_theorem_kernel_verified"] is True
     assert scorecard_rows[
         "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
     ]["passed"] is True
+    assert "pf_component_gate_executor_results=1" in scorecard_rows[
+        "exact_semantic_definition_candidate_synthesis_recheck_executor_not_dropped"
+    ]["evidence"]
     assert scorecard_rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     report = (runtime_dir / "audit" / "research_agent_runtime_audit.md").read_text(
         encoding="utf-8"
@@ -72475,6 +72493,66 @@ def test_runtime_audit_counts_candidate_synthesis_recheck_kernel_evidence(
     assert "source-theorem kernel verified total: 1" in report
     assert "candidate-synthesis proof-body recheck: queue_rows=1" in report
     assert "source_kernel_verified=1" in report
+
+
+def test_runtime_attaches_proof_body_pf_component_gate_lineage_counters() -> None:
+    manifest: dict[str, object] = {}
+    runtime_module._runtime_attach_aggregate_proof_body_pf_lineage_counters(
+        manifest,
+        prefix="exact_route",
+        executor_manifests=[
+            {
+                "n_execution_result_rows_from_pseudo_formal": 1,
+                "n_execution_result_rows_from_formalizer_pf_component_gate": 1,
+                "n_local_lean_checked_from_pseudo_formal": 1,
+                "n_local_lean_checked_from_formalizer_pf_component_gate": 1,
+                "n_proof_body_goal_reached_from_pseudo_formal": 0,
+                "n_proof_body_goal_reached_from_formalizer_pf_component_gate": 0,
+                "n_source_theorem_kernel_verified_from_pseudo_formal": 0,
+                "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate": 0,
+                "source_pseudo_formal_work_order_ids": ["pf:coverage"],
+                "source_pseudo_formal_block_ids": ["pf:block:coverage"],
+                "formalizer_pf_component_gate_exact_rows_jsonl_paths": [
+                    "runs/formalizer_pf/exact_rows.jsonl"
+                ],
+            },
+            {
+                "n_execution_result_rows_from_pseudo_formal": 2,
+                "n_execution_result_rows_from_formalizer_pf_component_gate": 1,
+                "source_pseudo_formal_work_order_ids": [
+                    "pf:coverage",
+                    "pf:rank",
+                ],
+                "formalizer_pf_component_gate_exact_rows_jsonl_paths": [
+                    "runs/formalizer_pf/exact_rows.jsonl",
+                    "runs/formalizer_pf/exact_rows_retry.jsonl",
+                ],
+            },
+        ],
+    )
+
+    assert manifest["exact_route_n_result_rows_from_pseudo_formal"] == 3
+    assert (
+        manifest["exact_route_n_result_rows_from_formalizer_pf_component_gate"]
+        == 2
+    )
+    assert manifest["exact_route_n_local_lean_checked_from_pseudo_formal"] == 1
+    assert (
+        manifest[
+            "exact_route_n_local_lean_checked_from_formalizer_pf_component_gate"
+        ]
+        == 1
+    )
+    assert manifest["exact_route_source_pseudo_formal_work_order_ids"] == [
+        "pf:coverage",
+        "pf:rank",
+    ]
+    assert manifest[
+        "exact_route_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] == [
+        "runs/formalizer_pf/exact_rows.jsonl",
+        "runs/formalizer_pf/exact_rows_retry.jsonl",
+    ]
 
 
 def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() -> None:
