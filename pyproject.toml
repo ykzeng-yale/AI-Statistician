@@ -29,3 +29,5 @@ ai-statistician = "ai_statistician.cli:main"
 [tool.setuptools.packages.find]
 include = ["ai_statistician*"]
 
+[tool.setuptools.package-data]
+ai_statistician = ["policies/*.json"]
