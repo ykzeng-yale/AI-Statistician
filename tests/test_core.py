@@ -275,6 +275,7 @@ from ai_statistician.research_system_audit import (
     _research_agent_runtime_exact_semantic_definition_authoring_count_rollup,
     _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup,
     _research_agent_runtime_capability_gap_routing_followup_commands,
+    _research_system_full_ai_statistician_readiness,
     _research_agent_runtime_target_bound_kernel_count_rollup,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
@@ -7580,6 +7581,58 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_full_frontier_kernel_verified_matching_target_ids"
             ],
             ["frontier:target"],
+        )
+
+    def test_research_system_full_readiness_separates_gate_health_from_runtime_capability(
+        self,
+    ) -> None:
+        readiness = _research_system_full_ai_statistician_readiness(
+            {
+                "all_gates_passed": True,
+                "counts": {
+                    "research_agent_runtime_audit_requested": True,
+                    "research_agent_runtime_audit_available": True,
+                    "research_agent_runtime_audit_source": (
+                        "system_generated_offline_runtime_smoke"
+                    ),
+                    "research_agent_runtime_capability_ready_for_full_ai_statistician": False,
+                    "research_agent_runtime_capability_status": (
+                        "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+                    ),
+                },
+            }
+        )
+
+        self.assertFalse(readiness["ready_for_full_ai_statistician"])
+        self.assertEqual(
+            readiness["full_ai_statistician_readiness_status"],
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+        self.assertIn(
+            "all_gates_passed only means audit artifacts completed",
+            readiness["full_ai_statistician_readiness_boundary"],
+        )
+        self.assertIn(
+            "research_agent_runtime_capability_ready_for_full_ai_statistician=true",
+            readiness["full_ai_statistician_readiness_boundary"],
+        )
+
+        ready = _research_system_full_ai_statistician_readiness(
+            {
+                "all_gates_passed": True,
+                "counts": {
+                    "research_agent_runtime_audit_requested": True,
+                    "research_agent_runtime_audit_available": True,
+                    "research_agent_runtime_audit_source": "configured_runtime_dir",
+                    "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                    "research_agent_runtime_capability_status": "READY",
+                },
+            }
+        )
+        self.assertTrue(ready["ready_for_full_ai_statistician"])
+        self.assertEqual(
+            ready["full_ai_statistician_readiness_status"],
+            "READY_FOR_FULL_AI_STATISTICIAN",
         )
 
     def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:
@@ -23382,6 +23435,27 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"]["research_agent_runtime_capability_status"],
             "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+        self.assertTrue(payload["all_gates_passed"])
+        self.assertFalse(payload["ready_for_full_ai_statistician"])
+        self.assertFalse(payload["counts"]["system_ready_for_full_ai_statistician"])
+        self.assertEqual(
+            payload["full_ai_statistician_readiness_status"],
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+        self.assertEqual(
+            payload["counts"]["system_full_ai_statistician_readiness_status"],
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+        self.assertIn(
+            "all_gates_passed only means audit artifacts completed",
+            payload["full_ai_statistician_readiness_boundary"],
+        )
+        self.assertEqual(
+            payload[
+                "full_ai_statistician_readiness_runtime_audit_source"
+            ],
+            "system_generated_offline_runtime_smoke",
         )
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 1)
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_ok"], 1)

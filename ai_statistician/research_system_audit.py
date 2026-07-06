@@ -9828,11 +9828,124 @@ async def run_research_system_audit(
         out_dir / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance.md"
     )
     payload["all_gates_passed"] = all(bool(value) for value in payload["gates"].values())
+    full_readiness = _research_system_full_ai_statistician_readiness(payload)
+    payload.update(full_readiness)
+    payload["counts"].update(
+        {
+            "system_ready_for_full_ai_statistician": full_readiness[
+                "ready_for_full_ai_statistician"
+            ],
+            "system_full_ai_statistician_readiness_status": full_readiness[
+                "full_ai_statistician_readiness_status"
+            ],
+            "system_full_ai_statistician_readiness_boundary": full_readiness[
+                "full_ai_statistician_readiness_boundary"
+            ],
+            "system_full_ai_statistician_readiness_runtime_capability_status": (
+                full_readiness[
+                    "full_ai_statistician_readiness_runtime_capability_status"
+                ]
+            ),
+            "system_full_ai_statistician_readiness_runtime_audit_source": (
+                full_readiness[
+                    "full_ai_statistician_readiness_runtime_audit_source"
+                ]
+            ),
+        }
+    )
     (out_dir / "research_system_audit_manifest.json").write_text(
         json.dumps(payload, indent=2, default=str),
         encoding="utf-8",
     )
     return payload
+
+
+def _research_system_full_ai_statistician_readiness(
+    payload: Mapping[str, Any],
+) -> dict[str, object]:
+    """Separate audit artifact health from full autonomous-lab readiness."""
+
+    counts_value = payload.get("counts", {})
+    counts = counts_value if isinstance(counts_value, Mapping) else {}
+    all_gates_passed = bool(payload.get("all_gates_passed", False))
+    runtime_requested = bool(
+        counts.get("research_agent_runtime_audit_requested", False)
+    )
+    runtime_available = bool(
+        counts.get("research_agent_runtime_audit_available", False)
+    )
+    runtime_ready = bool(
+        counts.get(
+            "research_agent_runtime_capability_ready_for_full_ai_statistician",
+            False,
+        )
+    )
+    runtime_status = str(
+        counts.get("research_agent_runtime_capability_status", "") or ""
+    )
+    runtime_source = str(
+        counts.get("research_agent_runtime_audit_source", "") or ""
+    )
+    if not runtime_status:
+        runtime_status = (
+            "NOT_REQUESTED"
+            if not runtime_requested
+            else "MISSING"
+            if not runtime_available
+            else "UNKNOWN"
+        )
+    ready = bool(
+        all_gates_passed
+        and runtime_requested
+        and runtime_available
+        and runtime_ready
+    )
+    if ready:
+        status = "READY_FOR_FULL_AI_STATISTICIAN"
+        boundary = (
+            "all system audit gates passed and the AgentRuntime capability audit "
+            "reported ready_for_full_ai_statistician=true"
+        )
+    elif not all_gates_passed:
+        status = "AUDIT_GATES_FAILED"
+        boundary = (
+            "one or more system audit artifact gates failed; full AI Statistician "
+            "readiness is unavailable until artifact health and runtime capability "
+            "readiness both pass"
+        )
+    elif not runtime_requested:
+        status = "RUNTIME_CAPABILITY_AUDIT_NOT_REQUESTED"
+        boundary = (
+            "all_gates_passed only means audit artifacts completed; full AI "
+            "Statistician readiness requires an AgentRuntime capability audit"
+        )
+    elif not runtime_available:
+        status = "RUNTIME_CAPABILITY_AUDIT_MISSING"
+        boundary = (
+            "all_gates_passed only means audit artifacts completed; full AI "
+            "Statistician readiness requires an available AgentRuntime capability "
+            "audit manifest"
+        )
+    else:
+        status = runtime_status
+        boundary = (
+            "all_gates_passed only means audit artifacts completed; full AI "
+            "Statistician readiness additionally requires "
+            "research_agent_runtime_capability_ready_for_full_ai_statistician=true "
+            "with authoritative runtime evidence. Current AgentRuntime capability "
+            f"status is {runtime_status} from {runtime_source or 'unknown source'}."
+        )
+    return {
+        "ready_for_full_ai_statistician": ready,
+        "full_ai_statistician_readiness_status": status,
+        "full_ai_statistician_readiness_boundary": boundary,
+        "full_ai_statistician_readiness_all_gates_passed": all_gates_passed,
+        "full_ai_statistician_readiness_runtime_audit_requested": runtime_requested,
+        "full_ai_statistician_readiness_runtime_audit_available": runtime_available,
+        "full_ai_statistician_readiness_runtime_capability_ready": runtime_ready,
+        "full_ai_statistician_readiness_runtime_capability_status": runtime_status,
+        "full_ai_statistician_readiness_runtime_audit_source": runtime_source,
+    }
 
 
 def _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup(
