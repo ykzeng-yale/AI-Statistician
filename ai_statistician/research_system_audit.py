@@ -9795,6 +9795,7 @@ async def run_research_system_audit(
         payload["artifacts"]["architect_research_path_policy_eval"] = str(
             architect_policy_eval_manifest["manifest_path"]
         )
+    _apply_research_system_full_ai_statistician_readiness(payload)
     evaluation_benchmark_guidance_manifest = build_evaluation_benchmark_guidance(
         out_dir / "evaluation_benchmark_guidance",
         system_audit_payload=payload,
@@ -9828,31 +9829,7 @@ async def run_research_system_audit(
         out_dir / "evaluation_benchmark_guidance" / "evaluation_benchmark_guidance.md"
     )
     payload["all_gates_passed"] = all(bool(value) for value in payload["gates"].values())
-    full_readiness = _research_system_full_ai_statistician_readiness(payload)
-    payload.update(full_readiness)
-    payload["counts"].update(
-        {
-            "system_ready_for_full_ai_statistician": full_readiness[
-                "ready_for_full_ai_statistician"
-            ],
-            "system_full_ai_statistician_readiness_status": full_readiness[
-                "full_ai_statistician_readiness_status"
-            ],
-            "system_full_ai_statistician_readiness_boundary": full_readiness[
-                "full_ai_statistician_readiness_boundary"
-            ],
-            "system_full_ai_statistician_readiness_runtime_capability_status": (
-                full_readiness[
-                    "full_ai_statistician_readiness_runtime_capability_status"
-                ]
-            ),
-            "system_full_ai_statistician_readiness_runtime_audit_source": (
-                full_readiness[
-                    "full_ai_statistician_readiness_runtime_audit_source"
-                ]
-            ),
-        }
-    )
+    _apply_research_system_full_ai_statistician_readiness(payload)
     (out_dir / "research_system_audit_manifest.json").write_text(
         json.dumps(payload, indent=2, default=str),
         encoding="utf-8",
@@ -9946,6 +9923,39 @@ def _research_system_full_ai_statistician_readiness(
         "full_ai_statistician_readiness_runtime_capability_status": runtime_status,
         "full_ai_statistician_readiness_runtime_audit_source": runtime_source,
     }
+
+
+def _apply_research_system_full_ai_statistician_readiness(
+    payload: dict[str, Any],
+) -> dict[str, object]:
+    full_readiness = _research_system_full_ai_statistician_readiness(payload)
+    payload.update(full_readiness)
+    counts = payload.setdefault("counts", {})
+    if isinstance(counts, dict):
+        counts.update(
+            {
+                "system_ready_for_full_ai_statistician": full_readiness[
+                    "ready_for_full_ai_statistician"
+                ],
+                "system_full_ai_statistician_readiness_status": full_readiness[
+                    "full_ai_statistician_readiness_status"
+                ],
+                "system_full_ai_statistician_readiness_boundary": full_readiness[
+                    "full_ai_statistician_readiness_boundary"
+                ],
+                "system_full_ai_statistician_readiness_runtime_capability_status": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_runtime_capability_status"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_runtime_audit_source": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_runtime_audit_source"
+                    ]
+                ),
+            }
+        )
+    return full_readiness
 
 
 def _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup(

@@ -23457,6 +23457,31 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             "system_generated_offline_runtime_smoke",
         )
+        guidance_manifest = json.loads(
+            Path(payload["artifacts"]["evaluation_benchmark_guidance"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        guidance_s13 = next(
+            row
+            for row in guidance_manifest["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertFalse(
+            guidance_s13["key_counts"]["system_ready_for_full_ai_statistician"]
+        )
+        self.assertEqual(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_status"
+            ],
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+        self.assertIn(
+            "all_gates_passed only means audit artifacts completed",
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_boundary"
+            ],
+        )
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 1)
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_ok"], 1)
         self.assertEqual(

@@ -331,6 +331,11 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_cross_task_theorem_family_rows_with_explicit_family",
                         "research_agent_runtime_cross_task_theorem_family_rows_with_target_bound_kernel",
                         "research_agent_runtime_cross_task_theorem_family_rows_with_open_formal_gaps",
+                        "system_ready_for_full_ai_statistician",
+                        "system_full_ai_statistician_readiness_status",
+                        "system_full_ai_statistician_readiness_boundary",
+                        "system_full_ai_statistician_readiness_runtime_capability_status",
+                        "system_full_ai_statistician_readiness_runtime_audit_source",
                     }
                 },
                 "suite_rows": [asdict(row) for row in suite_rows],
@@ -2561,6 +2566,21 @@ def _suite_rows(
                 ),
                 "research_agent_runtime_capability_status": counts.get(
                     "research_agent_runtime_capability_status"
+                ),
+                "system_ready_for_full_ai_statistician": counts.get(
+                    "system_ready_for_full_ai_statistician"
+                ),
+                "system_full_ai_statistician_readiness_status": counts.get(
+                    "system_full_ai_statistician_readiness_status"
+                ),
+                "system_full_ai_statistician_readiness_boundary": counts.get(
+                    "system_full_ai_statistician_readiness_boundary"
+                ),
+                "system_full_ai_statistician_readiness_runtime_capability_status": counts.get(
+                    "system_full_ai_statistician_readiness_runtime_capability_status"
+                ),
+                "system_full_ai_statistician_readiness_runtime_audit_source": counts.get(
+                    "system_full_ai_statistician_readiness_runtime_audit_source"
                 ),
                 "research_agent_runtime_architect_enabled": counts.get(
                     "research_agent_runtime_architect_enabled"
