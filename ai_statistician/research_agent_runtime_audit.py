@@ -1333,6 +1333,10 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     consumed_rows = 0
     max_routable_work_order_rows = 0
     manifest_paths: list[str] = []
+    work_order_rows_paths: list[str] = []
+    routable_work_order_rows_paths: list[str] = []
+    exact_semantic_definition_rows_paths: list[str] = []
+    diagnostic_work_order_rows_paths: list[str] = []
     target_lanes: list[str] = []
     row_kinds: list[str] = []
 
@@ -1361,6 +1365,18 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         ).strip()
         if manifest_path:
             manifest_paths.append(manifest_path)
+        for key, collector in (
+            ("work_order_rows_jsonl", work_order_rows_paths),
+            ("routable_work_order_rows_jsonl", routable_work_order_rows_paths),
+            (
+                "exact_semantic_definition_rows_jsonl",
+                exact_semantic_definition_rows_paths,
+            ),
+            ("diagnostic_work_order_rows_jsonl", diagnostic_work_order_rows_paths),
+        ):
+            path_value = str(_row_field(row, key, "") or "").strip()
+            if path_value:
+                collector.append(path_value)
         row_target_lanes = _compact_string_list(
             _row_field(row, "pseudo_formal_routable_target_lanes", [])
         )
@@ -1438,6 +1454,18 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_manifest_paths": (
             _compact_string_list(manifest_paths)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_work_order_rows_paths": (
+            _compact_string_list(work_order_rows_paths)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_work_order_rows_paths": (
+            _compact_string_list(routable_work_order_rows_paths)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_semantic_definition_rows_paths": (
+            _compact_string_list(exact_semantic_definition_rows_paths)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_diagnostic_work_order_rows_paths": (
+            _compact_string_list(diagnostic_work_order_rows_paths)
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_target_lanes": (
             _compact_string_list(target_lanes)

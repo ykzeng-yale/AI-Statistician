@@ -285,6 +285,49 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     assert "not theorem proof evidence" in manifest["boundary"]
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
     assert Path(manifest["artifacts"]["result_json"]).exists()
+    assert Path(manifest["artifacts"]["work_order_rows_jsonl"]).exists()
+    assert Path(manifest["artifacts"]["routable_work_order_rows_jsonl"]).exists()
+    assert Path(
+        manifest["artifacts"]["exact_semantic_definition_rows_jsonl"]
+    ).exists()
+    exact_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["exact_semantic_definition_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(exact_rows) == 1
+    assert exact_rows[0]["target_lane"] == (
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+    )
+    assert exact_rows[0]["semantic_primitive_requirements"] == [
+        "coverage_event"
+    ]
+    assert exact_rows[0]["source_anchors"][0]["id"] == (
+        "proof_body:rank_threshold_step"
+    )
+    diagnostic_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["diagnostic_work_order_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row["row_kind"] == "pseudo_formal_block_verification_pending"
+        for row in diagnostic_rows
+    )
+    public_manifest = json.loads(
+        Path(manifest["artifacts"]["manifest_json"]).read_text(encoding="utf-8")
+    )
+    assert "_artifact_rows" not in public_manifest
+    result = json.loads(
+        Path(manifest["artifacts"]["result_json"]).read_text(encoding="utf-8")
+    )
+    assert result["artifacts"]["exact_semantic_definition_rows_jsonl"] == (
+        manifest["artifacts"]["exact_semantic_definition_rows_jsonl"]
+    )
 
 
 def test_formalizer_pseudo_formal_packet_eval_rejects_missing_exact_lane(

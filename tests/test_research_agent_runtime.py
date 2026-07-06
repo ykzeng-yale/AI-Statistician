@@ -75335,6 +75335,10 @@ def test_runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary
         "learning_task": "formalizer_pseudo_formal_packet_component_gate_feedback",
         "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
         "component_eval_manifest_path": "runs/capability/formalizer_pf_manifest.json",
+        "work_order_rows_jsonl": "runs/capability/pf_work_order_rows.jsonl",
+        "routable_work_order_rows_jsonl": "runs/capability/pf_routable_rows.jsonl",
+        "exact_semantic_definition_rows_jsonl": "runs/capability/pf_exact_rows.jsonl",
+        "diagnostic_work_order_rows_jsonl": "runs/capability/pf_diagnostic_rows.jsonl",
         "capability_evidence_ok": True,
         "live_generator": True,
         "static_or_fixture_only": False,
@@ -75379,6 +75383,12 @@ def test_runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary
     assert summary[
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_target_lanes"
     ] == ["source_theorem_exact_semantic_definition", "source_to_bridge"]
+    assert summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_semantic_definition_rows_paths"
+    ] == ["runs/capability/pf_exact_rows.jsonl"]
+    assert summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_diagnostic_work_order_rows_paths"
+    ] == ["runs/capability/pf_diagnostic_rows.jsonl"]
 
     proof_claim_row = dict(learning_row)
     proof_claim_row["proof_evidence_status"] = "SOURCE_THEOREM_PROOF_CLAIM"
@@ -85106,6 +85116,18 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     formalizer_pf_packet_manifest_path = (
         tmp_path / "formalizer_pseudo_formal_packet_eval_manifest.json"
     )
+    formalizer_pf_work_order_rows_path = (
+        tmp_path / "formalizer_pseudo_formal_work_order_rows.jsonl"
+    )
+    formalizer_pf_routable_rows_path = (
+        tmp_path / "formalizer_pseudo_formal_routable_work_order_rows.jsonl"
+    )
+    formalizer_pf_exact_rows_path = (
+        tmp_path / "formalizer_pseudo_formal_exact_semantic_definition_rows.jsonl"
+    )
+    formalizer_pf_diagnostic_rows_path = (
+        tmp_path / "formalizer_pseudo_formal_diagnostic_work_order_rows.jsonl"
+    )
     pseudo_formal_manifest_path = (
         tmp_path / "pseudo_formal_block_verifier_component_gate_manifest.json"
     )
@@ -85222,6 +85244,18 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
                 ),
                 "artifacts": {
                     "manifest_json": str(formalizer_pf_packet_manifest_path),
+                    "work_order_rows_jsonl": str(
+                        formalizer_pf_work_order_rows_path
+                    ),
+                    "routable_work_order_rows_jsonl": str(
+                        formalizer_pf_routable_rows_path
+                    ),
+                    "exact_semantic_definition_rows_jsonl": str(
+                        formalizer_pf_exact_rows_path
+                    ),
+                    "diagnostic_work_order_rows_jsonl": str(
+                        formalizer_pf_diagnostic_rows_path
+                    ),
                 },
             }
         ),
@@ -85477,6 +85511,9 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert manifest["artifacts"][
         "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
     ] == str(formalizer_pf_packet_manifest_path)
+    assert manifest["artifacts"][
+        "internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_jsonl"
+    ] == str(formalizer_pf_exact_rows_path)
     stale_pf_packet_manifest_path = (
         tmp_path / "stale_formalizer_pseudo_formal_packet_eval_manifest.json"
     )
@@ -85625,6 +85662,18 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert formalizer_pf_row["proof_evidence_status_ok"] is True
     assert formalizer_pf_row["no_theorem_proof_claim"] is True
     assert formalizer_pf_row["attachment_gate_recomputed"] is True
+    assert formalizer_pf_row["work_order_rows_jsonl"] == str(
+        formalizer_pf_work_order_rows_path
+    )
+    assert formalizer_pf_row["routable_work_order_rows_jsonl"] == str(
+        formalizer_pf_routable_rows_path
+    )
+    assert formalizer_pf_row["exact_semantic_definition_rows_jsonl"] == str(
+        formalizer_pf_exact_rows_path
+    )
+    assert formalizer_pf_row["diagnostic_work_order_rows_jsonl"] == str(
+        formalizer_pf_diagnostic_rows_path
+    )
     assert (
         formalizer_pf_row["source_component_gate"]
         == "formalizer_pseudo_formal_packet_component_gate"

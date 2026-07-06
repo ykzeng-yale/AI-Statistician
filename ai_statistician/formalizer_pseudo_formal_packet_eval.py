@@ -22,6 +22,7 @@ from .model_backend import (
 )
 from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     pseudo_formal_block_work_order_rows,
@@ -120,7 +121,7 @@ def run_formalizer_pseudo_formal_packet_eval(
         model=resolved_model,
         feedback=feedback,
     )
-    _write_formalizer_pseudo_formal_packet_eval_artifacts(
+    manifest = _write_formalizer_pseudo_formal_packet_eval_artifacts(
         manifest=manifest,
         out_dir=out_dir,
     )
@@ -306,6 +307,12 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
             pf_error_rows.append({"index": index, "errors": errors})
         work_order_rows.extend(pseudo_formal_block_work_order_rows(pf_packet))
     routable_rows = pseudo_formal_routable_work_order_rows(work_order_rows)
+    diagnostic_rows = [
+        dict(row)
+        for row in work_order_rows
+        if str(row.get("row_kind", "") or "")
+        in PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS
+    ]
     live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     valid_packet = not formalizer_errors and not required_errors and not pf_error_rows
     routable_rows_present = bool(routable_rows)
@@ -381,6 +388,10 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
     }
     manifest_path = out_dir / "formalizer_pseudo_formal_packet_eval_manifest.json"
     result_path = out_dir / "formalizer_pseudo_formal_packet_eval_result.json"
+    work_order_rows_path = out_dir / "pseudo_formal_work_order_rows.jsonl"
+    routable_rows_path = out_dir / "pseudo_formal_routable_work_order_rows.jsonl"
+    exact_rows_path = out_dir / "pseudo_formal_exact_semantic_definition_rows.jsonl"
+    diagnostic_rows_path = out_dir / "pseudo_formal_diagnostic_work_order_rows.jsonl"
     return {
         "schema_version": 1,
         "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
@@ -399,6 +410,7 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "n_pseudo_formal_packet_validation_error_sets": len(pf_error_rows),
         "n_pseudo_formal_work_order_rows": len(work_order_rows),
         "n_pseudo_formal_routable_work_order_rows": len(routable_rows),
+        "n_pseudo_formal_diagnostic_work_order_rows": len(diagnostic_rows),
         "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
         "n_pseudo_formal_exact_semantic_definition_rows": len(exact_semantic_rows),
         "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": len(
@@ -423,6 +435,9 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "pseudo_formal_routable_target_lanes": sorted(
             routable_target_lanes
         ),
+        "pseudo_formal_diagnostic_row_kinds": sorted(
+            {str(row.get("row_kind", "") or "") for row in diagnostic_rows}
+        ),
         "formalizer_validation_errors": formalizer_errors,
         "required_pseudo_formalization_errors": required_errors,
         "pseudo_formal_packet_validation_errors": pf_error_rows,
@@ -442,6 +457,16 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "artifacts": {
             "manifest_json": str(manifest_path),
             "result_json": str(result_path),
+            "work_order_rows_jsonl": str(work_order_rows_path),
+            "routable_work_order_rows_jsonl": str(routable_rows_path),
+            "exact_semantic_definition_rows_jsonl": str(exact_rows_path),
+            "diagnostic_work_order_rows_jsonl": str(diagnostic_rows_path),
+        },
+        "_artifact_rows": {
+            "work_order_rows": work_order_rows,
+            "routable_work_order_rows": routable_rows,
+            "exact_semantic_definition_rows": exact_semantic_rows,
+            "diagnostic_work_order_rows": diagnostic_rows,
         },
     }
 
@@ -450,11 +475,40 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
     *,
     manifest: Mapping[str, Any],
     out_dir: Path,
-) -> None:
+) -> dict[str, Any]:
     manifest_path = out_dir / "formalizer_pseudo_formal_packet_eval_manifest.json"
     result_path = out_dir / "formalizer_pseudo_formal_packet_eval_result.json"
+    artifact_rows = (
+        dict(manifest.get("_artifact_rows", {}) or {})
+        if isinstance(manifest.get("_artifact_rows", {}), Mapping)
+        else {}
+    )
+    public_manifest = {
+        key: value for key, value in manifest.items() if key != "_artifact_rows"
+    }
+    artifacts = (
+        dict(public_manifest.get("artifacts", {}) or {})
+        if isinstance(public_manifest.get("artifacts", {}), Mapping)
+        else {}
+    )
+    _write_jsonl_rows(
+        Path(str(artifacts.get("work_order_rows_jsonl", ""))),
+        artifact_rows.get("work_order_rows", []),
+    )
+    _write_jsonl_rows(
+        Path(str(artifacts.get("routable_work_order_rows_jsonl", ""))),
+        artifact_rows.get("routable_work_order_rows", []),
+    )
+    _write_jsonl_rows(
+        Path(str(artifacts.get("exact_semantic_definition_rows_jsonl", ""))),
+        artifact_rows.get("exact_semantic_definition_rows", []),
+    )
+    _write_jsonl_rows(
+        Path(str(artifacts.get("diagnostic_work_order_rows_jsonl", ""))),
+        artifact_rows.get("diagnostic_work_order_rows", []),
+    )
     result = {
-        key: manifest.get(key)
+        key: public_manifest.get(key)
         for key in (
             "result_status",
             "formalizer_validation_errors",
@@ -463,14 +517,25 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
             "n_pseudo_formal_packets",
             "n_pseudo_formal_work_order_rows",
             "n_pseudo_formal_routable_work_order_rows",
+            "n_pseudo_formal_diagnostic_work_order_rows",
             "n_pseudo_formal_exact_semantic_definition_rows",
             "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
             "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
             "n_pseudo_formal_exact_semantic_definition_rows_with_lineage",
             "pseudo_formal_routable_row_kinds",
             "pseudo_formal_routable_target_lanes",
+            "pseudo_formal_diagnostic_row_kinds",
             "llm_json_repair_attempts",
             "llm_json_repair_history",
+        )
+    }
+    result["artifacts"] = {
+        key: artifacts.get(key)
+        for key in (
+            "work_order_rows_jsonl",
+            "routable_work_order_rows_jsonl",
+            "exact_semantic_definition_rows_jsonl",
+            "diagnostic_work_order_rows_jsonl",
         )
     }
     result_path.write_text(
@@ -478,7 +543,26 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
         encoding="utf-8",
     )
     manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True, default=str),
+        json.dumps(public_manifest, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
+    return public_manifest
+
+
+def _write_jsonl_rows(path: Path, rows: Any) -> None:
+    if str(path) in {"", "."}:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    safe_rows = [
+        dict(row)
+        for row in (rows or [])
+        if isinstance(row, Mapping)
+    ]
+    path.write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, default=str) + "\n"
+            for row in safe_rows
+        ),
         encoding="utf-8",
     )
 

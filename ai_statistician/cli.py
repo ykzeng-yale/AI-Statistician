@@ -12107,9 +12107,27 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     gate_summary = _strict_formalizer_pseudo_formal_packet_attachment_summary(
         eval_manifest
     )
+    eval_artifacts = (
+        dict(eval_manifest.get("artifacts", {}) or {})
+        if isinstance(eval_manifest.get("artifacts", {}), Mapping)
+        else {}
+    )
     attached = {
         "artifact_kind": "RuntimeAttachedFormalizerPseudoFormalPacketEval",
-        "manifest_path": str(eval_manifest.get("artifacts", {}).get("manifest_json", "")),
+        "manifest_path": str(eval_artifacts.get("manifest_json", "")),
+        "artifacts": eval_artifacts,
+        "work_order_rows_jsonl": str(
+            eval_artifacts.get("work_order_rows_jsonl", "") or ""
+        ),
+        "routable_work_order_rows_jsonl": str(
+            eval_artifacts.get("routable_work_order_rows_jsonl", "") or ""
+        ),
+        "exact_semantic_definition_rows_jsonl": str(
+            eval_artifacts.get("exact_semantic_definition_rows_jsonl", "") or ""
+        ),
+        "diagnostic_work_order_rows_jsonl": str(
+            eval_artifacts.get("diagnostic_work_order_rows_jsonl", "") or ""
+        ),
         "provider_name": str(gate_summary["provider_name"]),
         "backend_provider_name": str(gate_summary["backend_provider_name"]),
         "model": str(eval_manifest.get("model", "")),
@@ -12280,6 +12298,17 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest.setdefault("artifacts", {})[
         "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
     ] = str(attached["manifest_path"])
+    for artifact_key in (
+        "work_order_rows_jsonl",
+        "routable_work_order_rows_jsonl",
+        "exact_semantic_definition_rows_jsonl",
+        "diagnostic_work_order_rows_jsonl",
+    ):
+        artifact_path = str(attached.get(artifact_key, "") or "").strip()
+        if artifact_path:
+            manifest["artifacts"][
+                f"internal_formalizer_pseudo_formal_packet_eval_{artifact_key}"
+            ] = artifact_path
     _refresh_runtime_coding_agent_capability_manifest(
         manifest,
         runtime_out_dir=Path(args.out),

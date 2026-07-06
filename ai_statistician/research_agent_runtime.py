@@ -3579,6 +3579,31 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
     manifest_path = str(attached.get("manifest_path", "") or "").strip()
     if not manifest_path:
         return []
+    attached_artifacts = (
+        dict(attached.get("artifacts", {}) or {})
+        if isinstance(attached.get("artifacts", {}), Mapping)
+        else {}
+    )
+    work_order_rows_jsonl = str(
+        attached.get("work_order_rows_jsonl", "")
+        or attached_artifacts.get("work_order_rows_jsonl", "")
+        or ""
+    ).strip()
+    routable_work_order_rows_jsonl = str(
+        attached.get("routable_work_order_rows_jsonl", "")
+        or attached_artifacts.get("routable_work_order_rows_jsonl", "")
+        or ""
+    ).strip()
+    exact_semantic_definition_rows_jsonl = str(
+        attached.get("exact_semantic_definition_rows_jsonl", "")
+        or attached_artifacts.get("exact_semantic_definition_rows_jsonl", "")
+        or ""
+    ).strip()
+    diagnostic_work_order_rows_jsonl = str(
+        attached.get("diagnostic_work_order_rows_jsonl", "")
+        or attached_artifacts.get("diagnostic_work_order_rows_jsonl", "")
+        or ""
+    ).strip()
     question_ids = [
         str(value)
         for value in manifest.get("question_ids", []) or []
@@ -3674,6 +3699,12 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "next_owner_subsystem": "Formalizer/ProofEngineer",
             "source_manifest_path": manifest_path,
             "component_eval_manifest_path": manifest_path,
+            "work_order_rows_jsonl": work_order_rows_jsonl,
+            "routable_work_order_rows_jsonl": routable_work_order_rows_jsonl,
+            "exact_semantic_definition_rows_jsonl": (
+                exact_semantic_definition_rows_jsonl
+            ),
+            "diagnostic_work_order_rows_jsonl": diagnostic_work_order_rows_jsonl,
             "component_eval": "Formalizer/ProofEngineer PF/BV packet emission",
             "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
             "provider_name": provider_name,
@@ -3730,6 +3761,12 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "input_summary": {
                 "trigger": "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_ATTACHED",
                 "component_eval_manifest_path": manifest_path,
+                "work_order_rows_jsonl": work_order_rows_jsonl,
+                "routable_work_order_rows_jsonl": routable_work_order_rows_jsonl,
+                "exact_semantic_definition_rows_jsonl": (
+                    exact_semantic_definition_rows_jsonl
+                ),
+                "diagnostic_work_order_rows_jsonl": diagnostic_work_order_rows_jsonl,
                 "source_component_gate": (
                     "formalizer_pseudo_formal_packet_component_gate"
                 ),
