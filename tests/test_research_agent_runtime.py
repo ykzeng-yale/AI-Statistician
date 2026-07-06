@@ -38159,6 +38159,59 @@ def test_runtime_audit_flags_formalizer_candidate_kernel_scope_missing(
     assert audit["formalizer_candidate_kernel_scope_complete"] is True
 
 
+def test_runtime_audit_candidate_kernel_scope_string_false_is_uncompiled(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "artifacts": {
+                        "formalizer_lean_candidate_materialization:false": {
+                            "artifact_kind": (
+                                "RuntimeFormalizerLeanCandidateMaterialization"
+                            ),
+                            "manifest_id": (
+                                "formalizer_lean_candidate_materialization:false"
+                            ),
+                            "n_local_lean_compiled": 0,
+                            "candidate_kernel_verified": "false",
+                            "kernel_verified": "false",
+                            "source_theorem_kernel_verified": "false",
+                            "candidate_rows": [
+                                {
+                                    "candidate_id": "false_string_candidate",
+                                    "candidate_kernel_verified": "false",
+                                    "kernel_verified": "false",
+                                    "local_lean_compiled": "false",
+                                    "source_theorem_kernel_verified": "false",
+                                }
+                            ],
+                        }
+                    }
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = audit_module._formalizer_candidate_kernel_scope_audit_summary(
+        result_paths=[result_path],
+        errors=[],
+    )
+
+    assert summary["n_materialization_artifacts"] == 1
+    assert summary["n_candidate_rows"] == 1
+    assert summary["n_compiled_materialization_artifacts"] == 0
+    assert summary["n_candidate_kernel_verified_rows"] == 0
+    assert summary["n_candidate_kernel_verified_rows_missing_candidate_scope"] == 0
+    assert summary["candidate_kernel_scope_complete"] is True
+    assert summary["missing_scope_rows"] == []
+
+
 def test_runtime_audit_counts_formalizer_candidate_proof_state_mcp_feedback(
     tmp_path: Path,
 ) -> None:
@@ -38335,6 +38388,92 @@ def test_runtime_audit_counts_attached_live_formalizer_lsp_component(
         rows["formalizer_lean_candidate_proof_state_request_routed"]["passed"]
         is False
     )
+
+
+def test_runtime_audit_exact_semantic_manifest_string_false_readiness_stays_false(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "runtime_evaluation_mode": "capability_eval",
+                "n_questions": 1,
+                "question_ids": ["conformal_prediction_coverage"],
+                "artifacts": {},
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": "false",
+                "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": "false",
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body": "false",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit")
+
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+
+
+def test_runtime_audit_post_runtime_exact_semantic_kernel_string_false_stays_false(
+    tmp_path: Path,
+) -> None:
+    materializer_manifest = tmp_path / "materializer_manifest.json"
+    materializer_manifest.write_text(
+        json.dumps({"artifact_kind": "SourceTheoremExactSemanticDefinitionMaterializer"}),
+        encoding="utf-8",
+    )
+    learning_rows = tmp_path / "runtime_learning_rows.jsonl"
+    learning_rows.write_text("", encoding="utf-8")
+    lean_repair_manifest = tmp_path / "lean_repair_manifest.json"
+    lean_repair_manifest.write_text(
+        json.dumps(
+            {
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest"
+                ),
+                "source_materializer_manifest": str(materializer_manifest),
+                "runtime_learning_rows_jsonl": str(learning_rows),
+                "n_results": 1,
+                "n_local_lean_checked": 1,
+                "n_local_lean_compiled": 0,
+                "semantic_definition_kernel_verified": "false",
+                "source_theorem_kernel_verified": "false",
+            }
+        ),
+        encoding="utf-8",
+    )
+    errors: list[str] = []
+
+    summary = audit_module._post_runtime_exact_semantic_definition_materialized_lean_repair_executor_summary(
+        manifest_path=lean_repair_manifest,
+        expected_materializer_manifest=materializer_manifest,
+        errors=errors,
+    )
+
+    assert errors == []
+    assert summary["lineage_ok"] is True
+    assert summary["ran"] is True
+    assert summary["semantic_definition_kernel_verified"] is False
+    assert summary["source_theorem_kernel_verified"] is False
 
 
 def test_algorithm_engineer_generated_code_repair_eval_static_fixture(

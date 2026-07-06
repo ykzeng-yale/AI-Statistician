@@ -2934,14 +2934,16 @@ def _formalizer_candidate_kernel_scope_audit_summary(
                 continue
             n_materialization_artifacts += 1
             artifact_compiled = bool(
-                artifact.get("candidate_kernel_verified", False)
-                or artifact.get("kernel_verified", False)
+                _safe_bool(artifact.get("candidate_kernel_verified", False))
+                or _safe_bool(artifact.get("kernel_verified", False))
                 or int(artifact.get("n_local_lean_compiled", 0) or 0) > 0
             )
             artifact_scope_ok = (
-                bool(artifact.get("candidate_kernel_verified", False))
+                _safe_bool(artifact.get("candidate_kernel_verified", False))
                 and artifact.get("kernel_verified_scope") == expected_scope
-                and not bool(artifact.get("source_theorem_kernel_verified", False))
+                and not _safe_bool(
+                    artifact.get("source_theorem_kernel_verified", False)
+                )
             )
             if artifact_compiled:
                 n_compiled_materialization_artifacts += 1
@@ -2955,17 +2957,17 @@ def _formalizer_candidate_kernel_scope_audit_summary(
                     continue
                 n_candidate_rows += 1
                 row_compiled = bool(
-                    row.get("candidate_kernel_verified", False)
-                    or row.get("kernel_verified", False)
-                    or row.get("local_lean_compiled", False)
+                    _safe_bool(row.get("candidate_kernel_verified", False))
+                    or _safe_bool(row.get("kernel_verified", False))
+                    or _safe_bool(row.get("local_lean_compiled", False))
                 )
                 if not row_compiled:
                     continue
                 n_candidate_kernel_verified_rows += 1
                 row_scope_ok = (
-                    bool(row.get("candidate_kernel_verified", False))
+                    _safe_bool(row.get("candidate_kernel_verified", False))
                     and row.get("kernel_verified_scope") == expected_scope
-                    and not bool(row.get("source_theorem_kernel_verified", False))
+                    and not _safe_bool(row.get("source_theorem_kernel_verified", False))
                 )
                 if row_scope_ok:
                     n_candidate_kernel_verified_rows_with_scope += 1
@@ -2978,19 +2980,19 @@ def _formalizer_candidate_kernel_scope_audit_summary(
                             "artifact_id": str(artifact_id),
                             "candidate_index": index,
                             "candidate_id": str(row.get("candidate_id", "") or ""),
-                            "candidate_kernel_verified": bool(
+                            "candidate_kernel_verified": _safe_bool(
                                 row.get("candidate_kernel_verified", False)
                             ),
-                            "kernel_verified": bool(
+                            "kernel_verified": _safe_bool(
                                 row.get("kernel_verified", False)
                             ),
-                            "local_lean_compiled": bool(
+                            "local_lean_compiled": _safe_bool(
                                 row.get("local_lean_compiled", False)
                             ),
                             "kernel_verified_scope": str(
                                 row.get("kernel_verified_scope", "") or ""
                             ),
-                            "source_theorem_kernel_verified": bool(
+                            "source_theorem_kernel_verified": _safe_bool(
                                 row.get("source_theorem_kernel_verified", False)
                             ),
                         }
@@ -7394,7 +7396,7 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ][:8],
-        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": bool(
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": _safe_bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
                 False,
@@ -7432,7 +7434,7 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ][:8],
-        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": bool(
+        "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": _safe_bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
                 False,
@@ -8420,12 +8422,12 @@ def audit_research_agent_runtime(
                 "dominant_failure_classification"
             ]
         ),
-        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_semantic_definition_kernel_verified": bool(
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_semantic_definition_kernel_verified": _safe_bool(
             post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
                 "semantic_definition_kernel_verified"
             ]
         ),
-        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_source_theorem_kernel_verified": bool(
+        "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_source_theorem_kernel_verified": _safe_bool(
             post_runtime_exact_semantic_definition_materialized_lean_repair_executor[
                 "source_theorem_kernel_verified"
             ]
@@ -8970,7 +8972,7 @@ def audit_research_agent_runtime(
                 [],
             )
         ),
-        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body": bool(
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body": _safe_bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body",
                 False,
@@ -27084,10 +27086,15 @@ def _post_runtime_exact_semantic_definition_materialized_lean_repair_executor_su
             ),
             "semantic_definition_kernel_verified": bool(
                 lineage_ok
-                and manifest.get("semantic_definition_kernel_verified", False)
+                and _safe_bool(
+                    manifest.get("semantic_definition_kernel_verified", False)
+                )
             ),
             "source_theorem_kernel_verified": bool(
-                lineage_ok and manifest.get("source_theorem_kernel_verified", False)
+                lineage_ok
+                and _safe_bool(
+                    manifest.get("source_theorem_kernel_verified", False)
+                )
             ),
             "proofengineer_state": str(
                 manifest.get("proofengineer_state", "") or ""
@@ -27271,6 +27278,14 @@ def _safe_int(value: Any) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _safe_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
 
 
 def _artifacts_with_prefix(artifacts: Mapping[str, Any], prefix: str) -> list[dict[str, Any]]:

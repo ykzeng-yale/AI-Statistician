@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T22:12:00Z",
+  "updated_at": "2026-07-06T22:25:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1167,6 +1167,18 @@
       "runtime_proof_body_slice_tests": 68,
       "routing_boundary": "CLI resume/attached runtime-learning-memory compaction now applies the same string-aware verified-evidence bool parsing as AgentRuntime for adapter_kernel_verified, source_theorem_proof_body_adapter_kernel_verified, premise_derivation_kernel_verified, and source_to_bridge_premise_derivation_kernel_verified. Serialized \"false\" rows can still be retained as non-proof feedback, but they no longer receive verified priority, verified pin keys, or the ability to outrank typechecked exact-semantic candidates under tight memory budgets.",
       "proof_boundary": "This keeps resume-memory selection aligned with the runtime proof boundary. It does not promote any adapter or source-to-bridge premise row to proof evidence; it only prevents false serialized evidence fields from being misread before AgentRuntime consumes memory."
+    },
+    "runtime_audit_verified_evidence_boolean_normalization_patch": {
+      "status": "implemented",
+      "component": "research_agent_runtime_audit",
+      "new_regression_tests": [
+        "test_runtime_audit_candidate_kernel_scope_string_false_is_uncompiled",
+        "test_runtime_audit_exact_semantic_manifest_string_false_readiness_stays_false",
+        "test_runtime_audit_post_runtime_exact_semantic_kernel_string_false_stays_false"
+      ],
+      "runtime_audit_slice_tests": 20,
+      "routing_boundary": "Runtime audit now parses serialized candidate_kernel_verified, kernel_verified, local_lean_compiled, source_theorem_kernel_verified, semantic_definition_kernel_verified, and source_theorem_ready_for_exact_proof_body fields with string-aware bool normalization in candidate-scope summaries, exact-semantic environment readiness rollups, and post-runtime exact-semantic Lean repair attachment summaries. Serialized \"false\" values no longer inflate candidate compilation, semantic/source theorem kernel evidence, or ready-for-proof-body audit fields.",
+      "proof_boundary": "This is audit/scorecard truth maintenance only. It prevents false-positive readiness and kernel-evidence reporting in audit artifacts, without promoting any candidate, semantic definition, or source theorem to Lean/AXLE proof evidence."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2547,6 +2559,11 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_learning_memory and (pin or loader or cli or source_to_bridge or proof_body_adapter or exact_semantic)\" # 30 passed, 867 deselected after CLI runtime-learning-memory verified-evidence bool-normalization patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 829 deselected after CLI runtime-learning-memory verified-evidence bool-normalization patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after CLI runtime-learning-memory verified-evidence bool-normalization patch",
-    "git diff --check # passed after CLI runtime-learning-memory verified-evidence bool-normalization patch"
+    "git diff --check # passed after CLI runtime-learning-memory verified-evidence bool-normalization patch",
+    "python3 -m py_compile ai_statistician/research_agent_runtime_audit.py tests/test_research_agent_runtime.py # passed after runtime-audit verified-evidence bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_audit_candidate_kernel_scope_string_false_is_uncompiled tests/test_research_agent_runtime.py::test_runtime_audit_exact_semantic_manifest_string_false_readiness_stays_false tests/test_research_agent_runtime.py::test_runtime_audit_post_runtime_exact_semantic_kernel_string_false_stays_false -q # 3 passed after runtime-audit verified-evidence bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_audit and (candidate_kernel_scope or exact_semantic or lean_environment_repair or post_runtime_exact_semantic or verifier_gate)\" # 20 passed, 880 deselected after runtime-audit verified-evidence bool-normalization patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after runtime-audit verified-evidence bool-normalization patch",
+    "git diff --check # passed after runtime-audit verified-evidence bool-normalization patch"
   ]
 }
