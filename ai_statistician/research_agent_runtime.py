@@ -53990,6 +53990,23 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "",
     )
+    verified_source_to_bridge_premise_gate_open_probe = {
+        "failure_classification": "source_to_bridge_premise_derivations_kernel_verified",
+        "runtime_queue_status": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
+        "proof_body_gate_status": (
+            verified_source_to_bridge_premise_proof_body_gate_status
+        ),
+        "proof_body_goal_reached": (
+            verified_source_to_bridge_premise_proof_body_goal_reached
+        ),
+        "source_theorem_kernel_evidence_eligible": (
+            verified_source_to_bridge_premise_kernel_evidence_eligible
+        ),
+        "source_theorem_kernel_verified": False,
+        "semantic_alignment_blockers": list(
+            verified_source_to_bridge_premise_semantic_blockers
+        ),
+    }
     verified_source_proof_body_adapter_ids = tuple(
         dict.fromkeys(
             value
@@ -54096,6 +54113,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 )[:5],
                 "source_theorem_kernel_evidence_eligible": (
                     verified_source_to_bridge_premise_kernel_evidence_eligible
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
+                        verified_source_to_bridge_premise_gate_open_probe
+                    )
                 ),
                 "proof_body_adapter_required_reasons": [
                     "kernel-verified source-to-bridge premise derivations are now available for the adapter retry",
@@ -59609,6 +59631,44 @@ def _formalizer_source_theorem_promotion_work_orders(
     proof_body_adapter_primary_diagnostic = (
         proof_body_adapter_diagnostics[0] if proof_body_adapter_diagnostics else {}
     )
+    proof_body_gate_open_diagnostics = [
+        row
+        for row in [*proof_body_repair_diagnostics, *proof_body_adapter_diagnostics]
+        if bool(
+            row.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
+        )
+        or _source_theorem_exact_proof_body_gate_open_for_kernel_repair(row)
+    ]
+    source_theorem_exact_proof_body_gate_open_for_kernel_repair = bool(
+        proof_bank_runtime_memory_summary.get(
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+            False,
+        )
+        or proof_body_gate_open_diagnostics
+    )
+    source_theorem_exact_proof_body_gate_open_target_names = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(row).strip()
+                    for row in proof_bank_runtime_memory_summary.get(
+                        "source_theorem_exact_proof_body_gate_open_target_names",
+                        [],
+                    )
+                    or []
+                    if str(row).strip()
+                ],
+                *[
+                    str(row.get("target_theorem_name", "") or "").strip()
+                    for row in proof_body_gate_open_diagnostics
+                    if str(row.get("target_theorem_name", "") or "").strip()
+                ],
+            ]
+        )
+    )
     source_proof_body_adapter_feedback_available = bool(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_proof_body_adapter_feedback_available",
@@ -59980,6 +60040,22 @@ def _formalizer_source_theorem_promotion_work_orders(
                 source_target_ids = [target_theorem_name]
         if not source_target_ids and target_theorem_name:
             source_target_ids = [target_theorem_name]
+        source_theorem_exact_proof_body_gate_targets_match = bool(
+            not source_theorem_exact_proof_body_gate_open_target_names
+            or target_theorem_name
+            in source_theorem_exact_proof_body_gate_open_target_names
+            or source_formal_target_id
+            in source_theorem_exact_proof_body_gate_open_target_names
+            or any(
+                target_id in source_theorem_exact_proof_body_gate_open_target_names
+                for target_id in source_target_ids
+            )
+        )
+        source_theorem_exact_proof_body_gate_open_for_work_order = bool(
+            (proof_body_repair_mode or proof_body_adapter_mode)
+            and source_theorem_exact_proof_body_gate_open_for_kernel_repair
+            and source_theorem_exact_proof_body_gate_targets_match
+        )
         work_orders.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -60063,6 +60139,14 @@ def _formalizer_source_theorem_promotion_work_orders(
                     )
                     if (proof_body_repair_mode or proof_body_adapter_mode)
                     else False
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    source_theorem_exact_proof_body_gate_open_for_work_order
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_names": (
+                    source_theorem_exact_proof_body_gate_open_target_names
+                    if source_theorem_exact_proof_body_gate_open_for_work_order
+                    else []
                 ),
                 "source_theorem_exact_proof_body_repair_diagnostics": (
                     proof_body_repair_diagnostics
@@ -60253,6 +60337,13 @@ def _formalizer_source_theorem_promotion_work_orders(
                             "reached Lean goal with source-level hypotheses such as exchangeability, order-statistic, quantile, and coverage event semantics",
                             "kernel-verified bridge/reduction closure premises that the adapter must connect to",
                             "semantic alignment constraints, tie policy, and reviewed exact definition requirements",
+                            *(
+                                [
+                                    "exact source proof-body gate is open for kernel-eligible repair; stay in adapter/proof-body repair and do not reroute to exact semantic-definition review"
+                                ]
+                                if source_theorem_exact_proof_body_gate_open_for_work_order
+                                else []
+                            ),
                             *(
                                 [
                                     "derive these bridge premise names from exact source hypotheses; do not take them as new adapter assumptions: "

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T20:11:06Z",
+  "updated_at": "2026-07-06T21:04:32Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -2441,6 +2441,12 @@
     "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... live runtime memory + Formalizer prompt projection from runs/main_worker_good_rank_proof_body_executor_after_approved_constraint_gate_patch_v3_20260704/runtime_learning_export/runtime_learning_rows.jsonl # adapter_required=true eligibility=true semantic_blockers=[] proof_body_attempt_count=5 prompt_has_eligibility=true prompt_has_attempt_summaries=true prompt_mentions_gate_open=false",
     "commit 24ddd041 Expose exact proof-body gate-open audit state # local commit exposes executor/runtime/audit/eval visibility for proof-body gate-open counts and targets while preserving non-proof source-theorem boundary",
     "commit 2cb9345b Route proof-body gate-open truth feedback # local commit carries gate-open truth-table feedback through runtime next-action routing, generated learning rows, CLI resume-memory compaction, and Formalizer proof-bank memory without semantic-definition reroute",
-    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... replay live runtime memory + Formalizer prompt projection from runs/main_worker_good_rank_proof_body_executor_after_approved_constraint_gate_patch_v3_20260704/runtime_learning_export/runtime_learning_rows.jsonl under 2cb9345b # rows_loaded=1 mode=source_theorem_proof_body_adapter_required adapter_required=true gate_open=true gate_targets=[split_conformal_finite_sample_coverage_repair_v3] prompt_has_gate_key=true prompt_mentions_gate_open=true prompt_has_eligibility=true prompt_has_attempt_summaries=true; this clears the stale prompt_mentions_gate_open=false blocker as prompt-routing evidence only, not theorem proof evidence"
+    "PYTHONPATH=$PWD .venv/bin/python - <<'PY' ... replay live runtime memory + Formalizer prompt projection from runs/main_worker_good_rank_proof_body_executor_after_approved_constraint_gate_patch_v3_20260704/runtime_learning_export/runtime_learning_rows.jsonl under 2cb9345b # rows_loaded=1 mode=source_theorem_proof_body_adapter_required adapter_required=true gate_open=true gate_targets=[split_conformal_finite_sample_coverage_repair_v3] prompt_has_gate_key=true prompt_mentions_gate_open=true prompt_has_eligibility=true prompt_has_attempt_summaries=true; this clears the stale prompt_mentions_gate_open=false blocker as prompt-routing evidence only, not theorem proof evidence",
+    "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after proof-body adapter work-order gate-open propagation patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapter_shape tests/test_research_agent_runtime.py::test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter_feedback -q # 2 passed after proof-body adapter work-order gate-open propagation patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body_adapter or proof_body_gate_open or proof_body_incomplete_eligible_reviewed_constraints_route_adapter_shape or verified_premise_routing_row_unblocks_adapter_retry\" # 7 passed, 880 deselected after proof-body adapter work-order gate-open propagation patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_proof_body_adapter_bridge.py -q # 14 passed after proof-body adapter work-order gate-open propagation patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 67 passed, 820 deselected after proof-body adapter work-order gate-open propagation patch",
+    "git diff --check # passed after proof-body adapter work-order gate-open propagation patch"
   ]
 }

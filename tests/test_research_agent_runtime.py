@@ -57504,6 +57504,54 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
     assert "Do not route this target back to exact semantic-definition review" in prompt
     assert "source_theorem_kernel_verified is still false" in prompt
 
+    proposal = {
+        "packet_id": "formalizer:proof-body-adapter-reviewed-constraints",
+        "question": {"id": question.id, "title": question.title},
+        "formal_targets": [
+            {
+                "id": "target:split_conformal_finite_sample_coverage_repair_v3",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage_repair_v3 : True := by"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage_repair_v3"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+    }
+    work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=theorem_goals,
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["proof_mode"] == "source_theorem_proof_body_adapter_required"
+    assert (
+        work_order["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
+        is True
+    )
+    assert work_order["source_theorem_exact_proof_body_gate_open_target_names"] == [
+        "split_conformal_finite_sample_coverage_repair_v3"
+    ]
+    assert work_order["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert work_order["proof_body_attempt_count"] == 5
+    assert any(
+        "do not reroute to exact semantic-definition review" in required_input
+        for required_input in work_order["required_inputs"]
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
 
 def test_runtime_learning_memory_loader_routes_missing_dependency_context_to_adapter(
     tmp_path: Path,
@@ -65355,6 +65403,10 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     ] == summary["verified_source_to_bridge_premise_derivation_signature_excerpts"]
     adapter_diag = summary["source_theorem_proof_body_adapter_diagnostics"][0]
     assert adapter_diag["source_theorem_kernel_evidence_eligible"] is True
+    assert (
+        adapter_diag["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
+        is True
+    )
     assert adapter_diag["semantic_alignment_blockers"] == []
     assert adapter_diag["proof_body_attempt_count"] == 5
     assert adapter_diag["proof_body_goal_reached"] is True
@@ -65444,6 +65496,13 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     assert work_order["source_to_bridge_premise_derivation_work_items"] == []
     assert work_order["source_to_bridge_premise_derivation_all_required_verified"] is True
     assert work_order["source_theorem_kernel_evidence_eligible"] is True
+    assert (
+        work_order["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
+        is True
+    )
+    assert work_order["source_theorem_exact_proof_body_gate_open_target_names"] == [
+        "split_conformal_coverage"
+    ]
     assert work_order["semantic_alignment_blockers"] == []
     assert work_order["proof_body_attempt_count"] == 5
     assert work_order["proof_body_goal_excerpt"] == [
@@ -65453,6 +65512,10 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     assert work_order["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
         "source_to_bridge_premise_derivation_check:hGoodCovered"
     ]
+    assert any(
+        "do not reroute to exact semantic-definition review" in required_input
+        for required_input in work_order["required_inputs"]
+    )
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
