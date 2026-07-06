@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T21:58:00Z",
+  "updated_at": "2026-07-06T22:12:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1155,6 +1155,18 @@
       "runtime_proof_body_slice_tests": 68,
       "routing_boundary": "AgentRuntime now parses serialized adapter_kernel_verified, source_theorem_proof_body_adapter_kernel_verified, premise_derivation_kernel_verified, source_to_bridge_premise_derivation_kernel_verified, source_theorem_ready_for_exact_proof_body, semantic_definition_kernel_verified, and source_theorem_kernel_verified values with string-aware bool normalization at memory pinning, critic feedback compaction, formal blocker request generation, proof-bank summaries, work-order materialization, and formal-environment repair queue readers. Serialized \"false\" values no longer promote rows to verified adapter, verified premise, ready-for-proof-body, semantic-definition kernel, or source-theorem kernel states.",
       "proof_boundary": "This is an evidence-boundary hardening patch only. It keeps false serialized proof fields from opening or suppressing repair lanes, and it does not promote any adapter, premise derivation, semantic definition, or exact source theorem artifact to Lean/AXLE kernel proof evidence."
+    },
+    "cli_runtime_learning_memory_verified_evidence_boolean_normalization_patch": {
+      "status": "implemented",
+      "component": "cli_runtime_learning_memory_compaction",
+      "new_regression_tests": [
+        "test_runtime_learning_memory_cli_string_false_verified_flags_match_runtime",
+        "test_runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic"
+      ],
+      "runtime_learning_memory_slice_tests": 30,
+      "runtime_proof_body_slice_tests": 68,
+      "routing_boundary": "CLI resume/attached runtime-learning-memory compaction now applies the same string-aware verified-evidence bool parsing as AgentRuntime for adapter_kernel_verified, source_theorem_proof_body_adapter_kernel_verified, premise_derivation_kernel_verified, and source_to_bridge_premise_derivation_kernel_verified. Serialized \"false\" rows can still be retained as non-proof feedback, but they no longer receive verified priority, verified pin keys, or the ability to outrank typechecked exact-semantic candidates under tight memory budgets.",
+      "proof_boundary": "This keeps resume-memory selection aligned with the runtime proof boundary. It does not promote any adapter or source-to-bridge premise row to proof evidence; it only prevents false serialized evidence fields from being misread before AgentRuntime consumes memory."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2529,6 +2541,12 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"adapter_string_false or source_to_bridge_premise_kernel_verified_string_false or source_to_bridge_premise_next_action_string_false or proof_body_adapter or source_to_bridge_premise_derivation or proof_body_gate_open or gate_open_string_false or string_false_goal_reached or string_true_semantic_blocker\" # 19 passed, 876 deselected after verified-evidence runtime bool-normalization patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 827 deselected after verified-evidence runtime bool-normalization patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after verified-evidence runtime bool-normalization patch",
-    "git diff --check # passed after verified-evidence runtime bool-normalization patch"
+    "git diff --check # passed after verified-evidence runtime bool-normalization patch",
+    "python3 -m py_compile ai_statistician/cli.py tests/test_research_agent_runtime.py # passed after CLI runtime-learning-memory verified-evidence bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_learning_memory_cli_string_false_verified_flags_match_runtime tests/test_research_agent_runtime.py::test_runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic -q # 2 passed after CLI runtime-learning-memory verified-evidence bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_learning_memory and (pin or loader or cli or source_to_bridge or proof_body_adapter or exact_semantic)\" # 30 passed, 867 deselected after CLI runtime-learning-memory verified-evidence bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 829 deselected after CLI runtime-learning-memory verified-evidence bool-normalization patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after CLI runtime-learning-memory verified-evidence bool-normalization patch",
+    "git diff --check # passed after CLI runtime-learning-memory verified-evidence bool-normalization patch"
   ]
 }

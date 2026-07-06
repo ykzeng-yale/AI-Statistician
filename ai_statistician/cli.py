@@ -1630,6 +1630,62 @@ _RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS = (
 )
 
 
+def _runtime_learning_memory_bool_like(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def _runtime_learning_memory_source_to_bridge_premise_derivation_kernel_verified(
+    row: Mapping[str, object],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    return bool(
+        _runtime_learning_memory_bool_like(
+            row.get("source_to_bridge_premise_derivation_kernel_verified", False)
+        )
+        or _runtime_learning_memory_bool_like(
+            row.get("premise_derivation_kernel_verified", False)
+        )
+        or _runtime_learning_memory_bool_like(
+            input_summary.get(
+                "source_to_bridge_premise_derivation_kernel_verified",
+                False,
+            )
+        )
+        or _runtime_learning_memory_bool_like(
+            input_summary.get("premise_derivation_kernel_verified", False)
+        )
+    )
+
+
+def _runtime_learning_memory_source_theorem_proof_body_adapter_kernel_verified(
+    row: Mapping[str, object],
+) -> bool:
+    input_summary = row.get("input_summary", {})
+    if not isinstance(input_summary, Mapping):
+        input_summary = {}
+    return bool(
+        _runtime_learning_memory_bool_like(row.get("adapter_kernel_verified", False))
+        or _runtime_learning_memory_bool_like(
+            row.get("source_theorem_proof_body_adapter_kernel_verified", False)
+        )
+        or _runtime_learning_memory_bool_like(
+            input_summary.get("adapter_kernel_verified", False)
+        )
+        or _runtime_learning_memory_bool_like(
+            input_summary.get(
+                "source_theorem_proof_body_adapter_kernel_verified",
+                False,
+            )
+        )
+    )
+
+
 def _runtime_learning_memory_row_trigger(row: Mapping[str, object]) -> str:
     input_summary = row.get("input_summary", {})
     if isinstance(input_summary, Mapping):
@@ -1827,15 +1883,9 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         and direct_source_to_bridge_premise_target_ids
         and direct_source_to_bridge_premise_names
         and (
-            bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
-            or bool(row.get("premise_derivation_kernel_verified", False))
-            or bool(
-                input_summary.get(
-                    "source_to_bridge_premise_derivation_kernel_verified",
-                    False,
-                )
+            _runtime_learning_memory_source_to_bridge_premise_derivation_kernel_verified(
+                row
             )
-            or bool(input_summary.get("premise_derivation_kernel_verified", False))
             or bool(
                 _runtime_learning_memory_string_values(
                     row,
@@ -1847,14 +1897,8 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
         )
     )
     if learning_task == "source_theorem_proof_body_adapter_feedback" and (
-        bool(row.get("adapter_kernel_verified", False))
-        or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
-        or bool(input_summary.get("adapter_kernel_verified", False))
-        or bool(
-            input_summary.get(
-                "source_theorem_proof_body_adapter_kernel_verified",
-                False,
-            )
+        _runtime_learning_memory_source_theorem_proof_body_adapter_kernel_verified(
+            row
         )
         or bool(
             _runtime_learning_memory_string_values(
@@ -1879,15 +1923,9 @@ def _runtime_learning_memory_pin_priority(row: Mapping[str, object]) -> int:
     ):
         return 95
     if (
-        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
-        or bool(row.get("premise_derivation_kernel_verified", False))
-        or bool(
-            input_summary.get(
-                "source_to_bridge_premise_derivation_kernel_verified",
-                False,
-            )
+        _runtime_learning_memory_source_to_bridge_premise_derivation_kernel_verified(
+            row
         )
-        or bool(input_summary.get("premise_derivation_kernel_verified", False))
         or bool(
             _runtime_learning_memory_string_values(
                 row,
@@ -2045,14 +2083,8 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
             "verified_source_theorem_proof_body_adapter_declarations",
         )
         adapter_kernel_verified = (
-            bool(row.get("adapter_kernel_verified", False))
-            or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
-            or bool(input_summary.get("adapter_kernel_verified", False))
-            or bool(
-                input_summary.get(
-                    "source_theorem_proof_body_adapter_kernel_verified",
-                    False,
-                )
+            _runtime_learning_memory_source_theorem_proof_body_adapter_kernel_verified(
+                row
             )
         )
         if adapter_ids or adapter_kernel_verified:
@@ -2078,15 +2110,9 @@ def _runtime_learning_memory_pin_key(row: Mapping[str, object]) -> str:
         "kernel_verified_source_to_bridge_premise_derivation_ids",
     )
     if premise_names and (
-        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
-        or bool(row.get("premise_derivation_kernel_verified", False))
-        or bool(
-            input_summary.get(
-                "source_to_bridge_premise_derivation_kernel_verified",
-                False,
-            )
+        _runtime_learning_memory_source_to_bridge_premise_derivation_kernel_verified(
+            row
         )
-        or bool(input_summary.get("premise_derivation_kernel_verified", False))
     ):
         return "verified_source_to_bridge_premise:" + target + ":" + ",".join(
             premise_names
@@ -2578,11 +2604,9 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         return True
     if _runtime_learning_memory_row_is_exact_semantic_definition_repair_task(row):
         return True
-    if bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False)) or bool(
-        row.get("premise_derivation_kernel_verified", False)
-    ) or bool(
-        input_summary.get("source_to_bridge_premise_derivation_kernel_verified", False)
-    ) or bool(input_summary.get("premise_derivation_kernel_verified", False)):
+    if _runtime_learning_memory_source_to_bridge_premise_derivation_kernel_verified(
+        row
+    ):
         return True
     if (
         trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"

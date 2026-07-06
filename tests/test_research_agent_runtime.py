@@ -11330,6 +11330,111 @@ def test_cli_and_runtime_route_critical_memory_pinning_stays_aligned() -> None:
         assert runtime_module._runtime_learning_memory_should_pin_context_row(row)
 
 
+def test_runtime_learning_memory_cli_string_false_verified_flags_match_runtime() -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "source_to_bridge_premise_derivation_feedback",
+            "target_theorem_name": "split_conformal_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "premise_name": "hGoodCovered",
+            "premise_derivation_kernel_verified": "false",
+            "input_summary": {
+                "source_to_bridge_premise_derivation_kernel_verified": "false",
+                "premise_derivation_kernel_verified": "false",
+            },
+            "failure_classification": (
+                "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
+            ),
+        },
+        {
+            "schema_version": 1,
+            "learning_task": "source_theorem_proof_body_adapter_feedback",
+            "target_theorem_name": "split_conformal_coverage",
+            "adapter_kernel_verified": "false",
+            "source_theorem_proof_body_adapter_kernel_verified": "false",
+            "input_summary": {
+                "adapter_kernel_verified": "false",
+                "source_theorem_proof_body_adapter_kernel_verified": "false",
+            },
+            "unproven_bridge_premise_names": ["hGoodCovered"],
+            "failure_classification": "source_to_bridge_adapter_goal_shape_mismatch",
+        },
+    ]
+
+    for row in rows:
+        assert cli_module._runtime_learning_memory_pin_priority(row) == (
+            runtime_module._runtime_learning_memory_context_pin_priority(row)
+        )
+        assert cli_module._runtime_learning_memory_pin_key(row) == (
+            runtime_module._runtime_learning_memory_context_pin_key(row)
+        )
+        assert not cli_module._runtime_learning_memory_pin_key(row).startswith(
+            "verified_"
+        )
+
+    assert cli_module._runtime_learning_memory_pin_priority(rows[0]) == 92
+    assert cli_module._runtime_learning_memory_pin_priority(rows[1]) == 93
+
+
+def test_runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    exact_semantic_candidate = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_exact_semantic_definition_lean_repair_execution",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "covered",
+        "definition_only_candidate_artifact_path": "runs/covered.lean",
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+            "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    false_verified_premise = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "premise_name": "hGoodCovered",
+        "premise_derivation_kernel_verified": "false",
+        "input_summary": {"premise_derivation_kernel_verified": "false"},
+    }
+    false_verified_adapter = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_proof_body_adapter_feedback",
+        "target_theorem_name": "split_conformal_coverage",
+        "adapter_kernel_verified": "false",
+        "source_theorem_proof_body_adapter_kernel_verified": "false",
+        "unproven_bridge_premise_names": ["hGoodCovered"],
+    }
+    learning_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                exact_semantic_candidate,
+                false_verified_premise,
+                false_verified_adapter,
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert memory["counts"]["rows_loaded"] == 1
+    assert memory["rows"][0]["learning_task"] == (
+        "source_theorem_exact_semantic_definition_lean_repair_execution"
+    )
+    assert memory["rows"][0]["placeholder_symbol"] == "covered"
+
+
 def test_runtime_handoff_materializes_route_contract_feedback_jsonl(
     tmp_path: Path,
 ) -> None:
