@@ -275,6 +275,7 @@ from ai_statistician.research_system_audit import (
     _research_agent_runtime_exact_semantic_definition_authoring_count_rollup,
     _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup,
     _research_agent_runtime_capability_gap_routing_followup_commands,
+    _research_agent_runtime_target_bound_kernel_count_rollup,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
 )
@@ -5889,6 +5890,16 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": 0,
                 "research_agent_runtime_source_theorem_kernel_verified_count": 0,
+                "research_agent_runtime_full_frontier_target_bound_kernel_verified": 1,
+                "research_agent_runtime_full_frontier_current_target_ids": [
+                    "split_conformal_coverage"
+                ],
+                "research_agent_runtime_full_frontier_theorem_kernel_verified_target_ids": [
+                    "split_conformal_coverage"
+                ],
+                "research_agent_runtime_full_frontier_kernel_verified_matching_target_ids": [
+                    "split_conformal_coverage"
+                ],
             }
         )
         semantic_bridge_ok_guidance = build_evaluation_benchmark_guidance(
@@ -6044,6 +6055,17 @@ class SystemTests(unittest.TestCase):
             ],
             0,
         )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_full_frontier_target_bound_kernel_verified"
+            ],
+            1,
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_full_frontier_theorem_kernel_authoritative_ok"
+            ]
+        )
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok"
@@ -6072,6 +6094,36 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "source-theorem proof-body executor",
             semantic_bridge_ok_s13["honesty_boundary"],
+        )
+        missing_final_kernel_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        missing_final_kernel_payload["counts"].update(
+            {
+                "research_agent_runtime_full_frontier_target_bound_kernel_verified": 0,
+                "research_agent_runtime_full_frontier_current_target_ids": [
+                    "split_conformal_coverage"
+                ],
+                "research_agent_runtime_full_frontier_theorem_kernel_verified_target_ids": [],
+                "research_agent_runtime_full_frontier_kernel_verified_matching_target_ids": [],
+            }
+        )
+        missing_final_kernel_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_missing_final_kernel"),
+            system_audit_payload=missing_final_kernel_payload,
+        )
+        missing_final_kernel_s13 = next(
+            row
+            for row in missing_final_kernel_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(missing_final_kernel_s13["status"], "CAPACITY_GAP")
+        self.assertFalse(
+            missing_final_kernel_s13["key_counts"][
+                "research_agent_runtime_full_frontier_theorem_kernel_authoritative_ok"
+            ]
+        )
+        self.assertIn(
+            "no authoritative runtime full-frontier theorem kernel scorecard",
+            " ".join(missing_final_kernel_s13["issues"]),
         )
         split_proof_body_lane_payload = json.loads(
             json.dumps(semantic_bridge_ok_payload)
@@ -7461,6 +7513,75 @@ class SystemTests(unittest.TestCase):
             3,
         )
 
+    def test_research_agent_runtime_target_bound_kernel_rollup_exports_clean_counts(
+        self,
+    ) -> None:
+        counts = _research_agent_runtime_target_bound_kernel_count_rollup(
+            {
+                "n_source_theorem_raw_kernel_verified": 2,
+                "n_source_theorem_target_bound_kernel_verified": 1,
+                "source_theorem_current_target_ids": ["source:target"],
+                "source_theorem_kernel_verified_target_ids": [
+                    "source:target",
+                    "source:helper",
+                ],
+                "source_theorem_kernel_verified_matching_target_ids": [
+                    "source:target"
+                ],
+                "source_theorem_kernel_verified_target_binding_missing": False,
+                "n_full_frontier_target_bound_kernel_verified": 1,
+                "full_frontier_current_target_ids": ["frontier:target"],
+                "full_frontier_theorem_kernel_verified_target_ids": [
+                    "frontier:target"
+                ],
+                "full_frontier_kernel_verified_matching_target_ids": [
+                    "frontier:target"
+                ],
+            }
+        )
+
+        self.assertEqual(
+            counts["research_agent_runtime_source_theorem_raw_kernel_verified"],
+            2,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_source_theorem_target_bound_kernel_verified"
+            ],
+            1,
+        )
+        self.assertEqual(
+            counts["research_agent_runtime_source_theorem_current_target_ids"],
+            ["source:target"],
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_source_theorem_kernel_verified_matching_target_ids"
+            ],
+            ["source:target"],
+        )
+        self.assertFalse(
+            counts[
+                "research_agent_runtime_source_theorem_kernel_verified_target_binding_missing"
+            ]
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_full_frontier_target_bound_kernel_verified"
+            ],
+            1,
+        )
+        self.assertEqual(
+            counts["research_agent_runtime_full_frontier_current_target_ids"],
+            ["frontier:target"],
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_full_frontier_kernel_verified_matching_target_ids"
+            ],
+            ["frontier:target"],
+        )
+
     def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:
         manifest = {
             "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [
@@ -7759,6 +7880,10 @@ class SystemTests(unittest.TestCase):
                     "n_pseudo_formal_packets": 1,
                     "n_pseudo_formal_work_order_rows": 11,
                     "n_pseudo_formal_routable_work_order_rows": 8,
+                    "n_pseudo_formal_exact_semantic_definition_rows": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
                     "pseudo_formal_routable_row_kinds": [
                         "pseudo_formal_exact_semantic_definition_request",
                         "pseudo_formal_independent_block_verification_request",
@@ -7768,6 +7893,9 @@ class SystemTests(unittest.TestCase):
                         "source_to_bridge",
                     ],
                     "exact_semantic_definition_lane_present": True,
+                    "exact_semantic_definition_rows_source_anchored": True,
+                    "exact_semantic_definition_rows_semantic_requirements_present": True,
+                    "exact_semantic_definition_rows_lineage_complete": True,
                     "raw_model_output_written": False,
                     "capability_evidence_requirements": {
                         "formalizer_packet_valid": True,
@@ -7821,10 +7949,17 @@ class SystemTests(unittest.TestCase):
                     "fixture_plumbing_ok": True,
                     "n_pseudo_formal_packets": 1,
                     "n_pseudo_formal_routable_work_order_rows": 8,
+                    "n_pseudo_formal_exact_semantic_definition_rows": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
                     "pseudo_formal_routable_target_lanes": [
                         "source_theorem_exact_semantic_definition"
                     ],
                     "exact_semantic_definition_lane_present": True,
+                    "exact_semantic_definition_rows_source_anchored": True,
+                    "exact_semantic_definition_rows_semantic_requirements_present": True,
+                    "exact_semantic_definition_rows_lineage_complete": True,
                     "capability_evidence_requirements": {
                         "exact_semantic_definition_lane_present": True,
                         "nonproof_boundary_preserved": True
@@ -7860,10 +7995,17 @@ class SystemTests(unittest.TestCase):
                     "fixture_plumbing_ok": True,
                     "n_pseudo_formal_packets": 1,
                     "n_pseudo_formal_routable_work_order_rows": 8,
+                    "n_pseudo_formal_exact_semantic_definition_rows": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
                     "pseudo_formal_routable_target_lanes": [
                         "source_theorem_exact_semantic_definition"
                     ],
                     "exact_semantic_definition_lane_present": True,
+                    "exact_semantic_definition_rows_source_anchored": True,
+                    "exact_semantic_definition_rows_semantic_requirements_present": True,
+                    "exact_semantic_definition_rows_lineage_complete": True,
                     "capability_evidence_requirements": {
                         "exact_semantic_definition_lane_present": True,
                         "nonproof_boundary_preserved": True

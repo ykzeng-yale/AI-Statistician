@@ -3874,6 +3874,9 @@ async def run_research_system_audit(
                 "source_theorem_kernel_verified_count",
                 0,
             ),
+            **_research_agent_runtime_target_bound_kernel_count_rollup(
+                research_agent_runtime_audit_manifest
+            ),
             "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present": bool(
                 runtime_source_theorem_proof_body_executor_scorecard_row
             ),
@@ -9862,6 +9865,50 @@ def _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollu
         ),
         "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": _manifest_int(
             "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+        ),
+    }
+
+
+def _research_agent_runtime_target_bound_kernel_count_rollup(
+    manifest: Mapping[str, Any],
+) -> dict[str, object]:
+    def _manifest_int(key: str) -> int:
+        return int(manifest.get(key, 0) or 0)
+
+    def _manifest_list(key: str) -> list[object]:
+        value = manifest.get(key, [])
+        return list(value) if isinstance(value, (list, tuple)) else []
+
+    return {
+        "research_agent_runtime_source_theorem_raw_kernel_verified": _manifest_int(
+            "n_source_theorem_raw_kernel_verified"
+        ),
+        "research_agent_runtime_source_theorem_target_bound_kernel_verified": _manifest_int(
+            "n_source_theorem_target_bound_kernel_verified"
+        ),
+        "research_agent_runtime_source_theorem_current_target_ids": _manifest_list(
+            "source_theorem_current_target_ids"
+        ),
+        "research_agent_runtime_source_theorem_kernel_verified_target_ids": _manifest_list(
+            "source_theorem_kernel_verified_target_ids"
+        ),
+        "research_agent_runtime_source_theorem_kernel_verified_matching_target_ids": _manifest_list(
+            "source_theorem_kernel_verified_matching_target_ids"
+        ),
+        "research_agent_runtime_source_theorem_kernel_verified_target_binding_missing": bool(
+            manifest.get("source_theorem_kernel_verified_target_binding_missing", False)
+        ),
+        "research_agent_runtime_full_frontier_target_bound_kernel_verified": _manifest_int(
+            "n_full_frontier_target_bound_kernel_verified"
+        ),
+        "research_agent_runtime_full_frontier_current_target_ids": _manifest_list(
+            "full_frontier_current_target_ids"
+        ),
+        "research_agent_runtime_full_frontier_theorem_kernel_verified_target_ids": _manifest_list(
+            "full_frontier_theorem_kernel_verified_target_ids"
+        ),
+        "research_agent_runtime_full_frontier_kernel_verified_matching_target_ids": _manifest_list(
+            "full_frontier_kernel_verified_matching_target_ids"
         ),
     }
 

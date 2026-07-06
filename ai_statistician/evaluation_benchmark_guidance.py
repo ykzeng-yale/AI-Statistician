@@ -286,6 +286,16 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker",
+                        "research_agent_runtime_source_theorem_raw_kernel_verified",
+                        "research_agent_runtime_source_theorem_target_bound_kernel_verified",
+                        "research_agent_runtime_source_theorem_current_target_ids",
+                        "research_agent_runtime_source_theorem_kernel_verified_target_ids",
+                        "research_agent_runtime_source_theorem_kernel_verified_matching_target_ids",
+                        "research_agent_runtime_source_theorem_kernel_verified_target_binding_missing",
+                        "research_agent_runtime_full_frontier_target_bound_kernel_verified",
+                        "research_agent_runtime_full_frontier_current_target_ids",
+                        "research_agent_runtime_full_frontier_theorem_kernel_verified_target_ids",
+                        "research_agent_runtime_full_frontier_kernel_verified_matching_target_ids",
                         "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present",
                         "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok",
                         "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_evidence",
@@ -1441,6 +1451,31 @@ def _suite_rows(
         )
         or ""
     )
+    runtime_source_theorem_target_bound_kernel_verified = max(
+        _int(
+            counts.get(
+                "research_agent_runtime_source_theorem_target_bound_kernel_verified"
+            )
+        ),
+        _int(counts.get("n_source_theorem_target_bound_kernel_verified")),
+    )
+    runtime_full_frontier_target_bound_kernel_verified = max(
+        _int(
+            counts.get(
+                "research_agent_runtime_full_frontier_target_bound_kernel_verified"
+            )
+        ),
+        _int(counts.get("n_full_frontier_target_bound_kernel_verified")),
+    )
+    runtime_target_bound_source_or_frontier_kernel_verified = max(
+        runtime_source_theorem_target_bound_kernel_verified,
+        runtime_full_frontier_target_bound_kernel_verified,
+    )
+    runtime_full_frontier_theorem_kernel_authoritative_ok = (
+        runtime_full_frontier_theorem_kernel_scorecard_ok
+        if runtime_full_frontier_theorem_kernel_scorecard_present
+        else runtime_target_bound_source_or_frontier_kernel_verified > 0
+    )
     runtime_formal_gap_planner_handoff_rows = _int(
         counts.get("research_agent_runtime_formal_gap_planner_handoff_rows")
     )
@@ -1769,6 +1804,13 @@ def _suite_rows(
         s13_issues.append(
             runtime_full_frontier_theorem_kernel_scorecard_blocker
             or "runtime capability scorecard reports that the current source/frontier theorem target was not kernel-proved"
+        )
+    elif (
+        not runtime_full_frontier_theorem_kernel_scorecard_present
+        and not runtime_full_frontier_theorem_kernel_authoritative_ok
+    ):
+        s13_issues.append(
+            "no authoritative runtime full-frontier theorem kernel scorecard or direct target-bound source/frontier theorem kernel evidence is visible; helper/subclaim kernel counters and proof-body local Lean feedback cannot substitute for final theorem closure"
         )
     rows = [
         BenchmarkSuiteGuidanceRow(
@@ -2497,6 +2539,7 @@ def _suite_rows(
                 and runtime_source_theorem_proof_body_authoritative_goal_reached
                 and runtime_source_theorem_semantic_blockers_authoritative_ok
                 and runtime_source_theorem_proof_body_authoritative_local_lean_gate_ok
+                and runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok
                 and (
                     not runtime_live_lean_lsp_mcp_scorecard_present
                     or runtime_live_lean_lsp_mcp_scorecard_ok
@@ -2505,10 +2548,7 @@ def _suite_rows(
                     not runtime_real_kernel_subclaim_scorecard_present
                     or runtime_real_kernel_subclaim_scorecard_ok
                 )
-                and (
-                    not runtime_full_frontier_theorem_kernel_scorecard_present
-                    or runtime_full_frontier_theorem_kernel_scorecard_ok
-                )
+                and runtime_full_frontier_theorem_kernel_authoritative_ok
             )
             else "CAPACITY_GAP",
             evidence_paths=(
@@ -2990,6 +3030,10 @@ def _suite_rows(
                 "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok": runtime_full_frontier_theorem_kernel_scorecard_ok,
                 "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_evidence": runtime_full_frontier_theorem_kernel_scorecard_evidence,
                 "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_blocker": runtime_full_frontier_theorem_kernel_scorecard_blocker,
+                "research_agent_runtime_source_theorem_target_bound_kernel_verified": runtime_source_theorem_target_bound_kernel_verified,
+                "research_agent_runtime_full_frontier_target_bound_kernel_verified": runtime_full_frontier_target_bound_kernel_verified,
+                "research_agent_runtime_target_bound_source_or_frontier_kernel_verified": runtime_target_bound_source_or_frontier_kernel_verified,
+                "research_agent_runtime_full_frontier_theorem_kernel_authoritative_ok": runtime_full_frontier_theorem_kernel_authoritative_ok,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_lane_ok": runtime_source_theorem_formal_environment_proof_body_lane_ok,
                 "research_agent_runtime_source_theorem_exact_proof_body_repair_lane_ok": runtime_source_theorem_exact_proof_body_repair_lane_ok,
                 "research_agent_runtime_source_theorem_approved_proof_body_recheck_lane_ok": runtime_source_theorem_approved_proof_body_recheck_lane_ok,
