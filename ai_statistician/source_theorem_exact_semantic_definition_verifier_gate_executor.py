@@ -138,21 +138,44 @@ def run_source_theorem_exact_semantic_definition_verifier_gate_executor(
         "n_work_orders_from_pseudo_formal": sum(
             1 for row in work_orders if _has_pseudo_formal_origin(row)
         ),
+        "n_work_orders_from_formalizer_pf_component_gate": sum(
+            1 for row in work_orders if _has_formalizer_pf_component_gate_origin(row)
+        ),
         "n_results_from_pseudo_formal": sum(
             1 for row in results if _has_pseudo_formal_origin(row)
+        ),
+        "n_results_from_formalizer_pf_component_gate": sum(
+            1 for row in results if _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_local_lean_checked_from_pseudo_formal": sum(
             1
             for row in results
             if row.get("local_lean_checked") and _has_pseudo_formal_origin(row)
         ),
+        "n_local_lean_checked_from_formalizer_pf_component_gate": sum(
+            1
+            for row in results
+            if row.get("local_lean_checked")
+            and _has_formalizer_pf_component_gate_origin(row)
+        ),
         "n_local_lean_compiled_from_pseudo_formal": sum(
             1
             for row in results
             if row.get("local_lean_compiled") and _has_pseudo_formal_origin(row)
         ),
+        "n_local_lean_compiled_from_formalizer_pf_component_gate": sum(
+            1
+            for row in results
+            if row.get("local_lean_compiled")
+            and _has_formalizer_pf_component_gate_origin(row)
+        ),
         "n_verifier_approved_from_pseudo_formal": sum(
             1 for row in approved_packets if _has_pseudo_formal_origin(row)
+        ),
+        "n_verifier_approved_from_formalizer_pf_component_gate": sum(
+            1
+            for row in approved_packets
+            if _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_verifier_blocked_from_pseudo_formal": sum(
             1
@@ -161,6 +184,13 @@ def run_source_theorem_exact_semantic_definition_verifier_gate_executor(
             != "VERIFIER_APPROVED_FOR_PROOF_BODY_RECHECK"
             and _has_pseudo_formal_origin(row)
         ),
+        "n_verifier_blocked_from_formalizer_pf_component_gate": sum(
+            1
+            for row in results
+            if row.get("verifier_gate_status")
+            != "VERIFIER_APPROVED_FOR_PROOF_BODY_RECHECK"
+            and _has_formalizer_pf_component_gate_origin(row)
+        ),
         "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
             results,
             "source_pseudo_formal_work_order_id",
@@ -168,6 +198,9 @@ def run_source_theorem_exact_semantic_definition_verifier_gate_executor(
         "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
             results,
             "source_pseudo_formal_block_id",
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(results)
         ),
         "n_verifier_blocked": sum(
             1
@@ -700,7 +733,30 @@ def _string_list(value: Any) -> list[str]:
 
 
 def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
-    return bool(str(row.get("source_pseudo_formal_work_order_id", "") or "").strip())
+    return bool(
+        str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        or _has_formalizer_pf_component_gate_origin(row)
+    )
+
+
+def _has_formalizer_pf_component_gate_origin(row: Mapping[str, Any]) -> bool:
+    return (
+        str(row.get("source_component_gate", "") or "").strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
+    )
+
+
+def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    paths: list[str] = []
+    for row in rows:
+        if not _has_formalizer_pf_component_gate_origin(row):
+            continue
+        path = str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+        if path and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def _source_pseudo_formal_ids(

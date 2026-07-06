@@ -165,6 +165,78 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
 
 
+def test_verifier_gate_executor_tracks_formalizer_pf_component_gate_candidate(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate.lean"
+    candidate.write_text(
+        "def coverage_event (covered : Prop) : Prop :=\n"
+        "  covered\n",
+        encoding="utf-8",
+    )
+    work_orders = tmp_path / "work_orders.jsonl"
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+    row = {
+        **_base_work_order(candidate),
+        "work_order_id": "verifier-gate:coverage-event",
+        "source_review_packet_id": "review:coverage-event",
+        "placeholder_symbol": "coverage_event",
+        "semantic_primitive": "coverage_event",
+        "semantic_primitive_requirements": ["coverage_event"],
+        "source_anchors": [
+            {
+                "kind": "formalizer_component_gate_exact_row",
+                "id": "pf-component:coverage_event",
+                "excerpt": "coverage event source row",
+            }
+        ],
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+        "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "source_reference_hints": [{"path": "Source.lean", "symbol": "covered"}],
+        "exact_source_theorem_binders": [
+            {"name": "covered", "type": "Prop", "role": "coverage event"}
+        ],
+    }
+    _write_jsonl(work_orders, [row])
+
+    manifest = run_source_theorem_exact_semantic_definition_verifier_gate_executor(
+        out_dir=tmp_path / "verifier",
+        work_orders_jsonl=work_orders,
+        local_lean=True,
+        lean_command=("true",),
+    )
+
+    assert manifest["n_work_orders_from_pseudo_formal"] == 1
+    assert manifest["n_work_orders_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_results_from_pseudo_formal"] == 1
+    assert manifest["n_results_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_local_lean_checked_from_pseudo_formal"] == 1
+    assert manifest["n_local_lean_checked_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_verifier_approved_from_pseudo_formal"] == 1
+    assert manifest["n_verifier_approved_from_formalizer_pf_component_gate"] == 1
+    assert manifest["formalizer_pf_component_gate_exact_rows_jsonl_paths"] == [
+        exact_rows_jsonl
+    ]
+
+    approved = [
+        json.loads(line)
+        for line in Path(manifest["verifier_approved_review_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert approved[0]["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert approved[0]["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+    assert approved[0]["source_theorem_ready_for_exact_proof_body"] is True
+    assert approved[0]["source_theorem_kernel_evidence_eligible"] is False
+    assert "KERNEL_VERIFIED" not in approved[0]["proof_evidence_status"]
+
+
 def test_verifier_gate_executor_accepts_source_anchor_context(
     tmp_path: Path,
 ) -> None:

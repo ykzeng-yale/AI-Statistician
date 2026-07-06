@@ -384,6 +384,105 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_pseudo_formal_
                 )
 
 
+def test_exact_semantic_definition_lean_repair_executor_tracks_formalizer_pf_component_gate(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    source_root = tmp_path / "src"
+    source_file = source_root / "StatInference" / "Conformal" / "Coverage.lean"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("import StatInference.Missing\n", encoding="utf-8")
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+        "lean_repair_task_id": "lean-repair:coverage_event",
+        "source_repair_packet_id": "repair:coverage_event",
+        "source_review_packet_id": "review:coverage_event",
+        "source_definition_closure_work_order_id": "closure:coverage_event",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "coverage_event",
+        "semantic_primitive": "coverage_event",
+        "semantic_primitive_requirements": ["coverage event must match source"],
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+        "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "lean_repair_action": "review_import_source_declaration",
+        "repair_strategy": "review_import_candidate_source_declaration",
+        "candidate_import_declarations": [
+            {
+                "candidate_kind": "lean_declaration",
+                "path": "StatInference/Conformal/Coverage.lean",
+                "line": 1,
+                "snippet": "def coverage_event",
+            }
+        ],
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(task) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        source_roots=(source_root,),
+        local_lean=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "print(\"candidate.lean:1:0: error: unknown module prefix "
+                "'StatInference'\", file=sys.stderr); "
+                "sys.exit(1)"
+            ),
+        ),
+    )
+
+    assert manifest["n_tasks_from_pseudo_formal"] == 1
+    assert manifest["n_tasks_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_results_from_pseudo_formal"] == 1
+    assert manifest["n_results_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_local_lean_checked_from_pseudo_formal"] == 1
+    assert manifest["n_local_lean_checked_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_lean_environment_repair_tasks_from_pseudo_formal"] == 1
+    assert (
+        manifest[
+            "n_lean_environment_repair_tasks_from_formalizer_pf_component_gate"
+        ]
+        == 1
+    )
+    assert manifest["formalizer_pf_component_gate_exact_rows_jsonl_paths"] == [
+        exact_rows_jsonl
+    ]
+
+    for output_key in (
+        "execution_results_jsonl",
+        "lean_environment_repair_tasks_jsonl",
+        "runtime_learning_rows_jsonl",
+    ):
+        output_path = Path(manifest[output_key])
+        rows = [
+            json.loads(line)
+            for line in output_path.read_text(encoding="utf-8").splitlines()
+        ]
+        assert rows
+        for row in rows:
+            assert (
+                row["source_component_gate"]
+                == "formalizer_pseudo_formal_packet_component_gate"
+            )
+            assert row["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+            assert row["semantic_primitive"] == "coverage_event"
+            assert row["source_theorem_kernel_verified"] is False
+            assert "KERNEL_VERIFIED" not in row["proof_evidence_status"]
+
+
 def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_candidate(
     tmp_path: Path,
 ) -> None:

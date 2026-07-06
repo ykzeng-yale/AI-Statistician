@@ -385,40 +385,71 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
         "n_tasks_from_pseudo_formal": sum(
             1
             for row in tasks
+            if isinstance(row, Mapping) and _has_pseudo_formal_origin(row)
+        ),
+        "n_tasks_from_formalizer_pf_component_gate": sum(
+            1
+            for row in tasks
             if isinstance(row, Mapping)
-            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            and _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_results_from_pseudo_formal": sum(
-            1
-            for row in results
-            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            1 for row in results if _has_pseudo_formal_origin(row)
+        ),
+        "n_results_from_formalizer_pf_component_gate": sum(
+            1 for row in results if _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_local_lean_checked_from_pseudo_formal": sum(
             1
             for row in results
+            if row.get("local_lean_checked") and _has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_checked_from_formalizer_pf_component_gate": sum(
+            1
+            for row in results
             if row.get("local_lean_checked")
-            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            and _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_local_lean_compiled_from_pseudo_formal": sum(
             1
             for row in results
+            if row.get("local_lean_compiled") and _has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_compiled_from_formalizer_pf_component_gate": sum(
+            1
+            for row in results
             if row.get("local_lean_compiled")
-            and str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            and _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_lean_environment_repair_tasks_from_pseudo_formal": sum(
             1
             for row in environment_repair_tasks
-            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            if _has_pseudo_formal_origin(row)
+        ),
+        "n_lean_environment_repair_tasks_from_formalizer_pf_component_gate": sum(
+            1
+            for row in environment_repair_tasks
+            if _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_exact_semantic_definition_authoring_tasks_from_pseudo_formal": sum(
             1
             for row in author_definition_tasks
-            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            if _has_pseudo_formal_origin(row)
+        ),
+        "n_exact_semantic_definition_authoring_tasks_from_formalizer_pf_component_gate": sum(
+            1
+            for row in author_definition_tasks
+            if _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_typechecked_candidate_review_packets_from_pseudo_formal": sum(
             1
             for row in typechecked_candidate_review_packets
-            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            if _has_pseudo_formal_origin(row)
+        ),
+        "n_typechecked_candidate_review_packets_from_formalizer_pf_component_gate": sum(
+            1
+            for row in typechecked_candidate_review_packets
+            if _has_formalizer_pf_component_gate_origin(row)
         ),
         "source_pseudo_formal_work_order_ids": list(
             dict.fromkeys(
@@ -433,6 +464,9 @@ def run_source_theorem_exact_semantic_definition_lean_repair_executor(
                 for row in results
                 if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
             )
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(results)
         ),
         "status_counts": dict(sorted(status_counts.items())),
         "by_failure_classification": dict(sorted(failure_counts.items())),
@@ -1497,6 +1531,33 @@ def _has_placeholder_policy_lineage(row: Mapping[str, Any]) -> bool:
 
 def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
     return sum(1 for row in rows if _has_placeholder_policy_lineage(row))
+
+
+def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
+    return bool(
+        str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        or _has_formalizer_pf_component_gate_origin(row)
+    )
+
+
+def _has_formalizer_pf_component_gate_origin(row: Mapping[str, Any]) -> bool:
+    return (
+        str(row.get("source_component_gate", "") or "").strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
+    )
+
+
+def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    paths: list[str] = []
+    for row in rows:
+        if not _has_formalizer_pf_component_gate_origin(row):
+            continue
+        path = str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+        if path and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def _placeholder_policy_lineage_complete(

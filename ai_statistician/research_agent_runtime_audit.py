@@ -6651,12 +6651,46 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows": int(
             manifest.get(
                 "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows",
                 0,
             )
             or 0
+        ),
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proofengineer_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_formal_environment_proofengineer_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
         ),
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested": bool(
             manifest.get(
@@ -6695,12 +6729,46 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows": int(
             manifest.get(
                 "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows",
                 0,
             )
             or 0
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
         ),
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested": bool(
             manifest.get(
@@ -6739,12 +6807,46 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows": int(
             manifest.get(
                 "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows",
                 0,
             )
             or 0
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
         ),
         "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": max(
             int(
@@ -7603,9 +7705,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_formalizer_pf_component_gate",
                 0,
             )
             or 0
@@ -7617,9 +7733,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_formalizer_pf_component_gate",
                 0,
             )
             or 0
@@ -7642,6 +7772,12 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ],
+        "source_theorem_exact_semantic_definition_lean_repair_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_total_results": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_total_results",
@@ -8620,9 +8756,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_formalizer_pf_component_gate",
                 0,
             )
             or 0
@@ -8634,6 +8784,13 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal",
@@ -8641,9 +8798,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_formalizer_pf_component_gate",
                 0,
             )
             or 0
@@ -8666,6 +8837,12 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body": bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_theorem_ready_for_exact_proof_body",
@@ -8767,9 +8944,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_formalizer_pf_component_gate",
                 0,
             )
             or 0
@@ -8781,9 +8972,23 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
                 0,
             )
             or 0
@@ -8806,6 +9011,12 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached",
@@ -18437,9 +18648,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_pf_component_gate_verifier_gate_work_orders = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_pf_verifier_gate_results = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_component_gate_verifier_gate_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_results_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -18451,6 +18676,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_pf_component_gate_verifier_gate_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_pf_verifier_gate_approved = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal",
@@ -18458,9 +18690,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_pf_component_gate_verifier_gate_approved = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_pf_verifier_gate_blocked = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_component_gate_verifier_gate_blocked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -18816,9 +19062,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_pf_verifier_approved_recheck_executor_local_lean_checked = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -18830,9 +19090,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_goal_reached = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     primary_typechecked_review_pf_verifier_approved_recheck_executor_source_kernel = int(
         payload.get(
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_source_kernel = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -19508,9 +19782,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_lean_repair_pf_component_gate_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     exact_semantic_lean_repair_pf_results = int(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_component_gate_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -19522,9 +19810,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_lean_repair_pf_component_gate_local_lean_checked = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     exact_semantic_lean_repair_pf_typechecked_review_packets = int(
         payload.get(
             "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_component_gate_typechecked_review_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -23295,8 +23597,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_lean_repair_results} "
                 "pf_executor_tasks="
                 f"{exact_semantic_lean_repair_pf_tasks} "
+                "pf_component_gate_executor_tasks="
+                f"{exact_semantic_lean_repair_pf_component_gate_tasks} "
                 "pf_executor_results="
                 f"{exact_semantic_lean_repair_pf_results} "
+                "pf_component_gate_executor_results="
+                f"{exact_semantic_lean_repair_pf_component_gate_results} "
                 "total_results="
                 f"{exact_semantic_lean_repair_total_results} "
                 "materialized_results="
@@ -23327,6 +23633,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_lean_repair_local_lean_checked} "
                 "pf_local_lean_checked="
                 f"{exact_semantic_lean_repair_pf_local_lean_checked} "
+                "pf_component_gate_local_lean_checked="
+                f"{exact_semantic_lean_repair_pf_component_gate_local_lean_checked} "
                 "total_local_lean_checked="
                 f"{exact_semantic_lean_repair_total_local_lean_checked} "
                 "materialized_local_lean_checked="
@@ -23337,6 +23645,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_lean_repair_typechecked_review_packets} "
                 "pf_typechecked_review_packets="
                 f"{primary_typechecked_review_pf_packets} "
+                "pf_component_gate_typechecked_review_packets="
+                f"{exact_semantic_lean_repair_pf_component_gate_typechecked_review_packets} "
                 "materialized_typechecked_review_packets="
                 f"{exact_semantic_lean_repair_materialized_typechecked_review_packets} "
                 "chain_typechecked_review_packets="
@@ -23379,14 +23689,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{primary_typechecked_review_verifier_gate_approved} "
                 "pf_verifier_gate_work_orders="
                 f"{primary_typechecked_review_pf_verifier_gate_work_orders} "
+                "pf_component_gate_verifier_gate_work_orders="
+                f"{primary_typechecked_review_pf_component_gate_verifier_gate_work_orders} "
                 "pf_verifier_gate_results="
                 f"{primary_typechecked_review_pf_verifier_gate_results} "
+                "pf_component_gate_verifier_gate_results="
+                f"{primary_typechecked_review_pf_component_gate_verifier_gate_results} "
                 "pf_verifier_gate_local_lean_checked="
                 f"{primary_typechecked_review_pf_verifier_gate_local_lean_checked} "
+                "pf_component_gate_verifier_gate_local_lean_checked="
+                f"{primary_typechecked_review_pf_component_gate_verifier_gate_local_lean_checked} "
                 "pf_verifier_gate_approved="
                 f"{primary_typechecked_review_pf_verifier_gate_approved} "
+                "pf_component_gate_verifier_gate_approved="
+                f"{primary_typechecked_review_pf_component_gate_verifier_gate_approved} "
                 "pf_verifier_gate_blocked="
                 f"{primary_typechecked_review_pf_verifier_gate_blocked} "
+                "pf_component_gate_verifier_gate_blocked="
+                f"{primary_typechecked_review_pf_component_gate_verifier_gate_blocked} "
                 "pf_handoff_required="
                 f"{primary_typechecked_review_pf_verifier_gate_required}"
             ),
@@ -23433,12 +23753,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{primary_typechecked_review_verifier_approved_recheck_executor_source_kernel} "
                 "pf_executor_results="
                 f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_results} "
+                "pf_component_gate_executor_results="
+                f"{primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_results} "
                 "pf_executor_local_lean_checked="
                 f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_local_lean_checked} "
+                "pf_component_gate_executor_local_lean_checked="
+                f"{primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_local_lean_checked} "
                 "pf_executor_goal_reached="
                 f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_goal_reached} "
+                "pf_component_gate_executor_goal_reached="
+                f"{primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_goal_reached} "
                 "pf_executor_source_kernel="
                 f"{primary_typechecked_review_pf_verifier_approved_recheck_executor_source_kernel} "
+                "pf_component_gate_executor_source_kernel="
+                f"{primary_typechecked_review_pf_component_gate_verifier_approved_recheck_executor_source_kernel} "
                 "pf_handoff_required="
                 f"{primary_typechecked_review_pf_verifier_approved_recheck_required}"
             ),

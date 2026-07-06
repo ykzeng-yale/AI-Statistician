@@ -94,6 +94,7 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
         "  trivial\n",
         encoding="utf-8",
     )
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
     work_orders_jsonl = tmp_path / "runtime_source_theorem_promotion_work_orders.jsonl"
     work_orders_jsonl.write_text(
         json.dumps(
@@ -166,6 +167,13 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                 "source_pseudo_formal_work_order_id": "pf-work-order:covered",
                 "source_pseudo_formal_block_id": "pf-block:coverage",
                 "source_pseudo_formal_packet_id": "pf-packet:split",
+                "source_component_gate": (
+                    "formalizer_pseudo_formal_packet_component_gate"
+                ),
+                "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+                "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
                 "pseudo_formal_pipeline_stage": "PF/BV_semantic_bridge",
                 "pseudo_formal_proof_evidence_status": (
                     "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
@@ -196,6 +204,14 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     )
     assert queue_result["n_execution_queue_rows"] == 1
     assert queue_result["n_ready"] == 1
+    assert queue_result["n_execution_queue_rows_from_pseudo_formal"] == 1
+    assert (
+        queue_result["n_execution_queue_rows_from_formalizer_pf_component_gate"]
+        == 1
+    )
+    assert queue_result["formalizer_pf_component_gate_exact_rows_jsonl_paths"] == [
+        exact_rows_jsonl
+    ]
     assert (
         queue_result[
             "n_kernel_verified_source_to_bridge_premise_derivation_context_rows"
@@ -253,6 +269,13 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     ]
     assert execution_row["source_pseudo_formal_work_order_id"] == (
         "pf-work-order:covered"
+    )
+    assert execution_row["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert execution_row["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+    assert execution_row["live_proof_state_request"]["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
     )
     assert execution_row["exact_semantic_definition_context"][
         "pseudo_formal_proof_evidence_status"
@@ -420,6 +443,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "  fail_if_success trivial\n",
         encoding="utf-8",
     )
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
     queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
     queue_jsonl.write_text(
         json.dumps(
@@ -448,6 +472,17 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
                     "preserve marginal coverage target",
                     "do not strengthen exchangeability assumptions",
                 ],
+                "semantic_primitive": "coverage_event",
+                "semantic_primitive_requirements": [
+                    "coverage_event must match the source paper event"
+                ],
+                "source_component_gate": (
+                    "formalizer_pseudo_formal_packet_component_gate"
+                ),
+                "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+                "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
                 "candidate_artifact_path": str(candidate_artifact),
                 "failure_classification": "formal_environment_symbol_missing",
                 "diagnostics": [
@@ -498,10 +533,25 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
     )
     assert manifest["n_proof_body_work_orders"] == 1
+    assert manifest["n_proof_body_work_orders_from_pseudo_formal"] == 1
+    assert (
+        manifest["n_proof_body_work_orders_from_formalizer_pf_component_gate"]
+        == 1
+    )
     assert manifest["proof_body_work_order_proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
     assert manifest["n_proof_body_execution_queue_rows"] == 1
+    assert manifest["n_proof_body_execution_queue_rows_from_pseudo_formal"] == 1
+    assert (
+        manifest[
+            "n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate"
+        ]
+        == 1
+    )
+    assert manifest["formalizer_pf_component_gate_exact_rows_jsonl_paths"] == [
+        exact_rows_jsonl
+    ]
     assert manifest["n_proof_body_execution_live_goal_requests"] == 1
     assert manifest["proof_body_execution_queue_proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
@@ -533,6 +583,13 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "preserve marginal coverage target",
         "do not strengthen exchangeability assumptions",
     ]
+    assert repair_packet["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert repair_packet["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+    assert repair_packet["exact_semantic_definition_context"][
+        "source_component_gate"
+    ] == "formalizer_pseudo_formal_packet_component_gate"
     assert repair_packet["repair_status"] == "FORMAL_ENVIRONMENT_REPAIR_REQUIRED"
     assert any("search Mathlib/StatInference" in row for row in repair_packet["proofengineer_action_plan"])
     declaration_hints = repair_packet["formal_environment_declaration_hints"]
@@ -601,6 +658,15 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "preserve marginal coverage target",
         "do not strengthen exchangeability assumptions",
     ]
+    assert proof_body_work_order["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert proof_body_work_order["source_component_gate_exact_rows_jsonl"] == (
+        exact_rows_jsonl
+    )
+    assert proof_body_work_order["exact_semantic_definition_context"][
+        "source_component_gate"
+    ] == "formalizer_pseudo_formal_packet_component_gate"
     assert proof_body_work_order["proof_body_failure_classification"] == (
         "proof_body_incomplete"
     )
@@ -656,6 +722,13 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "preserve marginal coverage target",
         "do not strengthen exchangeability assumptions",
     ]
+    assert execution_row["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert execution_row["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+    assert execution_row["exact_semantic_definition_context"][
+        "source_component_gate"
+    ] == "formalizer_pseudo_formal_packet_component_gate"
     assert execution_row["live_goal_location_ready"] is True
     assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
     assert execution_row["proof_body_goal_excerpt"] == ["unsolved goals"]
@@ -678,6 +751,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_row["live_proof_state_request"]["target_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]
+    assert execution_row["live_proof_state_request"]["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
     assert execution_row["live_proof_state_request"]["target_theorem_goal_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]

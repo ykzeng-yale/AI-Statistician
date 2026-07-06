@@ -32415,11 +32415,17 @@ def run_research_agent_runtime(
         "n_local_lean_compiled",
         "n_verifier_approved",
         "n_work_orders_from_pseudo_formal",
+        "n_work_orders_from_formalizer_pf_component_gate",
         "n_results_from_pseudo_formal",
+        "n_results_from_formalizer_pf_component_gate",
         "n_local_lean_checked_from_pseudo_formal",
+        "n_local_lean_checked_from_formalizer_pf_component_gate",
         "n_local_lean_compiled_from_pseudo_formal",
+        "n_local_lean_compiled_from_formalizer_pf_component_gate",
         "n_verifier_approved_from_pseudo_formal",
+        "n_verifier_approved_from_formalizer_pf_component_gate",
         "n_verifier_blocked_from_pseudo_formal",
+        "n_verifier_blocked_from_formalizer_pf_component_gate",
         "n_verifier_blocked",
         "n_source_anchor_context_missing",
         "n_known_gaps_unresolved",
@@ -33646,12 +33652,30 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_tasks_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_lean_repair_executor_manifest
             or {}
         ).get("n_results_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_results_from_formalizer_pf_component_gate", 0)
         or 0
     )
     manifest[
@@ -33664,12 +33688,30 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_local_lean_checked_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_lean_repair_executor_manifest
             or {}
         ).get("n_typechecked_candidate_review_packets_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_typechecked_candidate_review_packets_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_typechecked_candidate_review_packets_from_formalizer_pf_component_gate", 0)
         or 0
     )
     manifest[
@@ -33691,6 +33733,17 @@ def run_research_agent_runtime(
             source_theorem_exact_semantic_definition_lean_repair_executor_manifest
             or {}
         ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
         or []
         if str(value).strip()
     ]
@@ -34209,6 +34262,17 @@ def run_research_agent_runtime(
         if str(value).strip()
     ]
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifest
+            or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_runtime_learning_rows"
     ] = len(
         source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_learning_rows
@@ -34290,12 +34354,30 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_execution_result_rows_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
             or {}
         ).get("n_local_lean_checked_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_local_lean_checked_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_local_lean_checked_from_formalizer_pf_component_gate", 0)
         or 0
     )
     manifest[
@@ -34308,12 +34390,30 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_goal_reached_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_proof_body_goal_reached_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
             or {}
         ).get("n_source_theorem_kernel_verified_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("n_source_theorem_kernel_verified_from_formalizer_pf_component_gate", 0)
         or 0
     )
     manifest[
@@ -34335,6 +34435,17 @@ def run_research_agent_runtime(
             source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
             or {}
         ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_recheck_executor_manifest
+            or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
         or []
         if str(value).strip()
     ]
@@ -36386,6 +36497,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders_from_pseudo_formal"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_work_orders_from_pseudo_formal",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders_from_formalizer_pf_component_gate"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_formal_environment_proofengineer_proof_body_work_order_proof_evidence_status"
     ] = str(
         source_theorem_formal_environment_bridge_manifest.get(
@@ -36405,6 +36536,36 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_bridge_manifest
         else 0
     )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows_from_pseudo_formal"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows_from_pseudo_formal",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_formal_environment_bridge_manifest or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_formal_environment_proofengineer_n_proof_body_execution_live_goal_requests"
     ] = int(
@@ -36569,6 +36730,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders_from_pseudo_formal"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_bridge_manifest.get(
+            "n_proof_body_work_orders_from_pseudo_formal",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders_from_formalizer_pf_component_gate"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_bridge_manifest.get(
+            "n_proof_body_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_bridge_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows"
     ] = int(
         source_theorem_formal_environment_source_semantic_bridge_manifest.get(
@@ -36578,6 +36759,36 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_source_semantic_bridge_manifest
         else 0
     )
+    manifest[
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_pseudo_formal"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows_from_pseudo_formal",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate"
+    ] = int(
+        source_theorem_formal_environment_source_semantic_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate",
+            0,
+        )
+        if source_theorem_formal_environment_source_semantic_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_from_source_semantic_promotion_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_formal_environment_source_semantic_bridge_manifest or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_proof_evidence_status"
     ] = str(
@@ -36750,6 +36961,26 @@ def run_research_agent_runtime(
         else 0
     )
     manifest[
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders_from_pseudo_formal"
+    ] = int(
+        source_theorem_formal_environment_post_executor_bridge_manifest.get(
+            "n_proof_body_work_orders_from_pseudo_formal",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_work_orders_from_formalizer_pf_component_gate"
+    ] = int(
+        source_theorem_formal_environment_post_executor_bridge_manifest.get(
+            "n_proof_body_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows"
     ] = int(
         source_theorem_formal_environment_post_executor_bridge_manifest.get(
@@ -36759,6 +36990,36 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_post_executor_bridge_manifest
         else 0
     )
+    manifest[
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_pseudo_formal"
+    ] = int(
+        source_theorem_formal_environment_post_executor_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows_from_pseudo_formal",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate"
+    ] = int(
+        source_theorem_formal_environment_post_executor_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate",
+            0,
+        )
+        if source_theorem_formal_environment_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_formal_environment_post_executor_bridge_manifest or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
+        or []
+        if str(value).strip()
+    ]
     manifest[
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_proof_evidence_status"
     ] = str(

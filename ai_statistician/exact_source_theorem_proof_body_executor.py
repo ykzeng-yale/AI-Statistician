@@ -203,26 +203,53 @@ def export_exact_source_theorem_proof_body_execution_results(
         "n_execution_result_rows_from_pseudo_formal": sum(
             1 for row in rows if _row_has_pseudo_formal_origin(row)
         ),
+        "n_execution_result_rows_from_formalizer_pf_component_gate": sum(
+            1 for row in rows if _row_has_formalizer_pf_component_gate_origin(row)
+        ),
         "n_local_lean_checked_from_pseudo_formal": sum(
             1
             for row in rows
             if row.local_lean_checked and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_local_lean_checked_from_formalizer_pf_component_gate": sum(
+            1
+            for row in rows
+            if row.local_lean_checked
+            and _row_has_formalizer_pf_component_gate_origin(row)
         ),
         "n_local_lean_compiled_from_pseudo_formal": sum(
             1
             for row in rows
             if row.local_lean_compiled and _row_has_pseudo_formal_origin(row)
         ),
+        "n_local_lean_compiled_from_formalizer_pf_component_gate": sum(
+            1
+            for row in rows
+            if row.local_lean_compiled
+            and _row_has_formalizer_pf_component_gate_origin(row)
+        ),
         "n_proof_body_goal_reached_from_pseudo_formal": sum(
             1
             for row in rows
             if row.proof_body_goal_reached and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_proof_body_goal_reached_from_formalizer_pf_component_gate": sum(
+            1
+            for row in rows
+            if row.proof_body_goal_reached
+            and _row_has_formalizer_pf_component_gate_origin(row)
         ),
         "n_source_theorem_kernel_verified_from_pseudo_formal": sum(
             1
             for row in rows
             if row.source_theorem_kernel_verified
             and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate": sum(
+            1
+            for row in rows
+            if row.source_theorem_kernel_verified
+            and _row_has_formalizer_pf_component_gate_origin(row)
         ),
         "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
             rows,
@@ -231,6 +258,9 @@ def export_exact_source_theorem_proof_body_execution_results(
         "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
             rows,
             "source_pseudo_formal_block_id",
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(rows)
         ),
         "n_formal_environment_semantically_closed": sum(
             1 for row in rows if row.formal_environment_semantically_closed
@@ -1923,11 +1953,20 @@ def _export_runtime_learning_rows(
         "n_runtime_learning_rows_from_pseudo_formal": sum(
             1 for row in rows if _row_has_pseudo_formal_origin(row)
         ),
+        "n_runtime_learning_rows_from_formalizer_pf_component_gate": sum(
+            1 for row in rows if _row_has_formalizer_pf_component_gate_origin(row)
+        ),
         "n_source_theorem_kernel_verified_from_pseudo_formal": sum(
             1
             for row in rows
             if row.source_theorem_kernel_verified
             and _row_has_pseudo_formal_origin(row)
+        ),
+        "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate": sum(
+            1
+            for row in rows
+            if row.source_theorem_kernel_verified
+            and _row_has_formalizer_pf_component_gate_origin(row)
         ),
         "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
             rows,
@@ -1936,6 +1975,9 @@ def _export_runtime_learning_rows(
         "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
             rows,
             "source_pseudo_formal_block_id",
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(rows)
         ),
         "n_artifact_kernel_verified": sum(1 for row in rows if row.artifact_kernel_verified),
         "n_source_theorem_target_known": sum(
@@ -2017,14 +2059,23 @@ def _export_runtime_learning_rows(
         "n_runtime_learning_rows_from_pseudo_formal": manifest[
             "n_runtime_learning_rows_from_pseudo_formal"
         ],
+        "n_runtime_learning_rows_from_formalizer_pf_component_gate": manifest[
+            "n_runtime_learning_rows_from_formalizer_pf_component_gate"
+        ],
         "n_source_theorem_kernel_verified_from_pseudo_formal": manifest[
             "n_source_theorem_kernel_verified_from_pseudo_formal"
+        ],
+        "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate": manifest[
+            "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate"
         ],
         "source_pseudo_formal_work_order_ids": manifest[
             "source_pseudo_formal_work_order_ids"
         ],
         "source_pseudo_formal_block_ids": manifest[
             "source_pseudo_formal_block_ids"
+        ],
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": manifest[
+            "formalizer_pf_component_gate_exact_rows_jsonl_paths"
         ],
         "n_source_theorem_target_known": manifest["n_source_theorem_target_known"],
         "n_source_theorem_target_unpromoted_rows": manifest[
@@ -2697,6 +2748,18 @@ def _row_has_pseudo_formal_origin(
             )
             or ""
         ).strip()
+        or _row_has_formalizer_pf_component_gate_origin(row)
+    )
+
+
+def _row_has_formalizer_pf_component_gate_origin(
+    row: ExactSourceTheoremProofBodyExecutionResultRow,
+) -> bool:
+    return (
+        str(
+            row.exact_semantic_definition_context.get("source_component_gate", "") or ""
+        ).strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
     )
 
 
@@ -2711,6 +2774,25 @@ def _source_pseudo_formal_ids(
             if str(row.exact_semantic_definition_context.get(key, "") or "").strip()
         )
     )
+
+
+def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+    rows: list[ExactSourceTheoremProofBodyExecutionResultRow],
+) -> list[str]:
+    paths: list[str] = []
+    for row in rows:
+        if not _row_has_formalizer_pf_component_gate_origin(row):
+            continue
+        path = str(
+            row.exact_semantic_definition_context.get(
+                "source_component_gate_exact_rows_jsonl",
+                "",
+            )
+            or ""
+        ).strip()
+        if path and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def _markdown_report(payload: Mapping[str, object]) -> str:

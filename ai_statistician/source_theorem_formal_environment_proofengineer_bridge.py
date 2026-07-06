@@ -330,6 +330,20 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
         "n_proof_body_work_orders": int(
             proof_body_work_order_result.get("n_proof_body_work_orders", 0)
         ),
+        "n_proof_body_work_orders_from_pseudo_formal": int(
+            proof_body_work_order_result.get(
+                "n_proof_body_work_orders_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "n_proof_body_work_orders_from_formalizer_pf_component_gate": int(
+            proof_body_work_order_result.get(
+                "n_proof_body_work_orders_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "proof_body_work_order_proof_evidence_status": str(
             proof_body_work_order_result.get("proof_evidence_status", "")
         ),
@@ -341,6 +355,40 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
         ),
         "n_proof_body_execution_queue_rows": int(
             proof_body_execution_queue_result.get("n_execution_queue_rows", 0)
+        ),
+        "n_proof_body_execution_queue_rows_from_pseudo_formal": int(
+            proof_body_execution_queue_result.get(
+                "n_execution_queue_rows_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "n_proof_body_execution_queue_rows_from_formalizer_pf_component_gate": int(
+            proof_body_execution_queue_result.get(
+                "n_execution_queue_rows_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": list(
+            dict.fromkeys(
+                [
+                    *list(
+                        proof_body_work_order_result.get(
+                            "formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                            [],
+                        )
+                        or []
+                    ),
+                    *list(
+                        proof_body_execution_queue_result.get(
+                            "formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                            [],
+                        )
+                        or []
+                    ),
+                ]
+            )
         ),
         "n_proof_body_execution_live_goal_requests": int(
             proof_body_execution_queue_result.get("n_live_goal_requests", 0)
@@ -409,6 +457,7 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         typeclass_blockers=typeclass_blockers,
         candidate_artifact_path=candidate_artifact_path,
     )
+    exact_semantic_context = _exact_semantic_definition_context(row)
     repair_packet_id = "source_theorem_formal_environment_repair_packet:" + stable_hash(
         [
             work_order_id,
@@ -422,6 +471,7 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "artifact_kind": REPAIR_PACKET_ARTIFACT_KIND,
+        **exact_semantic_context,
         "repair_packet_id": repair_packet_id,
         "source_work_order_id": work_order_id,
         "question_id": question_id,
@@ -431,6 +481,7 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_lean_declaration,
         "candidate_artifact_path": candidate_artifact_path,
+        "exact_semantic_definition_context": exact_semantic_context,
         "lean_statement_sketch": str(row.get("lean_statement_sketch", "") or ""),
         "lean_imports": _str_list(row.get("lean_imports", []) or []),
         "source_theorem_target_known": bool(
@@ -1292,6 +1343,15 @@ def _export_proof_body_work_orders(
             if row.get("source_signature_probe_status")
             == "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
         ),
+        "n_proof_body_work_orders_from_pseudo_formal": sum(
+            1 for row in rows if _has_pseudo_formal_origin(row)
+        ),
+        "n_proof_body_work_orders_from_formalizer_pf_component_gate": sum(
+            1 for row in rows if _has_formalizer_pf_component_gate_origin(row)
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(rows)
+        ),
         "proof_evidence_status": PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS,
         "boundary": PROOF_BODY_WORK_ORDER_BOUNDARY,
     }
@@ -1303,6 +1363,15 @@ def _export_proof_body_work_orders(
         "proof_body_work_order_manifest": manifest_path,
         "proof_body_work_orders_jsonl": rows_path,
         "n_proof_body_work_orders": len(rows),
+        "n_proof_body_work_orders_from_pseudo_formal": manifest[
+            "n_proof_body_work_orders_from_pseudo_formal"
+        ],
+        "n_proof_body_work_orders_from_formalizer_pf_component_gate": manifest[
+            "n_proof_body_work_orders_from_formalizer_pf_component_gate"
+        ],
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": manifest[
+            "formalizer_pf_component_gate_exact_rows_jsonl_paths"
+        ],
         "rows": rows,
         "proof_evidence_status": PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS,
         "boundary": PROOF_BODY_WORK_ORDER_BOUNDARY,
@@ -1369,6 +1438,10 @@ def _proof_body_work_order(
         repair_packet or probe_row,
         fallback_target=target_theorem_name,
     )
+    exact_semantic_context = _exact_semantic_definition_context(
+        repair_packet,
+        probe_row,
+    )
     work_order_id = "exact_source_theorem_proof_body_work_order:" + stable_hash(
         [
             probe_row.get("signature_probe_id", ""),
@@ -1381,6 +1454,7 @@ def _proof_body_work_order(
     return {
         "schema_version": 1,
         "artifact_kind": PROOF_BODY_WORK_ORDER_ARTIFACT_KIND,
+        **exact_semantic_context,
         "work_order_id": work_order_id,
         "source_repair_packet_id": str(repair_packet.get("repair_packet_id", "") or ""),
         "source_work_order_id": str(repair_packet.get("source_work_order_id", "") or ""),
@@ -1399,6 +1473,7 @@ def _proof_body_work_order(
             or source_target_provenance.get("source_theorem_target_known", False)
         ),
         "source_theorem_target_provenance": source_target_provenance,
+        "exact_semantic_definition_context": exact_semantic_context,
         "semantic_alignment_constraints": semantic_alignment_constraints,
         "semantic_alignment_blockers": semantic_alignment_blockers,
         "source_theorem_kernel_evidence_eligible": (
@@ -1548,6 +1623,15 @@ def _export_proof_body_execution_queue(
             or row.get("verified_source_to_bridge_premise_derivation_artifact_paths")
             or row.get("verified_source_to_bridge_premise_derivation_declarations")
         ),
+        "n_execution_queue_rows_from_pseudo_formal": sum(
+            1 for row in rows if _has_pseudo_formal_origin(row)
+        ),
+        "n_execution_queue_rows_from_formalizer_pf_component_gate": sum(
+            1 for row in rows if _has_formalizer_pf_component_gate_origin(row)
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(rows)
+        ),
         "kernel_verified_source_to_bridge_premise_derivation_ids": list(
             dict.fromkeys(
                 str(premise_id).strip()
@@ -1582,6 +1666,15 @@ def _export_proof_body_execution_queue(
         ],
         "n_kernel_verified_source_to_bridge_premise_derivation_context_rows": manifest[
             "n_kernel_verified_source_to_bridge_premise_derivation_context_rows"
+        ],
+        "n_execution_queue_rows_from_pseudo_formal": manifest[
+            "n_execution_queue_rows_from_pseudo_formal"
+        ],
+        "n_execution_queue_rows_from_formalizer_pf_component_gate": manifest[
+            "n_execution_queue_rows_from_formalizer_pf_component_gate"
+        ],
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": manifest[
+            "formalizer_pf_component_gate_exact_rows_jsonl_paths"
         ],
         "kernel_verified_source_to_bridge_premise_derivation_ids": manifest[
             "kernel_verified_source_to_bridge_premise_derivation_ids"
@@ -1676,6 +1769,51 @@ def _exact_semantic_definition_context(
                 context[key] = value
             break
     return context
+
+
+def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
+    return bool(
+        _row_context_value(row, "source_pseudo_formal_work_order_id").strip()
+        or _has_formalizer_pf_component_gate_origin(row)
+    )
+
+
+def _has_formalizer_pf_component_gate_origin(row: Mapping[str, Any]) -> bool:
+    return (
+        _row_context_value(row, "source_component_gate")
+        == "formalizer_pseudo_formal_packet_component_gate"
+    )
+
+
+def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+    rows: list[Mapping[str, Any]],
+) -> list[str]:
+    paths: list[str] = []
+    for row in rows:
+        if not _has_formalizer_pf_component_gate_origin(row):
+            continue
+        path = _row_context_value(row, "source_component_gate_exact_rows_jsonl")
+        if path and path not in paths:
+            paths.append(path)
+    return paths
+
+
+def _row_context_value(row: Mapping[str, Any], key: str) -> str:
+    sources: list[Mapping[str, Any]] = [row]
+    nested = row.get("exact_semantic_definition_context", {})
+    if isinstance(nested, Mapping):
+        sources.append(nested)
+    input_summary = row.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        sources.append(input_summary)
+        nested_input = input_summary.get("exact_semantic_definition_context", {})
+        if isinstance(nested_input, Mapping):
+            sources.append(nested_input)
+    for source in sources:
+        value = source.get(key, None)
+        if value not in (None, "", [], {}):
+            return str(value).strip()
+    return ""
 
 
 def _proof_body_repair_execution_work_order(
