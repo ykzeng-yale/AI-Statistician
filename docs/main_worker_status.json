@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T21:31:41Z",
+  "updated_at": "2026-07-06T21:40:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1120,6 +1120,17 @@
       "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
       "source_theorem_exact_proof_body_gate_open_for_kernel_repair_preserved": true,
       "proof_boundary": "This preserves downstream routing context from the adapter bridge into premise-derivation and semantic-definition work orders. It does not promote premise derivations or adapter-object definitions to source-theorem proof evidence; source_theorem_kernel_verified remains false until the exact source theorem itself passes local Lean/AXLE."
+    },
+    "proof_body_gate_open_runtime_bool_normalization_patch": {
+      "status": "implemented",
+      "component": "research_agent_runtime",
+      "new_regression_tests": [
+        "test_gate_open_string_false_does_not_route_exact_proof_body_repair",
+        "test_generated_next_action_gate_open_string_false_stays_closed"
+      ],
+      "runtime_proof_body_slice_tests": 68,
+      "routing_boundary": "AgentRuntime now parses serialized gate-open booleans with string-aware normalization before promotion work-order routing, truth-table next-action routing, and generated-learning compaction. A JSONL value of \"false\" no longer opens the exact proof-body kernel-repair lane.",
+      "proof_boundary": "This is routing truth maintenance only. It prevents false-positive proof-body gate-open state and does not promote any source theorem, adapter, premise derivation, or semantic-definition row to proof evidence."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2478,6 +2489,12 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"source_to_bridge_premise_derivation or proof_body_adapter or proof_body_gate_open\" # 11 passed, 876 deselected after proof-body premise-derivation bridge gate-open memory propagation patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 67 passed, 820 deselected after proof-body premise-derivation bridge gate-open memory propagation patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body premise-derivation bridge gate-open memory propagation patch",
-    "git diff --check # passed after proof-body premise-derivation bridge gate-open memory propagation patch"
+    "git diff --check # passed after proof-body premise-derivation bridge gate-open memory propagation patch",
+    "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after proof-body gate-open runtime bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_gate_open_string_false_does_not_route_exact_proof_body_repair tests/test_research_agent_runtime.py::test_generated_next_action_gate_open_string_false_stays_closed -q # 2 passed after proof-body gate-open runtime bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body_gate_open or gate_open_string_false or runtime_truth_table_gate_open or proof_body_adapter\" # 8 passed, 881 deselected after proof-body gate-open runtime bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 821 deselected after proof-body gate-open runtime bool-normalization patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body gate-open runtime bool-normalization patch",
+    "git diff --check # passed after proof-body gate-open runtime bool-normalization patch"
   ]
 }

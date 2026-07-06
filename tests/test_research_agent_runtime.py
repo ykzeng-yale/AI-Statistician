@@ -77714,6 +77714,112 @@ def test_runtime_truth_table_gate_open_routes_exact_proof_body_repair(
     assert summary["source_theorem_exact_semantic_definition_repair_required"] is False
 
 
+def test_gate_open_string_false_does_not_route_exact_proof_body_repair() -> None:
+    proposal = {
+        "packet_id": "formalizer:string-false-gate",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "formal_targets": [
+            {
+                "id": "target:split_conformal_finite_sample_coverage",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage : True := by"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+    }
+    summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_proof_body_repair"
+        ),
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": "false",
+        "source_theorem_exact_proof_body_gate_open_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_diagnostics": [],
+        "source_theorem_proof_body_adapter_diagnostics": [],
+    }
+
+    work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=[],
+    )
+
+    assert len(work_orders) == 1
+    assert (
+        work_orders[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is False
+    )
+    assert work_orders[0][
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == []
+
+
+def test_generated_next_action_gate_open_string_false_stays_closed() -> None:
+    truth_row = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_truth_table_feedback",
+        "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
+        "work_order_id": "truth-table:string-false-gate",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "proof_body_goal_reached": True,
+        "proof_body_semantic_review_blocked": False,
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": "false",
+        "source_theorem_exact_proof_body_gate_open_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "input_summary": {
+            "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
+            "proof_body_goal_reached": True,
+            "proof_body_semantic_review_blocked": False,
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair": "false",
+            "source_theorem_exact_proof_body_gate_open_target_names": [
+                "split_conformal_finite_sample_coverage"
+            ],
+        },
+    }
+
+    generated_rows = _append_runtime_generated_next_action_rows(
+        [],
+        [truth_row],
+        queue_name="runtime_evidence_truth_table",
+    )
+    generated_learning_rows = _runtime_generated_next_action_learning_rows(
+        generated_rows
+    )
+
+    assert len(generated_rows) == 1
+    assert (
+        generated_rows[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is False
+    )
+    assert generated_rows[0]["trigger"] != (
+        "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert (
+        generated_learning_rows[0]["input_summary"][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is False
+    )
+
+
 def test_runtime_truth_table_semantic_review_blocker_not_exact_proof_body_ready(
     tmp_path: Path,
 ) -> None:

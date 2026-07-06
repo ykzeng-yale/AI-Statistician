@@ -4536,11 +4536,13 @@ def _runtime_evidence_truth_learning_rows(
     ][:8]
     proof_body_gate_open_for_kernel_repair = bool(
         (
-            truth_table.get(
-                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                False,
+            _bool_like(
+                truth_table.get(
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                    False,
+                )
             )
-            or exact_attempt_row.get("gate_open_for_kernel_repair", False)
+            or _bool_like(exact_attempt_row.get("gate_open_for_kernel_repair", False))
         )
         and proof_body_goal_reached
         and not semantic_review_blocked
@@ -46909,6 +46911,14 @@ def _int_like(value: Any, default: int = 0) -> int:
         return default
 
 
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
 def _runtime_learning_row_trigger(
     row: Mapping[str, Any],
     input_summary: Any,
@@ -47696,15 +47706,17 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 truth_proof_body_semantic_review_blocked
                 or input_summary.get("proof_body_semantic_review_blocked", False)
             )
-        truth_proof_body_gate_open_for_kernel_repair = bool(
+        truth_proof_body_gate_open_for_kernel_repair = _bool_like(
             row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
         )
         if isinstance(input_summary, Mapping):
             truth_proof_body_gate_open_for_kernel_repair = bool(
                 truth_proof_body_gate_open_for_kernel_repair
-                or input_summary.get(
-                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                    False,
+                or _bool_like(
+                    input_summary.get(
+                        "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                        False,
+                    )
                 )
             )
         truth_proof_body_attempt_blocked_before_goal = bool(
@@ -59640,7 +59652,7 @@ def _formalizer_source_theorem_promotion_work_orders(
     proof_body_gate_open_diagnostics = [
         row
         for row in [*proof_body_repair_diagnostics, *proof_body_adapter_diagnostics]
-        if bool(
+        if _bool_like(
             row.get(
                 "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
                 False,
@@ -59649,9 +59661,11 @@ def _formalizer_source_theorem_promotion_work_orders(
         or _source_theorem_exact_proof_body_gate_open_for_kernel_repair(row)
     ]
     source_theorem_exact_proof_body_gate_open_for_kernel_repair = bool(
-        proof_bank_runtime_memory_summary.get(
-            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-            False,
+        _bool_like(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
         )
         or proof_body_gate_open_diagnostics
     )
@@ -61674,10 +61688,17 @@ def _append_runtime_generated_next_action_rows(
             or input_summary.get("proof_body_goal_reached", False)
         )
         proof_body_gate_open_for_kernel_repair = bool(
-            row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
-            or input_summary.get(
-                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                False,
+            _bool_like(
+                row.get(
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                    False,
+                )
+            )
+            or _bool_like(
+                input_summary.get(
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                    False,
+                )
             )
         )
         proof_body_gate_open_target_names = [
@@ -62496,10 +62517,12 @@ def _runtime_generated_next_action_learning_rows(
                     "proof_body_goal_reached": bool(
                         row.get("proof_body_goal_reached", False)
                     ),
-                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair": bool(
-                        row.get(
-                            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                            False,
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                        _bool_like(
+                            row.get(
+                                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                                False,
+                            )
                         )
                     ),
                     "source_theorem_exact_proof_body_gate_open_target_names": list(
