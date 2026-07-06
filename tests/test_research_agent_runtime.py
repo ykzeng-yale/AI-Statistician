@@ -22202,6 +22202,106 @@ def test_runtime_normalizes_stale_source_to_bridge_materialization_artifact() ->
     )
 
 
+def test_runtime_normalizes_string_false_formalizer_candidate_kernel_flags() -> None:
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:string_false_kernel",
+        "manifest_path": "runs/string_false_kernel/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {"id": "conformal_prediction_coverage"},
+        "task_id": "formalize-lean-repair:conformal_prediction_coverage:string_false",
+        "source_formalizer_packet_id": "formalizer_proposal:string_false_kernel",
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "split_conformal_source_candidate",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "string-false-kernel",
+                "lean_source_excerpt": (
+                    "theorem split_conformal_source_candidate : True := by trivial"
+                ),
+                "artifact_path": "runs/string_false_kernel/001.lean",
+                "kernel_check_artifact_path": "runs/string_false_kernel/001.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": "false",
+                "local_lean_compiled": "false",
+                "local_lean_exit_status": "1",
+                "kernel_verified": "false",
+                "candidate_kernel_verified": "false",
+                "local_lean_compiled_observed": "false",
+                "support_candidate_not_source_theorem": "false",
+                "diagnostic_helper_not_source_theorem": "false",
+                "source_theorem_target_known": "true",
+                "source_theorem_candidate_evidence_eligible": "true",
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
+                ),
+                "source_theorem_proof_evidence_status": (
+                    "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+                ),
+            }
+        ],
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 1,
+        "n_local_lean_compiled_source_theorem_candidates": 1,
+        "kernel_verified": "false",
+        "candidate_kernel_verified": "false",
+        "source_theorem_kernel_verified": "false",
+        "source_theorem_proof_evidence_status": (
+            "SOURCE_THEOREM_CANDIDATE_REQUIRES_SEMANTIC_AUDIT"
+        ),
+    }
+
+    normalized_artifacts = runtime_module._normalize_runtime_blackboard_artifacts(
+        {manifest["manifest_id"]: manifest}
+    )
+    normalized = normalized_artifacts[manifest["manifest_id"]]
+    row = normalized["candidate_rows"][0]
+
+    assert row["local_lean_attempted"] is False
+    assert row["local_lean_compiled"] is False
+    assert row["kernel_verified"] is False
+    assert row["candidate_kernel_verified"] is False
+    assert row["local_lean_compiled_observed"] is False
+    assert row["support_candidate_not_source_theorem"] is False
+    assert row["diagnostic_helper_not_source_theorem"] is False
+    assert row["source_theorem_candidate_evidence_eligible"] is True
+    assert row["proof_evidence_status"] == (
+        "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+    )
+    assert row["source_theorem_proof_evidence_status"] == (
+        "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert normalized["n_local_lean_checked"] == 0
+    assert normalized["n_local_lean_compiled"] == 0
+    assert normalized["candidate_kernel_verified"] is False
+    assert normalized["local_lean_compiled_observed"] is False
+    assert normalized["n_local_lean_compiled_source_theorem_candidates"] == 0
+    assert normalized["source_theorem_kernel_verified"] is False
+    assert normalized["source_theorem_proof_evidence_status"] == (
+        "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+    )
+
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": normalized_artifacts}}]
+    )
+
+    assert learning_rows[0]["local_lean_compiled"] is False
+    assert learning_rows[0]["kernel_verified"] is False
+    assert learning_rows[0]["candidate_kernel_verified"] is False
+    assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is True
+    assert learning_rows[0]["source_theorem_proof_evidence_status"] == (
+        "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert learning_rows[0]["memory_status"] == (
+        "FORMALIZER_CANDIDATE_NEEDS_REPAIR_OR_KERNEL_CHECK"
+    )
+
+
 def test_formalizer_candidate_materialization_preserves_source_theorem_target_scope(
     tmp_path: Path,
 ) -> None:
@@ -23847,6 +23947,31 @@ def test_formalizer_candidate_materialization_allows_string_false_helper_target(
         "NOT_SOURCE_THEOREM_PROOF"
     )
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
+
+
+def test_formalizer_source_theorem_target_string_false_kernel_still_requests_environment_repair() -> None:
+    target = {
+        "id": "target:split_conformal_finite_sample_coverage",
+        "expected_status": "NEEDS_KERNEL_CHECK",
+        "kernel_verified": "false",
+        "source_theorem_formal_environment_repair_required": "false",
+    }
+    provenance = {
+        "source_theorem_target_known": True,
+        "target_lean_declaration": "split_conformal_finite_sample_coverage",
+        "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+    }
+
+    assert (
+        runtime_module._formalizer_target_requests_source_theorem_formal_environment_repair(
+            target,
+            source_target_provenance=provenance,
+            lean_statement_sketch=(
+                "theorem split_conformal_finite_sample_coverage : True := by"
+            ),
+        )
+        is True
+    )
 
 
 def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_lean(

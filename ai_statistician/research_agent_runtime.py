@@ -15009,9 +15009,10 @@ def _formalizer_candidate_kernel_scope_fields(
     *,
     local_lean_compiled: bool,
 ) -> dict[str, Any]:
+    local_lean_compiled = _bool_like(local_lean_compiled)
     return {
-        "candidate_kernel_verified": bool(local_lean_compiled),
-        "local_lean_compiled_observed": bool(local_lean_compiled),
+        "candidate_kernel_verified": local_lean_compiled,
+        "local_lean_compiled_observed": local_lean_compiled,
         "kernel_verified_scope": "candidate_artifact_only",
         "kernel_verified_boundary": FORMALIZER_LEAN_CANDIDATE_KERNEL_BOUNDARY,
     }
@@ -15036,10 +15037,16 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
     for row in candidate_rows:
         candidate = dict(row)
         candidate_kind = str(candidate.get("candidate_kind", "") or "")
-        support_candidate_not_source_theorem = bool(
+        support_candidate_not_source_theorem = _bool_like(
             candidate.get("support_candidate_not_source_theorem", False)
         ) or _formalizer_candidate_support_not_source_theorem(candidate_kind)
         source_theorem_target_known = candidate.get("source_theorem_target_known", None)
+        if source_theorem_target_known is not None:
+            parsed_source_theorem_target_known = _source_theorem_target_known_value(
+                {"source_theorem_target_known": source_theorem_target_known}
+            )
+            if parsed_source_theorem_target_known is not None:
+                source_theorem_target_known = parsed_source_theorem_target_known
         if source_theorem_target_known is None:
             candidate_metadata = (
                 candidate.get("candidate_metadata", {})
@@ -15049,14 +15056,19 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             source_theorem_target_known = _source_theorem_target_known_value(
                 candidate_metadata.get("source_theorem_target_provenance", {})
             )
-        diagnostic_helper_not_source_theorem = bool(
+        diagnostic_helper_not_source_theorem = _bool_like(
             candidate.get("diagnostic_helper_not_source_theorem", False)
         ) or source_theorem_target_known is False
         source_theorem_candidate_evidence_eligible = (
             not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
         )
-        local_lean_compiled = bool(candidate.get("local_lean_compiled", False))
+        local_lean_attempted = _bool_like(
+            candidate.get("local_lean_attempted", False)
+        )
+        local_lean_compiled = _bool_like(candidate.get("local_lean_compiled", False))
+        candidate["local_lean_attempted"] = local_lean_attempted
+        candidate["local_lean_compiled"] = local_lean_compiled
         candidate["source_theorem_target_known"] = source_theorem_target_known
         candidate["diagnostic_helper_not_source_theorem"] = (
             diagnostic_helper_not_source_theorem
@@ -15094,22 +15106,26 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         )
         rows.append(candidate)
 
-    local_checked_rows = [row for row in rows if row.get("local_lean_attempted")]
-    local_compiled_rows = [row for row in rows if row.get("local_lean_compiled")]
+    local_checked_rows = [
+        row for row in rows if _bool_like(row.get("local_lean_attempted", False))
+    ]
+    local_compiled_rows = [
+        row for row in rows if _bool_like(row.get("local_lean_compiled", False))
+    ]
     compiled_source_candidate_rows = [
         row
         for row in local_compiled_rows
-        if bool(row.get("source_theorem_candidate_evidence_eligible", False))
+        if _bool_like(row.get("source_theorem_candidate_evidence_eligible", False))
     ]
     compiled_support_candidate_rows = [
         row
         for row in local_compiled_rows
-        if bool(row.get("support_candidate_not_source_theorem", False))
+        if _bool_like(row.get("support_candidate_not_source_theorem", False))
     ]
     compiled_diagnostic_helper_rows = [
         row
         for row in local_compiled_rows
-        if bool(row.get("diagnostic_helper_not_source_theorem", False))
+        if _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
     ]
     live_proof_state_request_rows = [
         row
@@ -15595,16 +15611,18 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             continue
         candidate_id = str(candidate.get("candidate_id", "") or "")
         artifact_path = str(candidate.get("artifact_path", "") or "")
-        local_lean_compiled = bool(candidate.get("local_lean_compiled", False))
-        local_lean_attempted = bool(candidate.get("local_lean_attempted", False))
-        diagnostic_helper_not_source_theorem = bool(
+        local_lean_compiled = _bool_like(candidate.get("local_lean_compiled", False))
+        local_lean_attempted = _bool_like(
+            candidate.get("local_lean_attempted", False)
+        )
+        diagnostic_helper_not_source_theorem = _bool_like(
             candidate.get("diagnostic_helper_not_source_theorem", False)
         )
         candidate_kind = str(candidate.get("candidate_kind", "") or "")
-        support_candidate_not_source_theorem = bool(
+        support_candidate_not_source_theorem = _bool_like(
             candidate.get("support_candidate_not_source_theorem", False)
         ) or _formalizer_candidate_support_not_source_theorem(candidate_kind)
-        source_theorem_candidate_evidence_eligible = bool(
+        source_theorem_candidate_evidence_eligible = _bool_like(
             candidate.get(
                 "source_theorem_candidate_evidence_eligible",
                 (
@@ -43898,9 +43916,11 @@ def _critic_candidate_diagnostics_from_formalization_manifest(
                 "precheck_status": str(row.get("status", "") or ""),
                 "precheck_errors": [],
                 "local_lean_attempted": True,
-                "local_lean_compiled": bool(row.get("kernel_verified", False)),
+                "local_lean_compiled": _bool_like(
+                    row.get("kernel_verified", False)
+                ),
                 "local_lean_exit_status": (
-                    "0" if bool(row.get("kernel_verified", False)) else "1"
+                    "0" if _bool_like(row.get("kernel_verified", False)) else "1"
                 ),
                 "local_lean_stdout_excerpt": "\n".join(errors[:3]),
             }
@@ -43948,7 +43968,7 @@ def _compact_formal_subclaim_feedback(row: Mapping[str, Any]) -> dict[str, Any]:
         "id": str(row.get("id", "")),
         "claim_type": str(row.get("claim_type", "")),
         "status": str(row.get("status", "")),
-        "kernel_verified": bool(row.get("kernel_verified", False)),
+        "kernel_verified": _bool_like(row.get("kernel_verified", False)),
         "gap_reason": str(row.get("gap_reason", "")),
         "errors": list(row.get("errors", []) or [])[:3],
         "proof_dependencies": list(row.get("proof_dependencies", []) or [])[:5],
@@ -58319,14 +58339,16 @@ def _formalizer_target_requests_source_theorem_formal_environment_repair(
 ) -> bool:
     if _source_theorem_target_known_value(source_target_provenance) is not True:
         return False
-    if bool(target.get("kernel_verified", False)):
+    if _bool_like(target.get("kernel_verified", False)):
         return False
     expected_status = str(target.get("expected_status", "") or "").strip().upper()
     expected_status_normalized_from = str(
         target.get("expected_status_normalized_from", "") or ""
     ).strip().upper()
     statement = lean_statement_sketch.strip()
-    if bool(target.get("source_theorem_formal_environment_repair_required", False)):
+    if _bool_like(
+        target.get("source_theorem_formal_environment_repair_required", False)
+    ):
         return True
     if (
         expected_status in {"NEEDS_KERNEL_CHECK", "OPEN"}
