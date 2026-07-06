@@ -9772,6 +9772,20 @@ def audit_research_agent_runtime(
             )
             or []
         ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations",
+                [],
+            )
+            or []
+        ),
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran": bool(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_ran",
@@ -9812,6 +9826,20 @@ def audit_research_agent_runtime(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids": _compact_string_list(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations",
                 [],
             )
             or []
@@ -20440,6 +20468,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or []
     )
+    adapter_premise_exact_queue_premise_artifacts = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths",
+            [],
+        )
+        or []
+    )
+    adapter_premise_exact_queue_premise_declarations = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations",
+            [],
+        )
+        or []
+    )
     adapter_premise_exact_executor_requested_value = payload.get(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
     )
@@ -20485,6 +20527,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     adapter_premise_exact_executor_premise_ids = _compact_string_list(
         payload.get(
             "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_kernel_verified_source_to_bridge_premise_derivation_ids",
+            [],
+        )
+        or []
+    )
+    adapter_premise_exact_executor_premise_artifacts = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths",
+            [],
+        )
+        or []
+    )
+    adapter_premise_exact_executor_premise_declarations = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations",
             [],
         )
         or []
@@ -24505,6 +24561,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and adapter_premise_exact_queue_rows > 0
                 and adapter_premise_exact_queue_premise_context_rows > 0
                 and bool(adapter_premise_exact_queue_premise_ids)
+                and bool(adapter_premise_exact_queue_premise_artifacts)
+                and bool(adapter_premise_exact_queue_premise_declarations)
             ),
             (
                 "adapter_retry_kernel_verified="
@@ -24518,13 +24576,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "verified_premise_context_rows="
                 f"{payload.get('source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows')} "
                 "verified_premise_ids="
-                f"{adapter_premise_exact_queue_premise_ids}"
+                f"{adapter_premise_exact_queue_premise_ids} "
+                "verified_premise_artifacts="
+                f"{adapter_premise_exact_queue_premise_artifacts} "
+                "verified_premise_declarations="
+                f"{adapter_premise_exact_queue_premise_declarations}"
             ),
             (
                 "Adapter-premise feedback produced a kernel-verified source-to-bridge "
                 "adapter, but the runtime did not queue the exact source-theorem "
                 "proof-body retry with concrete row telemetry and verified "
-                "source-to-bridge premise-derivation context"
+                "source-to-bridge premise-derivation context, artifacts, and "
+                "declarations"
             ),
         ),
         _scorecard_row(
@@ -24537,6 +24600,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and adapter_premise_exact_executor_learning_rows > 0
                 and adapter_premise_exact_executor_premise_context_rows > 0
                 and bool(adapter_premise_exact_executor_premise_ids)
+                and bool(adapter_premise_exact_executor_premise_artifacts)
+                and bool(adapter_premise_exact_executor_premise_declarations)
                 and adapter_premise_exact_executor_proof_boundary_ok
             ),
             (
@@ -24562,6 +24627,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_kernel_verified_source_to_bridge_premise_derivation_context_rows')} "
                 "executor_verified_premise_ids="
                 f"{adapter_premise_exact_executor_premise_ids} "
+                "executor_verified_premise_artifacts="
+                f"{adapter_premise_exact_executor_premise_artifacts} "
+                "executor_verified_premise_declarations="
+                f"{adapter_premise_exact_executor_premise_declarations} "
                 "exact_executor_source_kernel_verified="
                 f"{adapter_premise_exact_executor_source_kernel_verified} "
                 "exact_executor_proof_status="
@@ -24572,8 +24641,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "executor was required/requested but did not record explicit "
                 "handoff telemetry or produce concrete result-row telemetry, "
                 "learning-row telemetry, and verified source-to-bridge "
-                "premise-derivation context with a source-theorem proof-evidence "
-                "boundary status that matches the executor source-kernel count"
+                "premise-derivation context, artifacts, and declarations with a "
+                "source-theorem proof-evidence boundary status that matches the "
+                "executor source-kernel count"
             ),
         ),
         _scorecard_row(

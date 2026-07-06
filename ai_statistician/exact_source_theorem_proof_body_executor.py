@@ -324,6 +324,12 @@ def export_exact_source_theorem_proof_body_execution_results(
                 for premise_id in row.kernel_verified_source_to_bridge_premise_derivation_ids
             )
         ),
+        "verified_source_to_bridge_premise_derivation_artifact_paths": (
+            _verified_source_to_bridge_premise_derivation_artifact_paths(rows)
+        ),
+        "verified_source_to_bridge_premise_derivation_declarations": (
+            _verified_source_to_bridge_premise_derivation_declarations(rows)
+        ),
         "source_theorem_route_ids": list(
             dict.fromkeys(
                 str(row.source_theorem_target_provenance.get("source_theorem_route_id", ""))
@@ -2022,6 +2028,12 @@ def _export_runtime_learning_rows(
                 for premise_id in row.kernel_verified_source_to_bridge_premise_derivation_ids
             )
         ),
+        "verified_source_to_bridge_premise_derivation_artifact_paths": (
+            _verified_source_to_bridge_premise_derivation_artifact_paths(rows)
+        ),
+        "verified_source_to_bridge_premise_derivation_declarations": (
+            _verified_source_to_bridge_premise_derivation_declarations(rows)
+        ),
         "n_proof_body_goal_reached": sum(1 for row in rows if row.proof_body_goal_reached),
         "n_proof_body_goal_excerpt_rows": sum(
             1 for row in rows if row.proof_body_goal_excerpt
@@ -2793,6 +2805,32 @@ def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
         if path and path not in paths:
             paths.append(path)
     return paths
+
+
+def _verified_source_to_bridge_premise_derivation_artifact_paths(
+    rows: list[ExactSourceTheoremProofBodyExecutionResultRow],
+) -> list[str]:
+    return list(
+        dict.fromkeys(
+            path
+            for row in rows
+            for path in row.verified_source_to_bridge_premise_derivation_artifact_paths
+            if str(path).strip()
+        )
+    )
+
+
+def _verified_source_to_bridge_premise_derivation_declarations(
+    rows: list[ExactSourceTheoremProofBodyExecutionResultRow],
+) -> list[str]:
+    return list(
+        dict.fromkeys(
+            declaration
+            for row in rows
+            for declaration in row.verified_source_to_bridge_premise_derivation_declarations
+            if str(declaration).strip()
+        )
+    )
 
 
 def _markdown_report(payload: Mapping[str, object]) -> str:

@@ -605,6 +605,12 @@ def test_exact_source_executor_materializes_verified_premise_derivation_dependen
     assert manifest["kernel_verified_source_to_bridge_premise_derivation_ids"] == [
         "source_to_bridge_premise_derivation_check:hGoodCovered"
     ]
+    assert manifest[
+        "verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] == [str(premise)]
+    assert manifest[
+        "verified_source_to_bridge_premise_derivation_declarations"
+    ] == ["split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"]
     row = manifest["rows"][0]
     assert row["verified_source_to_bridge_premise_derivation_declarations"] == (
         "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation",

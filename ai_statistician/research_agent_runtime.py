@@ -31615,6 +31615,20 @@ def run_research_agent_runtime(
         if str(value).strip()
     ]
     manifest[
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] = _runtime_manifest_string_list(
+        source_theorem_exact_proof_body_repair_from_adapter_execution_queue_manifest
+        or {},
+        "verified_source_to_bridge_premise_derivation_artifact_paths",
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_execution_queue_from_proof_body_adapter_feedback_verified_source_to_bridge_premise_derivation_declarations"
+    ] = _runtime_manifest_string_list(
+        source_theorem_exact_proof_body_repair_from_adapter_execution_queue_manifest
+        or {},
+        "verified_source_to_bridge_premise_derivation_declarations",
+    )
+    manifest[
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_requested"
     ] = bool(
         config.source_theorem_formal_environment_proofengineer_execute_proof_body
@@ -31772,6 +31786,20 @@ def run_research_agent_runtime(
         if str(value).strip()
     ]
     manifest[
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] = _runtime_manifest_string_list(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_execution_queue_manifest
+        or {},
+        "verified_source_to_bridge_premise_derivation_artifact_paths",
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_execution_queue_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations"
+    ] = _runtime_manifest_string_list(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_execution_queue_manifest
+        or {},
+        "verified_source_to_bridge_premise_derivation_declarations",
+    )
+    manifest[
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_requested"
     ] = bool(
         config.source_theorem_formal_environment_proofengineer_execute_proof_body
@@ -31817,6 +31845,20 @@ def run_research_agent_runtime(
         )
         if str(value).strip()
     ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] = _runtime_manifest_string_list(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        or {},
+        "verified_source_to_bridge_premise_derivation_artifact_paths",
+    )
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_verified_source_to_bridge_premise_derivation_declarations"
+    ] = _runtime_manifest_string_list(
+        source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        or {},
+        "verified_source_to_bridge_premise_derivation_declarations",
+    )
     manifest[
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_local_lean_checked"
     ] = int(
