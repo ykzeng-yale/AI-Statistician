@@ -133,6 +133,11 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "recommended_repair_tasks",
     "proof_body_recheck_blockers",
     "source_materialization_seed_id",
+    "source_component_gate",
+    "source_component_gate_exact_rows_jsonl",
+    "component_eval_manifest_path",
+    "provider_name",
+    "backend_provider_name",
     "source_pseudo_formal_work_order_id",
     "source_pseudo_formal_block_id",
     "source_pseudo_formal_packet_id",
@@ -235,15 +240,39 @@ def run_source_theorem_exact_semantic_definition_source_lookup(
             _count_placeholder_policy_lineage(learning_rows)
         ),
         "n_work_orders_from_pseudo_formal": _count_pseudo_formal_origin(work_orders),
+        "n_work_orders_from_formalizer_pf_component_gate": (
+            _count_formalizer_pf_component_gate_origin(work_orders)
+        ),
         "n_lookup_rows_from_pseudo_formal": _count_pseudo_formal_origin(lookup_rows),
+        "n_lookup_rows_from_formalizer_pf_component_gate": (
+            _count_formalizer_pf_component_gate_origin(lookup_rows)
+        ),
         "n_definition_closure_work_orders_from_pseudo_formal": (
             _count_pseudo_formal_origin(definition_closure_work_orders)
+        ),
+        "n_definition_closure_work_orders_from_formalizer_pf_component_gate": (
+            _count_formalizer_pf_component_gate_origin(
+                definition_closure_work_orders
+            )
         ),
         "n_definition_closure_review_packets_from_pseudo_formal": (
             _count_pseudo_formal_origin(definition_closure_review_packets)
         ),
+        "n_definition_closure_review_packets_from_formalizer_pf_component_gate": (
+            _count_formalizer_pf_component_gate_origin(
+                definition_closure_review_packets
+            )
+        ),
         "n_runtime_learning_rows_from_pseudo_formal": (
             _count_pseudo_formal_origin(learning_rows)
+        ),
+        "n_runtime_learning_rows_from_formalizer_pf_component_gate": (
+            _count_formalizer_pf_component_gate_origin(learning_rows)
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+                [*work_orders, *lookup_rows, *definition_closure_work_orders]
+            )
         ),
         "source_pseudo_formal_work_order_ids": _source_pseudo_formal_ids(
             [*work_orders, *lookup_rows, *definition_closure_work_orders],
@@ -4779,11 +4808,40 @@ def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
 
 
 def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
-    return bool(str(row.get("source_pseudo_formal_work_order_id", "") or "").strip())
+    return bool(
+        str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        or _has_formalizer_pf_component_gate_origin(row)
+    )
+
+
+def _has_formalizer_pf_component_gate_origin(row: Mapping[str, Any]) -> bool:
+    return (
+        str(row.get("source_component_gate", "") or "").strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
+    )
 
 
 def _count_pseudo_formal_origin(rows: Sequence[Mapping[str, Any]]) -> int:
     return sum(1 for row in rows if _has_pseudo_formal_origin(row))
+
+
+def _count_formalizer_pf_component_gate_origin(
+    rows: Sequence[Mapping[str, Any]],
+) -> int:
+    return sum(1 for row in rows if _has_formalizer_pf_component_gate_origin(row))
+
+
+def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    paths: list[str] = []
+    for row in rows:
+        if not _has_formalizer_pf_component_gate_origin(row):
+            continue
+        path = str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+        if path and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def _source_pseudo_formal_ids(
@@ -4840,10 +4898,21 @@ def _pseudo_formal_origin_lineage_complete(
     return bool(
         pseudo_formal_rows
         and all(
-            str(row.get("source_pseudo_formal_block_id", "") or "").strip()
-            and str(row.get("pseudo_formal_proof_evidence_status", "") or "").strip()
+            _pseudo_formal_origin_row_lineage_complete(row)
             for row in pseudo_formal_rows
         )
+    )
+
+
+def _pseudo_formal_origin_row_lineage_complete(row: Mapping[str, Any]) -> bool:
+    if _has_formalizer_pf_component_gate_origin(row):
+        return bool(
+            str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+            and str(row.get("proof_evidence_status", "") or "").strip()
+        )
+    return bool(
+        str(row.get("source_pseudo_formal_block_id", "") or "").strip()
+        and str(row.get("pseudo_formal_proof_evidence_status", "") or "").strip()
     )
 
 

@@ -595,6 +595,111 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
             ]
 
 
+def test_exact_semantic_definition_source_lookup_preserves_formalizer_pf_component_gate_origin(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    (source_root / "Coverage.lean").write_text(
+        "def coverage_event : Prop := True\n",
+        encoding="utf-8",
+    )
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+    _write_work_order(
+        queue,
+        placeholder_symbol="coverage_event",
+        extra={
+            "source_component_gate": (
+                "formalizer_pseudo_formal_packet_component_gate"
+            ),
+            "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+            "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
+            "proof_evidence_status": (
+                "WORK_ORDER_FROM_FORMALIZER_PF_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+            ),
+            "semantic_primitive": "coverage_event",
+            "semantic_primitive_requirements": ["coverage_event"],
+        },
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    closure_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_work_orders_jsonl"]
+        ).read_text().splitlines()
+    ]
+    review_packets = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_review_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+
+    assert manifest["n_work_orders_from_pseudo_formal"] == 1
+    assert manifest["n_work_orders_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_lookup_rows_from_pseudo_formal"] == 1
+    assert manifest["n_lookup_rows_from_formalizer_pf_component_gate"] == 1
+    assert manifest[
+        "n_definition_closure_work_orders_from_formalizer_pf_component_gate"
+    ] == 1
+    assert manifest[
+        "n_definition_closure_review_packets_from_formalizer_pf_component_gate"
+    ] == 1
+    assert manifest["n_runtime_learning_rows_from_pseudo_formal"] == 3
+    assert manifest[
+        "n_runtime_learning_rows_from_formalizer_pf_component_gate"
+    ] == 3
+    assert manifest["pseudo_formal_origin_lineage_complete"] is True
+    assert manifest["formalizer_pf_component_gate_exact_rows_jsonl_paths"] == [
+        exact_rows_jsonl
+    ]
+    assert manifest["source_pseudo_formal_placeholder_symbols"] == [
+        "coverage_event"
+    ]
+    assert manifest["source_pseudo_formal_semantic_primitives"] == [
+        "coverage_event"
+    ]
+
+    for row in [lookup_rows[0], closure_rows[0], review_packets[0], *learning_rows]:
+        assert (
+            row["source_component_gate"]
+            == "formalizer_pseudo_formal_packet_component_gate"
+        )
+        assert row["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+        assert row["component_eval_manifest_path"] == (
+            "runs/formalizer_pf/manifest.json"
+        )
+        assert row["semantic_primitive"] == "coverage_event"
+        assert row["semantic_primitive_requirements"] == ["coverage_event"]
+        assert "KERNEL_VERIFIED" not in row["proof_evidence_status"]
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, dict) and input_summary:
+            assert input_summary["source_component_gate"] == (
+                "formalizer_pseudo_formal_packet_component_gate"
+            )
+            assert (
+                input_summary["source_component_gate_exact_rows_jsonl"]
+                == exact_rows_jsonl
+            )
+
+
 def test_exact_semantic_definition_source_lookup_ignores_generated_cache_dirs(
     tmp_path: Path,
 ) -> None:

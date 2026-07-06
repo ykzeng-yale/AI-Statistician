@@ -31829,6 +31829,18 @@ def run_research_agent_runtime(
     manifest[
         "n_runtime_source_theorem_promotion_materialization_seeds_from_post_executor_semantic_support"
     ] = len(source_theorem_promotion_post_executor_materialization_seed_rows)
+    source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_pf_component_gate = [
+        row
+        for row in source_theorem_exact_semantic_definition_work_order_rows
+        if str(row.get("source_component_gate", "") or "").strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
+    ]
+    source_theorem_exact_semantic_definition_work_order_rows_from_learning_memory_formalizer_pf_component_gate = [
+        row
+        for row in source_theorem_exact_semantic_definition_work_order_rows_from_learning_memory
+        if str(row.get("source_component_gate", "") or "").strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
+    ]
     manifest["n_runtime_source_theorem_exact_semantic_definition_work_orders"] = len(
         source_theorem_exact_semantic_definition_work_order_rows
     )
@@ -31856,6 +31868,34 @@ def run_research_agent_runtime(
         "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory"
     ] = len(
         source_theorem_exact_semantic_definition_work_order_rows_from_learning_memory
+    )
+    manifest[
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate"
+    ] = len(
+        source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_pf_component_gate
+    )
+    manifest[
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate"
+    ] = len(
+        source_theorem_exact_semantic_definition_work_order_rows_from_learning_memory_formalizer_pf_component_gate
+    )
+    manifest[
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols"
+    ] = list(
+        dict.fromkeys(
+            str(row.get("placeholder_symbol", "") or "").strip()
+            for row in source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_pf_component_gate
+            if str(row.get("placeholder_symbol", "") or "").strip()
+        )
+    )
+    manifest[
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = list(
+        dict.fromkeys(
+            str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+            for row in source_theorem_exact_semantic_definition_work_order_rows_from_formalizer_pf_component_gate
+            if str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+        )
     )
     source_to_bridge_premise_exact_semantic_queue_names = [
         queue_name
@@ -31983,11 +32023,35 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_work_orders_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_source_lookup_manifest or {}
         ).get("n_lookup_rows_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_lookup_rows_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_work_orders_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_definition_closure_work_orders_from_formalizer_pf_component_gate", 0)
         or 0
     )
     manifest[
@@ -31999,12 +32063,39 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get(
+            "n_definition_closure_review_packets_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_source_lookup_manifest or {}
         ).get("n_runtime_learning_rows_from_pseudo_formal", 0)
         or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("n_runtime_learning_rows_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = list(
+        (
+            source_theorem_exact_semantic_definition_source_lookup_manifest or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
+        or []
     )
     manifest[
         "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete"
@@ -68296,6 +68387,31 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
     return context
 
 
+def _copy_exact_semantic_definition_lineage_fields(
+    target: dict[str, Any],
+    source: Mapping[str, Any],
+) -> None:
+    input_summary = (
+        source.get("input_summary", {})
+        if isinstance(source.get("input_summary", {}), Mapping)
+        else {}
+    )
+    for key in (
+        "source_component_gate",
+        "source_component_gate_exact_rows_jsonl",
+        "component_eval_manifest_path",
+        "provider_name",
+        "backend_provider_name",
+    ):
+        value = source.get(key, None)
+        if value in (None, "", [], {}):
+            value = input_summary.get(key, None)
+        if value in (None, "", [], {}):
+            continue
+        if target.get(key) in (None, "", [], {}):
+            target[key] = value
+
+
 def _runtime_exact_semantic_definition_context_for_semantic_work_order(
     context: Mapping[str, Any],
     *,
@@ -68639,6 +68755,7 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
         existing.get("source_runtime_learning_task", "") or ""
     ).strip():
         existing["source_runtime_learning_task"] = candidate_source_task
+    _copy_exact_semantic_definition_lineage_fields(existing, candidate)
 
 
 def _normalize_exact_semantic_work_order_status_from_local_definition(
@@ -69222,6 +69339,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
         for key_name, value in _runtime_exact_semantic_definition_context(row).items():
             if work_order.get(key_name) in (None, "", [], {}):
                 work_order[key_name] = value
+        _copy_exact_semantic_definition_lineage_fields(work_order, row)
         _normalize_exact_semantic_work_order_status_from_local_definition(work_order)
         rows.append(work_order)
     return rows

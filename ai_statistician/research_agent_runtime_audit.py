@@ -519,7 +519,21 @@ def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summar
         )
         or 0
     )
-    effective_count = max(manifest_count, len(rows))
+    component_gate_manifest_count = int(
+        manifest.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
+    learning_memory_component_gate_manifest_count = int(
+        manifest.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
+    effective_count = max(manifest_count, len(rows), component_gate_manifest_count)
     target_ids: list[str] = []
     placeholder_symbols: list[str] = []
     semantic_primitives: list[str] = []
@@ -550,6 +564,12 @@ def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summar
         "source": "result_artifacts_recomputed",
         "n_recomputed_work_orders": len(rows),
         "n_manifest_work_orders": manifest_count,
+        "n_manifest_formalizer_pf_component_gate_work_orders": (
+            component_gate_manifest_count
+        ),
+        "n_manifest_learning_memory_formalizer_pf_component_gate_work_orders": (
+            learning_memory_component_gate_manifest_count
+        ),
         "n_effective_work_orders": effective_count,
         "manifest_stale": len(rows) != manifest_count,
         "n_pseudo_formal_work_order_rows": len(pseudo_formal_rows),
@@ -562,6 +582,8 @@ def _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summar
         "proof_evidence_statuses": list(dict.fromkeys(proof_statuses)),
         "manifest_snapshot": {
             "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": manifest_count,
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate": component_gate_manifest_count,
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate": learning_memory_component_gate_manifest_count,
             "n_runtime_source_theorem_exact_semantic_definition_work_orders": int(
                 manifest.get(
                     "n_runtime_source_theorem_exact_semantic_definition_work_orders",
@@ -7076,6 +7098,32 @@ def audit_research_agent_runtime(
             runtime_pseudo_formal_exact_semantic_definition_work_order_summary[
                 "n_manifest_work_orders"
             ]
+        ),
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate": int(
+            manifest.get(
+                "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols": _compact_string_list(
+            manifest.get(
+                "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols",
+                [],
+            )
+        ),
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
         ),
         "runtime_pseudo_formal_exact_semantic_definition_work_order_summary": (
             runtime_pseudo_formal_exact_semantic_definition_work_order_summary
@@ -19019,12 +19067,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    pseudo_formal_exact_semantic_work_orders = int(
+    pseudo_formal_exact_semantic_recomputed_work_orders = int(
         payload.get(
             "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal",
             0,
         )
         or 0
+    )
+    pseudo_formal_exact_semantic_component_gate_work_orders = int(
+        payload.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
+    pseudo_formal_exact_semantic_learning_memory_component_gate_work_orders = int(
+        payload.get(
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
+    pseudo_formal_exact_semantic_work_orders = max(
+        pseudo_formal_exact_semantic_recomputed_work_orders,
+        pseudo_formal_exact_semantic_component_gate_work_orders,
     )
     exact_semantic_source_lookup_required_value = payload.get(
         "source_theorem_exact_semantic_definition_source_lookup_required"
@@ -19105,9 +19171,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_source_lookup_pf_component_gate_work_orders = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     exact_semantic_source_lookup_pf_lookup_rows = int(
         payload.get(
             "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_pf_component_gate_lookup_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -19119,9 +19199,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_source_lookup_pf_component_gate_review_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     exact_semantic_source_lookup_pf_learning_rows = int(
         payload.get(
             "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_source_lookup_pf_component_gate_learning_rows = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -19155,6 +19249,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             pseudo_formal_exact_semantic_placeholder_symbols
             + pseudo_formal_exact_semantic_semantic_primitives
             + pseudo_formal_exact_semantic_source_block_requirements
+            + _compact_string_list(
+                payload.get(
+                    "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols",
+                    [],
+                )
+            )
         )
     )
     exact_semantic_source_lookup_pf_placeholder_symbols = _compact_string_list(
@@ -19210,11 +19310,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             and exact_semantic_source_lookup_effective_present
             and exact_semantic_source_lookup_effective
             and exact_semantic_source_lookup_ran
-            and exact_semantic_source_lookup_pf_work_orders > 0
-            and exact_semantic_source_lookup_pf_lookup_rows > 0
+            and (
+                exact_semantic_source_lookup_pf_work_orders > 0
+                or exact_semantic_source_lookup_pf_component_gate_work_orders > 0
+            )
+            and (
+                exact_semantic_source_lookup_pf_lookup_rows > 0
+                or exact_semantic_source_lookup_pf_component_gate_lookup_rows > 0
+            )
             and (
                 exact_semantic_source_lookup_pf_learning_rows > 0
+                or exact_semantic_source_lookup_pf_component_gate_learning_rows > 0
                 or exact_semantic_source_lookup_pf_review_packets > 0
+                or exact_semantic_source_lookup_pf_component_gate_review_packets > 0
             )
             and exact_semantic_source_lookup_pf_lineage_complete
             and exact_semantic_source_lookup_pf_symbol_coverage_ready
@@ -22782,6 +22890,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "pseudo_formal_exact_semantic_work_orders="
                 f"{pseudo_formal_exact_semantic_work_orders} "
+                "pseudo_formal_exact_semantic_recomputed_work_orders="
+                f"{pseudo_formal_exact_semantic_recomputed_work_orders} "
+                "formalizer_pf_component_gate_exact_semantic_work_orders="
+                f"{pseudo_formal_exact_semantic_component_gate_work_orders} "
+                "formalizer_pf_component_gate_learning_memory_work_orders="
+                f"{pseudo_formal_exact_semantic_learning_memory_component_gate_work_orders} "
                 "total_exact_semantic_work_orders="
                 f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')} "
                 "lookup_required_present="
@@ -22800,12 +22914,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_bridge_review_packets} "
                 "pf_lookup_work_orders="
                 f"{exact_semantic_source_lookup_pf_work_orders} "
+                "pf_component_gate_lookup_work_orders="
+                f"{exact_semantic_source_lookup_pf_component_gate_work_orders} "
                 "pf_lookup_rows="
                 f"{exact_semantic_source_lookup_pf_lookup_rows} "
+                "pf_component_gate_lookup_rows="
+                f"{exact_semantic_source_lookup_pf_component_gate_lookup_rows} "
                 "pf_lookup_learning_rows="
                 f"{exact_semantic_source_lookup_pf_learning_rows} "
+                "pf_component_gate_lookup_learning_rows="
+                f"{exact_semantic_source_lookup_pf_component_gate_learning_rows} "
                 "pf_closure_review_packets="
                 f"{exact_semantic_source_lookup_pf_review_packets} "
+                "pf_component_gate_closure_review_packets="
+                f"{exact_semantic_source_lookup_pf_component_gate_review_packets} "
                 "pf_origin_lineage_complete="
                 f"{exact_semantic_source_lookup_pf_lineage_complete} "
                 "pf_expected_symbols="
@@ -22836,6 +22958,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal>0 "
+                    "or n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate>0 "
                     "implies source_theorem_exact_semantic_definition_source_lookup_required=true, "
                     "source_theorem_exact_semantic_definition_source_lookup_effective=true, "
                     "source_theorem_exact_semantic_definition_source_lookup_ran=true, "

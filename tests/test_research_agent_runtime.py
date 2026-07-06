@@ -43381,6 +43381,124 @@ def test_runtime_learning_loader_preserves_exact_semantic_definition_work_orders
     ]
 
 
+def test_runtime_materializes_formalizer_pf_exact_rows_from_learning_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+    pf_component_gate_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "learning_task": "source_theorem_exact_semantic_definition_work_order",
+        "work_order_id": (
+            "source_theorem_exact_semantic_definition_work_order:pf_coverage_event"
+        ),
+        "question_id": question.id,
+        "target_theorem_name": "split_conformal_coverage",
+        "target_lean_declaration": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "coverage_event",
+        "semantic_primitive": "coverage_event",
+        "semantic_primitive_requirements": ["coverage_event"],
+        "source_anchors": [
+            {
+                "kind": "proof_body",
+                "id": "proof_body:rank_threshold_step",
+                "excerpt": "rank-threshold coverage event",
+            }
+        ],
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+        "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_FORMALIZER_PF_COMPONENT_GATE"
+        ),
+        "runtime_queue_boundary": (
+            "Formalizer PF/BV exact-lane rows route source-anchored semantic "
+            "definition requests only; they are not proof evidence."
+        ),
+        "proof_evidence_status": (
+            "WORK_ORDER_FROM_FORMALIZER_PF_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": runtime_module.KERNEL_PROOF_BOUNDARY,
+    }
+    architect_context = {
+        "runtime_learning_memory": {
+            "artifact_kind": "RuntimeLearningMemoryContext",
+            "rows": [pf_component_gate_work_order],
+        }
+    }
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(
+                provider_name="static",
+                model="static-theory-model",
+            ),
+        ),
+        architect_context=architect_context,
+        config=ResearchAgentRuntimeConfig(
+            n_runs=1,
+            seed=20260706,
+            max_iterations=1,
+            evaluation_mode="capability_eval",
+        ),
+    )
+
+    assert (
+        manifest[
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate"
+        ]
+        == 1
+    )
+    assert manifest[
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols"
+    ] == ["coverage_event"]
+    assert manifest[
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] == [exact_rows_jsonl]
+
+    work_order_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"][
+                "runtime_source_theorem_exact_semantic_definition_work_orders_jsonl"
+            ]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    pf_rows = [
+        row
+        for row in work_order_rows
+        if row.get("source_component_gate")
+        == "formalizer_pseudo_formal_packet_component_gate"
+    ]
+    assert len(pf_rows) == 1
+    pf_row = pf_rows[0]
+    assert pf_row["placeholder_symbol"] == "coverage_event"
+    assert pf_row["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+    assert pf_row["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_FORMALIZER_PF_COMPONENT_GATE"
+    )
+    assert (
+        pf_row["proof_evidence_status"]
+        == "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_formalizer_prompt_includes_exact_semantic_source_lookup_hits(
     tmp_path: Path,
 ) -> None:
@@ -79903,6 +80021,57 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_definition_sou
     ]
 
     assert row["passed"] is True
+    assert "pf_missing_lookup_symbols=[]" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_formalizer_pf_component_gate_exact_definition_source_lookup_consumption() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 0,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate": 1,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate": 1,
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols": [
+            "coverage_event"
+        ],
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_effective": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": [
+            "coverage_event"
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+    ]
+
+    assert row["passed"] is True
+    assert "formalizer_pf_component_gate_exact_semantic_work_orders=1" in row[
+        "evidence"
+    ]
+    assert "pf_component_gate_lookup_rows=1" in row["evidence"]
     assert "pf_missing_lookup_symbols=[]" in row["evidence"]
 
 
