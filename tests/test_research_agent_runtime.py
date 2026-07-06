@@ -85261,6 +85261,58 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
         ),
         encoding="utf-8",
     )
+    exact_pf_row = {
+        "source_packet_id": "pseudo_formal_packet:coverage_rank_threshold",
+        "source_theorem_id": "theorem:coverage",
+        "source_artifact_id": "theory:formalizer_pseudo_formal_packet_eval",
+        "source_block_id": "b_semantic",
+        "source_block_type": "claim",
+        "source_block_conclusion": (
+            "coverage event depends on the exact rank-threshold semantic definition"
+        ),
+        "block_depth": 1,
+        "dependency_scope": "earlier_block_statement_only",
+        "dependency_ids": [],
+        "source_block_premises": ["rank-threshold coverage event"],
+        "source_block_proof_text": (
+            "Formalizer must request the exact source definition before Lean replay."
+        ),
+        "semantic_primitive_requirements": ["coverage_event"],
+        "source_anchors": [
+            {
+                "kind": "proof_body",
+                "id": "proof_body:rank_threshold_step",
+                "excerpt": "rank-threshold coverage event",
+            }
+        ],
+        "faithfulness_status": "faithful",
+        "row_kind": "pseudo_formal_exact_semantic_definition_request",
+        "target_lane": PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        "pseudo_formal_method_contract_id": (
+            PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        ),
+        "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
+        "reason": "block requires exact semantic definitions before Lean replay",
+        "proof_evidence_status": (
+            runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        ),
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "row_id": "pseudo_formal_work_order:coverage_event",
+    }
+    formalizer_pf_work_order_rows_path.write_text(
+        json.dumps(exact_pf_row) + "\n",
+        encoding="utf-8",
+    )
+    formalizer_pf_routable_rows_path.write_text(
+        json.dumps(exact_pf_row) + "\n",
+        encoding="utf-8",
+    )
+    formalizer_pf_exact_rows_path.write_text(
+        json.dumps(exact_pf_row) + "\n",
+        encoding="utf-8",
+    )
+    formalizer_pf_diagnostic_rows_path.write_text("", encoding="utf-8")
     pseudo_formal_manifest_path.write_text(
         json.dumps(
             {
@@ -85681,6 +85733,29 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     assert formalizer_pf_row["proof_evidence_status"] == (
         "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
         "NOT_PROOF_EVIDENCE"
+    )
+    exact_work_order_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_work_order"
+        and row.get("source_component_gate")
+        == "formalizer_pseudo_formal_packet_component_gate"
+    ]
+    assert len(exact_work_order_rows) == 1
+    exact_work_order = exact_work_order_rows[0]
+    assert exact_work_order["placeholder_symbol"] == "coverage_event"
+    assert exact_work_order["source_pseudo_formal_work_order_id"] == (
+        "pseudo_formal_work_order:coverage_event"
+    )
+    assert exact_work_order["source_component_gate_exact_rows_jsonl"] == str(
+        formalizer_pf_exact_rows_path
+    )
+    assert exact_work_order["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_FORMALIZER_PF_COMPONENT_GATE"
+    )
+    assert exact_work_order["proof_evidence_status"] == (
+        "WORK_ORDER_FROM_FORMALIZER_PF_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
     )
     assert any(
         row.get("learning_task") == "pseudo_formal_block_verifier_component_gate_feedback"

@@ -12698,7 +12698,10 @@ def _refresh_runtime_coding_agent_capability_manifest(
             "pseudo_formal_block_verifier_component_gate_feedback",
         }
         and row.get("source_component_gate")
-        != "pseudo_formal_block_verifier_component_gate"
+        not in {
+            "formalizer_pseudo_formal_packet_component_gate",
+            "pseudo_formal_block_verifier_component_gate",
+        }
     ]
     refreshed_rows = [
         *retained_rows,

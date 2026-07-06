@@ -3689,7 +3689,7 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
         "feedback. It is not theorem proof evidence, not source theorem kernel "
         "verification, and not full frontier theorem closure."
     )
-    return [
+    rows = [
         {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeLearningRow",
@@ -3818,6 +3818,92 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "boundary": boundary,
         }
     ]
+    if (
+        capability_ok
+        and live_generator
+        and not static_or_fixture_only
+        and nonproof_boundary_preserved
+        and proof_evidence_status_ok
+        and no_theorem_proof_claim
+        and attachment_gate_recomputed
+        and exact_semantic_definition_rows_lineage_complete
+        and exact_semantic_definition_rows_source_anchored
+        and exact_semantic_definition_rows_semantic_requirements_present
+    ):
+        rows.extend(
+            _runtime_exact_semantic_definition_work_order_rows_from_component_gate_exact_rows(
+                exact_semantic_definition_rows_jsonl,
+                component_eval_manifest_path=manifest_path,
+                provider_name=provider_name,
+                backend_provider_name=backend_provider_name,
+                question_id=question_id,
+            )
+        )
+    return rows
+
+
+def _runtime_exact_semantic_definition_work_order_rows_from_component_gate_exact_rows(
+    exact_rows_jsonl: str,
+    *,
+    component_eval_manifest_path: str,
+    provider_name: str,
+    backend_provider_name: str,
+    question_id: str,
+) -> list[dict[str, Any]]:
+    path_text = str(exact_rows_jsonl or "").strip()
+    if not path_text:
+        return []
+    path = Path(path_text)
+    if not path.exists():
+        return []
+    try:
+        exact_rows = _read_jsonl(path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return []
+    work_orders = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+            exact_rows
+        )
+    )
+    for row in work_orders:
+        row["source_component_gate"] = "formalizer_pseudo_formal_packet_component_gate"
+        row["source_component_gate_exact_rows_jsonl"] = path_text
+        row["component_eval_manifest_path"] = component_eval_manifest_path
+        row["provider_name"] = provider_name
+        row["backend_provider_name"] = backend_provider_name
+        if question_id and not str(row.get("question_id", "") or "").strip():
+            row["question_id"] = question_id
+        row["learning_task"] = "source_theorem_exact_semantic_definition_work_order"
+        row["runtime_queue_status"] = (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_FORMALIZER_PF_COMPONENT_GATE"
+        )
+        row["runtime_queue_boundary"] = (
+            "This exact semantic-definition work order was materialized from "
+            "a live Formalizer PF/BV component-gate exact-lane artifact. It is "
+            "not proof evidence; it only routes a source-anchored semantic "
+            "definition request into the integrated AgentRuntime work queue."
+        )
+        row["proof_evidence_status"] = (
+            "WORK_ORDER_FROM_FORMALIZER_PF_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+        )
+        row["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
+        row.setdefault("input_summary", {})
+        if isinstance(row["input_summary"], dict):
+            row["input_summary"].update(
+                {
+                    "trigger": (
+                        "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_"
+                        "EXACT_SEMANTIC_ROW"
+                    ),
+                    "source_component_gate": (
+                        "formalizer_pseudo_formal_packet_component_gate"
+                    ),
+                    "source_component_gate_exact_rows_jsonl": path_text,
+                    "component_eval_manifest_path": component_eval_manifest_path,
+                    "proof_evidence_status": row["proof_evidence_status"],
+                }
+            )
+    return work_orders
 
 
 def _runtime_coding_agent_component_gate_learning_rows(
