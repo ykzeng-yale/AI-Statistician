@@ -1054,6 +1054,8 @@ def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
     )
     assert any("⊢ target_goal" in line for line in manifest["first_proof_body_goal_excerpt"])
     assert manifest["n_proof_body_goal_reached_with_semantic_blockers"] == 0
+    assert manifest["n_proof_body_gate_open_for_kernel_repair"] == 0
+    assert manifest["proof_body_gate_open_target_names"] == []
     assert manifest["n_semantic_alignment_blocker_rows"] == 0
     assert manifest["n_source_theorem_kernel_verified"] == 0
     assert manifest["dominant_failure_classification"] == "proof_body_incomplete"
@@ -1081,6 +1083,7 @@ def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
         for line in learning_manifest["first_proof_body_goal_excerpt"]
     )
     assert learning_manifest["n_proof_body_goal_reached_with_semantic_blockers"] == 0
+    assert learning_manifest["n_proof_body_gate_open_for_kernel_repair"] == 0
     rows = (
         tmp_path
         / "executor"
@@ -1205,6 +1208,11 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
 
     assert manifest["n_semantic_alignment_blocker_rows"] == 0
     assert manifest["n_proof_body_goal_reached_with_semantic_blockers"] == 0
+    assert manifest["n_proof_body_gate_open_for_kernel_repair"] == 1
+    assert manifest["proof_body_gate_open_target_names"] == [
+        "split_conformal_coverage"
+    ]
+    assert manifest["proof_body_gate_open_target_ids"] == ["split_conformal_coverage"]
     assert manifest["n_proof_body_attempted"] == 1
     assert manifest["dominant_failure_classification"] == "proof_body_incomplete"
     row = manifest["rows"][0]
@@ -1236,6 +1244,15 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
         "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
     assert learning_row["failure_classification"] == "proof_body_incomplete"
+    assert (
+        learning_row["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
+        is True
+    )
+    learning_manifest = manifest["runtime_learning_export"]
+    assert learning_manifest["n_proof_body_gate_open_for_kernel_repair"] == 1
+    assert learning_manifest["proof_body_gate_open_target_names"] == [
+        "split_conformal_coverage"
+    ]
 
 
 def test_exact_source_executor_does_not_treat_static_safety_constraints_as_blockers(

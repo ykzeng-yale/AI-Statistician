@@ -258,6 +258,8 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair",
+                        "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names",
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
                         "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran",
                         "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
@@ -265,6 +267,8 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_result_row_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
+                        "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count",
+                        "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_evidence",
@@ -1129,6 +1133,11 @@ def _suite_rows(
             "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers"
         )
     )
+    runtime_source_theorem_exact_proof_body_repair_gate_open_for_kernel_repair = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair"
+        )
+    )
     runtime_source_theorem_exact_proof_body_repair_kernel_verified = _int(
         counts.get(
             "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
@@ -1172,6 +1181,14 @@ def _suite_rows(
         _int(
             counts.get(
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers"
+            )
+        ),
+    )
+    runtime_source_theorem_proof_body_gate_open_for_kernel_repair = max(
+        runtime_source_theorem_exact_proof_body_repair_gate_open_for_kernel_repair,
+        _int(
+            counts.get(
+                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count"
             )
         ),
     )
@@ -1789,7 +1806,16 @@ def _suite_rows(
         )
     elif not runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok:
         s13_issues.append(
-            "exact source-theorem proof-body executor result rows exist, but no local Lean/AXLE check or source-theorem kernel verification is visible; proof-body rows must stay non-proof feedback until the verifier boundary is exercised"
+            (
+                "exact source-theorem proof-body gate is open for kernel repair, "
+                "but no local Lean/AXLE check or source-theorem kernel "
+                "verification is visible for that repair state; continue "
+                "ProofEngineer proof-body repair rather than semantic-definition "
+                "rerouting, and keep the row non-proof until the verifier boundary "
+                "is exercised"
+            )
+            if runtime_source_theorem_proof_body_gate_open_for_kernel_repair > 0
+            else "exact source-theorem proof-body executor result rows exist, but no local Lean/AXLE check or source-theorem kernel verification is visible; proof-body rows must stay non-proof feedback until the verifier boundary is exercised"
         )
     elif not runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok:
         s13_issues.append(
@@ -3016,6 +3042,12 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": counts.get(
                     "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers"
                 ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair"
+                ),
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": counts.get(
+                    "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names"
+                ),
                 "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": counts.get(
                     "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
                 ),
@@ -3036,6 +3068,13 @@ def _suite_rows(
                 ),
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_effective_gate_open_for_kernel_repair": runtime_source_theorem_proof_body_gate_open_for_kernel_repair,
+                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names"
                 ),
                 "research_agent_runtime_source_theorem_proof_body_authoritative_goal_reached": runtime_source_theorem_proof_body_authoritative_goal_reached,
                 "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present": runtime_source_theorem_signature_probe_scorecard_present,

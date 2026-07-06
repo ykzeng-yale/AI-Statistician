@@ -6168,6 +6168,65 @@ class SystemTests(unittest.TestCase):
             "split across lanes",
             " ".join(split_proof_body_lane_s13["issues"]),
         )
+        gate_open_no_local_lean_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        gate_open_no_local_lean_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran": True,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 0,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 1,
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": [
+                    "split_conformal_coverage"
+                ],
+                "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 0,
+                "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names": [
+                    "split_conformal_coverage"
+                ],
+                "research_agent_runtime_source_theorem_kernel_verified_count": 0,
+            }
+        )
+        gate_open_no_local_lean_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_gate_open_no_local_lean"),
+            system_audit_payload=gate_open_no_local_lean_payload,
+        )
+        gate_open_no_local_lean_s13 = next(
+            row
+            for row in gate_open_no_local_lean_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(gate_open_no_local_lean_s13["status"], "CAPACITY_GAP")
+        self.assertEqual(
+            gate_open_no_local_lean_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_effective_gate_open_for_kernel_repair"
+            ],
+            1,
+        )
+        self.assertEqual(
+            gate_open_no_local_lean_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names"
+            ],
+            ["split_conformal_coverage"],
+        )
+        self.assertIn(
+            "proof-body gate is open for kernel repair",
+            " ".join(gate_open_no_local_lean_s13["issues"]),
+        )
+        self.assertIn(
+            "continue ProofEngineer proof-body repair",
+            " ".join(gate_open_no_local_lean_s13["issues"]),
+        )
         runtime_scorecard_lane_payload = json.loads(
             json.dumps(semantic_bridge_ok_payload)
         )

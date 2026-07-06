@@ -6412,9 +6412,13 @@ def test_runtime_capability_gap_routing_rows_carry_proof_body_gap_metrics() -> N
         "n_formal_gaps": 3,
         "has_formal_gaps": True,
         "source_theorem_proof_body_goal_reached_evidence_count": 0,
+        "source_theorem_proof_body_gate_open_for_kernel_repair_count": 0,
+        "source_theorem_proof_body_gate_open_for_kernel_repair_target_names": [],
         "source_theorem_proof_body_result_row_count": 2,
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 2,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 0,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 0,
+        "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": [],
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows": 0,
         "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
             "source_theorem_semantic_alignment_unreviewed"
@@ -6522,6 +6526,9 @@ def test_runtime_capability_gap_routing_rows_carry_proof_body_gap_metrics() -> N
     assert proof_body_metrics[
         "source_theorem_proof_body_goal_reached_evidence_count"
     ] == 0
+    assert proof_body_metrics[
+        "source_theorem_proof_body_gate_open_for_kernel_repair_count"
+    ] == 0
     assert proof_body_metrics["source_theorem_proof_body_result_row_count"] == 2
     assert proof_body_metrics[
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows"
@@ -6544,6 +6551,9 @@ def test_runtime_capability_gap_routing_rows_carry_proof_body_gap_metrics() -> N
     ] == 0
     assert local_lean_metrics[
         "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked"
+    ] == 0
+    assert local_lean_metrics[
+        "source_theorem_proof_body_gate_open_for_kernel_repair_count"
     ] == 0
 
     formal_gap_metrics = routing_rows["no_formal_gaps_remaining"][
@@ -79465,12 +79475,24 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 1,
+        "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": [
+            "central_exact_target"
+        ],
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": 2,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers": 3,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair": 2,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_names": [
+            "post_adapter_target"
+        ],
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached": 4,
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers": 5,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_gate_open_for_kernel_repair": 3,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_names": [
+            "premise_adapter_target"
+        ],
         "artifacts": {
             "per_question_results": [],
             "runtime_traces_jsonl": str(traces),
@@ -79511,8 +79533,13 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         == 4
     )
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 16
+    assert audit["source_theorem_proof_body_gate_open_for_kernel_repair_count"] == 6
+    assert audit[
+        "source_theorem_proof_body_gate_open_for_kernel_repair_target_names"
+    ] == ["central_exact_target", "post_adapter_target", "premise_adapter_target"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
+    assert "gate_open_for_kernel_repair=6" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=9" in semantic_row["evidence"]
 

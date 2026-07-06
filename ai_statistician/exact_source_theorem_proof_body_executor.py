@@ -276,6 +276,11 @@ def export_exact_source_theorem_proof_body_execution_results(
         "n_proof_body_goal_reached_with_semantic_blockers": sum(
             1 for row in rows if row.proof_body_goal_reached and row.semantic_alignment_blockers
         ),
+        "n_proof_body_gate_open_for_kernel_repair": sum(
+            1 for row in rows if _proof_body_gate_open_for_kernel_repair(row)
+        ),
+        "proof_body_gate_open_target_names": _proof_body_gate_open_target_names(rows),
+        "proof_body_gate_open_target_ids": _proof_body_gate_open_target_ids(rows),
         "n_placeholder_environment_blockers": sum(
             1
             for row in rows
@@ -1085,6 +1090,48 @@ def _proof_body_gate_status(
     if local_lean_checked:
         return "PROOF_BODY_NOT_REACHED_LOCAL_LEAN_FAILED"
     return "PROOF_BODY_NOT_CHECKED"
+
+
+def _proof_body_gate_open_for_kernel_repair(
+    row: ExactSourceTheoremProofBodyExecutionResultRow,
+) -> bool:
+    return bool(
+        row.proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+        and row.proof_body_goal_reached
+        and row.source_theorem_kernel_evidence_eligible
+        and not row.source_theorem_kernel_verified
+        and not row.semantic_alignment_blockers
+        and not row.formal_environment_placeholder_symbols
+        and not row.formal_environment_typeclass_blockers
+    )
+
+
+def _proof_body_gate_open_target_names(
+    rows: list[ExactSourceTheoremProofBodyExecutionResultRow],
+) -> list[str]:
+    names: list[str] = []
+    for row in rows:
+        if not _proof_body_gate_open_for_kernel_repair(row):
+            continue
+        name = (
+            row.target_theorem_name
+            or row.target_lean_declaration
+            or next(iter(row.target_ids), "")
+        )
+        if name:
+            names.append(str(name))
+    return list(dict.fromkeys(names))
+
+
+def _proof_body_gate_open_target_ids(
+    rows: list[ExactSourceTheoremProofBodyExecutionResultRow],
+) -> list[str]:
+    target_ids: list[str] = []
+    for row in rows:
+        if not _proof_body_gate_open_for_kernel_repair(row):
+            continue
+        target_ids.extend(str(value) for value in row.target_ids if str(value).strip())
+    return list(dict.fromkeys(target_ids))
 
 
 def _proof_body_attempts_should_run(
@@ -1930,6 +1977,9 @@ def _export_runtime_learning_rows(
                 "proof_body_goal_reached": row.proof_body_goal_reached,
                 "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
                 "proof_body_gate_status": row.proof_body_gate_status,
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    _proof_body_gate_open_for_kernel_repair(row)
+                ),
                 "proof_body_attempt_success": row.proof_body_attempt_success,
                 "diagnostics": list(row.diagnostics),
                 "recommended_next_action": _runtime_learning_recommended_next_action(
@@ -2045,6 +2095,11 @@ def _export_runtime_learning_rows(
         "n_proof_body_goal_reached_with_semantic_blockers": sum(
             1 for row in rows if row.proof_body_goal_reached and row.semantic_alignment_blockers
         ),
+        "n_proof_body_gate_open_for_kernel_repair": sum(
+            1 for row in rows if _proof_body_gate_open_for_kernel_repair(row)
+        ),
+        "proof_body_gate_open_target_names": _proof_body_gate_open_target_names(rows),
+        "proof_body_gate_open_target_ids": _proof_body_gate_open_target_ids(rows),
         "source_theorem_route_ids": list(
             dict.fromkeys(
                 str(row.source_theorem_target_provenance.get("source_theorem_route_id", ""))
@@ -2117,6 +2172,15 @@ def _export_runtime_learning_rows(
         ],
         "n_proof_body_goal_reached_with_semantic_blockers": manifest[
             "n_proof_body_goal_reached_with_semantic_blockers"
+        ],
+        "n_proof_body_gate_open_for_kernel_repair": manifest[
+            "n_proof_body_gate_open_for_kernel_repair"
+        ],
+        "proof_body_gate_open_target_names": manifest[
+            "proof_body_gate_open_target_names"
+        ],
+        "proof_body_gate_open_target_ids": manifest[
+            "proof_body_gate_open_target_ids"
         ],
         "source_theorem_route_ids": manifest["source_theorem_route_ids"],
         "proof_evidence_status": manifest["proof_evidence_status"],

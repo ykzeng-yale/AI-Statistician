@@ -62,6 +62,8 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
     SOURCE_THEOREM_PROOF_BODY_BLOCKER_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_TARGET_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS,
     SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
@@ -7059,6 +7061,31 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
         "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": str(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
@@ -7184,6 +7211,31 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_names": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification": str(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_dominant_failure_classification",
@@ -9934,6 +9986,31 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_gate_open_for_kernel_repair": int(
+            manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_gate_open_for_kernel_repair",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_names": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_names",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_ids": [
+            str(value)
+            for value in manifest.get(
+                "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ][:8],
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification": str(
             manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_dominant_failure_classification",
@@ -10824,6 +10901,14 @@ def audit_research_agent_runtime(
     )
     payload["source_theorem_proof_body_goal_reached_evidence_count"] = (
         _payload_source_theorem_proof_body_goal_reached_count(payload)
+    )
+    payload["source_theorem_proof_body_gate_open_for_kernel_repair_count"] = (
+        _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(payload)
+    )
+    payload["source_theorem_proof_body_gate_open_for_kernel_repair_target_names"] = (
+        _payload_source_theorem_proof_body_gate_open_for_kernel_repair_target_names(
+            payload
+        )
     )
     payload["source_theorem_proof_body_result_row_count"] = (
         _payload_source_theorem_proof_body_result_row_count(payload)
@@ -12305,6 +12390,25 @@ def _payload_source_theorem_proof_body_goal_reached_count(
     )
 
 
+def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(
+    payload: Mapping[str, Any],
+) -> int:
+    return _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS,
+    )
+
+
+def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_target_names(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    return _compact_string_list(
+        value
+        for key in SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_TARGET_KEYS
+        for value in _compact_string_list(payload.get(key, []))
+    )[:8]
+
+
 def _payload_source_theorem_proof_body_semantic_review_blocker_count(
     payload: Mapping[str, Any],
 ) -> int:
@@ -13570,9 +13674,13 @@ def _runtime_capability_gap_audit_metrics(
         ),
         "source_theorem_signature_probe_reached_proof_body": (
             "source_theorem_proof_body_goal_reached_evidence_count",
+            "source_theorem_proof_body_gate_open_for_kernel_repair_count",
+            "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
             "source_theorem_proof_body_result_row_count",
             "source_theorem_exact_proof_body_repair_executor_n_result_rows",
             "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached",
+            "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair",
+            "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names",
             "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_excerpt_rows",
             "source_theorem_exact_proof_body_repair_executor_first_proof_body_goal_excerpt",
             "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
@@ -13603,6 +13711,8 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
             "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
             "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled",
+            "source_theorem_proof_body_gate_open_for_kernel_repair_count",
+            "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
             "source_theorem_candidate_materialization_required",
             "source_theorem_exact_proof_body_repair_execution_queue_n_rows",
             "source_theorem_exact_proof_body_repair_execution_queue_n_ready",
@@ -23103,6 +23213,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             (
                 "proof_body_goal_reached_evidence="
                 f"{proof_body_goal_reached_count} "
+                "gate_open_for_kernel_repair="
+                f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_count')} "
+                "gate_open_targets="
+                f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_target_names')} "
                 "proof_body_result_rows="
                 f"{proof_body_result_row_count} "
                 "signature_probe_reached="
@@ -24715,6 +24829,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')} "
                 "source_theorem_kernel_verified="
                 f"{source_theorem_kernel_count} "
+                "gate_open_for_kernel_repair="
+                f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_count')} "
                 "candidate_materialization_blocking="
                 f"{exact_proof_body_materialization_blocking} "
                 "queue_ready="

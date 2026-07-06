@@ -486,6 +486,16 @@ SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS: tuple[
     for key in SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS
     if key.endswith("_with_semantic_blockers")
 )
+SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS: tuple[str, ...] = (
+    "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_gate_open_for_kernel_repair",
+)
+SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_TARGET_KEYS: tuple[str, ...] = (
+    "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_names",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_names",
+)
 SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows",
@@ -530,6 +540,9 @@ def _executor_manifest_compact_payload(
             "by_proof_body_gate_status": {},
             "n_proof_body_goal_excerpt_rows": 0,
             "first_proof_body_goal_excerpt": [],
+            "n_proof_body_gate_open_for_kernel_repair": 0,
+            "proof_body_gate_open_target_names": [],
+            "proof_body_gate_open_target_ids": [],
         }
     return {
         "dominant_failure_classification": str(
@@ -546,6 +559,19 @@ def _executor_manifest_compact_payload(
         "first_proof_body_goal_excerpt": [
             str(value)
             for value in payload.get("first_proof_body_goal_excerpt", []) or []
+            if str(value).strip()
+        ][:8],
+        "n_proof_body_gate_open_for_kernel_repair": int(
+            payload.get("n_proof_body_gate_open_for_kernel_repair", 0) or 0
+        ),
+        "proof_body_gate_open_target_names": [
+            str(value).strip()
+            for value in payload.get("proof_body_gate_open_target_names", []) or []
+            if str(value).strip()
+        ][:8],
+        "proof_body_gate_open_target_ids": [
+            str(value).strip()
+            for value in payload.get("proof_body_gate_open_target_ids", []) or []
             if str(value).strip()
         ][:8],
     }
@@ -31657,6 +31683,21 @@ def run_research_agent_runtime(
         "first_proof_body_goal_excerpt"
     ]
     manifest[
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair"
+    ] = source_theorem_exact_proof_body_repair_executor_compact[
+        "n_proof_body_gate_open_for_kernel_repair"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names"
+    ] = source_theorem_exact_proof_body_repair_executor_compact[
+        "proof_body_gate_open_target_names"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_ids"
+    ] = source_theorem_exact_proof_body_repair_executor_compact[
+        "proof_body_gate_open_target_ids"
+    ]
+    manifest[
         "n_runtime_source_theorem_promotion_work_orders_from_proof_body_adapter_feedback"
     ] = len(source_theorem_promotion_adapter_feedback_work_order_rows)
     manifest[
@@ -31836,6 +31877,21 @@ def run_research_agent_runtime(
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_first_proof_body_goal_excerpt"
     ] = source_theorem_exact_proof_body_repair_from_adapter_executor_compact[
         "first_proof_body_goal_excerpt"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair"
+    ] = source_theorem_exact_proof_body_repair_from_adapter_executor_compact[
+        "n_proof_body_gate_open_for_kernel_repair"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_names"
+    ] = source_theorem_exact_proof_body_repair_from_adapter_executor_compact[
+        "proof_body_gate_open_target_names"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_ids"
+    ] = source_theorem_exact_proof_body_repair_from_adapter_executor_compact[
+        "proof_body_gate_open_target_ids"
     ]
     manifest[
         "n_runtime_source_theorem_exact_proof_body_repair_work_orders_from_adapter_premise_derivation_feedback"
@@ -32050,6 +32106,21 @@ def run_research_agent_runtime(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_first_proof_body_goal_excerpt"
     ] = source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_compact[
         "first_proof_body_goal_excerpt"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_gate_open_for_kernel_repair"
+    ] = source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_compact[
+        "n_proof_body_gate_open_for_kernel_repair"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_names"
+    ] = source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_compact[
+        "proof_body_gate_open_target_names"
+    ]
+    manifest[
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_ids"
+    ] = source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_compact[
+        "proof_body_gate_open_target_ids"
     ]
     manifest[
         "n_runtime_source_theorem_formal_environment_work_orders_from_proof_body_executor"
