@@ -9832,6 +9832,13 @@ def _attach_evaluation_benchmark_guidance(
             "evaluation_benchmark_guidance_capacity_gaps": guidance_manifest[
                 "n_saturated_or_capacity_gap"
             ],
+            "evaluation_benchmark_guidance_stale_or_missing_suites": list(
+                guidance_manifest.get("stale_or_missing_suites", []) or []
+            ),
+            "evaluation_benchmark_guidance_capacity_gap_suites": list(
+                guidance_manifest.get("saturated_or_capacity_gap_suites", [])
+                or []
+            ),
             "evaluation_benchmark_guidance_actions": len(
                 guidance_manifest["top_actions"]
             ),
@@ -9881,6 +9888,18 @@ def _research_system_full_ai_statistician_readiness(
     guidance_stale_or_missing_count_raw = counts.get(
         "evaluation_benchmark_guidance_stale_or_missing",
         None,
+    )
+    guidance_capacity_gap_suite_ids = _research_system_string_list(
+        counts.get("evaluation_benchmark_guidance_capacity_gap_suites", [])
+    )
+    guidance_stale_or_missing_suite_ids = _research_system_string_list(
+        counts.get("evaluation_benchmark_guidance_stale_or_missing_suites", [])
+    )
+    guidance_blocker_suite_ids = _research_system_unique_strings(
+        [
+            *guidance_stale_or_missing_suite_ids,
+            *guidance_capacity_gap_suite_ids,
+        ]
     )
     guidance_capacity_gap_count = (
         int(guidance_capacity_gap_count_raw or 0)
@@ -10025,7 +10044,44 @@ def _research_system_full_ai_statistician_readiness(
         "full_ai_statistician_readiness_guidance_blocker_status": (
             guidance_blocker_status
         ),
+        "full_ai_statistician_readiness_guidance_capacity_gap_suite_ids": (
+            guidance_capacity_gap_suite_ids
+        ),
+        "full_ai_statistician_readiness_guidance_stale_or_missing_suite_ids": (
+            guidance_stale_or_missing_suite_ids
+        ),
+        "full_ai_statistician_readiness_guidance_blocker_suite_ids": (
+            guidance_blocker_suite_ids
+        ),
     }
+
+
+def _research_system_string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        items: list[Any] = [value]
+    elif isinstance(value, (list, tuple, set)):
+        items = list(value)
+    else:
+        items = []
+    strings: list[str] = []
+    for item in items:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if text:
+            strings.append(text)
+    return strings
+
+
+def _research_system_unique_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if text and text not in seen:
+            seen.add(text)
+            unique.append(text)
+    return unique
 
 
 def _apply_research_system_full_ai_statistician_readiness(
@@ -10084,6 +10140,21 @@ def _apply_research_system_full_ai_statistician_readiness(
                 "system_full_ai_statistician_readiness_guidance_blocker_status": (
                     full_readiness[
                         "full_ai_statistician_readiness_guidance_blocker_status"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_capacity_gap_suite_ids": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_capacity_gap_suite_ids"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_suite_ids": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_stale_or_missing_suite_ids"
+                    ]
+                ),
+                "system_full_ai_statistician_readiness_guidance_blocker_suite_ids": (
+                    full_readiness[
+                        "full_ai_statistician_readiness_guidance_blocker_suite_ids"
                     ]
                 ),
             }

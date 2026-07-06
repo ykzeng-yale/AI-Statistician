@@ -7645,6 +7645,10 @@ class SystemTests(unittest.TestCase):
                     "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
                     "research_agent_runtime_capability_status": "READY",
                     "evaluation_benchmark_guidance_capacity_gaps": 2,
+                    "evaluation_benchmark_guidance_capacity_gap_suites": [
+                        "S4_formal_primitive_ladder",
+                        "S13_live_integrated_agent_runtime_capability",
+                    ],
                 },
             }
         )
@@ -7664,6 +7668,24 @@ class SystemTests(unittest.TestCase):
                 "full_ai_statistician_readiness_guidance_capacity_gaps_clear"
             ]
         )
+        self.assertEqual(
+            guidance_gap[
+                "full_ai_statistician_readiness_guidance_capacity_gap_suite_ids"
+            ],
+            [
+                "S4_formal_primitive_ladder",
+                "S13_live_integrated_agent_runtime_capability",
+            ],
+        )
+        self.assertEqual(
+            guidance_gap[
+                "full_ai_statistician_readiness_guidance_blocker_suite_ids"
+            ],
+            [
+                "S4_formal_primitive_ladder",
+                "S13_live_integrated_agent_runtime_capability",
+            ],
+        )
 
         stale_or_missing = _research_system_full_ai_statistician_readiness(
             {
@@ -7675,6 +7697,9 @@ class SystemTests(unittest.TestCase):
                     "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
                     "research_agent_runtime_capability_status": "READY",
                     "evaluation_benchmark_guidance_stale_or_missing": 1,
+                    "evaluation_benchmark_guidance_stale_or_missing_suites": [
+                        "S11_live_formalizer_lean_candidate_repair"
+                    ],
                     "evaluation_benchmark_guidance_capacity_gaps": 0,
                 },
             }
@@ -7694,6 +7719,18 @@ class SystemTests(unittest.TestCase):
             stale_or_missing[
                 "full_ai_statistician_readiness_guidance_blockers_clear"
             ]
+        )
+        self.assertEqual(
+            stale_or_missing[
+                "full_ai_statistician_readiness_guidance_stale_or_missing_suite_ids"
+            ],
+            ["S11_live_formalizer_lean_candidate_repair"],
+        )
+        self.assertEqual(
+            stale_or_missing[
+                "full_ai_statistician_readiness_guidance_blocker_suite_ids"
+            ],
+            ["S11_live_formalizer_lean_candidate_repair"],
         )
 
     def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:
@@ -23533,6 +23570,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
         )
+        self.assertIn(
+            "S13_live_integrated_agent_runtime_capability",
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_capacity_gap_suite_ids"
+            ],
+        )
+        self.assertEqual(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_suite_ids"
+            ],
+            [],
+        )
+        self.assertIn(
+            "S4_formal_primitive_ladder",
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_blocker_suite_ids"
+            ],
+        )
         self.assertEqual(
             payload["full_ai_statistician_readiness_status"],
             "CONTRACT_OK_WITH_CAPABILITY_GAPS_AND_EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
@@ -23608,6 +23663,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "system_full_ai_statistician_readiness_guidance_blocker_status"
             ],
             "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
+        )
+        self.assertIn(
+            "S13_live_integrated_agent_runtime_capability",
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_capacity_gap_suite_ids"
+            ],
+        )
+        self.assertEqual(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_stale_or_missing_suite_ids"
+            ],
+            [],
+        )
+        self.assertIn(
+            "S4_formal_primitive_ladder",
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_blocker_suite_ids"
+            ],
         )
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 1)
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_ok"], 1)
