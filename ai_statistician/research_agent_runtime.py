@@ -1016,8 +1016,9 @@ def _runtime_manifest_truth_row(
     proof_evidence: bool,
     blocker: str = "",
     goal_excerpt: list[str] | None = None,
+    **extra: Any,
 ) -> dict[str, Any]:
-    return {
+    row = {
         "evidence_id": evidence_id,
         "status": status,
         "count": int(count),
@@ -1026,6 +1027,8 @@ def _runtime_manifest_truth_row(
         "goal_excerpt": list(goal_excerpt or []),
         "boundary": boundary,
     }
+    row.update(extra)
+    return row
 
 
 def _runtime_exact_semantic_definition_authoring_provenance(
@@ -1755,6 +1758,27 @@ def _runtime_evidence_truth_table_from_manifest(
         + proof_body_goal_excerpt_rows
         + proof_body_goal_excerpt_evidence_count
     )
+    proof_body_gate_open_count = max(
+        _runtime_manifest_int_sum(
+            payload,
+            SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS,
+        ),
+        _runtime_manifest_int(
+            payload,
+            "source_theorem_proof_body_gate_open_for_kernel_repair_count",
+        ),
+    )
+    proof_body_gate_open_target_names: list[str] = []
+    for key in (
+        *SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_TARGET_KEYS,
+        "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
+    ):
+        proof_body_gate_open_target_names.extend(
+            _runtime_manifest_string_list(payload, key)
+        )
+    proof_body_gate_open_target_names = list(
+        dict.fromkeys(proof_body_gate_open_target_names)
+    )[:8]
     bridge_helper_count = _runtime_manifest_int(payload, "n_kernel_verified_subclaims")
     bridge_helper_count += _runtime_manifest_int(
         payload,
@@ -1925,6 +1949,9 @@ def _runtime_evidence_truth_table_from_manifest(
             proof_evidence=source_target_bound_kernel_count > 0,
             blocker=proof_body_blocker,
             goal_excerpt=proof_body_goal_excerpt,
+            gate_open_for_kernel_repair=proof_body_gate_open_count > 0,
+            gate_open_for_kernel_repair_count=proof_body_gate_open_count,
+            gate_open_target_names=proof_body_gate_open_target_names,
         ),
         _runtime_manifest_truth_row(
             "full_source_theorem_kernel_evidence",
@@ -1989,6 +2016,15 @@ def _runtime_evidence_truth_table_from_manifest(
             source_kernel_target_binding[
                 "source_theorem_kernel_verified_target_binding_missing"
             ]
+        ),
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+            proof_body_gate_open_count > 0
+        ),
+        "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+            proof_body_gate_open_count
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": (
+            proof_body_gate_open_target_names
         ),
         "exact_semantic_definition_authoring_required": (
             exact_semantic_authoring_required
@@ -4489,13 +4525,37 @@ def _runtime_evidence_truth_learning_rows(
         proof_body_status == "PROOF_BODY_ATTEMPT_BLOCKED"
     )
     semantic_review_blocked = blocker in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES
+    proof_body_gate_open_target_names = [
+        str(value)
+        for value in (
+            truth_table.get("source_theorem_exact_proof_body_gate_open_target_names", [])
+            or exact_attempt_row.get("gate_open_target_names", [])
+            or []
+        )
+        if str(value).strip()
+    ][:8]
+    proof_body_gate_open_for_kernel_repair = bool(
+        (
+            truth_table.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
+            or exact_attempt_row.get("gate_open_for_kernel_repair", False)
+        )
+        and proof_body_goal_reached
+        and not semantic_review_blocked
+        and not source_verified
+    )
     proof_body_gate_status = ""
-    if semantic_review_blocked and proof_body_goal_reached:
+    if proof_body_gate_open_for_kernel_repair:
+        proof_body_gate_status = "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    elif semantic_review_blocked and proof_body_goal_reached:
         proof_body_gate_status = "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
     elif semantic_review_blocked:
         proof_body_gate_status = "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
     source_theorem_ready_for_exact_proof_body = bool(
-        proof_body_goal_reached and not semantic_review_blocked
+        proof_body_gate_open_for_kernel_repair
+        or (proof_body_goal_reached and not semantic_review_blocked)
     )
     target_theorem_names = _runtime_source_theorem_target_names_from_manifest(
         manifest
@@ -4522,7 +4582,14 @@ def _runtime_evidence_truth_learning_rows(
         premise_name, premise_target_type = [
             value.strip() for value in goal_excerpt[0].split(":", 1)
         ]
-    if semantic_review_blocked:
+    if proof_body_gate_open_for_kernel_repair:
+        target_behavior = (
+            "continue exact source-theorem proof-body repair with the reached Lean "
+            "goal and gate-open target; do not reroute to semantic-definition review, "
+            "and keep the theorem unproved until local Lean/AXLE verifies the exact "
+            "source theorem"
+        )
+    elif semantic_review_blocked:
         target_behavior = (
             "review exact source-theorem semantic definitions before resuming "
             "proof-body search; do not treat a semantic-review blocker as proof-body "
@@ -4556,6 +4623,9 @@ def _runtime_evidence_truth_learning_rows(
                     "question_id": question_id,
                     "target_theorem_names": target_theorem_names,
                     "proof_body_status": proof_body_status,
+                    "proof_body_gate_open_for_kernel_repair": (
+                        proof_body_gate_open_for_kernel_repair
+                    ),
                     "blocker": blocker,
                 }
             )[:16],
@@ -4567,6 +4637,12 @@ def _runtime_evidence_truth_learning_rows(
             "premise_target_type": premise_target_type,
             "proof_body_status": proof_body_status,
             "proof_body_gate_status": proof_body_gate_status,
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                proof_body_gate_open_for_kernel_repair
+            ),
+            "source_theorem_exact_proof_body_gate_open_target_names": (
+                proof_body_gate_open_target_names
+            ),
             "proof_body_attempt_blocked_before_goal": (
                 proof_body_attempt_blocked_before_goal
             ),
@@ -4579,6 +4655,15 @@ def _runtime_evidence_truth_learning_rows(
                 "source_theorem_kernel_verified": source_verified,
                 "source_theorem_ready_for_exact_proof_body": (
                     source_theorem_ready_for_exact_proof_body
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    proof_body_gate_open_for_kernel_repair
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_names": (
+                    proof_body_gate_open_target_names
+                ),
+                "source_theorem_kernel_evidence_eligible": (
+                    proof_body_gate_open_for_kernel_repair or source_verified
                 ),
                 "proof_body_status": proof_body_status,
                 "proof_body_gate_status": proof_body_gate_status,
@@ -47611,6 +47696,17 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 truth_proof_body_semantic_review_blocked
                 or input_summary.get("proof_body_semantic_review_blocked", False)
             )
+        truth_proof_body_gate_open_for_kernel_repair = bool(
+            row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
+        )
+        if isinstance(input_summary, Mapping):
+            truth_proof_body_gate_open_for_kernel_repair = bool(
+                truth_proof_body_gate_open_for_kernel_repair
+                or input_summary.get(
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                    False,
+                )
+            )
         truth_proof_body_attempt_blocked_before_goal = bool(
             row.get("proof_body_attempt_blocked_before_goal", False)
         )
@@ -47638,6 +47734,8 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         ):
             if truth_premise_derivation_gap_kind:
                 trigger = "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
+            elif truth_proof_body_gate_open_for_kernel_repair:
+                trigger = "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
             elif truth_proof_body_semantic_review_blocked:
                 trigger = (
                     "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
@@ -61478,9 +61576,34 @@ def _append_runtime_generated_next_action_rows(
             row.get("proof_body_goal_reached", False)
             or input_summary.get("proof_body_goal_reached", False)
         )
+        proof_body_gate_open_for_kernel_repair = bool(
+            row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
+            or input_summary.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
+        )
+        proof_body_gate_open_target_names = [
+            str(value)
+            for value in (
+                row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
+                or input_summary.get(
+                    "source_theorem_exact_proof_body_gate_open_target_names",
+                    [],
+                )
+                or []
+            )
+            if str(value).strip()
+        ][:8]
         truth_table_semantic_review_queue_ready = bool(
             source_trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
             and proof_body_semantic_review_blocked_for_routing
+        )
+        truth_table_exact_proof_body_gate_open = bool(
+            source_trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
+            and proof_body_gate_open_for_kernel_repair
+            and proof_body_goal_reached_for_routing
+            and not proof_body_semantic_review_blocked_for_routing
         )
         truth_table_proof_body_reached_semantic_review_required = bool(
             truth_table_semantic_review_queue_ready
@@ -61647,6 +61770,16 @@ def _append_runtime_generated_next_action_rows(
                 "packet or semantic_review_decision, not proof-body readiness"
             )
         elif (
+            truth_table_exact_proof_body_gate_open
+            and not recommended_next_action
+        ):
+            action = (
+                "continue exact source-theorem proof-body repair with the reached "
+                "Lean goal and gate-open target; do not reroute to semantic-definition "
+                "review, and keep the theorem unproved until local Lean/AXLE verifies "
+                "the exact source theorem"
+            )
+        elif (
             exact_semantic_definition_repair_queue_ready
             and not recommended_next_action
         ):
@@ -61697,6 +61830,8 @@ def _append_runtime_generated_next_action_rows(
                 if exact_semantic_definition_repair_queue_ready
                 else "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED"
                 if source_to_bridge_premise_verified
+                else "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+                if truth_table_exact_proof_body_gate_open
                 else "POST_RUNTIME_PROOFENGINEER_QUEUE_READY"
             ),
             "action": action,
@@ -61865,6 +62000,12 @@ def _append_runtime_generated_next_action_rows(
                 row.get("proof_body_gate_status", "")
                 or input_summary.get("proof_body_gate_status", "")
                 or ""
+            ),
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                proof_body_gate_open_for_kernel_repair
+            ),
+            "source_theorem_exact_proof_body_gate_open_target_names": (
+                proof_body_gate_open_target_names
             ),
             "proof_body_status": proof_body_status_for_routing,
             "proof_body_goal_reached": proof_body_goal_reached_for_routing,
@@ -62257,6 +62398,18 @@ def _runtime_generated_next_action_learning_rows(
                     ),
                     "proof_body_goal_reached": bool(
                         row.get("proof_body_goal_reached", False)
+                    ),
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair": bool(
+                        row.get(
+                            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                            False,
+                        )
+                    ),
+                    "source_theorem_exact_proof_body_gate_open_target_names": list(
+                        _runtime_row_string_values(
+                            row,
+                            "source_theorem_exact_proof_body_gate_open_target_names",
+                        )
                     ),
                     "proof_body_semantic_review_blocked": bool(
                         row.get("proof_body_semantic_review_blocked", False)
