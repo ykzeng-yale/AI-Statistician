@@ -13054,13 +13054,13 @@ def _formalizer_packet_validation_failure_result(
                 )
                 or ""
             ),
-            "source_theorem_ready_for_exact_proof_body": bool(
+            "source_theorem_ready_for_exact_proof_body": _bool_like(
                 proof_bank_runtime_memory_summary.get(
                     "source_theorem_ready_for_exact_proof_body",
                     False,
                 )
             ),
-            "source_theorem_exact_proof_body_verified_adapter_context_insufficient": bool(
+            "source_theorem_exact_proof_body_verified_adapter_context_insufficient": _bool_like(
                 proof_bank_runtime_memory_summary.get(
                     "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
                     False,
@@ -22712,13 +22712,13 @@ def run_research_agent_runtime(
             )
             or []
         ),
-        "source_theorem_semantic_primitive_support_already_kernel_verified": bool(
+        "source_theorem_semantic_primitive_support_already_kernel_verified": _bool_like(
             proof_control_summary.get(
                 "source_theorem_semantic_primitive_support_already_kernel_verified",
                 False,
             )
         ),
-        "source_theorem_semantic_support_only": bool(
+        "source_theorem_semantic_support_only": _bool_like(
             proof_control_summary.get("source_theorem_semantic_support_only", False)
         ),
         "semantic_closure_status": str(
@@ -22727,7 +22727,7 @@ def run_research_agent_runtime(
         "placeholder_definition_status": str(
             proof_control_summary.get("placeholder_definition_status", "") or ""
         ),
-        "source_theorem_ready_for_exact_proof_body": bool(
+        "source_theorem_ready_for_exact_proof_body": _bool_like(
             proof_control_summary.get(
                 "source_theorem_ready_for_exact_proof_body",
                 False,
@@ -32654,13 +32654,13 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_lean_repair_executor_semantic_definition_kernel_verified"
     ] = any(
-        bool(row.get("semantic_definition_kernel_verified", False))
+        _bool_like(row.get("semantic_definition_kernel_verified", False))
         for row in late_source_theorem_exact_semantic_definition_lean_repair_executor_manifests
     )
     manifest[
         "source_theorem_exact_semantic_definition_late_lean_repair_executor_source_theorem_kernel_verified"
     ] = any(
-        bool(row.get("source_theorem_kernel_verified", False))
+        _bool_like(row.get("source_theorem_kernel_verified", False))
         for row in late_source_theorem_exact_semantic_definition_lean_repair_executor_manifests
     )
     late_typechecked_review_recheck_queue_ran = bool(
@@ -32883,7 +32883,7 @@ def run_research_agent_runtime(
     ] = bool(
         late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifests
     ) and all(
-        bool(row.get("source_theorem_ready_for_exact_proof_body", False))
+        _bool_like(row.get("source_theorem_ready_for_exact_proof_body", False))
         for row in late_source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifests
     )
     manifest[
@@ -33125,7 +33125,7 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
     ] = any(
-        bool(row.get("source_theorem_ready_for_exact_proof_body", False))
+        _bool_like(row.get("source_theorem_ready_for_exact_proof_body", False))
         for row in late_source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifests
     )
     manifest[
@@ -33675,13 +33675,13 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_source_theorem_kernel_verified"
     ] = any(
-        bool(row.get("source_theorem_kernel_verified", False))
+        _bool_like(row.get("source_theorem_kernel_verified", False))
         for row in late_source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifests
     )
     manifest[
         "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_semantic_definition_kernel_verified"
     ] = any(
-        bool(row.get("semantic_definition_kernel_verified", False))
+        _bool_like(row.get("semantic_definition_kernel_verified", False))
         for row in late_source_theorem_exact_semantic_definition_materialized_lean_repair_executor_manifests
     )
     late_materialized_review_agenda_required = any(
@@ -39594,15 +39594,17 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         and direct_source_to_bridge_premise_target_ids
         and direct_source_to_bridge_premise_names
         and (
-            bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
-            or bool(row.get("premise_derivation_kernel_verified", False))
-            or bool(
+            _bool_like(
+                row.get("source_to_bridge_premise_derivation_kernel_verified", False)
+            )
+            or _bool_like(row.get("premise_derivation_kernel_verified", False))
+            or _bool_like(
                 input_summary.get(
                     "source_to_bridge_premise_derivation_kernel_verified",
                     False,
                 )
             )
-            or bool(input_summary.get("premise_derivation_kernel_verified", False))
+            or _bool_like(input_summary.get("premise_derivation_kernel_verified", False))
             or _sorted_str_tuple(
                 row.get(
                     "kernel_verified_source_to_bridge_premise_derivation_ids",
@@ -39617,10 +39619,12 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         )
     )
     if learning_task == "source_theorem_proof_body_adapter_feedback" and (
-        bool(row.get("adapter_kernel_verified", False))
-        or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
-        or bool(input_summary.get("adapter_kernel_verified", False))
-        or bool(
+        _bool_like(row.get("adapter_kernel_verified", False))
+        or _bool_like(
+            row.get("source_theorem_proof_body_adapter_kernel_verified", False)
+        )
+        or _bool_like(input_summary.get("adapter_kernel_verified", False))
+        or _bool_like(
             input_summary.get(
                 "source_theorem_proof_body_adapter_kernel_verified",
                 False,
@@ -39656,15 +39660,15 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
     ):
         return 95
     if (
-        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
-        or bool(row.get("premise_derivation_kernel_verified", False))
-        or bool(
+        _bool_like(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+        or _bool_like(row.get("premise_derivation_kernel_verified", False))
+        or _bool_like(
             input_summary.get(
                 "source_to_bridge_premise_derivation_kernel_verified",
                 False,
             )
         )
-        or bool(input_summary.get("premise_derivation_kernel_verified", False))
+        or _bool_like(input_summary.get("premise_derivation_kernel_verified", False))
         or _sorted_str_tuple(
             row.get(
                 "kernel_verified_source_to_bridge_premise_derivation_ids",
@@ -39882,15 +39886,15 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
         )
     )
     if premise_names and (
-        bool(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
-        or bool(row.get("premise_derivation_kernel_verified", False))
-        or bool(
+        _bool_like(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+        or _bool_like(row.get("premise_derivation_kernel_verified", False))
+        or _bool_like(
             input_summary.get(
                 "source_to_bridge_premise_derivation_kernel_verified",
                 False,
             )
         )
-        or bool(input_summary.get("premise_derivation_kernel_verified", False))
+        or _bool_like(input_summary.get("premise_derivation_kernel_verified", False))
     ):
         return "verified_source_to_bridge_premise:" + target + ":" + ",".join(
             premise_names
@@ -39940,10 +39944,12 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             )
         )
         adapter_kernel_verified = (
-            bool(row.get("adapter_kernel_verified", False))
-            or bool(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
-            or bool(input_summary.get("adapter_kernel_verified", False))
-            or bool(
+            _bool_like(row.get("adapter_kernel_verified", False))
+            or _bool_like(
+                row.get("source_theorem_proof_body_adapter_kernel_verified", False)
+            )
+            or _bool_like(input_summary.get("adapter_kernel_verified", False))
+            or _bool_like(
                 input_summary.get(
                     "source_theorem_proof_body_adapter_kernel_verified",
                     False,
@@ -41754,7 +41760,7 @@ def _critic_source_theorem_proof_body_adapter_feedback(
                 row.get("failure_classification", "") or ""
             ),
             "runtime_queue_status": str(row.get("runtime_queue_status", "") or ""),
-            "adapter_kernel_verified": bool(
+            "adapter_kernel_verified": _bool_like(
                 row.get("adapter_kernel_verified", False)
             ),
             "adapter_candidate_requires_unproven_bridge_premises": bool(
@@ -41806,16 +41812,16 @@ def _critic_source_theorem_proof_body_adapter_feedback(
         }
         if compact:
             diagnostics.append(compact)
-    adapter_required = bool(
+    adapter_required = _bool_like(
         proof_bank_summary.get("source_theorem_proof_body_adapter_required", False)
     )
-    adapter_feedback_available = bool(
+    adapter_feedback_available = _bool_like(
         proof_bank_summary.get(
             "source_theorem_proof_body_adapter_feedback_available",
             False,
         )
     )
-    adapter_kernel_verified = bool(
+    adapter_kernel_verified = _bool_like(
         proof_bank_summary.get(
             "source_theorem_proof_body_adapter_kernel_verified",
             False,
@@ -41858,7 +41864,7 @@ def _critic_source_theorem_proof_body_adapter_feedback(
         "unproven_bridge_premise_names": list(
             dict.fromkeys(pending_bridge_premise_names)
         ),
-        "source_to_bridge_premise_derivation_all_required_verified": bool(
+        "source_to_bridge_premise_derivation_all_required_verified": _bool_like(
             proof_bank_summary.get(
                 "source_to_bridge_premise_derivation_all_required_verified",
                 False,
@@ -42191,7 +42197,7 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
                 ),
                 "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
                 "source_theorem_kernel_evidence_eligible": False,
-                "adapter_kernel_verified": bool(
+                "adapter_kernel_verified": _bool_like(
                     proof_bank_summary.get(
                         "source_theorem_proof_body_adapter_kernel_verified",
                         False,
@@ -42363,10 +42369,10 @@ def _critic_source_theorem_exact_semantic_definition_repair_feedback(
         "target_ids": list(dict.fromkeys(target_ids)),
         "proof_body_gate_statuses": proof_body_gate_statuses,
         "runtime_queue_statuses": runtime_queue_statuses,
-        "source_theorem_ready_for_exact_proof_body": bool(
+        "source_theorem_ready_for_exact_proof_body": _bool_like(
             proof_bank_summary.get("source_theorem_ready_for_exact_proof_body", False)
         ),
-        "source_theorem_proof_body_adapter_kernel_verified": bool(
+        "source_theorem_proof_body_adapter_kernel_verified": _bool_like(
             proof_bank_summary.get(
                 "source_theorem_proof_body_adapter_kernel_verified",
                 False,
@@ -42896,7 +42902,7 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
     ]
     rows: list[dict[str, Any]] = []
     for diagnostic in diagnostics[:4]:
-        if bool(diagnostic.get("adapter_kernel_verified", False)):
+        if _bool_like(diagnostic.get("adapter_kernel_verified", False)):
             continue
         target_ids = [
             str(value).strip()
@@ -47126,9 +47132,9 @@ def _runtime_source_to_bridge_premise_derivation_kernel_verified(
 ) -> bool:
     input_summary = row.get("input_summary", {})
     return bool(
-        row.get("source_to_bridge_premise_derivation_kernel_verified", False)
-        or row.get("premise_derivation_kernel_verified", False)
-        or (
+        _bool_like(row.get("source_to_bridge_premise_derivation_kernel_verified", False))
+        or _bool_like(row.get("premise_derivation_kernel_verified", False))
+        or _bool_like(
             input_summary.get(
                 "source_to_bridge_premise_derivation_kernel_verified",
                 False,
@@ -47136,7 +47142,7 @@ def _runtime_source_to_bridge_premise_derivation_kernel_verified(
             if isinstance(input_summary, Mapping)
             else False
         )
-        or (
+        or _bool_like(
             input_summary.get("premise_derivation_kernel_verified", False)
             if isinstance(input_summary, Mapping)
             else False
@@ -48855,34 +48861,23 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
             premise_dedupe_key = premise_dedupe_values[0] if premise_dedupe_values else ""
             premise_kernel_verified_dedupe_key = str(
-                bool(
-                    row.get("source_to_bridge_premise_derivation_kernel_verified", False)
-                    or row.get("premise_derivation_kernel_verified", False)
-                    or (
-                        input_summary.get(
-                            "source_to_bridge_premise_derivation_kernel_verified",
-                            False,
-                        )
-                        if isinstance(input_summary, Mapping)
-                        else False
-                    )
-                    or (
-                        input_summary.get("premise_derivation_kernel_verified", False)
-                        if isinstance(input_summary, Mapping)
-                        else False
-                    )
-                )
+                _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
             )
         if is_source_theorem_proof_body_adapter_feedback:
             adapter_verified_for_key = bool(
-                row.get("adapter_kernel_verified", False)
-                or row.get("source_theorem_proof_body_adapter_kernel_verified", False)
-                or (
+                _bool_like(row.get("adapter_kernel_verified", False))
+                or _bool_like(
+                    row.get(
+                        "source_theorem_proof_body_adapter_kernel_verified",
+                        False,
+                    )
+                )
+                or _bool_like(
                     input_summary.get("adapter_kernel_verified", False)
                     if isinstance(input_summary, Mapping)
                     else False
                 )
-                or (
+                or _bool_like(
                     input_summary.get(
                         "source_theorem_proof_body_adapter_kernel_verified",
                         False,
@@ -49112,16 +49107,20 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             "exact_goal_shape_obligations",
         )
         adapter_kernel_verified = bool(
-            row.get("adapter_kernel_verified", False)
-            or row.get("source_theorem_proof_body_adapter_kernel_verified", False)
+            _bool_like(row.get("adapter_kernel_verified", False))
+            or _bool_like(
+                row.get("source_theorem_proof_body_adapter_kernel_verified", False)
+            )
         )
         if isinstance(input_summary, Mapping):
             adapter_kernel_verified = bool(
                 adapter_kernel_verified
-                or input_summary.get("adapter_kernel_verified", False)
-                or input_summary.get(
-                    "source_theorem_proof_body_adapter_kernel_verified",
-                    False,
+                or _bool_like(input_summary.get("adapter_kernel_verified", False))
+                or _bool_like(
+                    input_summary.get(
+                        "source_theorem_proof_body_adapter_kernel_verified",
+                        False,
+                    )
                 )
             )
         adapter_candidate_artifact_path = str(
@@ -52543,7 +52542,7 @@ def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
             "learning_task": "source_theorem_proof_body_adapter_feedback",
             "trigger": "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
             "target_theorem_name": target_name,
-            "adapter_kernel_verified": bool(
+            "adapter_kernel_verified": _bool_like(
                 diagnostic.get(
                     "adapter_kernel_verified",
                     feedback.get("adapter_kernel_verified", False),
@@ -52563,7 +52562,7 @@ def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
         if not str(row.get("failure_classification", "") or "").strip():
             row["failure_classification"] = (
                 "adapter_kernel_verified"
-                if bool(row.get("adapter_kernel_verified", False))
+                if _bool_like(row.get("adapter_kernel_verified", False))
                 else "source_theorem_proof_body_adapter_unverified"
             )
         rows.append(row)
@@ -52581,12 +52580,12 @@ def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
             "learning_task": "source_theorem_proof_body_adapter_feedback",
             "trigger": "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK",
             "target_theorem_name": target_name,
-            "adapter_kernel_verified": bool(
+            "adapter_kernel_verified": _bool_like(
                 feedback.get("adapter_kernel_verified", False)
             ),
             "failure_classification": (
                 "adapter_kernel_verified"
-                if bool(feedback.get("adapter_kernel_verified", False))
+                if _bool_like(feedback.get("adapter_kernel_verified", False))
                 else "source_theorem_proof_body_adapter_unverified"
             ),
             "proof_evidence_status": str(
@@ -53032,7 +53031,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         for row in source_theorem_exact_candidate_repairs
         if str(row.get("trigger", "") or "")
         == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK"
-        if bool(row.get("adapter_kernel_verified", False))
+        if _bool_like(row.get("adapter_kernel_verified", False))
         if str(row.get("target_theorem_name", "") or "").strip()
     }
 
@@ -53161,12 +53160,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
     verified_source_proof_body_adapter_feedback_rows = tuple(
         row
         for row in exact_source_proof_body_adapter_feedback_rows
-        if bool(row.get("adapter_kernel_verified", False))
+        if _bool_like(row.get("adapter_kernel_verified", False))
     )
     unverified_source_proof_body_adapter_feedback_rows = tuple(
         row
         for row in exact_source_proof_body_adapter_feedback_rows
-        if not bool(row.get("adapter_kernel_verified", False))
+        if not _bool_like(row.get("adapter_kernel_verified", False))
     )
     adapter_verified_targets = {
         str(row.get("target_theorem_name", "") or "").strip()
@@ -53174,7 +53173,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             *verified_source_proof_body_adapter_feedback_rows,
             *exact_source_proof_body_verified_adapter_insufficient_rows,
         )
-        if bool(row.get("adapter_kernel_verified", False))
+        if _bool_like(row.get("adapter_kernel_verified", False))
         if str(row.get("target_theorem_name", "") or "").strip()
     }
     if adapter_verified_targets and exact_candidate_environment_gap:
@@ -53313,10 +53312,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
     verified_source_to_bridge_premise_derivation_rows = tuple(
         row
         for row in source_to_bridge_premise_derivation_rows
-        if bool(
-            row.get("source_to_bridge_premise_derivation_kernel_verified", False)
-            or row.get("premise_derivation_kernel_verified", False)
-        )
+        if _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
     )
     verified_source_to_bridge_premise_names = tuple(
         dict.fromkeys(
@@ -53365,10 +53361,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "premise_names",
             )
         )
-        and not bool(
-            row.get("source_to_bridge_premise_derivation_kernel_verified", False)
-            or row.get("premise_derivation_kernel_verified", False)
-        )
+        and not _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
         and not set(
             _runtime_row_string_values(
                 row,
@@ -53935,7 +53928,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
-        return bool(row.get(key, input_summary.get(key, False)))
+        return _bool_like(row.get(key, input_summary.get(key, False)))
 
     def verified_premise_row_int(row: Mapping[str, Any], key: str) -> int:
         input_summary = (
@@ -54052,7 +54045,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 *verified_source_proof_body_adapter_feedback_rows,
                 *exact_source_proof_body_verified_adapter_insufficient_rows,
             )
-            if bool(row.get("adapter_kernel_verified", False))
+            if _bool_like(row.get("adapter_kernel_verified", False))
             for value in _runtime_row_string_values(
                 row,
                 "kernel_verified_source_theorem_proof_body_adapter_ids",
@@ -54065,7 +54058,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             *verified_source_proof_body_adapter_feedback_rows,
             *exact_source_proof_body_verified_adapter_insufficient_rows,
         )
-        if bool(row.get("adapter_kernel_verified", False))
+        if _bool_like(row.get("adapter_kernel_verified", False))
     )
     verified_source_proof_body_adapter_artifact_paths = tuple(
         dict.fromkeys(
@@ -55023,12 +55016,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
                         "premise_names",
                     )
                 )[:12],
-                "premise_derivation_kernel_verified": bool(
-                    row.get(
-                        "source_to_bridge_premise_derivation_kernel_verified",
-                        False,
-                    )
-                    or row.get("premise_derivation_kernel_verified", False)
+                "premise_derivation_kernel_verified": (
+                    _runtime_source_to_bridge_premise_derivation_kernel_verified(row)
                 ),
                 "premise_candidate_artifact_path": str(
                     next(
@@ -55057,12 +55046,14 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "premise_candidate_signature_excerpts": list(
                     _runtime_verified_source_to_bridge_premise_signature_excerpts(row)
                 )[:3],
-                "premise_candidate_evidence_eligible": bool(
-                    row.get(
-                        "source_to_bridge_premise_candidate_evidence_eligible",
-                        False,
+                "premise_candidate_evidence_eligible": (
+                    _bool_like(
+                        row.get(
+                            "source_to_bridge_premise_candidate_evidence_eligible",
+                            False,
+                        )
                     )
-                    or row.get("premise_candidate_evidence_eligible", False)
+                    or _bool_like(row.get("premise_candidate_evidence_eligible", False))
                 ),
                 "premise_candidate_assumes_forbidden_premise": bool(
                     row.get(
@@ -55510,7 +55501,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "semantic_alignment_blockers": list(
                         row.get("semantic_alignment_blockers", []) or []
                     )[:5],
-                    "source_theorem_kernel_evidence_eligible": bool(
+                    "source_theorem_kernel_evidence_eligible": _bool_like(
                         row.get("source_theorem_kernel_evidence_eligible", False)
                     ),
                     "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
@@ -55521,7 +55512,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "proof_body_adapter_required_reasons": list(
                         row.get("proof_body_adapter_required_reasons", []) or []
                     )[:5],
-                    "adapter_kernel_verified": bool(
+                    "adapter_kernel_verified": _bool_like(
                         row.get("adapter_kernel_verified", False)
                     ),
                     "adapter_candidate_requires_unproven_bridge_premises": bool(
@@ -55652,7 +55643,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "exact_goal_shape_obligations": list(
                     row.get("exact_goal_shape_obligations", []) or []
                 )[:8],
-                "adapter_kernel_verified": bool(
+                "adapter_kernel_verified": _bool_like(
                     row.get("adapter_kernel_verified", False)
                 ),
                 "kernel_verified_source_theorem_proof_body_adapter_ids": list(
@@ -58958,13 +58949,15 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
             and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
         ):
             continue
-        source_theorem_kernel_verified = bool(
+        source_theorem_kernel_verified = _bool_like(
             row.get("source_theorem_kernel_verified", False)
         )
         if isinstance(input_summary, Mapping):
             source_theorem_kernel_verified = bool(
                 source_theorem_kernel_verified
-                or input_summary.get("source_theorem_kernel_verified", False)
+                or _bool_like(
+                    input_summary.get("source_theorem_kernel_verified", False)
+                )
             )
         if source_theorem_kernel_verified:
             continue
@@ -59167,7 +59160,7 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
             continue
         if _source_theorem_target_known_value(row) is not True:
             continue
-        if bool(row.get("source_theorem_kernel_verified", False)):
+        if _bool_like(row.get("source_theorem_kernel_verified", False)):
             continue
         failure_classification = str(
             row.get("failure_classification", "") or ""
@@ -59589,7 +59582,7 @@ def _formalizer_source_theorem_promotion_work_orders(
         or []
         if str(row).strip()
     ]
-    source_theorem_semantic_support_only = bool(
+    source_theorem_semantic_support_only = _bool_like(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_semantic_support_only",
             False,
@@ -59603,7 +59596,7 @@ def _formalizer_source_theorem_promotion_work_orders(
         proof_bank_runtime_memory_summary.get("placeholder_definition_status", "")
         or ""
     )
-    source_theorem_ready_for_exact_proof_body = bool(
+    source_theorem_ready_for_exact_proof_body = _bool_like(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_ready_for_exact_proof_body",
             False,
@@ -59709,19 +59702,19 @@ def _formalizer_source_theorem_promotion_work_orders(
             ]
         )
     )
-    source_proof_body_adapter_feedback_available = bool(
+    source_proof_body_adapter_feedback_available = _bool_like(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_proof_body_adapter_feedback_available",
             False,
         )
     )
-    source_proof_body_adapter_kernel_verified = bool(
+    source_proof_body_adapter_kernel_verified = _bool_like(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_proof_body_adapter_kernel_verified",
             False,
         )
     )
-    source_proof_body_adapter_unproven_bridge_premises_required = bool(
+    source_proof_body_adapter_unproven_bridge_premises_required = _bool_like(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_proof_body_adapter_unproven_bridge_premises_required",
             False,
@@ -62471,8 +62464,10 @@ def _runtime_generated_next_action_learning_rows(
                     "premise_derivation_gap_summary": str(
                         row.get("premise_derivation_gap_summary", "") or ""
                     ),
-                    "premise_derivation_kernel_verified": bool(
-                        row.get("premise_derivation_kernel_verified", False)
+                    "premise_derivation_kernel_verified": (
+                        _runtime_source_to_bridge_premise_derivation_kernel_verified(
+                            row
+                        )
                     ),
                     "kernel_verified_source_to_bridge_premise_derivation_ids": list(
                         _runtime_row_string_values(
@@ -62500,7 +62495,7 @@ def _runtime_generated_next_action_learning_rows(
                     "semantic_review_required_before_proof_body": bool(
                         row.get("semantic_review_required_before_proof_body", False)
                     ),
-                    "source_theorem_ready_for_exact_proof_body": bool(
+                    "source_theorem_ready_for_exact_proof_body": _bool_like(
                         row.get("source_theorem_ready_for_exact_proof_body", False)
                     ),
                     "semantic_review_decision": str(
@@ -66244,12 +66239,13 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
         )
         if is_source_to_bridge_premise_feedback:
             source_theorem_kernel_verified = bool(
-                row.get("source_theorem_kernel_verified", False)
-                or input_summary.get("source_theorem_kernel_verified", False)
+                _bool_like(row.get("source_theorem_kernel_verified", False))
+                or _bool_like(
+                    input_summary.get("source_theorem_kernel_verified", False)
+                )
             )
-            premise_verified = bool(
-                row.get("premise_derivation_kernel_verified", False)
-                or input_summary.get("premise_derivation_kernel_verified", False)
+            premise_verified = _runtime_source_to_bridge_premise_derivation_kernel_verified(
+                row
             )
             if source_theorem_kernel_verified or premise_verified:
                 continue
@@ -66622,8 +66618,8 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
         ):
             continue
         source_theorem_kernel_verified = bool(
-            row.get("source_theorem_kernel_verified", False)
-            or input_summary.get("source_theorem_kernel_verified", False)
+            _bool_like(row.get("source_theorem_kernel_verified", False))
+            or _bool_like(input_summary.get("source_theorem_kernel_verified", False))
         )
         if source_theorem_kernel_verified:
             continue
@@ -68990,7 +68986,7 @@ def _runtime_source_theorem_promotion_handoff_rows(
             "placeholder_definition_status": str(
                 item.get("placeholder_definition_status", "") or ""
             ),
-            "source_theorem_ready_for_exact_proof_body": bool(
+            "source_theorem_ready_for_exact_proof_body": _bool_like(
                 item.get("source_theorem_ready_for_exact_proof_body", False)
             ),
             "required_source_theorem_semantic_primitive_support_ids": list(
@@ -69034,7 +69030,7 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 ],
                 "current_artifact_kernel_verified": False,
                 "ready_for_existing_source_theorem_promotion_queue": False,
-                "source_theorem_ready_for_exact_proof_body": bool(
+                "source_theorem_ready_for_exact_proof_body": _bool_like(
                     item.get("source_theorem_ready_for_exact_proof_body", False)
                 ),
             },
@@ -69180,7 +69176,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
         placeholder_definition_status = str(
             item.get("placeholder_definition_status", "") or ""
         )
-        source_theorem_ready_for_exact_proof_body = bool(
+        source_theorem_ready_for_exact_proof_body = _bool_like(
             item.get("source_theorem_ready_for_exact_proof_body", False)
         )
         required_semantic_support_ids = [
@@ -70460,8 +70456,8 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
         ):
             continue
         source_theorem_kernel_verified = bool(
-            row.get("source_theorem_kernel_verified", False)
-            or input_summary.get("source_theorem_kernel_verified", False)
+            _bool_like(row.get("source_theorem_kernel_verified", False))
+            or _bool_like(input_summary.get("source_theorem_kernel_verified", False))
         )
         if source_theorem_kernel_verified:
             continue
@@ -72735,7 +72731,7 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
                 "placeholder_definition_status": str(
                     item.get("placeholder_definition_status", "") or ""
                 ),
-                "source_theorem_ready_for_exact_proof_body": bool(
+                "source_theorem_ready_for_exact_proof_body": _bool_like(
                     item.get("source_theorem_ready_for_exact_proof_body", False)
                 ),
                 "source_theorem_semantic_support_only": bool(
@@ -72807,7 +72803,7 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
                     "placeholder_definition_status": str(
                         item.get("placeholder_definition_status", "") or ""
                     ),
-                    "source_theorem_ready_for_exact_proof_body": bool(
+                    "source_theorem_ready_for_exact_proof_body": _bool_like(
                         item.get("source_theorem_ready_for_exact_proof_body", False)
                     ),
                     "source_theorem_semantic_support_only": bool(
@@ -73219,7 +73215,7 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
         if not isinstance(row, Mapping):
             continue
         promotion_status = str(row.get("promotion_status", "") or "")
-        source_theorem_kernel_verified = bool(
+        source_theorem_kernel_verified = _bool_like(
             row.get("source_theorem_kernel_verified", False)
         )
         if (
@@ -73398,7 +73394,7 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
     for row in verifier_payload.get("rows", []) or []:
         if not isinstance(row, Mapping):
             continue
-        if bool(row.get("source_theorem_kernel_verified", False)):
+        if _bool_like(row.get("source_theorem_kernel_verified", False)):
             continue
         if not bool(row.get("source_theorem_target_known", False)):
             continue
@@ -73555,7 +73551,7 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
     for row in integrator_payload.get("rows", []) or []:
         if not isinstance(row, Mapping):
             continue
-        source_theorem_kernel_verified = bool(
+        source_theorem_kernel_verified = _bool_like(
             row.get("source_theorem_kernel_verified", False)
         )
         if source_theorem_kernel_verified:
@@ -77564,13 +77560,17 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     or control.get("source_theorem_semantic_support_only", False)
                 )
                 proof_control["source_theorem_ready_for_exact_proof_body"] = bool(
-                    proof_control.get(
-                        "source_theorem_ready_for_exact_proof_body",
-                        False,
+                    _bool_like(
+                        proof_control.get(
+                            "source_theorem_ready_for_exact_proof_body",
+                            False,
+                        )
                     )
-                    or control.get(
-                        "source_theorem_ready_for_exact_proof_body",
-                        False,
+                    or _bool_like(
+                        control.get(
+                            "source_theorem_ready_for_exact_proof_body",
+                            False,
+                        )
                     )
                 )
                 for key in ("semantic_closure_status", "placeholder_definition_status"):

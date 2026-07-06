@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T21:45:45Z",
+  "updated_at": "2026-07-06T21:58:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1143,6 +1143,18 @@
       "runtime_proof_body_slice_tests": 68,
       "routing_boundary": "AgentRuntime now parses serialized proof_body_goal_reached, proof_body_semantic_review_blocked, proof_body_attempt_blocked_before_goal, source_theorem_kernel_evidence_eligible, and source_theorem_kernel_verified values with the same string-aware bool normalization used for gate-open routing. A serialized \"false\" goal-reached row can no longer open exact proof-body repair, and a serialized \"true\" semantic-review blocker wins over gate-open hints.",
       "proof_boundary": "This only preserves the truth of routing/evidence gates across JSONL compaction. It does not mark any exact source theorem, adapter, premise derivation, or semantic-definition artifact as kernel proof evidence."
+    },
+    "verified_evidence_runtime_boolean_normalization_patch": {
+      "status": "implemented",
+      "component": "research_agent_runtime",
+      "new_regression_tests": [
+        "test_critic_feedback_adapter_string_false_stays_unverified",
+        "test_source_to_bridge_premise_kernel_verified_string_false_is_false",
+        "test_source_to_bridge_premise_next_action_string_false_stays_gap"
+      ],
+      "runtime_proof_body_slice_tests": 68,
+      "routing_boundary": "AgentRuntime now parses serialized adapter_kernel_verified, source_theorem_proof_body_adapter_kernel_verified, premise_derivation_kernel_verified, source_to_bridge_premise_derivation_kernel_verified, source_theorem_ready_for_exact_proof_body, semantic_definition_kernel_verified, and source_theorem_kernel_verified values with string-aware bool normalization at memory pinning, critic feedback compaction, formal blocker request generation, proof-bank summaries, work-order materialization, and formal-environment repair queue readers. Serialized \"false\" values no longer promote rows to verified adapter, verified premise, ready-for-proof-body, semantic-definition kernel, or source-theorem kernel states.",
+      "proof_boundary": "This is an evidence-boundary hardening patch only. It keeps false serialized proof fields from opening or suppressing repair lanes, and it does not promote any adapter, premise derivation, semantic definition, or exact source theorem artifact to Lean/AXLE kernel proof evidence."
     }
   },
   "latest_runtime_eval_alignment": {
@@ -2511,6 +2523,12 @@
     "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after proof-body runtime evidence boolean-normalization patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_gate_open_string_false_does_not_route_exact_proof_body_repair tests/test_research_agent_runtime.py::test_gate_open_string_false_goal_reached_stays_closed_in_promotion tests/test_research_agent_runtime.py::test_generated_next_action_gate_open_string_false_stays_closed tests/test_research_agent_runtime.py::test_generated_next_action_string_false_goal_reached_blocks_exact_repair tests/test_research_agent_runtime.py::test_generated_next_action_string_true_semantic_blocker_wins_gate_open -q # 5 passed after proof-body runtime evidence boolean-normalization patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body_gate_open or gate_open_string_false or string_false_goal_reached or string_true_semantic_blocker or runtime_truth_table_gate_open or proof_body_adapter\" # 11 passed, 881 deselected after proof-body runtime evidence boolean-normalization patch",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 824 deselected after proof-body runtime evidence boolean-normalization patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 824 deselected after proof-body runtime evidence boolean-normalization patch",
+    "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after verified-evidence runtime bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_critic_feedback_adapter_string_false_stays_unverified tests/test_research_agent_runtime.py::test_source_to_bridge_premise_kernel_verified_string_false_is_false tests/test_research_agent_runtime.py::test_source_to_bridge_premise_next_action_string_false_stays_gap -q # 3 passed after verified-evidence runtime bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"adapter_string_false or source_to_bridge_premise_kernel_verified_string_false or source_to_bridge_premise_next_action_string_false or proof_body_adapter or source_to_bridge_premise_derivation or proof_body_gate_open or gate_open_string_false or string_false_goal_reached or string_true_semantic_blocker\" # 19 passed, 876 deselected after verified-evidence runtime bool-normalization patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"proof_body\" # 68 passed, 827 deselected after verified-evidence runtime bool-normalization patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after verified-evidence runtime bool-normalization patch",
+    "git diff --check # passed after verified-evidence runtime bool-normalization patch"
   ]
 }

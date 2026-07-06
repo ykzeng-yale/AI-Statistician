@@ -9629,6 +9629,56 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
     assert "Adapter rows are not full source-theorem proof evidence" in prompt
 
 
+def test_critic_feedback_adapter_string_false_stays_unverified() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    feedback = runtime_module._critic_repair_feedback(
+        question=question,
+        critic_round=1,
+        max_critic_repair_rounds=1,
+        retrieval_manifest={"manifest_id": "retrieval_memory_manifest:test"},
+        theory_packet={"packet_id": "theory_derivation:test"},
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        formalization_manifest={
+            "manifest_id": "formalization_manifest:adapter_string_false",
+            "counts": {"formal_gap": 1},
+            "proof_bank_runtime_memory_summary": {
+                "source_theorem_proof_body_adapter_required": "true",
+                "source_theorem_proof_body_adapter_feedback_available": "true",
+                "source_theorem_proof_body_adapter_kernel_verified": "false",
+                "source_theorem_proof_body_adapter_target_names": [
+                    "frontier_source_theorem"
+                ],
+                "source_theorem_proof_body_adapter_diagnostics": [
+                    {
+                        "target_theorem_name": "frontier_source_theorem",
+                        "failure_classification": "adapter_local_lean_failed",
+                        "adapter_kernel_verified": "false",
+                        "adapter_candidate_artifact_path": (
+                            "/tmp/frontier_source_theorem_adapter.lean"
+                        ),
+                        "diagnostics": ["error: unsolved goals"],
+                    }
+                ],
+            },
+        },
+        agenda=[],
+    )
+
+    adapter_feedback = feedback["source_theorem_proof_body_adapter_feedback"]
+    assert adapter_feedback["source_theorem_proof_body_adapter_required"] is True
+    assert adapter_feedback["adapter_kernel_verified"] is False
+    assert adapter_feedback["diagnostics"][0]["adapter_kernel_verified"] is False
+    adapter_request = next(
+        row
+        for row in feedback["formal_blocker_resource_requests"]
+        if row["source"] == "critic_source_theorem_proof_body_adapter_feedback"
+    )
+    assert adapter_request["blocker_kind"] == "adapter_local_lean_failed"
+    assert adapter_request["target_ids"] == ["frontier_source_theorem"]
+
+
 def test_critic_routes_exact_semantic_definition_review_before_proof_bank() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     formalization_manifest = {
@@ -41618,6 +41668,70 @@ def test_source_to_bridge_premise_gap_generates_upstream_next_action() -> None:
     assert learning_rows[0]["input_summary"]["premise_derivation_gap_kind"] == (
         "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
     )
+
+
+def test_source_to_bridge_premise_kernel_verified_string_false_is_false() -> None:
+    row = {
+        "premise_derivation_kernel_verified": "false",
+        "input_summary": {
+            "source_to_bridge_premise_derivation_kernel_verified": "false",
+            "premise_derivation_kernel_verified": "false",
+        },
+    }
+
+    assert (
+        runtime_module._runtime_source_to_bridge_premise_derivation_kernel_verified(
+            row
+        )
+        is False
+    )
+    assert (
+        runtime_module._runtime_source_to_bridge_premise_derivation_kernel_verified(
+            {
+                **row,
+                "input_summary": {
+                    "source_to_bridge_premise_derivation_kernel_verified": "true"
+                },
+            }
+        )
+        is True
+    )
+
+
+def test_source_to_bridge_premise_next_action_string_false_stays_gap() -> None:
+    premise_row = {
+        "schema_version": 1,
+        "learning_task": "source_to_bridge_premise_derivation_feedback",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "work_order_id": "source_to_bridge_premise_derivation_work_order:hGoodCovered",
+        "premise_name": "hGoodCovered",
+        "premise_derivation_kernel_verified": "false",
+        "input_summary": {
+            "premise_derivation_kernel_verified": "false",
+            "source_to_bridge_premise_derivation_kernel_verified": "false",
+        },
+        "premise_derivation_gap_kind": (
+            "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
+        ),
+        "premise_derivation_gap_summary": "candidate still needs local Lean proof",
+        "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION",
+        "proof_evidence_status": (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    generated_rows = _append_runtime_generated_next_action_rows(
+        [],
+        [premise_row],
+        queue_name="source_to_bridge_premise_derivation_feedback",
+    )
+
+    assert len(generated_rows) == 1
+    assert generated_rows[0]["trigger"] == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
+    assert generated_rows[0]["premise_derivation_kernel_verified"] is False
+    assert "kernel-verified premise derivation" not in generated_rows[0]["action"]
 
 
 def test_verified_source_to_bridge_premise_generates_integration_next_action() -> None:
