@@ -49737,10 +49737,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "rerun exact-source-theorem-proof-body-executor with local Lean/AXLE before claiming proof evidence",
             ]
         elif (
-            failure_classification == "proof_body_incomplete"
-            or failure_classification
-            in _SOURCE_THEOREM_PROOF_BODY_ADAPTER_INSTANTIATION_FAILURES
-            or proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+            not (
+                is_source_theorem_proof_body_adapter_feedback
+                and not adapter_kernel_verified
+            )
+            and (
+                failure_classification == "proof_body_incomplete"
+                or failure_classification
+                in _SOURCE_THEOREM_PROOF_BODY_ADAPTER_INSTANTIATION_FAILURES
+                or proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+            )
         ):
             tentative_repair = {
                 "trigger": trigger,

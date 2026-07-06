@@ -82,6 +82,10 @@ class SourceTheoremProofBodyAdapterCheckRow:
     proof_body_goal_excerpt: tuple[str, ...]
     proof_body_attempt_summaries: tuple[str, ...]
     proof_body_attempt_count: int
+    proof_body_gate_status: str
+    source_theorem_exact_proof_body_reached: bool
+    source_theorem_exact_proof_body_gate_open_for_kernel_repair: bool
+    source_theorem_exact_proof_body_gate_open_target_names: tuple[str, ...]
     proof_body_adapter_required_reasons: tuple[str, ...]
     exact_goal_shape_obligation_id: str
     exact_goal_shape_obligation: str
@@ -226,6 +230,25 @@ def run_source_theorem_proof_body_adapter_proofengineer_bridge(
         ),
         "n_adapter_candidate_evidence_eligible": sum(
             1 for row in rows if row.adapter_candidate_evidence_eligible
+        ),
+        "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": sum(
+            1
+            for row in rows
+            if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": sorted(
+            {
+                target_name
+                for row in rows
+                for target_name in (
+                    row.source_theorem_exact_proof_body_gate_open_target_names
+                    or (row.target_theorem_name,)
+                )
+                if (
+                    row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                    and target_name
+                )
+            }
         ),
         "n_source_to_bridge_premise_derivation_work_items": sum(
             len(row.source_to_bridge_premise_derivation_work_items) for row in rows
@@ -442,6 +465,19 @@ def _adapter_check_row(
             row.get("proof_body_attempt_summaries", [])
         ),
         proof_body_attempt_count=_int_like(row.get("proof_body_attempt_count", 0)),
+        proof_body_gate_status=str(row.get("proof_body_gate_status", "") or ""),
+        source_theorem_exact_proof_body_reached=bool(
+            row.get("source_theorem_exact_proof_body_reached", False)
+        ),
+        source_theorem_exact_proof_body_gate_open_for_kernel_repair=bool(
+            row.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
+        ),
+        source_theorem_exact_proof_body_gate_open_target_names=_str_tuple(
+            row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
+        ),
         proof_body_adapter_required_reasons=_proof_body_adapter_required_reasons(row),
         exact_goal_shape_obligation_id=str(
             row.get("exact_goal_shape_obligation_id", "") or ""
@@ -503,6 +539,13 @@ def _generated_adapter_skeleton(
     goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
     attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
     attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
+    proof_body_gate_status = str(row.get("proof_body_gate_status", "") or "").strip()
+    proof_body_gate_open = bool(
+        row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
+    )
+    proof_body_gate_open_targets = _str_tuple(
+        row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
+    )[:12]
     semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
     source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
     source_kernel_eligible = bool(source_kernel_eligible_raw)
@@ -552,6 +595,19 @@ def _generated_adapter_skeleton(
     )
     attempt_count_comment = (
         f"-- proof-body attempt count: {attempt_count}" if attempt_count else ""
+    )
+    proof_body_gate_status_comment = (
+        f"-- proof-body gate status: {_sanitize_comment_text(proof_body_gate_status)}"
+        if proof_body_gate_status
+        else ""
+    )
+    proof_body_gate_open_comment = (
+        "-- exact source proof-body gate open for kernel repair: "
+        + ("true" if proof_body_gate_open else "false")
+    )
+    proof_body_gate_open_target_comment = "\n".join(
+        f"-- exact source proof-body gate-open target: {_sanitize_comment_text(line)}"
+        for line in proof_body_gate_open_targets
     )
     source_kernel_eligible_comment = (
         (
@@ -691,6 +747,9 @@ def _generated_adapter_skeleton(
         f"{goal_comment}\n"
         f"{attempt_comment}\n"
         f"{attempt_count_comment}\n"
+        f"{proof_body_gate_status_comment}\n"
+        f"{proof_body_gate_open_comment}\n"
+        f"{proof_body_gate_open_target_comment}\n"
         f"{source_kernel_eligible_comment}\n"
         f"{semantic_blocker_comment}\n"
         "-- adapter task: materialize/import the missing dependency context above,\n"
@@ -1204,6 +1263,16 @@ def _export_runtime_learning_rows(
                 ),
                 "semantic_alignment_blockers": list(row.semantic_alignment_blockers),
                 "proof_body_attempt_count": row.proof_body_attempt_count,
+                "proof_body_gate_status": row.proof_body_gate_status,
+                "source_theorem_exact_proof_body_reached": (
+                    row.source_theorem_exact_proof_body_reached
+                ),
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                    row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_names": list(
+                    row.source_theorem_exact_proof_body_gate_open_target_names
+                ),
                 "proof_body_attempt_summaries": list(
                     row.proof_body_attempt_summaries
                 ),
@@ -1249,6 +1318,25 @@ def _export_runtime_learning_rows(
         "n_kernel_verified_source_to_bridge_premise_derivation_ids": sum(
             len(row.kernel_verified_source_to_bridge_premise_derivation_ids)
             for row in rows
+        ),
+        "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": sum(
+            1
+            for row in rows
+            if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": sorted(
+            {
+                target_name
+                for row in rows
+                for target_name in (
+                    row.source_theorem_exact_proof_body_gate_open_target_names
+                    or (row.target_theorem_name,)
+                )
+                if (
+                    row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                    and target_name
+                )
+            }
         ),
         "kernel_verified_source_to_bridge_premise_derivation_ids": [
             premise_id
@@ -1329,6 +1417,16 @@ def _export_source_to_bridge_premise_derivation_queue(
                         row.proof_body_attempt_summaries
                     ),
                     "proof_body_attempt_count": row.proof_body_attempt_count,
+                    "proof_body_gate_status": row.proof_body_gate_status,
+                    "source_theorem_exact_proof_body_reached": (
+                        row.source_theorem_exact_proof_body_reached
+                    ),
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
+                        row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+                    ),
+                    "source_theorem_exact_proof_body_gate_open_target_names": list(
+                        row.source_theorem_exact_proof_body_gate_open_target_names
+                    ),
                     "semantic_alignment_constraints": list(
                         row.semantic_alignment_constraints
                     ),
@@ -1369,6 +1467,31 @@ def _export_source_to_bridge_premise_derivation_queue(
         "source_queue_jsonl": str(source_queue_path),
         "queue_jsonl": str(queue_path),
         "n_queue_rows": len(queue_rows),
+        "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": sum(
+            1
+            for row in queue_rows
+            if row.get(
+                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                False,
+            )
+        ),
+        "source_theorem_exact_proof_body_gate_open_target_names": sorted(
+            {
+                target_name
+                for row in queue_rows
+                for target_name in row.get(
+                    "source_theorem_exact_proof_body_gate_open_target_names",
+                    [],
+                )
+                if (
+                    row.get(
+                        "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                        False,
+                    )
+                    and str(target_name).strip()
+                )
+            }
+        ),
         "proof_evidence_status": "WORK_ORDER_QUEUE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": (

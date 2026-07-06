@@ -110,6 +110,12 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         queue,
         [
             _adapter_work_order(
+                proof_body_gate_status="PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                source_theorem_exact_proof_body_reached=True,
+                source_theorem_exact_proof_body_gate_open_for_kernel_repair=True,
+                source_theorem_exact_proof_body_gate_open_target_names=[
+                    "split_conformal_coverage"
+                ],
                 source_to_bridge_premise_derivation_work_items=[
                     {
                         "premise_name": "hGoodCovered",
@@ -135,6 +141,13 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert manifest["n_adapter_kernel_verified"] == 0
     assert manifest["n_source_to_bridge_premise_derivation_work_items"] == 1
     assert manifest["n_source_to_bridge_premise_derivation_queue_rows"] == 1
+    assert (
+        manifest["n_source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
+        == 1
+    )
+    assert manifest["source_theorem_exact_proof_body_gate_open_target_names"] == [
+        "split_conformal_coverage"
+    ]
     assert manifest["source_theorem_kernel_verified"] is False
     assert manifest["proof_evidence_status"] == (
         "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"
@@ -151,6 +164,15 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     )
     assert row["failure_classification"] == "adapter_candidate_not_evidence_eligible"
     assert row["source_theorem_kernel_evidence_eligible"] is True
+    assert row["proof_body_gate_status"] == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    assert row["source_theorem_exact_proof_body_reached"] is True
+    assert (
+        row["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
+        is True
+    )
+    assert row["source_theorem_exact_proof_body_gate_open_target_names"] == (
+        "split_conformal_coverage",
+    )
     assert row["semantic_alignment_blockers"] == ()
     assert row["proof_body_attempt_count"] == 1
     assert row["source_to_bridge_premise_derivation_work_items"][0][
@@ -186,6 +208,18 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert "-- proof-body attempt: 1:simpa:returncode=1:compiled=False" in adapter_source
     assert "-- proof-body attempt count: 1" in adapter_source
     assert (
+        "-- proof-body gate status: PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+        in adapter_source
+    )
+    assert (
+        "-- exact source proof-body gate open for kernel repair: true"
+        in adapter_source
+    )
+    assert (
+        "-- exact source proof-body gate-open target: split_conformal_coverage"
+        in adapter_source
+    )
+    assert (
         "-- source theorem kernel evidence eligible before adapter: true"
         in adapter_source
     )
@@ -219,6 +253,15 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         ]
         == 1
     )
+    assert (
+        learning_export_manifest[
+            "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        == 1
+    )
+    assert learning_export_manifest[
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == ["split_conformal_coverage"]
     assert learning_rows[0]["target_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]
@@ -226,6 +269,15 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "split_conformal_finite_sample_coverage"
     ]
     assert premise_queue_manifest["n_queue_rows"] == 1
+    assert (
+        premise_queue_manifest[
+            "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        == 1
+    )
+    assert premise_queue_manifest[
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == ["split_conformal_coverage"]
     assert premise_queue_manifest["proof_evidence_status"] == (
         "WORK_ORDER_QUEUE_NOT_PROOF_EVIDENCE"
     )
@@ -239,6 +291,19 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert premise_queue_rows[0]["source_theorem_kernel_evidence_eligible"] is True
     assert premise_queue_rows[0]["semantic_alignment_blockers"] == []
     assert premise_queue_rows[0]["proof_body_attempt_count"] == 1
+    assert premise_queue_rows[0]["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert premise_queue_rows[0]["source_theorem_exact_proof_body_reached"] is True
+    assert (
+        premise_queue_rows[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is True
+    )
+    assert premise_queue_rows[0][
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == ["split_conformal_coverage"]
     assert premise_queue_rows[0]["forbidden_as_adapter_assumption"] is True
     assert premise_queue_rows[0]["proof_evidence_status"] == (
         "WORK_ORDER_NOT_PROOF_EVIDENCE"
@@ -252,6 +317,19 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["source_theorem_kernel_evidence_eligible"] is True
     assert learning_rows[0]["semantic_alignment_blockers"] == []
     assert learning_rows[0]["proof_body_attempt_count"] == 1
+    assert learning_rows[0]["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert learning_rows[0]["source_theorem_exact_proof_body_reached"] is True
+    assert (
+        learning_rows[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is True
+    )
+    assert learning_rows[0][
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == ["split_conformal_coverage"]
     assert learning_rows[0]["proof_body_attempt_summaries"] == [
         "1:simpa:returncode=1:compiled=False"
     ]
@@ -259,6 +337,15 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "source_theorem_kernel_evidence_eligible"
     ] is True
     assert learning_rows[0]["input_summary"]["proof_body_attempt_count"] == 1
+    assert learning_rows[0]["input_summary"]["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert (
+        learning_rows[0]["input_summary"][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is True
+    )
     assert learning_rows[0]["source_to_bridge_premise_derivation_work_items"][0][
         "premise_name"
     ] == "hGoodCovered"

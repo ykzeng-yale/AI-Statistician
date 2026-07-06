@@ -62543,6 +62543,18 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
     )
     assert bridge_learning_rows[0]["adapter_kernel_verified"] is False
     assert bridge_learning_rows[0]["source_theorem_kernel_verified"] is False
+    assert bridge_learning_rows[0]["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert (
+        bridge_learning_rows[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is False
+    )
+    assert bridge_learning_rows[0][
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == []
     assert any(
         row.get("learning_task") == "source_theorem_proof_body_adapter_feedback"
         for row in learning_rows
@@ -62586,6 +62598,11 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
     assert any(
         row["failure_classification"] == "adapter_candidate_not_checked"
         for row in next_summary["source_theorem_proof_body_adapter_diagnostics"]
+    )
+    assert any(
+        "previous source-to-bridge adapter" in reason
+        for row in next_summary["source_theorem_proof_body_adapter_diagnostics"]
+        for reason in row["proof_body_adapter_required_reasons"]
     )
     next_prompt = build_formalizer_prompt(
         question=question,
