@@ -17571,6 +17571,33 @@ def test_research_acceptance_contract_respects_formal_policy() -> None:
         _normalized_formal_verification_policy("always")
 
 
+def test_research_acceptance_contract_string_false_source_theorem_unverified() -> None:
+    manifest = {
+        "runtime_completion_summary": {
+            "accepted": 0,
+        },
+        "runtime_evidence_truth_table": {
+            "source_theorem_kernel_verified": "false",
+            "formal_gaps_open": "false",
+        },
+        "n_kernel_verified_subclaims": 0,
+        "n_formal_gaps": 0,
+    }
+
+    advisory = _runtime_research_acceptance_contract_from_manifest(
+        manifest,
+        formal_verification_policy="advisory",
+    )
+
+    assert advisory["source_theorem_kernel_verified"] is False
+    assert advisory["formal_gaps_open"] is False
+    assert advisory["formally_verified_level"] == "none"
+    assert advisory["research_acceptance_status"] == (
+        "RESEARCH_IN_PROGRESS_FORMAL_ADVISORY"
+    )
+    assert advisory["can_report_research_candidate"] is False
+
+
 def test_optional_formal_policy_follows_architect_recommendation() -> None:
     results = [
         {
@@ -77725,6 +77752,52 @@ def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
         "PENDING_SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_REPAIR"
     )
     assert semantic_work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
+def test_runtime_truth_table_string_false_source_theorem_not_verified() -> None:
+    manifest = {
+        "schema_version": 1,
+        "question_ids": ["split_conformal_coverage"],
+        "target_theorem_name": "split_conformal_coverage",
+    }
+    truth_table = {
+        "source_theorem_kernel_verified": "false",
+        "formal_gaps_open": "false",
+        "current_exact_proof_body_blocker": "",
+        "rows": [
+            {
+                "evidence_id": "full_source_theorem_kernel_evidence",
+                "status": "UNPROVED",
+                "count": 0,
+            },
+            {
+                "evidence_id": "exact_source_proof_body_attempt",
+                "status": "MISSING",
+                "count": 0,
+            },
+            {
+                "evidence_id": "formal_gaps",
+                "status": "NONE",
+                "count": 0,
+            },
+        ],
+    }
+
+    rows = _runtime_evidence_truth_learning_rows(
+        manifest=manifest,
+        truth_table=truth_table,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["input_summary"]["source_theorem_kernel_verified"] is False
+    assert row["input_summary"]["source_theorem_kernel_evidence_eligible"] is False
+    assert row["input_summary"]["source_theorem_ready_for_exact_proof_body"] is False
+    assert row["input_summary"]["proof_body_goal_reached"] is False
+    assert row["recommended_next_action"] == (
+        "keep the exact source theorem marked unproved until local Lean/AXLE "
+        "reports source theorem kernel verification"
+    )
 
 
 def test_runtime_truth_table_recovers_target_from_proof_body_repair_queue() -> None:

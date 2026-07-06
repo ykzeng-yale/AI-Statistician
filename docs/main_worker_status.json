@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T22:42:00Z",
+  "updated_at": "2026-07-06T23:05:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -974,6 +974,7 @@
     "critic_after_agenda_candidate_review_live_agenda_audit": "Critic preserved 15 agenda rows with 0 missing target_ids and 0 duplicate ids. good_rank_event/coverage_event/covered route as PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW with SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY; C_n remains PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR with LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT. Source theorem proof counters remain 0.",
     "exact_semantic_work_order_feedback_gate_patch": "Patched shared exact-semantic compiled-candidate normalization and work-order feedback serialization so sparse canonical work_order rows and replayed historical rows emit proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY plus candidate-review queue status for local-Lean compiled definition-only candidates. The serializer also exports proof_body_gate_statuses/runtime_queue_statuses summaries for pending-task and Critic handoffs.",
     "exact_semantic_worker_evidence_bool_normalization_patch": "Exact semantic-definition typechecked-review recheck and verifier-gate learning rows now normalize serialized boolean flags before proof-body routing, blocker generation, and learning-memory next-action selection. String 'false' no longer opens source_theorem_ready_for_exact_proof_body, semantic_review_required_before_proof_body, or source_theorem_kernel_verified branches. This preserves the current design boundary: typechecked/reviewed semantic-definition rows can route repair/recheck work, but they are not Lean/AXLE source-theorem proof evidence.",
+    "runtime_truth_table_source_evidence_bool_normalization_patch": "Runtime evidence truth-table feedback and RuntimeResearchAcceptanceContract now normalize serialized source_theorem_kernel_verified/formal_gaps_open flags before suppressing feedback rows or classifying formal verification level. String 'false' no longer creates partial/full theorem verification, reportable advisory status, or source-theorem kernel eligibility. Only local Lean/AXLE source-theorem kernel verification can clear the full-theorem proof gate.",
     "latest_62pt_algorithm_repair_policy_live_runtime_manifest": "runs/main_worker_runtime_real_kernel_probe_algorithm_metric_repair_policy_live_20260630/research_agent_runtime_manifest.json",
     "latest_62pt_algorithm_repair_policy_live_audit_manifest": "runs/main_worker_runtime_real_kernel_probe_algorithm_metric_repair_policy_live_20260630_audit_current/research_agent_runtime_audit_manifest.json",
     "latest_62pt_algorithm_repair_policy_live_scorecard": "36/62",
@@ -2569,6 +2570,9 @@
     "python3 -m py_compile ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py ai_statistician/source_theorem_exact_semantic_definition_verifier_gate_executor.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py # passed after exact-semantic worker evidence bool-normalization patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_source_lookup.py -q # 32 passed after exact-semantic worker evidence bool-normalization patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py -q # 8 passed after exact-semantic worker evidence bool-normalization patch",
-    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"typechecked_review_recheck_queue or verifier_gate\" # 11 passed, 889 deselected after exact-semantic worker evidence bool-normalization patch"
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"typechecked_review_recheck_queue or verifier_gate\" # 11 passed, 889 deselected after exact-semantic worker evidence bool-normalization patch",
+    "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after runtime truth-table source-evidence bool-normalization patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_research_acceptance_contract_string_false_source_theorem_unverified tests/test_research_agent_runtime.py::test_runtime_truth_table_string_false_source_theorem_not_verified -q # 2 passed after runtime truth-table source-evidence bool-normalization patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"research_acceptance_contract or runtime_truth_table or truth_table_string_false or gate_open_string_false or source_theorem_kernel_verified\" # 19 passed, 883 deselected after runtime truth-table source-evidence bool-normalization patch"
   ]
 }

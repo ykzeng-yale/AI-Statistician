@@ -4494,8 +4494,10 @@ def _runtime_evidence_truth_learning_rows(
     full_source_row = rows_by_id.get("full_source_theorem_kernel_evidence", {})
     exact_attempt_row = rows_by_id.get("exact_source_proof_body_attempt", {})
     formal_gap_row = rows_by_id.get("formal_gaps", {})
-    source_verified = bool(truth_table.get("source_theorem_kernel_verified", False))
-    formal_gaps_open = bool(truth_table.get("formal_gaps_open", False))
+    source_verified = _bool_like(
+        truth_table.get("source_theorem_kernel_verified", False)
+    )
+    formal_gaps_open = _bool_like(truth_table.get("formal_gaps_open", False))
     proof_body_status = str(exact_attempt_row.get("status", "") or "")
     if source_verified and not formal_gaps_open:
         return []
@@ -5443,8 +5445,10 @@ def _runtime_research_acceptance_contract_from_manifest(
     completion_summary = manifest.get("runtime_completion_summary", {})
     if not isinstance(completion_summary, Mapping):
         completion_summary = {}
-    source_verified = bool(truth_table.get("source_theorem_kernel_verified", False))
-    formal_gaps_open = bool(truth_table.get("formal_gaps_open", False))
+    source_verified = _bool_like(
+        truth_table.get("source_theorem_kernel_verified", False)
+    )
+    formal_gaps_open = _bool_like(truth_table.get("formal_gaps_open", False))
     kernel_subclaims = _runtime_manifest_int(manifest, "n_kernel_verified_subclaims")
     accepted = int(completion_summary.get("accepted", 0) or 0) > 0
     if source_verified and not formal_gaps_open:
