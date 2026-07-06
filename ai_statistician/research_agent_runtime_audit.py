@@ -7453,12 +7453,32 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal",
                 0,
             )
             or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                [],
+            )
         ),
         "source_theorem_exact_semantic_definition_proofengineer_bridge_source_pseudo_formal_work_order_ids": [
             str(value)
@@ -19380,9 +19400,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_bridge_pf_component_gate_repair_packets = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     exact_semantic_bridge_pf_lean_tasks = int(
         payload.get(
             "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_bridge_pf_component_gate_lean_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_formalizer_pf_component_gate",
             0,
         )
         or 0
@@ -23184,8 +23218,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_source_lookup_pf_review_packets} "
                 "pf_bridge_repair_packets="
                 f"{exact_semantic_bridge_pf_repair_packets} "
+                "pf_component_gate_bridge_repair_packets="
+                f"{exact_semantic_bridge_pf_component_gate_repair_packets} "
                 "pf_bridge_lean_tasks="
                 f"{exact_semantic_bridge_pf_lean_tasks} "
+                "pf_component_gate_bridge_lean_tasks="
+                f"{exact_semantic_bridge_pf_component_gate_lean_tasks} "
                 "handoff_required="
                 f"{exact_semantic_bridge_handoff_required} "
                 "pf_handoff_required="

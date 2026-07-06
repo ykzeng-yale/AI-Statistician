@@ -177,14 +177,20 @@ def run_source_theorem_exact_semantic_definition_proofengineer_bridge(
             if row.get("repair_strategy") == "author_reviewed_definition_from_contract"
         ),
         "n_repair_packets_from_pseudo_formal": sum(
+            1 for row in repair_packets if _has_pseudo_formal_origin(row)
+        ),
+        "n_repair_packets_from_formalizer_pf_component_gate": sum(
             1
             for row in repair_packets
-            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            if _has_formalizer_pf_component_gate_origin(row)
         ),
         "n_lean_repair_tasks_from_pseudo_formal": sum(
+            1 for row in lean_repair_tasks if _has_pseudo_formal_origin(row)
+        ),
+        "n_lean_repair_tasks_from_formalizer_pf_component_gate": sum(
             1
             for row in lean_repair_tasks
-            if str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+            if _has_formalizer_pf_component_gate_origin(row)
         ),
         "source_pseudo_formal_work_order_ids": list(
             dict.fromkeys(
@@ -199,6 +205,9 @@ def run_source_theorem_exact_semantic_definition_proofengineer_bridge(
                 for row in repair_packets
                 if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
             )
+        ),
+        "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
+            _formalizer_pf_component_gate_exact_rows_jsonl_paths(repair_packets)
         ),
         "placeholder_symbols": list(
             dict.fromkeys(
@@ -869,6 +878,33 @@ def _has_placeholder_policy_lineage(row: Mapping[str, Any]) -> bool:
 
 def _count_placeholder_policy_lineage(rows: Sequence[Mapping[str, Any]]) -> int:
     return sum(1 for row in rows if _has_placeholder_policy_lineage(row))
+
+
+def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
+    return bool(
+        str(row.get("source_pseudo_formal_work_order_id", "") or "").strip()
+        or _has_formalizer_pf_component_gate_origin(row)
+    )
+
+
+def _has_formalizer_pf_component_gate_origin(row: Mapping[str, Any]) -> bool:
+    return (
+        str(row.get("source_component_gate", "") or "").strip()
+        == "formalizer_pseudo_formal_packet_component_gate"
+    )
+
+
+def _formalizer_pf_component_gate_exact_rows_jsonl_paths(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    paths: list[str] = []
+    for row in rows:
+        if not _has_formalizer_pf_component_gate_origin(row):
+            continue
+        path = str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+        if path and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def _placeholder_policy_lineage_complete(

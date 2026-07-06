@@ -33403,12 +33403,30 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_repair_packets_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal"
     ] = int(
         (
             source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
             or {}
         ).get("n_lean_repair_tasks_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("n_lean_repair_tasks_from_formalizer_pf_component_gate", 0)
         or 0
     )
     manifest[
@@ -33430,6 +33448,17 @@ def run_research_agent_runtime(
             source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
             or {}
         ).get("source_pseudo_formal_block_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths"
+    ] = [
+        str(value)
+        for value in (
+            source_theorem_exact_semantic_definition_proofengineer_bridge_manifest
+            or {}
+        ).get("formalizer_pf_component_gate_exact_rows_jsonl_paths", [])
         or []
         if str(value).strip()
     ]

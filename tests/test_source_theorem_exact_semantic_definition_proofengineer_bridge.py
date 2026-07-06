@@ -336,6 +336,96 @@ def test_exact_semantic_definition_bridge_preserves_pseudo_formal_origin(
             )
 
 
+def test_exact_semantic_definition_bridge_preserves_formalizer_pf_component_gate_origin(
+    tmp_path: Path,
+) -> None:
+    review_packets = tmp_path / "review_packets.jsonl"
+    exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+    review_packet = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionClosureReviewPacket"
+        ),
+        "review_packet_id": "review:coverage_event",
+        "source_definition_closure_work_order_id": "closure:coverage_event",
+        "source_lookup_id": "lookup:coverage_event",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "coverage_event",
+        "lookup_status": "CANDIDATE_SOURCE_DECLARATIONS_FOUND",
+        "candidate_source_declarations": [
+            {
+                "candidate_kind": "lean_declaration",
+                "path": "StatInference/Conformal/Coverage.lean",
+                "line": 12,
+                "snippet": "def coverage_event",
+            }
+        ],
+        "candidate_source_references": [],
+        "definition_contract": {
+            "semantic_intent": "reviewed coverage event",
+        },
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "source_component_gate_exact_rows_jsonl": exact_rows_jsonl,
+        "component_eval_manifest_path": "runs/formalizer_pf/manifest.json",
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "semantic_primitive": "coverage_event",
+        "semantic_primitive_requirements": ["coverage_event"],
+        "proof_evidence_status": (
+            "DEFINITION_CLOSURE_REVIEW_PACKET_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    review_packets.write_text(json.dumps(review_packet) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        review_packets_jsonl=review_packets,
+        question_id="conformal_prediction_coverage",
+    )
+
+    assert manifest["n_repair_packets_from_pseudo_formal"] == 1
+    assert manifest["n_repair_packets_from_formalizer_pf_component_gate"] == 1
+    assert manifest["n_lean_repair_tasks_from_pseudo_formal"] == 1
+    assert manifest["n_lean_repair_tasks_from_formalizer_pf_component_gate"] == 1
+    assert manifest["formalizer_pf_component_gate_exact_rows_jsonl_paths"] == [
+        exact_rows_jsonl
+    ]
+    output_paths = [
+        Path(manifest["repair_packets_jsonl"]),
+        Path(manifest["lean_repair_tasks_jsonl"]),
+        Path(manifest["runtime_learning_rows_jsonl"]),
+    ]
+    for output_path in output_paths:
+        rows = [
+            json.loads(line)
+            for line in output_path.read_text(encoding="utf-8").splitlines()
+        ]
+        row = rows[0]
+        assert (
+            row["source_component_gate"]
+            == "formalizer_pseudo_formal_packet_component_gate"
+        )
+        assert row["source_component_gate_exact_rows_jsonl"] == exact_rows_jsonl
+        assert row["component_eval_manifest_path"] == (
+            "runs/formalizer_pf/manifest.json"
+        )
+        assert row["semantic_primitive"] == "coverage_event"
+        assert row["semantic_primitive_requirements"] == ["coverage_event"]
+        assert row["source_theorem_kernel_evidence_eligible"] is False
+        assert "KERNEL_VERIFIED" not in row["proof_evidence_status"]
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, dict) and input_summary:
+            assert input_summary["source_component_gate"] == (
+                "formalizer_pseudo_formal_packet_component_gate"
+            )
+            assert (
+                input_summary["source_component_gate_exact_rows_jsonl"]
+                == exact_rows_jsonl
+            )
+
+
 def test_exact_semantic_definition_bridge_ignores_placeholder_only_candidate_shell(
     tmp_path: Path,
 ) -> None:
