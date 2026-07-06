@@ -86105,6 +86105,109 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     )
 
 
+def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_out = tmp_path / "runtime"
+    runtime_out.mkdir()
+
+    def fail_pf_eval(**_kwargs: object) -> dict[str, object]:
+        raise PacketValidationError(
+            validation_label="LLM Formalizer/ProofEngineer packet",
+            attempts=2,
+            errors=[
+                (
+                    "pseudo_formal_proof_packets[0] invalid: blocks[0] missing "
+                    "conclusion; blocks[0] missing source_anchors"
+                ),
+                (
+                    "pseudo_formalization_required: valid PF/BV packet did not "
+                    "produce any effective lane-routable pseudo-formal work-order rows"
+                ),
+            ],
+            history=[
+                {
+                    "attempt_index": 0,
+                    "ok": False,
+                    "errors": ["blocks[0] missing conclusion"],
+                }
+            ],
+        )
+
+    monkeypatch.setattr(
+        cli_module,
+        "run_formalizer_pseudo_formal_packet_eval",
+        fail_pf_eval,
+    )
+    args = argparse.Namespace(
+        out=str(runtime_out),
+        provider="anthropic",
+        formalizer_pseudo_formal_packet_eval_provider="same",
+        formalizer_pseudo_formal_packet_eval_model="claude-sonnet",
+        formalizer_pseudo_formal_packet_eval_existing_manifest="",
+        formalizer_pseudo_formal_packet_eval_static_response_file="",
+        formalizer_pseudo_formal_packet_eval_llm_timeout_seconds=1.0,
+        formalizer_pseudo_formal_packet_eval_max_tokens=5000,
+        formalizer_pseudo_formal_packet_eval_temperature=0.1,
+        formalizer_pseudo_formal_packet_eval_max_repair_attempts=1,
+        formalizer_pseudo_formal_packet_eval_out="",
+    )
+
+    manifest = cli_module._attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
+        args,
+        {
+            "artifacts": {
+                "runtime_learning_rows_jsonl": str(
+                    runtime_out / "runtime_learning_rows.jsonl"
+                )
+            }
+        },
+    )
+
+    attached = manifest["internal_formalizer_pseudo_formal_packet_eval"]
+    repair_seed = manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_concrete_lane_routable_repair_seed"
+    ]
+    issue_summary = manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_validation_issue_summary"
+    ]
+
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
+    ] is False
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_fixture_plumbing_ok"
+    ] is False
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_result_status"
+    ] == "FAILED"
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_type"
+    ] == "PacketValidationError"
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_required_target_lanes"
+    ] == ["source_theorem_exact_semantic_definition", "source_to_bridge"]
+    assert issue_summary["n_missing_conclusion"] == 1
+    assert issue_summary["n_missing_source_anchors"] == 1
+    assert issue_summary["n_no_lane_routable_work_order_rows"] == 1
+    assert repair_seed["blocks"][0]["source_anchors"][0]["id"] == (
+        "proof_body:rank_threshold_step"
+    )
+    assert repair_seed["blocks"][0]["semantic_primitive_requirements"]
+    assert attached["attachment_gate_requirements"][
+        "manifest_capability_evidence_ok"
+    ] is False
+    assert attached["attachment_gate_requirements"][
+        "exact_semantic_definition_lane_present"
+    ] is False
+    assert Path(
+        manifest["artifacts"][
+            "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
+        ]
+    ).exists()
+
+
 def test_capability_eval_resume_defaults_through_configured_architect() -> None:
     args = argparse.Namespace(
         capability_eval=True,

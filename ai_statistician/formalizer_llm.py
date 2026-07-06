@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
@@ -14,8 +15,12 @@ from .formalizer_repair_policy import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+    PSEUDO_FORMALIZATION_SCHEMA_ID,
+    PSEUDO_FORMALIZATION_SCHEMA_VERSION,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
@@ -253,6 +258,10 @@ def _formalizer_repair_context(
         environment_feedback=environment_feedback or {},
         proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary or {},
     )
+    concrete_repair_seed = _pseudo_formal_concrete_lane_routable_repair_seed(
+        packet_seed,
+        required_target_lanes=required_target_lanes,
+    )
     suggested_target_lanes = [
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
         PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
@@ -277,6 +286,14 @@ def _formalizer_repair_context(
             "suggested_target_lanes_when_unspecified": suggested_target_lanes,
             "allowed_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
             "copy_or_complete_this_packet_seed": packet_seed,
+            "concrete_lane_routable_repair_seed": concrete_repair_seed,
+            "concrete_repair_seed_usage": (
+                "Copy concrete_lane_routable_repair_seed into "
+                "pseudo_formal_proof_packets[0] when the prior packet missed "
+                "conclusion, source_anchors, semantic_primitive_requirements, "
+                "or lane-routable exact-semantic-definition/source_to_bridge "
+                "rows. Preserve its non-proof boundary."
+            ),
             "minimum_valid_packet": {
                 "theorem_id": "<copy the blocked theorem/source theorem id>",
                 "source_artifact_id": "<copy theory packet, proof body, or source artifact id>",
@@ -1698,6 +1715,211 @@ def _pseudo_formalization_required_packet_seed(
             "or as an emitted runtime artifact."
         ),
     }
+
+
+def _pseudo_formal_concrete_lane_routable_repair_seed(
+    packet_seed: Mapping[str, Any],
+    *,
+    required_target_lanes: Sequence[str],
+) -> dict[str, Any]:
+    """Make the prompt repair seed directly materialize a routable PF lane."""
+
+    seed = deepcopy(dict(packet_seed or {}))
+    blocks = seed.get("blocks", [])
+    block = (
+        deepcopy(dict(blocks[0]))
+        if isinstance(blocks, Sequence)
+        and not isinstance(blocks, (str, bytes, bytearray))
+        and blocks
+        and isinstance(blocks[0], Mapping)
+        else {}
+    )
+    target_lanes = [
+        str(lane).strip()
+        for lane in required_target_lanes
+        if str(lane).strip()
+    ] or [PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION]
+    primary_lane = _pseudo_formal_primary_repair_target_lane(target_lanes)
+    conclusion = str(
+        block.get("conclusion", "")
+        or seed.get("conclusion", "")
+        or "the blocked source proof step requires exact semantic grounding"
+    ).strip()
+    source_anchors = _pseudo_formal_repair_seed_source_anchors(
+        block.get("source_anchors", []),
+        fallback_id=str(seed.get("source_artifact_id", "") or ""),
+        fallback_excerpt=conclusion,
+    )
+    semantic_requirements = _pseudo_formal_repair_seed_semantic_requirements(
+        block.get("semantic_primitive_requirements", []),
+        source_anchors=source_anchors,
+        conclusion=conclusion,
+        target_lane=primary_lane,
+    )
+    block.update(
+        {
+            "block_id": str(block.get("block_id", "") or "pf_block_1"),
+            "block_type": str(block.get("block_type", "") or "claim"),
+            "block_depth": int(block.get("block_depth", 1) or 1),
+            "premises": _pseudo_formal_repair_seed_string_list(
+                block.get("premises", [])
+            )
+            or ["source proof context supplied by runtime feedback"],
+            "conclusion": conclusion,
+            "proof_text": str(
+                block.get("proof_text", "")
+                or "PF/BV repair seed: route this source-anchored semantic step."
+            ),
+            "dependency_ids": _pseudo_formal_repair_seed_string_list(
+                block.get("dependency_ids", [])
+            ),
+            "scope_parent_id": str(block.get("scope_parent_id", "") or ""),
+            "dependency_scope": str(
+                block.get("dependency_scope", "")
+                or "earlier_block_statement_only"
+            ),
+            "inherited_scope": _pseudo_formal_repair_seed_string_list(
+                block.get("inherited_scope", [])
+            ),
+            "source_anchors": source_anchors,
+            "semantic_primitive_requirements": semantic_requirements,
+            "faithfulness_status": "faithful",
+            "faithfulness_repair": {
+                "status": "not_required",
+                "attempts": 0,
+                "flagged_discrepancies": [],
+            },
+            "block_verification": {
+                "verdict": "unknown",
+                "reason": (
+                    "repair seed for routing only; independent BV/Lean has not "
+                    "accepted this block"
+                ),
+                "verifier_provenance": "not_run",
+                "independent_verifier": False,
+                "rollout_count": 0,
+            },
+            "kernel_verified": False,
+            "target_lane_materialization_hint": primary_lane,
+        }
+    )
+    if primary_lane == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION:
+        block["lean_feasibility"] = "needs_semantic_definition"
+    elif primary_lane == PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG:
+        block["lean_feasibility"] = "needs_rag"
+    elif primary_lane == PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS:
+        block["lean_feasibility"] = "lean_now"
+    else:
+        block["lean_feasibility"] = str(
+            block.get("lean_feasibility", "") or "needs_semantic_definition"
+        )
+    seed.update(
+        {
+            "schema_version": PSEUDO_FORMALIZATION_SCHEMA_VERSION,
+            "schema_id": PSEUDO_FORMALIZATION_SCHEMA_ID,
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+            "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+            "kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
+            "pseudo_formal_method_contract_id": (
+                PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+            ),
+            "pseudo_formal_pipeline_stages": [
+                PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+            ],
+            "required_target_lanes_to_satisfy": target_lanes,
+            "primary_target_lane_to_materialize": primary_lane,
+            "blocks": [block],
+        }
+    )
+    return seed
+
+
+def _pseudo_formal_primary_repair_target_lane(target_lanes: Sequence[str]) -> str:
+    for lane in (
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+        PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
+        PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
+        PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
+    ):
+        if lane in target_lanes:
+            return lane
+    return PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+
+
+def _pseudo_formal_repair_seed_source_anchors(
+    value: Any,
+    *,
+    fallback_id: str,
+    fallback_excerpt: str,
+) -> list[dict[str, str]]:
+    anchors: list[dict[str, str]] = []
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for item in value:
+            if not isinstance(item, Mapping):
+                continue
+            anchor_id = str(item.get("id", "") or "").strip()
+            excerpt = str(item.get("excerpt", "") or "").strip()
+            if not anchor_id and not excerpt:
+                continue
+            anchors.append(
+                {
+                    "kind": str(item.get("kind", "") or "proof_body"),
+                    "id": anchor_id or fallback_id or "proof_body:blocked_step",
+                    "excerpt": _truncate_formalizer_text(
+                        excerpt or fallback_excerpt,
+                        280,
+                    ),
+                }
+            )
+    if anchors:
+        return anchors[:3]
+    return [
+        {
+            "kind": "proof_body",
+            "id": fallback_id or "proof_body:blocked_step",
+            "excerpt": _truncate_formalizer_text(fallback_excerpt, 280),
+        }
+    ]
+
+
+def _pseudo_formal_repair_seed_semantic_requirements(
+    value: Any,
+    *,
+    source_anchors: Sequence[Mapping[str, Any]],
+    conclusion: str,
+    target_lane: str,
+) -> list[str]:
+    requirements = _pseudo_formal_repair_seed_string_list(value)
+    if requirements:
+        return requirements[:3]
+    if target_lane not in {
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    }:
+        return []
+    anchor_id = ""
+    for anchor in source_anchors:
+        anchor_id = str(anchor.get("id", "") or "").strip()
+        if anchor_id:
+            break
+    suffix_source = anchor_id or conclusion or "blocked_source_step"
+    suffix = re.sub(r"[^A-Za-z0-9_]+", "_", suffix_source).strip("_").lower()
+    return [f"semantic_primitive:{suffix or 'blocked_source_step'}"]
+
+
+def _pseudo_formal_repair_seed_string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
+        return [
+            str(item).strip()
+            for item in value
+            if str(item).strip()
+        ]
+    return []
 
 
 def _pseudo_formal_seed_derivation_step(

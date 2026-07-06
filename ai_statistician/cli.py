@@ -12061,49 +12061,68 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
             expected_artifact_kind="FormalizerPseudoFormalPacketEvalManifest",
         )
     else:
-        eval_manifest = run_formalizer_pseudo_formal_packet_eval(
-            out_dir=out_dir,
-            provider_name=provider_name,
-            model=str(
-                getattr(args, "formalizer_pseudo_formal_packet_eval_model", "")
-                or ""
-            ),
-            static_response_file=(
-                Path(
-                    getattr(
+        eval_model = str(
+            getattr(args, "formalizer_pseudo_formal_packet_eval_model", "")
+            or ""
+        )
+        try:
+            eval_manifest = run_formalizer_pseudo_formal_packet_eval(
+                out_dir=out_dir,
+                provider_name=provider_name,
+                model=eval_model,
+                static_response_file=(
+                    Path(
+                        getattr(
+                            args,
+                            "formalizer_pseudo_formal_packet_eval_static_response_file",
+                            "",
+                        )
+                    )
+                    if getattr(
                         args,
                         "formalizer_pseudo_formal_packet_eval_static_response_file",
                         "",
                     )
+                    else None
+                ),
+                llm_timeout_seconds=float(
+                    getattr(
+                        args,
+                        "formalizer_pseudo_formal_packet_eval_llm_timeout_seconds",
+                        DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                    )
+                ),
+                max_tokens=int(
+                    getattr(
+                        args,
+                        "formalizer_pseudo_formal_packet_eval_max_tokens",
+                        5000,
+                    )
+                ),
+                temperature=float(
+                    getattr(
+                        args,
+                        "formalizer_pseudo_formal_packet_eval_temperature",
+                        0.1,
+                    )
+                ),
+                max_repair_attempts=int(
+                    getattr(
+                        args,
+                        "formalizer_pseudo_formal_packet_eval_max_repair_attempts",
+                        1,
+                    )
+                ),
+            )
+        except Exception as exc:
+            eval_manifest = (
+                write_formalizer_pseudo_formal_packet_eval_failure_manifest(
+                    out_dir=out_dir,
+                    provider_name=provider_name,
+                    model=eval_model,
+                    exc=exc,
                 )
-                if getattr(
-                    args,
-                    "formalizer_pseudo_formal_packet_eval_static_response_file",
-                    "",
-                )
-                else None
-            ),
-            llm_timeout_seconds=float(
-                getattr(
-                    args,
-                    "formalizer_pseudo_formal_packet_eval_llm_timeout_seconds",
-                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-                )
-            ),
-            max_tokens=int(
-                getattr(args, "formalizer_pseudo_formal_packet_eval_max_tokens", 5000)
-            ),
-            temperature=float(
-                getattr(args, "formalizer_pseudo_formal_packet_eval_temperature", 0.1)
-            ),
-            max_repair_attempts=int(
-                getattr(
-                    args,
-                    "formalizer_pseudo_formal_packet_eval_max_repair_attempts",
-                    1,
-                )
-            ),
-        )
+            )
     gate_summary = _strict_formalizer_pseudo_formal_packet_attachment_summary(
         eval_manifest
     )
@@ -12131,6 +12150,36 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         "provider_name": str(gate_summary["provider_name"]),
         "backend_provider_name": str(gate_summary["backend_provider_name"]),
         "model": str(eval_manifest.get("model", "")),
+        "result_status": str(eval_manifest.get("result_status", "")),
+        "failure_type": str(eval_manifest.get("failure_type", "")),
+        "errors": [
+            str(value)
+            for value in eval_manifest.get("errors", [])
+            if str(value).strip()
+        ],
+        "pseudo_formal_failure_validation_issue_summary": (
+            eval_manifest.get("pseudo_formal_failure_validation_issue_summary", {})
+        ),
+        "pseudo_formal_failure_issue_specific_repair_actions": (
+            eval_manifest.get(
+                "pseudo_formal_failure_issue_specific_repair_actions",
+                [],
+            )
+        ),
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+            eval_manifest.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            )
+        ),
+        "pseudo_formal_failure_required_target_lanes": [
+            str(value)
+            for value in eval_manifest.get(
+                "pseudo_formal_failure_required_target_lanes",
+                [],
+            )
+            if str(value).strip()
+        ],
         "live_generator": bool(gate_summary["live_generator"]),
         "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
         "fixture_plumbing_ok": bool(gate_summary["fixture_plumbing_ok"]),
@@ -12227,6 +12276,24 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest[
         "internal_formalizer_pseudo_formal_packet_eval_backend_provider_name"
     ] = str(attached["backend_provider_name"])
+    manifest["internal_formalizer_pseudo_formal_packet_eval_result_status"] = str(
+        attached["result_status"]
+    )
+    manifest["internal_formalizer_pseudo_formal_packet_eval_failure_type"] = str(
+        attached["failure_type"]
+    )
+    manifest["internal_formalizer_pseudo_formal_packet_eval_errors"] = list(
+        attached["errors"]
+    )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_required_target_lanes"
+    ] = list(attached["pseudo_formal_failure_required_target_lanes"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_validation_issue_summary"
+    ] = attached["pseudo_formal_failure_validation_issue_summary"]
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_concrete_lane_routable_repair_seed"
+    ] = attached["pseudo_formal_failure_concrete_lane_routable_repair_seed"]
     manifest["internal_formalizer_pseudo_formal_packet_eval_live_generator"] = bool(
         attached["live_generator"]
     )

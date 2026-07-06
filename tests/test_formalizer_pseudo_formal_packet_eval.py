@@ -13,6 +13,7 @@ from ai_statistician.formalizer_pseudo_formal_packet_eval import (
     _pseudo_formal_packet_eval_question,
     _pseudo_formal_packet_eval_theory_packet,
     run_formalizer_pseudo_formal_packet_eval,
+    write_formalizer_pseudo_formal_packet_eval_failure_manifest,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.pseudo_formalization import (
@@ -20,6 +21,8 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    pseudo_formal_block_work_order_rows,
+    pseudo_formal_routable_work_order_rows,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
 )
 
@@ -382,6 +385,74 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_inactionable_exact_rows(
         "semantic_primitive_requirements" in error
         for error in exc_info.value.errors
     )
+
+
+def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_seed(
+    tmp_path: Path,
+) -> None:
+    exc = PacketValidationError(
+        validation_label="LLM Formalizer/ProofEngineer packet",
+        attempts=2,
+        errors=[
+            (
+                "pseudo_formal_proof_packets[0] invalid: blocks[0] missing "
+                "conclusion; blocks[0] missing source_anchors"
+            ),
+            (
+                "pseudo_formalization_required: valid PF/BV packet did not "
+                "produce any effective lane-routable pseudo-formal work-order rows"
+            ),
+        ],
+        history=[
+            {
+                "attempt_index": 0,
+                "ok": False,
+                "errors": ["blocks[0] missing conclusion"],
+            }
+        ],
+    )
+
+    manifest = write_formalizer_pseudo_formal_packet_eval_failure_manifest(
+        out_dir=tmp_path / "out",
+        provider_name="anthropic",
+        model="claude-sonnet",
+        exc=exc,
+    )
+
+    issue_summary = manifest["pseudo_formal_failure_validation_issue_summary"]
+    concrete_seed = manifest[
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed"
+    ]
+    concrete_block = concrete_seed["blocks"][0]
+    rows = pseudo_formal_routable_work_order_rows(
+        pseudo_formal_block_work_order_rows(concrete_seed)
+    )
+
+    assert issue_summary["n_missing_conclusion"] == 1
+    assert issue_summary["n_missing_source_anchors"] == 1
+    assert issue_summary["n_no_lane_routable_work_order_rows"] == 1
+    assert manifest["pseudo_formal_failure_required_target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "source_to_bridge",
+    ]
+    assert concrete_block["conclusion"]
+    assert concrete_block["source_anchors"][0]["id"] == (
+        "proof_body:rank_threshold_step"
+    )
+    assert concrete_block["semantic_primitive_requirements"]
+    assert concrete_block["lean_feasibility"] == "needs_semantic_definition"
+    assert any(
+        row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        and row["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
+        and row["semantic_primitive_requirements"]
+        for row in rows
+    )
+    result = json.loads(
+        Path(manifest["artifacts"]["result_json"]).read_text(encoding="utf-8")
+    )
+    assert result["pseudo_formal_failure_concrete_lane_routable_repair_seed"][
+        "blocks"
+    ][0]["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
 
 
 def test_formalizer_pseudo_formal_packet_eval_cli_fixture_gate(

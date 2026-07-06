@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .formalizer_llm import (
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
+    _formalizer_repair_context,
     _validate_required_pseudo_formalization_packet,
     validate_formalizer_packet,
 )
@@ -146,6 +147,18 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         else [f"{type(exc).__name__}: {exc}"]
     )
     history = list(exc.history) if isinstance(exc, PacketValidationError) else []
+    repair_context = _formalizer_repair_context(
+        errors=errors,
+        question=_pseudo_formal_packet_eval_question(),
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        environment_feedback=_pseudo_formal_packet_eval_feedback(),
+        proof_bank_runtime_memory_summary={},
+    )
+    repair_blueprint = (
+        dict(repair_context.get("pseudo_formal_required_repair_blueprint", {}) or {})
+        if isinstance(repair_context.get("pseudo_formal_required_repair_blueprint", {}), Mapping)
+        else {}
+    )
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
@@ -160,6 +173,24 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         "failure_type": type(exc).__name__,
         "errors": errors,
         "llm_json_repair_history": history,
+        "pseudo_formal_failure_repair_context": repair_context,
+        "pseudo_formal_failure_validation_issue_summary": repair_context.get(
+            "pseudo_formal_validation_issue_summary",
+            {},
+        ),
+        "pseudo_formal_failure_issue_specific_repair_actions": repair_context.get(
+            "pseudo_formal_issue_specific_repair_actions",
+            [],
+        ),
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+            repair_blueprint.get("concrete_lane_routable_repair_seed", {})
+        ),
+        "pseudo_formal_failure_required_target_lanes": list(
+            repair_blueprint.get(
+                "required_target_lanes",
+                [],
+            )
+        ),
         "capability_evidence_ok": False,
         "fixture_plumbing_ok": False,
         "proof_evidence_status": (
@@ -177,6 +208,19 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
                 "result_status": "FAILED",
                 "errors": errors,
                 "llm_json_repair_history": history,
+                "pseudo_formal_failure_validation_issue_summary": (
+                    manifest["pseudo_formal_failure_validation_issue_summary"]
+                ),
+                "pseudo_formal_failure_issue_specific_repair_actions": (
+                    manifest[
+                        "pseudo_formal_failure_issue_specific_repair_actions"
+                    ]
+                ),
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
+                    manifest[
+                        "pseudo_formal_failure_concrete_lane_routable_repair_seed"
+                    ]
+                ),
             },
             indent=2,
             sort_keys=True,

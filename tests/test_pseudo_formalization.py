@@ -15,6 +15,7 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
     PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
     PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
+    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMALIZATION_SCHEMA_ID,
@@ -1855,6 +1856,7 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
     block_template = blueprint["minimum_valid_packet"]["blocks"][0]
     seed = blueprint["copy_or_complete_this_packet_seed"]
+    concrete_seed = blueprint["concrete_lane_routable_repair_seed"]
     issue_summary = repair_context["pseudo_formal_validation_issue_summary"]
     issue_actions = repair_context["pseudo_formal_issue_specific_repair_actions"]
     assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
@@ -1876,6 +1878,32 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     assert seed["blocks"][0]["conclusion"]
     assert seed["blocks"][0]["source_anchors"][0]["id"]
     assert seed["blocks"][0]["lean_feasibility"] == "needs_semantic_definition"
+    assert concrete_seed["blocks"][0]["conclusion"] == seed["blocks"][0]["conclusion"]
+    assert concrete_seed["blocks"][0]["source_anchors"][0]["id"] == (
+        seed["blocks"][0]["source_anchors"][0]["id"]
+    )
+    assert concrete_seed["blocks"][0]["faithfulness_status"] == "faithful"
+    assert concrete_seed["blocks"][0]["lean_feasibility"] == (
+        "needs_semantic_definition"
+    )
+    assert concrete_seed["blocks"][0]["semantic_primitive_requirements"]
+    concrete_rows = pseudo_formal_routable_work_order_rows(
+        pseudo_formal_block_work_order_rows(concrete_seed)
+    )
+    assert any(
+        row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        and row["source_anchors"][0]["id"]
+        and row["semantic_primitive_requirements"]
+        for row in concrete_rows
+    )
+    assert (
+        _validate_required_pseudo_formalization_packet(
+            {"pseudo_formal_proof_packets": [concrete_seed]},
+            environment_feedback=_pf_required_feedback(),
+            proof_bank_runtime_memory_summary={},
+        )
+        == []
+    )
     assert block_template["conclusion"].startswith("<required non-empty")
     assert block_template["source_anchors"][0]["id"].startswith("<required")
     assert blueprint["required_target_lanes"] == []
