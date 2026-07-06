@@ -5,6 +5,7 @@ from ai_statistician.source_theorem_exact_semantic_definition_source_lookup impo
     run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue,
 )
 from ai_statistician.source_theorem_exact_semantic_definition_verifier_gate_executor import (
+    _runtime_learning_row,
     run_source_theorem_exact_semantic_definition_verifier_gate_executor,
 )
 
@@ -46,6 +47,33 @@ def _base_work_order(candidate: Path) -> dict:
             "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
     }
+
+
+def test_verifier_gate_learning_row_normalizes_serialized_false_ready() -> None:
+    row = _runtime_learning_row(
+        {
+            "source_work_order_id": "verifier-gate:string-false",
+            "verifier_gate_result_id": "result:string-false",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "placeholder_symbol": "good_rank_event",
+            "source_theorem_ready_for_exact_proof_body": "false",
+            "local_lean_checked": True,
+            "local_lean_compiled": True,
+            "verifier_gate_status": "VERIFIER_GATE_BLOCKED_SOURCE_SEMANTIC_CONTEXT_INSUFFICIENT",
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_REPAIR"
+            ),
+        }
+    )
+
+    assert row["source_theorem_ready_for_exact_proof_body"] is False
+    assert row["source_theorem_kernel_verified"] is False
+    assert row["source_theorem_kernel_evidence_eligible"] is False
+    assert row["recommended_next_action"] == (
+        "repair source-anchor context or semantic gaps before exact "
+        "source proof-body recheck"
+    )
 
 
 def test_verifier_gate_executor_approves_anchored_typechecked_candidate(

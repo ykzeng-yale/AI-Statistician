@@ -50,6 +50,14 @@ BOUNDARY = (
 )
 
 
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
 def run_source_theorem_exact_semantic_definition_verifier_gate_executor(
     *,
     out_dir: Path,
@@ -469,7 +477,9 @@ def _approved_review_packet(result: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _runtime_learning_row(result: Mapping[str, Any]) -> dict[str, Any]:
-    ready = bool(result.get("source_theorem_ready_for_exact_proof_body", False))
+    ready = _bool_like(
+        result.get("source_theorem_ready_for_exact_proof_body", False)
+    )
     return {
         "schema_version": 1,
         "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow",

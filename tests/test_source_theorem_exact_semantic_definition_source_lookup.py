@@ -2813,6 +2813,82 @@ def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(
     )
 
 
+def test_typechecked_review_recheck_queue_normalizes_serialized_false_flags(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate.lean"
+    candidate.write_text(
+        "theorem split_conformal_coverage : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    queue_manifest = tmp_path / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    _write_exact_proof_body_queue_manifest(queue_manifest, candidate=candidate)
+    review_packets = tmp_path / "review_packets.jsonl"
+    review_packets.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionTypecheckedCandidateReviewPacket"
+                ),
+                "review_packet_id": "review:covered:string-false",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "covered",
+                "candidate_artifact_path": str(candidate),
+                "local_definition_lean_compiled": True,
+                "semantic_review_required_before_proof_body": "false",
+                "source_theorem_ready_for_exact_proof_body": "false",
+                "source_theorem_kernel_verified": "false",
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue(
+        out_dir=tmp_path / "recheck",
+        review_packets_jsonl=review_packets,
+        proof_body_queue_manifest=queue_manifest,
+    )
+
+    assert manifest["n_review_packets"] == 1
+    assert manifest["n_semantically_approved_review_packets"] == 0
+    assert manifest["n_blocked_review_packets"] == 1
+    assert manifest["n_blocked_review_learning_rows"] == 1
+    assert manifest["n_semantic_review_work_orders"] == 0
+    assert manifest["n_verifier_gate_work_orders"] == 0
+    assert manifest["n_runtime_learning_rows"] == 1
+    assert manifest["n_execution_queue_rows"] == 0
+    blocked = [
+        json.loads(line)
+        for line in Path(manifest["blocked_review_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert blocked[0]["proof_body_recheck_blockers"] == [
+        "source_theorem_ready_for_exact_proof_body_false"
+    ]
+    assert blocked[0]["runtime_queue_status"] == (
+        "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+    )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert learning_rows[0]["proof_body_recheck_blockers"] == [
+        "source_theorem_ready_for_exact_proof_body_false"
+    ]
+    assert learning_rows[0]["source_theorem_kernel_verified"] is False
+    assert learning_rows[0]["source_theorem_kernel_evidence_eligible"] is False
+
+
 def test_typechecked_review_recheck_queue_blocks_llm_review_without_verifier_gate(
     tmp_path: Path,
 ) -> None:

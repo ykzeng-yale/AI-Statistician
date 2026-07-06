@@ -81,6 +81,14 @@ TYPECHECKED_REVIEW_SEMANTIC_REVIEW_LEARNING_TASK = (
 TYPECHECKED_REVIEW_BLOCKED_LEARNING_TASK = (
     "source_theorem_exact_semantic_definition_typechecked_review_blocked"
 )
+
+
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
 PROOF_EVIDENCE_STATUS = "SOURCE_LOOKUP_NOT_PROOF_EVIDENCE"
 DEFINITION_CLOSURE_PROOF_EVIDENCE_STATUS = (
     "DEFINITION_CLOSURE_WORK_ORDER_NOT_PROOF_EVIDENCE"
@@ -1357,9 +1365,9 @@ def _typechecked_review_packet_ready_for_recheck(
     semantic_review_decision = str(
         row.get("semantic_review_decision", "") or ""
     ).strip()
-    if not bool(row.get("source_theorem_ready_for_exact_proof_body", False)):
+    if not _bool_like(row.get("source_theorem_ready_for_exact_proof_body", False)):
         blockers.append("source_theorem_ready_for_exact_proof_body_false")
-    if bool(row.get("semantic_review_required_before_proof_body", False)):
+    if _bool_like(row.get("semantic_review_required_before_proof_body", False)):
         blockers.append("semantic_review_required_before_proof_body")
         if semantic_review_decision == "approved_definition_candidate":
             blockers.append(
@@ -1386,7 +1394,7 @@ def _typechecked_review_packet_ready_for_recheck(
         blockers.append("semantic_definition_risks_present")
     if _typechecked_review_candidate_artifact_path(row) is None:
         blockers.append("candidate_artifact_path_missing")
-    if bool(row.get("source_theorem_kernel_verified", False)):
+    if _bool_like(row.get("source_theorem_kernel_verified", False)):
         blockers.append("source_theorem_already_kernel_verified")
     return not blockers, blockers
 
@@ -1620,7 +1628,7 @@ def _typechecked_review_blocked_learning_row(row: Mapping[str, Any]) -> dict[str
         "proof_body_recheck_blockers": blockers,
         "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
         "source_theorem_ready_for_exact_proof_body": False,
-        "source_theorem_kernel_verified": bool(
+        "source_theorem_kernel_verified": _bool_like(
             row.get("source_theorem_kernel_verified", False)
         ),
         "source_theorem_kernel_evidence_eligible": False,
@@ -1778,7 +1786,7 @@ def _typechecked_review_verifier_gate_work_order(
         "proof_body_recheck_blockers": blockers,
         "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
         "source_theorem_ready_for_exact_proof_body": False,
-        "source_theorem_kernel_verified": bool(
+        "source_theorem_kernel_verified": _bool_like(
             row.get("source_theorem_kernel_verified", False)
         ),
         "source_theorem_kernel_evidence_eligible": False,
