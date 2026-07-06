@@ -273,6 +273,7 @@ from ai_statistician.research_system_audit import (
     _formalization_gap_planner_evaluation_route_adoption_count_rollups,
     _pseudo_formal_block_verifier_component_gate_overlay,
     _research_agent_runtime_exact_semantic_definition_authoring_count_rollup,
+    _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup,
     _research_agent_runtime_capability_gap_routing_followup_commands,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
@@ -7399,6 +7400,65 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_proofengineer_state"
             ],
             "LOCAL_LEAN_REPAIR_REQUIRED",
+        )
+
+    def test_research_agent_runtime_formalizer_pf_packet_learning_rollup_exports_clean_counts(
+        self,
+    ) -> None:
+        counts = (
+            _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup(
+                {
+                    "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": True,
+                    "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": 5,
+                    "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows": 4,
+                    "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows": 3,
+                    "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows": 2,
+                    "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows": 3,
+                    "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": 3,
+                }
+            )
+        )
+
+        self.assertTrue(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
+            ]
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+            ],
+            5,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows"
+            ],
+            4,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows"
+            ],
+            3,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows"
+            ],
+            2,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows"
+            ],
+            3,
+        )
+        self.assertEqual(
+            counts[
+                "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+            ],
+            3,
         )
 
     def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:

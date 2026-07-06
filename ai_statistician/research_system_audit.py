@@ -3649,6 +3649,9 @@ async def run_research_system_audit(
                 "internal_formalizer_pseudo_formal_packet_eval_attachment_gate_requirements",
                 {},
             ),
+            **_research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup(
+                research_agent_runtime_audit_manifest
+            ),
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_provider": research_agent_runtime_audit_manifest.get(
                 "internal_formalizer_pseudo_formal_packet_eval_provider_name",
                 "",
@@ -9827,6 +9830,40 @@ async def run_research_system_audit(
         encoding="utf-8",
     )
     return payload
+
+
+def _research_agent_runtime_formalizer_pseudo_formal_packet_learning_count_rollup(
+    manifest: Mapping[str, Any],
+) -> dict[str, object]:
+    def _manifest_int(key: str) -> int:
+        return int(manifest.get(key, 0) or 0)
+
+    return {
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed": bool(
+            manifest.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
+                False,
+            )
+        ),
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows": _manifest_int(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"
+        ),
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows": _manifest_int(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_live_rows"
+        ),
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows": _manifest_int(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_routable_rows"
+        ),
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows": _manifest_int(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_exact_lane_rows"
+        ),
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows": _manifest_int(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_nonproof_rows"
+        ),
+        "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows": _manifest_int(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
+        ),
+    }
 
 
 def _research_agent_runtime_exact_semantic_definition_authoring_count_rollup(
