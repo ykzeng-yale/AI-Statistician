@@ -17891,7 +17891,7 @@ def test_runtime_blackboard_normalizer_propagates_architect_control_seed() -> No
     contract = {
         "formal_verification_policy": "optional",
         "recommended_research_path": "dual_track",
-        "formal_required_for_final": False,
+        "formal_required_for_final": "false",
     }
     artifacts = {
         "architect_coordinator_proposal:test": {
@@ -17942,6 +17942,7 @@ def test_runtime_blackboard_normalizer_propagates_architect_control_seed() -> No
         assert control["evidence_contract"] == contract
         assert control["formal_verification_policy"] == "optional"
         assert control["recommended_research_path"] == "dual_track"
+        assert control["formal_required_for_final"] is False
         if artifact_id.startswith("runtime_formalization_gap_planner_"):
             assert control["subsystem"] == "FormalizationGapPlanner"
 
@@ -17973,6 +17974,72 @@ def test_runtime_blackboard_normalizer_propagates_architect_control_seed() -> No
     assert summary["n_current_artifacts_missing_architect_control"] == 0
     assert "FormalizationGapPlanner" in summary["controlled_subsystems"]
     assert "ProofEngineer" in summary["controlled_subsystems"]
+
+
+def test_architect_environment_feedback_string_false_formal_required_stays_false() -> None:
+    feedback = _runtime_environment_feedback_with_architect_directive(
+        context={
+            "architect_coordinator_proposal_id": "architect:string-false",
+            "architect_runtime_plan": {
+                "evidence_contract": {
+                    "formal_verification_policy": "optional",
+                    "recommended_research_path": "dual_track",
+                    "formal_required_for_final": "false",
+                },
+                "subsystem_execution_plan": [
+                    {
+                        "subsystem": "ProofEngineer",
+                        "acceptance_gate": "preserve proof boundary",
+                    }
+                ],
+                "boundary": "Architect control is routing metadata only.",
+            },
+        },
+        subsystem="ProofEngineer",
+    )
+
+    assert feedback["architect_formal_verification_policy"] == "optional"
+    assert feedback["architect_recommended_research_path"] == "dual_track"
+    assert feedback["architect_formal_required_for_final"] is False
+    assert feedback["architect_evidence_contract"]["formal_required_for_final"] == (
+        "false"
+    )
+    assert feedback["architect_subsystem_acceptance_gate"] == (
+        "preserve proof boundary"
+    )
+
+
+def test_existing_architect_control_string_false_formal_required_stays_false() -> None:
+    artifacts = {
+        "formalization:controlled": {
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "runtime_architect_control": {
+                "architect_coordinator_proposal_id": "architect:string-false",
+                "subsystem": "ProofEngineer",
+                "formal_verification_policy": "optional",
+                "recommended_research_path": "dual_track",
+                "formal_required_for_final": "false",
+                "evidence_contract": {
+                    "formal_verification_policy": "optional",
+                    "recommended_research_path": "dual_track",
+                    "formal_required_for_final": "false",
+                },
+            },
+        },
+        "simulation:uncontrolled": {
+            "artifact_kind": "RuntimeSimulationManifest",
+        },
+    }
+
+    normalized = runtime_module._normalize_runtime_blackboard_artifacts(artifacts)
+
+    for artifact in normalized.values():
+        control = artifact["runtime_architect_control"]
+        assert control["architect_coordinator_proposal_id"] == "architect:string-false"
+        assert control["formal_verification_policy"] == "optional"
+        assert control["recommended_research_path"] == "dual_track"
+        assert control["formal_required_for_final"] is False
+        assert control["evidence_contract"]["formal_required_for_final"] == "false"
 
 
 def test_gap_planner_handoff_rows_inherit_architect_control_from_bridge(

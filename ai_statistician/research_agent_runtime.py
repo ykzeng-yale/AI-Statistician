@@ -15271,7 +15271,7 @@ def _runtime_architect_control_seed_from_control(
             or contract.get("recommended_research_path", "")
             or ""
         ),
-        "formal_required_for_final": bool(
+        "formal_required_for_final": _bool_like(
             control.get(
                 "formal_required_for_final",
                 contract.get("formal_required_for_final", False),
@@ -15312,7 +15312,7 @@ def _runtime_architect_control_seed_from_architect_proposal(
         "recommended_research_path": str(
             contract.get("recommended_research_path", "") or ""
         ),
-        "formal_required_for_final": bool(
+        "formal_required_for_final": _bool_like(
             contract.get("formal_required_for_final", False)
         ),
         "control_source": "architect_coordinator_proposal",
@@ -15482,13 +15482,15 @@ def _runtime_artifact_with_architect_control(
             or control_contract.get("recommended_research_path", "")
             or ""
         )
-    if "formal_required_for_final" not in control:
-        control["formal_required_for_final"] = bool(
+    control["formal_required_for_final"] = _bool_like(
+        control.get(
+            "formal_required_for_final",
             control_seed.get(
                 "formal_required_for_final",
                 control_contract.get("formal_required_for_final", False),
-            )
+            ),
         )
+    )
     if not str(control.get("control_source", "") or "").strip():
         control["control_source"] = str(
             control_seed.get("control_source", "") or "runtime_architect_control"
@@ -44087,7 +44089,7 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
         "recommended_research_path": str(
             evidence_contract.get("recommended_research_path", "") or ""
         ),
-        "formal_required_for_final": bool(
+        "formal_required_for_final": _bool_like(
             evidence_contract.get("formal_required_for_final", False)
         ),
         "boundary": str(plan.get("boundary", "")),
