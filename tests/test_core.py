@@ -7635,6 +7635,36 @@ class SystemTests(unittest.TestCase):
             "READY_FOR_FULL_AI_STATISTICIAN",
         )
 
+        guidance_gap = _research_system_full_ai_statistician_readiness(
+            {
+                "all_gates_passed": True,
+                "counts": {
+                    "research_agent_runtime_audit_requested": True,
+                    "research_agent_runtime_audit_available": True,
+                    "research_agent_runtime_audit_source": "configured_runtime_dir",
+                    "research_agent_runtime_capability_ready_for_full_ai_statistician": True,
+                    "research_agent_runtime_capability_status": "READY",
+                    "evaluation_benchmark_guidance_capacity_gaps": 2,
+                },
+            }
+        )
+        self.assertFalse(guidance_gap["ready_for_full_ai_statistician"])
+        self.assertEqual(
+            guidance_gap["full_ai_statistician_readiness_status"],
+            "EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
+        )
+        self.assertEqual(
+            guidance_gap[
+                "full_ai_statistician_readiness_guidance_capacity_gap_count"
+            ],
+            2,
+        )
+        self.assertFalse(
+            guidance_gap[
+                "full_ai_statistician_readiness_guidance_capacity_gaps_clear"
+            ]
+        )
+
     def test_research_system_audit_prioritizes_pinned_capability_gap_followups(self) -> None:
         manifest = {
             "runtime_capability_gap_routing_input_priority_pinned_requirement_ids": [
@@ -23439,13 +23469,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["all_gates_passed"])
         self.assertFalse(payload["ready_for_full_ai_statistician"])
         self.assertFalse(payload["counts"]["system_ready_for_full_ai_statistician"])
+        self.assertGreaterEqual(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_capacity_gap_count"
+            ],
+            1,
+        )
+        self.assertFalse(
+            payload["counts"][
+                "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear"
+            ]
+        )
         self.assertEqual(
             payload["full_ai_statistician_readiness_status"],
-            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS_AND_EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
         )
         self.assertEqual(
             payload["counts"]["system_full_ai_statistician_readiness_status"],
-            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS_AND_EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
         )
         self.assertIn(
             "all_gates_passed only means audit artifacts completed",
@@ -23474,13 +23515,24 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             guidance_s13["key_counts"][
                 "system_full_ai_statistician_readiness_status"
             ],
-            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS_AND_EVALUATION_BENCHMARK_GUIDANCE_CAPACITY_GAPS",
         )
         self.assertIn(
             "all_gates_passed only means audit artifacts completed",
             guidance_s13["key_counts"][
                 "system_full_ai_statistician_readiness_boundary"
             ],
+        )
+        self.assertGreaterEqual(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_capacity_gap_count"
+            ],
+            1,
+        )
+        self.assertFalse(
+            guidance_s13["key_counts"][
+                "system_full_ai_statistician_readiness_guidance_capacity_gaps_clear"
+            ]
         )
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_results"], 1)
         self.assertEqual(payload["counts"]["research_agent_runtime_audit_ok"], 1)
