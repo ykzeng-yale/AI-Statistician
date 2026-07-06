@@ -78617,12 +78617,17 @@ def test_runtime_capability_scorecard_flags_empty_source_theorem_proof_body_exec
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     row = rows["source_theorem_proof_body_executor_ran"]
+    same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
 
     assert row["passed"] is False
     assert "formal_environment_ran=True" in row["evidence"]
     assert "formal_environment_rows=0" in row["evidence"]
     assert "proof_body_result_rows=0" in row["evidence"]
     assert "result-row telemetry" in row["blocker"]
+    assert same_lane_row["passed"] is False
+    assert "proof_body_result_rows=0" in same_lane_row["evidence"]
+    assert "same_lane_verified=False" in same_lane_row["evidence"]
+    assert "did not emit verifier-bindable result rows" in same_lane_row["blocker"]
 
 
 def test_runtime_capability_scorecard_rejects_aggregate_only_source_theorem_proof_body_executor_results() -> None:
@@ -78650,12 +78655,16 @@ def test_runtime_capability_scorecard_rejects_aggregate_only_source_theorem_proo
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     row = rows["source_theorem_proof_body_executor_ran"]
+    same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
 
     assert row["passed"] is False
     assert "proof_body_result_rows=1" in row["evidence"]
     assert "aggregate_formal_environment_counts=True" in row["evidence"]
     assert "concrete_result_lanes=[]" in row["evidence"]
     assert "concrete leaf-lane result-row telemetry" in row["blocker"]
+    assert same_lane_row["passed"] is False
+    assert "same_lane_verified=False" in same_lane_row["evidence"]
+    assert "split across executor lanes" in same_lane_row["blocker"]
 
 
 def test_runtime_capability_scorecard_accepts_exact_semantic_recheck_proof_body_result_rows() -> None:

@@ -24035,8 +24035,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "source_theorem_proof_body_same_lane_verifier_evidence",
             (
-                proof_body_result_row_count <= 0
-                or proof_body_same_lane_verifier_ok
+                proof_body_same_lane_verifier_ok
                 or exact_proof_body_materialization_blocking
             ),
             (
@@ -24056,10 +24055,19 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_proof_body_materialization_blocking}"
             ),
             (
-                "exact source-theorem proof-body result rows and local Lean/AXLE "
-                "or source-theorem kernel evidence are split across executor "
-                "lanes; one proof-body executor lane must record both before "
-                "runtime capability can count the source-theorem proof-body path"
+                (
+                    "exact source-theorem proof-body did not emit verifier-bindable "
+                    "result rows; same-lane local Lean/AXLE or source-theorem "
+                    "kernel evidence cannot be counted until a concrete proof-body "
+                    "lane records result rows"
+                )
+                if proof_body_result_row_count <= 0
+                else (
+                    "exact source-theorem proof-body result rows and local Lean/AXLE "
+                    "or source-theorem kernel evidence are split across executor "
+                    "lanes; one proof-body executor lane must record both before "
+                    "runtime capability can count the source-theorem proof-body path"
+                )
             ),
             next_owner_subsystem="FormalizationEvaluator",
             target_behavior=(
