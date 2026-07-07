@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T23:51:05Z",
+  "updated_at": "2026-07-07T23:57:44Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Proof-body same-lane verifier evidence is now bound to same-lane signature-backed proof-body progress. A source-theorem proof-body lane can no longer pass the runtime scorecard by combining result rows and local Lean/AXLE feedback with proof-body signature/progress telemetry from another lane. The audit payload preserves shared proof-body goal/signature/gate key families, verifier-approved proof-body goal keys are first-class, PF/formalizer-component progress counts only inside the same signature-backed lane, and kernel verification remains the only proof-closing shortcut.",
+  "latest_main_worker_patch": "Verifier-approved source-theorem proof-body lanes are now first-class in shared proof-body result-row and local-Lean telemetry. S13/audit counters no longer report zero proof-body result rows or local Lean checks when the only concrete proof-body evidence is in typechecked-review verifier-approved, materialized verifier-approved, late verifier-approved, or authoring-retry verifier-approved proof-body recheck lanes. This keeps aggregate guidance, local-Lean gate evidence, and same-lane verifier evidence aligned without treating local Lean or PF/BV progress as theorem proof.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -2945,6 +2945,12 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 882 deselected after proof-body same-lane verifier signature-backed progress gate patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"truth_table and (proof_body or source_theorem or exact_semantic or generated_next_action)\" # 8 passed, 920 deselected after proof-body same-lane verifier signature-backed progress gate patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"evaluation_benchmark_guidance\" # 2 passed, 291 deselected, 6 subtests passed after proof-body same-lane verifier signature-backed progress gate patch",
-    "git diff --check # passed after proof-body same-lane verifier signature-backed progress gate patch"
+    "git diff --check # passed after proof-body same-lane verifier signature-backed progress gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py tests/test_research_agent_runtime.py # passed after verifier-approved proof-body result/local-Lean telemetry patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"authoring_retry_verifier_approved_kernel_evidence or verifier_approved_recheck_local_lean or proof_body_local_lean_check or same_lane_verifier\" # 11 passed, 917 deselected after verifier-approved proof-body result/local-Lean telemetry patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 883 deselected after verifier-approved proof-body result/local-Lean telemetry patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 882 deselected after verifier-approved proof-body result/local-Lean telemetry patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"evaluation_benchmark_guidance\" # 2 passed, 291 deselected, 6 subtests passed after verifier-approved proof-body result/local-Lean telemetry patch",
+    "git diff --check # passed after verifier-approved proof-body result/local-Lean telemetry patch"
   ]
 }

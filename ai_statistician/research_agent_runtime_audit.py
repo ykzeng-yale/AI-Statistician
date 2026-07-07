@@ -66,6 +66,7 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_TARGET_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_LOCAL_LEAN_CHECK_KEYS,
     SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
     SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
     _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES,
@@ -12762,6 +12763,37 @@ def _payload_source_theorem_proof_body_result_row_count(
     )
 
 
+def _payload_source_theorem_proof_body_local_lean_checked_count(
+    payload: Mapping[str, Any],
+) -> int:
+    if (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is True
+    ):
+        aggregate_count = _safe_int(
+            payload.get(
+                "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+                0,
+            )
+        )
+        leaf_count = _runtime_manifest_int_sum(
+            payload,
+            tuple(
+                key
+                for key in SOURCE_THEOREM_PROOF_BODY_LOCAL_LEAN_CHECK_KEYS
+                if key
+                != "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+            ),
+        )
+        return max(aggregate_count, leaf_count)
+    return _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_LOCAL_LEAN_CHECK_KEYS,
+    )
+
+
 def _runtime_source_theorem_proof_body_same_lane_verification_summary(
     payload: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -17809,6 +17841,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proof_body_result_row_count = _payload_source_theorem_proof_body_result_row_count(
         payload
+    )
+    proof_body_local_lean_checked_count = (
+        _payload_source_theorem_proof_body_local_lean_checked_count(payload)
     )
     proof_body_same_lane_verification_summary = (
         _runtime_source_theorem_proof_body_same_lane_verification_summary(payload)
@@ -25482,14 +25517,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "source_theorem_proof_body_local_lean_gate_requested",
             (
-                int(
-                    payload.get(
-                        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
-                        0,
-                    )
-                    or 0
-                )
-                > 0
+                proof_body_local_lean_checked_count > 0
                 or source_theorem_kernel_count > 0
                 or exact_proof_body_materialization_blocking
             ),
@@ -25498,6 +25526,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')} "
                 "local_lean_checked="
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')} "
+                "proof_body_local_lean_checked="
+                f"{proof_body_local_lean_checked_count} "
                 "source_theorem_kernel_verified="
                 f"{source_theorem_kernel_count} "
                 "raw_gate_open_for_kernel_repair="
@@ -25513,7 +25543,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "exact source-theorem proof-body executor did not record an "
-                "observed local Lean check"
+                "observed local Lean check in any proof-body lane"
             ),
         ),
         _scorecard_row(

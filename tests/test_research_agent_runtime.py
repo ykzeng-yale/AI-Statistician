@@ -73868,6 +73868,7 @@ def test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence(
         ]
         == 1
     )
+    assert audit["source_theorem_proof_body_result_row_count"] == 1
     assert audit["evidence_truth_table"]["source_theorem_kernel_verified"] is True
     assert scorecard_rows[
         "source_theorem_exact_proof_body_candidate_materialized"
@@ -73959,9 +73960,16 @@ def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_
     same_lane_row = scorecard_rows[
         "source_theorem_proof_body_same_lane_verifier_evidence"
     ]
+    local_lean_row = scorecard_rows[
+        "source_theorem_proof_body_local_lean_gate_requested"
+    ]
 
     assert audit[local_lean_key] == 1
+    assert audit["source_theorem_proof_body_result_row_count"] == 1
+    assert local_lean_row["passed"] is True
+    assert "proof_body_local_lean_checked=1" in local_lean_row["evidence"]
     assert same_lane_row["passed"] is True
+    assert "proof_body_result_rows=1" in same_lane_row["evidence"]
     assert "same_lane_verified=True" in same_lane_row["evidence"]
     assert "verifier_lanes_without_signature_backed_progress=[]" in same_lane_row[
         "evidence"
@@ -82160,9 +82168,13 @@ def test_runtime_capability_scorecard_counts_verifier_approved_recheck_local_lea
 
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    local_lean_row = rows["source_theorem_proof_body_local_lean_gate_requested"]
     same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
 
+    assert local_lean_row["passed"] is True
+    assert "proof_body_local_lean_checked=1" in local_lean_row["evidence"]
     assert same_lane_row["passed"] is True
+    assert "proof_body_result_rows=1" in same_lane_row["evidence"]
     assert "same_lane_verified=True" in same_lane_row["evidence"]
     assert "verifier_lanes_without_signature_backed_progress=[]" in same_lane_row[
         "evidence"
