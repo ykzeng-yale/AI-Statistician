@@ -57021,6 +57021,20 @@ def _pseudo_formal_runtime_memory_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "source_block_id": str(row.get("source_block_id", "") or ""),
         "source_block_type": str(row.get("source_block_type", "") or ""),
         "source_block_conclusion": str(row.get("source_block_conclusion", "") or ""),
+        "prompt_scaffold_origin": dict(
+            row.get("prompt_scaffold_origin", {})
+            if isinstance(row.get("prompt_scaffold_origin", {}), Mapping)
+            else {}
+        ),
+        "source_prompt_scaffold_kind": str(
+            row.get("source_prompt_scaffold_kind", "") or ""
+        ),
+        "source_prompt_scaffold_id": str(
+            row.get("source_prompt_scaffold_id", "") or ""
+        ),
+        "source_prompt_scaffold_required_output_key": str(
+            row.get("source_prompt_scaffold_required_output_key", "") or ""
+        ),
         "block_depth": _pseudo_formal_safe_block_depth(row.get("block_depth")),
         "dependency_scope": str(
             row.get("dependency_scope", PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE)
@@ -58156,6 +58170,21 @@ def _pseudo_formal_source_theorem_semantic_primitive_work_orders(
                     item.get("source_block_type", "") or ""
                 ),
                 "source_pseudo_formal_block_conclusion": source_block_conclusion,
+                "source_pseudo_formal_prompt_scaffold_origin": dict(
+                    item.get("prompt_scaffold_origin", {})
+                    if isinstance(item.get("prompt_scaffold_origin", {}), Mapping)
+                    else {}
+                ),
+                "source_prompt_scaffold_kind": str(
+                    item.get("source_prompt_scaffold_kind", "") or ""
+                ),
+                "source_prompt_scaffold_id": str(
+                    item.get("source_prompt_scaffold_id", "") or ""
+                ),
+                "source_prompt_scaffold_required_output_key": str(
+                    item.get("source_prompt_scaffold_required_output_key", "")
+                    or ""
+                ),
                 "source_pseudo_formal_dependency_ids": list(
                     item.get("dependency_ids", []) or []
                 ),
@@ -71369,6 +71398,20 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseud
         )
         row["source_pseudo_formal_packet_id"] = str(
             source.get("source_packet_id", "") or ""
+        )
+        row["source_pseudo_formal_prompt_scaffold_origin"] = dict(
+            source.get("prompt_scaffold_origin", {})
+            if isinstance(source.get("prompt_scaffold_origin", {}), Mapping)
+            else {}
+        )
+        row["source_prompt_scaffold_kind"] = str(
+            source.get("source_prompt_scaffold_kind", "") or ""
+        )
+        row["source_prompt_scaffold_id"] = str(
+            source.get("source_prompt_scaffold_id", "") or ""
+        )
+        row["source_prompt_scaffold_required_output_key"] = str(
+            source.get("source_prompt_scaffold_required_output_key", "") or ""
         )
         row["source_formalizer_proposal_id"] = str(
             source.get("source_formalizer_proposal_id", "") or ""

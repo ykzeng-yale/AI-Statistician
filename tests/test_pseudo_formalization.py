@@ -1907,6 +1907,12 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
         "must_produce_lane_routable_work_order_rows"
     ] is True
     assert "not source theorem proof" in copy_fragment["boundary"]
+    assert copy_fragment["pseudo_formal_proof_packets"][0][
+        "prompt_scaffold_origin"
+    ]["scaffold_kind"] == "pseudo_formalization_required_copy_fragment"
+    assert copy_fragment["pseudo_formal_proof_packets"][0][
+        "prompt_scaffold_origin"
+    ]["required_output_key"] == "pseudo_formal_proof_packets"
     concrete_rows = pseudo_formal_routable_work_order_rows(
         pseudo_formal_block_work_order_rows(concrete_seed)
     )
@@ -1914,6 +1920,16 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
         row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         and row["source_anchors"][0]["id"]
         and row["semantic_primitive_requirements"]
+        for row in concrete_rows
+    )
+    assert all(
+        row["source_prompt_scaffold_kind"]
+        == "pseudo_formalization_required_copy_fragment"
+        for row in concrete_rows
+    )
+    assert all(
+        row["prompt_scaffold_origin"]["proof_evidence_status"]
+        == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
         for row in concrete_rows
     )
     assert (

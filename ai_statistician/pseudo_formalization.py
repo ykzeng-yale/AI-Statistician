@@ -1083,6 +1083,25 @@ def pseudo_formal_work_order_row_has_required_lineage(
     return all(str(row.get(field, "") or "").strip() for field in required_fields)
 
 
+def _prompt_scaffold_origin(packet: Mapping[str, Any]) -> dict[str, Any]:
+    origin = packet.get("prompt_scaffold_origin", {})
+    if not isinstance(origin, Mapping):
+        return {}
+    compact = {
+        str(key): value
+        for key, value in origin.items()
+        if str(key).strip()
+        and isinstance(value, (str, int, float, bool))
+        and str(value).strip()
+    }
+    if compact:
+        compact.setdefault(
+            "proof_evidence_status",
+            PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        )
+    return compact
+
+
 def pseudo_formal_block_structural_quality(block: Mapping[str, Any]) -> dict[str, Any]:
     """Measure whether a block is small enough for Good-PF style BV calls."""
     premises = _string_list(block.get("premises"))
@@ -1956,6 +1975,7 @@ def _work_order_row(
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     structural_quality = pseudo_formal_block_structural_quality(block)
+    prompt_scaffold_origin = _prompt_scaffold_origin(packet)
     base = {
         "source_packet_id": str(packet.get("packet_id", "") or ""),
         "source_theorem_id": str(packet.get("theorem_id", "") or ""),
@@ -2038,6 +2058,20 @@ def _work_order_row(
         "source_theorem_kernel_verified": False,
         "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
     }
+    if prompt_scaffold_origin:
+        base["prompt_scaffold_origin"] = prompt_scaffold_origin
+        base["source_prompt_scaffold_kind"] = str(
+            prompt_scaffold_origin.get("scaffold_kind", "") or ""
+        )
+        base["source_prompt_scaffold_id"] = str(
+            prompt_scaffold_origin.get("copy_fragment_id", "")
+            or prompt_scaffold_origin.get("seed_id", "")
+            or prompt_scaffold_origin.get("source_artifact_id", "")
+            or ""
+        )
+        base["source_prompt_scaffold_required_output_key"] = str(
+            prompt_scaffold_origin.get("required_output_key", "") or ""
+        )
     if extra:
         base.update(dict(extra))
     base["row_id"] = "pseudo_formal_work_order:" + stable_hash(base)[:16]

@@ -45177,6 +45177,23 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
                 "preserve finite-sample rank uniformity semantics",
             ],
             "source_packet_id": "pseudo_formal_packet:coverage",
+            "prompt_scaffold_origin": {
+                "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+                "scaffold_kind": "pseudo_formalization_required_copy_fragment",
+                "source": "FormalizerPrompt",
+                "required_output_key": "pseudo_formal_proof_packets",
+                "copy_fragment_id": "pseudo_formal_copy_fragment:rank",
+                "proof_evidence_status": (
+                    "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            "source_prompt_scaffold_kind": (
+                "pseudo_formalization_required_copy_fragment"
+            ),
+            "source_prompt_scaffold_id": "pseudo_formal_copy_fragment:rank",
+            "source_prompt_scaffold_required_output_key": (
+                "pseudo_formal_proof_packets"
+            ),
             "source_formalizer_proposal_id": "formalizer_proposal:pf_bv",
             "source_formalizer_proposal_without_formalization_manifest": True,
             "proof_evidence_status": (
@@ -45268,6 +45285,15 @@ def test_exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane() -
         "pseudo_formal_work_order:rank_uniformity"
     )
     assert row["source_pseudo_formal_block_id"] == "rank_uniformity_block"
+    assert row["source_pseudo_formal_prompt_scaffold_origin"][
+        "scaffold_kind"
+    ] == "pseudo_formalization_required_copy_fragment"
+    assert row["source_prompt_scaffold_id"] == (
+        "pseudo_formal_copy_fragment:rank"
+    )
+    assert row["source_prompt_scaffold_required_output_key"] == (
+        "pseudo_formal_proof_packets"
+    )
     assert row["source_formalizer_proposal_id"] == "formalizer_proposal:pf_bv"
     assert (
         row["source_formalizer_proposal_without_formalization_manifest"]

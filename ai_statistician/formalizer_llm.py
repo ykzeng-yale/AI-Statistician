@@ -266,6 +266,10 @@ def _formalizer_repair_context(
         packet_seed,
         required_target_lanes=required_target_lanes,
     )
+    if copy_fragment.get("pseudo_formal_proof_packets"):
+        concrete_repair_seed = dict(
+            copy_fragment["pseudo_formal_proof_packets"][0]
+        )
     suggested_target_lanes = [
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
         PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
@@ -1754,6 +1758,15 @@ def _pseudo_formalization_required_packet_seed(
         "packet_id": packet_id,
         "theorem_id": theorem_id,
         "source_artifact_id": source_artifact_id,
+        "prompt_scaffold_origin": {
+            "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+            "scaffold_kind": "pseudo_formalization_required_packet_seed",
+            "source": "FormalizerPrompt",
+            "required_output_key": "pseudo_formal_proof_packets",
+            "source_theorem_id": theorem_id,
+            "source_artifact_id": source_artifact_id,
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        },
         "pseudo_formal_method_contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
         "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
         "kernel_verified": False,
@@ -1935,6 +1948,28 @@ def _pseudo_formalization_required_copy_fragment(
         packet_seed,
         required_target_lanes=required_target_lanes,
     )
+    scaffold_origin = dict(
+        concrete_seed.get("prompt_scaffold_origin", {})
+        if isinstance(concrete_seed.get("prompt_scaffold_origin", {}), Mapping)
+        else {}
+    )
+    scaffold_origin.update(
+        {
+            "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+            "scaffold_kind": "pseudo_formalization_required_copy_fragment",
+            "source": "FormalizerPrompt",
+            "required_output_key": "pseudo_formal_proof_packets",
+            "copy_fragment_id": "pseudo_formal_copy_fragment:"
+            + stable_hash(
+                {
+                    "packet_id": concrete_seed.get("packet_id", ""),
+                    "required_target_lanes": list(required_target_lanes),
+                }
+            )[:16],
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        }
+    )
+    concrete_seed["prompt_scaffold_origin"] = scaffold_origin
     return {
         "required_output_key": "pseudo_formal_proof_packets",
         "copy_instruction": (
