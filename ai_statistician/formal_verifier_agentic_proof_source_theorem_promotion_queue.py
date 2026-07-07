@@ -155,21 +155,26 @@ def _promotion_row(
     target_theorem_name = str(row.get("target_theorem_name", ""))
     candidate_artifact_path = str(row.get("candidate_artifact_path", ""))
     target_lean_declaration = str(row.get("target_lean_declaration", ""))
-    artifact_kernel_verified = bool(row.get("artifact_kernel_verified", False))
-    source_theorem_kernel_verified = bool(
+    artifact_kernel_verified = _bool_like(row.get("artifact_kernel_verified", False))
+    source_theorem_kernel_verified = _bool_like(
         row.get("source_theorem_kernel_verified", False)
     )
-    source_theorem_target_known = bool(
-        row.get("source_theorem_target_known", False)
-        or row.get("source_theorem_lean_file", "")
+    source_theorem_target_known = (
+        _bool_like(row.get("source_theorem_target_known", False))
+        or bool(str(row.get("source_theorem_lean_file", "") or "").strip())
     )
     source_theorem_target_provenance = (
         dict(row.get("source_theorem_target_provenance", {}))
         if isinstance(row.get("source_theorem_target_provenance", {}), dict)
         else {}
     )
-    if source_theorem_target_known:
-        source_theorem_target_provenance["source_theorem_target_known"] = True
+    if (
+        source_theorem_target_known
+        or "source_theorem_target_known" in source_theorem_target_provenance
+    ):
+        source_theorem_target_provenance[
+            "source_theorem_target_known"
+        ] = source_theorem_target_known
     if artifact_verification_id:
         source_theorem_target_provenance.setdefault(
             "artifact_verification_id",
@@ -327,6 +332,18 @@ def _int(value: object) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
 
 
 def _markdown_report(payload: dict[str, object]) -> str:

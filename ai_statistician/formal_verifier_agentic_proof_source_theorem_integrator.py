@@ -197,15 +197,22 @@ def _integrator_row(
         or candidate_artifact_path
     )
     source_path = Path(exact_source_candidate_path)
-    artifact_kernel_verified = bool(row.get("artifact_kernel_verified", False))
-    source_theorem_target_known = bool(row.get("source_theorem_target_known", False))
+    artifact_kernel_verified = _bool_like(row.get("artifact_kernel_verified", False))
+    source_theorem_target_known = _bool_like(
+        row.get("source_theorem_target_known", False)
+    )
     source_theorem_target_provenance = (
         dict(row.get("source_theorem_target_provenance", {}))
         if isinstance(row.get("source_theorem_target_provenance", {}), dict)
         else {}
     )
-    if source_theorem_target_known:
-        source_theorem_target_provenance["source_theorem_target_known"] = True
+    if (
+        source_theorem_target_known
+        or "source_theorem_target_known" in source_theorem_target_provenance
+    ):
+        source_theorem_target_provenance[
+            "source_theorem_target_known"
+        ] = source_theorem_target_known
     if promotion_id:
         source_theorem_target_provenance.setdefault(
             "source_theorem_promotion_id",
@@ -349,6 +356,18 @@ def _has_exact_declaration(source: str, declaration_name: str) -> bool:
         return False
     pattern = r"\b(?:theorem|lemma)\s+" + re.escape(declaration_name) + r"\b"
     return re.search(pattern, source) is not None
+
+
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
 
 
 def _has_vacuous_true_target(source: str, declaration_name: str) -> bool:

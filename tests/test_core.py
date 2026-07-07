@@ -147,6 +147,9 @@ from ai_statistician.formal_verifier_agentic_proof_source_theorem_promotion_queu
 from ai_statistician.formal_verifier_agentic_proof_source_theorem_target_resolution import (
     export_formal_verifier_agentic_proof_source_theorem_target_resolution,
 )
+from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator import (
+    export_formal_verifier_agentic_proof_source_theorem_integrator,
+)
 from ai_statistician.formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from ai_statistician.formalization_delta_plan import build_formalization_delta_plan
 from ai_statistician.formalization_target_audit import audit_formalization_targets
@@ -4554,6 +4557,185 @@ class SystemTests(unittest.TestCase):
             queue_after_row["target_location_preflight"]["target_lean_line"],
             materialized_row["target_lean_line"],
         )
+
+    def test_source_theorem_promotion_chain_normalizes_serialized_false_flags(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact_verifier_dir = root / "artifact_verifier"
+            artifact_verifier_dir.mkdir()
+            candidate = root / "exact_source.lean"
+            candidate.write_text(
+                "theorem split_conformal_coverage (coverage_claim : Prop)\n"
+                "    (h_coverage : coverage_claim) : coverage_claim := by\n"
+                "  exact h_coverage\n",
+                encoding="utf-8",
+            )
+            (
+                artifact_verifier_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+            ).write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "artifact_verification_id": (
+                                    "formal_verifier_agentic_proof_execution_artifact_verifier:string_false"
+                                ),
+                                "materialization_id": "materialization:string_false",
+                                "execution_queue_id": "execution:string_false",
+                                "display_name": "split conformal route probe",
+                                "target_theorem_name": "split_conformal_coverage",
+                                "target_lean_declaration": (
+                                    "split_conformal_coverage"
+                                ),
+                                "candidate_artifact_path": str(candidate),
+                                "artifact_kernel_verified": "false",
+                                "source_theorem_kernel_verified": "false",
+                                "source_theorem_target_known": "false",
+                                "source_theorem_target_provenance": {
+                                    "source_theorem_target_known": "false",
+                                    "target_lean_declaration": (
+                                        "split_conformal_coverage"
+                                    ),
+                                },
+                                "verifier": "local.lean",
+                                "verification_strength": "artifact_probe",
+                                "verification_status": (
+                                    "ARTIFACT_LOCAL_LEAN_FAILED"
+                                ),
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            promotion = (
+                export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+                    artifact_verifier_dir,
+                    root / "promotion_queue",
+                )
+            )
+
+            self.assertEqual(promotion["n_artifact_kernel_verified_inputs"], 0)
+            self.assertEqual(promotion["n_source_theorem_kernel_verified"], 0)
+            self.assertEqual(promotion["n_ready_for_source_theorem_integration"], 0)
+            self.assertEqual(
+                promotion["n_needs_source_theorem_target_resolution"],
+                0,
+            )
+            self.assertEqual(promotion["n_blocked_artifact_verification_failed"], 1)
+            promotion_row = promotion["rows"][0]
+            self.assertFalse(promotion_row["artifact_kernel_verified"])
+            self.assertFalse(promotion_row["source_theorem_kernel_verified"])
+            self.assertFalse(promotion_row["source_theorem_target_known"])
+            self.assertFalse(
+                promotion_row["source_theorem_target_provenance"][
+                    "source_theorem_target_known"
+                ]
+            )
+            self.assertEqual(
+                promotion_row["promotion_status"],
+                "BLOCKED_ARTIFACT_VERIFICATION_FAILED",
+            )
+
+            route_dir = root / "formal_verifier_queue"
+            route_dir.mkdir()
+            (route_dir / "formal_verifier_queue_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "item_id": "formal_verifier_queue:split",
+                                "route_id": "theorem_route:split",
+                                "target_theorem_name": "split_conformal_coverage",
+                                "theorem_statement": (
+                                    "theorem split_conformal_coverage : True := by trivial"
+                                ),
+                                "source_theorem_lean_file": (
+                                    "StatInference/Conformal.lean"
+                                ),
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            target_resolution = (
+                export_formal_verifier_agentic_proof_source_theorem_target_resolution(
+                    root / "promotion_queue",
+                    root / "target_resolution",
+                    formal_verifier_queue_dir=route_dir,
+                )
+            )
+
+            self.assertEqual(target_resolution["n_blocked_artifact_kernel_required"], 1)
+            self.assertEqual(target_resolution["n_resolved_source_theorem_targets"], 0)
+            self.assertEqual(target_resolution["n_overlay_rows"], 0)
+            target_row = target_resolution["rows"][0]
+            self.assertFalse(target_row["artifact_kernel_verified"])
+            self.assertFalse(target_row["source_theorem_target_known_input"])
+            self.assertFalse(target_row["source_theorem_target_known"])
+            self.assertEqual(
+                target_row["resolution_status"],
+                "BLOCKED_ARTIFACT_KERNEL_REQUIRED",
+            )
+
+            integrator_queue_dir = root / "integrator_queue"
+            integrator_queue_dir.mkdir()
+            (
+                integrator_queue_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            ).write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "source_theorem_promotion_id": (
+                                    "source_theorem_promotion:string_false"
+                                ),
+                                "promotion_status": (
+                                    "READY_FOR_SOURCE_THEOREM_INTEGRATION"
+                                ),
+                                "target_theorem_name": "split_conformal_coverage",
+                                "candidate_artifact_path": str(candidate),
+                                "artifact_kernel_verified": "false",
+                                "source_theorem_target_known": "false",
+                                "source_theorem_target_provenance": {
+                                    "source_theorem_target_known": "false",
+                                    "target_lean_declaration": (
+                                        "split_conformal_coverage"
+                                    ),
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            integrator = export_formal_verifier_agentic_proof_source_theorem_integrator(
+                integrator_queue_dir,
+                root / "integrator",
+                local_lean=False,
+            )
+            integrator_row = integrator["rows"][0]
+            self.assertFalse(integrator_row["artifact_kernel_verified"])
+            self.assertFalse(integrator_row["source_theorem_target_known"])
+            self.assertFalse(
+                integrator_row["source_theorem_target_provenance"][
+                    "source_theorem_target_known"
+                ]
+            )
+            self.assertEqual(
+                integrator_row["integration_status"],
+                "EXACT_SOURCE_THEOREM_READY_FOR_LOCAL_LEAN",
+            )
+            self.assertEqual(
+                integrator["proof_evidence_status"],
+                "SOURCE_THEOREM_INTEGRATOR_NOT_PROOF_EVIDENCE",
+            )
 
     def test_lean_rag_package_audit_loads_registry_seed_queries_and_manifest(self) -> None:
         root = Path("runs/test_lean_rag_package_fixture")

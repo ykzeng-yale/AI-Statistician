@@ -199,8 +199,10 @@ def _resolution_row(
     target_theorem_name = str(row.get("target_theorem_name", ""))
     candidate_artifact_path = str(row.get("candidate_artifact_path", ""))
     promotion_status = str(row.get("promotion_status", ""))
-    artifact_kernel_verified = bool(row.get("artifact_kernel_verified", False))
-    source_target_known_input = bool(row.get("source_theorem_target_known", False))
+    artifact_kernel_verified = _bool_like(row.get("artifact_kernel_verified", False))
+    source_target_known_input = _bool_like(
+        row.get("source_theorem_target_known", False)
+    )
     if not source_theorem_promotion_id:
         errors.append("source_theorem_promotion_id missing")
     if not artifact_verification_id:
@@ -406,6 +408,18 @@ def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
         errors.append(f"failed to parse {path}: {type(exc).__name__}: {exc}")
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
 
 
 def _markdown_report(payload: dict[str, object]) -> str:

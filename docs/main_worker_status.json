@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T02:01:59Z",
+  "updated_at": "2026-07-07T02:06:43Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -604,6 +604,8 @@
       "tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py::test_exact_semantic_definition_lean_repair_executor_string_false_review_flags_stay_false",
       "tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_typechecked_review_recheck_queue_normalizes_source_row_string_false_flags"
     ],
+    "source_theorem_promotion_chain_bool_patch": "Formal verifier source-theorem promotion queue, target-resolution, and integrator rows now normalize serialized false booleans for artifact_kernel_verified, source_theorem_kernel_verified, and source_theorem_target_known before promotion statuses, route overlays, provenance, or integration rows are emitted. A verifier row with string \"false\" can no longer become source-theorem kernel evidence, target-known promotion, or route-ledger overlay input.",
+    "source_theorem_promotion_chain_bool_test": "tests/test_core.py::SystemTests::test_source_theorem_promotion_chain_normalizes_serialized_false_flags",
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2636,6 +2638,11 @@
     ".venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py::test_exact_semantic_definition_lean_repair_executor_string_false_review_flags_stay_false tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_typechecked_review_recheck_queue_normalizes_source_row_string_false_flags -q --tb=short # 2 passed after exact semantic worker recheck bool patch",
     ".venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py -q --tb=short # 24 passed after exact semantic worker recheck bool patch",
     ".venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_source_lookup.py -q --tb=short # 33 passed after exact semantic worker recheck bool patch",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"typechecked_review_recheck_queue or source_theorem_exact_semantic_definition and not full\" --tb=short # 25 passed, 887 deselected after exact semantic worker recheck bool patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"typechecked_review_recheck_queue or source_theorem_exact_semantic_definition and not full\" --tb=short # 25 passed, 887 deselected after exact semantic worker recheck bool patch",
+    ".venv/bin/python -m py_compile ai_statistician/formal_verifier_agentic_proof_source_theorem_promotion_queue.py ai_statistician/formal_verifier_agentic_proof_source_theorem_target_resolution.py ai_statistician/formal_verifier_agentic_proof_source_theorem_integrator.py tests/test_core.py # passed after source theorem promotion-chain bool patch",
+    ".venv/bin/python -m pytest tests/test_core.py::SystemTests::test_source_theorem_promotion_chain_normalizes_serialized_false_flags -q --tb=short # 1 passed after source theorem promotion-chain bool patch",
+    ".venv/bin/python -m pytest tests/test_core.py -q -k \"source_theorem_promotion_chain or agentic_proof_execution_materializer\" --tb=short # 2 passed, 289 deselected after source theorem promotion-chain bool patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"source_theorem_promotion_queue_rows or source_theorem_integrator_blocker\" --tb=short # 2 passed, 910 deselected after source theorem promotion-chain bool patch",
+    "rg -n \"bool\\\\([^\\\\n]*(artifact_kernel_verified|source_theorem_kernel_verified|source_theorem_target_known)\" ai_statistician/formal_verifier_agentic_proof_source_theorem_promotion_queue.py ai_statistician/formal_verifier_agentic_proof_source_theorem_target_resolution.py ai_statistician/formal_verifier_agentic_proof_source_theorem_integrator.py # no raw bool promotion parsing remains in patched modules"
   ]
 }
