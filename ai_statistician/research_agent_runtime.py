@@ -48065,19 +48065,21 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 execution_status = str(input_summary.get("execution_status", "") or "").strip()
             if execution_status:
                 diagnostics.append(f"execution_status={execution_status}")
-            local_lean_compiled = bool(row.get("local_lean_compiled", False))
+            local_lean_compiled = _bool_like(row.get("local_lean_compiled", False))
             if isinstance(input_summary, Mapping):
                 local_lean_compiled = bool(
                     local_lean_compiled
-                    or input_summary.get("local_lean_compiled", False)
+                    or _bool_like(input_summary.get("local_lean_compiled", False))
                 )
-            local_definition_lean_compiled = bool(
+            local_definition_lean_compiled = _bool_like(
                 row.get("local_definition_lean_compiled", False)
             )
             if isinstance(input_summary, Mapping):
                 local_definition_lean_compiled = bool(
                     local_definition_lean_compiled
-                    or input_summary.get("local_definition_lean_compiled", False)
+                    or _bool_like(
+                        input_summary.get("local_definition_lean_compiled", False)
+                    )
                 )
             semantic_definition_typecheck_evidence_status = str(
                 row.get("semantic_definition_typecheck_evidence_status", "") or ""
@@ -48117,14 +48119,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             ):
                 local_definition_lean_compiled = True
                 diagnostics.append("local_definition_lean_compiled=true")
-            semantic_import_candidate_ready = bool(
+            semantic_import_candidate_ready = _bool_like(
                 row.get("semantic_definition_import_candidate_ready", False)
             )
             if isinstance(input_summary, Mapping):
                 semantic_import_candidate_ready = bool(
                     semantic_import_candidate_ready
-                    or input_summary.get(
-                        "semantic_definition_import_candidate_ready", False
+                    or _bool_like(
+                        input_summary.get(
+                            "semantic_definition_import_candidate_ready", False
+                        )
                     )
                 )
             if semantic_import_candidate_ready:
@@ -48780,12 +48784,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 or ""
             ).strip()
             local_lean_compiled = bool(
-                row.get("local_lean_compiled", False)
-                or input_summary.get("local_lean_compiled", False)
+                _bool_like(row.get("local_lean_compiled", False))
+                or _bool_like(input_summary.get("local_lean_compiled", False))
             )
             local_definition_lean_compiled = bool(
-                row.get("local_definition_lean_compiled", False)
-                or input_summary.get("local_definition_lean_compiled", False)
+                _bool_like(row.get("local_definition_lean_compiled", False))
+                or _bool_like(input_summary.get("local_definition_lean_compiled", False))
             )
             semantic_definition_typecheck_evidence_status = str(
                 row.get("semantic_definition_typecheck_evidence_status", "")
@@ -48798,8 +48802,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 or ""
             ).strip()
             semantic_import_candidate_ready = bool(
-                row.get("semantic_definition_import_candidate_ready", False)
-                or input_summary.get("semantic_definition_import_candidate_ready", False)
+                _bool_like(row.get("semantic_definition_import_candidate_ready", False))
+                or _bool_like(
+                    input_summary.get(
+                        "semantic_definition_import_candidate_ready", False
+                    )
+                )
             )
             if generated_materialized_candidate_review_required:
                 local_definition_lean_compiled = True
@@ -52683,9 +52691,9 @@ def _source_theorem_exact_semantic_definition_candidate_review_priority(
     artifact_path = (
         _source_theorem_exact_semantic_definition_candidate_artifact_path(row)
     )
-    if bool(row.get("local_definition_lean_compiled", False)):
+    if _bool_like(row.get("local_definition_lean_compiled", False)):
         score += 100
-    if bool(row.get("semantic_definition_import_candidate_ready", False)):
+    if _bool_like(row.get("semantic_definition_import_candidate_ready", False)):
         score += 260
     if runtime_queue_status == "PENDING_REVIEWED_SEMANTIC_DEFINITION_IMPORT":
         score += 120
@@ -52728,7 +52736,7 @@ def _source_theorem_exact_semantic_definition_typechecked_candidate_rows(
             row.get("semantic_definition_typecheck_evidence_status", "") or ""
         ).strip()
         is_typechecked_candidate = bool(
-            row.get("local_definition_lean_compiled", False)
+            _bool_like(row.get("local_definition_lean_compiled", False))
             or semantic_status
             in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
         )
@@ -52768,7 +52776,7 @@ def _source_theorem_exact_candidate_repair_diagnostic_rows(
             _source_theorem_exact_semantic_definition_candidate_review_priority(row),
             99,
         )
-        if bool(row.get("semantic_definition_import_candidate_ready", False)):
+        if _bool_like(row.get("semantic_definition_import_candidate_ready", False)):
             return 1000 + candidate_score
         if (
             runtime_queue_status
@@ -53058,7 +53066,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
     exact_semantic_definition_compiled_import_candidates = tuple(
         row
         for row in source_theorem_exact_candidate_repairs
-        if bool(row.get("semantic_definition_import_candidate_ready", False))
+        if _bool_like(row.get("semantic_definition_import_candidate_ready", False))
     )
     exact_semantic_definition_typechecked_candidates = tuple(
         _source_theorem_exact_semantic_definition_typechecked_candidate_rows(
@@ -55737,7 +55745,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
                 "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
                 "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
-                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+                "local_lean_compiled": _bool_like(
+                    row.get("local_lean_compiled", False)
+                ),
                 "trigger": str(row.get("trigger", "") or ""),
                 "proof_evidence_status": (
                     "COMPILED_SEMANTIC_DEFINITION_IMPORT_CANDIDATE_NOT_PROOF_EVIDENCE"
@@ -55755,7 +55765,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "candidate_artifact_path": str(
                     row.get("candidate_artifact_path", "") or ""
                 ),
-                "local_definition_lean_compiled": bool(
+                "local_definition_lean_compiled": _bool_like(
                     row.get("local_definition_lean_compiled", False)
                 ),
                 "semantic_definition_typecheck_evidence_status": str(
@@ -55855,15 +55865,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "candidate_source_file": str(
                     row.get("candidate_source_file", "") or ""
                 ),
-                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
-                "local_definition_lean_compiled": bool(
+                "local_lean_compiled": _bool_like(
+                    row.get("local_lean_compiled", False)
+                ),
+                "local_definition_lean_compiled": _bool_like(
                     row.get("local_definition_lean_compiled", False)
                 ),
                 "semantic_definition_typecheck_evidence_status": str(
                     row.get("semantic_definition_typecheck_evidence_status", "")
                     or ""
                 ),
-                "semantic_definition_import_candidate_ready": bool(
+                "semantic_definition_import_candidate_ready": _bool_like(
                     row.get("semantic_definition_import_candidate_ready", False)
                 ),
                 "verifier_gate_status": str(
