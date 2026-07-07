@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T00:47:00Z",
+  "updated_at": "2026-07-07T01:02:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -589,6 +589,8 @@
     ],
     "formalizer_repair_feedback_string_bool_patch": "Formalizer Lean-candidate materialization and repair-feedback classification now parse string local Lean booleans before counting checked/compiled candidates, setting candidate kernel flags, deciding whether local Lean failed, serializing repair diagnostics, and refreshing stale repair contracts. A replayed candidate row with local_lean_attempted=\"true\" and local_lean_compiled=\"false\" now routes non-proof ProofEngineer repair feedback instead of disappearing.",
     "formalizer_repair_feedback_string_bool_test": "tests/test_research_agent_runtime.py::test_formalizer_repair_feedback_string_false_local_lean_failed",
+    "artifact_verifier_bridge_target_known_bool_patch": "Runtime source-theorem artifact-verifier bridge feedback now parses source_theorem_target_known provenance before emitting exact source-theorem candidate repair rows. A failed helper artifact with source_theorem_target_known=\"false\" is skipped instead of being promoted into source-theorem repair memory; source-theorem verifier booleans are canonicalized in the emitted non-proof learning row.",
+    "artifact_verifier_bridge_target_known_bool_test": "tests/test_research_agent_runtime.py::test_artifact_verifier_bridge_string_false_target_known_is_not_source_repair",
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2601,6 +2603,9 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"component_gate or pseudo_formal_packet_component_gate or capability_evidence_ok\" # 7 passed, 902 deselected after component-gate replay string-bool routing patch",
     ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after Formalizer repair-feedback string-bool routing patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_formalizer_repair_feedback_string_false_local_lean_failed tests/test_research_agent_runtime.py::test_formalizer_lean_candidate_timeout_feedback_is_actionable tests/test_research_agent_runtime.py::test_formalizer_lean_candidate_precheck_import_feedback_is_actionable -q # 3 passed after Formalizer repair-feedback string-bool routing patch",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_candidate_materialization or formalizer_lean_candidate_repair_feedback or stale_local_lean_contract or string_false_local_lean\" # 19 passed, 891 deselected after Formalizer repair-feedback string-bool routing patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_candidate_materialization or formalizer_lean_candidate_repair_feedback or stale_local_lean_contract or string_false_local_lean\" # 19 passed, 891 deselected after Formalizer repair-feedback string-bool routing patch",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after artifact-verifier target-known bool routing patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_artifact_verifier_bridge_string_false_target_known_is_not_source_repair tests/test_research_agent_runtime.py::test_runtime_learning_memory_cli_string_false_verified_flags_match_runtime tests/test_research_agent_runtime.py::test_runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic -q # 3 passed after artifact-verifier target-known bool routing patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"artifact_verifier_bridge or runtime_learning_memory_cli_string_false or loader_string_false_verified or proof_body_adapter or source_theorem_artifact\" # 8 passed, 903 deselected after artifact-verifier target-known bool routing patch"
   ]
 }

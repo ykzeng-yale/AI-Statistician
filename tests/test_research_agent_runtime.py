@@ -11377,6 +11377,85 @@ def test_runtime_learning_memory_cli_string_false_verified_flags_match_runtime()
     assert cli_module._runtime_learning_memory_pin_priority(rows[1]) == 93
 
 
+def test_artifact_verifier_bridge_string_false_target_known_is_not_source_repair(
+    tmp_path: Path,
+) -> None:
+    verifier_manifest_path = tmp_path / "artifact_verifier_manifest.json"
+    verifier_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeSourceTheoremArtifactVerifierManifest",
+                "rows": [
+                    {
+                        "artifact_verification_id": (
+                            "artifact_verification:diagnostic_helper"
+                        ),
+                        "question_id": "conformal_prediction_coverage",
+                        "verification_status": "ARTIFACT_LOCAL_LEAN_FAILED",
+                        "target_theorem_name": (
+                            "split_conformal_core_prop_helper"
+                        ),
+                        "target_lean_declaration": (
+                            "split_conformal_core_prop_helper"
+                        ),
+                        "source_theorem_target_known": "false",
+                        "candidate_artifact_path": "runs/helper.lean",
+                        "local_lean_checked": "true",
+                        "local_lean_compiled": "false",
+                        "artifact_kernel_verified": "false",
+                        "source_theorem_kernel_verified": "false",
+                        "diagnostics": ["helper is not the source theorem"],
+                    },
+                    {
+                        "artifact_verification_id": (
+                            "artifact_verification:source_theorem"
+                        ),
+                        "question_id": "conformal_prediction_coverage",
+                        "verification_status": "ARTIFACT_LOCAL_LEAN_FAILED",
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": "true",
+                            "source_theorem_goal_id": (
+                                "split_conformal_finite_sample_coverage"
+                            ),
+                        },
+                        "candidate_artifact_path": "runs/source_theorem.lean",
+                        "local_lean_checked": "true",
+                        "local_lean_compiled": "false",
+                        "artifact_kernel_verified": "false",
+                        "source_theorem_kernel_verified": "false",
+                        "diagnostics": ["source theorem proof body failed"],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rows = runtime_module._runtime_source_theorem_artifact_verifier_bridge_learning_rows(
+        {"artifact_verifier_manifest": str(verifier_manifest_path)}
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert row["source_theorem_target_known"] is True
+    assert row["input_summary"]["source_theorem_target_known"] is True
+    assert row["input_summary"]["local_lean_checked"] is True
+    assert row["input_summary"]["local_lean_compiled"] is False
+    assert row["input_summary"]["artifact_kernel_verified"] is False
+    assert row["input_summary"]["source_theorem_kernel_verified"] is False
+    assert row["candidate_artifact_path"] == "runs/source_theorem.lean"
+
+
 def test_runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic(
     tmp_path: Path,
 ) -> None:

@@ -73469,7 +73469,8 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
             continue
         if _bool_like(row.get("source_theorem_kernel_verified", False)):
             continue
-        if not bool(row.get("source_theorem_target_known", False)):
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        if _source_theorem_target_known_value(source_target_provenance) is not True:
             continue
         status = str(row.get("verification_status", "") or "")
         if status not in {
@@ -73482,7 +73483,6 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
             or row.get("target_lean_declaration", "")
             or ""
         )
-        source_target_provenance = _source_theorem_target_provenance_from_row(row)
         if target_theorem_name:
             source_target_provenance.setdefault(
                 "target_lean_declaration",
@@ -73545,12 +73545,16 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
                     "candidate_artifact_path": str(
                         row.get("candidate_artifact_path", "") or ""
                     ),
-                    "local_lean_checked": bool(row.get("local_lean_checked", False)),
-                    "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
-                    "artifact_kernel_verified": bool(
+                    "local_lean_checked": _bool_like(
+                        row.get("local_lean_checked", False)
+                    ),
+                    "local_lean_compiled": _bool_like(
+                        row.get("local_lean_compiled", False)
+                    ),
+                    "artifact_kernel_verified": _bool_like(
                         row.get("artifact_kernel_verified", False)
                     ),
-                    "source_theorem_kernel_verified": bool(
+                    "source_theorem_kernel_verified": _bool_like(
                         row.get("source_theorem_kernel_verified", False)
                     ),
                     "diagnostics": diagnostics[:8],
@@ -73580,13 +73584,7 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
                     row.get("candidate_artifact_path", "") or ""
                 ),
                 "target_theorem_name": target_theorem_name,
-                "source_theorem_target_known": bool(
-                    source_target_provenance.get(
-                        "source_theorem_target_known",
-                        False,
-                    )
-                    or row.get("source_theorem_target_known", False)
-                ),
+                "source_theorem_target_known": True,
                 "source_theorem_target_provenance": source_target_provenance,
                 "semantic_alignment_constraints": list(
                     source_target_provenance.get(
