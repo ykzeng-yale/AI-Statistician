@@ -6058,11 +6058,16 @@ class SystemTests(unittest.TestCase):
                 ),
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders": 1,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks": 1,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks": 1,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks": 0,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": 1,
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks": 2,
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results": 2,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence": "pf_lean_environment_tasks=1 pf_environment_results=1",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_blocker": "",
                 "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": True,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran": True,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
@@ -6178,6 +6183,18 @@ class SystemTests(unittest.TestCase):
         )
         self.assertEqual(
             semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks"
+            ],
+            1,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks"
+            ],
+            0,
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results"
             ],
             1,
@@ -6203,6 +6220,17 @@ class SystemTests(unittest.TestCase):
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body"
             ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed"
+            ]
+        )
+        self.assertIn(
+            "pf_environment_results=1",
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence"
+            ],
         )
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][
@@ -6837,6 +6865,33 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "pseudo-formal exact semantic-definition work orders",
             " ".join(exact_lookup_missing_s13["issues"]),
+        )
+        env_handoff_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        env_handoff_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed": False,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence": "pf_lean_environment_tasks=1 pf_environment_results=0",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_blocker": "PF-origin environment repair was dropped",
+            }
+        )
+        env_handoff_missing_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_pf_env_handoff_missing"),
+            system_audit_payload=env_handoff_missing_payload,
+        )
+        env_handoff_missing_s13 = next(
+            row
+            for row in env_handoff_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(env_handoff_missing_s13["status"], "CAPACITY_GAP")
+        self.assertFalse(
+            env_handoff_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed"
+            ]
+        )
+        self.assertIn(
+            "PF/BV-origin environment repair consumption",
+            " ".join(env_handoff_missing_s13["issues"]),
         )
         external_pf_bv_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         external_pf_bv_payload["counts"][

@@ -1093,6 +1093,28 @@ def _suite_rows(
         runtime_pf_exact_semantic_work_orders <= 0
         or runtime_pf_exact_semantic_source_lookup_consumed
     )
+    runtime_pf_exact_semantic_environment_upstream_tasks = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks"
+        )
+    )
+    runtime_pf_exact_semantic_environment_upstream_component_gate_tasks = _int(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks"
+        )
+    )
+    runtime_pf_exact_semantic_environment_handoff_consumed = _bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed",
+            True,
+        )
+    )
+    runtime_pf_exact_semantic_environment_handoff_ok = (
+        runtime_pf_exact_semantic_environment_upstream_tasks
+        + runtime_pf_exact_semantic_environment_upstream_component_gate_tasks
+        <= 0
+        or runtime_pf_exact_semantic_environment_handoff_consumed
+    )
     runtime_source_theorem_formal_environment_proof_body_executor_ran = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran"
@@ -1741,6 +1763,10 @@ def _suite_rows(
     if not runtime_pf_exact_semantic_source_lookup_ok:
         s13_issues.append(
             "pseudo-formal exact semantic-definition work orders did not reach the exact semantic-definition source lookup/review loop as non-proof definition-authoring work"
+        )
+    if not runtime_pf_exact_semantic_environment_handoff_ok:
+        s13_issues.append(
+            "pseudo-formal exact semantic-definition Lean repair produced Lean environment repair tasks, but PF/BV-origin environment repair consumption was not preserved with an explicit non-proof boundary"
         )
     if not runtime_formal_gap_planner_ok:
         s13_issues.append(
@@ -2581,6 +2607,7 @@ def _suite_rows(
                 and runtime_pf_bv_contract_ok
                 and runtime_pf_semantic_bridge_ok
                 and runtime_pf_exact_semantic_source_lookup_ok
+                and runtime_pf_exact_semantic_environment_handoff_ok
                 and runtime_formal_gap_planner_ok
                 and runtime_gap_routing_retention_ok
                 and runtime_gap_routing_retention_selection_ok
@@ -2995,6 +3022,12 @@ def _suite_rows(
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks": counts.get(
                     "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_tasks"
                 ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks"
+                ),
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": counts.get(
                     "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results"
                 ),
@@ -3009,6 +3042,15 @@ def _suite_rows(
                 ),
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": counts.get(
                     "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence"
+                ),
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_blocker": counts.get(
+                    "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_blocker"
                 ),
                 "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup": counts.get(
                     "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"

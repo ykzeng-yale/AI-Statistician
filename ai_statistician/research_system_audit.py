@@ -1967,6 +1967,12 @@ async def run_research_system_audit(
             {},
         )
     )
+    runtime_pf_exact_semantic_environment_repair_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped",
+            {},
+        )
+    )
     runtime_architect_deferred_meta_scorecard_row = (
         runtime_scorecard_rows_by_id.get(
             "architect_deferred_meta_capability_gaps_visible",
@@ -3688,6 +3694,14 @@ async def run_research_system_audit(
                 "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
                 0,
             ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal",
+                0,
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks": research_agent_runtime_audit_manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate",
+                0,
+            ),
             "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": research_agent_runtime_audit_manifest.get(
                 "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal",
                 0,
@@ -3707,6 +3721,26 @@ async def run_research_system_audit(
             "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": research_agent_runtime_audit_manifest.get(
                 "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
                 False,
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_consumed": bool(
+                runtime_pf_exact_semantic_environment_repair_scorecard_row.get(
+                    "passed",
+                    True,
+                )
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence": str(
+                runtime_pf_exact_semantic_environment_repair_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_blocker": str(
+                runtime_pf_exact_semantic_environment_repair_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
             ),
             "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge": bool(
                 runtime_pf_semantic_bridge_scorecard_row.get("passed", True)
