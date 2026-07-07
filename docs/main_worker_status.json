@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T01:47:38Z",
+  "updated_at": "2026-07-07T01:51:04Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -595,6 +595,8 @@
     "exact_semantic_candidate_priority_string_bool_test": "tests/test_research_agent_runtime.py::test_formalizer_summary_ignores_string_false_semantic_definition_compile_priority",
     "exact_semantic_policy_pack_bool_parser_patch": "Exact semantic-definition placeholder policy packs remain the data-backed home for task-family semantic rules, and the policy parser now normalizes string booleans for candidate risk-rule case_sensitive flags. A generated or external policy row with case_sensitive=\"false\" now actually runs case-insensitive semantic-risk matching instead of being treated as truthy by Python bool().",
     "exact_semantic_policy_pack_bool_parser_test": "tests/test_exact_semantic_definition_policy.py::test_policy_pack_string_false_case_sensitive_is_case_insensitive",
+    "source_semantic_bridge_executor_feedback_bool_patch": "Source-theorem semantic primitive bridge materialization now parses string booleans from exact proof-body executor feedback before deciding whether the source theorem is already kernel verified, whether the source theorem target is known, and whether proof-body attempts succeeded. A source_theorem_kernel_verified=\"false\" learning row now still emits non-proof semantic-primitive work orders, while source_theorem_target_known=\"false\" stays false in queue rows, bridge checks, proof-library expansion queues, adapter-instantiation queues, and runtime-learning check context.",
+    "source_semantic_bridge_executor_feedback_bool_test": "tests/test_source_theorem_semantic_primitive_bridge.py::test_source_semantic_bridge_string_false_executor_flags_do_not_drop_handoff",
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2616,6 +2618,9 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"semantic_definition_compile_priority or typechecked_semantic_definition_candidate or current_reviewed_semantic_candidates or exact_semantic_definition_candidate_review or exact_semantic_definition_lean_repair_execution\" --tb=short # 5 passed, 907 deselected after exact semantic-definition candidate priority string-bool patch",
     ".venv/bin/python -m py_compile ai_statistician/exact_semantic_definition_policy.py tests/test_exact_semantic_definition_policy.py # passed after exact semantic-definition policy-pack bool parser patch",
     ".venv/bin/python -m pytest tests/test_exact_semantic_definition_policy.py -q --tb=short # 7 passed after exact semantic-definition policy-pack bool parser patch",
-    ".venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py -q -k \"placeholder_policy or authoring_task_request_uses_premise_semantic_binders or authoring_task_exports_adapter_object_dependencies or semantic_risk\" --tb=short # 2 passed, 21 deselected after exact semantic-definition policy-pack bool parser patch"
+    ".venv/bin/python -m pytest tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py -q -k \"placeholder_policy or authoring_task_request_uses_premise_semantic_binders or authoring_task_exports_adapter_object_dependencies or semantic_risk\" --tb=short # 2 passed, 21 deselected after exact semantic-definition policy-pack bool parser patch",
+    ".venv/bin/python -m py_compile ai_statistician/source_theorem_semantic_primitive_proofengineer_bridge.py tests/test_source_theorem_semantic_primitive_bridge.py # passed after source semantic bridge executor-feedback bool patch",
+    ".venv/bin/python -m pytest tests/test_source_theorem_semantic_primitive_bridge.py::test_source_semantic_bridge_string_false_executor_flags_do_not_drop_handoff tests/test_source_theorem_semantic_primitive_bridge.py::test_source_semantic_bridge_materializes_queue_from_proof_body_executor_feedback tests/test_source_theorem_semantic_primitive_bridge.py::test_source_semantic_bridge_materializes_queue_from_semantic_alignment_feedback -q --tb=short # 3 passed after source semantic bridge executor-feedback bool patch",
+    ".venv/bin/python -m pytest tests/test_source_theorem_semantic_primitive_bridge.py -q --tb=short # 15 passed after source semantic bridge executor-feedback bool patch"
   ]
 }

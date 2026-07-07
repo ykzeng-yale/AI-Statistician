@@ -971,6 +971,82 @@ def test_source_semantic_bridge_materializes_queue_from_proof_body_executor_feed
     assert manifest["runtime_learning_ready"] is True
 
 
+def test_source_semantic_bridge_string_false_executor_flags_do_not_drop_handoff(
+    tmp_path: Path,
+) -> None:
+    executor_dir = tmp_path / "proof_body_executor"
+    learning_dir = executor_dir / "runtime_learning_export"
+    learning_dir.mkdir(parents=True)
+    _write_jsonl(
+        learning_dir / "runtime_learning_rows.jsonl",
+        [
+            {
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "execution_result_id": (
+                    "exact_source_theorem_proof_body_execution_result:string-false"
+                ),
+                "execution_queue_id": (
+                    "exact_source_theorem_proof_body_execution_queue:string-false"
+                ),
+                "target_theorem_name": "split_conformal_coverage",
+                "source_theorem_kernel_verified": "false",
+                "source_theorem_target_known": "false",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": "false",
+                    "target_lean_declaration": "",
+                },
+                "input_summary": {
+                    "candidate_artifact_path": "runs/proof_body_attempt.lean",
+                    "failure_classification": (
+                        "formal_environment_placeholder_primitives"
+                    ),
+                    "formal_environment_placeholder_symbols": [
+                        "Exchangeable",
+                        "orderStat",
+                    ],
+                    "proof_body_attempted": "true",
+                    "proof_body_attempt_success": "false",
+                    "source_theorem_kernel_verified": "false",
+                    "source_theorem_target_known": "false",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "false",
+                        "target_lean_declaration": "",
+                    },
+                },
+            }
+        ],
+    )
+
+    manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        proof_body_executor_dir=executor_dir,
+        question_id="conformal_prediction_coverage",
+    )
+
+    queue_rows = [
+        json.loads(line)
+        for line in Path(str(manifest["source_queue_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    by_symbol = {row["placeholder_symbol"]: row for row in queue_rows}
+    assert set(by_symbol) == {"Exchangeable", "orderStat"}
+    assert by_symbol["Exchangeable"]["source_theorem_target_known"] is False
+    assert by_symbol["orderStat"]["source_theorem_target_known"] is False
+    assert by_symbol["Exchangeable"]["proof_body_attempted"] is True
+    assert by_symbol["Exchangeable"]["proof_body_attempt_success"] is False
+
+    checks_by_symbol = {row["placeholder_symbol"]: row for row in manifest["checks"]}
+    assert checks_by_symbol["Exchangeable"]["source_theorem_target_known"] is False
+    assert checks_by_symbol["orderStat"]["source_theorem_target_known"] is False
+    assert checks_by_symbol["Exchangeable"]["proof_body_attempted"] is True
+    assert checks_by_symbol["Exchangeable"]["proof_body_attempt_success"] is False
+    assert manifest["proof_evidence_status"] == (
+        "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
+    )
+
+
 def test_source_semantic_bridge_materializes_queue_from_semantic_alignment_feedback(
     tmp_path: Path,
 ) -> None:

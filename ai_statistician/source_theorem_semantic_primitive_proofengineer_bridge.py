@@ -57,6 +57,23 @@ _SOURCE_TO_BRIDGE_PREMISE_CONTEXT_LIST_KEYS = (
 )
 
 
+def _bool_like(value: Any, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off", ""}:
+            return False
+        return default
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
+
+
 @lru_cache(maxsize=8)
 def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     path = Path(policy_path) if policy_path else DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH
@@ -430,9 +447,9 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
         learning_task = str(row.get("learning_task", "") or "")
         if learning_task != "exact_source_theorem_proof_body_execution_feedback":
             continue
-        if bool(
-            row.get("source_theorem_kernel_verified", False)
-            or input_summary.get("source_theorem_kernel_verified", False)
+        if (
+            _bool_like(row.get("source_theorem_kernel_verified", False))
+            or _bool_like(input_summary.get("source_theorem_kernel_verified", False))
         ):
             continue
         failure_classification = str(
@@ -628,10 +645,14 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                         row.get("source_work_order_id", "") or ""
                     ),
                     "target_theorem_name": target_theorem_name,
-                    "source_theorem_target_known": bool(
-                        row.get("source_theorem_target_known", False)
-                        or input_summary.get("source_theorem_target_known", False)
-                        or provenance.get("source_theorem_target_known", False)
+                    "source_theorem_target_known": (
+                        _bool_like(row.get("source_theorem_target_known", False))
+                        or _bool_like(
+                            input_summary.get("source_theorem_target_known", False)
+                        )
+                        or _bool_like(
+                            provenance.get("source_theorem_target_known", False)
+                        )
                     ),
                     "source_theorem_target_provenance": provenance,
                     "semantic_alignment_constraints": (
@@ -644,10 +665,10 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                     "failure_classification": failure_classification,
                     "diagnostics": list(input_summary.get("diagnostics", []) or [])[:8],
                     "formal_environment_typeclass_blockers": typeclass_blockers,
-                    "proof_body_attempted": bool(
+                    "proof_body_attempted": _bool_like(
                         input_summary.get("proof_body_attempted", False)
                     ),
-                    "proof_body_attempt_success": bool(
+                    "proof_body_attempt_success": _bool_like(
                         input_summary.get("proof_body_attempt_success", False)
                     ),
                     "proof_body_attempt_summaries": proof_body_attempt_summaries,
@@ -745,10 +766,14 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                         row.get("source_work_order_id", "") or ""
                     ),
                     "target_theorem_name": target_theorem_name,
-                    "source_theorem_target_known": bool(
-                        row.get("source_theorem_target_known", False)
-                        or input_summary.get("source_theorem_target_known", False)
-                        or provenance.get("source_theorem_target_known", False)
+                    "source_theorem_target_known": (
+                        _bool_like(row.get("source_theorem_target_known", False))
+                        or _bool_like(
+                            input_summary.get("source_theorem_target_known", False)
+                        )
+                        or _bool_like(
+                            provenance.get("source_theorem_target_known", False)
+                        )
                     ),
                     "source_theorem_target_provenance": provenance,
                     "semantic_alignment_constraints": (
@@ -761,10 +786,10 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                     "failure_classification": failure_classification,
                     "diagnostics": list(input_summary.get("diagnostics", []) or [])[:8],
                     "formal_environment_typeclass_blockers": typeclass_blockers,
-                    "proof_body_attempted": bool(
+                    "proof_body_attempted": _bool_like(
                         input_summary.get("proof_body_attempted", False)
                     ),
-                    "proof_body_attempt_success": bool(
+                    "proof_body_attempt_success": _bool_like(
                         input_summary.get("proof_body_attempt_success", False)
                     ),
                     "proof_body_attempt_summaries": proof_body_attempt_summaries,
@@ -1252,17 +1277,21 @@ def _bridge_check(
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
         "target_theorem_goal_ids": list(row.get("target_theorem_goal_ids", []) or []),
-        "source_theorem_target_known": bool(
-            row.get("source_theorem_target_known", False)
-            or source_theorem_target_provenance.get("source_theorem_target_known", False)
+        "source_theorem_target_known": (
+            _bool_like(row.get("source_theorem_target_known", False))
+            or _bool_like(
+                source_theorem_target_provenance.get(
+                    "source_theorem_target_known", False
+                )
+            )
         ),
         "source_theorem_target_provenance": source_theorem_target_provenance,
         "semantic_alignment_constraints": semantic_alignment_constraints,
         "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "formal_environment_typeclass_blockers": formal_environment_typeclass_blockers,
-        "proof_body_attempted": bool(row.get("proof_body_attempted", False)),
-        "proof_body_attempt_success": bool(
+        "proof_body_attempted": _bool_like(row.get("proof_body_attempted", False)),
+        "proof_body_attempt_success": _bool_like(
             row.get("proof_body_attempt_success", False)
         ),
         "proof_body_attempt_summaries": proof_body_attempt_summaries,
@@ -1374,7 +1403,7 @@ def _export_exact_goal_shape_proof_library_expansion_queue(
                 "target_theorem_goal_ids": list(
                     check.get("target_theorem_goal_ids", []) or []
                 ),
-                "source_theorem_target_known": bool(
+                "source_theorem_target_known": _bool_like(
                     check.get("source_theorem_target_known", False)
                 ),
                 "source_theorem_target_provenance": dict(
@@ -1534,7 +1563,7 @@ def _export_exact_goal_shape_adapter_instantiation_queue(
                 "target_theorem_goal_ids": list(
                     check.get("target_theorem_goal_ids", []) or []
                 ),
-                "source_theorem_target_known": bool(
+                "source_theorem_target_known": _bool_like(
                     check.get("source_theorem_target_known", False)
                 ),
                 "source_theorem_target_provenance": dict(
@@ -1979,7 +2008,7 @@ def _learning_check_context(row: Mapping[str, Any]) -> dict[str, Any]:
         "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
         "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
         "target_theorem_goal_ids": list(row.get("target_theorem_goal_ids", []) or []),
-        "source_theorem_target_known": bool(
+        "source_theorem_target_known": _bool_like(
             row.get("source_theorem_target_known", False)
         ),
         "source_theorem_target_provenance": dict(
@@ -1992,8 +2021,8 @@ def _learning_check_context(row: Mapping[str, Any]) -> dict[str, Any]:
         "formal_environment_typeclass_blockers": list(
             row.get("formal_environment_typeclass_blockers", []) or []
         ),
-        "proof_body_attempted": bool(row.get("proof_body_attempted", False)),
-        "proof_body_attempt_success": bool(
+        "proof_body_attempted": _bool_like(row.get("proof_body_attempted", False)),
+        "proof_body_attempt_success": _bool_like(
             row.get("proof_body_attempt_success", False)
         ),
         "proof_body_attempt_summaries": list(
@@ -2009,10 +2038,10 @@ def _learning_check_context(row: Mapping[str, Any]) -> dict[str, Any]:
         "placeholder_definition_status": str(
             row.get("placeholder_definition_status", "") or ""
         ),
-        "source_theorem_ready_for_exact_proof_body": bool(
+        "source_theorem_ready_for_exact_proof_body": _bool_like(
             row.get("source_theorem_ready_for_exact_proof_body", False)
         ),
-        "source_theorem_semantic_support_only": bool(
+        "source_theorem_semantic_support_only": _bool_like(
             row.get("source_theorem_semantic_support_only", False)
         ),
         "kernel_verified_source_theorem_semantic_definition_ids": list(
