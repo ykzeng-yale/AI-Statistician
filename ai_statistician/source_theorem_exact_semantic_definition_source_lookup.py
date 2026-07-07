@@ -117,6 +117,9 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "source_to_bridge_grouped_premise_derivation_candidate_request_id",
     "exact_goal_shape_obligation_ids",
     "target_lean_declaration",
+    "signature_probe_artifact_path",
+    "proof_body_signature_probe_artifact_path",
+    "source_theorem_signature_probe_artifact_path",
     "semantic_primitive",
     "semantic_primitive_requirements",
     "source_block_semantic_primitive_requirements",
@@ -160,6 +163,104 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "pseudo_formal_pipeline_stage",
     "pseudo_formal_proof_evidence_status",
 )
+SIGNATURE_PROBE_ARTIFACT_PATH_KEYS = (
+    "signature_probe_artifact_path",
+    "source_theorem_signature_probe_artifact_path",
+    "proof_body_signature_probe_artifact_path",
+)
+SOURCE_THEOREM_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS = (
+    "source_theorem_signature_probe_artifact_path",
+    "signature_probe_artifact_path",
+    "proof_body_signature_probe_artifact_path",
+)
+PROOF_BODY_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS = (
+    "proof_body_signature_probe_artifact_path",
+    "source_theorem_signature_probe_artifact_path",
+    "signature_probe_artifact_path",
+)
+
+
+def _first_signature_probe_artifact_path(
+    keys: Sequence[str],
+    *sources: Mapping[str, Any],
+) -> str:
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        for key in keys:
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                return value
+        candidate_request = source.get("candidate_definition_request", {})
+        if isinstance(candidate_request, Mapping):
+            for key in keys:
+                value = str(candidate_request.get(key, "") or "").strip()
+                if value:
+                    return value
+    return ""
+
+
+def normalize_exact_semantic_definition_signature_probe_context(
+    context: dict[str, Any],
+    *sources: Mapping[str, Any],
+) -> None:
+    """Fill equivalent signature-probe aliases without overwriting stronger data."""
+
+    context_sources = (context, *sources)
+    signature_probe_artifact_path = _first_signature_probe_artifact_path(
+        SIGNATURE_PROBE_ARTIFACT_PATH_KEYS,
+        *context_sources,
+    )
+    source_theorem_signature_probe_artifact_path = _first_signature_probe_artifact_path(
+        SOURCE_THEOREM_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS,
+        *context_sources,
+    )
+    proof_body_signature_probe_artifact_path = _first_signature_probe_artifact_path(
+        PROOF_BODY_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS,
+        *context_sources,
+    )
+    if signature_probe_artifact_path:
+        context.setdefault("signature_probe_artifact_path", signature_probe_artifact_path)
+    if source_theorem_signature_probe_artifact_path:
+        context.setdefault(
+            "source_theorem_signature_probe_artifact_path",
+            source_theorem_signature_probe_artifact_path,
+        )
+    if proof_body_signature_probe_artifact_path:
+        context.setdefault(
+            "proof_body_signature_probe_artifact_path",
+            proof_body_signature_probe_artifact_path,
+        )
+    candidate_request = context.get("candidate_definition_request", {})
+    if not isinstance(candidate_request, Mapping):
+        return
+    normalized_request = dict(candidate_request)
+    request_sources = (normalized_request, context, *sources)
+    request_signature = _first_signature_probe_artifact_path(
+        SIGNATURE_PROBE_ARTIFACT_PATH_KEYS,
+        *request_sources,
+    )
+    request_source_theorem_signature = _first_signature_probe_artifact_path(
+        SOURCE_THEOREM_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS,
+        *request_sources,
+    )
+    request_proof_body_signature = _first_signature_probe_artifact_path(
+        PROOF_BODY_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS,
+        *request_sources,
+    )
+    if request_signature:
+        normalized_request.setdefault("signature_probe_artifact_path", request_signature)
+    if request_source_theorem_signature:
+        normalized_request.setdefault(
+            "source_theorem_signature_probe_artifact_path",
+            request_source_theorem_signature,
+        )
+    if request_proof_body_signature:
+        normalized_request.setdefault(
+            "proof_body_signature_probe_artifact_path",
+            request_proof_body_signature,
+        )
+    context["candidate_definition_request"] = normalized_request
 
 
 def run_source_theorem_exact_semantic_definition_source_lookup(
@@ -2200,6 +2301,12 @@ def _typechecked_review_semantic_context(row: Mapping[str, Any]) -> dict[str, An
         ]
         if known_gaps:
             context["known_gaps"] = known_gaps
+    normalize_exact_semantic_definition_signature_probe_context(
+        context,
+        row,
+        nested_mapping,
+        feedback_mapping,
+    )
     return context
 
 
@@ -2678,6 +2785,11 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
+    normalize_exact_semantic_definition_signature_probe_context(
+        context,
+        row,
+        input_summary,
+    )
     return context
 
 

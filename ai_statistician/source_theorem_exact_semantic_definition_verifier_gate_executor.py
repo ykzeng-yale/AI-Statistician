@@ -17,6 +17,7 @@ from .source_theorem_formal_environment_proofengineer_bridge import (
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    normalize_exact_semantic_definition_signature_probe_context,
 )
 
 
@@ -550,6 +551,10 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = list(value)
         else:
             context[key] = value
+    normalize_exact_semantic_definition_signature_probe_context(
+        context,
+        *sources,
+    )
     return context
 
 

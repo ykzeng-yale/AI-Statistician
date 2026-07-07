@@ -12,6 +12,7 @@ from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    normalize_exact_semantic_definition_signature_probe_context,
     resolve_exact_semantic_definition_review_packets_path,
 )
 
@@ -862,6 +863,11 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
+    normalize_exact_semantic_definition_signature_probe_context(
+        context,
+        row,
+        input_summary,
+    )
     return context
 
 

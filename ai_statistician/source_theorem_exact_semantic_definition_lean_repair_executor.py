@@ -20,6 +20,7 @@ from .source_theorem_formal_environment_proofengineer_bridge import (
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    normalize_exact_semantic_definition_signature_probe_context,
 )
 
 
@@ -1444,7 +1445,7 @@ def _candidate_definition_request(
     placeholder_policy = exact_semantic_definition_placeholder_policy(
         placeholder_symbol
     )
-    return {
+    request = {
         "schema_version": 1,
         "request_kind": "source_theorem_exact_semantic_definition_candidate",
         "target_theorem_name": target_theorem_name,
@@ -1497,6 +1498,8 @@ def _candidate_definition_request(
         ),
         "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
     }
+    normalize_exact_semantic_definition_signature_probe_context(request, row)
+    return request
 
 
 def _required_anchor_names_for_placeholder(placeholder_symbol: str) -> list[str]:
@@ -2137,6 +2140,7 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
+    normalize_exact_semantic_definition_signature_probe_context(context, row)
     return context
 
 

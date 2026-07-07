@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T04:09:58Z",
+  "updated_at": "2026-07-07T04:16:26Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1300,6 +1300,24 @@
         "current_result": "The focused runtime slice passes and records one feedback lookup row for the single semantic gap."
       },
       "proof_boundary": "This is queue/accounting correctness only. It deduplicates non-proof exact-semantic work orders and does not claim premise derivation, adapter, or source theorem proof evidence."
+    },
+    "exact_semantic_signature_probe_context_alias_patch": {
+      "status": "implemented",
+      "components": [
+        "source_theorem_exact_semantic_definition_source_lookup",
+        "source_theorem_exact_semantic_definition_proofengineer_bridge",
+        "source_theorem_exact_semantic_definition_lean_repair_executor",
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+        "source_theorem_exact_semantic_definition_verifier_gate_executor",
+        "research_agent_runtime"
+      ],
+      "summary": "The exact-semantic context contract now normalizes signature_probe_artifact_path, source_theorem_signature_probe_artifact_path, and proof_body_signature_probe_artifact_path aliases across runtime work orders, source lookup rows, closure/review packets, ProofEngineer repair packets, Lean repair tasks/results, environment repair rows, verifier-gate rows, candidate_definition_request payloads, and nested typechecked-candidate evidence.",
+      "new_regression_coverage": [
+        "tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_exact_semantic_definition_source_lookup_exports_learning_hits",
+        "tests/test_source_theorem_exact_semantic_definition_proofengineer_bridge.py::test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_review_packet",
+        "tests/test_research_agent_runtime.py::test_runtime_learning_loader_preserves_exact_semantic_definition_work_orders"
+      ],
+      "proof_boundary": "This preserves proof-state/signature lineage for downstream Formalizer/ProofEngineer workers only. It does not make source lookup, exact semantic definition repair, premise derivation, or source theorem proof-body rows into Lean/AXLE proof evidence."
     },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",
@@ -2860,6 +2878,9 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<'PY' ... replayed exact proof-body executor learning row into source_theorem_proof_body_adapter_proofengineer_bridge # n_rows=1, signature_rows=1, runtime learning and premise queue preserved proof_body_signature_probe_artifact_path, premise proof_evidence_status=WORK_ORDER_NOT_PROOF_EVIDENCE",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/source_to_bridge_premise_derivation_proofengineer_bridge.py ai_statistician/research_agent_runtime.py tests/test_source_to_bridge_premise_derivation_bridge.py tests/test_research_agent_runtime.py # passed after source-to-bridge premise signature handoff and exact-semantic feedback dedupe patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_source_to_bridge_premise_derivation_bridge.py # 22 passed after source-to-bridge premise signature handoff patch",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py::test_runtime_consumes_source_to_bridge_adapter_instantiation_queue tests/test_research_agent_runtime.py::test_formalizer_premise_derivation_candidate_becomes_runtime_work_order tests/test_research_agent_runtime.py::test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_orders tests/test_research_agent_runtime.py::test_runtime_runs_formalizer_premise_derivation_candidate_bridge tests/test_research_agent_runtime.py::test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback # 5 passed after per-source exact-semantic feedback dedupe"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py::test_runtime_consumes_source_to_bridge_adapter_instantiation_queue tests/test_research_agent_runtime.py::test_formalizer_premise_derivation_candidate_becomes_runtime_work_order tests/test_research_agent_runtime.py::test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_orders tests/test_research_agent_runtime.py::test_runtime_runs_formalizer_premise_derivation_candidate_bridge tests/test_research_agent_runtime.py::test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback # 5 passed after per-source exact-semantic feedback dedupe",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py ai_statistician/source_theorem_exact_semantic_definition_proofengineer_bridge.py ai_statistician/source_theorem_exact_semantic_definition_lean_repair_executor.py ai_statistician/source_theorem_exact_semantic_definition_lean_environment_repair_executor.py ai_statistician/source_theorem_exact_semantic_definition_verifier_gate_executor.py ai_statistician/research_agent_runtime.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_proofengineer_bridge.py tests/test_research_agent_runtime.py # passed after exact-semantic signature probe alias normalization patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_proofengineer_bridge.py tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py tests/test_source_theorem_exact_semantic_definition_lean_environment_repair_executor.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py # 80 passed after exact-semantic signature probe alias normalization patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"runtime_learning_loader_preserves_exact_semantic_definition_work_orders or exact_semantic_definition_work_orders_from_semantic_primitive_blockers or exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane or exact_semantic_definition_work_orders_from_semantic_alignment_feedback or typechecked_review_recheck_feedback_queues_premise_repair or runtime_runs_formalizer_premise_derivation_candidate_bridge\" # 6 passed, 915 deselected after exact-semantic signature probe alias normalization patch"
   ]
 }

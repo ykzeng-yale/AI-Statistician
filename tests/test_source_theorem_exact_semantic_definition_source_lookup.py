@@ -175,7 +175,19 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
         "def orderStat (s : Nat) (k : Nat) := s + k\n",
         encoding="utf-8",
     )
-    _write_work_order(queue, placeholder_symbol="orderStat")
+    signature_probe_path = (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    _write_work_order(
+        queue,
+        placeholder_symbol="orderStat",
+        extra={
+            "proof_body_signature_probe_artifact_path": signature_probe_path,
+            "candidate_definition_request": {
+                "semantic_intent": "recover exact order statistic threshold"
+            },
+        },
+    )
 
     manifest = run_source_theorem_exact_semantic_definition_source_lookup(
         out_dir=tmp_path / "lookup",
@@ -220,6 +232,13 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
         "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
     )
     assert lookup_rows[0]["source_theorem_ready_for_exact_proof_body"] is False
+    assert lookup_rows[0]["signature_probe_artifact_path"] == signature_probe_path
+    assert lookup_rows[0]["source_theorem_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert lookup_rows[0]["proof_body_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
     closure_rows = [
         json.loads(line)
         for line in Path(
@@ -245,6 +264,13 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
         "runs/candidate_artifacts/defs_only.lean"
     )
     assert closure_rows[0]["local_definition_lean_compiled"] is True
+    assert closure_rows[0]["signature_probe_artifact_path"] == signature_probe_path
+    assert closure_rows[0]["source_theorem_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert closure_rows[0]["proof_body_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
     assert closure_rows[0]["proof_evidence_status"] == (
         "DEFINITION_CLOSURE_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
@@ -282,6 +308,22 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
     assert review_packets[0]["placeholder_policy_scope"] == (
         "split_conformal_coverage"
     )
+    assert review_packets[0]["signature_probe_artifact_path"] == signature_probe_path
+    assert review_packets[0]["source_theorem_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert review_packets[0]["proof_body_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert review_packets[0]["candidate_definition_request"][
+        "signature_probe_artifact_path"
+    ] == signature_probe_path
+    assert review_packets[0]["candidate_definition_request"][
+        "source_theorem_signature_probe_artifact_path"
+    ] == signature_probe_path
+    assert review_packets[0]["candidate_definition_request"][
+        "proof_body_signature_probe_artifact_path"
+    ] == signature_probe_path
     assert "finite order statistic" in review_packets[0]["definition_contract"][
         "semantic_intent"
     ]
@@ -299,6 +341,10 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
     assert all(
         row["placeholder_policy_id"]
         == "split_conformal_coverage.order_statistic_threshold"
+        for row in learning_rows
+    )
+    assert all(
+        row["signature_probe_artifact_path"] == signature_probe_path
         for row in learning_rows
     )
     repairs = _runtime_learning_memory_source_theorem_exact_candidate_repairs(

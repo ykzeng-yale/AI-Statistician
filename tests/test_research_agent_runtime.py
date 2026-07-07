@@ -55537,6 +55537,9 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
                 "runs/candidate_definitions_only.lean"
             ),
             "candidate_artifact_path": "runs/candidate_attempt.lean",
+            "proof_body_signature_probe_artifact_path": (
+                "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+            ),
             "local_definition_lean_checked": True,
             "local_definition_lean_compiled": True,
             "semantic_definition_typecheck_evidence_status": (
@@ -55571,6 +55574,20 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     )
     assert replayed_typechecked_row["candidate_artifact_path"] == (
         "runs/candidate_attempt.lean"
+    )
+    assert replayed_typechecked_row["signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert replayed_typechecked_row["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert replayed_typechecked_row["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert replayed_typechecked_row[
+        "source_theorem_exact_semantic_definition_typechecked_candidate"
+    ]["signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     )
     assert replayed_typechecked_row["local_definition_lean_checked"] is True
     assert replayed_typechecked_row["local_definition_lean_compiled"] is True

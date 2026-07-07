@@ -581,6 +581,9 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
         "candidate_definition_request": {
             "semantic_intent": "exact source coverage event tied to hC",
         },
+        "source_theorem_signature_probe_artifact_path": (
+            "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+        ),
         "semantic_review_decision": "approved_definition_candidate",
         "semantic_review_status": (
             "llm_semantic_review_approved_definition_candidate_not_proof"
@@ -665,6 +668,18 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     assert packet["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]
+    assert packet["signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert packet["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert packet["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert packet["candidate_definition_request"][
+        "signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     assert packet["definition_only_candidate_artifact_path"] == (
         "runs/candidate_artifacts/covered_defs_only.lean"
     )
@@ -704,6 +719,18 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     assert task["candidate_definition_request"]["target_ids"] == [
         "split_conformal_coverage"
     ]
+    assert task["signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert task["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert task["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert task["candidate_definition_request"][
+        "source_theorem_signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     assert task["definition_only_candidate_artifact_path"] == (
         "runs/candidate_artifacts/covered_defs_only.lean"
     )

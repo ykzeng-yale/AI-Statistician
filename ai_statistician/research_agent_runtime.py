@@ -223,6 +223,7 @@ from .source_theorem_formal_environment_proofengineer_bridge import (
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    normalize_exact_semantic_definition_signature_probe_context,
     run_source_theorem_exact_semantic_definition_candidate_synthesis,
     run_source_theorem_exact_semantic_definition_closure_review,
     run_source_theorem_exact_semantic_definition_source_lookup,
@@ -70284,6 +70285,15 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
             context[key] = list(value)
         else:
             context[key] = value
+    normalize_exact_semantic_definition_signature_probe_context(
+        context,
+        row,
+        input_summary,
+        nested_context,
+        nested_input_context,
+        typechecked_candidate,
+        nested_typechecked_candidate_context,
+    )
     return context
 
 
@@ -70320,9 +70330,11 @@ def _runtime_exact_semantic_definition_context_for_semantic_work_order(
 ) -> dict[str, Any]:
     if not context:
         return {}
+    normalized_context = dict(context)
+    normalize_exact_semantic_definition_signature_probe_context(normalized_context)
     semantic_primitive = str(context.get("semantic_primitive", "") or "").strip()
     if not semantic_primitive:
-        return dict(context)
+        return normalized_context
     normalized_primitive = _runtime_normalized_semantic_context_key(
         semantic_primitive
     )
@@ -70338,7 +70350,7 @@ def _runtime_exact_semantic_definition_context_for_semantic_work_order(
             )
         )
     ):
-        return dict(context)
+        return normalized_context
     return {}
 
 
@@ -70496,6 +70508,9 @@ def _merge_exact_semantic_definition_work_order_candidate_metadata(
     scalar_keys = (
         "definition_only_candidate_artifact_path",
         "candidate_artifact_path",
+        "signature_probe_artifact_path",
+        "source_theorem_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_path",
         "semantic_definition_typecheck_evidence_status",
         *environment_scalar_keys,
         *queue_scalar_keys,
@@ -70672,6 +70687,9 @@ def _normalize_exact_semantic_work_order_status_from_local_definition(
     row_candidate_evidence_fields = (
         "definition_only_candidate_artifact_path",
         "candidate_artifact_path",
+        "signature_probe_artifact_path",
+        "source_theorem_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_path",
         "local_definition_lean_checked",
         "local_definition_lean_compiled",
         "semantic_definition_typecheck_evidence_status",
@@ -70682,6 +70700,9 @@ def _normalize_exact_semantic_work_order_status_from_local_definition(
         "placeholder_symbol",
         "definition_only_candidate_artifact_path",
         "candidate_artifact_path",
+        "signature_probe_artifact_path",
+        "source_theorem_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_path",
         "local_definition_lean_checked",
         "local_definition_lean_compiled",
         "semantic_definition_typecheck_evidence_status",
@@ -70776,6 +70797,8 @@ def _normalize_exact_semantic_work_order_status_from_local_definition(
                         candidate[key] = value
                 else:
                     candidate.setdefault(key, value)
+        normalize_exact_semantic_definition_signature_probe_context(candidate, row)
+        normalize_exact_semantic_definition_signature_probe_context(row, candidate)
         row[
             "source_theorem_exact_semantic_definition_typechecked_candidate"
         ] = candidate
