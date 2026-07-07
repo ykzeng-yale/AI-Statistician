@@ -7396,6 +7396,18 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ][:8],
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_ids": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_ids",
+                [],
+            )
+        )[:8],
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_kinds": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_kinds",
+                [],
+            )
+        )[:8],
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": _safe_bool(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
@@ -7578,6 +7590,18 @@ def audit_research_agent_runtime(
             )
             or []
         ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids",
+                [],
+            )
+        ),
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": list(
             manifest.get(
                 "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols",
@@ -7729,6 +7753,18 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ],
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids",
+                [],
+            )
+        ),
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage": int(
             manifest.get(
                 "source_theorem_exact_semantic_definition_proofengineer_bridge_n_review_packets_with_placeholder_policy_lineage",
@@ -7915,6 +7951,18 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ],
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_ids": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_ids",
+                [],
+            )
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_kinds": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_kinds",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
             manifest.get(
                 "source_theorem_exact_semantic_definition_lean_repair_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths",
@@ -8980,6 +9028,18 @@ def audit_research_agent_runtime(
             or []
             if str(value).strip()
         ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_ids": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_ids",
+                [],
+            )
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_kinds": _compact_string_list(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_kinds",
+                [],
+            )
+        ),
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths": _compact_string_list(
             manifest.get(
                 "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths",
@@ -18980,6 +19040,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    primary_typechecked_review_verifier_gate_prompt_scaffold_ids = (
+        _compact_string_list(
+            payload.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_ids",
+                [],
+            )
+        )
+    )
+    primary_typechecked_review_verifier_gate_prompt_scaffold_kinds = (
+        _compact_string_list(
+            payload.get(
+                "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_kinds",
+                [],
+            )
+        )
+    )
+    primary_typechecked_review_verifier_gate_prompt_scaffold_lineage_present = (
+        bool(primary_typechecked_review_verifier_gate_prompt_scaffold_ids)
+        and bool(primary_typechecked_review_verifier_gate_prompt_scaffold_kinds)
+    )
     primary_typechecked_review_pf_verifier_gate_required = (
         primary_typechecked_review_pf_packets > 0
         and primary_typechecked_review_verifier_gate_work_orders > 0
@@ -19789,6 +19869,21 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         is True
     )
+    exact_semantic_source_lookup_prompt_scaffold_ids = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids",
+            [],
+        )
+    )
+    exact_semantic_source_lookup_prompt_scaffold_kinds = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds",
+            [],
+        )
+    )
+    exact_semantic_source_lookup_prompt_scaffold_lineage_present = bool(
+        exact_semantic_source_lookup_prompt_scaffold_ids
+    ) and bool(exact_semantic_source_lookup_prompt_scaffold_kinds)
     pseudo_formal_exact_semantic_summary = payload.get(
         "runtime_pseudo_formal_exact_semantic_definition_work_order_summary",
         {},
@@ -19888,6 +19983,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 or exact_semantic_source_lookup_pf_component_gate_review_packets > 0
             )
             and exact_semantic_source_lookup_pf_lineage_complete
+            and exact_semantic_source_lookup_prompt_scaffold_lineage_present
             and exact_semantic_source_lookup_pf_symbol_coverage_ready
         )
     )
@@ -19966,6 +20062,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     exact_semantic_bridge_pf_handoff_required = (
         exact_semantic_source_lookup_pf_review_packets > 0
+        or exact_semantic_source_lookup_pf_component_gate_review_packets > 0
+    )
+    exact_semantic_bridge_prompt_scaffold_ids = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids",
+            [],
+        )
+    )
+    exact_semantic_bridge_prompt_scaffold_kinds = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds",
+            [],
+        )
+    )
+    exact_semantic_bridge_prompt_scaffold_lineage_present = bool(
+        exact_semantic_bridge_prompt_scaffold_ids
+    ) and bool(
+        exact_semantic_bridge_prompt_scaffold_kinds
     )
     exact_semantic_bridge_review_packets_with_policy_lineage = int(
         payload.get(
@@ -20114,8 +20228,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_lean_repair_prompt_scaffold_ids = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_ids",
+            [],
+        )
+    )
+    exact_semantic_lean_repair_prompt_scaffold_kinds = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_kinds",
+            [],
+        )
+    )
+    exact_semantic_lean_repair_prompt_scaffold_lineage_present = bool(
+        exact_semantic_lean_repair_prompt_scaffold_ids
+    ) and bool(
+        exact_semantic_lean_repair_prompt_scaffold_kinds
+    )
     exact_semantic_lean_repair_pf_handoff_required = (
         exact_semantic_bridge_pf_lean_tasks > 0
+        or exact_semantic_bridge_pf_component_gate_lean_tasks > 0
     )
     exact_semantic_environment_repair_ran = (
         payload.get(
@@ -20156,6 +20288,23 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "",
         )
         or ""
+    )
+    exact_semantic_environment_repair_prompt_scaffold_ids = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_ids",
+            [],
+        )
+    )
+    exact_semantic_environment_repair_prompt_scaffold_kinds = _compact_string_list(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_kinds",
+            [],
+        )
+    )
+    exact_semantic_environment_repair_prompt_scaffold_lineage_present = bool(
+        exact_semantic_environment_repair_prompt_scaffold_ids
+    ) and bool(
+        exact_semantic_environment_repair_prompt_scaffold_kinds
     )
     exact_semantic_environment_repair_pf_handoff_required = (
         exact_semantic_lean_repair_pf_environment_tasks > 0
@@ -23633,6 +23782,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_source_lookup_pf_component_gate_review_packets} "
                 "pf_origin_lineage_complete="
                 f"{exact_semantic_source_lookup_pf_lineage_complete} "
+                "pf_prompt_scaffold_ids="
+                f"{exact_semantic_source_lookup_prompt_scaffold_ids} "
+                "pf_prompt_scaffold_kinds="
+                f"{exact_semantic_source_lookup_prompt_scaffold_kinds} "
+                "pf_prompt_scaffold_lineage_present="
+                f"{exact_semantic_source_lookup_prompt_scaffold_lineage_present} "
                 "pf_expected_symbols="
                 f"{pseudo_formal_exact_semantic_expected_symbols} "
                 "pf_lookup_placeholder_symbols="
@@ -23667,9 +23822,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_exact_semantic_definition_source_lookup_ran=true, "
                     "PF-origin lookup rows are produced, PF-origin learning rows "
                     "or closure review packets are produced, and PF/BV origin "
-                    "lineage is preserved; when recomputed PF exact-semantic "
-                    "symbols are available, every expected symbol appears in "
-                    "PF-origin lookup placeholder/semantic telemetry"
+                    "lineage plus prompt scaffold IDs/kinds are preserved; when "
+                    "recomputed PF exact-semantic symbols are available, every "
+                    "expected symbol appears in PF-origin lookup placeholder/"
+                    "semantic telemetry"
                 ),
             ),
         ),
@@ -23873,8 +24029,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and (
                     not exact_semantic_bridge_pf_handoff_required
                     or (
-                        exact_semantic_bridge_pf_repair_packets > 0
-                        and exact_semantic_bridge_pf_lean_tasks > 0
+                        (
+                            exact_semantic_bridge_pf_repair_packets > 0
+                            or exact_semantic_bridge_pf_component_gate_repair_packets
+                            > 0
+                        )
+                        and (
+                            exact_semantic_bridge_pf_lean_tasks > 0
+                            or exact_semantic_bridge_pf_component_gate_lean_tasks
+                            > 0
+                        )
+                        and exact_semantic_bridge_prompt_scaffold_lineage_present
                     )
                 )
             ),
@@ -23893,6 +24058,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_bridge_pf_lean_tasks} "
                 "pf_component_gate_bridge_lean_tasks="
                 f"{exact_semantic_bridge_pf_component_gate_lean_tasks} "
+                "pf_bridge_prompt_scaffold_ids="
+                f"{exact_semantic_bridge_prompt_scaffold_ids} "
+                "pf_bridge_prompt_scaffold_kinds="
+                f"{exact_semantic_bridge_prompt_scaffold_kinds} "
+                "pf_bridge_prompt_scaffold_lineage_present="
+                f"{exact_semantic_bridge_prompt_scaffold_lineage_present} "
                 "handoff_required="
                 f"{exact_semantic_bridge_handoff_required} "
                 "pf_handoff_required="
@@ -23945,13 +24116,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and (
                     not exact_semantic_lean_repair_pf_handoff_required
                     or (
-                        exact_semantic_lean_repair_pf_tasks > 0
-                        and exact_semantic_lean_repair_pf_results > 0
+                        (
+                            exact_semantic_lean_repair_pf_tasks > 0
+                            or exact_semantic_lean_repair_pf_component_gate_tasks > 0
+                        )
                         and (
-                            exact_semantic_lean_repair_pf_local_lean_checked > 0
-                            or exact_semantic_lean_repair_pf_typechecked_review_packets
+                            exact_semantic_lean_repair_pf_results > 0
+                            or exact_semantic_lean_repair_pf_component_gate_results
                             > 0
                         )
+                        and (
+                            exact_semantic_lean_repair_pf_local_lean_checked > 0
+                            or exact_semantic_lean_repair_pf_component_gate_local_lean_checked
+                            > 0
+                            or exact_semantic_lean_repair_pf_typechecked_review_packets
+                            > 0
+                            or exact_semantic_lean_repair_pf_component_gate_typechecked_review_packets
+                            > 0
+                        )
+                        and exact_semantic_lean_repair_prompt_scaffold_lineage_present
                     )
                 )
             ),
@@ -23970,6 +24153,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_lean_repair_pf_results} "
                 "pf_component_gate_executor_results="
                 f"{exact_semantic_lean_repair_pf_component_gate_results} "
+                "pf_executor_prompt_scaffold_ids="
+                f"{exact_semantic_lean_repair_prompt_scaffold_ids} "
+                "pf_executor_prompt_scaffold_kinds="
+                f"{exact_semantic_lean_repair_prompt_scaffold_kinds} "
+                "pf_executor_prompt_scaffold_lineage_present="
+                f"{exact_semantic_lean_repair_prompt_scaffold_lineage_present} "
                 "total_results="
                 f"{exact_semantic_lean_repair_total_results} "
                 "materialized_results="
@@ -24033,6 +24222,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 and exact_semantic_environment_repair_results > 0
                 and exact_semantic_environment_repair_pf_tasks > 0
                 and exact_semantic_environment_repair_pf_results > 0
+                and exact_semantic_environment_repair_prompt_scaffold_lineage_present
                 and exact_semantic_environment_repair_pf_boundary_ok
             ),
             (
@@ -24048,6 +24238,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_environment_repair_pf_tasks} "
                 "pf_environment_results="
                 f"{exact_semantic_environment_repair_pf_results} "
+                "pf_environment_prompt_scaffold_ids="
+                f"{exact_semantic_environment_repair_prompt_scaffold_ids} "
+                "pf_environment_prompt_scaffold_kinds="
+                f"{exact_semantic_environment_repair_prompt_scaffold_kinds} "
+                "pf_environment_prompt_scaffold_lineage_present="
+                f"{exact_semantic_environment_repair_prompt_scaffold_lineage_present} "
                 "environment_ready_for_proof_body="
                 f"{exact_semantic_environment_repair_ready_for_proof_body} "
                 "proof_evidence_status="
@@ -24078,6 +24274,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "or source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate>0 "
                     "implies source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal>0, "
                     "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal>0, "
+                    "source_prompt_scaffold_ids/kinds are preserved, "
                     "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body=false, "
                     "and proof_evidence_status remains non-kernel/non-source-theorem-proof"
                 ),
@@ -24098,6 +24295,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     + primary_typechecked_review_pf_verifier_gate_blocked
                     > 0
                 )
+                and primary_typechecked_review_verifier_gate_prompt_scaffold_lineage_present
             ),
             (
                 "pf_typechecked_review_packets="
@@ -24132,6 +24330,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{primary_typechecked_review_pf_verifier_gate_blocked} "
                 "pf_component_gate_verifier_gate_blocked="
                 f"{primary_typechecked_review_pf_component_gate_verifier_gate_blocked} "
+                "pf_verifier_gate_prompt_scaffold_ids="
+                f"{primary_typechecked_review_verifier_gate_prompt_scaffold_ids} "
+                "pf_verifier_gate_prompt_scaffold_kinds="
+                f"{primary_typechecked_review_verifier_gate_prompt_scaffold_kinds} "
+                "pf_verifier_gate_prompt_scaffold_lineage_present="
+                f"{primary_typechecked_review_verifier_gate_prompt_scaffold_lineage_present} "
                 "pf_handoff_required="
                 f"{primary_typechecked_review_pf_verifier_gate_required}"
             ),

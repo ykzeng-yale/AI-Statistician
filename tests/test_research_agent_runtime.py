@@ -80526,6 +80526,12 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_bridge_tasks()
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks": 1,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_repair_packets_from_pseudo_formal": 1,
         "source_theorem_exact_semantic_definition_proofengineer_bridge_n_lean_repair_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:rank"
+        ],
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -80700,6 +80706,12 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_lean_repair_feedback
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_tasks_from_pseudo_formal": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_results_from_pseudo_formal": 1,
         "source_theorem_exact_semantic_definition_lean_repair_executor_n_local_lean_checked_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:rank"
+        ],
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -80764,6 +80776,12 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_environment_repair_f
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results": 1,
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal": 1,
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:rank"
+        ],
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": False,
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status": (
             "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE"
@@ -80841,6 +80859,12 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_verifier_gate_blocke
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_local_lean_checked_from_pseudo_formal": 1,
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_approved_from_pseudo_formal": 0,
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_n_verifier_blocked_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:rank"
+        ],
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -82469,6 +82493,12 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_exact_definition_sou
         "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal": 1,
         "source_theorem_exact_semantic_definition_source_lookup_n_closure_review_packets_from_pseudo_formal": 0,
         "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:coverage"
+        ],
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
         "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": [
             "coverage_event",
             "rank_uniformity",
@@ -82525,6 +82555,12 @@ def test_runtime_capability_scorecard_accepts_formalizer_pf_component_gate_exact
         "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_formalizer_pf_component_gate": 1,
         "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_formalizer_pf_component_gate": 1,
         "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:coverage"
+        ],
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
         "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": [
             "coverage_event"
         ],
@@ -82598,6 +82634,47 @@ def test_runtime_capability_scorecard_rejects_pseudo_formal_exact_definition_loo
     assert "pf_lookup_rows=2" in row["evidence"]
     assert "pf_origin_lineage_complete=True" in row["evidence"]
     assert "pf_missing_lookup_symbols=['rank_uniformity']" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_rejects_pseudo_formal_exact_definition_lookup_missing_prompt_scaffold() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 1,
+        "runtime_pseudo_formal_exact_semantic_definition_work_order_summary": {
+            "placeholder_symbols": ["rank_uniformity"],
+        },
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_effective": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": [
+            "rank_uniformity"
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+    ]
+
+    assert row["passed"] is False
+    assert "pf_prompt_scaffold_lineage_present=False" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_rejects_generic_exact_lookup_for_pseudo_formal_work() -> None:

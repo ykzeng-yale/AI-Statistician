@@ -648,6 +648,13 @@ def _runtime_manifest_string_list(payload: Mapping[str, Any], key: str) -> list[
     return []
 
 
+def _runtime_manifest_unique_string_list(
+    payload: Mapping[str, Any] | None,
+    key: str,
+) -> list[str]:
+    return list(dict.fromkeys(_runtime_manifest_string_list(payload or {}, key)))
+
+
 def _runtime_attach_proof_body_pf_lineage_counters(
     manifest: dict[str, Any],
     *,
@@ -32579,6 +32586,18 @@ def run_research_agent_runtime(
         or []
     )
     manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_source_lookup_manifest,
+        "source_prompt_scaffold_ids",
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_source_lookup_manifest,
+        "source_prompt_scaffold_kinds",
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols"
     ] = list(
         (
@@ -33946,6 +33965,18 @@ def run_research_agent_runtime(
         if str(value).strip()
     ]
     manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_proofengineer_bridge_manifest,
+        "source_prompt_scaffold_ids",
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_proofengineer_bridge_manifest,
+        "source_prompt_scaffold_kinds",
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_proofengineer_bridge_formalizer_pf_component_gate_exact_rows_jsonl_paths"
     ] = [
         str(value)
@@ -34224,6 +34255,18 @@ def run_research_agent_runtime(
         or []
         if str(value).strip()
     ]
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_ids"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_lean_repair_executor_manifest,
+        "source_prompt_scaffold_ids",
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_kinds"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_lean_repair_executor_manifest,
+        "source_prompt_scaffold_kinds",
+    )
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths"
     ] = [
@@ -34767,6 +34810,18 @@ def run_research_agent_runtime(
         or []
         if str(value).strip()
     ]
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_ids"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifest,
+        "source_prompt_scaffold_ids",
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_kinds"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_manifest,
+        "source_prompt_scaffold_kinds",
+    )
     manifest[
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_formalizer_pf_component_gate_exact_rows_jsonl_paths"
     ] = [
@@ -36091,6 +36146,18 @@ def run_research_agent_runtime(
         or []
         if str(value).strip()
     ]
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_ids"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest,
+        "source_prompt_scaffold_ids",
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_kinds"
+    ] = _runtime_manifest_unique_string_list(
+        source_theorem_exact_semantic_definition_lean_environment_repair_executor_manifest,
+        "source_prompt_scaffold_kinds",
+    )
     manifest[
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
     ] = bool(
