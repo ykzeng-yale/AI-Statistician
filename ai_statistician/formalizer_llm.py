@@ -262,6 +262,10 @@ def _formalizer_repair_context(
         packet_seed,
         required_target_lanes=required_target_lanes,
     )
+    copy_fragment = _pseudo_formalization_required_copy_fragment(
+        packet_seed,
+        required_target_lanes=required_target_lanes,
+    )
     suggested_target_lanes = [
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
         PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
@@ -282,7 +286,8 @@ def _formalizer_repair_context(
             ),
             (
                 "Copy subsystem_repair_context.pseudo_formal_required_repair_blueprint."
-                "concrete_lane_routable_repair_seed into pseudo_formal_proof_packets[0] "
+                "copy_ready_response_fragment.pseudo_formal_proof_packets[0] "
+                "or concrete_lane_routable_repair_seed into pseudo_formal_proof_packets[0] "
                 "when present; preserve conclusion, source_anchors, "
                 "semantic_primitive_requirements, lean_feasibility, "
                 "faithfulness_status, proof_evidence_status, kernel_verified=false, "
@@ -320,8 +325,10 @@ def _formalizer_repair_context(
             "allowed_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
             "copy_or_complete_this_packet_seed": packet_seed,
             "concrete_lane_routable_repair_seed": concrete_repair_seed,
+            "copy_ready_response_fragment": copy_fragment,
             "concrete_repair_seed_usage": (
-                "Copy concrete_lane_routable_repair_seed into "
+                "Copy copy_ready_response_fragment.pseudo_formal_proof_packets[0] "
+                "or concrete_lane_routable_repair_seed into "
                 "pseudo_formal_proof_packets[0] when the prior packet missed "
                 "conclusion, source_anchors, semantic_primitive_requirements, "
                 "or lane-routable exact-semantic-definition/source_to_bridge "
@@ -511,6 +518,17 @@ def build_formalizer_prompt(
         if pseudo_formalization_required
         else {}
     )
+    pseudo_formalization_copy_fragment = (
+        _pseudo_formalization_required_copy_fragment(
+            pseudo_formalization_packet_seed,
+            required_target_lanes=_required_pseudo_formal_target_lanes(
+                environment_feedback or {},
+                proof_memory_summary,
+            ),
+        )
+        if pseudo_formalization_required
+        else {}
+    )
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
@@ -593,6 +611,9 @@ def build_formalizer_prompt(
             }
         ),
         "pseudo_formalization_required_packet_seed": pseudo_formalization_packet_seed,
+        "pseudo_formalization_required_copy_fragment": (
+            pseudo_formalization_copy_fragment
+        ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "formalizer_lean_candidate_contract": {
             "capability_eval_requires_formalizer_lean_candidate": requires_lean_candidate,
@@ -634,7 +655,8 @@ def build_formalizer_prompt(
             ),
         },
         "required_output_contract": _formalizer_output_contract_for_prompt(
-            has_theory_trace=bool(theory_derivation_trace)
+            has_theory_trace=bool(theory_derivation_trace),
+            pseudo_formalization_required=pseudo_formalization_required,
         ),
         "boundary": FORMALIZER_BOUNDARY,
     }
@@ -703,7 +725,9 @@ def build_formalizer_prompt(
             "pseudo_formalization_validation_issue_repair_actions as binding "
             "retry feedback when present; repair those exact issues before "
             "changing Lean targets. Start from "
-            "pseudo_formalization_required_packet_seed: copy its theorem_id, "
+            "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets "
+            "when present; otherwise start from pseudo_formalization_required_packet_seed. "
+            "Copy its theorem_id, "
             "source_artifact_id, block_id pattern, conclusion, source_anchors, "
             "faithfulness_status, lean_feasibility, and non-proof boundary unless "
             "the runtime feedback gives a more specific source-bound replacement. "
@@ -894,11 +918,42 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
 }
 
 
-def _formalizer_output_contract_for_prompt(*, has_theory_trace: bool) -> dict[str, Any]:
-    if has_theory_trace:
-        return FORMALIZER_OUTPUT_CONTRACT
+def _formalizer_output_contract_for_prompt(
+    *,
+    has_theory_trace: bool,
+    pseudo_formalization_required: bool = False,
+) -> dict[str, Any]:
     contract = dict(FORMALIZER_OUTPUT_CONTRACT)
     contract.pop("theory_trace_alignment", None)
+    if has_theory_trace:
+        contract["theory_trace_alignment"] = FORMALIZER_OUTPUT_CONTRACT[
+            "theory_trace_alignment"
+        ]
+    if pseudo_formalization_required:
+        contract["pseudo_formal_proof_packets"] = {
+            "required": True,
+            "copy_from": (
+                "pseudo_formalization_required_copy_fragment."
+                "pseudo_formal_proof_packets"
+            ),
+            "minimum_items": 1,
+            "first_packet_must_include": [
+                "blocks[0].conclusion",
+                "blocks[0].source_anchors",
+                "blocks[0].semantic_primitive_requirements",
+                "blocks[0].faithfulness_status=faithful",
+                "blocks[0].lean_feasibility=needs_semantic_definition|needs_rag",
+                "kernel_verified=false",
+                "source_theorem_kernel_verified=false",
+                "proof_evidence_status=not_proof_evidence",
+            ],
+            "routing_gate": (
+                "must produce at least one effective lane-routable PF/BV "
+                "work-order row; generic diagnostic-only rows do not satisfy "
+                "required PF/BV activation"
+            ),
+            "boundary": "PF/BV packet is routing memory, not Lean/kernel proof evidence",
+        }
     return contract
 
 
@@ -1867,6 +1922,45 @@ def _pseudo_formal_concrete_lane_routable_repair_seed(
         }
     )
     return seed
+
+
+def _pseudo_formalization_required_copy_fragment(
+    packet_seed: Mapping[str, Any],
+    *,
+    required_target_lanes: Sequence[str],
+) -> dict[str, Any]:
+    if not isinstance(packet_seed, Mapping) or not packet_seed:
+        return {}
+    concrete_seed = _pseudo_formal_concrete_lane_routable_repair_seed(
+        packet_seed,
+        required_target_lanes=required_target_lanes,
+    )
+    return {
+        "required_output_key": "pseudo_formal_proof_packets",
+        "copy_instruction": (
+            "Copy this fragment's pseudo_formal_proof_packets list into the "
+            "Formalizer response before adding optional Lean targets or prose. "
+            "Then minimally adapt mathematical text only if runtime feedback "
+            "provides a more precise source-bound claim."
+        ),
+        "pseudo_formal_proof_packets": [concrete_seed],
+        "validator_alignment": {
+            "must_have_top_level_block_conclusion": True,
+            "must_have_source_anchors": True,
+            "must_have_semantic_primitive_requirements_for_exact_semantic_lane": (
+                True
+            ),
+            "must_produce_lane_routable_work_order_rows": True,
+            "kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        },
+        "boundary": (
+            "This copy fragment is prompt scaffolding and routing memory only; "
+            "it is not source theorem proof, Lean proof, verifier evidence, or "
+            "kernel evidence."
+        ),
+    }
 
 
 def _pseudo_formal_primary_repair_target_lane(target_lanes: Sequence[str]) -> str:

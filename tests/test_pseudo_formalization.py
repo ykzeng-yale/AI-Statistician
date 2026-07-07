@@ -1857,12 +1857,14 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     block_template = blueprint["minimum_valid_packet"]["blocks"][0]
     seed = blueprint["copy_or_complete_this_packet_seed"]
     concrete_seed = blueprint["concrete_lane_routable_repair_seed"]
+    copy_fragment = blueprint["copy_ready_response_fragment"]
     issue_summary = repair_context["pseudo_formal_validation_issue_summary"]
     issue_actions = repair_context["pseudo_formal_issue_specific_repair_actions"]
     top_level_repair_instructions = " ".join(repair_payload["repair_instructions"])
     assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
     assert repair_context["pseudo_formal_activation_required"] is True
     assert "concrete_lane_routable_repair_seed" in top_level_repair_instructions
+    assert "copy_ready_response_fragment" in top_level_repair_instructions
     assert "pseudo_formal_proof_packets[0]" in top_level_repair_instructions
     assert "source_anchors" in top_level_repair_instructions
     assert "semantic_primitive_requirements" in top_level_repair_instructions
@@ -1896,6 +1898,15 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
         "needs_semantic_definition"
     )
     assert concrete_seed["blocks"][0]["semantic_primitive_requirements"]
+    assert copy_fragment["required_output_key"] == "pseudo_formal_proof_packets"
+    assert copy_fragment["pseudo_formal_proof_packets"][0] == concrete_seed
+    assert copy_fragment["validator_alignment"][
+        "must_have_source_anchors"
+    ] is True
+    assert copy_fragment["validator_alignment"][
+        "must_produce_lane_routable_work_order_rows"
+    ] is True
+    assert "not source theorem proof" in copy_fragment["boundary"]
     concrete_rows = pseudo_formal_routable_work_order_rows(
         pseudo_formal_block_work_order_rows(concrete_seed)
     )

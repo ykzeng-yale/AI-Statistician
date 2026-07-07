@@ -20500,6 +20500,10 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     prompt_feedback = prompt_payload["runtime_environment_feedback"]
     prompt_contract = prompt_feedback["pseudo_formalization_repair_contract"]
     prompt_seed = prompt_payload["pseudo_formalization_required_packet_seed"]
+    prompt_copy_fragment = prompt_payload[
+        "pseudo_formalization_required_copy_fragment"
+    ]
+    prompt_output_contract = prompt_payload["required_output_contract"]
 
     assert prompt_feedback["pseudo_formalization_required"] is True
     assert prompt_feedback[
@@ -20537,6 +20541,26 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
         "needs_semantic_definition"
     )
     assert prompt_seed["blocks"][0]["semantic_primitive_requirements"]
+    assert prompt_output_contract["pseudo_formal_proof_packets"][
+        "required"
+    ] is True
+    assert prompt_output_contract["pseudo_formal_proof_packets"][
+        "copy_from"
+    ] == (
+        "pseudo_formalization_required_copy_fragment."
+        "pseudo_formal_proof_packets"
+    )
+    assert prompt_copy_fragment["required_output_key"] == (
+        "pseudo_formal_proof_packets"
+    )
+    prompt_copy_packet = prompt_copy_fragment["pseudo_formal_proof_packets"][0]
+    assert prompt_copy_packet["blocks"][0]["conclusion"]
+    assert prompt_copy_packet["blocks"][0]["source_anchors"][0]["id"]
+    assert prompt_copy_packet["blocks"][0]["semantic_primitive_requirements"]
+    assert prompt_copy_fragment["validator_alignment"][
+        "must_produce_lane_routable_work_order_rows"
+    ] is True
+    assert "not source theorem proof" in prompt_copy_fragment["boundary"]
 
 
 def test_formalizer_validation_failure_preserves_nested_pf_bv_repair_targets() -> None:
