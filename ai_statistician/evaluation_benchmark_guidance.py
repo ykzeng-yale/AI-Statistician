@@ -266,6 +266,7 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
                         "research_agent_runtime_source_theorem_proof_body_result_row_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count",
+                        "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count",
                         "research_agent_runtime_source_theorem_proof_body_signature_artifact_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
                         "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count",
@@ -1324,6 +1325,20 @@ def _suite_rows(
             "research_agent_runtime_source_theorem_proof_body_signature_artifact_count"
         )
     )
+    runtime_source_theorem_proof_body_effective_signature_backed_goal_reached = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count",
+            0,
+        )
+    )
+    if (
+        runtime_source_theorem_proof_body_effective_signature_backed_goal_reached <= 0
+        and runtime_source_theorem_proof_body_goal_reached > 0
+        and runtime_source_theorem_proof_body_signature_artifacts > 0
+    ):
+        runtime_source_theorem_proof_body_effective_signature_backed_goal_reached = (
+            runtime_source_theorem_proof_body_goal_reached
+        )
     runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers = max(
         runtime_source_theorem_exact_proof_body_repair_goal_reached_with_semantic_blockers,
         _int(
@@ -1370,8 +1385,10 @@ def _suite_rows(
     runtime_source_theorem_proof_body_authoritative_goal_reached = (
         runtime_source_theorem_signature_probe_scorecard_ok
         if runtime_source_theorem_signature_probe_scorecard_present
-        else runtime_source_theorem_proof_body_goal_reached > 0
-        and runtime_source_theorem_proof_body_signature_artifacts > 0
+        else (
+            runtime_source_theorem_proof_body_effective_signature_backed_goal_reached
+            > 0
+        )
     )
     runtime_source_theorem_semantic_blockers_scorecard_present = _bool(
         counts.get(
@@ -3322,6 +3339,9 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count"
                 ),
+                "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count": (
+                    runtime_source_theorem_proof_body_effective_signature_backed_goal_reached
+                ),
                 "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_signature_artifact_count"
                 ),
@@ -3357,7 +3377,7 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_effective_result_rows": runtime_source_theorem_proof_body_result_rows,
                 "research_agent_runtime_source_theorem_proof_body_effective_local_lean_requested": runtime_source_theorem_formal_environment_proof_body_local_lean_requested,
                 "research_agent_runtime_source_theorem_proof_body_effective_local_lean_checked": runtime_source_theorem_proof_body_local_lean_checked,
-                "research_agent_runtime_source_theorem_proof_body_effective_goal_reached": runtime_source_theorem_proof_body_goal_reached,
+                "research_agent_runtime_source_theorem_proof_body_effective_goal_reached": runtime_source_theorem_proof_body_effective_signature_backed_goal_reached,
                 "research_agent_runtime_source_theorem_proof_body_effective_goal_reached_with_semantic_blockers": runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers,
                 "research_agent_runtime_source_theorem_effective_kernel_verified": runtime_source_theorem_kernel_verified,
                 "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_aggregate_local_lean_gate_ok,

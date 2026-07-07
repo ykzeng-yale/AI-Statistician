@@ -78389,7 +78389,8 @@ def test_runtime_evidence_truth_table_marks_pre_goal_executor_result_blocked() -
     assert truth_rows["full_source_theorem_kernel_evidence"]["status"] == "UNPROVED"
     proof_body_gate = scorecard_rows["source_theorem_signature_probe_reached_proof_body"]
     assert proof_body_gate["passed"] is False
-    assert "proof_body_goal_reached_evidence=0" in proof_body_gate["evidence"]
+    assert "raw_proof_body_goal_reached_evidence=0" in proof_body_gate["evidence"]
+    assert "effective_signature_backed_goal_reached=0" in proof_body_gate["evidence"]
     assert "proof_body_result_rows=1" in proof_body_gate["evidence"]
     assert "pre-proof-body blockers" in proof_body_gate["blocker"]
 
@@ -81605,7 +81606,8 @@ def test_runtime_capability_scorecard_counts_proof_body_goal_excerpt_as_lane_evi
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert proof_body_row["passed"] is True
-    assert "proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "raw_proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=1" in proof_body_row["evidence"]
     assert "signature_artifact_rows=1" in proof_body_row["evidence"]
     assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
         "PROOF_BODY_REACHED_OPEN"
@@ -81639,8 +81641,15 @@ def test_runtime_capability_scorecard_rejects_proof_body_goal_without_signature_
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert proof_body_row["passed"] is False
-    assert "proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "raw_proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=0" in proof_body_row["evidence"]
     assert "signature_artifact_rows=0" in proof_body_row["evidence"]
+    assert (
+        audit_module._payload_source_theorem_proof_body_effective_goal_reached_count(
+            payload
+        )
+        == 0
+    )
     assert "proof_body_signature_probe_artifact_path lineage" in proof_body_row["blocker"]
     assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
         "PROOF_BODY_ATTEMPT_BLOCKED"
@@ -82207,13 +82216,20 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         == 4
     )
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 16
+    assert (
+        audit[
+            "source_theorem_proof_body_effective_signature_backed_goal_reached_count"
+        ]
+        == 16
+    )
     assert audit["source_theorem_proof_body_signature_artifact_count"] == 7
     assert audit["source_theorem_proof_body_gate_open_for_kernel_repair_count"] == 6
     assert audit[
         "source_theorem_proof_body_gate_open_for_kernel_repair_target_names"
     ] == ["central_exact_target", "post_adapter_target", "premise_adapter_target"]
     assert proof_body_row["passed"] is True
-    assert "proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
+    assert "raw_proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=16" in proof_body_row["evidence"]
     assert "signature_artifact_rows=7" in proof_body_row["evidence"]
     assert "gate_open_for_kernel_repair=6" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
@@ -82297,11 +82313,18 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
     )
     assert audit["source_theorem_proof_body_result_row_count"] == 2
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 22
+    assert (
+        audit[
+            "source_theorem_proof_body_effective_signature_backed_goal_reached_count"
+        ]
+        == 22
+    )
     assert audit["source_theorem_proof_body_signature_artifact_count"] == 10
     assert local_lean_row["passed"] is True
     assert "local_lean_checked=5" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
-    assert "proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
+    assert "raw_proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=22" in proof_body_row["evidence"]
     assert "signature_artifact_rows=10" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=12" in semantic_row["evidence"]
@@ -82392,11 +82415,18 @@ def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
         == 10
     )
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 36
+    assert (
+        audit[
+            "source_theorem_proof_body_effective_signature_backed_goal_reached_count"
+        ]
+        == 36
+    )
     assert audit["source_theorem_proof_body_signature_artifact_count"] == 16
     assert local_lean_row["passed"] is True
     assert "local_lean_checked=10" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
-    assert "proof_body_goal_reached_evidence=36" in proof_body_row["evidence"]
+    assert "raw_proof_body_goal_reached_evidence=36" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=36" in proof_body_row["evidence"]
     assert "signature_artifact_rows=16" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=20" in semantic_row["evidence"]

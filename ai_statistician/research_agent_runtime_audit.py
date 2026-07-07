@@ -11033,6 +11033,9 @@ def audit_research_agent_runtime(
         _payload_source_theorem_proof_body_signature_artifact_count(payload)
     )
     payload[
+        "source_theorem_proof_body_effective_signature_backed_goal_reached_count"
+    ] = _payload_source_theorem_proof_body_effective_goal_reached_count(payload)
+    payload[
         "source_theorem_exact_semantic_definition_authoring_post_runtime_worker_command"
     ] = _exact_semantic_authoring_worker_recovery_command(payload)
     payload[
@@ -12548,6 +12551,19 @@ def _payload_source_theorem_proof_body_signature_artifact_count(
     )
 
 
+def _payload_source_theorem_proof_body_effective_goal_reached_count(
+    payload: Mapping[str, Any],
+) -> int:
+    proof_body_goal_reached_count = (
+        _payload_source_theorem_proof_body_goal_reached_count(payload)
+    )
+    if proof_body_goal_reached_count <= 0:
+        return 0
+    if _payload_source_theorem_proof_body_signature_artifact_count(payload) <= 0:
+        return 0
+    return proof_body_goal_reached_count
+
+
 def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(
     payload: Mapping[str, Any],
 ) -> int:
@@ -13836,6 +13852,7 @@ def _runtime_capability_gap_audit_metrics(
         ),
         "source_theorem_signature_probe_reached_proof_body": (
             "source_theorem_proof_body_goal_reached_evidence_count",
+            "source_theorem_proof_body_effective_signature_backed_goal_reached_count",
             "source_theorem_proof_body_signature_artifact_count",
             *SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
             "source_theorem_proof_body_gate_open_for_kernel_repair_count",
@@ -13857,6 +13874,7 @@ def _runtime_capability_gap_audit_metrics(
         ),
         "source_theorem_proof_body_semantic_review_blockers_not_hidden": (
             "source_theorem_proof_body_goal_reached_evidence_count",
+            "source_theorem_proof_body_effective_signature_backed_goal_reached_count",
             "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers",
             "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification",
             "source_theorem_exact_proof_body_repair_executor_by_proof_body_gate_status",
@@ -17603,6 +17621,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proof_body_signature_artifact_count = (
         _payload_source_theorem_proof_body_signature_artifact_count(payload)
+    )
+    proof_body_effective_goal_reached_count = (
+        _payload_source_theorem_proof_body_effective_goal_reached_count(payload)
     )
     proof_body_semantic_review_blocker_count = (
         _payload_source_theorem_proof_body_semantic_review_blocker_count(payload)
@@ -23537,10 +23558,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 if exact_proof_body_candidate_semantic_review_blocked
                 else (
                     "source_theorem_exact_proof_body_repair_execution_queue_n_ready>0 "
-                    "or source_theorem_proof_body_goal_reached_evidence_count>0 "
-                    "for the current exact proof-body repair target, with no "
-                    "proof evidence claimed until local Lean/AXLE verifies the "
-                    "exact theorem"
+                    "or source_theorem_proof_body_effective_signature_backed_goal_reached_count>0 "
+                    "for the current exact proof-body repair target, with signature "
+                    "lineage required and no proof evidence claimed until local "
+                    "Lean/AXLE verifies the exact theorem"
                 )
             ),
             proof_evidence_status="CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
@@ -23552,11 +23573,12 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_signature_probe_reached_proof_body",
-            proof_body_goal_reached_count > 0
-            and proof_body_signature_artifact_count > 0,
+            proof_body_effective_goal_reached_count > 0,
             (
-                "proof_body_goal_reached_evidence="
+                "raw_proof_body_goal_reached_evidence="
                 f"{proof_body_goal_reached_count} "
+                "effective_signature_backed_goal_reached="
+                f"{proof_body_effective_goal_reached_count} "
                 "signature_artifact_rows="
                 f"{proof_body_signature_artifact_count} "
                 "gate_open_for_kernel_repair="
@@ -27998,8 +28020,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- LLM topology policy ok: {payload.get('llm_topology_policy_ok')}",
         f"- unsupported generator backends: {payload.get('unsupported_generator_backends_enabled')}",
         f"- critic reroutes: {payload.get('n_critic_reroutes')}",
-        "- exact source proof-body goal-reached evidence count: "
-        f"{payload.get('source_theorem_proof_body_goal_reached_evidence_count')}",
+        "- exact source proof-body raw / effective signature-backed goal-reached evidence count: "
+        f"{payload.get('source_theorem_proof_body_goal_reached_evidence_count')} / "
+        f"{payload.get('source_theorem_proof_body_effective_signature_backed_goal_reached_count')}",
         "- exact source proof-body result row count: "
         f"{payload.get('source_theorem_proof_body_result_row_count')}",
         f"- theory derivation packets: {payload.get('n_theory_derivation_packets')}",
