@@ -14627,7 +14627,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
             not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
         )
-        local_lean_compiled = bool(
+        local_lean_compiled = _bool_like(
             local_lean_result.get("local_lean_compiled", False)
         )
         proof_evidence_status = _formalizer_candidate_proof_evidence_status(
@@ -14682,10 +14682,10 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 ),
                 "precheck_errors": precheck_errors,
                 "blocking_precheck_errors": blocking_precheck_errors,
-                "local_lean_attempted": bool(
+                "local_lean_attempted": _bool_like(
                     local_lean_result.get("local_lean_attempted", False)
                 ),
-                "local_lean_compiled": bool(
+                "local_lean_compiled": _bool_like(
                     local_lean_result.get("local_lean_compiled", False)
                 ),
                 "local_lean_exit_status": str(
@@ -14709,7 +14709,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "local_lean_skipped_reason": str(
                     local_lean_result.get("local_lean_skipped_reason", "") or ""
                 ),
-                "kernel_verified": bool(
+                "kernel_verified": _bool_like(
                     local_lean_result.get("local_lean_compiled", False)
                 ),
                 **_formalizer_candidate_kernel_scope_fields(
@@ -14753,22 +14753,26 @@ def _materialize_formalizer_lean_candidate_artifacts(
         for row in rows
         if row.get("precheck_status") == "REJECTED_BY_RUNTIME_PRECHECK"
     ]
-    local_checked_rows = [row for row in rows if row.get("local_lean_attempted")]
-    local_compiled_rows = [row for row in rows if row.get("local_lean_compiled")]
+    local_checked_rows = [
+        row for row in rows if _bool_like(row.get("local_lean_attempted", False))
+    ]
+    local_compiled_rows = [
+        row for row in rows if _bool_like(row.get("local_lean_compiled", False))
+    ]
     compiled_source_candidate_rows = [
         row
         for row in local_compiled_rows
-        if bool(row.get("source_theorem_candidate_evidence_eligible", False))
+        if _bool_like(row.get("source_theorem_candidate_evidence_eligible", False))
     ]
     compiled_support_candidate_rows = [
         row
         for row in local_compiled_rows
-        if bool(row.get("support_candidate_not_source_theorem", False))
+        if _bool_like(row.get("support_candidate_not_source_theorem", False))
     ]
     compiled_diagnostic_helper_rows = [
         row
         for row in local_compiled_rows
-        if bool(row.get("diagnostic_helper_not_source_theorem", False))
+        if _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
     ]
     live_proof_state_request_rows = [
         row for row in rows if row.get("live_proof_state_request")
@@ -15979,7 +15983,9 @@ def _formalizer_lean_candidate_repair_feedback(
             == "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
             and bool(row.get("precheck_errors", []))
         )
-        local_lean_failed = bool(row.get("local_lean_attempted", False)) and not bool(
+        local_lean_failed = _bool_like(
+            row.get("local_lean_attempted", False)
+        ) and not _bool_like(
             row.get("local_lean_compiled", False)
         )
         if precheck_failed or precheck_diagnostic_failed or local_lean_failed:
@@ -16021,10 +16027,12 @@ def _formalizer_lean_candidate_repair_feedback(
                 ),
                 "precheck_status": str(row.get("precheck_status", "") or ""),
                 "precheck_errors": list(row.get("precheck_errors", []) or []),
-                "local_lean_attempted": bool(
+                "local_lean_attempted": _bool_like(
                     row.get("local_lean_attempted", False)
                 ),
-                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+                "local_lean_compiled": _bool_like(
+                    row.get("local_lean_compiled", False)
+                ),
                 "local_lean_exit_status": str(
                     row.get("local_lean_exit_status", "") or ""
                 ),
@@ -17563,9 +17571,9 @@ def _formalizer_diagnostic_row_requires_repair(row: Mapping[str, Any]) -> bool:
     exit_status = str(row.get("local_lean_exit_status", "") or "").strip().lower()
     if exit_status and exit_status not in {"0", "ok", "success"}:
         return True
-    if bool(row.get("local_lean_attempted", False)):
+    if _bool_like(row.get("local_lean_attempted", False)):
         compiled_value = row.get("local_lean_compiled", None)
-        if compiled_value is not None and not bool(compiled_value):
+        if compiled_value is not None and not _bool_like(compiled_value):
             return True
     return False
 

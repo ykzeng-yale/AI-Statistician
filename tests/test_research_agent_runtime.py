@@ -25214,6 +25214,83 @@ def test_formalizer_lean_candidate_timeout_feedback_is_actionable() -> None:
     ].startswith("Prefer a compact theorem")
 
 
+def test_formalizer_repair_feedback_string_false_local_lean_failed() -> None:
+    manifest = {
+        "schema_version": 1,
+        "manifest_id": "formalizer_lean_candidate_materialization:string_false_failed",
+        "manifest_path": (
+            "runs/string_false_failed/"
+            "formalizer_lean_candidate_materialization_manifest.json"
+        ),
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "task_id": (
+            "formalize-lean-repair:conformal_prediction_coverage:string_false_failed"
+        ),
+        "source_formalizer_packet_id": "formalizer_proposal:string_false_failed",
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 0,
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "string_false_unknown_identifier",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "string-false-local-lean",
+                "lean_source_excerpt": (
+                    "theorem string_false_unknown_identifier : True := by\n"
+                    "  exact DefinitelyUnknownLeanIdentifier\n"
+                ),
+                "artifact_path": (
+                    "runs/string_false_failed/001_string_false.lean"
+                ),
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": "true",
+                "local_lean_compiled": "false",
+                "local_lean_exit_status": "1",
+                "local_lean_stdout": (
+                    "error(lean.unknownIdentifier): Unknown identifier "
+                    "`DefinitelyUnknownLeanIdentifier`"
+                ),
+                "local_lean_stderr": "",
+                "local_lean_command": ["lake", "env", "lean", "001_string_false.lean"],
+                "local_lean_project": "legacy_sources/emperical_process_lean",
+                "local_lean_timeout": 30,
+                "local_lean_skipped_reason": "",
+            }
+        ],
+    }
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert feedback is not None
+    assert feedback["failure_classification"] == (
+        "formalizer_lean_candidate_local_lean_failed"
+    )
+    diagnostics = feedback["candidate_diagnostics"]
+    assert diagnostics[0]["local_lean_attempted"] is True
+    assert diagnostics[0]["local_lean_compiled"] is False
+    assert feedback["local_lean_repair_contract"]["diagnostic_classes"] == [
+        "lean_unknown_identifier"
+    ]
+    assert feedback["proofengineer_repair_context"]["candidate_rerun_specs"][0][
+        "candidate_id"
+    ] == "string_false_unknown_identifier"
+    assert runtime_module._formalizer_diagnostic_row_requires_repair(
+        {
+            "local_lean_attempted": "true",
+            "local_lean_compiled": "false",
+            "local_lean_exit_status": "",
+        }
+    ) is True
+
+
 def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> None:
     manifest = {
         "schema_version": 1,
