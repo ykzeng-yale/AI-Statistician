@@ -63784,6 +63784,9 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
     tmp_path: Path,
 ) -> None:
     out_dir = tmp_path / "runtime"
+    signature_probe_path = (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
@@ -63815,9 +63818,13 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
         "failure_classification": "proof_body_incomplete",
         "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
         "proof_body_goal_reached": True,
+        "signature_probe_artifact_path": signature_probe_path,
+        "source_theorem_signature_probe_artifact_path": signature_probe_path,
         "input_summary": {
             "target_theorem_name": "split_conformal_coverage",
             "candidate_artifact_path": "runs/split_conformal_coverage_attempt.lean",
+            "signature_probe_artifact_path": signature_probe_path,
+            "source_theorem_signature_probe_artifact_path": signature_probe_path,
             "source_theorem_kernel_verified": False,
             "source_theorem_kernel_evidence_eligible": False,
             "failure_classification": "proof_body_incomplete",
@@ -63970,7 +63977,17 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
 
     assert bridge_manifest["n_adapter_kernel_verified"] == 0
     assert bridge_manifest["source_theorem_kernel_verified"] is False
+    assert bridge_manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert bridge_manifest["proof_body_signature_probe_artifact_paths"] == [
+        signature_probe_path
+    ]
     assert bridge_manifest["n_adapter_candidate_evidence_eligible"] == 1
+    assert bridge_manifest["rows"][0]["proof_body_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert bridge_manifest["rows"][0][
+        "source_theorem_signature_probe_artifact_path"
+    ] == signature_probe_path
     assert bridge_manifest["rows"][0]["failure_classification"] == (
         "adapter_candidate_not_checked"
     )
@@ -63980,6 +63997,12 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
     )
     assert bridge_learning_rows[0]["adapter_kernel_verified"] is False
     assert bridge_learning_rows[0]["source_theorem_kernel_verified"] is False
+    assert bridge_learning_rows[0]["proof_body_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert bridge_learning_rows[0][
+        "source_theorem_signature_probe_artifact_path"
+    ] == signature_probe_path
     assert bridge_learning_rows[0]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )

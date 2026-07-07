@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T03:55:17Z",
+  "updated_at": "2026-07-07T04:00:14Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1249,6 +1249,29 @@
         "SourceTheoremPromotionWorkOrder.required_inputs"
       ],
       "proof_boundary": "The signature probe artifact is target-identity and proof-state replay context only. It does not prove the source theorem; the source theorem remains unverified until the exact declaration passes local Lean/AXLE."
+    },
+    "proof_body_adapter_bridge_signature_handoff_patch": {
+      "status": "implemented",
+      "component": "source_theorem_proof_body_adapter_proofengineer_bridge",
+      "source_learning_rows_jsonl": "runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707/runtime_learning_export/runtime_learning_rows.jsonl",
+      "replay_manifest": "runs/main_worker_proof_body_adapter_signature_handoff_replay_20260707/runtime_source_theorem_proof_body_adapter_proofengineer_bridge/source_theorem_proof_body_adapter_proofengineer_bridge_manifest.json",
+      "replay_result": {
+        "n_adapter_check_rows": 1,
+        "n_proof_body_signature_probe_artifact_rows": 1,
+        "proof_body_signature_probe_artifact_path": "runs/main_worker_authoring_prompt_backend_next_action_static_resume_v2_20260704/runtime_source_theorem_formal_environment_proofengineer_bridge/signature_probes/artifacts/split_conformal_finite_sample_coverage_repair_v3_signature_probe.lean",
+        "runtime_learning_signature_preserved": true,
+        "premise_derivation_queue_signature_preserved": true,
+        "premise_derivation_queue_proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE"
+      },
+      "propagates_to": [
+        "SourceTheoremProofBodyAdapterCheckRow.proof_body_signature_probe_artifact_path",
+        "SourceTheoremProofBodyAdapterCheckRow.source_theorem_signature_probe_artifact_path",
+        "generated adapter skeleton comments",
+        "source_theorem_proof_body_adapter_feedback runtime learning rows",
+        "source_to_bridge_premise_derivation_queue rows",
+        "adapter bridge and premise queue manifests"
+      ],
+      "proof_boundary": "The adapter bridge now preserves signature-probe context for the downstream ProofEngineer/premise-derivation loop, but those rows remain work orders and feedback only. Source theorem proof evidence still requires rerunning and kernel-verifying the exact source theorem declaration."
     },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",
@@ -2802,6 +2825,10 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/research_agent_runtime.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_research_agent_runtime.py # passed after exact proof-body signature handoff propagation patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py # 16 passed after exact proof-body signature handoff propagation patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body\" # 68 passed, 853 deselected after exact proof-body signature handoff propagation patch",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<'PY' ... deterministic replay of top_level_handoff runtime_learning_rows through _formalizer_proof_bank_runtime_memory_summary and _formalizer_source_theorem_promotion_work_orders # rows_loaded=1, mode=source_theorem_proof_body_adapter_required, gate_open=true, work_orders=1, proof_body_signature_probe_artifact_path preserved, required_inputs mentions signature probe, proof_evidence_status=WORK_ORDER_NOT_PROOF_EVIDENCE"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<'PY' ... deterministic replay of top_level_handoff runtime_learning_rows through _formalizer_proof_bank_runtime_memory_summary and _formalizer_source_theorem_promotion_work_orders # rows_loaded=1, mode=source_theorem_proof_body_adapter_required, gate_open=true, work_orders=1, proof_body_signature_probe_artifact_path preserved, required_inputs mentions signature probe, proof_evidence_status=WORK_ORDER_NOT_PROOF_EVIDENCE",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/source_theorem_proof_body_adapter_proofengineer_bridge.py tests/test_source_theorem_proof_body_adapter_bridge.py tests/test_research_agent_runtime.py # passed after proof-body adapter bridge signature handoff patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_source_theorem_proof_body_adapter_bridge.py # 14 passed after proof-body adapter bridge signature handoff patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py::test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapter_shape tests/test_research_agent_runtime.py::test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memory tests/test_research_agent_runtime.py::test_source_theorem_proof_body_adapter_bridge_avoids_mathlib_for_core_prop_skeleton # 3 passed after proof-body adapter bridge signature handoff patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<'PY' ... replayed exact proof-body executor learning row into source_theorem_proof_body_adapter_proofengineer_bridge # n_rows=1, signature_rows=1, runtime learning and premise queue preserved proof_body_signature_probe_artifact_path, premise proof_evidence_status=WORK_ORDER_NOT_PROOF_EVIDENCE"
   ]
 }

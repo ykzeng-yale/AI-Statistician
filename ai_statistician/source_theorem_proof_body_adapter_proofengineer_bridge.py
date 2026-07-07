@@ -64,6 +64,8 @@ class SourceTheoremProofBodyAdapterCheckRow:
     source_theorem_target_known: bool
     source_theorem_target_provenance: dict[str, Any]
     source_candidate_artifact_path: str
+    proof_body_signature_probe_artifact_path: str
+    source_theorem_signature_probe_artifact_path: str
     adapter_candidate_artifact_path: str
     adapter_declaration_name: str
     adapter_candidate_imports: tuple[str, ...]
@@ -235,6 +237,16 @@ def run_source_theorem_proof_body_adapter_proofengineer_bridge(
             1
             for row in rows
             if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
+        ),
+        "n_proof_body_signature_probe_artifact_rows": sum(
+            1 for row in rows if row.proof_body_signature_probe_artifact_path
+        ),
+        "proof_body_signature_probe_artifact_paths": sorted(
+            {
+                row.proof_body_signature_probe_artifact_path
+                for row in rows
+                if row.proof_body_signature_probe_artifact_path
+            }
         ),
         "source_theorem_exact_proof_body_gate_open_target_names": sorted(
             {
@@ -433,6 +445,18 @@ def _adapter_check_row(
             or row.get("candidate_artifact_path", "")
             or ""
         ),
+        proof_body_signature_probe_artifact_path=str(
+            row.get("proof_body_signature_probe_artifact_path", "")
+            or row.get("source_theorem_signature_probe_artifact_path", "")
+            or row.get("signature_probe_artifact_path", "")
+            or ""
+        ),
+        source_theorem_signature_probe_artifact_path=str(
+            row.get("source_theorem_signature_probe_artifact_path", "")
+            or row.get("proof_body_signature_probe_artifact_path", "")
+            or row.get("signature_probe_artifact_path", "")
+            or ""
+        ),
         adapter_candidate_artifact_path=str(adapter_path),
         adapter_declaration_name=adapter_declaration,
         adapter_candidate_imports=adapter_candidate_imports,
@@ -546,6 +570,18 @@ def _generated_adapter_skeleton(
     proof_body_gate_open_targets = _str_tuple(
         row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
     )[:12]
+    source_candidate_artifact_path = str(
+        row.get("source_candidate_artifact_path", "")
+        or row.get("proof_body_candidate_artifact_path", "")
+        or row.get("candidate_artifact_path", "")
+        or ""
+    ).strip()
+    proof_body_signature_probe_artifact_path = str(
+        row.get("proof_body_signature_probe_artifact_path", "")
+        or row.get("source_theorem_signature_probe_artifact_path", "")
+        or row.get("signature_probe_artifact_path", "")
+        or ""
+    ).strip()
     semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
     source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
     source_kernel_eligible = bool(source_kernel_eligible_raw)
@@ -689,6 +725,18 @@ def _generated_adapter_skeleton(
         if target
         else ""
     )
+    source_candidate_comment = (
+        "-- source proof-body candidate artifact: "
+        + _sanitize_comment_text(source_candidate_artifact_path)
+        if source_candidate_artifact_path
+        else ""
+    )
+    signature_probe_comment = (
+        "-- source theorem signature probe artifact: "
+        + _sanitize_comment_text(proof_body_signature_probe_artifact_path)
+        if proof_body_signature_probe_artifact_path
+        else ""
+    )
     exact_goal_shape_comment = "\n".join(
         line
         for line in (
@@ -733,6 +781,8 @@ def _generated_adapter_skeleton(
         "the exact source theorem hypotheses before retrying the source theorem proof body.\n"
         "-/\n"
         f"{target_comment}\n"
+        f"{source_candidate_comment}\n"
+        f"{signature_probe_comment}\n"
         f"{exact_goal_shape_comment}\n"
         f"{reason_comment}\n"
         f"{closure_comment}\n"
@@ -1222,6 +1272,17 @@ def _export_runtime_learning_rows(
                 "source_work_order_id": row.source_work_order_id,
                 "source_queue_artifact_kind": row.source_queue_artifact_kind,
                 "source_queue_status": row.source_queue_status,
+                "source_candidate_artifact_path": row.source_candidate_artifact_path,
+                "proof_body_signature_probe_artifact_path": (
+                    row.proof_body_signature_probe_artifact_path
+                ),
+                "source_theorem_signature_probe_artifact_path": (
+                    row.source_theorem_signature_probe_artifact_path
+                ),
+                "signature_probe_artifact_path": (
+                    row.source_theorem_signature_probe_artifact_path
+                    or row.proof_body_signature_probe_artifact_path
+                ),
                 "exact_goal_shape_obligation_id": row.exact_goal_shape_obligation_id,
                 "exact_goal_shape_obligation": row.exact_goal_shape_obligation,
                 "target_artifact_kind": row.target_artifact_kind,
@@ -1324,6 +1385,16 @@ def _export_runtime_learning_rows(
             for row in rows
             if row.source_theorem_exact_proof_body_gate_open_for_kernel_repair
         ),
+        "n_proof_body_signature_probe_artifact_rows": sum(
+            1 for row in rows if row.proof_body_signature_probe_artifact_path
+        ),
+        "proof_body_signature_probe_artifact_paths": sorted(
+            {
+                row.proof_body_signature_probe_artifact_path
+                for row in rows
+                if row.proof_body_signature_probe_artifact_path
+            }
+        ),
         "source_theorem_exact_proof_body_gate_open_target_names": sorted(
             {
                 target_name
@@ -1408,6 +1479,16 @@ def _export_source_to_bridge_premise_derivation_queue(
                         item.get("exact_goal_shape_obligation_ids", []) or []
                     ),
                     "source_candidate_artifact_path": row.source_candidate_artifact_path,
+                    "proof_body_signature_probe_artifact_path": (
+                        row.proof_body_signature_probe_artifact_path
+                    ),
+                    "source_theorem_signature_probe_artifact_path": (
+                        row.source_theorem_signature_probe_artifact_path
+                    ),
+                    "signature_probe_artifact_path": (
+                        row.source_theorem_signature_probe_artifact_path
+                        or row.proof_body_signature_probe_artifact_path
+                    ),
                     "adapter_candidate_artifact_path": (
                         row.adapter_candidate_artifact_path
                     ),
@@ -1490,6 +1571,18 @@ def _export_source_to_bridge_premise_derivation_queue(
                     )
                     and str(target_name).strip()
                 )
+            }
+        ),
+        "n_proof_body_signature_probe_artifact_rows": sum(
+            1
+            for row in queue_rows
+            if row.get("proof_body_signature_probe_artifact_path")
+        ),
+        "proof_body_signature_probe_artifact_paths": sorted(
+            {
+                str(row.get("proof_body_signature_probe_artifact_path", "") or "")
+                for row in queue_rows
+                if row.get("proof_body_signature_probe_artifact_path")
             }
         ),
         "proof_evidence_status": "WORK_ORDER_QUEUE_NOT_PROOF_EVIDENCE",
