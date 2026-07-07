@@ -206,6 +206,20 @@ def run_source_theorem_exact_semantic_definition_proofengineer_bridge(
                 if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
             )
         ),
+        "source_prompt_scaffold_ids": list(
+            dict.fromkeys(
+                str(row.get("source_prompt_scaffold_id", "") or "")
+                for row in repair_packets
+                if str(row.get("source_prompt_scaffold_id", "") or "").strip()
+            )
+        ),
+        "source_prompt_scaffold_kinds": list(
+            dict.fromkeys(
+                str(row.get("source_prompt_scaffold_kind", "") or "")
+                for row in repair_packets
+                if str(row.get("source_prompt_scaffold_kind", "") or "").strip()
+            )
+        ),
         "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
             _formalizer_pf_component_gate_exact_rows_jsonl_paths(repair_packets)
         ),

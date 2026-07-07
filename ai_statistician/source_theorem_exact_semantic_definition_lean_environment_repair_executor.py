@@ -107,6 +107,20 @@ def run_source_theorem_exact_semantic_definition_lean_environment_repair_executo
                 if str(row.get("source_pseudo_formal_block_id", "") or "").strip()
             )
         ),
+        "source_prompt_scaffold_ids": list(
+            dict.fromkeys(
+                str(row.get("source_prompt_scaffold_id", "") or "")
+                for row in rows
+                if str(row.get("source_prompt_scaffold_id", "") or "").strip()
+            )
+        ),
+        "source_prompt_scaffold_kinds": list(
+            dict.fromkeys(
+                str(row.get("source_prompt_scaffold_kind", "") or "")
+                for row in rows
+                if str(row.get("source_prompt_scaffold_kind", "") or "").strip()
+            )
+        ),
         "status_counts": dict(sorted(status_counts.items())),
         "source_theorem_kernel_verified": False,
         "semantic_definition_kernel_verified": False,

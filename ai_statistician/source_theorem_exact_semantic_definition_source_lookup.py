@@ -149,6 +149,11 @@ EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS = (
     "source_pseudo_formal_work_order_id",
     "source_pseudo_formal_block_id",
     "source_pseudo_formal_packet_id",
+    "source_pseudo_formal_prompt_scaffold_origin",
+    "prompt_scaffold_origin",
+    "source_prompt_scaffold_kind",
+    "source_prompt_scaffold_id",
+    "source_prompt_scaffold_required_output_key",
     "source_formalizer_proposal_id",
     "source_formalizer_proposal_without_formalization_manifest",
     "pseudo_formal_method_contract_id",
@@ -289,6 +294,14 @@ def run_source_theorem_exact_semantic_definition_source_lookup(
         "source_pseudo_formal_block_ids": _source_pseudo_formal_ids(
             [*work_orders, *lookup_rows, *definition_closure_work_orders],
             "source_pseudo_formal_block_id",
+        ),
+        "source_prompt_scaffold_ids": _source_pseudo_formal_origin_values(
+            [*work_orders, *lookup_rows, *definition_closure_work_orders],
+            "source_prompt_scaffold_id",
+        ),
+        "source_prompt_scaffold_kinds": _source_pseudo_formal_origin_values(
+            [*work_orders, *lookup_rows, *definition_closure_work_orders],
+            "source_prompt_scaffold_kind",
         ),
         "source_pseudo_formal_placeholder_symbols": (
             _source_pseudo_formal_origin_values(

@@ -100,6 +100,23 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
         "source_pseudo_formal_work_order_id": "pseudo_formal_work_order:good_rank",
         "source_pseudo_formal_block_id": "pf:block:good_rank_event",
         "source_pseudo_formal_packet_id": "pseudo_formal_packet:coverage",
+        "source_pseudo_formal_prompt_scaffold_origin": {
+            "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+            "scaffold_kind": "pseudo_formalization_required_copy_fragment",
+            "source": "FormalizerPrompt",
+            "required_output_key": "pseudo_formal_proof_packets",
+            "copy_fragment_id": "pseudo_formal_copy_fragment:good_rank",
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "source_prompt_scaffold_kind": (
+            "pseudo_formalization_required_copy_fragment"
+        ),
+        "source_prompt_scaffold_id": "pseudo_formal_copy_fragment:good_rank",
+        "source_prompt_scaffold_required_output_key": (
+            "pseudo_formal_proof_packets"
+        ),
         "source_formalizer_proposal_id": "formalizer_proposal:pf_exact",
         "pseudo_formal_method_contract_id": (
             "pseudo_formalization_block_verification_calibration_v1"
@@ -136,6 +153,12 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
         "pseudo_formal_work_order:good_rank"
     ]
     assert manifest["source_pseudo_formal_block_ids"] == ["pf:block:good_rank_event"]
+    assert manifest["source_prompt_scaffold_ids"] == [
+        "pseudo_formal_copy_fragment:good_rank"
+    ]
+    assert manifest["source_prompt_scaffold_kinds"] == [
+        "pseudo_formalization_required_copy_fragment"
+    ]
     assert manifest["n_verifier_blocked"] == 0
     assert manifest["source_theorem_ready_for_exact_proof_body"] is True
     results = [
@@ -152,6 +175,12 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     assert results[0]["source_anchors"][0]["id"] == "pf:block:good_rank_event"
     assert results[0]["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:good_rank"
+    )
+    assert results[0]["source_pseudo_formal_prompt_scaffold_origin"][
+        "scaffold_kind"
+    ] == "pseudo_formalization_required_copy_fragment"
+    assert results[0]["source_prompt_scaffold_id"] == (
+        "pseudo_formal_copy_fragment:good_rank"
     )
     assert results[0]["source_theorem_kernel_verified"] is False
     assert results[0]["proof_evidence_status"] == (
@@ -171,6 +200,9 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     assert approved[0]["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:good_rank"
     )
+    assert approved[0]["source_prompt_scaffold_id"] == (
+        "pseudo_formal_copy_fragment:good_rank"
+    )
     assert approved[0]["proof_evidence_status"] == (
         "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_NOT_SOURCE_THEOREM_PROOF"
     )
@@ -189,6 +221,9 @@ def test_verifier_gate_executor_approves_anchored_typechecked_candidate(
     )
     assert learning_rows[0]["source_pseudo_formal_work_order_id"] == (
         "pseudo_formal_work_order:good_rank"
+    )
+    assert learning_rows[0]["source_prompt_scaffold_id"] == (
+        "pseudo_formal_copy_fragment:good_rank"
     )
     assert learning_rows[0]["source_theorem_kernel_verified"] is False
 

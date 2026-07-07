@@ -207,6 +207,14 @@ def run_source_theorem_exact_semantic_definition_verifier_gate_executor(
             results,
             "source_pseudo_formal_block_id",
         ),
+        "source_prompt_scaffold_ids": _source_pseudo_formal_ids(
+            results,
+            "source_prompt_scaffold_id",
+        ),
+        "source_prompt_scaffold_kinds": _source_pseudo_formal_ids(
+            results,
+            "source_prompt_scaffold_kind",
+        ),
         "formalizer_pf_component_gate_exact_rows_jsonl_paths": (
             _formalizer_pf_component_gate_exact_rows_jsonl_paths(results)
         ),

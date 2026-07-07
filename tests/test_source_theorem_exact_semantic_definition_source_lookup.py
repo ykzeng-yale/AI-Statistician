@@ -467,6 +467,23 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
         ),
         "source_pseudo_formal_block_id": "blk_exchangeable_setup",
         "source_pseudo_formal_packet_id": "pseudo_formal_packet:split",
+        "source_pseudo_formal_prompt_scaffold_origin": {
+            "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+            "scaffold_kind": "pseudo_formalization_required_copy_fragment",
+            "source": "FormalizerPrompt",
+            "required_output_key": "pseudo_formal_proof_packets",
+            "copy_fragment_id": "pseudo_formal_copy_fragment:exchangeable",
+            "proof_evidence_status": (
+                "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "source_prompt_scaffold_kind": (
+            "pseudo_formalization_required_copy_fragment"
+        ),
+        "source_prompt_scaffold_id": "pseudo_formal_copy_fragment:exchangeable",
+        "source_prompt_scaffold_required_output_key": (
+            "pseudo_formal_proof_packets"
+        ),
         "source_formalizer_proposal_id": "formalizer_proposal:split",
         "source_formalizer_proposal_without_formalization_manifest": True,
         "pseudo_formal_method_contract_id": (
@@ -538,6 +555,12 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
     assert manifest["source_pseudo_formal_block_ids"] == [
         "blk_exchangeable_setup"
     ]
+    assert manifest["source_prompt_scaffold_ids"] == [
+        "pseudo_formal_copy_fragment:exchangeable"
+    ]
+    assert manifest["source_prompt_scaffold_kinds"] == [
+        "pseudo_formalization_required_copy_fragment"
+    ]
     assert manifest["source_pseudo_formal_placeholder_symbols"] == [
         "blk_exchangeable_setup"
     ]
@@ -555,6 +578,15 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
         )
         assert row["source_pseudo_formal_block_id"] == "blk_exchangeable_setup"
         assert row["source_pseudo_formal_packet_id"] == "pseudo_formal_packet:split"
+        assert row["source_pseudo_formal_prompt_scaffold_origin"][
+            "scaffold_kind"
+        ] == "pseudo_formalization_required_copy_fragment"
+        assert row["source_prompt_scaffold_id"] == (
+            "pseudo_formal_copy_fragment:exchangeable"
+        )
+        assert row["source_prompt_scaffold_required_output_key"] == (
+            "pseudo_formal_proof_packets"
+        )
         assert row["source_formalizer_proposal_id"] == "formalizer_proposal:split"
         assert row["pseudo_formal_method_contract_id"] == (
             "pseudo_formalization_block_verification_calibration_v1"
@@ -585,6 +617,12 @@ def test_exact_semantic_definition_source_lookup_preserves_pseudo_formal_origin(
             assert input_summary["source_pseudo_formal_block_id"] == (
                 "blk_exchangeable_setup"
             )
+            assert input_summary["source_prompt_scaffold_id"] == (
+                "pseudo_formal_copy_fragment:exchangeable"
+            )
+            assert input_summary[
+                "source_prompt_scaffold_required_output_key"
+            ] == "pseudo_formal_proof_packets"
             assert input_summary["semantic_primitive"] == "exchangeable_setup"
             assert input_summary["semantic_primitive_requirements"] == [
                 "exchangeable_setup"
