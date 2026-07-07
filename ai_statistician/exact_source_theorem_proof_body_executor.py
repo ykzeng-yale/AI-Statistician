@@ -49,6 +49,23 @@ DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS = (
 )
 
 
+def _bool_like(value: Any, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off", ""}:
+            return False
+        return default
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
+
+
 @dataclass(frozen=True)
 class ExactSourceTheoremProofBodyExecutionResultRow:
     schema_version: int
@@ -424,7 +441,9 @@ def _execution_result_row(
     expected_target_lean_declaration = str(
         row.get("expected_target_lean_declaration", "") or target_lean_declaration
     )
-    source_theorem_target_known = bool(row.get("source_theorem_target_known", False))
+    source_theorem_target_known = _bool_like(
+        row.get("source_theorem_target_known", False)
+    )
     source_target_provenance_raw = row.get("source_theorem_target_provenance", {})
     source_theorem_target_provenance = (
         dict(source_target_provenance_raw)
@@ -471,14 +490,16 @@ def _execution_result_row(
     verified_source_theorem_proof_body_adapter_declarations = _str_tuple(
         row.get("verified_source_theorem_proof_body_adapter_declarations", [])
     )
-    source_theorem_proof_body_adapter_kernel_verified = bool(
-        row.get("source_theorem_proof_body_adapter_kernel_verified", False)
-        or kernel_verified_source_theorem_proof_body_adapter_ids
+    source_theorem_proof_body_adapter_kernel_verified = (
+        _bool_like(row.get("source_theorem_proof_body_adapter_kernel_verified", False))
+        or bool(kernel_verified_source_theorem_proof_body_adapter_ids)
     )
-    source_theorem_proof_body_adapter_feedback_available = bool(
-        row.get("source_theorem_proof_body_adapter_feedback_available", False)
+    source_theorem_proof_body_adapter_feedback_available = (
+        _bool_like(
+            row.get("source_theorem_proof_body_adapter_feedback_available", False)
+        )
         or source_theorem_proof_body_adapter_kernel_verified
-        or verified_source_theorem_proof_body_adapter_artifact_paths
+        or bool(verified_source_theorem_proof_body_adapter_artifact_paths)
     )
     source_theorem_proof_body_adapter_context_boundary = str(
         row.get("source_theorem_proof_body_adapter_context_boundary", "") or ""
@@ -508,11 +529,12 @@ def _execution_result_row(
         and not target_identity_errors
     )
     source_theorem_kernel_evidence_eligible = (
-        bool(
+        _bool_like(
             row.get(
                 "source_theorem_kernel_evidence_eligible",
                 source_theorem_target_known and not semantic_alignment_blockers,
-            )
+            ),
+            default=source_theorem_target_known and not semantic_alignment_blockers,
         )
         or reviewed_target_kernel_eligible
     ) and not semantic_alignment_blockers
@@ -528,10 +550,10 @@ def _execution_result_row(
         already_repaired = {}
     placeholder_symbols = _str_tuple(already_repaired.get("missing_formal_symbols", []))
     typeclass_blockers = _str_tuple(already_repaired.get("typeclass_blockers", []))
-    signature_typecheck_reached_proof_body = bool(
+    signature_typecheck_reached_proof_body = _bool_like(
         already_repaired.get("signature_typecheck_reached_proof_body", False)
     )
-    live_goal_ready = bool(row.get("live_goal_location_ready"))
+    live_goal_ready = _bool_like(row.get("live_goal_location_ready", False))
     candidate_live_request: dict[str, object] = {}
     status = "EXACT_SOURCE_PROOF_BODY_EXECUTION_BLOCKED"
     source = ""

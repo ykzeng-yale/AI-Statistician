@@ -948,6 +948,79 @@ def test_exact_source_executor_skips_proof_attempts_for_semantic_alignment_block
     assert transcript_events[-1]["target_ids"] == ["split_conformal_coverage"]
 
 
+def test_exact_source_executor_string_false_target_and_adapter_flags_stay_false(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir()
+    signature = tmp_path / "signature.lean"
+    signature.write_text(
+        "theorem split_conformal_coverage : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate.lean"
+    transcript = tmp_path / "transcript.jsonl"
+    queue_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "execution_queue_id": "exact_source_queue:string_false",
+                "source_work_order_id": "exact_source_work_order:string_false",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "expected_target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": "false",
+                "source_theorem_kernel_evidence_eligible": "false",
+                "source_theorem_proof_body_adapter_feedback_available": "false",
+                "source_theorem_proof_body_adapter_kernel_verified": "false",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": "false",
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+                "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                "target_identity_errors": [],
+                "signature_probe_artifact_path": str(signature),
+                "candidate_artifact_path": str(candidate),
+                "execution_transcript_path": str(transcript),
+                "live_goal_location_ready": "false",
+                "already_repaired_environment": {
+                    "missing_formal_symbols": [],
+                    "typeclass_blockers": [],
+                    "signature_typecheck_reached_proof_body": "false",
+                },
+                "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+            }
+        ],
+    }
+    (
+        queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    ).write_text(json.dumps(queue_manifest), encoding="utf-8")
+
+    manifest = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "executor",
+        local_lean=False,
+    )
+
+    assert manifest["n_source_theorem_target_known"] == 0
+    assert manifest["n_live_goal_location_ready"] == 0
+    assert manifest["n_source_theorem_proof_body_adapter_kernel_verified_context_rows"] == 0
+    assert manifest["n_source_theorem_kernel_verified"] == 0
+    row = manifest["rows"][0]
+    assert row["source_theorem_target_known"] is False
+    assert row["source_theorem_target_identity_status"] == (
+        "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED"
+    )
+    assert row["source_theorem_proof_body_adapter_feedback_available"] is False
+    assert row["source_theorem_proof_body_adapter_kernel_verified"] is False
+    assert row["source_theorem_kernel_evidence_eligible"] is False
+    assert row["live_goal_location_ready"] is False
+    assert row["source_theorem_kernel_verified"] is False
+
+
 def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
     tmp_path: Path,
 ) -> None:
