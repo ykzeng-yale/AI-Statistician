@@ -169,6 +169,9 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
             "context_kind": "subsystem_repair_context",
             "errors_seen": kwargs["errors"],
             "required_field": "semantic_anchor",
+            "repair_prompt_priority_instructions": [
+                "Copy subsystem seed into candidate field."
+            ],
         },
     )
 
@@ -178,7 +181,14 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
         "context_kind": "subsystem_repair_context",
         "errors_seen": ["missing subsystem-specific field"],
         "required_field": "semantic_anchor",
+        "repair_prompt_priority_instructions": [
+            "Copy subsystem seed into candidate field."
+        ],
     }
+    assert (
+        "Copy subsystem seed into candidate field."
+        in repair_payload["repair_instructions"]
+    )
 
 
 def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:

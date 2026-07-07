@@ -1859,8 +1859,17 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     concrete_seed = blueprint["concrete_lane_routable_repair_seed"]
     issue_summary = repair_context["pseudo_formal_validation_issue_summary"]
     issue_actions = repair_context["pseudo_formal_issue_specific_repair_actions"]
+    top_level_repair_instructions = " ".join(repair_payload["repair_instructions"])
     assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
     assert repair_context["pseudo_formal_activation_required"] is True
+    assert "concrete_lane_routable_repair_seed" in top_level_repair_instructions
+    assert "pseudo_formal_proof_packets[0]" in top_level_repair_instructions
+    assert "source_anchors" in top_level_repair_instructions
+    assert "semantic_primitive_requirements" in top_level_repair_instructions
+    assert (
+        "pseudo_formal_proof_packets[0].blocks[0].source_anchors"
+        in repair_context["repair_prompt_required_output_paths"]
+    )
     assert issue_summary["n_missing_conclusion"] == 1
     assert issue_summary["n_missing_source_anchors"] == 1
     assert "missing_conclusion" in issue_summary["blocking_issue_kinds"]

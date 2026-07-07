@@ -309,6 +309,7 @@ def _repair_prompt(
             "unless the original contract gives an explicit verified repair path."
         ),
     ]
+    repair_instructions.extend(_subsystem_priority_repair_instructions(repair_context))
     if truncation_detected:
         repair_instructions.insert(
             0,
@@ -340,6 +341,25 @@ def _repair_prompt(
         "Repair the packet. Return ONLY corrected JSON.\n\n"
         + json.dumps(payload, indent=2, default=str)
     )
+
+
+def _subsystem_priority_repair_instructions(
+    repair_context: Mapping[str, Any] | None,
+) -> list[str]:
+    if not isinstance(repair_context, Mapping):
+        return []
+    raw_instructions = repair_context.get("repair_prompt_priority_instructions", [])
+    if isinstance(raw_instructions, str):
+        candidates = [raw_instructions]
+    elif isinstance(raw_instructions, list | tuple):
+        candidates = [str(item) for item in raw_instructions]
+    else:
+        candidates = []
+    return [
+        instruction.strip()
+        for instruction in candidates[:6]
+        if instruction.strip()
+    ]
 
 
 def _single_line_excerpt(text: str, *, center: int, radius: int) -> str:

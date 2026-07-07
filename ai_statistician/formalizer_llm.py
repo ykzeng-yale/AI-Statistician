@@ -275,6 +275,39 @@ def _formalizer_repair_context(
         "pseudo_formal_validation_issue_summary": validation_issue_summary,
         "pseudo_formal_issue_specific_repair_actions": issue_specific_repair_actions,
         "validation_repair_policy": formalizer_validation_repair_policy(error_rows),
+        "repair_prompt_priority_instructions": [
+            (
+                "PF/BV repair is binding: emit pseudo_formal_proof_packets; do "
+                "not answer only with formal_targets, gap_taxonomy, or next_actions."
+            ),
+            (
+                "Copy subsystem_repair_context.pseudo_formal_required_repair_blueprint."
+                "concrete_lane_routable_repair_seed into pseudo_formal_proof_packets[0] "
+                "when present; preserve conclusion, source_anchors, "
+                "semantic_primitive_requirements, lean_feasibility, "
+                "faithfulness_status, proof_evidence_status, kernel_verified=false, "
+                "and source_theorem_kernel_verified=false."
+            ),
+            (
+                "The repaired PF/BV packet must produce at least one effective "
+                "lane-routable work-order row; for "
+                "source_theorem_exact_semantic_definition use "
+                "faithfulness_status=faithful, "
+                "lean_feasibility=needs_semantic_definition, and non-empty "
+                "semantic_primitive_requirements."
+            ),
+            (
+                "Every PF/BV block must keep top-level conclusion and source_anchors "
+                "fields; do not move them into prose, proof_text, anchors, or "
+                "next_actions."
+            ),
+        ],
+        "repair_prompt_required_output_paths": [
+            "pseudo_formal_proof_packets[0].blocks[0].conclusion",
+            "pseudo_formal_proof_packets[0].blocks[0].source_anchors",
+            "pseudo_formal_proof_packets[0].blocks[0].semantic_primitive_requirements",
+            "pseudo_formal_proof_packets[0].blocks[0].lean_feasibility",
+        ],
         "pseudo_formal_required_repair_blueprint": {
             "output_key": "pseudo_formal_proof_packets",
             "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
