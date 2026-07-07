@@ -11006,6 +11006,15 @@ def audit_research_agent_runtime(
             source=manifest,
             prefix=proof_body_prefix,
         )
+    for proof_body_key in (
+        *SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
+        *SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
+        *SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS,
+        *SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
+    ):
+        if proof_body_key in payload:
+            continue
+        payload[proof_body_key] = int(manifest.get(proof_body_key, 0) or 0)
     payload["runtime_architect_control_status"] = _runtime_architect_control_status(
         payload
     )
@@ -12579,6 +12588,9 @@ def _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
         "_n_proof_body_gate_open_for_kernel_repair",
         "_n_proof_body_goal_excerpt_rows",
         "_first_proof_body_goal_excerpt",
+        "_n_result_rows",
+        "_n_local_lean_checked",
+        "_n_source_theorem_kernel_verified",
     ):
         if key.endswith(suffix):
             signature_key = (
@@ -12866,18 +12878,52 @@ def _runtime_source_theorem_proof_body_same_lane_verification_summary(
         result_rows = _safe_int(payload.get(result_key))
         local_lean_checked = _safe_int(payload.get(local_lean_key)) if local_lean_key else 0
         kernel_verified = _safe_int(payload.get(kernel_key)) if kernel_key else 0
+        signature_artifact_rows = (
+            _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
+                payload,
+                result_key,
+            )
+        )
+        lane_prefix = result_key.removesuffix("_n_result_rows")
+        raw_proof_body_progress = sum(
+            _safe_int(payload.get(f"{lane_prefix}_{suffix}", 0))
+            for suffix in (
+                "n_proof_body_goal_reached",
+                "n_proof_body_goal_reached_with_semantic_blockers",
+                "n_proof_body_goal_reached_from_pseudo_formal",
+                "n_proof_body_goal_reached_from_formalizer_pf_component_gate",
+                "n_proof_body_gate_open_for_kernel_repair",
+                "n_proof_body_goal_excerpt_rows",
+            )
+        ) + _runtime_manifest_nonempty_entry_count(
+            payload,
+            (f"{lane_prefix}_first_proof_body_goal_excerpt",),
+        )
+        signature_backed_proof_body_progress = (
+            raw_proof_body_progress if signature_artifact_rows > 0 else 0
+        )
         if result_rows <= 0 and local_lean_checked <= 0 and kernel_verified <= 0:
             continue
+        same_lane_verified = (
+            result_rows > 0
+            and (local_lean_checked > 0 or kernel_verified > 0)
+            and (
+                signature_backed_proof_body_progress > 0
+                or kernel_verified > 0
+            )
+        )
         lane_rows.append(
             {
                 "lane_id": lane_id,
                 "result_rows": result_rows,
                 "local_lean_checked": local_lean_checked,
                 "source_theorem_kernel_verified": kernel_verified,
-                "same_lane_local_lean_or_kernel_ok": (
-                    result_rows > 0
-                    and (local_lean_checked > 0 or kernel_verified > 0)
+                "signature_artifact_rows": signature_artifact_rows,
+                "raw_proof_body_progress": raw_proof_body_progress,
+                "signature_backed_proof_body_progress": (
+                    signature_backed_proof_body_progress
                 ),
+                "same_lane_local_lean_or_kernel_ok": same_lane_verified,
             }
         )
     verified_lanes = [
@@ -12906,6 +12952,17 @@ def _runtime_source_theorem_proof_body_same_lane_verification_summary(
             or _safe_int(row.get("source_theorem_kernel_verified")) > 0
         )
     ]
+    verifier_lanes_without_signature_backed_progress = [
+        str(row["lane_id"])
+        for row in lane_rows
+        if _safe_int(row.get("result_rows")) > 0
+        and (
+            _safe_int(row.get("local_lean_checked")) > 0
+            or _safe_int(row.get("source_theorem_kernel_verified")) > 0
+        )
+        and _safe_int(row.get("source_theorem_kernel_verified")) <= 0
+        and _safe_int(row.get("signature_backed_proof_body_progress")) <= 0
+    ]
     return {
         "same_lane_local_lean_or_kernel_ok": bool(verified_lanes),
         "aggregate_formal_environment_counts": aggregate_formal_environment_counts,
@@ -12913,6 +12970,9 @@ def _runtime_source_theorem_proof_body_same_lane_verification_summary(
         "result_lanes": result_lanes,
         "result_lanes_without_verifier": result_lanes_without_verifier,
         "verifier_lanes_without_result": verifier_lanes_without_result,
+        "verifier_lanes_without_signature_backed_progress": (
+            verifier_lanes_without_signature_backed_progress
+        ),
         "lane_rows": lane_rows,
     }
 
@@ -14013,6 +14073,10 @@ def _runtime_capability_gap_audit_metrics(
             *SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
             *SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS,
             *SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
+            *SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
+            *SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
+            *SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS,
+            *SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS,
             "source_theorem_formal_environment_proof_body_executor_counts_aggregate",
             "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
             "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows",
@@ -25471,6 +25535,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{proof_body_same_lane_verification_summary.get('result_lanes_without_verifier')} "
                 "verifier_lanes_without_result="
                 f"{proof_body_same_lane_verification_summary.get('verifier_lanes_without_result')} "
+                "verifier_lanes_without_signature_backed_progress="
+                f"{proof_body_same_lane_verification_summary.get('verifier_lanes_without_signature_backed_progress')} "
                 "candidate_materialization_blocking="
                 f"{exact_proof_body_materialization_blocking}"
             ),
@@ -25485,21 +25551,26 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 else (
                     "exact source-theorem proof-body result rows and local Lean/AXLE "
                     "or source-theorem kernel evidence are split across executor "
-                    "lanes; one proof-body executor lane must record both before "
-                    "runtime capability can count the source-theorem proof-body path"
+                    "lanes or lack same-lane signature-backed proof-body progress; "
+                    "one proof-body executor lane must record result rows, "
+                    "signature-backed proof-body progress, and verifier evidence "
+                    "before runtime capability can count the source-theorem "
+                    "proof-body path"
                 )
             ),
             next_owner_subsystem="FormalizationEvaluator",
             target_behavior=(
                 "Rerun or repair the exact source-theorem proof-body executor "
-                "so the same lane that emits result rows also records local "
-                "Lean/AXLE feedback or source-theorem kernel verification. "
+                "so the same lane that emits result rows also records signature-"
+                "backed proof-body progress plus local Lean/AXLE feedback or "
+                "source-theorem kernel verification. "
                 "Aggregate formal-environment counters must retain leaf-lane "
                 "telemetry instead of being treated as proof-path evidence."
             ),
             success_metric=(
                 "source_theorem_proof_body_result_row_count>0 and a single "
                 "proof-body lane has n_result_rows>0 plus "
+                "same-lane signature-backed proof-body progress plus "
                 "n_local_lean_checked>0 or n_source_theorem_kernel_verified>0; "
                 "aggregate formal-environment counters alone do not satisfy "
                 "this row"

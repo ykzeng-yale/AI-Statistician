@@ -73916,6 +73916,7 @@ def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_
     result_key: str,
     local_lean_key: str,
 ) -> None:
+    lane_prefix = result_key.removesuffix("_n_result_rows")
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     traces = runtime_dir / "runtime_traces.jsonl"
@@ -73940,6 +73941,8 @@ def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_
         },
         result_key: 1,
         local_lean_key: 1,
+        f"{lane_prefix}_n_proof_body_signature_probe_artifact_rows": 1,
+        f"{lane_prefix}_n_proof_body_goal_reached": 1,
         **_target_bound_source_theorem_payload(),
         "n_full_frontier_theorem_proved": 0,
         "n_formal_gaps": 0,
@@ -73960,6 +73963,9 @@ def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_
     assert audit[local_lean_key] == 1
     assert same_lane_row["passed"] is True
     assert "same_lane_verified=True" in same_lane_row["evidence"]
+    assert "verifier_lanes_without_signature_backed_progress=[]" in same_lane_row[
+        "evidence"
+    ]
     assert lane_id in same_lane_row["evidence"]
 
 
@@ -82019,6 +82025,8 @@ def test_runtime_capability_scorecard_accepts_source_theorem_proof_body_local_le
         "source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
         "source_theorem_formal_environment_proof_body_executor_local_lean_requested": True,
         "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 1,
+        "source_theorem_formal_environment_proof_body_executor_n_proof_body_signature_probe_artifact_rows": 1,
+        "source_theorem_formal_environment_proof_body_executor_n_proof_body_goal_reached": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -82030,7 +82038,44 @@ def test_runtime_capability_scorecard_accepts_source_theorem_proof_body_local_le
     same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
     assert same_lane_row["passed"] is True
     assert "same_lane_verified=True" in same_lane_row["evidence"]
+    assert "verifier_lanes_without_signature_backed_progress=[]" in same_lane_row[
+        "evidence"
+    ]
     assert "formal_environment" in same_lane_row["evidence"]
+
+
+def test_runtime_capability_scorecard_rejects_same_lane_verifier_without_signature_backed_progress() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_signature_probe_artifact_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    same_lane_row = rows["source_theorem_proof_body_same_lane_verifier_evidence"]
+
+    assert proof_body_row["passed"] is True
+    assert same_lane_row["passed"] is False
+    assert "same_lane_verified=False" in same_lane_row["evidence"]
+    assert (
+        "verifier_lanes_without_signature_backed_progress=['exact_proof_body_repair']"
+        in same_lane_row["evidence"]
+    )
+    assert "signature-backed proof-body progress" in same_lane_row["blocker"]
 
 
 def test_runtime_capability_scorecard_accepts_source_theorem_kernel_as_proof_body_verifier_boundary() -> None:
@@ -82094,6 +82139,7 @@ def test_runtime_capability_scorecard_counts_verifier_approved_recheck_local_lea
     result_key: str,
     local_lean_key: str,
 ) -> None:
+    lane_prefix = result_key.removesuffix("_n_result_rows")
     payload = {
         "runtime_evaluation_mode": "debug",
         "n_results": 1,
@@ -82108,6 +82154,8 @@ def test_runtime_capability_scorecard_counts_verifier_approved_recheck_local_lea
         "n_runtime_traces": 6,
         result_key: 1,
         local_lean_key: 1,
+        f"{lane_prefix}_n_proof_body_signature_probe_artifact_rows": 1,
+        f"{lane_prefix}_n_proof_body_goal_reached": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -82116,6 +82164,9 @@ def test_runtime_capability_scorecard_counts_verifier_approved_recheck_local_lea
 
     assert same_lane_row["passed"] is True
     assert "same_lane_verified=True" in same_lane_row["evidence"]
+    assert "verifier_lanes_without_signature_backed_progress=[]" in same_lane_row[
+        "evidence"
+    ]
     assert lane_id in same_lane_row["evidence"]
 
 
