@@ -11021,6 +11021,13 @@ def audit_research_agent_runtime(
     payload["source_theorem_proof_body_gate_open_for_kernel_repair_count"] = (
         _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(payload)
     )
+    payload[
+        "source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count"
+    ] = (
+        _payload_source_theorem_proof_body_effective_gate_open_for_kernel_repair_count(
+            payload
+        )
+    )
     payload["source_theorem_proof_body_gate_open_for_kernel_repair_target_names"] = (
         _payload_source_theorem_proof_body_gate_open_for_kernel_repair_target_names(
             payload
@@ -12551,7 +12558,7 @@ def _payload_source_theorem_proof_body_signature_artifact_count(
     )
 
 
-def _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+def _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
     payload: Mapping[str, Any],
     key: str,
 ) -> int:
@@ -12569,6 +12576,7 @@ def _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
     for suffix in (
         "_n_proof_body_goal_reached_with_semantic_blockers",
         "_n_proof_body_goal_reached",
+        "_n_proof_body_gate_open_for_kernel_repair",
         "_n_proof_body_goal_excerpt_rows",
         "_first_proof_body_goal_excerpt",
     ):
@@ -12605,7 +12613,7 @@ def _payload_source_theorem_proof_body_effective_goal_reached_count(
         if proof_body_goal_reached_count <= 0:
             continue
         if (
-            _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+            _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
                 payload,
                 key,
             )
@@ -12617,7 +12625,7 @@ def _payload_source_theorem_proof_body_effective_goal_reached_count(
         if proof_body_goal_excerpt_rows <= 0:
             continue
         if (
-            _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+            _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
                 payload,
                 key,
             )
@@ -12632,7 +12640,7 @@ def _payload_source_theorem_proof_body_effective_goal_reached_count(
         if proof_body_goal_excerpt_count <= 0:
             continue
         if (
-            _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+            _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
                 payload,
                 key,
             )
@@ -12649,6 +12657,25 @@ def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(
         payload,
         SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS,
     )
+
+
+def _payload_source_theorem_proof_body_effective_gate_open_for_kernel_repair_count(
+    payload: Mapping[str, Any],
+) -> int:
+    effective_count = 0
+    for key in SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS:
+        gate_open_count = _safe_int(payload.get(key, 0))
+        if gate_open_count <= 0:
+            continue
+        if (
+            _payload_source_theorem_proof_body_signature_artifact_count_for_lane_key(
+                payload,
+                key,
+            )
+            > 0
+        ):
+            effective_count += gate_open_count
+    return effective_count
 
 
 def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_target_names(
@@ -13934,6 +13961,7 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_proof_body_signature_artifact_count",
             *SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
             "source_theorem_proof_body_gate_open_for_kernel_repair_count",
+            "source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count",
             "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
             "source_theorem_proof_body_result_row_count",
             "source_theorem_exact_proof_body_repair_executor_n_result_rows",
@@ -13972,6 +14000,7 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
             "source_theorem_exact_proof_body_repair_executor_n_local_lean_compiled",
             "source_theorem_proof_body_gate_open_for_kernel_repair_count",
+            "source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count",
             "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
             "source_theorem_candidate_materialization_required",
             "source_theorem_exact_proof_body_repair_execution_queue_n_rows",
@@ -17702,6 +17731,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proof_body_effective_goal_reached_count = (
         _payload_source_theorem_proof_body_effective_goal_reached_count(payload)
+    )
+    proof_body_gate_open_for_kernel_repair_count = (
+        _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(payload)
+    )
+    proof_body_effective_gate_open_for_kernel_repair_count = (
+        _payload_source_theorem_proof_body_effective_gate_open_for_kernel_repair_count(
+            payload
+        )
     )
     proof_body_semantic_review_blocker_count = (
         _payload_source_theorem_proof_body_semantic_review_blocker_count(payload)
@@ -23659,8 +23696,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{proof_body_effective_goal_reached_count} "
                 "signature_artifact_rows="
                 f"{proof_body_signature_artifact_count} "
-                "gate_open_for_kernel_repair="
-                f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_count')} "
+                "raw_gate_open_for_kernel_repair="
+                f"{proof_body_gate_open_for_kernel_repair_count} "
+                "effective_signature_backed_gate_open_for_kernel_repair="
+                f"{proof_body_effective_gate_open_for_kernel_repair_count} "
                 "gate_open_targets="
                 f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_target_names')} "
                 "proof_body_result_rows="
@@ -25397,8 +25436,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_local_lean_checked')} "
                 "source_theorem_kernel_verified="
                 f"{source_theorem_kernel_count} "
-                "gate_open_for_kernel_repair="
-                f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_count')} "
+                "raw_gate_open_for_kernel_repair="
+                f"{proof_body_gate_open_for_kernel_repair_count} "
+                "effective_signature_backed_gate_open_for_kernel_repair="
+                f"{proof_body_effective_gate_open_for_kernel_repair_count} "
                 "candidate_materialization_blocking="
                 f"{exact_proof_body_materialization_blocking} "
                 "queue_ready="

@@ -4011,6 +4011,10 @@ async def run_research_system_audit(
                 "source_theorem_proof_body_gate_open_for_kernel_repair_count",
                 0,
             ),
+            "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count",
+                0,
+            ),
             "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names": research_agent_runtime_audit_manifest.get(
                 "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
                 [],

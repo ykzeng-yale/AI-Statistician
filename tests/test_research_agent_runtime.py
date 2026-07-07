@@ -81677,6 +81677,7 @@ def test_runtime_capability_scorecard_rejects_cross_lane_proof_body_signature_ar
         "n_runtime_traces": 6,
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 1,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_signature_probe_artifact_rows": (
             1
         ),
@@ -81697,7 +81698,19 @@ def test_runtime_capability_scorecard_rejects_cross_lane_proof_body_signature_ar
         == 1
     )
     assert (
+        audit_module._payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(
+            payload
+        )
+        == 1
+    )
+    assert (
         audit_module._payload_source_theorem_proof_body_effective_goal_reached_count(
+            payload
+        )
+        == 0
+    )
+    assert (
+        audit_module._payload_source_theorem_proof_body_effective_gate_open_for_kernel_repair_count(
             payload
         )
         == 0
@@ -81706,6 +81719,11 @@ def test_runtime_capability_scorecard_rejects_cross_lane_proof_body_signature_ar
     assert "raw_proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
     assert "effective_signature_backed_goal_reached=0" in proof_body_row["evidence"]
     assert "signature_artifact_rows=1" in proof_body_row["evidence"]
+    assert "raw_gate_open_for_kernel_repair=1" in proof_body_row["evidence"]
+    assert (
+        "effective_signature_backed_gate_open_for_kernel_repair=0"
+        in proof_body_row["evidence"]
+    )
     assert (
         "proof_body_signature_probe_artifact_path lineage"
         in proof_body_row["blocker"]
@@ -81727,6 +81745,7 @@ def test_runtime_capability_scorecard_counts_only_same_lane_signature_backed_goa
         "n_runtime_traces": 6,
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": (
             2
@@ -81750,9 +81769,20 @@ def test_runtime_capability_scorecard_counts_only_same_lane_signature_backed_goa
         )
         == 1
     )
+    assert (
+        audit_module._payload_source_theorem_proof_body_effective_gate_open_for_kernel_repair_count(
+            payload
+        )
+        == 1
+    )
     assert proof_body_row["passed"] is True
     assert "raw_proof_body_goal_reached_evidence=6" in proof_body_row["evidence"]
     assert "effective_signature_backed_goal_reached=1" in proof_body_row["evidence"]
+    assert "raw_gate_open_for_kernel_repair=1" in proof_body_row["evidence"]
+    assert (
+        "effective_signature_backed_gate_open_for_kernel_repair=1"
+        in proof_body_row["evidence"]
+    )
 
 
 def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_progress() -> None:
@@ -82320,6 +82350,12 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
     )
     assert audit["source_theorem_proof_body_signature_artifact_count"] == 7
     assert audit["source_theorem_proof_body_gate_open_for_kernel_repair_count"] == 6
+    assert (
+        audit[
+            "source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count"
+        ]
+        == 6
+    )
     assert audit[
         "source_theorem_proof_body_gate_open_for_kernel_repair_target_names"
     ] == ["central_exact_target", "post_adapter_target", "premise_adapter_target"]
@@ -82327,7 +82363,11 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
     assert "raw_proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
     assert "effective_signature_backed_goal_reached=16" in proof_body_row["evidence"]
     assert "signature_artifact_rows=7" in proof_body_row["evidence"]
-    assert "gate_open_for_kernel_repair=6" in proof_body_row["evidence"]
+    assert "raw_gate_open_for_kernel_repair=6" in proof_body_row["evidence"]
+    assert (
+        "effective_signature_backed_gate_open_for_kernel_repair=6"
+        in proof_body_row["evidence"]
+    )
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=9" in semantic_row["evidence"]
 

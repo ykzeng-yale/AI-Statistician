@@ -270,6 +270,7 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_signature_artifact_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
                         "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count",
+                        "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count",
                         "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present",
                         "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok",
@@ -1339,13 +1340,10 @@ def _suite_rows(
             )
         ),
     )
-    runtime_source_theorem_proof_body_gate_open_for_kernel_repair = max(
-        runtime_source_theorem_exact_proof_body_repair_gate_open_for_kernel_repair,
-        _int(
-            counts.get(
-                "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count"
-            )
-        ),
+    runtime_source_theorem_proof_body_gate_open_for_kernel_repair = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count"
+        )
     )
     runtime_source_theorem_signature_probe_scorecard_present = _bool(
         counts.get(
@@ -3343,6 +3341,7 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count"
                 ),
+                "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count": runtime_source_theorem_proof_body_gate_open_for_kernel_repair,
                 "research_agent_runtime_source_theorem_proof_body_effective_gate_open_for_kernel_repair": runtime_source_theorem_proof_body_gate_open_for_kernel_repair,
                 "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names"

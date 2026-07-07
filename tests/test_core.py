@@ -6123,6 +6123,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": 0,
+                "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count": 0,
                 "research_agent_runtime_source_theorem_kernel_verified_count": 0,
                 "research_agent_runtime_full_frontier_target_bound_kernel_verified": 1,
                 "research_agent_runtime_full_frontier_current_target_ids": [
@@ -6526,6 +6527,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names": [
                     "split_conformal_coverage"
                 ],
