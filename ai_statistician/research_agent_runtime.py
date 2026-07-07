@@ -4559,23 +4559,32 @@ def _runtime_truth_row_proof_body_signature_artifact_count(
     input_summary: Mapping[str, Any] | None = None,
 ) -> int:
     summary = input_summary or {}
+    path_keys = (
+        "proof_body_signature_probe_artifact_path",
+        "source_theorem_signature_probe_artifact_path",
+        "signature_probe_artifact_path",
+    )
+    path_list_keys = (
+        "proof_body_signature_probe_artifact_paths",
+        "source_theorem_signature_probe_artifact_paths",
+        "signature_probe_artifact_paths",
+    )
     has_path = bool(
-        str(row.get("proof_body_signature_probe_artifact_path", "") or "").strip()
-        or str(summary.get("proof_body_signature_probe_artifact_path", "") or "").strip()
-        or _runtime_manifest_string_list(row, "proof_body_signature_probe_artifact_paths")
-        or _runtime_manifest_string_list(
-            summary,
-            "proof_body_signature_probe_artifact_paths",
-        )
+        any(str(row.get(key, "") or "").strip() for key in path_keys)
+        or any(str(summary.get(key, "") or "").strip() for key in path_keys)
+        or any(_runtime_manifest_string_list(row, key) for key in path_list_keys)
+        or any(_runtime_manifest_string_list(summary, key) for key in path_list_keys)
     )
     return max(
         _runtime_manifest_int(row, "proof_body_signature_probe_artifact_rows"),
+        _runtime_manifest_int(row, "n_proof_body_signature_probe_artifact_rows"),
         _runtime_manifest_int(row, "proof_body_signature_artifact_count"),
         _runtime_manifest_int(
             row,
             "source_theorem_proof_body_signature_artifact_count",
         ),
         _runtime_manifest_int(summary, "proof_body_signature_probe_artifact_rows"),
+        _runtime_manifest_int(summary, "n_proof_body_signature_probe_artifact_rows"),
         _runtime_manifest_int(summary, "proof_body_signature_artifact_count"),
         _runtime_manifest_int(
             summary,
@@ -49412,6 +49421,27 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         proof_body_signature_artifact_count = (
             _runtime_truth_row_proof_body_signature_artifact_count(row, input_summary)
         )
+        proof_body_signature_probe_artifact_path = str(
+            row.get("proof_body_signature_probe_artifact_path", "")
+            or row.get("source_theorem_signature_probe_artifact_path", "")
+            or row.get("signature_probe_artifact_path", "")
+            or (
+                input_summary.get("proof_body_signature_probe_artifact_path", "")
+                if isinstance(input_summary, Mapping)
+                else ""
+            )
+            or (
+                input_summary.get("source_theorem_signature_probe_artifact_path", "")
+                if isinstance(input_summary, Mapping)
+                else ""
+            )
+            or (
+                input_summary.get("signature_probe_artifact_path", "")
+                if isinstance(input_summary, Mapping)
+                else ""
+            )
+            or ""
+        ).strip()
         proof_body_semantic_review_blocked = _bool_like(
             row.get("proof_body_semantic_review_blocked", False)
         )
@@ -50178,6 +50208,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "proof_body_gate_status": proof_body_gate_status,
                 "runtime_queue_status": runtime_queue_status,
                 "proof_body_goal_reached": proof_body_goal_reached,
+                "proof_body_signature_probe_artifact_rows": (
+                    proof_body_signature_artifact_count
+                ),
+                "proof_body_signature_probe_artifact_path": (
+                    proof_body_signature_probe_artifact_path
+                ),
                 "proof_body_goal_excerpt": proof_body_goal_excerpt,
                 "diagnostics": diagnostics,
                 "semantic_alignment_constraints": semantic_alignment_constraints,
@@ -50476,6 +50512,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                             "runtime_queue_status": runtime_queue_status,
                             "proof_body_gate_status": proof_body_gate_status,
                             "proof_body_goal_reached": proof_body_goal_reached,
+                            "proof_body_signature_probe_artifact_rows": (
+                                proof_body_signature_artifact_count
+                            ),
+                            "proof_body_signature_probe_artifact_path": (
+                                proof_body_signature_probe_artifact_path
+                            ),
                             "source_theorem_kernel_evidence_eligible": (
                                 source_theorem_kernel_evidence_eligible
                             ),
@@ -50512,6 +50554,15 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "proof_body_gate_status": proof_body_gate_status,
                 "proof_body_status": proof_body_status,
                 "proof_body_goal_reached": proof_body_goal_reached,
+                "proof_body_signature_probe_artifact_rows": (
+                    proof_body_signature_artifact_count
+                ),
+                "proof_body_signature_probe_artifact_path": (
+                    proof_body_signature_probe_artifact_path
+                ),
+                "source_theorem_signature_probe_artifact_path": (
+                    proof_body_signature_probe_artifact_path
+                ),
                 "proof_body_semantic_review_blocked": (
                     proof_body_semantic_review_blocked
                 ),
@@ -50873,6 +50924,8 @@ def _source_theorem_proof_body_adapter_required_reasons(
         return []
     if not bool(repair.get("proof_body_goal_reached", False)):
         return []
+    if not _runtime_truth_row_has_proof_body_signature_artifact(repair):
+        return []
 
     goal_lines = [
         str(value)
@@ -51020,6 +51073,9 @@ def _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
         repair.get("runtime_queue_status", "") or ""
     ).strip()
     trigger = str(repair.get("trigger", "") or "").strip()
+    gate_open_flag = _bool_like(
+        repair.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
+    )
     proof_body_reached = bool(
         _bool_like(repair.get("proof_body_goal_reached", False))
         or _bool_like(repair.get("source_theorem_exact_proof_body_reached", False))
@@ -51068,13 +51124,18 @@ def _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
         or trigger in _SOURCE_THEOREM_PROOF_BODY_ADAPTER_INSTANTIATION_TRIGGERS
         or trigger in _SOURCE_THEOREM_PROOF_BODY_VERIFIED_ADAPTER_INSUFFICIENT_TRIGGERS
         or proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+        or gate_open_flag
     )
     return bool(
         proof_body_repair_status
         and proof_body_reached
+        and _runtime_truth_row_has_proof_body_signature_artifact(repair)
         and source_theorem_kernel_evidence_eligible
         and not source_theorem_kernel_verified
-        and proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+        and (
+            proof_body_gate_status == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+            or gate_open_flag
+        )
         and not semantic_blockers
         and not verifier_gate_blockers
         and not known_gaps
@@ -53636,6 +53697,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
         for row in exact_source_proof_body_adapter_feedback_rows
         if not _bool_like(row.get("adapter_kernel_verified", False))
     )
+    source_theorem_proof_body_signature_artifact_count = max(
+        (
+            _runtime_truth_row_proof_body_signature_artifact_count(row)
+            for row in (
+                *exact_source_proof_body_repair_rows,
+                *exact_source_proof_body_adapter_feedback_rows,
+            )
+        ),
+        default=0,
+    )
     adapter_verified_targets = {
         str(row.get("target_theorem_name", "") or "").strip()
         for row in (
@@ -54407,6 +54478,28 @@ def _formalizer_proof_bank_runtime_memory_summary(
         )
         return _int_like(row.get(key, input_summary.get(key, 0)))
 
+    def verified_premise_row_string_values(
+        row: Mapping[str, Any],
+        *keys: str,
+    ) -> tuple[str, ...]:
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        return tuple(
+            dict.fromkeys(
+                [
+                    *_runtime_row_string_values(row, *keys),
+                    *(
+                        _runtime_row_string_values(input_summary, *keys)
+                        if isinstance(input_summary, Mapping)
+                        else ()
+                    ),
+                ]
+            )
+        )
+
     verified_source_to_bridge_premise_candidate_artifact_paths = tuple(
         dict.fromkeys(
             value
@@ -54490,6 +54583,35 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "",
     )
+    verified_source_to_bridge_premise_signature_artifact_count = max(
+        (
+            _runtime_truth_row_proof_body_signature_artifact_count(
+                row,
+                row.get("input_summary", {})
+                if isinstance(row.get("input_summary", {}), Mapping)
+                else {},
+            )
+            for row in verified_source_to_bridge_premise_derivation_rows
+        ),
+        default=0,
+    )
+    verified_source_to_bridge_premise_signature_artifact_paths = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in verified_premise_row_string_values(
+                row,
+                "proof_body_signature_probe_artifact_path",
+                "source_theorem_signature_probe_artifact_path",
+                "signature_probe_artifact_path",
+            )
+        )
+    )
+    verified_source_to_bridge_premise_signature_artifact_path = (
+        verified_source_to_bridge_premise_signature_artifact_paths[0]
+        if verified_source_to_bridge_premise_signature_artifact_paths
+        else ""
+    )
     verified_source_to_bridge_premise_gate_open_probe = {
         "failure_classification": "source_to_bridge_premise_derivations_kernel_verified",
         "runtime_queue_status": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
@@ -54498,6 +54620,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "proof_body_goal_reached": (
             verified_source_to_bridge_premise_proof_body_goal_reached
+        ),
+        "proof_body_signature_probe_artifact_rows": (
+            verified_source_to_bridge_premise_signature_artifact_count
+        ),
+        "proof_body_signature_probe_artifact_path": (
+            verified_source_to_bridge_premise_signature_artifact_path
         ),
         "source_theorem_kernel_evidence_eligible": (
             verified_source_to_bridge_premise_kernel_evidence_eligible
@@ -54585,6 +54713,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "proof_body_goal_reached": (
                     verified_source_to_bridge_premise_proof_body_goal_reached
+                ),
+                "proof_body_signature_probe_artifact_rows": (
+                    verified_source_to_bridge_premise_signature_artifact_count
+                ),
+                "proof_body_signature_probe_artifact_path": (
+                    verified_source_to_bridge_premise_signature_artifact_path
+                ),
+                "source_theorem_signature_probe_artifact_path": (
+                    verified_source_to_bridge_premise_signature_artifact_path
                 ),
                 "proof_body_attempted": bool(
                     verified_source_to_bridge_premise_proof_body_attempt_count
@@ -54953,6 +55090,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "source_theorem_exact_proof_body_gate_open_target_names": list(
             exact_source_proof_body_gate_open_target_names
+        ),
+        "source_theorem_proof_body_signature_artifact_count": (
+            source_theorem_proof_body_signature_artifact_count
         ),
         "source_theorem_exact_proof_body_verified_adapter_context_insufficient": bool(
             exact_source_proof_body_verified_adapter_insufficient_rows
@@ -60201,19 +60341,18 @@ def _formalizer_source_theorem_promotion_work_orders(
     proof_body_gate_open_diagnostics = [
         row
         for row in [*proof_body_repair_diagnostics, *proof_body_adapter_diagnostics]
-        if _bool_like(
-            row.get(
-                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                False,
-            )
-        )
-        or _source_theorem_exact_proof_body_gate_open_for_kernel_repair(row)
+        if _source_theorem_exact_proof_body_gate_open_for_kernel_repair(row)
     ]
     source_theorem_exact_proof_body_gate_open_for_kernel_repair = bool(
-        _bool_like(
-            proof_bank_runtime_memory_summary.get(
-                "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                False,
+        (
+            _bool_like(
+                proof_bank_runtime_memory_summary.get(
+                    "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+                    False,
+                )
+            )
+            and _runtime_truth_row_has_proof_body_signature_artifact(
+                proof_bank_runtime_memory_summary
             )
         )
         or proof_body_gate_open_diagnostics

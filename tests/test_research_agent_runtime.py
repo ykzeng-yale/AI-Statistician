@@ -56326,6 +56326,7 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
     verified_ids = [str(row["obligation_id"]) for row in catalog]
+    signature_probe_path = "runs/split_conformal_coverage_signature_probe.jsonl"
     learning_row = {
         "schema_version": 1,
         "learning_task": "exact_source_theorem_proof_body_execution_feedback",
@@ -56353,9 +56354,13 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
         "failure_classification": "proof_body_incomplete",
         "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
         "proof_body_goal_reached": True,
+        "proof_body_signature_probe_artifact_path": signature_probe_path,
+        "source_theorem_signature_probe_artifact_path": signature_probe_path,
         "input_summary": {
             "target_theorem_name": "split_conformal_coverage",
             "candidate_artifact_path": "runs/split_conformal_coverage_attempt.lean",
+            "proof_body_signature_probe_artifact_path": signature_probe_path,
+            "source_theorem_signature_probe_artifact_path": signature_probe_path,
             "source_theorem_kernel_verified": False,
             "source_theorem_kernel_evidence_eligible": False,
             "failure_classification": "proof_body_incomplete",
@@ -63801,14 +63806,12 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
     tmp_path: Path,
 ) -> None:
     out_dir = tmp_path / "runtime"
-    signature_probe_path = (
-        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
-    )
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
     verified_ids = [str(row["obligation_id"]) for row in catalog]
+    signature_probe_path = str(tmp_path / "split_conformal_signature_probe.jsonl")
     proof_body_feedback_row = {
         "schema_version": 1,
         "learning_task": "exact_source_theorem_proof_body_execution_feedback",
@@ -66805,6 +66808,7 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
         "  exact h hg\n",
         encoding="utf-8",
     )
+    signature_probe_path = str(tmp_path / "proof_body_signature_probe.jsonl")
     learning_rows = [
         {
             "kernel_verified_proof_obligation_ids": verified_ids,
@@ -66849,6 +66853,8 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
                     "1:simpa using split_conformal_coverage_source_to_bridge_adapter:returncode=1"
                 ],
                 "proof_body_attempt_count": 5,
+                "proof_body_signature_probe_artifact_path": signature_probe_path,
+                "source_theorem_signature_probe_artifact_path": signature_probe_path,
                 "candidate_artifact_path": str(tmp_path / "split_conformal_attempt.lean"),
                 "source_to_bridge_premise_candidate_artifact_path": str(
                     premise_artifact
@@ -68983,6 +68989,7 @@ def test_runtime_verified_adapter_feedback_triggers_same_run_exact_proof_body_re
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
     verified_ids = [str(row["obligation_id"]) for row in catalog]
+    signature_probe_path = str(tmp_path / "split_conformal_signature_probe.jsonl")
     proof_body_feedback_row = {
         "schema_version": 1,
         "learning_task": "exact_source_theorem_proof_body_execution_feedback",
@@ -69000,9 +69007,13 @@ def test_runtime_verified_adapter_feedback_triggers_same_run_exact_proof_body_re
         "failure_classification": "proof_body_incomplete",
         "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
         "proof_body_goal_reached": True,
+        "proof_body_signature_probe_artifact_path": signature_probe_path,
+        "source_theorem_signature_probe_artifact_path": signature_probe_path,
         "input_summary": {
             "target_theorem_name": "split_conformal_coverage",
             "candidate_artifact_path": str(source_candidate),
+            "proof_body_signature_probe_artifact_path": signature_probe_path,
+            "source_theorem_signature_probe_artifact_path": signature_probe_path,
             "source_theorem_kernel_verified": False,
             "source_theorem_kernel_evidence_eligible": False,
             "failure_classification": "proof_body_incomplete",
@@ -69032,6 +69043,10 @@ def test_runtime_verified_adapter_feedback_triggers_same_run_exact_proof_body_re
             "target_lean_declaration": "split_conformal_coverage",
             "source_theorem_kernel_verified": False,
             "adapter_kernel_verified": True,
+            "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+            "proof_body_goal_reached": True,
+            "proof_body_signature_probe_artifact_path": signature_probe_path,
+            "source_theorem_signature_probe_artifact_path": signature_probe_path,
             "kernel_verified_source_theorem_proof_body_adapter_ids": [
                 "source_theorem_proof_body_adapter_check:verified"
             ],
@@ -69043,6 +69058,10 @@ def test_runtime_verified_adapter_feedback_triggers_same_run_exact_proof_body_re
                     "split_conformal_coverage_source_to_bridge_adapter"
                 ),
                 "adapter_kernel_verified": True,
+                "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                "proof_body_goal_reached": True,
+                "proof_body_signature_probe_artifact_path": signature_probe_path,
+                "source_theorem_signature_probe_artifact_path": signature_probe_path,
                 "proof_body_goal_excerpt": [
                     "hexch : Exchangeable P s",
                     "hq : q_hat = fun ω => orderStat s k ω",
@@ -69065,6 +69084,8 @@ def test_runtime_verified_adapter_feedback_triggers_same_run_exact_proof_body_re
             "runtime_learning_rows_jsonl": str(learning_path),
             "n_adapter_check_rows": 1,
             "n_adapter_kernel_verified": 1,
+            "n_proof_body_signature_probe_artifact_rows": 1,
+            "proof_body_signature_probe_artifact_paths": [signature_probe_path],
             "source_theorem_kernel_verified": False,
             "proof_evidence_status": (
                 "KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_BODY_ADAPTER_PRESENT"
@@ -79595,6 +79616,111 @@ def test_runtime_truth_table_gate_open_routes_exact_proof_body_repair(
         "source_theorem_exact_proof_body_repair"
     )
     assert summary["source_theorem_exact_semantic_definition_repair_required"] is False
+
+
+def test_source_theorem_proof_body_gate_open_requires_signature_lineage() -> None:
+    repair = {
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "failure_classification": "proof_body_incomplete",
+        "runtime_queue_status": "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR",
+        "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+        "proof_body_goal_reached": True,
+        "source_theorem_kernel_evidence_eligible": True,
+        "source_theorem_kernel_verified": False,
+        "semantic_alignment_blockers": [],
+        "verifier_gate_blockers": [],
+        "known_gaps": [],
+        "semantic_definition_risks": [],
+    }
+
+    assert (
+        runtime_module._source_theorem_exact_proof_body_gate_open_for_kernel_repair(
+            repair
+        )
+        is False
+    )
+
+    repair["signature_probe_artifact_path"] = (
+        "runs/proof_body/signature_probe_artifact.jsonl"
+    )
+
+    assert (
+        runtime_module._source_theorem_exact_proof_body_gate_open_for_kernel_repair(
+            repair
+        )
+        is True
+    )
+
+
+def test_formalizer_promotion_ignores_gate_open_without_signature_lineage() -> None:
+    proposal = {
+        "packet_id": "formalizer:gate-open-without-signature",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal coverage",
+        },
+        "formal_targets": [
+            {
+                "id": "target:split_conformal_finite_sample_coverage",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage : True := by"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+    }
+    summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_proof_body_repair"
+        ),
+        "source_theorem_exact_proof_body_repair_required": True,
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": True,
+        "source_theorem_exact_proof_body_gate_open_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_proof_body_repair_diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "failure_classification": "proof_body_incomplete",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR"
+                ),
+                "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                "proof_body_goal_reached": True,
+                "source_theorem_kernel_evidence_eligible": True,
+                "source_theorem_kernel_verified": False,
+                "semantic_alignment_blockers": [],
+                "verifier_gate_blockers": [],
+                "known_gaps": [],
+                "semantic_definition_risks": [],
+            }
+        ],
+    }
+
+    work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=[],
+    )
+
+    assert len(work_orders) == 1
+    assert (
+        work_orders[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is False
+    )
+    assert work_orders[0][
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == []
 
 
 def test_gate_open_string_false_does_not_route_exact_proof_body_repair() -> None:
