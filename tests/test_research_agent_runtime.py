@@ -79088,6 +79088,12 @@ def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
     assert row["proof_evidence_status"] == "RUNTIME_TRUTH_TABLE_FEEDBACK_NOT_PROOF_EVIDENCE"
     assert row["input_summary"]["source_theorem_kernel_verified"] is False
     assert row["input_summary"]["proof_body_goal_reached"] is True
+    assert row["proof_body_signature_probe_artifact_rows"] == 1
+    assert row["input_summary"]["proof_body_signature_probe_artifact_rows"] == 1
+    assert (
+        row["input_summary"]["source_theorem_proof_body_signature_artifact_count"]
+        == 1
+    )
     assert (
         row["input_summary"]["failure_classification"]
         == "proof_body_verified_adapter_context_insufficient"
@@ -79145,6 +79151,7 @@ def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
     assert compact_truth_row["premise_target_type"] == (
         "{ω | rank ω ∈ GoodRanks} ⊆ covered"
     )
+    assert compact_truth_row["proof_body_signature_probe_artifact_rows"] == 1
     assert compact_generated_row["input_summary"]["premise_name"] == "hGoodCovered"
     assert compact_generated_row["input_summary"]["premise_target_type"] == (
         "{ω | rank ω ∈ GoodRanks} ⊆ covered"
@@ -79362,6 +79369,7 @@ def test_runtime_truth_table_reached_goal_semantic_review_routes_semantic_gate(
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_dominant_failure_classification": (
             "source_theorem_semantic_alignment_unreviewed"
         ),
@@ -79383,7 +79391,9 @@ def test_runtime_truth_table_reached_goal_semantic_review_routes_semantic_gate(
     assert row["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
     )
+    assert row["proof_body_signature_probe_artifact_rows"] == 1
     assert row["input_summary"]["proof_body_goal_reached"] is True
+    assert row["input_summary"]["proof_body_signature_probe_artifact_rows"] == 1
     assert row["input_summary"]["proof_body_semantic_review_blocked"] is True
     assert row["input_summary"]["source_theorem_ready_for_exact_proof_body"] is False
     assert (
@@ -79505,9 +79515,11 @@ def test_runtime_truth_table_gate_open_routes_exact_proof_body_repair(
     row = rows[0]
     assert row["proof_body_gate_status"] == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     assert row["source_theorem_exact_proof_body_gate_open_for_kernel_repair"] is True
+    assert row["proof_body_signature_probe_artifact_rows"] == 1
     assert row["input_summary"][
         "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
     ] is True
+    assert row["input_summary"]["proof_body_signature_probe_artifact_rows"] == 1
     assert row["input_summary"]["proof_body_semantic_review_blocked"] is False
     assert row["input_summary"]["source_theorem_kernel_evidence_eligible"] is True
     assert "do not reroute to semantic-definition review" in row[
@@ -79747,10 +79759,15 @@ def test_generated_next_action_gate_open_string_false_stays_closed() -> None:
     assert generated_rows[0]["trigger"] != (
         "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert generated_rows[0]["proof_body_goal_reached"] is False
     assert (
         generated_learning_rows[0]["input_summary"][
             "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
         ]
+        is False
+    )
+    assert (
+        generated_learning_rows[0]["input_summary"]["proof_body_goal_reached"]
         is False
     )
 
@@ -79804,6 +79821,7 @@ def test_generated_next_action_string_true_semantic_blocker_wins_gate_open() -> 
         "work_order_id": "truth-table:string-true-semantic-blocker",
         "target_theorem_name": "split_conformal_finite_sample_coverage",
         "proof_body_goal_reached": "true",
+        "proof_body_signature_probe_artifact_rows": 1,
         "proof_body_semantic_review_blocked": "true",
         "source_theorem_exact_proof_body_gate_open_for_kernel_repair": "true",
         "source_theorem_exact_proof_body_gate_open_target_names": [
@@ -79812,6 +79830,7 @@ def test_generated_next_action_string_true_semantic_blocker_wins_gate_open() -> 
         "input_summary": {
             "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
             "proof_body_goal_reached": "true",
+            "proof_body_signature_probe_artifact_rows": 1,
             "proof_body_semantic_review_blocked": "true",
             "source_theorem_exact_proof_body_gate_open_for_kernel_repair": "true",
         },
@@ -79836,6 +79855,62 @@ def test_generated_next_action_string_true_semantic_blocker_wins_gate_open() -> 
             "proof_body_semantic_review_blocked"
         ]
         is True
+    )
+
+
+def test_generated_next_action_gate_open_without_signature_downgrades() -> None:
+    truth_row = {
+        "schema_version": 1,
+        "learning_task": "source_theorem_truth_table_feedback",
+        "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
+        "work_order_id": "truth-table:gate-open-without-signature",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "proof_body_status": "PROOF_BODY_REACHED_OPEN",
+        "proof_body_goal_reached": True,
+        "proof_body_semantic_review_blocked": False,
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair": True,
+        "source_theorem_exact_proof_body_gate_open_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "input_summary": {
+            "trigger": "RUNTIME_EVIDENCE_TRUTH_TABLE",
+            "proof_body_status": "PROOF_BODY_REACHED_OPEN",
+            "proof_body_goal_reached": True,
+            "proof_body_semantic_review_blocked": False,
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair": True,
+        },
+    }
+
+    generated_rows = _append_runtime_generated_next_action_rows(
+        [],
+        [truth_row],
+        queue_name="runtime_evidence_truth_table",
+    )
+    generated_learning_rows = _runtime_generated_next_action_learning_rows(
+        generated_rows
+    )
+
+    assert len(generated_rows) == 1
+    assert generated_rows[0]["trigger"] != (
+        "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert (
+        generated_rows[0][
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+        ]
+        is False
+    )
+    assert generated_rows[0]["proof_body_goal_reached"] is False
+    assert generated_rows[0]["proof_body_status"] == "PROOF_BODY_ATTEMPT_BLOCKED"
+    assert generated_rows[0]["proof_body_signature_probe_artifact_rows"] == 0
+    assert generated_rows[0]["proof_body_attempt_blocked_before_goal"] is True
+    assert "proof-body repair" not in generated_rows[0]["action"]
+    assert (
+        generated_learning_rows[0]["input_summary"]["proof_body_goal_reached"]
+        is False
+    )
+    assert generated_learning_rows[0]["input_summary"]["proof_body_status"] == (
+        "PROOF_BODY_ATTEMPT_BLOCKED"
     )
 
 
