@@ -1331,14 +1331,6 @@ def _suite_rows(
             0,
         )
     )
-    if (
-        runtime_source_theorem_proof_body_effective_signature_backed_goal_reached <= 0
-        and runtime_source_theorem_proof_body_goal_reached > 0
-        and runtime_source_theorem_proof_body_signature_artifacts > 0
-    ):
-        runtime_source_theorem_proof_body_effective_signature_backed_goal_reached = (
-            runtime_source_theorem_proof_body_goal_reached
-        )
     runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers = max(
         runtime_source_theorem_exact_proof_body_repair_goal_reached_with_semantic_blockers,
         _int(

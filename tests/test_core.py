@@ -6120,6 +6120,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": 0,
                 "research_agent_runtime_source_theorem_kernel_verified_count": 0,
@@ -6407,6 +6408,7 @@ class SystemTests(unittest.TestCase):
         missing_signature_payload["counts"].update(
             {
                 "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": 0,
+                "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count": 0,
                 "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present": False,
             }
         )

@@ -12551,17 +12551,95 @@ def _payload_source_theorem_proof_body_signature_artifact_count(
     )
 
 
+def _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+    payload: Mapping[str, Any],
+    key: str,
+) -> int:
+    aggregate_signature_key = (
+        "source_theorem_formal_environment_proof_body_executor_"
+        "n_proof_body_signature_probe_artifact_rows"
+    )
+    if (
+        key
+        == "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body"
+    ):
+        return _safe_int(payload.get(aggregate_signature_key, 0))
+
+    signature_key = ""
+    for suffix in (
+        "_n_proof_body_goal_reached_with_semantic_blockers",
+        "_n_proof_body_goal_reached",
+        "_n_proof_body_goal_excerpt_rows",
+        "_first_proof_body_goal_excerpt",
+    ):
+        if key.endswith(suffix):
+            signature_key = (
+                f"{key[:-len(suffix)]}_n_proof_body_signature_probe_artifact_rows"
+            )
+            break
+    if not signature_key:
+        return 0
+
+    direct_count = _safe_int(payload.get(signature_key, 0))
+    if direct_count > 0:
+        return direct_count
+    if (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is True
+        and key.startswith(
+            "source_theorem_formal_environment_proof_body_executor_from_"
+        )
+    ):
+        return _safe_int(payload.get(aggregate_signature_key, 0))
+    return 0
+
+
 def _payload_source_theorem_proof_body_effective_goal_reached_count(
     payload: Mapping[str, Any],
 ) -> int:
-    proof_body_goal_reached_count = (
-        _payload_source_theorem_proof_body_goal_reached_count(payload)
-    )
-    if proof_body_goal_reached_count <= 0:
-        return 0
-    if _payload_source_theorem_proof_body_signature_artifact_count(payload) <= 0:
-        return 0
-    return proof_body_goal_reached_count
+    effective_count = 0
+    for key in SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS:
+        proof_body_goal_reached_count = _safe_int(payload.get(key, 0))
+        if proof_body_goal_reached_count <= 0:
+            continue
+        if (
+            _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+                payload,
+                key,
+            )
+            > 0
+        ):
+            effective_count += proof_body_goal_reached_count
+    for key in SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_ROW_KEYS:
+        proof_body_goal_excerpt_rows = _safe_int(payload.get(key, 0))
+        if proof_body_goal_excerpt_rows <= 0:
+            continue
+        if (
+            _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+                payload,
+                key,
+            )
+            > 0
+        ):
+            effective_count += proof_body_goal_excerpt_rows
+    for key in SOURCE_THEOREM_PROOF_BODY_GOAL_EXCERPT_KEYS:
+        proof_body_goal_excerpt_count = _runtime_manifest_nonempty_entry_count(
+            payload,
+            (key,),
+        )
+        if proof_body_goal_excerpt_count <= 0:
+            continue
+        if (
+            _payload_source_theorem_proof_body_signature_artifact_count_for_goal_key(
+                payload,
+                key,
+            )
+            > 0
+        ):
+            effective_count += proof_body_goal_excerpt_count
+    return effective_count
 
 
 def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(

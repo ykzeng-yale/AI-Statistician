@@ -81650,13 +81650,109 @@ def test_runtime_capability_scorecard_rejects_proof_body_goal_without_signature_
         )
         == 0
     )
-    assert "proof_body_signature_probe_artifact_path lineage" in proof_body_row["blocker"]
+    assert (
+        "proof_body_signature_probe_artifact_path lineage"
+        in proof_body_row["blocker"]
+    )
     assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
         "PROOF_BODY_ATTEMPT_BLOCKED"
     )
     assert "proof_body_signature_probe_artifact_path lineage" in truth_rows[
         "exact_source_proof_body_attempt"
     ]["blocker"]
+
+
+def test_runtime_capability_scorecard_rejects_cross_lane_proof_body_signature_artifact() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_signature_probe_artifact_rows": (
+            1
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert (
+        audit_module._payload_source_theorem_proof_body_goal_reached_count(payload)
+        == 1
+    )
+    assert (
+        audit_module._payload_source_theorem_proof_body_signature_artifact_count(
+            payload
+        )
+        == 1
+    )
+    assert (
+        audit_module._payload_source_theorem_proof_body_effective_goal_reached_count(
+            payload
+        )
+        == 0
+    )
+    assert proof_body_row["passed"] is False
+    assert "raw_proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=0" in proof_body_row["evidence"]
+    assert "signature_artifact_rows=1" in proof_body_row["evidence"]
+    assert (
+        "proof_body_signature_probe_artifact_path lineage"
+        in proof_body_row["blocker"]
+    )
+
+
+def test_runtime_capability_scorecard_counts_only_same_lane_signature_backed_goals() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": (
+            2
+        ),
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers": (
+            3
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert (
+        audit_module._payload_source_theorem_proof_body_goal_reached_count(payload)
+        == 6
+    )
+    assert (
+        audit_module._payload_source_theorem_proof_body_effective_goal_reached_count(
+            payload
+        )
+        == 1
+    )
+    assert proof_body_row["passed"] is True
+    assert "raw_proof_body_goal_reached_evidence=6" in proof_body_row["evidence"]
+    assert "effective_signature_backed_goal_reached=1" in proof_body_row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_progress() -> None:

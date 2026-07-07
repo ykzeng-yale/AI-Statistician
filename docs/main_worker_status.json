@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T23:26:53Z",
+  "updated_at": "2026-07-07T23:35:25Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Proof-body audit and S13 guidance now separate raw proof_body_goal_reached telemetry from effective signature-backed proof-body boundary progress. The raw counter remains diagnostic, but source_theorem_proof_body_effective_signature_backed_goal_reached_count is zero unless proof_body_signature_probe_artifact_path/artifact-row lineage is present, and S13 effective_goal_reached uses that stricter field.",
+  "latest_main_worker_patch": "Proof-body audit and S13 guidance now separate raw proof_body_goal_reached telemetry from effective signature-backed proof-body boundary progress. The effective source_theorem_proof_body_effective_signature_backed_goal_reached_count is computed lane-locally: a raw proof-body goal or goal excerpt only counts when that same proof-body executor lane has proof_body_signature_probe_artifact_path/artifact-row lineage. Cross-lane signature artifacts remain diagnostic and cannot open the source-theorem proof-body boundary.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -2923,6 +2923,15 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 879 deselected after proof-body effective signature-backed audit count patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"truth_table and (proof_body or source_theorem or exact_semantic or generated_next_action)\" # 8 passed, 917 deselected after proof-body effective signature-backed audit count patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body effective signature-backed audit count patch",
-    "git diff --check # passed after proof-body effective signature-backed audit count patch"
+    "git diff --check # passed after proof-body effective signature-backed audit count patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/research_agent_runtime_audit.py ai_statistician/evaluation_benchmark_guidance.py tests/test_research_agent_runtime.py tests/test_core.py # passed after proof-body same-lane signature pairing patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"cross_lane_proof_body_signature_artifact or same_lane_signature_backed_goals or proof_body_goal_without_signature_artifact or proof_body_goal_excerpt\" # 4 passed, 923 deselected after proof-body same-lane signature pairing patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"evaluation_benchmark_guidance_flags_capacity_gaps\" # 1 passed, 292 deselected, 6 subtests passed after proof-body same-lane signature pairing patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 882 deselected after proof-body same-lane signature pairing patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"evaluation_benchmark_guidance\" # 2 passed, 291 deselected, 6 subtests passed after proof-body same-lane signature pairing patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 881 deselected after proof-body same-lane signature pairing patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"truth_table and (proof_body or source_theorem or exact_semantic or generated_next_action)\" # 8 passed, 919 deselected after proof-body same-lane signature pairing patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body same-lane signature pairing patch",
+    "git diff --check # passed after proof-body same-lane signature pairing patch"
   ]
 }
