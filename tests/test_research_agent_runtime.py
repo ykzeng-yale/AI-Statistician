@@ -6243,6 +6243,47 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
     )
     assert "--local-lean" in source_theorem_command
 
+    pf_environment_payload = {
+        **payload,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    pf_environment_scorecard = _runtime_capability_scorecard(
+        pf_environment_payload
+    )
+    pf_environment_routing_rows = _runtime_capability_gap_routing_rows(
+        pf_environment_scorecard,
+        pf_environment_payload,
+    )
+    pf_environment_rows_by_requirement = {
+        row["requirement_id"]: row for row in pf_environment_routing_rows
+    }
+    pf_environment_row = pf_environment_rows_by_requirement[
+        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped"
+    ]
+    assert pf_environment_row["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert "same-run Lean environment repair executor" in pf_environment_row[
+        "target_behavior"
+    ]
+    assert (
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal>0"
+        in pf_environment_row["success_metric"]
+    )
+    assert "non-kernel/non-source-theorem-proof" in pf_environment_row[
+        "success_metric"
+    ]
+    assert (
+        pf_environment_row["proof_evidence_status"]
+        == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+
     pf_payload = {
         **payload,
         "runtime_pseudo_formal_block_routing_contract_complete": False,

@@ -24043,6 +24043,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "executor did not consume PF-origin tasks/results while "
                 "preserving the non-proof evidence boundary"
             ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Route PF/BV-origin exact semantic-definition Lean "
+                    "environment repair tasks into the same-run Lean "
+                    "environment repair executor without dropping "
+                    "source_pseudo_formal work-order/block lineage, and keep "
+                    "the result as operational non-proof feedback."
+                ),
+                success_metric=(
+                    "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal>0 "
+                    "or source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate>0 "
+                    "implies source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal>0, "
+                    "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal>0, "
+                    "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body=false, "
+                    "and proof_evidence_status remains non-kernel/non-source-theorem-proof"
+                ),
+            ),
         ),
         _scorecard_row(
             "exact_semantic_definition_typechecked_review_verifier_gate_pf_handoff_not_dropped",
