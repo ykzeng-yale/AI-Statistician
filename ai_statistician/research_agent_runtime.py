@@ -34322,6 +34322,24 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_lean_environment_repair_tasks_from_pseudo_formal", 0)
+        or 0
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate"
+    ] = int(
+        (
+            source_theorem_exact_semantic_definition_lean_repair_executor_manifest
+            or {}
+        ).get("n_lean_environment_repair_tasks_from_formalizer_pf_component_gate", 0)
+        or 0
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_proof_evidence_status"
     ] = str(
         (

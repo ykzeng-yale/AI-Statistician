@@ -50606,6 +50606,8 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
                 "n_local_lean_compiled": 1 if local_lean else 0,
                 "n_typechecked_candidate_review_packets": 1 if local_lean else 0,
                 "n_lean_environment_repair_tasks": 0,
+                "n_lean_environment_repair_tasks_from_pseudo_formal": 0,
+                "n_lean_environment_repair_tasks_from_formalizer_pf_component_gate": 0,
                 "source_theorem_kernel_verified": False,
                 "semantic_definition_kernel_verified": False,
                 "proof_evidence_status": (
@@ -50717,6 +50719,8 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
                 "n_local_lean_compiled": 1 if local_lean else 0,
                 "n_typechecked_candidate_review_packets": 1,
                 "n_lean_environment_repair_tasks": 0,
+                "n_lean_environment_repair_tasks_from_pseudo_formal": 0,
+                "n_lean_environment_repair_tasks_from_formalizer_pf_component_gate": 0,
                 "source_theorem_kernel_verified": False,
                 "semantic_definition_kernel_verified": False,
                 "proof_evidence_status": (
@@ -50820,6 +50824,8 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             "n_local_lean_checked": 1 if local_lean else 0,
             "n_local_lean_compiled": 0,
             "n_lean_environment_repair_tasks": 1,
+            "n_lean_environment_repair_tasks_from_pseudo_formal": 1,
+            "n_lean_environment_repair_tasks_from_formalizer_pf_component_gate": 0,
             "n_exact_semantic_definition_authoring_tasks": 1,
             "proofengineer_state": "LEAN_ENVIRONMENT_REPAIR_REQUIRED",
             "proofengineer_state_reason": (
@@ -51553,6 +51559,18 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
     )
     assert (
         manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
             "source_theorem_exact_semantic_definition_lean_repair_executor_proof_evidence_status"
         ]
         == "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
@@ -52039,6 +52057,18 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
             "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal"
         ]
         == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert (
+        audit[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate"
+        ]
+        == 0
     )
     assert audit[
         "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids"
@@ -80299,6 +80329,76 @@ def test_runtime_capability_scorecard_accepts_pseudo_formal_lean_repair_feedback
     assert rows[
         "exact_semantic_definition_lean_repair_executor_handoff_not_dropped"
     ]["passed"] is True
+
+
+def test_runtime_capability_scorecard_rejects_generic_environment_repair_for_pseudo_formal_lean_repair() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal": 0,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is False
+    assert "pf_lean_environment_tasks=1" in row["evidence"]
+    assert "pf_environment_tasks=0" in row["evidence"]
+    assert "pf_environment_results=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_pseudo_formal_environment_repair_feedback() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_ran": True,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal": 1,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped"
+    ]
+
+    assert row["passed"] is True
+    assert "environment_ready_for_proof_body=False" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_rejects_generic_verifier_gate_for_pseudo_formal_typechecked_review() -> None:

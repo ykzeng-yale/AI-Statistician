@@ -7883,6 +7883,20 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate": int(
+            manifest.get(
+                "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate",
+                0,
+            )
+            or 0
+        ),
         "source_theorem_exact_semantic_definition_lean_repair_executor_source_pseudo_formal_work_order_ids": [
             str(value)
             for value in manifest.get(
@@ -20066,8 +20080,74 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    exact_semantic_lean_repair_pf_environment_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_lean_repair_pf_component_gate_environment_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate",
+            0,
+        )
+        or 0
+    )
     exact_semantic_lean_repair_pf_handoff_required = (
         exact_semantic_bridge_pf_lean_tasks > 0
+    )
+    exact_semantic_environment_repair_ran = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_ran"
+        )
+        is True
+    )
+    exact_semantic_environment_repair_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_environment_repair_pf_tasks = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_environment_repair_pf_results = int(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_environment_repair_ready_for_proof_body = _safe_bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
+            False,
+        )
+    )
+    exact_semantic_environment_repair_proof_evidence_status = str(
+        payload.get(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status",
+            "",
+        )
+        or ""
+    )
+    exact_semantic_environment_repair_pf_handoff_required = (
+        exact_semantic_lean_repair_pf_environment_tasks > 0
+        or exact_semantic_lean_repair_pf_component_gate_environment_tasks > 0
+    )
+    exact_semantic_environment_repair_pf_boundary_ok = (
+        bool(exact_semantic_environment_repair_proof_evidence_status)
+        and "SOURCE_THEOREM_PROOF"
+        not in exact_semantic_environment_repair_proof_evidence_status
+        and "KERNEL_VERIFIED"
+        not in exact_semantic_environment_repair_proof_evidence_status
+        and not exact_semantic_environment_repair_ready_for_proof_body
     )
     exact_semantic_lean_repair_total_results = int(
         payload.get(
@@ -23923,6 +24003,45 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "ProofEngineer bridge produced exact semantic-definition Lean "
                 "repair tasks but the Lean repair executor did not run with "
                 "explicit handoff telemetry and local Lean result rows"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped",
+            (not exact_semantic_environment_repair_pf_handoff_required)
+            or (
+                exact_semantic_environment_repair_ran
+                and exact_semantic_environment_repair_results > 0
+                and exact_semantic_environment_repair_pf_tasks > 0
+                and exact_semantic_environment_repair_pf_results > 0
+                and exact_semantic_environment_repair_pf_boundary_ok
+            ),
+            (
+                "pf_lean_environment_tasks="
+                f"{exact_semantic_lean_repair_pf_environment_tasks} "
+                "pf_component_gate_lean_environment_tasks="
+                f"{exact_semantic_lean_repair_pf_component_gate_environment_tasks} "
+                "environment_ran="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_environment_repair_executor_ran')} "
+                "environment_results="
+                f"{exact_semantic_environment_repair_results} "
+                "pf_environment_tasks="
+                f"{exact_semantic_environment_repair_pf_tasks} "
+                "pf_environment_results="
+                f"{exact_semantic_environment_repair_pf_results} "
+                "environment_ready_for_proof_body="
+                f"{exact_semantic_environment_repair_ready_for_proof_body} "
+                "proof_evidence_status="
+                f"{exact_semantic_environment_repair_proof_evidence_status} "
+                "pf_handoff_required="
+                f"{exact_semantic_environment_repair_pf_handoff_required} "
+                "skipped="
+                f"{payload.get('source_theorem_exact_semantic_definition_lean_environment_repair_executor_skipped_reason')}"
+            ),
+            (
+                "PF-origin exact semantic-definition Lean repair produced Lean "
+                "environment repair tasks, but the same-run environment repair "
+                "executor did not consume PF-origin tasks/results while "
+                "preserving the non-proof evidence boundary"
             ),
         ),
         _scorecard_row(
