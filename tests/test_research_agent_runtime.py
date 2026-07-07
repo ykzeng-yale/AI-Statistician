@@ -58694,6 +58694,14 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
     tmp_path: Path,
 ) -> None:
     learning_path = tmp_path / "proof_body_incomplete_reviewed_runtime_learning_rows.jsonl"
+    candidate_path = (
+        "runs/recheck/candidate_artifacts/"
+        "split_conformal_finite_sample_coverage_repair_v3.lean"
+    )
+    signature_probe_path = (
+        "runs/signature_probes/artifacts/"
+        "split_conformal_finite_sample_coverage_repair_v3_signature_probe.lean"
+    )
     learning_row = {
         "schema_version": 1,
         "question_id": "conformal_prediction_coverage",
@@ -58727,11 +58735,12 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         "semantic_alignment_blockers": [],
         "source_theorem_kernel_evidence_eligible": True,
         "source_theorem_kernel_verified": False,
+        "candidate_artifact_path": candidate_path,
+        "signature_probe_artifact_path": signature_probe_path,
+        "source_theorem_signature_probe_artifact_path": signature_probe_path,
         "input_summary": {
-            "candidate_artifact_path": (
-                "runs/recheck/candidate_artifacts/"
-                "split_conformal_finite_sample_coverage_repair_v3.lean"
-            ),
+            "candidate_artifact_path": candidate_path,
+            "signature_probe_artifact_path": signature_probe_path,
             "source_theorem_kernel_evidence_eligible": True,
             "source_theorem_kernel_verified": False,
             "failure_classification": "proof_body_incomplete",
@@ -58778,6 +58787,11 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
     ] is True
     assert diagnostic["semantic_alignment_blockers"] == []
+    assert diagnostic["candidate_artifact_path"] == candidate_path
+    assert diagnostic["signature_probe_artifact_path"] == signature_probe_path
+    assert diagnostic["source_theorem_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
     assert diagnostic["proof_body_attempt_count"] == 5
     assert diagnostic["proof_body_adapter_required_reasons"] == [
         "proof body goal exposes source-level hypotheses but no reusable bridge/reduction hypothesis",
@@ -58851,8 +58865,19 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
     assert work_order["proof_body_attempt_count"] == 5
+    assert work_order["proof_body_candidate_artifact_path"] == candidate_path
+    assert work_order["proof_body_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
+    assert work_order["source_theorem_signature_probe_artifact_path"] == (
+        signature_probe_path
+    )
     assert any(
         "do not reroute to exact semantic-definition review" in required_input
+        for required_input in work_order["required_inputs"]
+    )
+    assert any(
+        signature_probe_path in required_input
         for required_input in work_order["required_inputs"]
     )
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"

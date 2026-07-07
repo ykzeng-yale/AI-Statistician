@@ -1966,6 +1966,9 @@ def _export_runtime_learning_rows(
                 "failure_classification": row.failure_classification,
                 "source_candidate_artifact_path": row.source_candidate_artifact_path,
                 "signature_probe_artifact_path": row.signature_probe_artifact_path,
+                "source_theorem_signature_probe_artifact_path": (
+                    row.signature_probe_artifact_path
+                ),
                 "candidate_artifact_path": row.candidate_artifact_path,
                 "execution_transcript_path": row.execution_transcript_path,
                 "runtime_queue_status": _runtime_learning_queue_status(row),

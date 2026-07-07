@@ -50043,6 +50043,19 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
         )[:3]:
             diagnostics.append("unverified_required_import=" + str(value)[:120])
+        signature_probe_artifact_path = str(
+            row.get("source_theorem_signature_probe_artifact_path", "")
+            or row.get("signature_probe_artifact_path", "")
+            or (
+                input_summary.get(
+                    "source_theorem_signature_probe_artifact_path", ""
+                )
+                or input_summary.get("signature_probe_artifact_path", "")
+                if isinstance(input_summary, Mapping)
+                else ""
+            )
+            or ""
+        ).strip()
         repairs.append(
             {
                 "target_theorem_name": target,
@@ -50075,6 +50088,10 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                         else ""
                     )
                     or ""
+                ),
+                "signature_probe_artifact_path": signature_probe_artifact_path,
+                "source_theorem_signature_probe_artifact_path": (
+                    signature_probe_artifact_path
                 ),
                 "candidate_source_file": candidate_source_file,
                 "runtime_queue_status": runtime_queue_status,
@@ -55673,6 +55690,14 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "candidate_artifact_path": str(
                         row.get("candidate_artifact_path", "") or ""
                     ),
+                    "signature_probe_artifact_path": str(
+                        row.get("signature_probe_artifact_path", "") or ""
+                    ),
+                    "source_theorem_signature_probe_artifact_path": str(
+                        row.get("source_theorem_signature_probe_artifact_path", "")
+                        or row.get("signature_probe_artifact_path", "")
+                        or ""
+                    ),
                     "proof_body_gate_status": str(
                         row.get("proof_body_gate_status", "") or ""
                     ),
@@ -55811,6 +55836,14 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "candidate_artifact_path": str(
                     row.get("candidate_artifact_path", "") or ""
+                ),
+                "signature_probe_artifact_path": str(
+                    row.get("signature_probe_artifact_path", "") or ""
+                ),
+                "source_theorem_signature_probe_artifact_path": str(
+                    row.get("source_theorem_signature_probe_artifact_path", "")
+                    or row.get("signature_probe_artifact_path", "")
+                    or ""
                 ),
                 "proof_body_gate_status": str(
                     row.get("proof_body_gate_status", "") or ""
@@ -60066,6 +60099,13 @@ def _formalizer_source_theorem_promotion_work_orders(
         if proof_body_adapter_mode
         else proof_body_repair_primary_diagnostic
     )
+    proof_body_signature_probe_artifact_path = str(
+        active_proof_body_diagnostic.get(
+            "source_theorem_signature_probe_artifact_path", ""
+        )
+        or active_proof_body_diagnostic.get("signature_probe_artifact_path", "")
+        or ""
+    ).strip()
     if active_proof_body_diagnostic:
         if not source_proof_body_adapter_unproven_bridge_premise_names:
             source_proof_body_adapter_unproven_bridge_premise_names = [
@@ -60501,6 +60541,16 @@ def _formalizer_source_theorem_promotion_work_orders(
                     if (proof_body_repair_mode or proof_body_adapter_mode)
                     else ""
                 ),
+                "proof_body_signature_probe_artifact_path": (
+                    proof_body_signature_probe_artifact_path
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
+                "source_theorem_signature_probe_artifact_path": (
+                    proof_body_signature_probe_artifact_path
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
                 "proof_body_goal_excerpt": (
                     list(
                         active_proof_body_diagnostic.get(
@@ -60620,6 +60670,14 @@ def _formalizer_source_theorem_promotion_work_orders(
                                     "exact source proof-body gate is open for kernel-eligible repair; stay in adapter/proof-body repair and do not reroute to exact semantic-definition review"
                                 ]
                                 if source_theorem_exact_proof_body_gate_open_for_work_order
+                                else []
+                            ),
+                            *(
+                                [
+                                    "exact source theorem signature probe artifact for target identity/proof-state replay: "
+                                    + proof_body_signature_probe_artifact_path
+                                ]
+                                if proof_body_signature_probe_artifact_path
                                 else []
                             ),
                             *(
@@ -67538,6 +67596,8 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_theorem_exact_proof_body_repair_diagnostics",
                         "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
                         "proof_body_candidate_artifact_path",
+                        "proof_body_signature_probe_artifact_path",
+                        "source_theorem_signature_probe_artifact_path",
                         "proof_body_goal_excerpt",
                         "proof_body_attempt_summaries",
                         "proof_body_attempt_count",
@@ -68883,6 +68943,8 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "source_theorem_exact_proof_body_repair_diagnostics",
                         "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
                         "proof_body_candidate_artifact_path",
+                        "proof_body_signature_probe_artifact_path",
+                        "source_theorem_signature_probe_artifact_path",
                         "proof_body_goal_excerpt",
                         "proof_body_attempt_summaries",
                         "proof_body_attempt_count",

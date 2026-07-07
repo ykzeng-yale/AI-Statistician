@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T03:47:39Z",
+  "updated_at": "2026-07-07T03:55:17Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1221,6 +1221,34 @@
         "execution_transcript_path"
       ],
       "proof_boundary": "The executor learning row now carries exact proof-body reached/gate-open target identity and artifact paths at top level for AgentRuntime/ProofEngineer handoff. The replay still fails closed as proof_body_incomplete with source_theorem_kernel_verified=false and proof_evidence_status=EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE."
+    },
+    "exact_source_proof_body_signature_handoff_patch": {
+      "status": "implemented",
+      "component": "research_agent_runtime",
+      "source_learning_rows_jsonl": "runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707/runtime_learning_export/runtime_learning_rows.jsonl",
+      "deterministic_replay_result": {
+        "rows_loaded": 1,
+        "recommended_formalizer_target_mode": "source_theorem_proof_body_adapter_required",
+        "recommended_source_theorem_integration_action": "derive_source_theorem_proof_body_adapter",
+        "gate_open": true,
+        "gate_targets": [
+          "split_conformal_finite_sample_coverage_repair_v3"
+        ],
+        "work_orders": 1,
+        "work_order_proof_mode": "source_theorem_proof_body_adapter_required",
+        "work_order_reached": true,
+        "work_order_required_input_mentions_signature": true,
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE"
+      },
+      "propagates_to": [
+        "exact proof-body executor runtime learning rows",
+        "AgentRuntime exact source candidate repair rows",
+        "source_theorem_proof_body_adapter_diagnostics",
+        "source_theorem_exact_proof_body_repair_diagnostics",
+        "SourceTheoremPromotionWorkOrder.proof_body_signature_probe_artifact_path",
+        "SourceTheoremPromotionWorkOrder.required_inputs"
+      ],
+      "proof_boundary": "The signature probe artifact is target-identity and proof-state replay context only. It does not prove the source theorem; the source theorem remains unverified until the exact declaration passes local Lean/AXLE."
     },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",
@@ -2770,6 +2798,10 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_current_replay_20260707 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 90 --out runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_current_replay_20260707 # expected exit 1: rows=0/1, materialized=1, checked=1, proof_body_goal_reached=1, failure_classification=proof_body_incomplete, source_theorem_kernel_verified=0",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py # 16 passed after exact proof-body learning handoff top-level field patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"source_theorem_proof_body_incomplete or exact_proof_body_gate_open_target_names or proof_body_adapter\" # 6 passed, 915 deselected after exact proof-body learning handoff top-level field patch",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_current_replay_20260707 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 90 --out runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707 # expected exit 1: proof_body_gate_open_for_kernel_repair=1, target=split_conformal_finite_sample_coverage_repair_v3, target_ids=[split_conformal_finite_sample_coverage], source_theorem_kernel_verified=0, learning row now has top-level candidate/signature artifacts"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_current_replay_20260707 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 90 --out runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707 # expected exit 1: proof_body_gate_open_for_kernel_repair=1, target=split_conformal_finite_sample_coverage_repair_v3, target_ids=[split_conformal_finite_sample_coverage], source_theorem_kernel_verified=0, learning row now has top-level candidate/signature artifacts",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/research_agent_runtime.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_research_agent_runtime.py # passed after exact proof-body signature handoff propagation patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py # 16 passed after exact proof-body signature handoff propagation patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body\" # 68 passed, 853 deselected after exact proof-body signature handoff propagation patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<'PY' ... deterministic replay of top_level_handoff runtime_learning_rows through _formalizer_proof_bank_runtime_memory_summary and _formalizer_source_theorem_promotion_work_orders # rows_loaded=1, mode=source_theorem_proof_body_adapter_required, gate_open=true, work_orders=1, proof_body_signature_probe_artifact_path preserved, required_inputs mentions signature probe, proof_evidence_status=WORK_ORDER_NOT_PROOF_EVIDENCE"
   ]
 }
