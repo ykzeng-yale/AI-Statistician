@@ -1197,6 +1197,7 @@ def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
     assert learning_row["source_theorem_signature_probe_artifact_path"] == str(
         signature
     )
+    assert learning_row["proof_body_signature_probe_artifact_path"] == str(signature)
 
 
 def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constraints(
@@ -1248,7 +1249,7 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
                 ],
                 "target_identity_status": "TARGET_DECLARATION_MATCHED",
                 "target_identity_errors": [],
-                "signature_probe_artifact_path": str(signature),
+                "proof_body_signature_probe_artifact_path": str(signature),
                 "candidate_artifact_path": str(candidate),
                 "execution_transcript_path": str(transcript),
                 "live_goal_location_ready": True,
@@ -1312,6 +1313,9 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
     assert row["proof_body_gate_status"] == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     assert row["failure_classification"] == "proof_body_incomplete"
     assert row["source_theorem_kernel_evidence_eligible"] is True
+    assert row["signature_probe_artifact_path"] == str(signature)
+    assert row["source_theorem_signature_probe_artifact_path"] == str(signature)
+    assert row["proof_body_signature_probe_artifact_path"] == str(signature)
     request = row["candidate_live_proof_state_request"]
     assert request["proof_body_attempts"]
     assert [call["tool"] for call in request["mcp_tool_calls"]] == [
@@ -1347,6 +1351,10 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
     assert learning_row["signature_probe_artifact_path"] == str(signature)
     assert learning_row["source_theorem_signature_probe_artifact_path"] == str(
         signature
+    )
+    assert learning_row["proof_body_signature_probe_artifact_path"] == str(signature)
+    assert learning_row["input_summary"]["proof_body_signature_probe_artifact_path"] == (
+        str(signature)
     )
     learning_manifest = manifest["runtime_learning_export"]
     assert learning_manifest["n_proof_body_gate_open_for_kernel_repair"] == 1

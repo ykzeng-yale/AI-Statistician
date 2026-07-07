@@ -17,6 +17,7 @@ from .formal_verifier_agentic_proof_execution_artifact_verifier import (
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    normalize_exact_semantic_definition_signature_probe_context,
 )
 
 
@@ -101,6 +102,8 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     target_identity_errors: tuple[str, ...]
     source_candidate_artifact_path: str
     signature_probe_artifact_path: str
+    source_theorem_signature_probe_artifact_path: str
+    proof_body_signature_probe_artifact_path: str
     candidate_artifact_path: str
     execution_transcript_path: str
     live_goal_location_ready: bool
@@ -541,7 +544,50 @@ def _execution_result_row(
     source_candidate_artifact_path = str(
         row.get("source_candidate_artifact_path", "") or ""
     )
-    signature_probe_artifact_path = str(row.get("signature_probe_artifact_path", "") or "")
+    signature_probe_artifact_path = str(
+        row.get("signature_probe_artifact_path", "")
+        or exact_semantic_definition_context.get("signature_probe_artifact_path", "")
+        or row.get("source_theorem_signature_probe_artifact_path", "")
+        or exact_semantic_definition_context.get(
+            "source_theorem_signature_probe_artifact_path",
+            "",
+        )
+        or row.get("proof_body_signature_probe_artifact_path", "")
+        or exact_semantic_definition_context.get(
+            "proof_body_signature_probe_artifact_path",
+            "",
+        )
+        or ""
+    )
+    source_theorem_signature_probe_artifact_path = str(
+        row.get("source_theorem_signature_probe_artifact_path", "")
+        or exact_semantic_definition_context.get(
+            "source_theorem_signature_probe_artifact_path",
+            "",
+        )
+        or signature_probe_artifact_path
+    )
+    proof_body_signature_probe_artifact_path = str(
+        row.get("proof_body_signature_probe_artifact_path", "")
+        or exact_semantic_definition_context.get(
+            "proof_body_signature_probe_artifact_path",
+            "",
+        )
+        or source_theorem_signature_probe_artifact_path
+        or signature_probe_artifact_path
+    )
+    normalize_exact_semantic_definition_signature_probe_context(
+        exact_semantic_definition_context,
+        {
+            "signature_probe_artifact_path": signature_probe_artifact_path,
+            "source_theorem_signature_probe_artifact_path": (
+                source_theorem_signature_probe_artifact_path
+            ),
+            "proof_body_signature_probe_artifact_path": (
+                proof_body_signature_probe_artifact_path
+            ),
+        },
+    )
     candidate_artifact_path = Path(str(row.get("candidate_artifact_path", "") or ""))
     execution_transcript_path = Path(str(row.get("execution_transcript_path", "") or ""))
     source_path = Path(signature_probe_artifact_path)
@@ -946,6 +992,12 @@ def _execution_result_row(
         target_identity_errors=target_identity_errors,
         source_candidate_artifact_path=source_candidate_artifact_path,
         signature_probe_artifact_path=signature_probe_artifact_path,
+        source_theorem_signature_probe_artifact_path=(
+            source_theorem_signature_probe_artifact_path
+        ),
+        proof_body_signature_probe_artifact_path=(
+            proof_body_signature_probe_artifact_path
+        ),
         candidate_artifact_path=str(candidate_artifact_path),
         execution_transcript_path=str(execution_transcript_path),
         live_goal_location_ready=live_goal_ready,
@@ -1673,6 +1725,13 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, obje
             else:
                 context[key] = value
             break
+    normalize_exact_semantic_definition_signature_probe_context(
+        context,
+        row,
+        input_summary,
+        nested_context,
+        nested_input_context,
+    )
     return context
 
 
@@ -1967,7 +2026,13 @@ def _export_runtime_learning_rows(
                 "source_candidate_artifact_path": row.source_candidate_artifact_path,
                 "signature_probe_artifact_path": row.signature_probe_artifact_path,
                 "source_theorem_signature_probe_artifact_path": (
-                    row.signature_probe_artifact_path
+                    row.source_theorem_signature_probe_artifact_path
+                    or row.signature_probe_artifact_path
+                ),
+                "proof_body_signature_probe_artifact_path": (
+                    row.proof_body_signature_probe_artifact_path
+                    or row.source_theorem_signature_probe_artifact_path
+                    or row.signature_probe_artifact_path
                 ),
                 "candidate_artifact_path": row.candidate_artifact_path,
                 "execution_transcript_path": row.execution_transcript_path,
@@ -2099,6 +2164,16 @@ def _export_runtime_learning_rows(
         ),
         "n_exact_semantic_definition_context_rows": sum(
             1 for row in rows if row.exact_semantic_definition_context
+        ),
+        "n_proof_body_signature_probe_artifact_rows": sum(
+            1 for row in rows if row.proof_body_signature_probe_artifact_path
+        ),
+        "proof_body_signature_probe_artifact_paths": list(
+            dict.fromkeys(
+                row.proof_body_signature_probe_artifact_path
+                for row in rows
+                if row.proof_body_signature_probe_artifact_path
+            )
         ),
         "n_source_theorem_proof_body_adapter_context_rows": sum(
             1

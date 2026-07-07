@@ -2424,7 +2424,7 @@ def _proof_body_recheck_queue_row(
         if reviewed_definition_only
         else str(synthesized_artifact_path)
     )
-    return {
+    recheck_row = {
         **dict(row),
         "execution_queue_id": recheck_id,
         "source_execution_queue_id": str(row.get("execution_queue_id", "") or ""),
@@ -2432,6 +2432,8 @@ def _proof_body_recheck_queue_row(
         "source_theorem_target_known": source_theorem_target_known,
         "source_candidate_artifact_path": source_candidate_artifact_path,
         "signature_probe_artifact_path": signature_probe_artifact_path,
+        "source_theorem_signature_probe_artifact_path": signature_probe_artifact_path,
+        "proof_body_signature_probe_artifact_path": signature_probe_artifact_path,
         "candidate_artifact_path": proof_body_candidate_artifact_path,
         "reviewed_exact_semantic_definition_artifact_path": str(
             reviewed_definition_only_artifact_path or ""
@@ -2462,6 +2464,8 @@ def _proof_body_recheck_queue_row(
         ),
         "boundary": BOUNDARY,
     }
+    normalize_exact_semantic_definition_signature_probe_context(recheck_row, row)
+    return recheck_row
 
 
 def _reviewed_definition_recheck_candidate_artifact_path(

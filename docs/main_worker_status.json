@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T04:16:26Z",
+  "updated_at": "2026-07-07T04:21:08Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1318,6 +1318,20 @@
         "tests/test_research_agent_runtime.py::test_runtime_learning_loader_preserves_exact_semantic_definition_work_orders"
       ],
       "proof_boundary": "This preserves proof-state/signature lineage for downstream Formalizer/ProofEngineer workers only. It does not make source lookup, exact semantic definition repair, premise derivation, or source theorem proof-body rows into Lean/AXLE proof evidence."
+    },
+    "exact_proof_body_executor_signature_alias_patch": {
+      "status": "implemented",
+      "components": [
+        "exact_source_theorem_proof_body_executor",
+        "source_theorem_exact_semantic_definition_source_lookup"
+      ],
+      "summary": "Exact proof-body recheck queues and the proof-body executor now accept and emit signature_probe_artifact_path, source_theorem_signature_probe_artifact_path, and proof_body_signature_probe_artifact_path consistently. Queue rows with only the proof-body alias can still materialize the proof-body candidate, and executor runtime learning rows plus input_summary carry the proof-body alias back to AgentRuntime/ProofEngineer.",
+      "new_regression_coverage": [
+        "tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_typechecked_review_recheck_queue_exports_approved_candidate",
+        "tests/test_source_theorem_exact_semantic_definition_source_lookup.py::test_exact_semantic_definition_candidate_synthesis_recheck_queue_uses_synthesized_artifact_when_unblocked",
+        "tests/test_exact_source_theorem_proof_body_executor.py::test_exact_source_executor_approved_semantic_review_unblocks_guidance_constraints"
+      ],
+      "proof_boundary": "This keeps proof-body signature/proof-state lineage intact through recheck and executor feedback. It does not prove the source theorem; source_theorem_kernel_verified remains false unless local Lean/AXLE verifies the exact target declaration."
     },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",
@@ -2881,6 +2895,9 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py::test_runtime_consumes_source_to_bridge_adapter_instantiation_queue tests/test_research_agent_runtime.py::test_formalizer_premise_derivation_candidate_becomes_runtime_work_order tests/test_research_agent_runtime.py::test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_orders tests/test_research_agent_runtime.py::test_runtime_runs_formalizer_premise_derivation_candidate_bridge tests/test_research_agent_runtime.py::test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback # 5 passed after per-source exact-semantic feedback dedupe",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py ai_statistician/source_theorem_exact_semantic_definition_proofengineer_bridge.py ai_statistician/source_theorem_exact_semantic_definition_lean_repair_executor.py ai_statistician/source_theorem_exact_semantic_definition_lean_environment_repair_executor.py ai_statistician/source_theorem_exact_semantic_definition_verifier_gate_executor.py ai_statistician/research_agent_runtime.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_proofengineer_bridge.py tests/test_research_agent_runtime.py # passed after exact-semantic signature probe alias normalization patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_exact_semantic_definition_proofengineer_bridge.py tests/test_source_theorem_exact_semantic_definition_lean_repair_executor.py tests/test_source_theorem_exact_semantic_definition_lean_environment_repair_executor.py tests/test_source_theorem_exact_semantic_definition_verifier_gate_executor.py # 80 passed after exact-semantic signature probe alias normalization patch",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"runtime_learning_loader_preserves_exact_semantic_definition_work_orders or exact_semantic_definition_work_orders_from_semantic_primitive_blockers or exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane or exact_semantic_definition_work_orders_from_semantic_alignment_feedback or typechecked_review_recheck_feedback_queues_premise_repair or runtime_runs_formalizer_premise_derivation_candidate_bridge\" # 6 passed, 915 deselected after exact-semantic signature probe alias normalization patch"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"runtime_learning_loader_preserves_exact_semantic_definition_work_orders or exact_semantic_definition_work_orders_from_semantic_primitive_blockers or exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane or exact_semantic_definition_work_orders_from_semantic_alignment_feedback or typechecked_review_recheck_feedback_queues_premise_repair or runtime_runs_formalizer_premise_derivation_candidate_bridge\" # 6 passed, 915 deselected after exact-semantic signature probe alias normalization patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py # passed after proof-body executor signature alias patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py # 49 passed after proof-body executor signature alias patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body_signature or source_theorem_proof_body_adapter or proof_body_incomplete or exact_proof_body_gate_open_target_names or typechecked_review_recheck_feedback_queues_premise_repair\" # 7 passed, 914 deselected after proof-body executor signature alias patch"
   ]
 }

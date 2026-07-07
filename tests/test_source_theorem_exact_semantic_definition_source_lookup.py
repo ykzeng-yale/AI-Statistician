@@ -2678,6 +2678,10 @@ def test_exact_semantic_definition_candidate_synthesis_recheck_queue_uses_synthe
     recheck_row = recheck_rows[0]
     assert recheck_row["source_candidate_artifact_path"] == synthesized_path
     assert recheck_row["signature_probe_artifact_path"] == synthesized_path
+    assert recheck_row["source_theorem_signature_probe_artifact_path"] == (
+        synthesized_path
+    )
+    assert recheck_row["proof_body_signature_probe_artifact_path"] == synthesized_path
     assert recheck_row["candidate_artifact_path"] == synthesized_path
     assert recheck_row["source_candidate_artifact_path"] != str(stale_signature_probe)
     assert recheck_row["source_theorem_kernel_evidence_eligible"] is False
@@ -3326,6 +3330,13 @@ def test_typechecked_review_recheck_queue_exports_approved_candidate(
     assert rows[0]["target_ids"] == ["split_conformal_coverage"]
     assert rows[0]["candidate_artifact_path"] == str(reviewed_candidate)
     assert rows[0]["source_candidate_artifact_path"] == str(reviewed_candidate)
+    assert rows[0]["signature_probe_artifact_path"] == str(reviewed_candidate)
+    assert rows[0]["source_theorem_signature_probe_artifact_path"] == str(
+        reviewed_candidate
+    )
+    assert rows[0]["proof_body_signature_probe_artifact_path"] == str(
+        reviewed_candidate
+    )
     assert rows[0]["proof_body_attempt_source"] == (
         "reviewed_existing_semantic_definition_recheck_queue"
     )
