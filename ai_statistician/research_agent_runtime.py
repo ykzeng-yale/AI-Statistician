@@ -50737,7 +50737,7 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
         if key in seen:
             continue
         seen.add(key)
-        local_lean_attempted = bool(
+        local_lean_attempted = _bool_like(
             _runtime_learning_row_value(
                 row,
                 input_summary,
@@ -50745,7 +50745,7 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
                 False,
             )
         )
-        local_lean_compiled = bool(
+        local_lean_compiled = _bool_like(
             _runtime_learning_row_value(
                 row,
                 input_summary,
@@ -50781,6 +50781,31 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
         source_target_provenance = _source_theorem_target_provenance_from_row(
             target_row
         )
+        source_theorem_target_known = _runtime_learning_row_value(
+            row,
+            input_summary,
+            "source_theorem_target_known",
+            None,
+        )
+        parsed_source_theorem_target_known = _source_theorem_target_known_value(
+            {"source_theorem_target_known": source_theorem_target_known}
+        )
+        if parsed_source_theorem_target_known is not None:
+            source_theorem_target_known = parsed_source_theorem_target_known
+        else:
+            parsed_source_theorem_target_known = _source_theorem_target_known_value(
+                source_target_provenance
+            )
+            if parsed_source_theorem_target_known is not None:
+                source_theorem_target_known = parsed_source_theorem_target_known
+        diagnostic_helper_not_source_theorem = _bool_like(
+            _runtime_learning_row_value(
+                row,
+                input_summary,
+                "diagnostic_helper_not_source_theorem",
+                False,
+            )
+        ) or source_theorem_target_known is False
         diagnostics = {
             "candidate_id": candidate_id,
             "candidate_kind": str(
@@ -50896,19 +50921,9 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
                 )
                 or ""
             )[:500],
-            "source_theorem_target_known": _runtime_learning_row_value(
-                row,
-                input_summary,
-                "source_theorem_target_known",
-                None,
-            ),
-            "diagnostic_helper_not_source_theorem": bool(
-                _runtime_learning_row_value(
-                    row,
-                    input_summary,
-                    "diagnostic_helper_not_source_theorem",
-                    False,
-                )
+            "source_theorem_target_known": source_theorem_target_known,
+            "diagnostic_helper_not_source_theorem": (
+                diagnostic_helper_not_source_theorem
             ),
             "lean_source_excerpt": str(
                 _runtime_learning_row_value(row, input_summary, "lean_source_excerpt")
@@ -52908,18 +52923,31 @@ def _formalizer_proof_bank_runtime_memory_summary(
             context
         )
     )
+
+    def formalizer_candidate_source_theorem_target_known(
+        row: Mapping[str, Any],
+    ) -> bool | None:
+        parsed = _source_theorem_target_known_value(
+            {"source_theorem_target_known": row.get("source_theorem_target_known")}
+        )
+        if parsed is not None:
+            return parsed
+        return _source_theorem_target_known_value(
+            row.get("source_theorem_target_provenance", {})
+        )
+
     formalizer_lean_candidate_repair_rows = tuple(
         row
         for row in formalizer_lean_candidate_feedback_rows
-        if not bool(row.get("local_lean_compiled", False))
+        if not _bool_like(row.get("local_lean_compiled", False))
     )
     formalizer_diagnostic_helper_rows = tuple(
         row
         for row in formalizer_lean_candidate_feedback_rows
-        if bool(row.get("local_lean_compiled", False))
+        if _bool_like(row.get("local_lean_compiled", False))
         and (
-            row.get("diagnostic_helper_not_source_theorem") is True
-            or row.get("source_theorem_target_known") is False
+            _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
+            or formalizer_candidate_source_theorem_target_known(row) is False
             or str(row.get("memory_status", "") or "").startswith(
                 "DIAGNOSTIC_HELPER"
             )
@@ -56203,7 +56231,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "requested_tools": list(row.get("requested_tools", []) or [])[:8],
                 "executed_tools": list(row.get("executed_tools", []) or [])[:8],
                 "tool_call_trace": list(row.get("tool_call_trace", []) or [])[:3],
-                "lean_lsp_mcp_live_called": bool(
+                "lean_lsp_mcp_live_called": _bool_like(
                     row.get("lean_lsp_mcp_live_called", False)
                 ),
                 "target_behavior": str(row.get("target_behavior", "") or ""),
@@ -56247,10 +56275,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "precheck_status": str(row.get("precheck_status", "") or ""),
                 "precheck_errors": list(row.get("precheck_errors", []) or [])[:4],
-                "local_lean_attempted": bool(
+                "local_lean_attempted": _bool_like(
                     row.get("local_lean_attempted", False)
                 ),
-                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+                "local_lean_compiled": _bool_like(
+                    row.get("local_lean_compiled", False)
+                ),
                 "local_lean_exit_status": str(
                     row.get("local_lean_exit_status", "") or ""
                 ),
@@ -56293,12 +56323,13 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "source_theorem_target_provenance": dict(
                     row.get("source_theorem_target_provenance", {}) or {}
                 ),
-                "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
-                "source_theorem_target_known": row.get(
-                    "source_theorem_target_known",
-                    None,
+                "local_lean_compiled": _bool_like(
+                    row.get("local_lean_compiled", False)
                 ),
-                "diagnostic_helper_not_source_theorem": bool(
+                "source_theorem_target_known": (
+                    formalizer_candidate_source_theorem_target_known(row)
+                ),
+                "diagnostic_helper_not_source_theorem": _bool_like(
                     row.get("diagnostic_helper_not_source_theorem", False)
                 ),
                 "lean_source_excerpt": str(

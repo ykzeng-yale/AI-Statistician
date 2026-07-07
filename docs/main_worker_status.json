@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-06T23:46:00Z",
+  "updated_at": "2026-07-07T00:14:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -580,6 +580,8 @@
     ],
     "formalizer_diagnostic_helper_boundary_regression": true,
     "formalizer_diagnostic_helper_boundary_test": "tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_allows_string_false_helper_target",
+    "formalizer_candidate_replay_string_bool_routing_patch": "Runtime learning-memory replay and proof-bank summaries now parse string boolean fields for Formalizer Lean-candidate local Lean status, target-known provenance, diagnostic-helper flags, and proof-state live-call markers. A replayed local_lean_compiled=\"false\" row stays in non-proof Lean-candidate repair memory instead of being misrouted as a compiled diagnostic helper.",
+    "formalizer_candidate_replay_string_bool_routing_test": "tests/test_research_agent_runtime.py::test_runtime_learning_memory_treats_string_false_local_lean_as_repair_memory",
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2581,6 +2583,11 @@
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_candidate_materialization or stale_source_to_bridge_materialization or string_false_formalizer_candidate or candidate_kernel_scope or source_theorem_formal_environment_repair\" # 19 passed, 885 deselected after Formalizer candidate materialization evidence bool-normalization patch",
     "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after Architect control formal-required bool-normalization patch",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_blackboard_normalizer_propagates_architect_control_seed tests/test_research_agent_runtime.py::test_architect_environment_feedback_string_false_formal_required_stays_false tests/test_research_agent_runtime.py::test_existing_architect_control_string_false_formal_required_stays_false -q # 3 passed after Architect control formal-required bool-normalization patch",
-    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"architect_control or formal_required_for_final or research_path_execution_summary or optional_formal_policy or runtime_requested_evidence_contract\" # 9 passed, 897 deselected after Architect control formal-required bool-normalization patch"
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"architect_control or formal_required_for_final or research_path_execution_summary or optional_formal_policy or runtime_requested_evidence_contract\" # 9 passed, 897 deselected after Architect control formal-required bool-normalization patch",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after Formalizer candidate replay string-bool routing patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_learning_memory_treats_string_false_local_lean_as_repair_memory tests/test_research_agent_runtime.py::test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_blocker_prompt -q # 2 passed after Formalizer candidate replay string-bool routing patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_lean_candidate or diagnostic_helper or proof_bank_runtime_memory\" # 20 passed, 887 deselected after Formalizer candidate replay string-bool routing patch",
+    "python3 -m json.tool docs/main_worker_status.json # passed after Formalizer candidate replay string-bool routing patch",
+    "git diff --check # passed after Formalizer candidate replay string-bool routing patch"
   ]
 }

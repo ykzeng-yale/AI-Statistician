@@ -26154,6 +26154,72 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
     assert "Finset.sort" in prompt
 
 
+def test_runtime_learning_memory_treats_string_false_local_lean_as_repair_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    artifact_path = tmp_path / "string_false_candidate.lean"
+    artifact_path.write_text(
+        "theorem string_false_candidate (p : Prop) : p := by exact ?h\n",
+        encoding="utf-8",
+    )
+    materialization_manifest_path = str(tmp_path / "string_false_manifest.json")
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "formalizer_lean_candidate_kernel_feedback",
+                "source_manifest_id": (
+                    "formalizer_lean_candidate_materialization:string_false"
+                ),
+                "source_manifest_path": materialization_manifest_path,
+                "candidate_id": "string_false_candidate",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets[0].lean_statement_sketch",
+                "artifact_path": str(artifact_path),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "source_theorem_target_known": "false",
+                "diagnostic_helper_not_source_theorem": "true",
+                "local_lean_attempted": "true",
+                "local_lean_compiled": "false",
+                "local_lean_stderr_excerpt": "unsolved goals\n⊢ p",
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_NOT_KERNEL_VERIFIED"
+                ),
+                "memory_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_MEMORY",
+                "next_action": "repair exact local Lean diagnostics",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path])
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formalizer_lean_candidate_repair_required"] is True
+    assert summary["formalizer_diagnostic_helper_integration_required"] is False
+    assert summary["formalizer_diagnostic_helper_memory"] == []
+    repair_memory = summary["formalizer_lean_candidate_repair_memory"]
+    assert repair_memory[0]["candidate_id"] == "string_false_candidate"
+    assert repair_memory[0]["source_manifest_path"] == materialization_manifest_path
+    assert repair_memory[0]["local_lean_attempted"] is True
+    assert repair_memory[0]["local_lean_compiled"] is False
+
+
 def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_blocker_prompt(
     tmp_path: Path,
 ) -> None:
