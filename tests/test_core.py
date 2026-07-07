@@ -6120,6 +6120,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": 0,
                 "research_agent_runtime_source_theorem_kernel_verified_count": 0,
                 "research_agent_runtime_full_frontier_target_bound_kernel_verified": 1,
@@ -6401,6 +6402,32 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "source-theorem proof-body executor",
             semantic_bridge_ok_s13["honesty_boundary"],
+        )
+        missing_signature_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        missing_signature_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": 0,
+                "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present": False,
+            }
+        )
+        missing_signature_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_missing_signature_lineage"),
+            system_audit_payload=missing_signature_payload,
+        )
+        missing_signature_s13 = next(
+            row
+            for row in missing_signature_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(missing_signature_s13["status"], "CAPACITY_GAP")
+        self.assertFalse(
+            missing_signature_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_goal_reached"
+            ]
+        )
+        self.assertIn(
+            "proof_body_signature_probe_artifact_path lineage",
+            " ".join(missing_signature_s13["issues"]),
         )
         missing_final_kernel_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         missing_final_kernel_payload["counts"].update(

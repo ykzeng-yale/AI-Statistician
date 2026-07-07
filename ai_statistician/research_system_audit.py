@@ -4039,6 +4039,10 @@ async def run_research_system_audit(
                 "source_theorem_proof_body_goal_reached_evidence_count",
                 0,
             ),
+            "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_signature_artifact_count",
+                0,
+            ),
             "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": research_agent_runtime_audit_manifest.get(
                 "source_theorem_proof_body_goal_reached_with_semantic_blockers",
                 0,

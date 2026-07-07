@@ -78224,6 +78224,7 @@ def test_runtime_evidence_truth_table_tracks_typechecked_review_recheck_attempt(
                 "hGoodCovered : ∀ ω, rank ω ∈ GoodRanks -> covered ω",
                 "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
             ],
+            "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 1,
             "n_formal_gaps": 1,
         }
     )
@@ -78261,6 +78262,7 @@ def test_runtime_evidence_truth_table_tracks_materialized_review_recheck_attempt
                 "hGoodCovered : {ω | rank ω ∈ GoodRanks} ⊆ covered",
                 "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
             ],
+            "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 1,
             "n_formal_gaps": 1,
         }
     )
@@ -78298,6 +78300,7 @@ def test_runtime_evidence_truth_table_tracks_candidate_synthesis_recheck_attempt
                 "hGoodCovered : {ω | rank ω ∈ GoodRanks} ⊆ covered",
                 "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
             ],
+            "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 1,
             "n_formal_gaps": 1,
         }
     )
@@ -78510,6 +78513,7 @@ def test_typechecked_review_recheck_feedback_queues_premise_repair() -> None:
             "hGoodCovered : {ω | rank ω ∈ GoodRanks} ⊆ covered",
             "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
         ],
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 1,
         "n_formal_gaps": 1,
     }
     truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
@@ -78570,6 +78574,7 @@ def test_runtime_evidence_truth_table_separates_support_from_source_theorem() ->
             "hGoodCovered : ∀ ω, rank ω ∈ GoodRanks -> covered ω",
             "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
         ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_signature_probe_artifact_rows": 1,
         "n_formal_gaps": 2,
     }
 
@@ -78675,6 +78680,7 @@ def test_runtime_manifest_truth_table_separates_support_from_source_theorem() ->
             "hRank : rank_event",
             "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
         ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_signature_probe_artifact_rows": 1,
         "n_formal_gaps": 1,
     }
 
@@ -79066,6 +79072,7 @@ def test_runtime_truth_table_exports_unproved_source_theorem_learning_row(
             "hGoodCovered : {ω | rank ω ∈ GoodRanks} ⊆ covered",
             "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)",
         ],
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_signature_probe_artifact_rows": 1,
         "n_formal_gaps": 1,
     }
     truth_table = _runtime_evidence_truth_table_from_manifest(manifest)
@@ -79457,6 +79464,7 @@ def test_runtime_truth_table_gate_open_routes_exact_proof_body_repair(
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified": 0,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 1,
         "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": [
             "split_conformal_finite_sample_coverage"
@@ -81426,11 +81434,19 @@ def test_runtime_capability_scorecard_rejects_proof_body_goal_without_signature_
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+    truth_table = _runtime_evidence_truth_table_from_manifest(payload)
+    truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
 
     assert proof_body_row["passed"] is False
     assert "proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
     assert "signature_artifact_rows=0" in proof_body_row["evidence"]
     assert "proof_body_signature_probe_artifact_path lineage" in proof_body_row["blocker"]
+    assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
+        "PROOF_BODY_ATTEMPT_BLOCKED"
+    )
+    assert "proof_body_signature_probe_artifact_path lineage" in truth_rows[
+        "exact_source_proof_body_attempt"
+    ]["blocker"]
 
 
 def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_progress() -> None:

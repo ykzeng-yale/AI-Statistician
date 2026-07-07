@@ -1806,6 +1806,10 @@ def _runtime_evidence_truth_table_from_manifest(
         + proof_body_goal_excerpt_rows
         + proof_body_goal_excerpt_evidence_count
     )
+    proof_body_signature_artifact_count = _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
+    )
     proof_body_gate_open_count = max(
         _runtime_manifest_int_sum(
             payload,
@@ -1988,14 +1992,23 @@ def _runtime_evidence_truth_table_from_manifest(
             if source_target_bound_kernel_count > 0
             else "PROOF_BODY_REACHED_OPEN"
             if proof_body_goal_evidence_count > 0
+            and proof_body_signature_artifact_count > 0
             else "PROOF_BODY_ATTEMPT_BLOCKED"
-            if proof_body_result_rows > 0
+            if proof_body_result_rows > 0 or proof_body_goal_evidence_count > 0
             else "MISSING",
             proof_body_result_rows
             or proof_body_goal_evidence_count,
             "Proof-body attempts expose Lean goals/residuals; they are source theorem proof only when source-kernel verified.",
             proof_evidence=source_target_bound_kernel_count > 0,
-            blocker=proof_body_blocker,
+            blocker=(
+                "proof_body_signature_probe_artifact_path lineage missing"
+                if (
+                    source_target_bound_kernel_count <= 0
+                    and proof_body_goal_evidence_count > 0
+                    and proof_body_signature_artifact_count <= 0
+                )
+                else proof_body_blocker
+            ),
             goal_excerpt=proof_body_goal_excerpt,
             gate_open_for_kernel_repair=proof_body_gate_open_count > 0,
             gate_open_for_kernel_repair_count=proof_body_gate_open_count,

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T04:32:18Z",
+  "updated_at": "2026-07-07T04:39:50Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -2903,6 +2903,10 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py::test_exact_source_executor_approved_semantic_review_unblocks_guidance_constraints tests/test_research_agent_runtime.py -k \"signature_probe_reached_proof_body or proof_body_goal_excerpt or semantic_promotion_proof_body_executor_feedback or exact_semantic_recheck_proof_body_feedback or exact_proof_body_executor_feedback or hidden_semantic_blocked_proof_body_progress or proof_body_goal_without_signature_artifact\" # 5 passed, 918 deselected after proof-body signature artifact audit gate patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or evidence_truth_table)\" # 41 passed, 881 deselected after proof-body signature artifact audit gate patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body signature artifact audit gate patch",
-    "git diff --check # passed after proof-body signature artifact audit gate patch"
+    "git diff --check # passed after proof-body signature artifact audit gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py ai_statistician/research_system_audit.py ai_statistician/evaluation_benchmark_guidance.py tests/test_research_agent_runtime.py tests/test_core.py # passed after proof-body signature truth-table and S13 guidance gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"truth_table and (proof_body or source_theorem or exact_semantic)\" tests/test_core.py::SystemTests::test_evaluation_benchmark_guidance_flags_capacity_gaps # 8 passed, 915 deselected after proof-body signature truth-table and S13 guidance gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or evidence_truth_table or truth_table)\" # 44 passed, 878 deselected after proof-body signature truth-table and S13 guidance gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"evaluation_benchmark_guidance or research_system_audit\" # 11 passed, 282 deselected, 6 subtests passed after proof-body signature truth-table and S13 guidance gate patch"
   ]
 }

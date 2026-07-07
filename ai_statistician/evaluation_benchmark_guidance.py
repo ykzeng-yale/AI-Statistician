@@ -266,6 +266,7 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
                         "research_agent_runtime_source_theorem_proof_body_result_row_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count",
+                        "research_agent_runtime_source_theorem_proof_body_signature_artifact_count",
                         "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers",
                         "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count",
                         "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
@@ -1318,6 +1319,11 @@ def _suite_rows(
             )
         ),
     )
+    runtime_source_theorem_proof_body_signature_artifacts = _int(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_signature_artifact_count"
+        )
+    )
     runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers = max(
         runtime_source_theorem_exact_proof_body_repair_goal_reached_with_semantic_blockers,
         _int(
@@ -1365,6 +1371,7 @@ def _suite_rows(
         runtime_source_theorem_signature_probe_scorecard_ok
         if runtime_source_theorem_signature_probe_scorecard_present
         else runtime_source_theorem_proof_body_goal_reached > 0
+        and runtime_source_theorem_proof_body_signature_artifacts > 0
     )
     runtime_source_theorem_semantic_blockers_scorecard_present = _bool(
         counts.get(
@@ -1937,7 +1944,7 @@ def _suite_rows(
             runtime_source_theorem_signature_probe_scorecard_blocker
             if runtime_source_theorem_signature_probe_scorecard_present
             and runtime_source_theorem_signature_probe_scorecard_blocker
-            else "exact source-theorem proof-body executor produced rows, but the runtime has not shown that the signature/proof-body goal was reached; result rows remain pre-proof-body feedback until that boundary is explicit"
+            else "exact source-theorem proof-body executor produced rows, but the runtime has not shown that the signature/proof-body goal was reached with proof_body_signature_probe_artifact_path lineage; result rows remain pre-proof-body feedback until that boundary is explicit"
         )
     elif not runtime_source_theorem_semantic_blockers_authoritative_ok:
         s13_issues.append(
@@ -3314,6 +3321,9 @@ def _suite_rows(
                 ),
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_signature_artifact_count": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_signature_artifact_count"
                 ),
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers": counts.get(
                     "research_agent_runtime_source_theorem_proof_body_goal_reached_with_semantic_blockers"

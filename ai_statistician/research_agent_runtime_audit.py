@@ -12467,6 +12467,13 @@ def _payload_with_aggregate_formal_environment_leaf_counts_suppressed(
         normalized_payload[key] = 0
     for key in SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS[1:]:
         normalized_payload[key] = 0
+    for key in SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS:
+        if (
+            key.startswith("source_theorem_formal_environment_proof_body_executor")
+            and key
+            != "source_theorem_formal_environment_proof_body_executor_n_proof_body_signature_probe_artifact_rows"
+        ):
+            normalized_payload[key] = 0
     return normalized_payload
 
 
