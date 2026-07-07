@@ -893,7 +893,7 @@ def run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queu
         ),
         "n_live_goal_requests": sum(1 for row in rows if row.get("live_proof_state_request")),
         "n_live_goal_location_ready": sum(
-            1 for row in rows if row.get("live_goal_location_ready")
+            1 for row in rows if _bool_like(row.get("live_goal_location_ready"))
         ),
         "proof_body_recheck_blocked": bool(blocked_packets) and not rows,
         "proof_body_recheck_blocker": proof_body_recheck_blocker,
@@ -1242,7 +1242,7 @@ def _export_candidate_synthesis_proof_body_recheck_queue(
         ),
         "n_live_goal_requests": sum(1 for row in rows if row.get("live_proof_state_request")),
         "n_live_goal_location_ready": sum(
-            1 for row in rows if row.get("live_goal_location_ready")
+            1 for row in rows if _bool_like(row.get("live_goal_location_ready"))
         ),
         "n_semantic_definition_review_blocked_rows": len(
             semantic_definition_review_blocked_rows
@@ -2038,7 +2038,7 @@ def _source_row_target_identity_ready_for_recheck(row: Mapping[str, Any]) -> boo
         }
         or target_status == "TARGET_DECLARATION_MATCHED"
         or execution_status == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
-        or bool(row.get("live_goal_location_ready", False))
+        or _bool_like(row.get("live_goal_location_ready", False))
     )
 
 
@@ -2222,7 +2222,9 @@ def _proof_body_recheck_queue_row(
         if str(value).strip()
     ]
     target_identity_status = str(row.get("target_identity_status", "") or "")
-    source_theorem_target_known = bool(row.get("source_theorem_target_known", False))
+    source_theorem_target_known = _bool_like(
+        row.get("source_theorem_target_known", False)
+    )
     source_theorem_target_identity_status = str(
         row.get("source_theorem_target_identity_status", "") or ""
     ) or _source_theorem_target_identity_status(
@@ -2259,7 +2261,7 @@ def _proof_body_recheck_queue_row(
     recheck_environment = {
         "missing_formal_symbols": [],
         "typeclass_blockers": [],
-        "signature_typecheck_reached_proof_body": bool(
+        "signature_typecheck_reached_proof_body": _bool_like(
             original_environment.get("signature_typecheck_reached_proof_body", False)
         ),
         "synthesized_exact_semantic_definitions": bool(
@@ -2307,6 +2309,7 @@ def _proof_body_recheck_queue_row(
         "execution_queue_id": recheck_id,
         "source_execution_queue_id": str(row.get("execution_queue_id", "") or ""),
         "target_ids": target_ids,
+        "source_theorem_target_known": source_theorem_target_known,
         "source_candidate_artifact_path": source_candidate_artifact_path,
         "signature_probe_artifact_path": signature_probe_artifact_path,
         "candidate_artifact_path": proof_body_candidate_artifact_path,
@@ -2326,6 +2329,9 @@ def _proof_body_recheck_queue_row(
         ),
         "source_theorem_kernel_evidence_eligible": False,
         "already_repaired_environment": recheck_environment,
+        "live_goal_location_ready": _bool_like(
+            row.get("live_goal_location_ready", False)
+        ),
         "proof_body_attempt_source": (
             "synthesized_exact_semantic_definition_recheck_queue"
             if synthesized_exact_semantic_definitions

@@ -746,10 +746,10 @@ def _execution_result(
         or definition_contract.get("semantic_review_evidence", [])
         or []
     )
-    semantic_review_required_before_proof_body = bool(
+    semantic_review_required_before_proof_body = _boolish(
         task.get("semantic_review_required_before_proof_body", False)
     )
-    llm_claimed_source_theorem_ready_for_exact_proof_body = bool(
+    llm_claimed_source_theorem_ready_for_exact_proof_body = _boolish(
         task.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
     )
     task_lean_project_hint_raw = str(
@@ -1640,14 +1640,14 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
         ),
-        "definition_only_candidate_file_resolved": bool(
+        "definition_only_candidate_file_resolved": _boolish(
             row.get("definition_only_candidate_file_resolved", False)
         ),
         "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
-        "local_definition_lean_checked": bool(
+        "local_definition_lean_checked": _boolish(
             row.get("local_definition_lean_checked", False)
         ),
-        "local_definition_lean_compiled": bool(
+        "local_definition_lean_compiled": _boolish(
             row.get("local_definition_lean_compiled", False)
         ),
         "semantic_definition_typecheck_evidence_status": str(
@@ -1668,7 +1668,7 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         "semantic_review_evidence": list(
             row.get("semantic_review_evidence", []) or []
         ),
-        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": _boolish(
             row.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
         ),
         "candidate_repair_feedback": dict(
@@ -1874,10 +1874,10 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_lean_project_hint": str(
             row.get("candidate_lean_project_hint", "") or ""
         ),
-        "local_definition_lean_checked": bool(
+        "local_definition_lean_checked": _boolish(
             row.get("local_definition_lean_checked", False)
         ),
-        "local_definition_lean_compiled": bool(
+        "local_definition_lean_compiled": _boolish(
             row.get("local_definition_lean_compiled", False)
         ),
         "semantic_definition_typecheck_evidence_status": str(
@@ -1900,9 +1900,9 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
                 semantic_review_required_before_proof_body
             ),
         ),
-        "local_lean_requested": bool(row.get("local_lean_requested", False)),
-        "local_lean_checked": bool(row.get("local_lean_checked", False)),
-        "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+        "local_lean_requested": _boolish(row.get("local_lean_requested", False)),
+        "local_lean_checked": _boolish(row.get("local_lean_checked", False)),
+        "local_lean_compiled": _boolish(row.get("local_lean_compiled", False)),
         "local_lean_returncode": int(row.get("local_lean_returncode", 0) or 0),
         "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
         "local_lean_diagnostic_source_excerpts": [
@@ -1957,7 +1957,7 @@ def _current_candidate_repair_feedback(row: Mapping[str, Any]) -> dict[str, Any]
         for value in row.get("local_lean_diagnostic_source_excerpts", []) or []
         if isinstance(value, Mapping)
     ][:3]
-    checked = bool(row.get("local_lean_checked", False))
+    checked = _boolish(row.get("local_lean_checked", False))
     failure_classification = str(row.get("failure_classification", "") or "")
     recommended_next_action = str(row.get("recommended_next_action", "") or "")
     feedback.update(
@@ -1972,14 +1972,14 @@ def _current_candidate_repair_feedback(row: Mapping[str, Any]) -> dict[str, Any]
             "candidate_lean_project_hint": str(
                 row.get("candidate_lean_project_hint", "") or ""
             ),
-            "local_definition_lean_checked": bool(
+            "local_definition_lean_checked": _boolish(
                 row.get("local_definition_lean_checked", False)
             ),
-            "local_definition_lean_compiled": bool(
+            "local_definition_lean_compiled": _boolish(
                 row.get("local_definition_lean_compiled", False)
             ),
             "local_lean_checked": checked,
-            "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+            "local_lean_compiled": _boolish(row.get("local_lean_compiled", False)),
             "local_lean_returncode": int(row.get("local_lean_returncode", 0) or 0),
             "source_execution_status": str(row.get("execution_status", "") or ""),
             "source_execution_result_id": str(row.get("execution_result_id", "") or ""),
@@ -2168,7 +2168,9 @@ def _boolish(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y"}
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if value is None:
+        return False
     return bool(value)
 
 
@@ -2380,11 +2382,13 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         row,
         fallback_target=target_theorem_name,
     )
-    local_lean_compiled = bool(row.get("local_lean_compiled", False))
-    local_definition_lean_compiled = bool(
+    local_lean_compiled = _boolish(row.get("local_lean_compiled", False))
+    local_definition_lean_compiled = _boolish(
         row.get("local_definition_lean_compiled", False)
     )
-    local_definition_lean_checked = bool(row.get("local_definition_lean_checked", False))
+    local_definition_lean_checked = _boolish(
+        row.get("local_definition_lean_checked", False)
+    )
     semantic_alignment_blockers = [
         str(value)
         for value in row.get("semantic_alignment_blockers", []) or []
@@ -2445,7 +2449,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "definition_only_candidate_artifact_path": str(
             row.get("definition_only_candidate_artifact_path", "") or ""
         ),
-        "definition_only_candidate_file_resolved": bool(
+        "definition_only_candidate_file_resolved": _boolish(
             row.get("definition_only_candidate_file_resolved", False)
         ),
         "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
@@ -2462,17 +2466,17 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "semantic_review_evidence": list(
             row.get("semantic_review_evidence", []) or []
         ),
-        "semantic_review_required_before_proof_body": bool(
+        "semantic_review_required_before_proof_body": _boolish(
             row.get("semantic_review_required_before_proof_body", False)
         ),
-        "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": _boolish(
             row.get("llm_claimed_source_theorem_ready_for_exact_proof_body", False)
         ),
         "semantic_import_blocker": str(row.get("semantic_import_blocker", "") or ""),
         "failure_classification": str(row.get("failure_classification", "") or ""),
         "executed_tools": list(row.get("executed_tools", []) or []),
         "tool_call_trace": list(row.get("tool_call_trace", []) or []),
-        "local_lean_checked": bool(row.get("local_lean_checked", False)),
+        "local_lean_checked": _boolish(row.get("local_lean_checked", False)),
         "local_lean_compiled": local_lean_compiled,
         "local_lean_diagnostics": list(row.get("local_lean_diagnostics", []) or [])[:12],
         "local_lean_diagnostic_source_excerpts": [
@@ -2516,7 +2520,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             ),
             "execution_status": execution_status,
             "candidate_source_file": str(row.get("candidate_source_file", "") or ""),
-            "candidate_source_file_resolved": bool(
+            "candidate_source_file_resolved": _boolish(
                 row.get("candidate_source_file_resolved", False)
             ),
             "candidate_lean_project_hint": str(
@@ -2528,7 +2532,7 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "definition_only_candidate_artifact_path": str(
                 row.get("definition_only_candidate_artifact_path", "") or ""
             ),
-            "definition_only_candidate_file_resolved": bool(
+            "definition_only_candidate_file_resolved": _boolish(
                 row.get("definition_only_candidate_file_resolved", False)
             ),
             "local_definition_lean_checked": local_definition_lean_checked,
@@ -2543,10 +2547,10 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "semantic_review_status": str(
                 row.get("semantic_review_status", "") or ""
             ),
-            "semantic_review_required_before_proof_body": bool(
+            "semantic_review_required_before_proof_body": _boolish(
                 row.get("semantic_review_required_before_proof_body", False)
             ),
-            "llm_claimed_source_theorem_ready_for_exact_proof_body": bool(
+            "llm_claimed_source_theorem_ready_for_exact_proof_body": _boolish(
                 row.get(
                     "llm_claimed_source_theorem_ready_for_exact_proof_body",
                     False,
@@ -2555,8 +2559,8 @@ def _learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "semantic_import_blocker": str(
                 row.get("semantic_import_blocker", "") or ""
             ),
-            "local_lean_requested": bool(row.get("local_lean_requested", False)),
-            "local_lean_checked": bool(row.get("local_lean_checked", False)),
+            "local_lean_requested": _boolish(row.get("local_lean_requested", False)),
+            "local_lean_checked": _boolish(row.get("local_lean_checked", False)),
             "local_lean_compiled": local_lean_compiled,
             "local_lean_diagnostics": list(
                 row.get("local_lean_diagnostics", []) or []

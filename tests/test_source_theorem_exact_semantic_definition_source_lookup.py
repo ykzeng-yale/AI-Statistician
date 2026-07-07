@@ -3408,3 +3408,89 @@ def test_typechecked_review_recheck_prefers_target_known_source_rows(
     assert rows[0]["source_theorem_target_identity_status"] == (
         "SOURCE_THEOREM_TARGET_KNOWN"
     )
+
+
+def test_typechecked_review_recheck_queue_normalizes_source_row_string_false_flags(
+    tmp_path: Path,
+) -> None:
+    original_candidate = tmp_path / "original.lean"
+    original_candidate.write_text(
+        "theorem split_conformal_coverage : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    reviewed_candidate = tmp_path / "reviewed.lean"
+    reviewed_candidate.write_text(
+        "theorem split_conformal_coverage : True := by\n  trivial\n",
+        encoding="utf-8",
+    )
+    queue_manifest = tmp_path / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    _write_exact_proof_body_queue_manifest(queue_manifest, candidate=original_candidate)
+    queue_payload = json.loads(queue_manifest.read_text(encoding="utf-8"))
+    queue_payload["rows"][0]["source_theorem_target_known"] = "false"
+    queue_payload["rows"][0]["source_theorem_target_provenance"][
+        "source_theorem_target_known"
+    ] = "false"
+    queue_payload["rows"][0]["source_theorem_target_identity_status"] = ""
+    queue_payload["rows"][0]["live_goal_location_ready"] = "false"
+    queue_payload["rows"][0]["already_repaired_environment"][
+        "signature_typecheck_reached_proof_body"
+    ] = "false"
+    queue_manifest.write_text(json.dumps(queue_payload), encoding="utf-8")
+    review_packets = tmp_path / "review_packets.jsonl"
+    review_packets.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremExactSemanticDefinitionVerifierApprovedReviewPacket"
+                ),
+                "review_packet_id": "review:covered:string-false-source-row",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_ids": ["split_conformal_coverage"],
+                "placeholder_symbol": "covered",
+                "candidate_artifact_path": str(reviewed_candidate),
+                "definition_only_candidate_artifact_path": str(reviewed_candidate),
+                "local_definition_lean_compiled": True,
+                "semantic_review_required_before_proof_body": False,
+                "source_theorem_ready_for_exact_proof_body": True,
+                "semantic_review_decision": "approved_definition_candidate",
+                "semantic_review_status": (
+                    "verifier_gate_approved_definition_candidate_not_proof"
+                ),
+                "semantic_review_evidence": ["verifier gate approved"],
+                "source_theorem_kernel_verified": False,
+                "proof_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue(
+        out_dir=tmp_path / "recheck",
+        review_packets_jsonl=review_packets,
+        proof_body_queue_manifest=queue_manifest,
+    )
+
+    assert manifest["n_execution_queue_rows"] == 1
+    assert manifest["n_live_goal_location_ready"] == 0
+    rows = [
+        json.loads(line)
+        for line in Path(manifest["proof_body_execution_queue_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert rows[0]["source_theorem_target_known"] is False
+    assert rows[0]["source_theorem_target_identity_status"] == (
+        "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED"
+    )
+    assert rows[0]["live_goal_location_ready"] is False
+    assert (
+        rows[0]["already_repaired_environment"][
+            "signature_typecheck_reached_proof_body"
+        ]
+        is False
+    )

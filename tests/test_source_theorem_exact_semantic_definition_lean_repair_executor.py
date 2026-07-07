@@ -817,6 +817,97 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert learning_rows[1]["input_summary"]["source_theorem_kernel_verified"] is False
 
 
+def test_exact_semantic_definition_lean_repair_executor_string_false_review_flags_stay_false(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    definition_only_candidate = tmp_path / "candidate_defs_only.lean"
+    definition_only_candidate.write_text(
+        "def reviewedExchangeable : Prop := True\n",
+        encoding="utf-8",
+    )
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+        "lean_repair_task_id": "lean-repair:Exchangeable:string-false",
+        "source_repair_packet_id": "repair:Exchangeable",
+        "source_review_packet_id": "review:Exchangeable",
+        "source_definition_closure_work_order_id": "closure:Exchangeable",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "Exchangeable",
+        "lean_repair_action": "review_typechecked_exact_definition_candidate",
+        "repair_strategy": "review_typechecked_exact_definition_candidate",
+        "definition_only_candidate_artifact_path": str(definition_only_candidate),
+        "candidate_artifact_path": str(tmp_path / "candidate_full.lean"),
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_review_required_before_proof_body": "false",
+        "llm_claimed_source_theorem_ready_for_exact_proof_body": "false",
+        "source_theorem_exact_semantic_definition_typechecked_candidate": {
+            "definition_only_candidate_artifact_path": str(definition_only_candidate),
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+        },
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        local_lean=True,
+        lean_command=(sys.executable, "-c", "import sys; sys.exit(0)"),
+    )
+
+    assert manifest["n_typechecked_candidate_review_ready"] == 1
+    results = [
+        json.loads(line)
+        for line in Path(manifest["execution_results_jsonl"]).read_text().splitlines()
+    ]
+    assert results[0]["execution_status"] == (
+        "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_REVIEW_REQUIRED"
+    )
+    assert results[0]["semantic_review_required_before_proof_body"] is False
+    assert (
+        results[0]["llm_claimed_source_theorem_ready_for_exact_proof_body"] is False
+    )
+    review_packets = [
+        json.loads(line)
+        for line in Path(
+            manifest["typechecked_candidate_review_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert (
+        review_packets[0]["llm_claimed_source_theorem_ready_for_exact_proof_body"]
+        is False
+    )
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert learning_rows[0]["semantic_review_required_before_proof_body"] is False
+    assert (
+        learning_rows[0]["llm_claimed_source_theorem_ready_for_exact_proof_body"]
+        is False
+    )
+    assert (
+        learning_rows[0]["input_summary"][
+            "semantic_review_required_before_proof_body"
+        ]
+        is False
+    )
+    assert (
+        learning_rows[0]["input_summary"][
+            "llm_claimed_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+
+
 def test_authoring_task_exports_structured_candidate_definition_request(
     tmp_path: Path,
 ) -> None:
