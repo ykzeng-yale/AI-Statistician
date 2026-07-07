@@ -197,8 +197,25 @@ def _risk_rule_from_mapping(
         present_all=_string_tuple(row.get("present_all")),
         absent_all=_string_tuple(row.get("absent_all")),
         absent_regex_all=_string_tuple(row.get("absent_regex_all")),
-        case_sensitive=bool(row.get("case_sensitive", True)),
+        case_sensitive=_bool_like(row.get("case_sensitive", True), default=True),
     )
+
+
+def _bool_like(value: Any, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off", ""}:
+            return False
+        return default
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
 
 
 def _string_tuple(value: Any) -> tuple[str, ...]:

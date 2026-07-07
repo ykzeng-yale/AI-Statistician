@@ -200,3 +200,29 @@ def test_placeholder_policy_owns_candidate_semantic_risk_rules() -> None:
         )
         == []
     )
+
+
+def test_policy_pack_string_false_case_sensitive_is_case_insensitive() -> None:
+    rule = policy_module._risk_rule_from_mapping(
+        {
+            "message": "semantic_definition_risk: missing permutation",
+            "absent_all": ["permutation"],
+            "case_sensitive": "false",
+        }
+    )
+
+    assert rule.case_sensitive is False
+    assert (
+        policy_module._candidate_risk_rule_matches(
+            rule,
+            definition_block="def Exchangeable : Prop := PermutationInvariantLaw",
+        )
+        is False
+    )
+    assert (
+        policy_module._candidate_risk_rule_matches(
+            rule,
+            definition_block="def Exchangeable : Prop := pairwiseScoreOrderOnly",
+        )
+        is True
+    )
