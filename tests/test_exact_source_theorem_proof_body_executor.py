@@ -1302,6 +1302,8 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
         "split_conformal_coverage"
     ]
     assert manifest["proof_body_gate_open_target_ids"] == ["split_conformal_coverage"]
+    assert manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert manifest["proof_body_signature_probe_artifact_paths"] == [str(signature)]
     assert manifest["n_proof_body_attempted"] == 1
     assert manifest["dominant_failure_classification"] == "proof_body_incomplete"
     row = manifest["rows"][0]
@@ -1358,6 +1360,7 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
     )
     learning_manifest = manifest["runtime_learning_export"]
     assert learning_manifest["n_proof_body_gate_open_for_kernel_repair"] == 1
+    assert learning_manifest["n_proof_body_signature_probe_artifact_rows"] == 1
     assert learning_manifest["proof_body_gate_open_target_names"] == [
         "split_conformal_coverage"
     ]

@@ -487,6 +487,22 @@ SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS: tuple[
     for key in SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS
     if key.endswith("_with_semantic_blockers")
 )
+SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS: tuple[str, ...] = (
+    "source_theorem_formal_environment_proof_body_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_late_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+    "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows",
+)
 SOURCE_THEOREM_PROOF_BODY_GATE_OPEN_FOR_KERNEL_REPAIR_KEYS: tuple[str, ...] = (
     "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair",
     "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair",
@@ -544,6 +560,8 @@ def _executor_manifest_compact_payload(
             "n_proof_body_gate_open_for_kernel_repair": 0,
             "proof_body_gate_open_target_names": [],
             "proof_body_gate_open_target_ids": [],
+            "n_proof_body_signature_probe_artifact_rows": 0,
+            "proof_body_signature_probe_artifact_paths": [],
         }
     return {
         "dominant_failure_classification": str(
@@ -573,6 +591,15 @@ def _executor_manifest_compact_payload(
         "proof_body_gate_open_target_ids": [
             str(value).strip()
             for value in payload.get("proof_body_gate_open_target_ids", []) or []
+            if str(value).strip()
+        ][:8],
+        "n_proof_body_signature_probe_artifact_rows": int(
+            payload.get("n_proof_body_signature_probe_artifact_rows", 0) or 0
+        ),
+        "proof_body_signature_probe_artifact_paths": [
+            str(value).strip()
+            for value in payload.get("proof_body_signature_probe_artifact_paths", [])
+            or []
             if str(value).strip()
         ][:8],
     }
@@ -705,6 +732,15 @@ def _runtime_attach_proof_body_pf_lineage_counters(
         source,
         "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
     )
+    manifest[f"{prefix}_n_proof_body_signature_probe_artifact_rows"] = (
+        _runtime_manifest_int(source, "n_proof_body_signature_probe_artifact_rows")
+    )
+    manifest[f"{prefix}_proof_body_signature_probe_artifact_paths"] = (
+        _runtime_manifest_unique_string_list(
+            source,
+            "proof_body_signature_probe_artifact_paths",
+        )[:8]
+    )
     manifest[f"{prefix}_source_pseudo_formal_work_order_ids"] = (
         _runtime_manifest_string_list(source, "source_pseudo_formal_work_order_ids")
     )
@@ -736,9 +772,11 @@ def _runtime_attach_aggregate_proof_body_pf_lineage_counters(
         "n_proof_body_goal_reached_from_formalizer_pf_component_gate",
         "n_source_theorem_kernel_verified_from_pseudo_formal",
         "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
+        "n_proof_body_signature_probe_artifact_rows",
     ):
         aggregate[key] = sum(_runtime_manifest_int(row, key) for row in source_rows)
     for key in (
+        "proof_body_signature_probe_artifact_paths",
         "source_pseudo_formal_work_order_ids",
         "source_pseudo_formal_block_ids",
         "formalizer_pf_component_gate_exact_rows_jsonl_paths",
@@ -31760,6 +31798,31 @@ def run_research_agent_runtime(
             source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
         )
     )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix="source_theorem_exact_proof_body_repair_executor",
+        executor_manifest=source_theorem_exact_proof_body_repair_executor_manifest,
+    )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_proof_body_repair_executor_from_"
+            "proof_body_adapter_feedback"
+        ),
+        executor_manifest=(
+            source_theorem_exact_proof_body_repair_from_adapter_executor_manifest
+        ),
+    )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_exact_proof_body_repair_executor_from_"
+            "adapter_premise_derivation_feedback"
+        ),
+        executor_manifest=(
+            source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_manifest
+        ),
+    )
     manifest["source_theorem_exact_proof_body_repair_executor_requested"] = bool(
         config.source_theorem_formal_environment_proofengineer_execute_proof_body
         and source_theorem_exact_proof_body_repair_work_order_rows
@@ -37323,6 +37386,11 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_proof_body_executor_manifest
         else ""
     )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix="source_theorem_formal_environment_proof_body_executor",
+        executor_manifest=source_theorem_formal_environment_proof_body_executor_manifest,
+    )
     manifest[
         "source_theorem_formal_environment_from_source_semantic_promotion_bridge_requested"
     ] = bool(
@@ -37554,6 +37622,16 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
         else ""
     )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_formal_environment_proof_body_executor_from_"
+            "source_semantic_promotion"
+        ),
+        executor_manifest=(
+            source_theorem_formal_environment_source_semantic_proof_body_executor_manifest
+        ),
+    )
     manifest[
         "source_theorem_formal_environment_from_post_executor_semantic_promotion_bridge_requested"
     ] = bool(
@@ -37784,6 +37862,16 @@ def run_research_agent_runtime(
         )
         if source_theorem_formal_environment_post_executor_proof_body_executor_manifest
         else ""
+    )
+    _runtime_attach_proof_body_pf_lineage_counters(
+        manifest,
+        prefix=(
+            "source_theorem_formal_environment_proof_body_executor_from_"
+            "post_executor_semantic_promotion"
+        ),
+        executor_manifest=(
+            source_theorem_formal_environment_post_executor_proof_body_executor_manifest
+        ),
     )
     manifest["source_theorem_formal_environment_proofengineer_bridge_boundary"] = (
         "The runtime source-theorem formal-environment ProofEngineer bridge "

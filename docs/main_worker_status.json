@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T04:21:08Z",
+  "updated_at": "2026-07-07T04:32:18Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -2898,6 +2898,11 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"runtime_learning_loader_preserves_exact_semantic_definition_work_orders or exact_semantic_definition_work_orders_from_semantic_primitive_blockers or exact_semantic_definition_work_orders_from_pseudo_formal_exact_lane or exact_semantic_definition_work_orders_from_semantic_alignment_feedback or typechecked_review_recheck_feedback_queues_premise_repair or runtime_runs_formalizer_premise_derivation_candidate_bridge\" # 6 passed, 915 deselected after exact-semantic signature probe alias normalization patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/source_theorem_exact_semantic_definition_source_lookup.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py # passed after proof-body executor signature alias patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py # 49 passed after proof-body executor signature alias patch",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body_signature or source_theorem_proof_body_adapter or proof_body_incomplete or exact_proof_body_gate_open_target_names or typechecked_review_recheck_feedback_queues_premise_repair\" # 7 passed, 914 deselected after proof-body executor signature alias patch"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body_signature or source_theorem_proof_body_adapter or proof_body_incomplete or exact_proof_body_gate_open_target_names or typechecked_review_recheck_feedback_queues_premise_repair\" # 7 passed, 914 deselected after proof-body executor signature alias patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_research_agent_runtime.py # passed after proof-body signature artifact audit gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py::test_exact_source_executor_approved_semantic_review_unblocks_guidance_constraints tests/test_research_agent_runtime.py -k \"signature_probe_reached_proof_body or proof_body_goal_excerpt or semantic_promotion_proof_body_executor_feedback or exact_semantic_recheck_proof_body_feedback or exact_proof_body_executor_feedback or hidden_semantic_blocked_proof_body_progress or proof_body_goal_without_signature_artifact\" # 5 passed, 918 deselected after proof-body signature artifact audit gate patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or evidence_truth_table)\" # 41 passed, 881 deselected after proof-body signature artifact audit gate patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after proof-body signature artifact audit gate patch",
+    "git diff --check # passed after proof-body signature artifact audit gate patch"
   ]
 }

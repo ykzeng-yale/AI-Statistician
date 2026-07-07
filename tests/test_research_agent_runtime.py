@@ -81386,6 +81386,7 @@ def test_runtime_capability_scorecard_counts_proof_body_goal_excerpt_as_lane_evi
             "hGoodCovered : {omega | rank omega in GoodRanks} <= covered",
             "|- P {omega | s (Fin.last m) omega <= q_hat omega} >= ENNReal.ofReal (1 - alpha)",
         ],
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -81396,12 +81397,40 @@ def test_runtime_capability_scorecard_counts_proof_body_goal_excerpt_as_lane_evi
 
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "signature_artifact_rows=1" in proof_body_row["evidence"]
     assert truth_rows["exact_source_proof_body_attempt"]["status"] == (
         "PROOF_BODY_REACHED_OPEN"
     )
     assert truth_rows["exact_source_proof_body_attempt"]["count"] == 1
     assert truth_rows["exact_source_proof_body_attempt"]["proof_evidence"] is False
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is False
+
+
+def test_runtime_capability_scorecard_rejects_proof_body_goal_without_signature_artifact() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert proof_body_row["passed"] is False
+    assert "proof_body_goal_reached_evidence=1" in proof_body_row["evidence"]
+    assert "signature_artifact_rows=0" in proof_body_row["evidence"]
+    assert "proof_body_signature_probe_artifact_path lineage" in proof_body_row["blocker"]
 
 
 def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_progress() -> None:
@@ -81419,6 +81448,7 @@ def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_p
         "n_runtime_traces": 6,
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows": 1,
     }
 
     scorecard = _runtime_capability_scorecard(payload)
@@ -81429,6 +81459,7 @@ def test_runtime_capability_scorecard_flags_hidden_semantic_blocked_proof_body_p
     ]
 
     assert proof_body_row["passed"] is True
+    assert "signature_artifact_rows=1" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=1" in semantic_row["evidence"]
     assert "exact semantic-definition repair routing" in semantic_row["blocker"]
@@ -81898,6 +81929,7 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached_with_semantic_blockers": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_signature_probe_artifact_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_n_proof_body_gate_open_for_kernel_repair": 1,
         "source_theorem_exact_proof_body_repair_executor_proof_body_gate_open_target_names": [
             "central_exact_target"
@@ -81905,6 +81937,7 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached": 2,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_goal_reached_with_semantic_blockers": 3,
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_signature_probe_artifact_rows": 2,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_n_proof_body_gate_open_for_kernel_repair": 2,
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback_proof_body_gate_open_target_names": [
             "post_adapter_target"
@@ -81912,6 +81945,7 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_result_rows": 1,
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached": 4,
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_goal_reached_with_semantic_blockers": 5,
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_signature_probe_artifact_rows": 4,
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_n_proof_body_gate_open_for_kernel_repair": 3,
         "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback_proof_body_gate_open_target_names": [
             "premise_adapter_target"
@@ -81956,12 +81990,14 @@ def test_runtime_audit_counts_explicit_adapter_feedback_proof_body_goal_reached(
         == 4
     )
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 16
+    assert audit["source_theorem_proof_body_signature_artifact_count"] == 7
     assert audit["source_theorem_proof_body_gate_open_for_kernel_repair_count"] == 6
     assert audit[
         "source_theorem_proof_body_gate_open_for_kernel_repair_target_names"
     ] == ["central_exact_target", "post_adapter_target", "premise_adapter_target"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=16" in proof_body_row["evidence"]
+    assert "signature_artifact_rows=7" in proof_body_row["evidence"]
     assert "gate_open_for_kernel_repair=6" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=9" in semantic_row["evidence"]
@@ -81991,11 +82027,13 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_compiled": 1,
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached": 4,
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers": 5,
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_signature_probe_artifact_rows": 4,
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows": 1,
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked": 3,
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_compiled": 2,
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached": 6,
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_reached_with_semantic_blockers": 7,
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_signature_probe_artifact_rows": 6,
         "artifacts": {
             "per_question_results": [],
             "runtime_traces_jsonl": str(traces),
@@ -82042,10 +82080,12 @@ def test_runtime_audit_aggregates_semantic_promotion_proof_body_executor_feedbac
     )
     assert audit["source_theorem_proof_body_result_row_count"] == 2
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 22
+    assert audit["source_theorem_proof_body_signature_artifact_count"] == 10
     assert local_lean_row["passed"] is True
     assert "local_lean_checked=5" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=22" in proof_body_row["evidence"]
+    assert "signature_artifact_rows=10" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=12" in semantic_row["evidence"]
     proof_body_attempt = {
@@ -82078,18 +82118,22 @@ def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_local_lean_compiled": 1,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached": 1,
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 2,
+        "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 1,
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_checked": 2,
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled": 1,
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": 3,
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 4,
+        "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 3,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_checked": 3,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled": 2,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": 5,
         "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 6,
+        "source_theorem_exact_semantic_definition_materialized_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 5,
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_checked": 4,
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_local_lean_compiled": 3,
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached": 7,
         "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_goal_reached_with_semantic_blockers": 8,
+        "source_theorem_exact_semantic_definition_late_typechecked_review_proof_body_recheck_executor_n_proof_body_signature_probe_artifact_rows": 7,
         "artifacts": {
             "per_question_results": [],
             "runtime_traces_jsonl": str(traces),
@@ -82131,10 +82175,12 @@ def test_runtime_audit_aggregates_exact_semantic_recheck_proof_body_feedback(
         == 10
     )
     assert audit["source_theorem_proof_body_goal_reached_evidence_count"] == 36
+    assert audit["source_theorem_proof_body_signature_artifact_count"] == 16
     assert local_lean_row["passed"] is True
     assert "local_lean_checked=10" in local_lean_row["evidence"]
     assert proof_body_row["passed"] is True
     assert "proof_body_goal_reached_evidence=36" in proof_body_row["evidence"]
+    assert "signature_artifact_rows=16" in proof_body_row["evidence"]
     assert semantic_row["passed"] is False
     assert "semantic_review_blocked_goal_reached=20" in semantic_row["evidence"]
 

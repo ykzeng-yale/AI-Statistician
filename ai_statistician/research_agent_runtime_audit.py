@@ -67,6 +67,7 @@ from .research_agent_runtime import (
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_KEYS,
     SOURCE_THEOREM_PROOF_BODY_GOAL_REACHED_WITH_SEMANTIC_BLOCKER_KEYS,
     SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS,
+    SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
     _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES,
     _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES,
     _effective_formal_verification_policy,
@@ -207,10 +208,12 @@ def _copy_proof_body_pf_lineage_counters(
         "n_proof_body_goal_reached_from_formalizer_pf_component_gate",
         "n_source_theorem_kernel_verified_from_pseudo_formal",
         "n_source_theorem_kernel_verified_from_formalizer_pf_component_gate",
+        "n_proof_body_signature_probe_artifact_rows",
     ):
         key = f"{prefix}_{suffix}"
         target[key] = int(source.get(key, 0) or 0)
     for suffix in (
+        "proof_body_signature_probe_artifact_paths",
         "source_pseudo_formal_work_order_ids",
         "source_pseudo_formal_block_ids",
         "formalizer_pf_component_gate_exact_rows_jsonl_paths",
@@ -10495,6 +10498,19 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_signature_probe_artifact_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_signature_probe_artifact_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_proof_body_signature_probe_artifact_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_proof_body_signature_probe_artifact_paths",
+                [],
+            )
+        )[:8],
         "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows": int(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_goal_excerpt_rows",
@@ -10569,6 +10585,19 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_signature_probe_artifact_rows": int(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_signature_probe_artifact_rows",
+                0,
+            )
+            or 0
+        ),
+        "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_proof_body_signature_probe_artifact_paths": _compact_string_list(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_proof_body_signature_probe_artifact_paths",
+                [],
+            )
+        )[:8],
         "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows": int(
             manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_goal_excerpt_rows",
@@ -10603,6 +10632,14 @@ def audit_research_agent_runtime(
         "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": _runtime_manifest_int_sum(
             manifest,
             SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
+        ),
+        "source_theorem_formal_environment_proof_body_executor_n_proof_body_signature_probe_artifact_rows": _runtime_manifest_int_sum(
+            manifest,
+            (
+                "source_theorem_formal_environment_proof_body_executor_n_proof_body_signature_probe_artifact_rows",
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_proof_body_signature_probe_artifact_rows",
+                "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_proof_body_signature_probe_artifact_rows",
+            ),
         ),
         "architect_coordinator_enabled": any(row.architect_coordinator_enabled for row in rows),
         "llm_topology_policy_ok": not topology_errors,
@@ -10952,6 +10989,9 @@ def audit_research_agent_runtime(
         ],
     }
     for proof_body_prefix in (
+        "source_theorem_exact_proof_body_repair_executor",
+        "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback",
+        "source_theorem_exact_proof_body_repair_executor_from_adapter_premise_derivation_feedback",
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor",
         "source_theorem_exact_semantic_definition_typechecked_review_proof_body_recheck_executor",
         "source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor",
@@ -10988,6 +11028,9 @@ def audit_research_agent_runtime(
     )
     payload["source_theorem_proof_body_result_row_count"] = (
         _payload_source_theorem_proof_body_result_row_count(payload)
+    )
+    payload["source_theorem_proof_body_signature_artifact_count"] = (
+        _payload_source_theorem_proof_body_signature_artifact_count(payload)
     )
     payload[
         "source_theorem_exact_semantic_definition_authoring_post_runtime_worker_command"
@@ -12466,6 +12509,38 @@ def _payload_source_theorem_proof_body_goal_reached_count(
     )
 
 
+def _payload_source_theorem_proof_body_signature_artifact_count(
+    payload: Mapping[str, Any],
+) -> int:
+    if (
+        payload.get(
+            "source_theorem_formal_environment_proof_body_executor_counts_aggregate"
+        )
+        is True
+    ):
+        non_formal_environment_signature_keys = tuple(
+            key
+            for key in SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS
+            if not key.startswith(
+                "source_theorem_formal_environment_proof_body_executor"
+            )
+        )
+        return int(
+            payload.get(
+                "source_theorem_formal_environment_proof_body_executor_n_proof_body_signature_probe_artifact_rows",
+                0,
+            )
+            or 0
+        ) + _runtime_manifest_int_sum(
+            payload,
+            non_formal_environment_signature_keys,
+        )
+    return _runtime_manifest_int_sum(
+        payload,
+        SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
+    )
+
+
 def _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(
     payload: Mapping[str, Any],
 ) -> int:
@@ -13754,6 +13829,8 @@ def _runtime_capability_gap_audit_metrics(
         ),
         "source_theorem_signature_probe_reached_proof_body": (
             "source_theorem_proof_body_goal_reached_evidence_count",
+            "source_theorem_proof_body_signature_artifact_count",
+            *SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
             "source_theorem_proof_body_gate_open_for_kernel_repair_count",
             "source_theorem_proof_body_gate_open_for_kernel_repair_target_names",
             "source_theorem_proof_body_result_row_count",
@@ -17516,6 +17593,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proof_body_goal_reached_count = (
         _payload_source_theorem_proof_body_goal_reached_count(payload)
+    )
+    proof_body_signature_artifact_count = (
+        _payload_source_theorem_proof_body_signature_artifact_count(payload)
     )
     proof_body_semantic_review_blocker_count = (
         _payload_source_theorem_proof_body_semantic_review_blocker_count(payload)
@@ -23465,10 +23545,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "source_theorem_signature_probe_reached_proof_body",
-            proof_body_goal_reached_count > 0,
+            proof_body_goal_reached_count > 0
+            and proof_body_signature_artifact_count > 0,
             (
                 "proof_body_goal_reached_evidence="
                 f"{proof_body_goal_reached_count} "
+                "signature_artifact_rows="
+                f"{proof_body_signature_artifact_count} "
                 "gate_open_for_kernel_repair="
                 f"{payload.get('source_theorem_proof_body_gate_open_for_kernel_repair_count')} "
                 "gate_open_targets="
@@ -23479,9 +23562,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body')}"
             ),
             (
-                "exact source-theorem proof-body goal was not reached; result "
-                "rows without goal evidence are pre-proof-body blockers, not "
-                "proof-body repair evidence"
+                (
+                    "proof-body goal evidence is missing "
+                    "proof_body_signature_probe_artifact_path lineage; preserve "
+                    "source theorem signature artifacts through the exact "
+                    "proof-body executor before counting this as reached"
+                )
+                if proof_body_goal_reached_count > 0
+                else (
+                    "exact source-theorem proof-body goal was not reached; "
+                    "result rows without goal evidence are pre-proof-body "
+                    "blockers, not proof-body repair evidence"
+                )
             ),
         ),
         _scorecard_row(
