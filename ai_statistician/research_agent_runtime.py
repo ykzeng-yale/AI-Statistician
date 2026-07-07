@@ -46863,6 +46863,17 @@ def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[s
     return provenance
 
 
+def _source_theorem_target_known_from_row(
+    row: Mapping[str, Any],
+    provenance: Mapping[str, Any],
+) -> bool:
+    provenance_value = _source_theorem_target_known_value(provenance)
+    if provenance_value is not None:
+        return provenance_value
+    row_value = _source_theorem_target_known_value(row)
+    return bool(row_value) if row_value is not None else False
+
+
 def _source_theorem_explicit_target_ids_from_row(row: Mapping[str, Any]) -> list[str]:
     sources: list[Mapping[str, Any]] = [row]
     for nested_key in (
@@ -73343,12 +73354,11 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                     "owner_subsystem": "Formalizer/ProofEngineer",
                     "promotion_status": promotion_status,
                     "target_theorem_name": target_theorem_name,
-                    "source_theorem_target_known": bool(
-                        source_target_provenance.get(
-                            "source_theorem_target_known",
-                            False,
+                    "source_theorem_target_known": (
+                        _source_theorem_target_known_from_row(
+                            row,
+                            source_target_provenance,
                         )
-                        or row.get("source_theorem_target_known", False)
                     ),
                     "source_theorem_target_provenance": source_target_provenance,
                     "semantic_alignment_constraints": list(
@@ -73358,7 +73368,7 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                         )
                         or []
                     ),
-                    "artifact_kernel_verified": bool(
+                    "artifact_kernel_verified": _bool_like(
                         row.get("artifact_kernel_verified", False)
                     ),
                     "source_theorem_kernel_verified": source_theorem_kernel_verified,
@@ -73380,12 +73390,9 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                     row.get("source_theorem_promotion_id", "") or ""
                 ),
                 "target_theorem_name": target_theorem_name,
-                "source_theorem_target_known": bool(
-                    source_target_provenance.get(
-                        "source_theorem_target_known",
-                        False,
-                    )
-                    or row.get("source_theorem_target_known", False)
+                "source_theorem_target_known": _source_theorem_target_known_from_row(
+                    row,
+                    source_target_provenance,
                 ),
                 "source_theorem_target_provenance": source_target_provenance,
                 "semantic_alignment_constraints": list(
@@ -73683,19 +73690,20 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
                     "owner_subsystem": "Formalizer/ProofEngineer",
                     "integration_status": integration_status,
                     "target_theorem_name": target_theorem_name,
-                    "route_probe_detected": bool(row.get("route_probe_detected", False)),
-                    "vacuous_true_target_detected": bool(
+                    "route_probe_detected": _bool_like(
+                        row.get("route_probe_detected", False)
+                    ),
+                    "vacuous_true_target_detected": _bool_like(
                         row.get("vacuous_true_target_detected", False)
                     ),
-                    "target_assumption_detected": bool(
+                    "target_assumption_detected": _bool_like(
                         row.get("target_assumption_detected", False)
                     ),
-                    "source_theorem_target_known": bool(
-                        source_target_provenance.get(
-                            "source_theorem_target_known",
-                            False,
+                    "source_theorem_target_known": (
+                        _source_theorem_target_known_from_row(
+                            row,
+                            source_target_provenance,
                         )
-                        or row.get("source_theorem_target_known", False)
                     ),
                     "source_theorem_target_provenance": source_target_provenance,
                     "semantic_alignment_constraints": list(
@@ -73722,12 +73730,9 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
                     row.get("source_theorem_promotion_id", "") or ""
                 ),
                 "target_theorem_name": target_theorem_name,
-                "source_theorem_target_known": bool(
-                    source_target_provenance.get(
-                        "source_theorem_target_known",
-                        False,
-                    )
-                    or row.get("source_theorem_target_known", False)
+                "source_theorem_target_known": _source_theorem_target_known_from_row(
+                    row,
+                    source_target_provenance,
                 ),
                 "source_theorem_target_provenance": source_target_provenance,
                 "semantic_alignment_constraints": list(

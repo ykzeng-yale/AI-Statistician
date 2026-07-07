@@ -62205,6 +62205,113 @@ end AIStatisticianExactSource
     assert "split_conformal_coverage" in learning_by_target
 
 
+def test_source_theorem_promotion_bridge_learning_rows_normalize_serialized_false(
+    tmp_path: Path,
+) -> None:
+    ready_queue_dir = tmp_path / "ready_source_theorem_promotion_queue"
+    ready_queue_dir.mkdir()
+    (
+        ready_queue_dir
+        / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "source_theorem_promotion_id": (
+                    "source_theorem_promotion:string_false_ready"
+                ),
+                "promotion_status": "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+                "target_theorem_name": "split_conformal_coverage",
+                "artifact_kernel_verified": "false",
+                "source_theorem_kernel_verified": "false",
+                "source_theorem_target_known": "false",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": "false",
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "semantic_alignment_constraints": ["marginal coverage only"],
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
+        {
+            "source_theorem_promotion_queue_dir": str(ready_queue_dir),
+            "source_theorem_promotion_queue_manifest": str(
+                ready_queue_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            ),
+        }
+    )
+
+    assert len(learning_rows) == 1
+    ready_row = learning_rows[0]
+    assert ready_row["learning_task"] == "source_theorem_promotion_bridge_feedback"
+    assert ready_row["source_theorem_target_known"] is False
+    assert (
+        ready_row["source_theorem_target_provenance"][
+            "source_theorem_target_known"
+        ]
+        is False
+    )
+    assert ready_row["input_summary"]["source_theorem_target_known"] is False
+    assert ready_row["input_summary"]["artifact_kernel_verified"] is False
+    assert ready_row["input_summary"]["source_theorem_kernel_verified"] is False
+
+    integrator_dir = tmp_path / "source_theorem_integrator"
+    integrator_dir.mkdir()
+    integrator_manifest = (
+        integrator_dir
+        / "formal_verifier_agentic_proof_source_theorem_integrator_manifest.json"
+    )
+    integrator_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "source_theorem_promotion_id": (
+                            "source_theorem_promotion:string_false_blocker"
+                        ),
+                        "integration_status": "BLOCKED_ROUTE_PROBE_ARTIFACT",
+                        "target_theorem_name": "split_conformal_route_probe",
+                        "source_theorem_kernel_verified": "false",
+                        "source_theorem_target_known": "false",
+                        "route_probe_detected": "false",
+                        "vacuous_true_target_detected": "false",
+                        "target_assumption_detected": "false",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": "false",
+                            "target_lean_declaration": (
+                                "split_conformal_route_probe"
+                            ),
+                        },
+                    }
+                ],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    blocker_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
+        {"source_theorem_integrator_manifest": str(integrator_manifest)}
+    )
+
+    assert len(blocker_rows) == 1
+    blocker_row = blocker_rows[0]
+    assert blocker_row["learning_task"] == "source_theorem_integrator_blocker_feedback"
+    assert blocker_row["source_theorem_target_known"] is False
+    assert blocker_row["input_summary"]["source_theorem_target_known"] is False
+    assert blocker_row["input_summary"]["route_probe_detected"] is False
+    assert blocker_row["input_summary"]["vacuous_true_target_detected"] is False
+    assert blocker_row["input_summary"]["target_assumption_detected"] is False
+    assert blocker_row["input_summary"]["source_theorem_kernel_verified"] is False
+
+
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",
