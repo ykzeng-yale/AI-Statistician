@@ -1182,6 +1182,18 @@ def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
     assert "Route to ProofEngineer" in learning_row["recommended_next_action"]
     assert learning_row["source_theorem_kernel_verified"] is False
     assert learning_row["artifact_kernel_verified"] is False
+    assert learning_row["source_theorem_exact_proof_body_reached"] is True
+    assert learning_row[
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+    ] is False
+    assert learning_row[
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == []
+    assert learning_row[
+        "source_theorem_exact_proof_body_gate_open_target_ids"
+    ] == []
+    assert learning_row["candidate_artifact_path"] == str(candidate)
+    assert learning_row["signature_probe_artifact_path"] == str(signature)
 
 
 def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constraints(
@@ -1321,6 +1333,15 @@ def test_exact_source_executor_approved_semantic_review_unblocks_guidance_constr
         learning_row["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
         is True
     )
+    assert learning_row["source_theorem_exact_proof_body_reached"] is True
+    assert learning_row[
+        "source_theorem_exact_proof_body_gate_open_target_names"
+    ] == ["split_conformal_coverage"]
+    assert learning_row[
+        "source_theorem_exact_proof_body_gate_open_target_ids"
+    ] == ["split_conformal_coverage"]
+    assert learning_row["candidate_artifact_path"] == str(candidate)
+    assert learning_row["signature_probe_artifact_path"] == str(signature)
     learning_manifest = manifest["runtime_learning_export"]
     assert learning_manifest["n_proof_body_gate_open_for_kernel_repair"] == 1
     assert learning_manifest["proof_body_gate_open_target_names"] == [

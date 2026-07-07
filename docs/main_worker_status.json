@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T03:43:02Z",
+  "updated_at": "2026-07-07T03:47:39Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -1194,6 +1194,34 @@
       "routing_boundary": "AgentRuntime now parses serialized proof_body_goal_reached, proof_body_semantic_review_blocked, proof_body_attempt_blocked_before_goal, source_theorem_kernel_evidence_eligible, and source_theorem_kernel_verified values with the same string-aware bool normalization used for gate-open routing. A serialized \"false\" goal-reached row can no longer open exact proof-body repair, and a serialized \"true\" semantic-review blocker wins over gate-open hints.",
       "proof_boundary": "This only preserves the truth of routing/evidence gates across JSONL compaction. It does not mark any exact source theorem, adapter, premise derivation, or semantic-definition artifact as kernel proof evidence."
     },
+    "exact_source_proof_body_learning_handoff_patch": {
+      "status": "implemented",
+      "component": "exact_source_theorem_proof_body_executor",
+      "proof_body_executor_manifest": "runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707/exact_source_theorem_proof_body_execution_result_manifest.json",
+      "runtime_learning_rows_jsonl": "runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707/runtime_learning_export/runtime_learning_rows.jsonl",
+      "n_execution_result_rows": 1,
+      "n_local_lean_checked": 1,
+      "n_proof_body_goal_reached": 1,
+      "n_proof_body_gate_open_for_kernel_repair": 1,
+      "proof_body_gate_open_target_names": [
+        "split_conformal_finite_sample_coverage_repair_v3"
+      ],
+      "proof_body_gate_open_target_ids": [
+        "split_conformal_finite_sample_coverage"
+      ],
+      "dominant_failure_classification": "proof_body_incomplete",
+      "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+      "source_theorem_kernel_verified": false,
+      "learning_row_top_level_fields": [
+        "source_theorem_exact_proof_body_reached",
+        "source_theorem_exact_proof_body_gate_open_target_names",
+        "source_theorem_exact_proof_body_gate_open_target_ids",
+        "candidate_artifact_path",
+        "signature_probe_artifact_path",
+        "execution_transcript_path"
+      ],
+      "proof_boundary": "The executor learning row now carries exact proof-body reached/gate-open target identity and artifact paths at top level for AgentRuntime/ProofEngineer handoff. The replay still fails closed as proof_body_incomplete with source_theorem_kernel_verified=false and proof_evidence_status=EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE."
+    },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",
       "component": "research_agent_runtime",
@@ -2096,11 +2124,11 @@
     "Runtime next-action agendas are compacted and ranked by concrete repair specificity, Formalizer validation repairs flow through typed policy rows, source-to-bridge adapter-object semantic work orders carry target/placeholder identity, exact semantic-definition environment blockers survive the Critic-to-Formalizer handoff, fresh target-scoped source-to-bridge premise derivations are pinned into bounded memory, source-theorem proof-body adapter check artifacts carry target_ids directly, split-conformal semantic-support mappings are isolated in a declarative policy pack, source-theorem promotion handoffs/materialization seeds preserve target_ids, and promotion seeds now block proof-execution materialization while unresolved exact semantic placeholders remain. The freshest live runtime handoff is CriticEvaluator task critic:conformal_prediction_coverage:e0544f12 from runs/main_worker_formalizer_after_artifact_normalization_live. Kernel-verified support subclaims are 124 and formal gaps are 80, but source theorem proof-body and promotion kernel counters remain 0. The agenda has 15 rows, no missing target_ids, no duplicate ids, good_rank_event/coverage_event/covered are typechecked review-required in agenda and pending feedback, C_n remains LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT, promotion materialization has 0 execution queue rows, and exact semantic review remains the proof-body gate. Runtime learning rows and blackboard artifacts are normalized so compiled source-to-bridge rows remain support-only with source theorem candidate count 0; the newest patch also prevents seed-derived exact-semantic work-order rows from dropping queue/typecheck status when merged with memory-derived rows.",
     "legacy Lean project can import selected Mathlib MeasureTheory/Probability submodules after cache population, but root `import Mathlib` remains unavailable because Mathlib.olean is absent",
     "real kernel-verified helper/subclaim rows are present, but no source theorem or full frontier theorem proof is present",
-    "Latest live frontier is critic:conformal_prediction_coverage:ebe89551 from runs/main_worker_formalizer_after_exact_semantic_work_order_status_live; exact semantic candidate review is still required for good_rank_event/coverage_event/covered and C_n still needs Lean import/environment repair before any source-theorem proof-body search can resume.",
-    "Latest live frontier is FormalizationEvaluator task formalize-critic-repair:conformal_prediction_coverage:175ad017 from runs/main_worker_critic_after_agenda_candidate_review_live; the agenda/pending feedback now preserve exact semantic candidate-review status and proof-body gate, but semantic review of good_rank_event/coverage_event/covered and C_n import/environment repair remain open before source-theorem proof-body search can resume.",
+    "Latest exact source proof-body replay is runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707: the verifier-approved good_rank_event row now reaches the intended target split_conformal_finite_sample_coverage_repair_v3 with target_ids=[split_conformal_finite_sample_coverage] and opens the proof-body kernel-repair gate, but local Lean still fails with proof_body_incomplete and source_theorem_kernel_verified=0.",
+    "The current conformal proof blocker is now proof-body construction/adapter derivation from the reached source-level Lean goal with hExch and hq context, not target identity mismatch or a dropped proof-body handoff. Remaining coverage_event/covered/C_n exact-semantic lanes still matter for full closure, but the good_rank verifier-approved replay should feed ProofEngineer rather than another broad semantic-review detour.",
     "Latest live formalization-gap route-planner prompt-budget staged followup now reaches 3/3 staged stage contract-ok responses and suppresses only the obsolete monolithic prompt-budget blocker during assembly, but the assembled causal_ate_aipw route remains full-contract rejected for substantive route-planning errors rather than JSON/envelope failures. Runtime learning/agenda export now routes that staged assembly rejection back to FormalizationGapPlanner/ArchitectCoordinator with compact assembly-error previews.",
     "Integrated/generated-code repair evidence is no longer the current scorecard blocker in the latest calibrated audit; future work should not detour into AlgorithmEngineer hardcoded repair rules unless a fresh audit regresses that row.",
-    "Lineage-checked post-runtime exact semantic-definition authoring now records one live Claude backend attempt for the C_n retry task, but this is proposal/handoff evidence only; the remaining audited blockers are source theorem proof-body reach, 75 open formal gaps, full frontier theorem kernel proof, and cross-task theorem generalization.",
+    "Lineage-checked post-runtime exact semantic-definition authoring records one live Claude backend attempt for the C_n retry task, and the newest verifier-approved proof-body replay now reaches the exact source theorem proof body. This remains proposal/handoff/proof-state evidence only; the remaining audited blockers are source theorem proof-body kernel proof, open formal gaps, full frontier theorem kernel proof, and cross-task theorem generalization.",
     "Newest exact-semantic orchestration fix now has deterministic integrated replay evidence in runs/main_worker_exact_semantic_closure_review_static_resume_20260704: closure_review_ran=true, n_results=4, skipped_reason empty, candidate_synthesis_ran=true, proof-body recheck rows=10, source_theorem_ready_for_exact_proof_body=false, and source theorem kernel verified count remains 0. This advances packet-level semantic review evidence without promoting source theorem proof.",
     "Newest exact-semantic typechecked-review routing fix now has direct and integrated replay evidence: runs/main_worker_typechecked_semantic_review_work_order_replay_20260704 and runs/main_worker_typechecked_semantic_review_work_order_static_resume_20260704 both convert the 3 unreviewed typechecked candidate packets for good_rank_event, coverage_event, and covered into explicit PENDING_EXACT_SEMANTIC_DEFINITION_SEMANTIC_FAITHFULNESS_REVIEW work orders, with verifier_gate_work_orders=0, proof-body execution rows=0, source_theorem_ready_for_exact_proof_body=false, and source theorem kernel verified count=0.",
     "S13 live integrated runtime remains not ready: latest score 74/95 in runs/main_worker_s13_formalizer_repair_resume_probe_20260704; Formalizer/ProofEngineer live proposal is not yet accepted, no integrated Claude-generated Lean candidate has been locally checked, and no full/frontier theorem kernel evidence exists.",
@@ -2110,12 +2138,12 @@
   ],
   "next_main_worker_actions": [
     "run the next FormalizationGapPlanner/ArchitectCoordinator revision loop from the new staged-assembly contract-feedback row; keep the staged followup path but accept only a full response-contract-valid route before target-prover replay candidates",
-    "resume pending FormalizationEvaluator task formalize-critic-repair:conformal_prediction_coverage:175ad017 from runs/main_worker_critic_after_agenda_candidate_review_live/research_agent_runtime_manifest.json; preserve exact semantic candidate-review status, proof_body_gate_status, C_n import-environment repair metadata, and source-theorem non-proof boundaries",
-    "implement or route an actual semantic review/import step for the three local-Lean compiled definition-only candidates, keeping them non-proof until source faithfulness is reviewed and the intended source theorem itself is locally Lean/AXLE verified",
-    "route the next exact-semantic step to semantic review of the local-Lean compiled definition-only candidates and targeted C_n import/environment repair, not another broad repair loop or proof-body retry",
-    "route the next Critic/Formalizer step toward semantic review/import repair for exact definitions; keep the coverage source theorem as empty FORMAL_GAP until an intended source theorem declaration is locally Lean/AXLE verified",
-    "promote no source theorem or semantic definition until reviewed exact definitions plus local Lean/AXLE verification of the intended source theorem are present; SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY remains the active proof-body gate",
-    "next exact-semantic work should run or implement the actual semantic-faithfulness review/verifier gate for typechecked definition candidates, then only after verifier-approved definitions rerun proof-body search; do not treat closure review, candidate synthesis, or typecheck as proof evidence",
+    "feed runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707/runtime_learning_export/runtime_learning_rows.jsonl back into AgentRuntime/Formalizer memory so ProofEngineer sees proof_body_incomplete, the exact target, target_ids, candidate/signature artifacts, and the reached hExch/hq Lean goal without digging through nested input_summary",
+    "repair the exact source theorem proof body, or derive a source-to-bridge adapter/premise derivation if the reached source-level hExch/hq goal cannot be closed directly; do not reroute this good_rank lane to broad semantic review unless new explicit semantic_alignment_blockers appear",
+    "after each proof-body or adapter candidate, rerun exact-source-theorem-proof-body-executor with local Lean/AXLE and keep source_theorem_kernel_verified=false until the intended exact source theorem target itself compiles",
+    "continue targeted semantic review/import repair for remaining coverage_event/covered/C_n exact-definition lanes as parallel support work, but keep those rows non-proof until source faithfulness is reviewed and the intended theorem is locally Lean/AXLE verified",
+    "promote no source theorem, adapter, premise derivation, or semantic definition until local Lean/AXLE verifies the intended source theorem declaration; the open proof-body gate is repair permission, not proof evidence",
+    "next exact-semantic work should preserve verifier-approved proof-body rows and avoid broad loops that drop the current target-known proof-body gate-open handoff",
     "add a second non-conformal task-family capability run before claiming cross-task generality",
     "push this branch and open or update a GitHub PR against the coordination branch when connector support is available",
     "Resume pending FormalizationEvaluator task from runs/main_worker_s13_formalizer_repair_resume_probe_20260704 after the PF/BV root-scope memory patch; validate that runtime_pseudo_formal_block_routing_contract_complete clears, then continue Formalizer schema repair until a valid packet materializes a local-Lean candidate or routes a typed formal blocker.",
@@ -2739,6 +2767,9 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"evaluation_benchmark_guidance or research_system_audit_component_overlays_normalize_serialized_false_flags or research_system_full_readiness_separates_gate_health_from_runtime_capability\" # 4 passed, 289 deselected, 6 subtests passed after PF/BV exact-semantic middle-stage S13 predicate patch",
     "git diff --check # passed after PF/BV exact-semantic middle-stage S13 predicate patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<'PY' ... run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue(saved good_rank verifier-approved packet, saved source proof-body queue) # emits n_execution_queue_rows=1, n_ready=1, status READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_current_replay_20260707 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 90 --out runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_current_replay_20260707 # expected exit 1: rows=0/1, materialized=1, checked=1, proof_body_goal_reached=1, failure_classification=proof_body_incomplete, source_theorem_kernel_verified=0"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_current_replay_20260707 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 90 --out runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_current_replay_20260707 # expected exit 1: rows=0/1, materialized=1, checked=1, proof_body_goal_reached=1, failure_classification=proof_body_incomplete, source_theorem_kernel_verified=0",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_exact_source_theorem_proof_body_executor.py # 16 passed after exact proof-body learning handoff top-level field patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"source_theorem_proof_body_incomplete or exact_proof_body_gate_open_target_names or proof_body_adapter\" # 6 passed, 915 deselected after exact proof-body learning handoff top-level field patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m ai_statistician.cli exact-source-theorem-proof-body-executor --exact-source-theorem-proof-body-execution-queue-dir runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_recheck_queue_current_replay_20260707 --local-lean --lean-project legacy_sources/emperical_process_lean --lean-timeout 90 --out runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707 # expected exit 1: proof_body_gate_open_for_kernel_repair=1, target=split_conformal_finite_sample_coverage_repair_v3, target_ids=[split_conformal_finite_sample_coverage], source_theorem_kernel_verified=0, learning row now has top-level candidate/signature artifacts"
   ]
 }

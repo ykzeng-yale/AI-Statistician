@@ -1895,6 +1895,12 @@ def _export_runtime_learning_rows(
     for row in rows:
         trigger = _runtime_learning_trigger(row)
         exact_semantic_context = dict(row.exact_semantic_definition_context)
+        proof_body_gate_open = _proof_body_gate_open_for_kernel_repair(row)
+        proof_body_gate_open_target_name = (
+            row.target_theorem_name
+            or row.target_lean_declaration
+            or next(iter(row.target_ids), "")
+        )
         learning_rows.append(
             {
                 "schema_version": SCHEMA_VERSION,
@@ -1958,6 +1964,10 @@ def _export_runtime_learning_rows(
                 "execution_result_id": row.execution_result_id,
                 "execution_status": row.execution_status,
                 "failure_classification": row.failure_classification,
+                "source_candidate_artifact_path": row.source_candidate_artifact_path,
+                "signature_probe_artifact_path": row.signature_probe_artifact_path,
+                "candidate_artifact_path": row.candidate_artifact_path,
+                "execution_transcript_path": row.execution_transcript_path,
                 "runtime_queue_status": _runtime_learning_queue_status(row),
                 "candidate_materialization_required": (
                     _row_requires_source_candidate_materialization(row)
@@ -1997,10 +2007,21 @@ def _export_runtime_learning_rows(
                     row.exact_goal_shape_obligations
                 ),
                 "proof_body_goal_reached": row.proof_body_goal_reached,
+                "source_theorem_exact_proof_body_reached": (
+                    row.proof_body_goal_reached
+                ),
                 "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
                 "proof_body_gate_status": row.proof_body_gate_status,
                 "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (
-                    _proof_body_gate_open_for_kernel_repair(row)
+                    proof_body_gate_open
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_names": (
+                    [str(proof_body_gate_open_target_name)]
+                    if proof_body_gate_open and proof_body_gate_open_target_name
+                    else []
+                ),
+                "source_theorem_exact_proof_body_gate_open_target_ids": (
+                    list(row.target_ids) if proof_body_gate_open else []
                 ),
                 "proof_body_attempt_success": row.proof_body_attempt_success,
                 "diagnostics": list(row.diagnostics),
