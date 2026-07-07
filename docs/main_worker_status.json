@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T02:10:05Z",
+  "updated_at": "2026-07-07T02:35:55Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -608,6 +608,12 @@
     "source_theorem_promotion_chain_bool_test": "tests/test_core.py::SystemTests::test_source_theorem_promotion_chain_normalizes_serialized_false_flags",
     "runtime_source_theorem_promotion_bridge_bool_patch": "AgentRuntime source-theorem promotion bridge learning rows now parse serialized false booleans after rehydrating promotion queue and integrator JSONL/manifest rows from disk. Runtime memory no longer turns source_theorem_target_known=\"false\", artifact_kernel_verified=\"false\", route_probe_detected=\"false\", vacuous_true_target_detected=\"false\", or target_assumption_detected=\"false\" into truthy Formalizer/ProofEngineer feedback.",
     "runtime_source_theorem_promotion_bridge_bool_test": "tests/test_research_agent_runtime.py::test_source_theorem_promotion_bridge_learning_rows_normalize_serialized_false",
+    "runtime_audit_pf_component_gate_bool_patch": "Runtime audit now normalizes serialized booleans before PF/BV component-gate learning rows are counted as live/non-proof/consumed, before Formalizer candidate feedback target identity is treated as route-critical, and before PF component-gate scorecard/ladders consume capability/proof-boundary fields. Serialized \"false\" no longer inflates capability_evidence_ok, proof_evidence_status_ok, source_theorem_target_known, or runtime_component_learning_consumed, while serialized good non-proof PF packets with raw_model_output_written=\"false\" remain acceptable support evidence.",
+    "runtime_audit_pf_component_gate_bool_tests": [
+      "tests/test_research_agent_runtime.py::test_runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary_normalizes_serialized_flags",
+      "tests/test_research_agent_runtime.py::test_runtime_capability_scorecard_normalizes_pf_component_gate_serialized_flags",
+      "tests/test_research_agent_runtime.py::test_runtime_target_identity_audit_flags_route_critical_targetless_rows"
+    ],
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2648,6 +2654,8 @@
     "rg -n \"bool\\\\([^\\\\n]*(artifact_kernel_verified|source_theorem_kernel_verified|source_theorem_target_known)\" ai_statistician/formal_verifier_agentic_proof_source_theorem_promotion_queue.py ai_statistician/formal_verifier_agentic_proof_source_theorem_target_resolution.py ai_statistician/formal_verifier_agentic_proof_source_theorem_integrator.py # no raw bool promotion parsing remains in patched modules",
     ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after runtime source-theorem promotion bridge bool patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_source_theorem_promotion_bridge_learning_rows_normalize_serialized_false -q --tb=short # 1 passed after runtime source-theorem promotion bridge bool patch",
-    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"source_theorem_promotion_bridge_learning_rows_normalize_serialized_false or source_theorem_promotion_queue_rows or source_theorem_integrator_blocker\" --tb=short # 3 passed, 910 deselected after runtime source-theorem promotion bridge bool patch"
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"source_theorem_promotion_bridge_learning_rows_normalize_serialized_false or source_theorem_promotion_queue_rows or source_theorem_integrator_blocker\" --tb=short # 3 passed, 910 deselected after runtime source-theorem promotion bridge bool patch",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime_audit.py tests/test_research_agent_runtime.py # passed after runtime-audit PF component-gate bool patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary or runtime_capability_scorecard_normalizes_pf_component_gate_serialized_flags or runtime_target_identity_audit_flags_route_critical_targetless_rows\" --tb=short # 4 passed, 911 deselected after runtime-audit PF component-gate bool patch"
   ]
 }

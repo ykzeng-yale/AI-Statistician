@@ -1449,26 +1449,26 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
             n_routable_work_order_rows,
         )
         live_ok = (
-            bool(_row_field(row, "capability_evidence_ok", False))
-            and bool(_row_field(row, "live_generator", False))
-            and not bool(_row_field(row, "static_or_fixture_only", False))
+            _safe_bool(_row_field(row, "capability_evidence_ok", False))
+            and _safe_bool(_row_field(row, "live_generator", False))
+            and not _safe_bool(_row_field(row, "static_or_fixture_only", False))
         )
         routable_ok = (
             n_routable_work_order_rows > 0
             and "source_theorem_exact_semantic_definition" in row_target_lanes
         )
-        exact_lane_ok = bool(
+        exact_lane_ok = _safe_bool(
             _row_field(row, "exact_semantic_definition_lane_present", False)
         )
         nonproof_ok = (
-            bool(_row_field(row, "nonproof_boundary_preserved", False))
-            and not bool(_row_field(row, "raw_model_output_written", False))
-            and bool(_row_field(row, "proof_evidence_status_ok", False))
-            and bool(_row_field(row, "no_theorem_proof_claim", False))
+            _safe_bool(_row_field(row, "nonproof_boundary_preserved", False))
+            and not _safe_bool(_row_field(row, "raw_model_output_written", False))
+            and _safe_bool(_row_field(row, "proof_evidence_status_ok", False))
+            and _safe_bool(_row_field(row, "no_theorem_proof_claim", False))
             and str(_row_field(row, "proof_evidence_status", "") or "").strip()
             == proof_evidence_status
         )
-        attachment_gate_ok = bool(
+        attachment_gate_ok = _safe_bool(
             _row_field(row, "attachment_gate_recomputed", False)
         )
         result_status = str(_row_field(row, "result_status", "") or "").strip()
@@ -1483,7 +1483,7 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
             {},
         )
         if (
-            bool(
+            _safe_bool(
                 _row_field(
                     row,
                     "pseudo_formal_failure_repair_seed_available",
@@ -16494,7 +16494,10 @@ def _runtime_route_row_has_target_identity_hint(row: Any) -> bool:
             for key in ("source_theorem_goal_id", "target_id", "target_theorem_name"):
                 if str(source.get(key, "") or "").strip():
                     return True
-        return bool(row.get("source_theorem_target_known")) and bool(
+        return _runtime_route_row_bool(
+            row,
+            "source_theorem_target_known",
+        ) and bool(
             str(row.get("target_lean_declaration", "") or "").strip()
         )
     for source in (row, input_summary, provenance):
@@ -16784,7 +16787,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    attached_coding_autonomous_live_repair_observed = bool(
+    attached_coding_autonomous_live_repair_observed = _safe_bool(
         payload.get(
             "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed",
             False,
@@ -16798,7 +16801,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         or ""
     )
     attached_coding_repair_ready = (
-        bool(attached_coding_summary["capability_evidence_ok"])
+        _safe_bool(attached_coding_summary["capability_evidence_ok"])
         and attached_coding_algorithm_live_sequences > 0
         and attached_coding_simulation_live_sequences > 0
         and attached_coding_autonomous_live_repair_observed
@@ -16899,7 +16902,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    attached_formalizer_proofengineer_repair_task_observed = bool(
+    attached_formalizer_proofengineer_repair_task_observed = _safe_bool(
         payload.get(
             "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed",
             False,
@@ -16920,7 +16923,7 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         or 0
     )
     attached_formalizer_repair_ready = (
-        bool(attached_formalizer_summary["capability_evidence_ok"])
+        _safe_bool(attached_formalizer_summary["capability_evidence_ok"])
         and attached_formalizer_repair_sequences > 0
         and attached_formalizer_local_lean_checked > 0
         and attached_formalizer_local_lean_compiled > 0
@@ -17617,7 +17620,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    attached_coding_autonomous_live_repair_observed = bool(
+    attached_coding_autonomous_live_repair_observed = _safe_bool(
         payload.get(
             "internal_coding_agent_generated_code_repair_eval_autonomous_live_failed_then_passed_repair_observed",
             False,
@@ -17637,7 +17640,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     )
     attached_live_component_repair_gate_passed = (
-        bool(attached_coding_summary["capability_evidence_ok"])
+        _safe_bool(attached_coding_summary["capability_evidence_ok"])
         and attached_repair_eval_algorithm_live_sequences > 0
         and attached_repair_eval_simulation_live_sequences > 0
         and attached_coding_autonomous_live_repair_observed
@@ -17731,7 +17734,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    attached_formalizer_proofengineer_repair_task_observed = bool(
+    attached_formalizer_proofengineer_repair_task_observed = _safe_bool(
         payload.get(
             "internal_formalizer_lean_candidate_repair_eval_proofengineer_repair_task_observed",
             False,
@@ -17771,7 +17774,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "internal_formalizer_lean_candidate_repair_eval",
         )
     )
-    attached_formalizer_live_component_gate_passed = bool(
+    attached_formalizer_live_component_gate_passed = _safe_bool(
         attached_formalizer_summary["capability_evidence_ok"]
     )
     attached_formalizer_live_gate_passed = (
@@ -17890,7 +17893,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         )
     )
-    attached_formalizer_pseudo_formal_nonproof_boundary = bool(
+    attached_formalizer_pseudo_formal_nonproof_boundary = _safe_bool(
         payload.get(
             "internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved",
             attached_formalizer_pseudo_formal_packet_source.get(
@@ -17898,7 +17901,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         )
     )
-    attached_formalizer_pseudo_formal_raw_output_written = bool(
+    attached_formalizer_pseudo_formal_raw_output_written = _safe_bool(
         payload.get(
             "internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written",
             attached_formalizer_pseudo_formal_packet_source.get(
@@ -17906,7 +17909,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         )
     )
-    attached_formalizer_pseudo_formal_exact_lane_present = bool(
+    attached_formalizer_pseudo_formal_exact_lane_present = _safe_bool(
         _runtime_attached_component_field(
             payload,
             "internal_formalizer_pseudo_formal_packet_eval",
@@ -17914,7 +17917,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
-    attached_formalizer_pseudo_formal_exact_rows_source_anchored = bool(
+    attached_formalizer_pseudo_formal_exact_rows_source_anchored = _safe_bool(
         _runtime_attached_component_field(
             payload,
             "internal_formalizer_pseudo_formal_packet_eval",
@@ -17922,15 +17925,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
-    attached_formalizer_pseudo_formal_exact_rows_semantic_requirements_present = bool(
-        _runtime_attached_component_field(
-            payload,
-            "internal_formalizer_pseudo_formal_packet_eval",
-            "exact_semantic_definition_rows_semantic_requirements_present",
-            False,
+    attached_formalizer_pseudo_formal_exact_rows_semantic_requirements_present = (
+        _safe_bool(
+            _runtime_attached_component_field(
+                payload,
+                "internal_formalizer_pseudo_formal_packet_eval",
+                "exact_semantic_definition_rows_semantic_requirements_present",
+                False,
+            )
         )
     )
-    attached_formalizer_pseudo_formal_exact_rows_lineage_complete = bool(
+    attached_formalizer_pseudo_formal_exact_rows_lineage_complete = _safe_bool(
         _runtime_attached_component_field(
             payload,
             "internal_formalizer_pseudo_formal_packet_eval",
@@ -17938,7 +17943,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
-    attached_formalizer_pseudo_formal_proof_evidence_status_ok = bool(
+    attached_formalizer_pseudo_formal_proof_evidence_status_ok = _safe_bool(
         _runtime_attached_component_field(
             payload,
             "internal_formalizer_pseudo_formal_packet_eval",
@@ -17946,7 +17951,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
-    attached_formalizer_pseudo_formal_no_theorem_proof_claim = bool(
+    attached_formalizer_pseudo_formal_no_theorem_proof_claim = _safe_bool(
         _runtime_attached_component_field(
             payload,
             "internal_formalizer_pseudo_formal_packet_eval",
@@ -17954,7 +17959,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             False,
         )
     )
-    attached_formalizer_pseudo_formal_attachment_gate_recomputed = bool(
+    attached_formalizer_pseudo_formal_attachment_gate_recomputed = _safe_bool(
         _runtime_attached_component_field(
             payload,
             "internal_formalizer_pseudo_formal_packet_eval",
@@ -18005,7 +18010,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         or 0
     )
     runtime_formalizer_pseudo_formal_component_learning_consumed = (
-        bool(
+        _safe_bool(
             payload.get(
                 "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed",
                 False,
@@ -18019,7 +18024,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and runtime_formalizer_pseudo_formal_component_learning_consumed_rows > 0
     )
     attached_formalizer_pseudo_formal_live_gate_passed = (
-        bool(
+        _safe_bool(
             attached_formalizer_pseudo_formal_packet_summary[
                 "capability_evidence_ok"
             ]
@@ -18078,14 +18083,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    attached_pseudo_formal_source_runtime_learning_lineage_ok = bool(
+    attached_pseudo_formal_source_runtime_learning_lineage_ok = _safe_bool(
         attached_pseudo_formal_source.get(
             "source_runtime_learning_lineage_ok",
             False,
         )
     )
     attached_pseudo_formal_live_gate_passed = (
-        bool(attached_pseudo_formal_summary["capability_evidence_ok"])
+        _safe_bool(attached_pseudo_formal_summary["capability_evidence_ok"])
         and attached_pseudo_formal_prompt_packets > 0
         and attached_pseudo_formal_valid_responses > 0
         and attached_pseudo_formal_runtime_learning_rows > 0
