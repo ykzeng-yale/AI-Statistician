@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T02:35:55Z",
+  "updated_at": "2026-07-07T02:36:24Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -620,6 +620,11 @@
     "component_gate_attachment_bool_tests": [
       "tests/test_research_agent_runtime.py::test_formalizer_pf_packet_attachment_summary_normalizes_serialized_manifest_flags",
       "tests/test_research_agent_runtime.py::test_runtime_component_gate_learning_rows_normalize_attached_serialized_flags"
+    ],
+    "research_system_audit_overlay_bool_patch": "ResearchSystemAudit standalone component overlays and full AI Statistician readiness now normalize serialized booleans before S10 coding repair, S11 Formalizer Lean repair, S11c Formalizer PF packet, S11b PF/BV BlockVerifier, S12 Architect policy, and top-level runtime readiness evidence are counted. Serialized \"false\" no longer becomes standalone capability_evidence_ok, fixture_plumbing_ok, raw_model_output_written, candidate/source theorem kernel evidence, all_cases_ok, or ready_for_full_ai_statistician.",
+    "research_system_audit_overlay_bool_tests": [
+      "tests/test_core.py::SystemTests::test_research_system_audit_component_overlays_normalize_serialized_false_flags",
+      "tests/test_core.py::SystemTests::test_research_system_full_readiness_separates_gate_health_from_runtime_capability"
     ],
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
@@ -2671,6 +2676,12 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_pf_packet_attachment_summary_normalizes_serialized_manifest_flags or runtime_component_gate_learning_rows_normalize_attached_serialized_flags\" --tb=short # 2 passed, 915 deselected after component-gate attachment bool patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"component_gate or pseudo_formal_packet_component_gate or source_runtime_learning_lineage\" --tb=short # 10 passed, 907 deselected after component-gate attachment bool patch",
     "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after component-gate attachment bool patch",
-    "git diff --check # passed after component-gate attachment bool patch"
+    "git diff --check # passed after component-gate attachment bool patch",
+    "python3 -m py_compile ai_statistician/research_system_audit.py tests/test_core.py # passed after ResearchSystemAudit overlay bool patch",
+    ".venv/bin/python -m pytest tests/test_core.py::SystemTests::test_research_system_audit_component_overlays_normalize_serialized_false_flags -q --tb=short # 1 passed after ResearchSystemAudit overlay bool patch",
+    ".venv/bin/python -m pytest tests/test_core.py::SystemTests::test_research_system_full_readiness_separates_gate_health_from_runtime_capability tests/test_core.py::SystemTests::test_research_system_audit_component_overlays_normalize_serialized_false_flags -q --tb=short # 2 passed after ResearchSystemAudit overlay bool patch",
+    ".venv/bin/python -m pytest tests/test_core.py -q -k \"research_system_audit_reads_coding_agent_repair_eval_overlay or research_system_audit_reads_formalizer_lean_candidate_repair_overlay or research_system_audit_reads_formalizer_pseudo_formal_packet_overlay or research_system_audit_reads_pseudo_formal_block_verifier_component_gate_overlay or research_system_audit_reads_architect_policy_overlay or research_system_audit_component_overlays_normalize_serialized_false_flags or research_system_full_readiness_separates_gate_health_from_runtime_capability\" --tb=short # 7 passed, 286 deselected after ResearchSystemAudit overlay bool patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after ResearchSystemAudit overlay bool patch",
+    "git diff --check # passed after ResearchSystemAudit overlay bool patch"
   ]
 }

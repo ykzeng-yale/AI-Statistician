@@ -7993,6 +7993,31 @@ class SystemTests(unittest.TestCase):
             "READY_FOR_FULL_AI_STATISTICIAN",
         )
 
+        serialized_false_ready = _research_system_full_ai_statistician_readiness(
+            {
+                "all_gates_passed": "true",
+                "counts": {
+                    "research_agent_runtime_audit_requested": "true",
+                    "research_agent_runtime_audit_available": "true",
+                    "research_agent_runtime_audit_source": "configured_runtime_dir",
+                    "research_agent_runtime_capability_ready_for_full_ai_statistician": "false",
+                    "research_agent_runtime_capability_status": (
+                        "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+                    ),
+                },
+            }
+        )
+        self.assertFalse(serialized_false_ready["ready_for_full_ai_statistician"])
+        self.assertFalse(
+            serialized_false_ready[
+                "full_ai_statistician_readiness_runtime_capability_ready"
+            ]
+        )
+        self.assertEqual(
+            serialized_false_ready["full_ai_statistician_readiness_status"],
+            "CONTRACT_OK_WITH_CAPABILITY_GAPS",
+        )
+
         guidance_gap = _research_system_full_ai_statistician_readiness(
             {
                 "all_gates_passed": True,
@@ -8666,6 +8691,205 @@ class SystemTests(unittest.TestCase):
             "live_generator_missing_or_static_backend",
             fixture_overlay["errors"],
         )
+
+    def test_research_system_audit_component_overlays_normalize_serialized_false_flags(
+        self,
+    ) -> None:
+        root = Path(
+            "runs/test_research_system_audit_component_overlay_bool_normalization"
+        )
+        shutil.rmtree(root, ignore_errors=True)
+
+        coding_manifest_dir = root / "coding_agent_generated_code_repair_eval"
+        coding_manifest_dir.mkdir(parents=True)
+        (
+            coding_manifest_dir
+            / "coding_agent_generated_code_repair_eval_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "component_backend_provider_names": ["anthropic"],
+                    "model": "claude-haiku-4-5-20251001",
+                    "live_generator": "true",
+                    "capability_evidence_ok": "true",
+                    "algorithm_capability_evidence_ok": "false",
+                    "simulation_capability_evidence_ok": "true",
+                    "algorithm_repair_sequences": 2,
+                    "simulation_repair_sequences": 3,
+                    "fixture_plumbing_ok": "false",
+                    "static_or_fixture_only": "false",
+                }
+            ),
+            encoding="utf-8",
+        )
+        coding_overlay = _coding_agent_generated_code_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(coding_overlay["live_generator"])
+        self.assertFalse(coding_overlay["algorithm_capability_evidence_ok"])
+        self.assertFalse(coding_overlay["capability_evidence_ok"])
+        self.assertFalse(coding_overlay["fixture_plumbing_ok"])
+        self.assertFalse(coding_overlay["static_or_fixture_only"])
+
+        lean_manifest_dir = root / "formalizer_lean_candidate_repair_eval"
+        lean_manifest_dir.mkdir(parents=True)
+        (
+            lean_manifest_dir
+            / "formalizer_lean_candidate_repair_eval_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": "true",
+                    "capability_evidence_ok": "true",
+                    "candidate_kernel_verified": "false",
+                    "source_theorem_kernel_verified": "false",
+                    "full_frontier_theorem_proved": "false",
+                    "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": 1,
+                    "n_formalizer_lean_candidate_local_lean_checked": 1,
+                    "n_formalizer_lean_candidate_local_lean_compiled": 1,
+                    "static_or_fixture_only": "false",
+                }
+            ),
+            encoding="utf-8",
+        )
+        lean_overlay = _formalizer_lean_candidate_repair_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(lean_overlay["live_generator"])
+        self.assertFalse(lean_overlay["candidate_kernel_verified"])
+        self.assertFalse(lean_overlay["source_theorem_kernel_verified"])
+        self.assertFalse(lean_overlay["full_frontier_theorem_proved"])
+        self.assertFalse(lean_overlay["capability_evidence_ok"])
+        self.assertFalse(lean_overlay["fixture_plumbing_ok"])
+
+        pf_manifest_dir = root / "formalizer_pseudo_formal_packet_eval"
+        pf_manifest_dir.mkdir(parents=True)
+        (
+            pf_manifest_dir / "formalizer_pseudo_formal_packet_eval_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": "true",
+                    "static_or_fixture_only": "false",
+                    "capability_evidence_ok": "true",
+                    "fixture_plumbing_ok": "true",
+                    "n_pseudo_formal_packets": 1,
+                    "n_pseudo_formal_work_order_rows": 11,
+                    "n_pseudo_formal_routable_work_order_rows": 8,
+                    "n_pseudo_formal_exact_semantic_definition_rows": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
+                    "pseudo_formal_routable_target_lanes": [
+                        "source_theorem_exact_semantic_definition"
+                    ],
+                    "exact_semantic_definition_lane_present": "true",
+                    "exact_semantic_definition_rows_source_anchored": "false",
+                    "exact_semantic_definition_rows_semantic_requirements_present": "true",
+                    "exact_semantic_definition_rows_lineage_complete": "true",
+                    "raw_model_output_written": "false",
+                    "capability_evidence_requirements": {
+                        "nonproof_boundary_preserved": "true"
+                    },
+                    "source_theorem_kernel_verified": "false",
+                    "full_frontier_theorem_proved": "false",
+                    "proof_evidence_status": (
+                        "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        pf_overlay = _formalizer_pseudo_formal_packet_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(pf_overlay["live_generator"])
+        self.assertFalse(pf_overlay["raw_model_output_written"])
+        self.assertTrue(pf_overlay["no_theorem_proof_claim"])
+        self.assertFalse(pf_overlay["exact_semantic_definition_rows_source_anchored"])
+        self.assertFalse(pf_overlay["fixture_plumbing_ok"])
+        self.assertFalse(pf_overlay["capability_evidence_ok"])
+        self.assertIn(
+            "exact_semantic_definition_rows_source_anchors_missing",
+            pf_overlay["errors"],
+        )
+
+        bv_manifest_dir = root / "pseudo_formal_block_verifier_component_gate"
+        bv_manifest_dir.mkdir(parents=True)
+        (
+            bv_manifest_dir
+            / "pseudo_formal_block_verifier_component_gate_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "artifact_kind": "PseudoFormalBlockVerifierComponentGateManifest",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "component_backend_provider_names": ["anthropic"],
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": "true",
+                    "capability_evidence_ok": "true",
+                    "fixture_plumbing_ok": "false",
+                    "static_or_fixture_only": "false",
+                    "n_prompt_packets": 2,
+                    "n_ok_prompt_packets": 2,
+                    "n_llm_response_rows": 2,
+                    "n_valid_responses": 2,
+                    "n_runtime_learning_rows": 2,
+                    "proof_evidence_status": (
+                        "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        bv_overlay = _pseudo_formal_block_verifier_component_gate_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(bv_overlay["live_generator"])
+        self.assertFalse(bv_overlay["fixture_plumbing_ok"])
+        self.assertFalse(bv_overlay["capability_evidence_ok"])
+
+        architect_manifest_dir = root / "architect_research_path_policy_eval"
+        architect_manifest_dir.mkdir(parents=True)
+        (
+            architect_manifest_dir
+            / "architect_research_path_policy_eval_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "model": "claude-sonnet-4-6",
+                    "live_generator": "true",
+                    "capability_evidence_ok": "true",
+                    "all_cases_ok": "false",
+                    "static_or_fixture_only": "false",
+                    "n_cases": 1,
+                    "n_cases_ok": 1,
+                    "n_with_problem_analysis": 1,
+                    "n_with_stat_knowledge_bank_plan": 1,
+                    "n_with_literature_fair_comparison_plan": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        architect_overlay = _architect_research_path_policy_eval_overlay(
+            root / "research_system_audit"
+        )
+        self.assertTrue(architect_overlay["live_generator"])
+        self.assertFalse(architect_overlay["capability_evidence_ok"])
+        self.assertFalse(architect_overlay["fixture_plumbing_ok"])
 
     def test_research_system_audit_reads_architect_policy_overlay(self) -> None:
         root = Path("runs/test_research_system_audit_architect_policy_overlay")

@@ -354,6 +354,22 @@ class ResearchSystemAuditConfig:
     research_agent_runtime_contract_smoke: bool = True
 
 
+def _bool_like(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def _false_like(value: object) -> bool:
+    if isinstance(value, bool):
+        return value is False
+    if isinstance(value, str):
+        return value.strip().lower() in {"0", "false", "no", "n"}
+    return False
+
+
 async def run_research_system_audit(
     out_dir: Path,
     *,
@@ -9878,14 +9894,14 @@ def _research_system_full_ai_statistician_readiness(
 
     counts_value = payload.get("counts", {})
     counts = counts_value if isinstance(counts_value, Mapping) else {}
-    all_gates_passed = bool(payload.get("all_gates_passed", False))
-    runtime_requested = bool(
+    all_gates_passed = _bool_like(payload.get("all_gates_passed", False))
+    runtime_requested = _bool_like(
         counts.get("research_agent_runtime_audit_requested", False)
     )
-    runtime_available = bool(
+    runtime_available = _bool_like(
         counts.get("research_agent_runtime_audit_available", False)
     )
-    runtime_ready = bool(
+    runtime_ready = _bool_like(
         counts.get(
             "research_agent_runtime_capability_ready_for_full_ai_statistician",
             False,
@@ -10673,18 +10689,20 @@ def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str,
         is_live_generator_backend(provider_name, name)
         for name in component_backend_provider_names
     )
-    live_generator = bool(payload.get("live_generator", False) and backend_live)
-    algorithm_capability_evidence_ok = bool(
+    live_generator = bool(
+        _bool_like(payload.get("live_generator", False)) and backend_live
+    )
+    algorithm_capability_evidence_ok = _bool_like(
         payload.get("algorithm_capability_evidence_ok", False)
     )
-    simulation_capability_evidence_ok = bool(
+    simulation_capability_evidence_ok = _bool_like(
         payload.get("simulation_capability_evidence_ok", False)
     )
     capability_evidence_ok = bool(
         live_generator
         and algorithm_capability_evidence_ok
         and simulation_capability_evidence_ok
-        and payload.get("capability_evidence_ok", False)
+        and _bool_like(payload.get("capability_evidence_ok", False))
     )
     return {
         "available": True,
@@ -10703,9 +10721,12 @@ def _coding_agent_generated_code_repair_eval_overlay(out_dir: Path) -> dict[str,
         "simulation_repair_sequences": int(
             payload.get("simulation_repair_sequences", 0) or 0
         ),
-        "fixture_plumbing_ok": bool(payload.get("fixture_plumbing_ok", False)),
+        "fixture_plumbing_ok": _bool_like(
+            payload.get("fixture_plumbing_ok", False)
+        ),
         "static_or_fixture_only": bool(
-            payload.get("static_or_fixture_only", False) or not live_generator
+            _bool_like(payload.get("static_or_fixture_only", False))
+            or not live_generator
         ),
         "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
     }
@@ -10761,7 +10782,7 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         payload.get("backend_provider_name", provider_name)
     )
     live_generator = bool(
-        payload.get("live_generator", False)
+        _bool_like(payload.get("live_generator", False))
         and is_live_generator_backend(provider_name, backend_provider_name)
     )
     repair_sequences = int(
@@ -10779,10 +10800,10 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         payload.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
         or 0
     )
-    candidate_kernel_verified = bool(
+    candidate_kernel_verified = _bool_like(
         payload.get("candidate_kernel_verified", False)
     )
-    source_theorem_kernel_verified = bool(
+    source_theorem_kernel_verified = _bool_like(
         payload.get("source_theorem_kernel_verified", False)
     )
     capability_evidence_ok = bool(
@@ -10791,10 +10812,11 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         and local_lean_checked > 0
         and local_lean_compiled > 0
         and candidate_kernel_verified
-        and payload.get("capability_evidence_ok", False)
+        and _bool_like(payload.get("capability_evidence_ok", False))
     )
     static_or_fixture_only = bool(
-        payload.get("static_or_fixture_only", False) or not live_generator
+        _bool_like(payload.get("static_or_fixture_only", False))
+        or not live_generator
     )
     fixture_plumbing_ok = bool(
         static_or_fixture_only
@@ -10812,7 +10834,7 @@ def _formalizer_lean_candidate_repair_eval_overlay(out_dir: Path) -> dict[str, o
         "capability_evidence_ok": capability_evidence_ok,
         "candidate_kernel_verified": candidate_kernel_verified,
         "source_theorem_kernel_verified": source_theorem_kernel_verified,
-        "full_frontier_theorem_proved": bool(
+        "full_frontier_theorem_proved": _bool_like(
             payload.get("full_frontier_theorem_proved", False)
         ),
         "repair_sequences": repair_sequences,
@@ -10892,7 +10914,7 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         payload.get("backend_provider_name", provider_name)
     )
     live_generator = bool(
-        payload.get("live_generator", False)
+        _bool_like(payload.get("live_generator", False))
         and is_live_generator_backend(provider_name, backend_provider_name)
     )
     artifact_kind_ok = (
@@ -10952,34 +10974,37 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
         if str(value)
     ]
     exact_semantic_definition_lane_present = bool(
-        payload.get("exact_semantic_definition_lane_present", False)
+        _bool_like(payload.get("exact_semantic_definition_lane_present", False))
         or "source_theorem_exact_semantic_definition" in target_lanes
     )
-    exact_semantic_definition_rows_source_anchored = bool(
+    exact_semantic_definition_rows_source_anchored = _bool_like(
         payload.get("exact_semantic_definition_rows_source_anchored", False)
     )
-    exact_semantic_definition_rows_semantic_requirements_present = bool(
+    exact_semantic_definition_rows_semantic_requirements_present = _bool_like(
         payload.get(
             "exact_semantic_definition_rows_semantic_requirements_present", False
         )
     )
-    exact_semantic_definition_rows_lineage_complete = bool(
+    exact_semantic_definition_rows_lineage_complete = _bool_like(
         payload.get("exact_semantic_definition_rows_lineage_complete", False)
     )
     nonproof_boundary_preserved = bool(
-        capability_requirements.get("nonproof_boundary_preserved", False)
-        or payload.get("nonproof_boundary_preserved", False)
+        _bool_like(capability_requirements.get("nonproof_boundary_preserved", False))
+        or _bool_like(payload.get("nonproof_boundary_preserved", False))
     )
-    raw_model_output_written = bool(payload.get("raw_model_output_written", False))
+    raw_model_output_written = _bool_like(
+        payload.get("raw_model_output_written", False)
+    )
     no_theorem_proof_claim = (
-        payload.get("source_theorem_kernel_verified") is False
-        and payload.get("full_frontier_theorem_proved") is False
+        _false_like(payload.get("source_theorem_kernel_verified"))
+        and _false_like(payload.get("full_frontier_theorem_proved"))
     )
     static_or_fixture_only = bool(
-        payload.get("static_or_fixture_only", False) or not live_generator
+        _bool_like(payload.get("static_or_fixture_only", False))
+        or not live_generator
     )
     fixture_plumbing_ok = bool(
-        payload.get("fixture_plumbing_ok", False)
+        _bool_like(payload.get("fixture_plumbing_ok", False))
         and artifact_kind_ok
         and proof_evidence_status_ok
         and n_pseudo_formal_packets > 0
@@ -10996,7 +11021,7 @@ def _formalizer_pseudo_formal_packet_eval_overlay(out_dir: Path) -> dict[str, ob
     capability_evidence_ok = bool(
         live_generator
         and fixture_plumbing_ok
-        and payload.get("capability_evidence_ok", False)
+        and _bool_like(payload.get("capability_evidence_ok", False))
     )
     errors = [
         error
@@ -11154,7 +11179,9 @@ def _pseudo_formal_block_verifier_component_gate_overlay(
         is_live_generator_backend(provider_name, backend_provider_name)
         for backend_provider_name in component_backend_provider_names
     )
-    live_generator = bool(payload.get("live_generator", False) and backend_live)
+    live_generator = bool(
+        _bool_like(payload.get("live_generator", False)) and backend_live
+    )
     artifact_kind_ok = (
         str(payload.get("artifact_kind", ""))
         == "PseudoFormalBlockVerifierComponentGateManifest"
@@ -11175,10 +11202,11 @@ def _pseudo_formal_block_verifier_component_gate_overlay(
     n_accepted_blocks = int(payload.get("n_accepted_blocks", 0) or 0)
     n_failed_blocks = int(payload.get("n_failed_blocks", 0) or 0)
     static_or_fixture_only = bool(
-        payload.get("static_or_fixture_only", False) or not live_generator
+        _bool_like(payload.get("static_or_fixture_only", False))
+        or not live_generator
     )
     fixture_plumbing_ok = bool(
-        payload.get("fixture_plumbing_ok", False)
+        _bool_like(payload.get("fixture_plumbing_ok", False))
         and artifact_kind_ok
         and proof_evidence_status_ok
         and n_prompt_packets > 0
@@ -11190,7 +11218,7 @@ def _pseudo_formal_block_verifier_component_gate_overlay(
     capability_evidence_ok = bool(
         live_generator
         and fixture_plumbing_ok
-        and payload.get("capability_evidence_ok", False)
+        and _bool_like(payload.get("capability_evidence_ok", False))
     )
     errors = [
         error
@@ -11284,7 +11312,7 @@ def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, obj
         payload.get("backend_provider_name", provider_name)
     )
     live_generator = bool(
-        payload.get("live_generator", False)
+        _bool_like(payload.get("live_generator", False))
         and is_live_generator_backend(provider_name, backend_provider_name)
     )
     n_cases = int(payload.get("n_cases", 0) or 0)
@@ -11302,10 +11330,11 @@ def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, obj
         and n_with_problem_analysis == n_cases
         and n_with_knowledge_plan == n_cases
         and n_with_fair_comparison == n_cases
-        and payload.get("all_cases_ok", False)
+        and _bool_like(payload.get("all_cases_ok", False))
     )
     static_or_fixture_only = bool(
-        payload.get("static_or_fixture_only", False) or not live_generator
+        _bool_like(payload.get("static_or_fixture_only", False))
+        or not live_generator
     )
     return {
         "available": True,
@@ -11315,7 +11344,9 @@ def _architect_research_path_policy_eval_overlay(out_dir: Path) -> dict[str, obj
         "model": str(payload.get("model", "")),
         "live_generator": live_generator,
         "capability_evidence_ok": bool(
-            live_generator and all_cases_ok and payload.get("capability_evidence_ok", False)
+            live_generator
+            and all_cases_ok
+            and _bool_like(payload.get("capability_evidence_ok", False))
         ),
         "n_cases": n_cases,
         "n_cases_ok": n_cases_ok,
