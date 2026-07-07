@@ -1973,6 +1973,81 @@ async def run_research_system_audit(
             {},
         )
     )
+    runtime_pf_exact_semantic_bridge_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped",
+            {},
+        )
+    )
+    runtime_pf_exact_semantic_lean_repair_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "exact_semantic_definition_lean_repair_executor_handoff_not_dropped",
+            {},
+        )
+    )
+    runtime_pf_exact_semantic_verifier_gate_scorecard_row = (
+        runtime_scorecard_rows_by_id.get(
+            "exact_semantic_definition_typechecked_review_verifier_gate_pf_handoff_not_dropped",
+            {},
+        )
+    )
+    def _runtime_audit_unique_strings(key: str) -> list[str]:
+        return _research_system_unique_strings(
+            _research_system_string_list(
+                research_agent_runtime_audit_manifest.get(key, [])
+            )
+        )
+
+    runtime_pf_exact_semantic_source_lookup_prompt_scaffold_ids = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids"
+        )
+    )
+    runtime_pf_exact_semantic_source_lookup_prompt_scaffold_kinds = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds"
+        )
+    )
+    runtime_pf_exact_semantic_bridge_prompt_scaffold_ids = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids"
+        )
+    )
+    runtime_pf_exact_semantic_bridge_prompt_scaffold_kinds = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds"
+        )
+    )
+    runtime_pf_exact_semantic_lean_repair_prompt_scaffold_ids = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_ids"
+        )
+    )
+    runtime_pf_exact_semantic_lean_repair_prompt_scaffold_kinds = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_lean_repair_executor_source_prompt_scaffold_kinds"
+        )
+    )
+    runtime_pf_exact_semantic_environment_repair_prompt_scaffold_ids = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_ids"
+        )
+    )
+    runtime_pf_exact_semantic_environment_repair_prompt_scaffold_kinds = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_prompt_scaffold_kinds"
+        )
+    )
+    runtime_pf_exact_semantic_verifier_gate_prompt_scaffold_ids = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_ids"
+        )
+    )
+    runtime_pf_exact_semantic_verifier_gate_prompt_scaffold_kinds = (
+        _runtime_audit_unique_strings(
+            "source_theorem_exact_semantic_definition_typechecked_review_verifier_gate_executor_source_prompt_scaffold_kinds"
+        )
+    )
     runtime_architect_deferred_meta_scorecard_row = (
         runtime_scorecard_rows_by_id.get(
             "architect_deferred_meta_capability_gaps_visible",
@@ -3705,6 +3780,107 @@ async def run_research_system_audit(
             "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": research_agent_runtime_audit_manifest.get(
                 "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal",
                 0,
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": (
+                runtime_pf_exact_semantic_source_lookup_prompt_scaffold_ids
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": (
+                runtime_pf_exact_semantic_source_lookup_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_prompt_scaffold_lineage_present": bool(
+                runtime_pf_exact_semantic_source_lookup_prompt_scaffold_ids
+                and runtime_pf_exact_semantic_source_lookup_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids": (
+                runtime_pf_exact_semantic_bridge_prompt_scaffold_ids
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds": (
+                runtime_pf_exact_semantic_bridge_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_prompt_scaffold_lineage_present": bool(
+                runtime_pf_exact_semantic_bridge_prompt_scaffold_ids
+                and runtime_pf_exact_semantic_bridge_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_consumed": bool(
+                runtime_pf_exact_semantic_bridge_scorecard_row.get("passed", True)
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_evidence": str(
+                runtime_pf_exact_semantic_bridge_scorecard_row.get("evidence", "")
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_blocker": str(
+                runtime_pf_exact_semantic_bridge_scorecard_row.get("blocker", "")
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_source_prompt_scaffold_ids": (
+                runtime_pf_exact_semantic_lean_repair_prompt_scaffold_ids
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_source_prompt_scaffold_kinds": (
+                runtime_pf_exact_semantic_lean_repair_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_prompt_scaffold_lineage_present": bool(
+                runtime_pf_exact_semantic_lean_repair_prompt_scaffold_ids
+                and runtime_pf_exact_semantic_lean_repair_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_consumed": bool(
+                runtime_pf_exact_semantic_lean_repair_scorecard_row.get(
+                    "passed",
+                    True,
+                )
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_evidence": str(
+                runtime_pf_exact_semantic_lean_repair_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_blocker": str(
+                runtime_pf_exact_semantic_lean_repair_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_ids": (
+                runtime_pf_exact_semantic_environment_repair_prompt_scaffold_ids
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_kinds": (
+                runtime_pf_exact_semantic_environment_repair_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_prompt_scaffold_lineage_present": bool(
+                runtime_pf_exact_semantic_environment_repair_prompt_scaffold_ids
+                and runtime_pf_exact_semantic_environment_repair_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_source_prompt_scaffold_ids": (
+                runtime_pf_exact_semantic_verifier_gate_prompt_scaffold_ids
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_source_prompt_scaffold_kinds": (
+                runtime_pf_exact_semantic_verifier_gate_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_prompt_scaffold_lineage_present": bool(
+                runtime_pf_exact_semantic_verifier_gate_prompt_scaffold_ids
+                and runtime_pf_exact_semantic_verifier_gate_prompt_scaffold_kinds
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_consumed": bool(
+                runtime_pf_exact_semantic_verifier_gate_scorecard_row.get(
+                    "passed",
+                    True,
+                )
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_evidence": str(
+                runtime_pf_exact_semantic_verifier_gate_scorecard_row.get(
+                    "evidence",
+                    "",
+                )
+                or ""
+            ),
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_blocker": str(
+                runtime_pf_exact_semantic_verifier_gate_scorecard_row.get(
+                    "blocker",
+                    "",
+                )
+                or ""
             ),
             "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks": research_agent_runtime_audit_manifest.get(
                 "source_theorem_exact_semantic_definition_late_lean_environment_repair_executor_n_tasks_from_pseudo_formal",

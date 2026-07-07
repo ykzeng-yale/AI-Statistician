@@ -6061,6 +6061,50 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks": 1,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_component_gate_tasks": 0,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_results": 1,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": [
+                    "pseudo_formal_copy_fragment:rank"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": [
+                    "pseudo_formalization_required_copy_fragment"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_prompt_scaffold_lineage_present": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_ids": [
+                    "pseudo_formal_copy_fragment:rank"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_source_prompt_scaffold_kinds": [
+                    "pseudo_formalization_required_copy_fragment"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_prompt_scaffold_lineage_present": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_consumed": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_evidence": "pf_bridge_prompt_scaffold_lineage_present=True",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_blocker": "",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_source_prompt_scaffold_ids": [
+                    "pseudo_formal_copy_fragment:rank"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_source_prompt_scaffold_kinds": [
+                    "pseudo_formalization_required_copy_fragment"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_prompt_scaffold_lineage_present": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_consumed": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_evidence": "pf_executor_prompt_scaffold_lineage_present=True",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_blocker": "",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_ids": [
+                    "pseudo_formal_copy_fragment:rank"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_kinds": [
+                    "pseudo_formalization_required_copy_fragment"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_prompt_scaffold_lineage_present": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_source_prompt_scaffold_ids": [
+                    "pseudo_formal_copy_fragment:rank"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_source_prompt_scaffold_kinds": [
+                    "pseudo_formalization_required_copy_fragment"
+                ],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_prompt_scaffold_lineage_present": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_consumed": True,
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_evidence": "pf_verifier_gate_prompt_scaffold_lineage_present=True",
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_blocker": "",
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_tasks": 2,
                 "research_agent_runtime_pseudo_formal_late_exact_semantic_definition_lean_environment_repair_results": 2,
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_ready_for_proof_body": False,
@@ -6231,6 +6275,43 @@ class SystemTests(unittest.TestCase):
             semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_handoff_evidence"
             ],
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids"
+            ],
+            ["pseudo_formal_copy_fragment:rank"],
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertEqual(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_kinds"
+            ],
+            ["pseudo_formalization_required_copy_fragment"],
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_prompt_scaffold_lineage_present"
+            ]
         )
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][
@@ -6866,6 +6947,40 @@ class SystemTests(unittest.TestCase):
             "pseudo-formal exact semantic-definition work orders",
             " ".join(exact_lookup_missing_s13["issues"]),
         )
+        exact_lookup_scaffold_missing_payload = json.loads(
+            json.dumps(semantic_bridge_ok_payload)
+        )
+        exact_lookup_scaffold_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": [],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": [],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_prompt_scaffold_lineage_present": False,
+            }
+        )
+        exact_lookup_scaffold_missing_guidance = build_evaluation_benchmark_guidance(
+            Path(
+                "runs/test_evaluation_benchmark_guidance_pf_exact_lookup_scaffold_missing"
+            ),
+            system_audit_payload=exact_lookup_scaffold_missing_payload,
+        )
+        exact_lookup_scaffold_missing_s13 = next(
+            row
+            for row in exact_lookup_scaffold_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(
+            exact_lookup_scaffold_missing_s13["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertFalse(
+            exact_lookup_scaffold_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_source_lookup_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertIn(
+            "prompt-scaffold lineage",
+            " ".join(exact_lookup_scaffold_missing_s13["issues"]),
+        )
         env_handoff_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         env_handoff_missing_payload["counts"].update(
             {
@@ -6892,6 +7007,35 @@ class SystemTests(unittest.TestCase):
         self.assertIn(
             "PF/BV-origin environment repair consumption",
             " ".join(env_handoff_missing_s13["issues"]),
+        )
+        env_scaffold_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
+        env_scaffold_missing_payload["counts"].update(
+            {
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_ids": [],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_source_prompt_scaffold_kinds": [],
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_prompt_scaffold_lineage_present": False,
+            }
+        )
+        env_scaffold_missing_guidance = build_evaluation_benchmark_guidance(
+            Path(
+                "runs/test_evaluation_benchmark_guidance_pf_env_scaffold_missing"
+            ),
+            system_audit_payload=env_scaffold_missing_payload,
+        )
+        env_scaffold_missing_s13 = next(
+            row
+            for row in env_scaffold_missing_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(env_scaffold_missing_s13["status"], "CAPACITY_GAP")
+        self.assertFalse(
+            env_scaffold_missing_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertIn(
+            "environment repair consumption did not preserve prompt-scaffold lineage",
+            " ".join(env_scaffold_missing_s13["issues"]),
         )
         external_pf_bv_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         external_pf_bv_payload["counts"][
