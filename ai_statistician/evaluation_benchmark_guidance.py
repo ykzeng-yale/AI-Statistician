@@ -1115,6 +1115,72 @@ def _suite_rows(
             and runtime_pf_exact_semantic_source_lookup_scaffold_lineage_present
         )
     )
+    def _runtime_pf_exact_semantic_scaffold_lineage_present(stage: str) -> bool:
+        stage_key = (
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_"
+            f"{stage}"
+        )
+        scaffold_ids = _string_set(
+            counts.get(f"{stage_key}_source_prompt_scaffold_ids", [])
+        )
+        scaffold_kinds = _string_set(
+            counts.get(f"{stage_key}_source_prompt_scaffold_kinds", [])
+        )
+        return _bool(
+            counts.get(
+                f"{stage_key}_prompt_scaffold_lineage_present",
+                bool(scaffold_ids) and bool(scaffold_kinds),
+            )
+        )
+
+    runtime_pf_exact_semantic_bridge_handoff_consumed = _bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_consumed",
+            True,
+        )
+    )
+    runtime_pf_exact_semantic_bridge_scaffold_lineage_present = (
+        _runtime_pf_exact_semantic_scaffold_lineage_present("proofengineer_bridge")
+    )
+    runtime_pf_exact_semantic_bridge_handoff_ok = (
+        runtime_pf_exact_semantic_work_orders <= 0
+        or (
+            runtime_pf_exact_semantic_bridge_handoff_consumed
+            and runtime_pf_exact_semantic_bridge_scaffold_lineage_present
+        )
+    )
+    runtime_pf_exact_semantic_lean_repair_handoff_consumed = _bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_consumed",
+            True,
+        )
+    )
+    runtime_pf_exact_semantic_lean_repair_scaffold_lineage_present = (
+        _runtime_pf_exact_semantic_scaffold_lineage_present("lean_repair")
+    )
+    runtime_pf_exact_semantic_lean_repair_handoff_ok = (
+        runtime_pf_exact_semantic_work_orders <= 0
+        or (
+            runtime_pf_exact_semantic_lean_repair_handoff_consumed
+            and runtime_pf_exact_semantic_lean_repair_scaffold_lineage_present
+        )
+    )
+    runtime_pf_exact_semantic_verifier_gate_handoff_consumed = _bool(
+        counts.get(
+            "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_consumed",
+            True,
+        )
+    )
+    runtime_pf_exact_semantic_verifier_gate_scaffold_lineage_present = (
+        _runtime_pf_exact_semantic_scaffold_lineage_present("verifier_gate")
+    )
+    runtime_pf_exact_semantic_verifier_gate_handoff_ok = (
+        runtime_pf_exact_semantic_work_orders <= 0
+        or (
+            runtime_pf_exact_semantic_verifier_gate_handoff_consumed
+            and runtime_pf_exact_semantic_verifier_gate_scaffold_lineage_present
+        )
+    )
     runtime_pf_exact_semantic_environment_upstream_tasks = _int(
         counts.get(
             "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_environment_repair_upstream_tasks"
@@ -1808,9 +1874,21 @@ def _suite_rows(
         s13_issues.append(
             "pseudo-formal exact semantic-definition work orders did not reach the exact semantic-definition source lookup/review loop with preserved PF/BV prompt-scaffold lineage as non-proof definition-authoring work"
         )
+    if not runtime_pf_exact_semantic_bridge_handoff_ok:
+        s13_issues.append(
+            "pseudo-formal exact semantic-definition source lookup did not preserve PF/BV prompt-scaffold lineage into ProofEngineer bridge consumption with an explicit non-proof boundary"
+        )
+    if not runtime_pf_exact_semantic_lean_repair_handoff_ok:
+        s13_issues.append(
+            "pseudo-formal exact semantic-definition ProofEngineer bridge did not preserve PF/BV prompt-scaffold lineage into Lean repair executor consumption with an explicit non-proof boundary"
+        )
     if not runtime_pf_exact_semantic_environment_handoff_ok:
         s13_issues.append(
             "pseudo-formal exact semantic-definition Lean repair produced Lean environment repair tasks, but PF/BV-origin environment repair consumption did not preserve prompt-scaffold lineage with an explicit non-proof boundary"
+        )
+    if not runtime_pf_exact_semantic_verifier_gate_handoff_ok:
+        s13_issues.append(
+            "pseudo-formal exact semantic-definition typechecked review did not preserve PF/BV prompt-scaffold lineage into verifier-gate consumption with an explicit non-proof boundary"
         )
     if not runtime_formal_gap_planner_ok:
         s13_issues.append(
@@ -2651,7 +2729,10 @@ def _suite_rows(
                 and runtime_pf_bv_contract_ok
                 and runtime_pf_semantic_bridge_ok
                 and runtime_pf_exact_semantic_source_lookup_ok
+                and runtime_pf_exact_semantic_bridge_handoff_ok
+                and runtime_pf_exact_semantic_lean_repair_handoff_ok
                 and runtime_pf_exact_semantic_environment_handoff_ok
+                and runtime_pf_exact_semantic_verifier_gate_handoff_ok
                 and runtime_formal_gap_planner_ok
                 and runtime_gap_routing_retention_ok
                 and runtime_gap_routing_retention_selection_ok

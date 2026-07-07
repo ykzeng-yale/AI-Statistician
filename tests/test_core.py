@@ -6305,12 +6305,27 @@ class SystemTests(unittest.TestCase):
         )
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_proofengineer_bridge_handoff_consumed"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_prompt_scaffold_lineage_present"
             ]
         )
         self.assertTrue(
             semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_lean_repair_handoff_consumed"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
                 "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_prompt_scaffold_lineage_present"
+            ]
+        )
+        self.assertTrue(
+            semantic_bridge_ok_s13["key_counts"][
+                "research_agent_runtime_pseudo_formal_exact_semantic_definition_verifier_gate_handoff_consumed"
             ]
         )
         self.assertTrue(
@@ -6981,6 +6996,81 @@ class SystemTests(unittest.TestCase):
             "prompt-scaffold lineage",
             " ".join(exact_lookup_scaffold_missing_s13["issues"]),
         )
+        for stage_key, issue_fragment in (
+            ("proofengineer_bridge", "ProofEngineer bridge consumption"),
+            ("lean_repair", "Lean repair executor consumption"),
+            ("verifier_gate", "verifier-gate consumption"),
+        ):
+            with self.subTest(stage=stage_key, failure="handoff_missing"):
+                handoff_missing_payload = json.loads(
+                    json.dumps(semantic_bridge_ok_payload)
+                )
+                handoff_missing_payload["counts"].update(
+                    {
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_handoff_consumed": False,
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_handoff_evidence": "",
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_handoff_blocker": (
+                            f"PF/BV {stage_key} handoff was dropped"
+                        ),
+                    }
+                )
+                handoff_missing_guidance = build_evaluation_benchmark_guidance(
+                    Path(
+                        "runs/"
+                        f"test_evaluation_benchmark_guidance_pf_{stage_key}_handoff_missing"
+                    ),
+                    system_audit_payload=handoff_missing_payload,
+                )
+                handoff_missing_s13 = next(
+                    row
+                    for row in handoff_missing_guidance["suites"]
+                    if row["suite_id"]
+                    == "S13_live_integrated_agent_runtime_capability"
+                )
+                self.assertEqual(handoff_missing_s13["status"], "CAPACITY_GAP")
+                self.assertFalse(
+                    handoff_missing_s13["key_counts"][
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_handoff_consumed"
+                    ]
+                )
+                self.assertIn(
+                    issue_fragment,
+                    " ".join(handoff_missing_s13["issues"]),
+                )
+            with self.subTest(stage=stage_key, failure="scaffold_missing"):
+                scaffold_missing_payload = json.loads(
+                    json.dumps(semantic_bridge_ok_payload)
+                )
+                scaffold_missing_payload["counts"].update(
+                    {
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_source_prompt_scaffold_ids": [],
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_source_prompt_scaffold_kinds": [],
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_prompt_scaffold_lineage_present": False,
+                    }
+                )
+                scaffold_missing_guidance = build_evaluation_benchmark_guidance(
+                    Path(
+                        "runs/"
+                        f"test_evaluation_benchmark_guidance_pf_{stage_key}_scaffold_missing"
+                    ),
+                    system_audit_payload=scaffold_missing_payload,
+                )
+                scaffold_missing_s13 = next(
+                    row
+                    for row in scaffold_missing_guidance["suites"]
+                    if row["suite_id"]
+                    == "S13_live_integrated_agent_runtime_capability"
+                )
+                self.assertEqual(scaffold_missing_s13["status"], "CAPACITY_GAP")
+                self.assertFalse(
+                    scaffold_missing_s13["key_counts"][
+                        f"research_agent_runtime_pseudo_formal_exact_semantic_definition_{stage_key}_prompt_scaffold_lineage_present"
+                    ]
+                )
+                self.assertIn(
+                    issue_fragment,
+                    " ".join(scaffold_missing_s13["issues"]),
+                )
         env_handoff_missing_payload = json.loads(json.dumps(semantic_bridge_ok_payload))
         env_handoff_missing_payload["counts"].update(
             {
