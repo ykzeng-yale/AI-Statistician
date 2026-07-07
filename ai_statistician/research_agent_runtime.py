@@ -3824,10 +3824,10 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
     n_routable_rows = _int_like(
         attached.get("n_pseudo_formal_routable_work_order_rows", 0)
     )
-    nonproof_boundary_preserved = bool(
+    nonproof_boundary_preserved = _bool_like(
         attached.get("nonproof_boundary_preserved", False)
     )
-    exact_semantic_definition_lane_present = bool(
+    exact_semantic_definition_lane_present = _bool_like(
         attached.get("exact_semantic_definition_lane_present", False)
     )
     n_exact_semantic_definition_rows = _int_like(
@@ -3851,16 +3851,16 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             0,
         )
     )
-    exact_semantic_definition_rows_source_anchored = bool(
+    exact_semantic_definition_rows_source_anchored = _bool_like(
         attached.get("exact_semantic_definition_rows_source_anchored", False)
     )
-    exact_semantic_definition_rows_semantic_requirements_present = bool(
+    exact_semantic_definition_rows_semantic_requirements_present = _bool_like(
         attached.get(
             "exact_semantic_definition_rows_semantic_requirements_present",
             False,
         )
     )
-    exact_semantic_definition_rows_lineage_complete = bool(
+    exact_semantic_definition_rows_lineage_complete = _bool_like(
         attached.get("exact_semantic_definition_rows_lineage_complete", False)
     )
     result_status = str(attached.get("result_status", "") or "")
@@ -3916,9 +3916,13 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
     failure_repair_seed_available = bool(
         failure_repair_seed.get("blocks", []) if failure_repair_seed else []
     )
-    proof_evidence_status_ok = bool(attached.get("proof_evidence_status_ok", False))
-    no_theorem_proof_claim = bool(attached.get("no_theorem_proof_claim", False))
-    attachment_gate_recomputed = bool(
+    proof_evidence_status_ok = _bool_like(
+        attached.get("proof_evidence_status_ok", False)
+    )
+    no_theorem_proof_claim = _bool_like(
+        attached.get("no_theorem_proof_claim", False)
+    )
+    attachment_gate_recomputed = _bool_like(
         attached.get("attachment_gate_recomputed", False)
     )
     proof_evidence_status = str(
@@ -3975,7 +3979,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
             "capability_evidence_ok": capability_ok,
-            "fixture_plumbing_ok": bool(attached.get("fixture_plumbing_ok", False)),
+            "fixture_plumbing_ok": _bool_like(
+                attached.get("fixture_plumbing_ok", False)
+            ),
             "n_pseudo_formal_packets": n_packets,
             "n_pseudo_formal_work_order_rows": n_work_order_rows,
             "n_pseudo_formal_routable_work_order_rows": n_routable_rows,
@@ -4002,7 +4008,7 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 exact_semantic_definition_rows_lineage_complete
             ),
             "nonproof_boundary_preserved": nonproof_boundary_preserved,
-            "raw_model_output_written": bool(
+            "raw_model_output_written": _bool_like(
                 attached.get("raw_model_output_written", False)
             ),
             "proof_evidence_status_ok": proof_evidence_status_ok,
@@ -4353,7 +4359,7 @@ def _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
     source_runtime_learning_lineage_reference_dir = str(
         attached.get("source_runtime_learning_lineage_reference_dir", "") or ""
     )
-    source_runtime_learning_lineage_ok = bool(
+    source_runtime_learning_lineage_ok = _bool_like(
         attached.get("source_runtime_learning_lineage_ok", False)
     )
     validated_rows = [
@@ -4382,7 +4388,9 @@ def _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
         "live_generator": live_generator,
         "static_or_fixture_only": static_or_fixture_only,
         "capability_evidence_ok": capability_ok,
-        "fixture_plumbing_ok": bool(attached.get("fixture_plumbing_ok", False)),
+        "fixture_plumbing_ok": _bool_like(
+            attached.get("fixture_plumbing_ok", False)
+        ),
         "n_prompt_packets": _int_like(attached.get("n_prompt_packets", 0)),
         "n_ok_prompt_packets": _int_like(attached.get("n_ok_prompt_packets", 0)),
         "n_llm_response_rows": _int_like(attached.get("n_llm_response_rows", 0)),
@@ -51766,7 +51774,7 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
                         ),
                     )
                 ),
-                "exact_semantic_definition_lane_present": bool(
+                "exact_semantic_definition_lane_present": _bool_like(
                     row.get(
                         "exact_semantic_definition_lane_present",
                         input_summary.get(

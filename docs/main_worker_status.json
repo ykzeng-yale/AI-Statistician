@@ -616,6 +616,11 @@
     ],
     "evaluation_guidance_bool_patch": "Evaluation benchmark guidance now normalizes serialized boolean counts before S10/S11/S12 capability statuses, standalone/runtime PF/BV gates, S13 integrated runtime readiness, exact semantic authoring-required status, proof-body scorecard gates, local Lean/Lean-LSP scorecard gates, real-kernel/full-frontier scorecard gates, and formal-gap/deferred-meta follow-through are interpreted. Serialized \"false\" no longer becomes OK guidance or hides PF packet raw-output/proof-boundary blockers; serialized good PF packet fields still pass when the non-proof boundary is intact.",
     "evaluation_guidance_bool_test": "tests/test_core.py::SystemTests::test_evaluation_benchmark_guidance_normalizes_serialized_bool_counts",
+    "component_gate_attachment_bool_patch": "CLI runtime component-gate attachment and AgentRuntime component-gate learning-row replay now normalize serialized booleans before writing Formalizer PF packet, PF/BV BlockVerifier, coding fixture, and helper source-theorem evidence into runtime manifests or prompt memory. Serialized \"false\" can no longer become raw_model_output_written, source theorem proof closure, exact semantic lane/source-anchor readiness, PF nonproof-boundary status, attachment_gate_recomputed, fixture_plumbing_ok, or source_runtime_learning_lineage_ok.",
+    "component_gate_attachment_bool_tests": [
+      "tests/test_research_agent_runtime.py::test_formalizer_pf_packet_attachment_summary_normalizes_serialized_manifest_flags",
+      "tests/test_research_agent_runtime.py::test_runtime_component_gate_learning_rows_normalize_attached_serialized_flags"
+    ],
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2661,6 +2666,11 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary or runtime_capability_scorecard_normalizes_pf_component_gate_serialized_flags or runtime_target_identity_audit_flags_route_critical_targetless_rows\" --tb=short # 4 passed, 911 deselected after runtime-audit PF component-gate bool patch",
     "python3 -m py_compile ai_statistician/evaluation_benchmark_guidance.py tests/test_core.py # passed after evaluation guidance bool patch",
     ".venv/bin/python -m pytest tests/test_core.py::SystemTests::test_evaluation_benchmark_guidance_normalizes_serialized_bool_counts -q --tb=short # 1 passed after evaluation guidance bool patch",
-    ".venv/bin/python -m pytest tests/test_core.py -q -k \"evaluation_benchmark_guidance\" --tb=short # 2 passed, 290 deselected after evaluation guidance bool patch"
+    ".venv/bin/python -m pytest tests/test_core.py -q -k \"evaluation_benchmark_guidance\" --tb=short # 2 passed, 290 deselected after evaluation guidance bool patch",
+    "python3 -m py_compile ai_statistician/cli.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after component-gate attachment bool patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_pf_packet_attachment_summary_normalizes_serialized_manifest_flags or runtime_component_gate_learning_rows_normalize_attached_serialized_flags\" --tb=short # 2 passed, 915 deselected after component-gate attachment bool patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"component_gate or pseudo_formal_packet_component_gate or source_runtime_learning_lineage\" --tb=short # 10 passed, 907 deselected after component-gate attachment bool patch",
+    "python3 -m json.tool docs/main_worker_status.json >/dev/null # passed after component-gate attachment bool patch",
+    "git diff --check # passed after component-gate attachment bool patch"
   ]
 }

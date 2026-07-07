@@ -1638,6 +1638,14 @@ def _runtime_learning_memory_bool_like(value: object) -> bool:
     return bool(value)
 
 
+def _runtime_learning_memory_false_like(value: object) -> bool:
+    if isinstance(value, bool):
+        return value is False
+    if isinstance(value, str):
+        return value.strip().lower() in {"0", "false", "no", "n"}
+    return False
+
+
 def _runtime_learning_memory_source_to_bridge_premise_derivation_kernel_verified(
     row: Mapping[str, object],
 ) -> bool:
@@ -11587,10 +11595,14 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         eval_manifest.get("n_pseudo_formal_routable_work_order_rows", 0) or 0
     )
     nonproof_boundary_preserved = bool(
-        capability_requirements.get("nonproof_boundary_preserved", False)
-        or eval_manifest.get("nonproof_boundary_preserved", False)
+        _runtime_learning_memory_bool_like(
+            capability_requirements.get("nonproof_boundary_preserved", False)
+        )
+        or _runtime_learning_memory_bool_like(
+            eval_manifest.get("nonproof_boundary_preserved", False)
+        )
     )
-    raw_model_output_written = bool(
+    raw_model_output_written = _runtime_learning_memory_bool_like(
         eval_manifest.get("raw_model_output_written", False)
     )
     exact_lane_present = (
@@ -11621,16 +11633,18 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         )
         or 0
     )
-    exact_semantic_rows_source_anchored = bool(
+    exact_semantic_rows_source_anchored = _runtime_learning_memory_bool_like(
         eval_manifest.get("exact_semantic_definition_rows_source_anchored", False)
     )
-    exact_semantic_rows_semantic_requirements_present = bool(
-        eval_manifest.get(
-            "exact_semantic_definition_rows_semantic_requirements_present",
-            False,
+    exact_semantic_rows_semantic_requirements_present = (
+        _runtime_learning_memory_bool_like(
+            eval_manifest.get(
+                "exact_semantic_definition_rows_semantic_requirements_present",
+                False,
+            )
         )
     )
-    exact_semantic_rows_lineage_complete = bool(
+    exact_semantic_rows_lineage_complete = _runtime_learning_memory_bool_like(
         eval_manifest.get("exact_semantic_definition_rows_lineage_complete", False)
     )
     proof_evidence_status_ok = (
@@ -11638,11 +11652,17 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         == FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE
     )
     no_theorem_proof_claim = (
-        eval_manifest.get("source_theorem_kernel_verified") is False
-        and eval_manifest.get("full_frontier_theorem_proved") is False
+        _runtime_learning_memory_false_like(
+            eval_manifest.get("source_theorem_kernel_verified")
+        )
+        and _runtime_learning_memory_false_like(
+            eval_manifest.get("full_frontier_theorem_proved")
+        )
     )
     strict_fixture_plumbing_ok = bool(
-        eval_manifest.get("fixture_plumbing_ok", False)
+        _runtime_learning_memory_bool_like(
+            eval_manifest.get("fixture_plumbing_ok", False)
+        )
         and n_pseudo_formal_packets > 0
         and n_routable_rows > 0
         and exact_lane_present
@@ -11690,7 +11710,7 @@ def _strict_formalizer_pseudo_formal_packet_attachment_summary(
         "attachment_gate_recomputed": True,
         "attachment_gate_requirements": {
             "live_generator": bool(gate_summary["live_generator"]),
-            "manifest_capability_evidence_ok": bool(
+            "manifest_capability_evidence_ok": _runtime_learning_memory_bool_like(
                 eval_manifest.get("capability_evidence_ok", False)
             ),
             "fixture_plumbing_ok": strict_fixture_plumbing_ok,
@@ -11788,7 +11808,9 @@ def _attach_coding_agent_generated_code_repair_eval_to_runtime_manifest(
         "model": str(eval_manifest.get("model", "")),
         "live_generator": bool(gate_summary["live_generator"]),
         "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
-        "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
+        "fixture_plumbing_ok": _runtime_learning_memory_bool_like(
+            eval_manifest.get("fixture_plumbing_ok", False)
+        ),
         "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
         "algorithm_capability_evidence_ok": bool(
             eval_manifest.get("algorithm_capability_evidence_ok", False)
@@ -11979,10 +12001,10 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         "prior_feedback_executed_tool_calls": int(
             prior_feedback_counts.get("executed_tool_calls", 0) or 0
         ),
-        "source_theorem_kernel_verified": bool(
+        "source_theorem_kernel_verified": _runtime_learning_memory_bool_like(
             eval_manifest.get("source_theorem_kernel_verified", False)
         ),
-        "full_frontier_theorem_proved": bool(
+        "full_frontier_theorem_proved": _runtime_learning_memory_bool_like(
             eval_manifest.get("full_frontier_theorem_proved", False)
         ),
         "repair_sequences": int(
@@ -12279,10 +12301,10 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         "attachment_gate_requirements": dict(
             gate_summary["attachment_gate_requirements"]
         ),
-        "source_theorem_kernel_verified": bool(
+        "source_theorem_kernel_verified": _runtime_learning_memory_bool_like(
             eval_manifest.get("source_theorem_kernel_verified", False)
         ),
-        "full_frontier_theorem_proved": bool(
+        "full_frontier_theorem_proved": _runtime_learning_memory_bool_like(
             eval_manifest.get("full_frontier_theorem_proved", False)
         ),
         "proof_evidence_status": str(
@@ -12539,7 +12561,9 @@ def _attach_pseudo_formal_block_verifier_eval_to_runtime_manifest(
         "model": str(eval_manifest.get("model", "")),
         "live_generator": bool(gate_summary["live_generator"]),
         "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
-        "fixture_plumbing_ok": bool(eval_manifest.get("fixture_plumbing_ok", False)),
+        "fixture_plumbing_ok": _runtime_learning_memory_bool_like(
+            eval_manifest.get("fixture_plumbing_ok", False)
+        ),
         "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
         "n_prompt_packets": int(eval_manifest.get("n_prompt_packets", 0) or 0),
         "n_ok_prompt_packets": int(eval_manifest.get("n_ok_prompt_packets", 0) or 0),

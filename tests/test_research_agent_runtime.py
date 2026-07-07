@@ -76816,6 +76816,152 @@ def test_runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary
     )
 
 
+def test_formalizer_pf_packet_attachment_summary_normalizes_serialized_manifest_flags() -> None:
+    eval_manifest = {
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "live_generator": "true",
+        "static_or_fixture_only": "false",
+        "capability_evidence_ok": "true",
+        "fixture_plumbing_ok": "true",
+        "n_pseudo_formal_packets": 1,
+        "n_pseudo_formal_routable_work_order_rows": 8,
+        "pseudo_formal_routable_target_lanes": [
+            "source_theorem_exact_semantic_definition",
+            "source_to_bridge",
+        ],
+        "n_pseudo_formal_exact_semantic_definition_rows": 1,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+        "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
+        "exact_semantic_definition_rows_source_anchored": "true",
+        "exact_semantic_definition_rows_semantic_requirements_present": "true",
+        "exact_semantic_definition_rows_lineage_complete": "true",
+        "nonproof_boundary_preserved": "true",
+        "raw_model_output_written": "false",
+        "source_theorem_kernel_verified": "false",
+        "full_frontier_theorem_proved": "false",
+        "proof_evidence_status": (
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    summary = cli_module._strict_formalizer_pseudo_formal_packet_attachment_summary(
+        eval_manifest
+    )
+
+    assert summary["raw_model_output_written"] is False
+    assert summary["no_theorem_proof_claim"] is True
+    assert summary["fixture_plumbing_ok"] is True
+    assert summary["capability_evidence_ok"] is True
+    assert summary["attachment_gate_requirements"][
+        "manifest_capability_evidence_ok"
+    ] is True
+
+    unanchored_manifest = dict(eval_manifest)
+    unanchored_manifest["exact_semantic_definition_rows_source_anchored"] = "false"
+    unanchored_summary = (
+        cli_module._strict_formalizer_pseudo_formal_packet_attachment_summary(
+            unanchored_manifest
+        )
+    )
+
+    assert (
+        unanchored_summary["exact_semantic_definition_rows_source_anchored"]
+        is False
+    )
+    assert unanchored_summary["capability_evidence_ok"] is False
+
+
+def test_runtime_component_gate_learning_rows_normalize_attached_serialized_flags() -> None:
+    formalizer_manifest = {
+        "question_ids": ["q"],
+        "internal_formalizer_pseudo_formal_packet_eval": {
+            "manifest_path": "runs/capability/formalizer_pf_manifest.json",
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
+            "live_generator": "true",
+            "static_or_fixture_only": "false",
+            "capability_evidence_ok": "true",
+            "fixture_plumbing_ok": "false",
+            "n_pseudo_formal_packets": 1,
+            "n_pseudo_formal_work_order_rows": 2,
+            "n_pseudo_formal_routable_work_order_rows": 1,
+            "pseudo_formal_routable_target_lanes": [
+                "source_theorem_exact_semantic_definition"
+            ],
+            "exact_semantic_definition_lane_present": "false",
+            "exact_semantic_definition_rows_source_anchored": "false",
+            "exact_semantic_definition_rows_semantic_requirements_present": "false",
+            "exact_semantic_definition_rows_lineage_complete": "false",
+            "nonproof_boundary_preserved": "false",
+            "raw_model_output_written": "false",
+            "proof_evidence_status_ok": "false",
+            "no_theorem_proof_claim": "false",
+            "attachment_gate_recomputed": "false",
+        },
+    }
+
+    formalizer_rows = (
+        runtime_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
+            formalizer_manifest
+        )
+    )
+    formalizer_row = formalizer_rows[0]
+
+    assert formalizer_row["fixture_plumbing_ok"] is False
+    assert formalizer_row["exact_semantic_definition_lane_present"] is False
+    assert (
+        formalizer_row["exact_semantic_definition_rows_source_anchored"] is False
+    )
+    assert (
+        formalizer_row[
+            "exact_semantic_definition_rows_semantic_requirements_present"
+        ]
+        is False
+    )
+    assert formalizer_row["exact_semantic_definition_rows_lineage_complete"] is False
+    assert formalizer_row["nonproof_boundary_preserved"] is False
+    assert formalizer_row["raw_model_output_written"] is False
+    assert formalizer_row["proof_evidence_status_ok"] is False
+    assert formalizer_row["no_theorem_proof_claim"] is False
+    assert formalizer_row["attachment_gate_recomputed"] is False
+
+    feedback_rows = (
+        runtime_module._runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feedback(
+            {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": formalizer_rows,
+                }
+            }
+        )
+    )
+    assert feedback_rows[0]["exact_semantic_definition_lane_present"] is False
+
+    block_verifier_rows = (
+        runtime_module._runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
+            {
+                "question_ids": ["q"],
+                "internal_pseudo_formal_block_verifier_eval": {
+                    "manifest_path": "runs/capability/pfbv_manifest.json",
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "component_backend_provider_names": ["anthropic"],
+                    "live_generator": "true",
+                    "static_or_fixture_only": "false",
+                    "capability_evidence_ok": "true",
+                    "fixture_plumbing_ok": "false",
+                    "source_runtime_learning_lineage_ok": "false",
+                },
+            }
+        )
+    )
+    block_verifier_row = block_verifier_rows[0]
+    assert block_verifier_row["fixture_plumbing_ok"] is False
+    assert block_verifier_row["source_runtime_learning_lineage_ok"] is False
+
+
 def _scorecard_formalizer_pf_component_gate_payload(
     **overrides: object,
 ) -> dict[str, object]:
