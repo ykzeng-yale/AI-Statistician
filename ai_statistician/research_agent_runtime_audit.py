@@ -13602,6 +13602,10 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_semantic_definition_materialized",
             "post_runtime_exact_semantic_definition_authoring",
         ),
+        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped": (
+            "source_theorem_exact_semantic_definition_lean_repair_executor",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+        ),
     }
     exact_keys_by_requirement = {
         "runtime_capability_gap_routing_input_retention_audited": (
@@ -13881,6 +13885,22 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_semantic_definition_late_materialized_lean_repair_executor_n_runtime_learning_rows",
             "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked",
             "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
+        ),
+        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped": (
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal",
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_ran",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_work_order_ids",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_pseudo_formal_block_ids",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_skipped_reason",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_dependency_fetch_required",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_ready_to_rerun_lean_repair",
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_status_counts",
         ),
     }
     prefixes = prefixes_by_requirement.get(requirement_id, ())

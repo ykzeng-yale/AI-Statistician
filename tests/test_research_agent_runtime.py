@@ -6283,6 +6283,39 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
         pf_environment_row["proof_evidence_status"]
         == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
     )
+    pf_environment_metrics = pf_environment_row["scorecard_payload"][
+        "audit_metrics"
+    ]
+    assert (
+        pf_environment_metrics[
+            "source_theorem_exact_semantic_definition_lean_repair_executor_n_lean_environment_repair_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert (
+        pf_environment_metrics[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_tasks_from_pseudo_formal"
+        ]
+        == 0
+    )
+    assert (
+        pf_environment_metrics[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_n_results_from_pseudo_formal"
+        ]
+        == 0
+    )
+    assert (
+        pf_environment_metrics[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+    assert (
+        pf_environment_metrics[
+            "source_theorem_exact_semantic_definition_lean_environment_repair_executor_proof_evidence_status"
+        ]
+        == "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE"
+    )
 
     pf_payload = {
         **payload,
@@ -7386,6 +7419,171 @@ def test_runtime_capability_gap_routing_loader_pins_exact_semantic_authoring(
     assert context["counts"]["rows_loaded"] == 10
     assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
     assert "not proof evidence" in authoring_row["retention_selection_boundary"]
+
+
+def test_runtime_capability_gap_routing_loader_pins_pf_environment_handoff(
+    tmp_path: Path,
+) -> None:
+    routing_path = tmp_path / "runtime_capability_gap_routing.jsonl"
+    env_prefix = (
+        "source_theorem_exact_semantic_definition_lean_environment_repair_executor"
+    )
+    repair_prefix = (
+        "source_theorem_exact_semantic_definition_lean_repair_executor"
+    )
+    critical_metrics = {
+        f"{repair_prefix}_n_lean_environment_repair_tasks_from_pseudo_formal": 1,
+        (
+            f"{repair_prefix}_n_lean_environment_repair_tasks_from_"
+            "formalizer_pf_component_gate"
+        ): 0,
+        f"{env_prefix}_ran": True,
+        f"{env_prefix}_n_results": 1,
+        f"{env_prefix}_n_tasks_from_pseudo_formal": 0,
+        f"{env_prefix}_n_results_from_pseudo_formal": 0,
+        f"{env_prefix}_source_pseudo_formal_work_order_ids": [
+            "pf-work-order:covered"
+        ],
+        f"{env_prefix}_source_pseudo_formal_block_ids": ["pf-block:covered"],
+        f"{env_prefix}_source_theorem_ready_for_exact_proof_body": False,
+        f"{env_prefix}_proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+        f"{env_prefix}_skipped_reason": "",
+    }
+    rows: list[dict[str, object]] = []
+    for index in range(1, 31):
+        row = {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "id": f"capability_gap:integrated_runtime:filler_{index}",
+            "requirement_id": f"filler_{index}",
+            "scope": "integrated_runtime",
+            "priority": index,
+            "gap_status": "OPEN",
+            "next_owner_subsystem": "ArchitectCoordinator",
+            "target_behavior": f"resolve filler gap {index}",
+            "success_metric": f"filler_{index}.passed=true",
+            "recommended_capability_eval_command": "research-agent-runtime",
+            "blocker": f"filler blocker {index}",
+            "evidence": f"filler evidence {index}",
+            "proof_evidence_status": "CAPABILITY_GAP_ROUTING_NOT_PROOF_EVIDENCE",
+            "routing_boundary": "routing only; not proof evidence",
+            "fingerprint": f"pf-environment-retention-filler-{index}",
+        }
+        if index == 20:
+            row.update(
+                {
+                    "id": (
+                        "capability_gap:integrated_runtime:"
+                        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped"
+                    ),
+                    "requirement_id": (
+                        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped"
+                    ),
+                    "priority": 75,
+                    "next_owner_subsystem": "FormalizationEvaluator",
+                    "target_behavior": (
+                        "route PF/BV-origin exact semantic-definition Lean "
+                        "environment repair tasks into the same-run Lean "
+                        "environment repair executor"
+                    ),
+                    "success_metric": (
+                        f"{env_prefix}_n_tasks_from_pseudo_formal>0 and "
+                        f"{env_prefix}_n_results_from_pseudo_formal>0"
+                    ),
+                    "blocker": (
+                        "PF-origin exact semantic-definition Lean repair "
+                        "produced environment tasks, but PF-origin environment "
+                        "repair results were not consumed"
+                    ),
+                    "evidence": (
+                        "pf_lean_environment_tasks=1 "
+                        "pf_environment_tasks=0 pf_environment_results=0"
+                    ),
+                    "scorecard_payload": {
+                        "artifact_kind": "RuntimeCapabilityGapScorecardPayload",
+                        "requirement_id": (
+                            "exact_semantic_definition_lean_environment_"
+                            "repair_pf_handoff_not_dropped"
+                        ),
+                        "audit_metrics": {
+                            **{
+                                (
+                                    "source_theorem_exact_semantic_definition_"
+                                    f"zero_filler_{filler}"
+                                ): 0
+                                for filler in range(36)
+                            },
+                            **critical_metrics,
+                        },
+                        "proof_evidence_status": (
+                            "CAPABILITY_GAP_SCORECARD_PAYLOAD_NOT_EVIDENCE"
+                        ),
+                        "boundary": "scorecard payload routing only; not proof evidence",
+                    },
+                    "proof_evidence_status": (
+                        "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+                    ),
+                    "routing_boundary": (
+                        "routing only; not proof, verifier, or source authority"
+                    ),
+                    "fingerprint": "pf-environment-handoff-retention",
+                }
+            )
+        rows.append(row)
+    routing_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    context = _load_runtime_capability_gap_routing([routing_path], max_rows=10)
+
+    loaded_ids = [row["requirement_id"] for row in context["rows"]]
+    requirement_id = (
+        "exact_semantic_definition_lean_environment_repair_pf_handoff_not_dropped"
+    )
+    assert requirement_id in loaded_ids
+    handoff_row = next(
+        row for row in context["rows"] if row["requirement_id"] == requirement_id
+    )
+    assert handoff_row["retention_selection"] == "priority_pinned"
+    assert handoff_row["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert "same-run Lean environment repair executor" in handoff_row[
+        "target_behavior"
+    ]
+    assert f"{env_prefix}_n_results_from_pseudo_formal>0" in handoff_row[
+        "success_metric"
+    ]
+    assert handoff_row["proof_evidence_status"] == (
+        "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+    retained_metrics = handoff_row["scorecard_payload"]["audit_metrics"]
+    assert (
+        retained_metrics[
+            f"{repair_prefix}_n_lean_environment_repair_tasks_from_pseudo_formal"
+        ]
+        == 1
+    )
+    assert retained_metrics[f"{env_prefix}_n_tasks_from_pseudo_formal"] == 0
+    assert retained_metrics[f"{env_prefix}_n_results_from_pseudo_formal"] == 0
+    assert retained_metrics[f"{env_prefix}_source_pseudo_formal_work_order_ids"] == [
+        "pf-work-order:covered"
+    ]
+    assert (
+        retained_metrics[
+            f"{env_prefix}_source_theorem_ready_for_exact_proof_body"
+        ]
+        is False
+    )
+    assert retained_metrics[f"{env_prefix}_proof_evidence_status"].endswith(
+        "NOT_PROOF_EVIDENCE"
+    )
+    assert context["counts"]["rows_seen"] == 30
+    assert context["counts"]["rows_loaded"] == 10
+    assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert "not proof evidence" in handoff_row["retention_selection_boundary"]
+    assert "not proof evidence" in context["boundary"]
 
 
 def test_runtime_capability_gap_routing_loader_pins_deferred_meta_resolution(

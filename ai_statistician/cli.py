@@ -1294,13 +1294,18 @@ def _compact_runtime_capability_gap_metric_items(
         for token, weight in (
             ("architect_initial_routing_deferred_meta", 40),
             ("deferred_meta", 40),
+            ("lean_environment_repair", 38),
+            ("source_pseudo_formal", 36),
             ("contract_issues", 35),
+            ("environment_repair", 32),
             ("missing", 30),
             ("invalid", 30),
             ("exact_semantic_definition", 28),
+            ("pseudo_formal", 26),
             ("required", 25),
             ("authoring", 24),
             ("candidate", 22),
+            ("proof_evidence_status", 21),
             ("inherited_scope", 20),
             ("scope_parent", 20),
             ("contract_complete", 15),
@@ -1595,6 +1600,27 @@ def _runtime_capability_gap_routing_pin_priority(row: Mapping[str, object]) -> i
             or "post_runtime_exact_semantic_definition_authoring" in str(key)
         )
         and _runtime_capability_gap_metric_has_signal(str(key), value)
+        for key, value in audit_metrics.items()
+    ):
+        score += 1_200
+    if any(
+        (
+            "source_theorem_exact_semantic_definition_lean_environment_"
+            "repair_executor"
+            in str(key)
+            or "source_theorem_exact_semantic_definition_lean_repair_"
+            "executor_n_lean_environment_repair_tasks_from_pseudo_formal"
+            in str(key)
+            or "source_theorem_exact_semantic_definition_lean_repair_"
+            "executor_n_lean_environment_repair_tasks_from_formalizer_pf_component_gate"
+            in str(key)
+        )
+        and (
+            _runtime_capability_gap_metric_has_signal(str(key), value)
+            or "from_pseudo_formal" in str(key)
+            or "source_pseudo_formal" in str(key)
+            or "proof_evidence_status" in str(key)
+        )
         for key, value in audit_metrics.items()
     ):
         score += 1_200
