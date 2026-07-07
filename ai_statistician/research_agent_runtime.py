@@ -51274,6 +51274,14 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
             if isinstance(input_summary.get("bv_calibration", {}), Mapping)
             else {}
         )
+        prompt_scaffold_origin = (
+            row.get("prompt_scaffold_origin", {})
+            if isinstance(row.get("prompt_scaffold_origin", {}), Mapping)
+            and row.get("prompt_scaffold_origin", {})
+            else input_summary.get("prompt_scaffold_origin", {})
+            if isinstance(input_summary.get("prompt_scaffold_origin", {}), Mapping)
+            else {}
+        )
         feedback_rows.append(
             {
                 "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
@@ -51317,6 +51325,25 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                 "source_packet_id": str(
                     row.get("source_packet_id", "")
                     or input_summary.get("source_packet_id", "")
+                    or ""
+                ),
+                "prompt_scaffold_origin": dict(prompt_scaffold_origin),
+                "source_prompt_scaffold_kind": str(
+                    row.get("source_prompt_scaffold_kind", "")
+                    or input_summary.get("source_prompt_scaffold_kind", "")
+                    or ""
+                ),
+                "source_prompt_scaffold_id": str(
+                    row.get("source_prompt_scaffold_id", "")
+                    or input_summary.get("source_prompt_scaffold_id", "")
+                    or ""
+                ),
+                "source_prompt_scaffold_required_output_key": str(
+                    row.get("source_prompt_scaffold_required_output_key", "")
+                    or input_summary.get(
+                        "source_prompt_scaffold_required_output_key",
+                        "",
+                    )
                     or ""
                 ),
                 "source_theorem_id": str(
@@ -64987,6 +65014,24 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "source_artifact_id": str(
                     work_order.get("source_artifact_id", "") or ""
                 ),
+                "prompt_scaffold_origin": dict(
+                    work_order.get("prompt_scaffold_origin", {})
+                    if isinstance(
+                        work_order.get("prompt_scaffold_origin", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "source_prompt_scaffold_kind": str(
+                    work_order.get("source_prompt_scaffold_kind", "") or ""
+                ),
+                "source_prompt_scaffold_id": str(
+                    work_order.get("source_prompt_scaffold_id", "") or ""
+                ),
+                "source_prompt_scaffold_required_output_key": str(
+                    work_order.get("source_prompt_scaffold_required_output_key", "")
+                    or ""
+                ),
                 "source_theorem_id": source_theorem_id,
                 "source_block_id": source_block_id,
                 "source_block_type": str(
@@ -65198,6 +65243,27 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "source_artifact_id": str(
                         agenda.get("source_artifact_id", "") or ""
                     ),
+                    "prompt_scaffold_origin": dict(
+                        agenda.get("prompt_scaffold_origin", {})
+                        if isinstance(
+                            agenda.get("prompt_scaffold_origin", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    "source_prompt_scaffold_kind": str(
+                        agenda.get("source_prompt_scaffold_kind", "") or ""
+                    ),
+                    "source_prompt_scaffold_id": str(
+                        agenda.get("source_prompt_scaffold_id", "") or ""
+                    ),
+                    "source_prompt_scaffold_required_output_key": str(
+                        agenda.get(
+                            "source_prompt_scaffold_required_output_key",
+                            "",
+                        )
+                        or ""
+                    ),
                     "source_theorem_id": str(
                         agenda.get("source_theorem_id", "") or ""
                     ),
@@ -65313,6 +65379,27 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                         "work_order_id": work_order_id,
                         "row_kind": str(
                             agenda.get("pseudo_formal_row_kind", "") or ""
+                        ),
+                        "prompt_scaffold_origin": dict(
+                            agenda.get("prompt_scaffold_origin", {})
+                            if isinstance(
+                                agenda.get("prompt_scaffold_origin", {}),
+                                Mapping,
+                            )
+                            else {}
+                        ),
+                        "source_prompt_scaffold_kind": str(
+                            agenda.get("source_prompt_scaffold_kind", "") or ""
+                        ),
+                        "source_prompt_scaffold_id": str(
+                            agenda.get("source_prompt_scaffold_id", "") or ""
+                        ),
+                        "source_prompt_scaffold_required_output_key": str(
+                            agenda.get(
+                                "source_prompt_scaffold_required_output_key",
+                                "",
+                            )
+                            or ""
                         ),
                         "target_lane": str(agenda.get("target_lane", "") or ""),
                         "reason": str(agenda.get("reason", "") or ""),

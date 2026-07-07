@@ -28037,12 +28037,21 @@ def test_diagnostic_helper_bridge_mode_accepts_bound_source_to_bridge_candidate(
 
 
 def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() -> None:
+    prompt_scaffold_origin = {
+        "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+        "scaffold_kind": "pseudo_formalization_required_copy_fragment",
+        "source": "FormalizerPrompt",
+        "required_output_key": "pseudo_formal_proof_packets",
+        "copy_fragment_id": "pseudo_formal_copy_fragment:routing",
+        "proof_evidence_status": "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE",
+    }
     proposal_packet = {
         "packet_id": "formalizer_proposal:pseudo_formal",
         "pseudo_formal_proof_packets": [
             {
                 "theorem_id": "split_conformal_coverage",
                 "source_artifact_id": "theory_packet:split_conformal",
+                "prompt_scaffold_origin": prompt_scaffold_origin,
                 "blocks": [
                     {
                         "block_id": "b1",
@@ -28144,6 +28153,17 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert {row["source_prompt_scaffold_kind"] for row in rows} == {
+        "pseudo_formalization_required_copy_fragment"
+    }
+    assert {row["source_prompt_scaffold_id"] for row in rows} == {
+        "pseudo_formal_copy_fragment:routing"
+    }
+    assert all(
+        row["prompt_scaffold_origin"]["proof_evidence_status"]
+        == "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+        for row in rows
+    )
     assert any(row["scope_parent_id"] == "b1" for row in rows)
     assert all("not theorem proof evidence" in row["proof_evidence_boundary"] for row in rows)
 
@@ -28192,6 +28212,9 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in exported_rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert {row["source_prompt_scaffold_id"] for row in exported_rows} == {
+        "pseudo_formal_copy_fragment:routing"
+    }
     assert any(row["scope_parent_id"] == "b1" for row in exported_rows)
 
     agenda_rows = _runtime_pseudo_formal_next_action_agenda_rows(exported_rows)
@@ -28219,6 +28242,20 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in agenda_rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert {row["source_prompt_scaffold_kind"] for row in agenda_rows} == {
+        "pseudo_formalization_required_copy_fragment"
+    }
+    assert {row["source_prompt_scaffold_id"] for row in agenda_rows} == {
+        "pseudo_formal_copy_fragment:routing"
+    }
+    assert {row["source_prompt_scaffold_required_output_key"] for row in agenda_rows} == {
+        "pseudo_formal_proof_packets"
+    }
+    assert all(
+        row["prompt_scaffold_origin"]["scaffold_kind"]
+        == "pseudo_formalization_required_copy_fragment"
+        for row in agenda_rows
+    )
     assert any(row["scope_parent_id"] == "b1" for row in agenda_rows)
     assert any(
         row["owner_subsystem"] == "BlockVerifier/CalibrationReferee"
@@ -28257,6 +28294,22 @@ def test_formalizer_pseudo_formal_work_orders_route_without_proof_promotion() ->
     assert {row["pseudo_formal_pipeline_stage"] for row in learning_rows} == {
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     }
+    assert {row["source_prompt_scaffold_kind"] for row in learning_rows} == {
+        "pseudo_formalization_required_copy_fragment"
+    }
+    assert {row["source_prompt_scaffold_id"] for row in learning_rows} == {
+        "pseudo_formal_copy_fragment:routing"
+    }
+    assert all(
+        row["input_summary"]["source_prompt_scaffold_id"]
+        == "pseudo_formal_copy_fragment:routing"
+        for row in learning_rows
+    )
+    assert all(
+        row["input_summary"]["prompt_scaffold_origin"]["required_output_key"]
+        == "pseudo_formal_proof_packets"
+        for row in learning_rows
+    )
     assert any(row["scope_parent_id"] == "b1" for row in learning_rows)
     assert any(
         row["input_summary"]["scope_parent_id"] == "b1"
@@ -29425,6 +29478,14 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    prompt_scaffold_origin = {
+        "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+        "scaffold_kind": "pseudo_formalization_required_copy_fragment",
+        "source": "FormalizerPrompt",
+        "required_output_key": "pseudo_formal_proof_packets",
+        "copy_fragment_id": "pseudo_formal_copy_fragment:rank_uniform",
+        "proof_evidence_status": "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE",
+    }
     rows = [
         {
             "schema_version": 1,
@@ -29449,6 +29510,14 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
             "source_formalizer_proposal_id": "formalizer_proposal:pseudo",
             "source_formalization_manifest_id": "formalization_manifest:pseudo",
             "source_packet_id": "pseudo_formal_packet:coverage",
+            "prompt_scaffold_origin": prompt_scaffold_origin,
+            "source_prompt_scaffold_kind": (
+                "pseudo_formalization_required_copy_fragment"
+            ),
+            "source_prompt_scaffold_id": "pseudo_formal_copy_fragment:rank_uniform",
+            "source_prompt_scaffold_required_output_key": (
+                "pseudo_formal_proof_packets"
+            ),
             "source_theorem_id": "split_conformal_finite_sample_coverage",
             "source_block_id": "b_rank_uniform",
             "source_block_type": "lemma",
@@ -29507,6 +29576,16 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
                 "agenda_id": "pseudo_formal:formal_targets:rank_uniform",
                 "work_order_id": "pseudo_formal_work_order:rank_uniform",
                 "row_kind": "pseudo_formal_lean_candidate_seed",
+                "prompt_scaffold_origin": prompt_scaffold_origin,
+                "source_prompt_scaffold_kind": (
+                    "pseudo_formalization_required_copy_fragment"
+                ),
+                "source_prompt_scaffold_id": (
+                    "pseudo_formal_copy_fragment:rank_uniform"
+                ),
+                "source_prompt_scaffold_required_output_key": (
+                    "pseudo_formal_proof_packets"
+                ),
                 "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_TARGETS,
                 "reason": "faithful BV-accepted block is triaged as Lean-feasible",
                 "source_theorem_id": "split_conformal_finite_sample_coverage",
@@ -29672,6 +29751,15 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert pf_memory[0]["pseudo_formal_pipeline_stage"] == (
         PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
     )
+    assert pf_memory[0]["prompt_scaffold_origin"]["scaffold_kind"] == (
+        "pseudo_formalization_required_copy_fragment"
+    )
+    assert pf_memory[0]["source_prompt_scaffold_id"] == (
+        "pseudo_formal_copy_fragment:rank_uniform"
+    )
+    assert pf_memory[0]["source_prompt_scaffold_required_output_key"] == (
+        "pseudo_formal_proof_packets"
+    )
     assert pf_memory[0]["source_anchors"][0]["id"] == "equation:rank_uniformity"
 
     prompt = build_formalizer_prompt(
@@ -29699,6 +29787,8 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE" in prompt
     assert "b_rank_uniform" in prompt
     assert "equation:rank_uniformity" in prompt
+    assert "pseudo_formalization_required_copy_fragment" in prompt
+    assert "pseudo_formal_copy_fragment:rank_uniform" in prompt
     assert "target_lane=formal_targets" in prompt
     assert "do not hardcode corner-case proof rules" in prompt
 
