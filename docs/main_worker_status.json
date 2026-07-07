@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-07T00:14:00Z",
+  "updated_at": "2026-07-07T00:31:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
@@ -582,6 +582,11 @@
     "formalizer_diagnostic_helper_boundary_test": "tests/test_research_agent_runtime.py::test_formalizer_candidate_materialization_allows_string_false_helper_target",
     "formalizer_candidate_replay_string_bool_routing_patch": "Runtime learning-memory replay and proof-bank summaries now parse string boolean fields for Formalizer Lean-candidate local Lean status, target-known provenance, diagnostic-helper flags, and proof-state live-call markers. A replayed local_lean_compiled=\"false\" row stays in non-proof Lean-candidate repair memory instead of being misrouted as a compiled diagnostic helper.",
     "formalizer_candidate_replay_string_bool_routing_test": "tests/test_research_agent_runtime.py::test_runtime_learning_memory_treats_string_false_local_lean_as_repair_memory",
+    "component_gate_replay_string_bool_routing_patch": "Shared runtime component-gate summaries and runtime-learning replay now parse string boolean fields before deciding live_generator, static_or_fixture_only, capability_evidence_ok, PF/BV repair-seed pin priority, PF/BV failed-gate repair routing, and source-to-bridge request completion display. A PF/BV packet gate with capability_evidence_ok=\"false\" and a concrete repair seed now activates structural PF/BV repair memory instead of being mistaken for passed capability evidence.",
+    "component_gate_replay_string_bool_routing_tests": [
+      "tests/test_research_agent_runtime.py::test_component_gate_summary_string_false_does_not_pass_capability",
+      "tests/test_research_agent_runtime.py::test_formalizer_pf_component_gate_string_false_routes_failure_memory"
+    ],
     "formalizer_critic_mathlib_handoff_contract_regression": true,
     "formalizer_critic_mathlib_handoff_contract_test": "tests/test_research_agent_runtime.py::test_critic_formalizer_handoff_preserves_mathlib_import_contract",
     "formalizer_lean_candidate_failed_then_passed_repair_sequences": 7,
@@ -2588,6 +2593,9 @@
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_runtime_learning_memory_treats_string_false_local_lean_as_repair_memory tests/test_research_agent_runtime.py::test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_blocker_prompt -q # 2 passed after Formalizer candidate replay string-bool routing patch",
     ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"formalizer_lean_candidate or diagnostic_helper or proof_bank_runtime_memory\" # 20 passed, 887 deselected after Formalizer candidate replay string-bool routing patch",
     "python3 -m json.tool docs/main_worker_status.json # passed after Formalizer candidate replay string-bool routing patch",
-    "git diff --check # passed after Formalizer candidate replay string-bool routing patch"
+    "git diff --check # passed after Formalizer candidate replay string-bool routing patch",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after component-gate replay string-bool routing patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py::test_component_gate_summary_string_false_does_not_pass_capability tests/test_research_agent_runtime.py::test_formalizer_pf_component_gate_string_false_routes_failure_memory -q # 2 passed after component-gate replay string-bool routing patch",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q -k \"component_gate or pseudo_formal_packet_component_gate or capability_evidence_ok\" # 7 passed, 902 deselected after component-gate replay string-bool routing patch"
   ]
 }

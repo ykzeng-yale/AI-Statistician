@@ -87513,6 +87513,124 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     )
 
 
+def test_component_gate_summary_string_false_does_not_pass_capability() -> None:
+    cap_false = runtime_module._runtime_component_gate_summary(
+        {
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
+            "live_generator": "true",
+            "static_or_fixture_only": False,
+            "capability_evidence_ok": "false",
+        }
+    )
+
+    assert cap_false["live_generator"] is True
+    assert cap_false["static_or_fixture_only"] is False
+    assert cap_false["capability_evidence_ok"] is False
+
+    live_false = runtime_module._runtime_component_gate_summary(
+        {
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
+            "live_generator": "false",
+            "static_or_fixture_only": False,
+            "capability_evidence_ok": "true",
+        }
+    )
+
+    assert live_false["live_generator"] is False
+    assert live_false["static_or_fixture_only"] is True
+    assert live_false["capability_evidence_ok"] is False
+
+
+def test_formalizer_pf_component_gate_string_false_routes_failure_memory() -> None:
+    blocked_row = {
+        "learning_task": "formalizer_pseudo_formal_packet_component_gate_feedback",
+        "component_eval": "PF/BV string false component gate",
+        "component_eval_manifest_path": "runs/pf_string_false/manifest.json",
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "live_generator": "true",
+        "static_or_fixture_only": False,
+        "capability_evidence_ok": "false",
+        "fixture_plumbing_ok": "false",
+        "result_status": "FAILED",
+        "failure_type": "PacketValidationError",
+        "pseudo_formal_failure_repair_seed_available": "true",
+        "pseudo_formal_failure_required_target_lanes": [
+            "source_theorem_exact_semantic_definition",
+            "source_to_bridge",
+        ],
+        "pseudo_formal_failure_validation_issue_summary": {
+            "n_missing_source_anchors": 1,
+            "n_no_lane_routable_work_order_rows": 1,
+        },
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed": {
+            "blocks": [
+                {
+                    "id": "pf_block:string_false",
+                    "source_anchors": [
+                        {"id": "proof_body:rank_threshold_step"}
+                    ],
+                    "semantic_primitive_requirements": ["rank threshold"],
+                }
+            ]
+        },
+        "proof_evidence_status": (
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
+            "NOT_PROOF_EVIDENCE"
+        ),
+    }
+    false_seed_row = {
+        **blocked_row,
+        "component_eval_manifest_path": "runs/pf_string_false/no_seed.json",
+        "pseudo_formal_failure_repair_seed_available": "false",
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed": {},
+    }
+
+    assert (
+        runtime_module._runtime_learning_memory_context_pin_priority(false_seed_row)
+        == 88
+    )
+
+    proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [blocked_row],
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert proof_memory_summary["pseudo_formalization_required"] is True
+    assert proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_failure_available"
+    ] is True
+    feedback_memory = proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_feedback_memory"
+    ]
+    assert feedback_memory[0]["capability_evidence_ok"] is False
+    assert feedback_memory[0]["fixture_plumbing_ok"] is False
+    assert (
+        feedback_memory[0]["pseudo_formal_failure_repair_seed_available"]
+        is True
+    )
+    failure_memory = proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ]
+    assert failure_memory[0]["required_target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "source_to_bridge",
+    ]
+    assert failure_memory[0]["concrete_lane_routable_repair_seed"]["blocks"][0][
+        "source_anchors"
+    ][0]["id"] == "proof_body:rank_threshold_step"
+
+
 def test_capability_eval_resume_defaults_through_configured_architect() -> None:
     args = argparse.Namespace(
         capability_eval=True,

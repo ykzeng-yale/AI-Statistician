@@ -862,12 +862,14 @@ def _runtime_component_gate_summary(source: Mapping[str, Any]) -> dict[str, Any]
         is_live_generator_backend(provider_name, name)
         for name in backend_provider_names
     )
-    live_generator = bool(source.get("live_generator", False) and backend_live)
+    live_generator = bool(
+        _bool_like(source.get("live_generator", False)) and backend_live
+    )
     static_or_fixture_only = bool(
-        source.get("static_or_fixture_only", False) or not live_generator
+        _bool_like(source.get("static_or_fixture_only", False)) or not live_generator
     )
     capability_evidence_ok = bool(
-        source.get("capability_evidence_ok", False)
+        _bool_like(source.get("capability_evidence_ok", False))
         and live_generator
         and not static_or_fixture_only
     )
@@ -977,17 +979,17 @@ def _runtime_learning_component_gate_source(
             "component_backend_provider_names",
             input_summary.get("component_backend_provider_names", []),
         ),
-        "live_generator": bool(
-            row.get("live_generator", False)
-            or input_summary.get("live_generator", False)
+        "live_generator": (
+            _bool_like(row.get("live_generator", False))
+            or _bool_like(input_summary.get("live_generator", False))
         ),
-        "static_or_fixture_only": bool(
-            row.get("static_or_fixture_only", False)
-            or input_summary.get("static_or_fixture_only", False)
+        "static_or_fixture_only": (
+            _bool_like(row.get("static_or_fixture_only", False))
+            or _bool_like(input_summary.get("static_or_fixture_only", False))
         ),
-        "capability_evidence_ok": bool(
-            row.get("capability_evidence_ok", False)
-            or input_summary.get("capability_evidence_ok", False)
+        "capability_evidence_ok": (
+            _bool_like(row.get("capability_evidence_ok", False))
+            or _bool_like(input_summary.get("capability_evidence_ok", False))
         ),
     }
     return source
@@ -39767,11 +39769,11 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
     if learning_task == "formalizer_lean_candidate_component_gate_feedback":
         return 88
     if learning_task == "formalizer_pseudo_formal_packet_component_gate_feedback":
-        if bool(
+        if _bool_like(
             row.get("pseudo_formal_failure_repair_seed_available", False)
-            or input_summary.get(
-                "pseudo_formal_failure_repair_seed_available",
-                False,
+        ) or _bool_like(
+            input_summary.get(
+                "pseudo_formal_failure_repair_seed_available", False
             )
         ):
             return 89
@@ -51670,14 +51672,14 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
                 "model": str(
                     _runtime_learning_row_value(row, input_summary, "model") or ""
                 ),
-                "live_generator": bool(gate_summary["live_generator"]),
-                "static_or_fixture_only": bool(
+                "live_generator": _bool_like(gate_summary["live_generator"]),
+                "static_or_fixture_only": _bool_like(
                     gate_summary["static_or_fixture_only"]
                 ),
-                "capability_evidence_ok": bool(
+                "capability_evidence_ok": _bool_like(
                     gate_summary["capability_evidence_ok"]
                 ),
-                "fixture_plumbing_ok": bool(
+                "fixture_plumbing_ok": _bool_like(
                     row.get(
                         "fixture_plumbing_ok",
                         input_summary.get("fixture_plumbing_ok", False),
@@ -51716,7 +51718,7 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
                 "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
                     failure_seed
                 ),
-                "pseudo_formal_failure_repair_seed_available": bool(
+                "pseudo_formal_failure_repair_seed_available": _bool_like(
                     failure_seed.get("blocks", []) if failure_seed else []
                 ),
                 "pseudo_formal_routable_target_lanes": [
@@ -52874,7 +52876,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
     complete_source_to_bridge_metadata_authoring_request_rows = tuple(
         row
         for row in source_to_bridge_metadata_authoring_request_rows
-        if bool(row.get("request_complete", False))
+        if _bool_like(row.get("request_complete", False))
     )
     formalizer_lean_candidate_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_feedback(context)
@@ -52910,8 +52912,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
     formalizer_pseudo_formal_packet_component_gate_failure_rows = tuple(
         row
         for row in formalizer_pseudo_formal_packet_component_gate_feedback_rows
-        if not bool(row.get("capability_evidence_ok", False))
-        and bool(row.get("pseudo_formal_failure_repair_seed_available", False))
+        if not _bool_like(row.get("capability_evidence_ok", False))
+        and _bool_like(row.get("pseudo_formal_failure_repair_seed_available", False))
     )
     formalizer_lean_candidate_capability_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
@@ -54942,7 +54944,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "missing_required_metadata_fields": list(
                     row.get("missing_required_metadata_fields", []) or []
                 )[:12],
-                "request_complete": bool(row.get("request_complete", False)),
+                "request_complete": _bool_like(
+                    row.get("request_complete", False)
+                ),
                 "metadata_authoring_status": str(
                     row.get("metadata_authoring_status", "") or ""
                 ),
@@ -54987,7 +54991,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
             }
             for row in source_to_bridge_metadata_authoring_request_rows[:6]
-            if not bool(row.get("request_complete", False))
+            if not _bool_like(row.get("request_complete", False))
         ],
         "source_to_bridge_metadata_authoring_contract": (
             source_to_bridge_metadata_authoring_contract
@@ -56071,14 +56075,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
                 "provider_name": str(row.get("provider_name", "") or ""),
                 "model": str(row.get("model", "") or ""),
-                "live_generator": bool(row.get("live_generator", False)),
-                "static_or_fixture_only": bool(
+                "live_generator": _bool_like(row.get("live_generator", False)),
+                "static_or_fixture_only": _bool_like(
                     row.get("static_or_fixture_only", False)
                 ),
-                "capability_evidence_ok": bool(
+                "capability_evidence_ok": _bool_like(
                     row.get("capability_evidence_ok", False)
                 ),
-                "fixture_plumbing_ok": bool(row.get("fixture_plumbing_ok", False)),
+                "fixture_plumbing_ok": _bool_like(
+                    row.get("fixture_plumbing_ok", False)
+                ),
                 "result_status": str(row.get("result_status", "") or ""),
                 "failure_type": str(row.get("failure_type", "") or ""),
                 "errors": list(row.get("errors", []) or [])[:8],
@@ -56127,7 +56133,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     )
                     else {}
                 ),
-                "pseudo_formal_failure_repair_seed_available": bool(
+                "pseudo_formal_failure_repair_seed_available": _bool_like(
                     row.get("pseudo_formal_failure_repair_seed_available", False)
                 ),
                 "pseudo_formal_routable_target_lanes": list(
@@ -56136,7 +56142,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "n_pseudo_formal_routable_work_order_rows": _int_like(
                     row.get("n_pseudo_formal_routable_work_order_rows", 0)
                 ),
-                "exact_semantic_definition_lane_present": bool(
+                "exact_semantic_definition_lane_present": _bool_like(
                     row.get("exact_semantic_definition_lane_present", False)
                 ),
                 "proof_evidence_status": str(
