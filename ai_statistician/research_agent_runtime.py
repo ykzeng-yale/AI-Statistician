@@ -24940,6 +24940,24 @@ def run_research_agent_runtime(
         before_keys = set(seen_exact_semantic_work_order_by_key)
         new_rows: list[dict[str, Any]] = []
         late_lookup_rows: list[dict[str, Any]] = []
+        new_row_index_by_key: dict[tuple[str, str, tuple[Any, ...]], int] = {}
+        late_lookup_row_index_by_key: dict[
+            tuple[str, str, tuple[Any, ...]], int
+        ] = {}
+
+        def upsert_same_run_row(
+            target_rows: list[dict[str, Any]],
+            index_by_key: dict[tuple[str, str, tuple[Any, ...]], int],
+            key: tuple[str, str, tuple[Any, ...]],
+            row: dict[str, Any],
+        ) -> None:
+            existing_index = index_by_key.get(key)
+            if existing_index is None:
+                index_by_key[key] = len(target_rows)
+                target_rows.append(row)
+                return
+            target_rows[existing_index] = row
+
         for candidate in candidate_rows:
             key = (
                 str(candidate.get("target_theorem_name", "") or ""),
@@ -24950,8 +24968,18 @@ def run_research_agent_runtime(
             merged = seen_exact_semantic_work_order_by_key.get(key)
             merged_row = dict(merged) if isinstance(merged, Mapping) else candidate
             if key not in before_keys:
-                new_rows.append(merged_row)
-                late_lookup_rows.append(merged_row)
+                upsert_same_run_row(
+                    new_rows,
+                    new_row_index_by_key,
+                    key,
+                    merged_row,
+                )
+                upsert_same_run_row(
+                    late_lookup_rows,
+                    late_lookup_row_index_by_key,
+                    key,
+                    merged_row,
+                )
                 before_keys.add(key)
             elif (
                 str(candidate.get("premise_name", "") or "").strip()
@@ -24959,7 +24987,12 @@ def run_research_agent_runtime(
                 or str(candidate.get("semantic_primitive_gap_kind", "") or "").strip()
                 == "source_to_bridge_premise_semantic_gap"
             ):
-                late_lookup_rows.append(merged_row)
+                upsert_same_run_row(
+                    late_lookup_rows,
+                    late_lookup_row_index_by_key,
+                    key,
+                    merged_row,
+                )
         if not new_rows and not late_lookup_rows:
             return
         safe_queue_name = _safe_identifier(queue_name)[:96]

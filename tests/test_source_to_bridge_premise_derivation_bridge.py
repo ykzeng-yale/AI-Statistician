@@ -47,6 +47,12 @@ def _premise_work_order(**overrides: object) -> dict[str, object]:
         ],
         "source_candidate_artifact_path": "runs/source_attempt.lean",
         "adapter_candidate_artifact_path": "runs/adapter_attempt.lean",
+        "proof_body_signature_probe_artifact_path": (
+            "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+        ),
+        "source_theorem_signature_probe_artifact_path": (
+            "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+        ),
         "adapter_declaration_name": "split_conformal_coverage_source_to_bridge_adapter",
         "proof_body_goal_excerpt": [
             "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)"
@@ -204,6 +210,10 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         manifest["n_source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
         == 1
     )
+    assert manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert manifest["proof_body_signature_probe_artifact_paths"] == [
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    ]
     assert manifest[
         "source_theorem_exact_proof_body_gate_open_target_names"
     ] == ["split_conformal_coverage"]
@@ -224,6 +234,12 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert row["semantic_alignment_blockers"] == ()
     assert row["proof_body_attempt_count"] == 1
     assert row["proof_body_gate_status"] == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    assert row["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert row["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
     assert row["source_theorem_exact_proof_body_reached"] is True
     assert (
         row["source_theorem_exact_proof_body_gate_open_for_kernel_repair"] is True
@@ -241,6 +257,10 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert "-- premise name: hGoodCovered" in candidate_source
     assert f"-- exact source candidate artifact: {source_attempt}" in candidate_source
     assert "-- source-to-bridge adapter candidate artifact: runs/adapter_attempt.lean" in candidate_source
+    assert (
+        "-- source theorem signature probe artifact: "
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    ) in candidate_source
     assert (
         "-- source-to-bridge adapter declaration: "
         "split_conformal_coverage_source_to_bridge_adapter"
@@ -382,6 +402,15 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         {"name": "hC", "type": "Prop", "role": "coverage_event_anchor"},
     ]
     assert request["source_theorem_kernel_evidence_eligible"] is True
+    assert request["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert request["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert request["signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
     assert request["semantic_alignment_blockers"] == []
     assert request["proof_body_attempt_count"] == 1
     assert request["proof_body_gate_status"] == (
@@ -432,6 +461,15 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert learning_rows[0]["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert learning_rows[0]["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert learning_rows[0]["signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
     assert learning_rows[0]["source_theorem_exact_proof_body_reached"] is True
     assert (
         learning_rows[0][
@@ -449,6 +487,12 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["input_summary"]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert learning_rows[0]["input_summary"][
+        "proof_body_signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    assert learning_rows[0]["input_summary"][
+        "source_theorem_signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     assert (
         learning_rows[0]["input_summary"][
             "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
@@ -494,9 +538,24 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         ]
         is True
     )
+    assert learning_rows[1]["proof_body_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert learning_rows[1]["source_theorem_signature_probe_artifact_path"] == (
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    )
+    assert learning_rows[1]["candidate_definition_request"][
+        "proof_body_signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    assert learning_rows[1]["candidate_definition_request"][
+        "source_theorem_signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     assert learning_rows[1]["input_summary"]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert learning_rows[1]["input_summary"][
+        "proof_body_signature_probe_artifact_path"
+    ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     assert (
         "define covered from the exact source coverage event using hC"
         in learning_rows[0]["premise_semantic_dependency_requirements"]
@@ -533,6 +592,10 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         ]
         == 1
     )
+    assert export_manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert export_manifest["proof_body_signature_probe_artifact_paths"] == [
+        "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    ]
     assert export_manifest[
         "source_theorem_exact_proof_body_gate_open_target_names"
     ] == ["split_conformal_coverage"]
