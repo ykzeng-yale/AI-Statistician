@@ -7548,6 +7548,123 @@ class SystemTests(unittest.TestCase):
         self.assertNotIn("kernel verification", " ".join(overlay_kernel_s5["issues"]))
         self.assertNotIn("AXLE/local Lean", overlay_kernel_guidance["top_actions"][2]["action"])
 
+    def test_evaluation_benchmark_guidance_normalizes_serialized_bool_counts(
+        self,
+    ) -> None:
+        payload = {
+            "gates": {"release": True},
+            "counts": {
+                "coding_agent_generated_code_repair_capability_evidence_ok": "false",
+                "coding_agent_algorithm_repair_sequences": 1,
+                "coding_agent_simulation_repair_sequences": 1,
+                "formalizer_lean_candidate_repair_capability_evidence_ok": "false",
+                "formalizer_lean_candidate_repair_sequences": 1,
+                "formalizer_lean_candidate_repair_local_lean_checked": 1,
+                "formalizer_lean_candidate_repair_local_lean_compiled": 1,
+                "architect_research_path_policy_capability_evidence_ok": "false",
+                "architect_research_path_policy_cases": 3,
+                "architect_research_path_policy_cases_ok": 3,
+                "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok": "true",
+                "formalizer_pseudo_formal_packet_component_gate_pseudo_formal_packets": 1,
+                "formalizer_pseudo_formal_packet_component_gate_work_order_rows": 11,
+                "formalizer_pseudo_formal_packet_component_gate_routable_work_order_rows": 8,
+                "formalizer_pseudo_formal_packet_component_gate_routable_target_lanes": [
+                    "source_theorem_exact_semantic_definition",
+                    "source_to_bridge",
+                ],
+                "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved": "true",
+                "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written": "false",
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present": "true",
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_source_anchors": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_with_lineage": 1,
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored": "true",
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present": "true",
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete": "true",
+                "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok": "true",
+                "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim": "true",
+                "pseudo_formal_block_verifier_component_gate_capability_evidence_ok": "false",
+                "pseudo_formal_block_verifier_component_gate_prompt_packets": 1,
+                "pseudo_formal_block_verifier_component_gate_valid_responses": 1,
+                "pseudo_formal_block_verifier_component_gate_runtime_learning_rows": 1,
+            },
+            "artifacts": {
+                "coding_agent_generated_code_repair_eval": (
+                    "runs/example/coding_agent_generated_code_repair_eval/"
+                    "coding_agent_generated_code_repair_eval_manifest.json"
+                ),
+                "formalizer_lean_candidate_repair_eval": (
+                    "runs/example/formalizer_lean_candidate_repair_eval/"
+                    "formalizer_lean_candidate_repair_eval_manifest.json"
+                ),
+                "architect_research_path_policy_eval": (
+                    "runs/example/architect_research_path_policy_eval/"
+                    "architect_research_path_policy_eval_manifest.json"
+                ),
+                "formalizer_pseudo_formal_packet_eval": (
+                    "runs/example/formalizer_pseudo_formal_packet_eval/"
+                    "formalizer_pseudo_formal_packet_eval_manifest.json"
+                ),
+                "pseudo_formal_block_verifier_component_gate": (
+                    "runs/example/pseudo_formal_block_verifier_component_gate/"
+                    "pseudo_formal_block_verifier_component_gate_manifest.json"
+                ),
+            },
+        }
+
+        guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_string_bools"),
+            system_audit_payload=payload,
+        )
+        rows = {row["suite_id"]: row for row in guidance["suites"]}
+
+        self.assertEqual(
+            rows["S10_live_coding_agent_generated_repair"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertEqual(
+            rows["S11_live_formalizer_lean_candidate_repair"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertEqual(
+            rows["S12_live_architect_research_path_policy"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertEqual(
+            rows["S11b_live_pseudo_formal_block_verifier"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertEqual(
+            rows["S11c_live_formalizer_pseudo_formal_packet"]["status"],
+            "OK",
+        )
+        self.assertFalse(
+            rows["S11c_live_formalizer_pseudo_formal_packet"]["key_counts"][
+                "effective_raw_model_output_written"
+            ]
+        )
+
+        bad_pf_payload = json.loads(json.dumps(payload))
+        bad_pf_payload["counts"][
+            "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
+        ] = "false"
+        bad_pf_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_string_bools_bad_pf"),
+            system_audit_payload=bad_pf_payload,
+        )
+        bad_pf_rows = {row["suite_id"]: row for row in bad_pf_guidance["suites"]}
+
+        self.assertEqual(
+            bad_pf_rows["S11c_live_formalizer_pseudo_formal_packet"]["status"],
+            "CAPACITY_GAP",
+        )
+        self.assertFalse(
+            bad_pf_rows["S11c_live_formalizer_pseudo_formal_packet"]["key_counts"][
+                "effective_proof_evidence_status_ok"
+            ]
+        )
+
     def test_research_agent_runtime_exact_semantic_authoring_rollup_aggregates_retry_and_late_paths(
         self,
     ) -> None:

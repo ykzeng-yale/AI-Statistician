@@ -575,7 +575,7 @@ def _suite_rows(
     standalone_pf_bv_component_exercised = bool(
         artifacts.get("pseudo_formal_block_verifier_component_gate")
     )
-    runtime_pf_bv_component_exercised = bool(
+    runtime_pf_bv_component_exercised = _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
         )
@@ -624,9 +624,9 @@ def _suite_rows(
             )
         ),
     )
-    pf_bv_component_capability_evidence_ok = bool(
+    pf_bv_component_capability_evidence_ok = _bool(
         counts.get("pseudo_formal_block_verifier_component_gate_capability_evidence_ok")
-    ) or bool(
+    ) or _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
         )
@@ -640,21 +640,21 @@ def _suite_rows(
     standalone_formalizer_pf_packet_component_exercised = bool(
         artifacts.get("formalizer_pseudo_formal_packet_eval")
     )
-    runtime_formalizer_pf_packet_component_exercised = bool(
+    runtime_formalizer_pf_packet_component_exercised = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attached"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_attached"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_capability_evidence_ok = bool(
+    runtime_formalizer_pf_packet_component_capability_evidence_ok = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
-        )
+        ),
     )
     runtime_formalizer_pf_packet_component_packets = max(
         _int(
@@ -692,13 +692,13 @@ def _suite_rows(
             )
         )
     )
-    runtime_formalizer_pf_packet_component_exact_lane_present = bool(
+    runtime_formalizer_pf_packet_component_exact_lane_present = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_lane_present"
-        )
+        ),
     )
     runtime_formalizer_pf_packet_component_exact_rows = max(
         _int(
@@ -712,80 +712,80 @@ def _suite_rows(
             )
         ),
     )
-    runtime_formalizer_pf_packet_component_exact_rows_source_anchored = bool(
+    runtime_formalizer_pf_packet_component_exact_rows_source_anchored = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_source_anchored"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_exact_rows_semantic_requirements_present = bool(
+    runtime_formalizer_pf_packet_component_exact_rows_semantic_requirements_present = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_semantic_requirements_present"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_exact_rows_lineage_complete = bool(
+    runtime_formalizer_pf_packet_component_exact_rows_lineage_complete = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_exact_semantic_definition_rows_lineage_complete"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_nonproof_boundary = bool(
+    runtime_formalizer_pf_packet_component_nonproof_boundary = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_raw_output_written = bool(
+    runtime_formalizer_pf_packet_component_raw_output_written = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_raw_model_output_written"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_raw_model_output_written"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_proof_evidence_status_ok = bool(
+    runtime_formalizer_pf_packet_component_proof_evidence_status_ok = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_proof_evidence_status_ok"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_no_theorem_proof_claim = bool(
+    runtime_formalizer_pf_packet_component_no_theorem_proof_claim = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_no_theorem_proof_claim"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_attachment_gate_recomputed = bool(
+    runtime_formalizer_pf_packet_component_attachment_gate_recomputed = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_attachment_gate_recomputed"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_attachment_gate_recomputed"
-        )
+        ),
     )
-    runtime_formalizer_pf_packet_component_learning_consumed = bool(
+    runtime_formalizer_pf_packet_component_learning_consumed = _any_bool(
         counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed"
-        )
+        ),
     )
     runtime_formalizer_pf_packet_component_learning_rows = max(
         _int(
@@ -842,7 +842,7 @@ def _suite_rows(
         and "source_theorem_exact_semantic_definition"
         in runtime_formalizer_pf_packet_component_target_lanes
     )
-    standalone_formalizer_pf_packet_component_capability_evidence_ok = bool(
+    standalone_formalizer_pf_packet_component_capability_evidence_ok = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok"
         )
@@ -862,9 +862,11 @@ def _suite_rows(
             "formalizer_pseudo_formal_packet_component_gate_routable_target_lanes"
         )
     )
-    standalone_formalizer_pf_packet_component_exact_lane_present = bool(
-        counts.get(
-            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
+    standalone_formalizer_pf_packet_component_exact_lane_present = (
+        _bool(
+            counts.get(
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
+            )
         )
         or "source_theorem_exact_semantic_definition"
         in standalone_formalizer_pf_packet_component_target_lanes
@@ -874,37 +876,37 @@ def _suite_rows(
             "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows"
         )
     )
-    standalone_formalizer_pf_packet_component_exact_rows_source_anchored = bool(
+    standalone_formalizer_pf_packet_component_exact_rows_source_anchored = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_source_anchored"
         )
     )
-    standalone_formalizer_pf_packet_component_exact_rows_semantic_requirements_present = bool(
+    standalone_formalizer_pf_packet_component_exact_rows_semantic_requirements_present = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_semantic_requirements_present"
         )
     )
-    standalone_formalizer_pf_packet_component_exact_rows_lineage_complete = bool(
+    standalone_formalizer_pf_packet_component_exact_rows_lineage_complete = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_rows_lineage_complete"
         )
     )
-    standalone_formalizer_pf_packet_component_nonproof_boundary = bool(
+    standalone_formalizer_pf_packet_component_nonproof_boundary = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved"
         )
     )
-    standalone_formalizer_pf_packet_component_raw_output_written = bool(
+    standalone_formalizer_pf_packet_component_raw_output_written = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written"
         )
     )
-    standalone_formalizer_pf_packet_component_proof_evidence_status_ok = bool(
+    standalone_formalizer_pf_packet_component_proof_evidence_status_ok = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
         )
     )
-    standalone_formalizer_pf_packet_component_no_theorem_proof_claim = bool(
+    standalone_formalizer_pf_packet_component_no_theorem_proof_claim = _bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim"
         )
@@ -968,9 +970,11 @@ def _suite_rows(
         )
         | runtime_formalizer_pf_packet_component_target_lanes
     )
-    formalizer_pf_packet_exact_lane_present = bool(
-        counts.get(
-            "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
+    formalizer_pf_packet_exact_lane_present = (
+        _bool(
+            counts.get(
+                "formalizer_pseudo_formal_packet_component_gate_exact_semantic_definition_lane_present"
+            )
         )
         or runtime_formalizer_pf_packet_component_exact_lane_present
         or "source_theorem_exact_semantic_definition"
@@ -992,43 +996,49 @@ def _suite_rows(
         standalone_formalizer_pf_packet_component_exact_rows_lineage_complete
         or runtime_formalizer_pf_packet_component_exact_rows_lineage_complete
     )
-    formalizer_pf_packet_nonproof_boundary = bool(
+    formalizer_pf_packet_nonproof_boundary = _any_bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_nonproof_boundary_preserved"
-        )
-        or counts.get(
+        ),
+        counts.get(
             "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_nonproof_boundary_preserved"
-        )
+        ),
     )
-    formalizer_pf_packet_capability_evidence_ok = bool(
+    formalizer_pf_packet_capability_evidence_ok = _any_bool(
         counts.get(
             "formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok"
-        )
-        or counts.get(
-            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok"
-        )
-        or counts.get(
-            "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
-        )
-    )
-    formalizer_pf_packet_raw_output_written = bool(
+        ),
         counts.get(
-            "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written"
+            "research_agent_runtime_formalizer_pseudo_formal_packet_component_gate_capability_evidence_ok"
+        ),
+        counts.get(
+            "research_agent_runtime_internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
+        ),
+    )
+    formalizer_pf_packet_raw_output_written = (
+        _bool(
+            counts.get(
+                "formalizer_pseudo_formal_packet_component_gate_raw_model_output_written"
+            )
         )
         or runtime_formalizer_pf_packet_component_raw_output_written
     )
-    formalizer_pf_packet_proof_evidence_status_ok = bool(
-        counts.get(
-            "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
+    formalizer_pf_packet_proof_evidence_status_ok = (
+        _bool(
+            counts.get(
+                "formalizer_pseudo_formal_packet_component_gate_proof_evidence_status_ok"
+            )
         )
         or runtime_formalizer_pf_packet_component_proof_evidence_status_ok
     )
-    formalizer_pf_packet_no_theorem_proof_claim = bool(
-        counts.get(
-            "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim"
+    formalizer_pf_packet_no_theorem_proof_claim = (
+        _bool(
+            counts.get(
+                "formalizer_pseudo_formal_packet_component_gate_no_theorem_proof_claim"
+            )
         )
         or runtime_formalizer_pf_packet_component_no_theorem_proof_claim
     )
@@ -1059,7 +1069,7 @@ def _suite_rows(
             "research_agent_runtime_pseudo_formal_semantic_primitive_work_orders"
         )
     )
-    runtime_pf_semantic_bridge_consumed = bool(
+    runtime_pf_semantic_bridge_consumed = _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_semantic_primitives_reach_source_semantic_bridge",
             True,
@@ -1073,7 +1083,7 @@ def _suite_rows(
             "research_agent_runtime_pseudo_formal_exact_semantic_definition_work_orders"
         )
     )
-    runtime_pf_exact_semantic_source_lookup_consumed = bool(
+    runtime_pf_exact_semantic_source_lookup_consumed = _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup",
             True,
@@ -1083,12 +1093,12 @@ def _suite_rows(
         runtime_pf_exact_semantic_work_orders <= 0
         or runtime_pf_exact_semantic_source_lookup_consumed
     )
-    runtime_source_theorem_formal_environment_proof_body_executor_ran = bool(
+    runtime_source_theorem_formal_environment_proof_body_executor_ran = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran"
         )
     )
-    runtime_source_theorem_formal_environment_proof_body_local_lean_requested = bool(
+    runtime_source_theorem_formal_environment_proof_body_local_lean_requested = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_local_lean_requested"
         )
@@ -1108,7 +1118,7 @@ def _suite_rows(
             "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
         )
     )
-    runtime_source_theorem_exact_proof_body_repair_executor_ran = bool(
+    runtime_source_theorem_exact_proof_body_repair_executor_ran = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran"
         )
@@ -1143,7 +1153,7 @@ def _suite_rows(
             "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
         )
     )
-    runtime_source_theorem_approved_proof_body_recheck_executor_ran = bool(
+    runtime_source_theorem_approved_proof_body_recheck_executor_ran = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_ran"
         )
@@ -1192,14 +1202,14 @@ def _suite_rows(
             )
         ),
     )
-    runtime_source_theorem_signature_probe_scorecard_present = bool(
+    runtime_source_theorem_signature_probe_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_present",
             "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok"
             in counts,
         )
     )
-    runtime_source_theorem_signature_probe_scorecard_ok = bool(
+    runtime_source_theorem_signature_probe_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_signature_probe_reached_proof_body_scorecard_ok",
             False,
@@ -1224,14 +1234,14 @@ def _suite_rows(
         if runtime_source_theorem_signature_probe_scorecard_present
         else runtime_source_theorem_proof_body_goal_reached > 0
     )
-    runtime_source_theorem_semantic_blockers_scorecard_present = bool(
+    runtime_source_theorem_semantic_blockers_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_present",
             "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok"
             in counts,
         )
     )
-    runtime_source_theorem_semantic_blockers_scorecard_ok = bool(
+    runtime_source_theorem_semantic_blockers_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_semantic_review_blockers_not_hidden_scorecard_ok",
             False,
@@ -1268,14 +1278,14 @@ def _suite_rows(
         or runtime_source_theorem_approved_proof_body_recheck_executor_ran
         or runtime_source_theorem_proof_body_result_rows > 0
     )
-    runtime_source_theorem_proof_body_executor_scorecard_present = bool(
+    runtime_source_theorem_proof_body_executor_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_present",
             "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok"
             in counts,
         )
     )
-    runtime_source_theorem_proof_body_executor_scorecard_ok = bool(
+    runtime_source_theorem_proof_body_executor_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok",
             False,
@@ -1323,14 +1333,14 @@ def _suite_rows(
         or runtime_source_theorem_exact_proof_body_repair_lane_ok
         or runtime_source_theorem_approved_proof_body_recheck_lane_ok
     )
-    runtime_source_theorem_proof_body_same_lane_scorecard_present = bool(
+    runtime_source_theorem_proof_body_same_lane_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present",
             "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence"
             in counts,
         )
     )
-    runtime_source_theorem_proof_body_same_lane_scorecard_ok = bool(
+    runtime_source_theorem_proof_body_same_lane_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
             False,
@@ -1370,14 +1380,14 @@ def _suite_rows(
             and runtime_source_theorem_proof_body_same_lane_gate_ok
         )
     )
-    runtime_source_theorem_local_lean_gate_scorecard_present = bool(
+    runtime_source_theorem_local_lean_gate_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_present",
             "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok"
             in counts,
         )
     )
-    runtime_source_theorem_local_lean_gate_scorecard_ok = bool(
+    runtime_source_theorem_local_lean_gate_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_ok",
             False,
@@ -1402,13 +1412,13 @@ def _suite_rows(
         if runtime_source_theorem_local_lean_gate_scorecard_present
         else runtime_source_theorem_proof_body_local_lean_gate_ok
     )
-    runtime_live_lean_lsp_mcp_scorecard_present = bool(
+    runtime_live_lean_lsp_mcp_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present",
             "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok" in counts,
         )
     )
-    runtime_live_lean_lsp_mcp_scorecard_ok = bool(
+    runtime_live_lean_lsp_mcp_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok",
             False,
@@ -1428,14 +1438,14 @@ def _suite_rows(
         )
         or ""
     )
-    runtime_real_kernel_subclaim_scorecard_present = bool(
+    runtime_real_kernel_subclaim_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_real_kernel_subclaim_verified_scorecard_present",
             "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok"
             in counts,
         )
     )
-    runtime_real_kernel_subclaim_scorecard_ok = bool(
+    runtime_real_kernel_subclaim_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_real_kernel_subclaim_verified_scorecard_ok",
             False,
@@ -1455,14 +1465,14 @@ def _suite_rows(
         )
         or ""
     )
-    runtime_full_frontier_theorem_kernel_scorecard_present = bool(
+    runtime_full_frontier_theorem_kernel_scorecard_present = _bool(
         counts.get(
             "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_present",
             "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok"
             in counts,
         )
     )
-    runtime_full_frontier_theorem_kernel_scorecard_ok = bool(
+    runtime_full_frontier_theorem_kernel_scorecard_ok = _bool(
         counts.get(
             "research_agent_runtime_full_frontier_theorem_kernel_proved_scorecard_ok",
             False,
@@ -1515,13 +1525,13 @@ def _suite_rows(
             "research_agent_runtime_formal_gap_planner_handoff_rows_missing_execution_context"
         )
     )
-    runtime_formal_gap_planner_context_complete = bool(
+    runtime_formal_gap_planner_context_complete = _bool(
         counts.get(
             "research_agent_runtime_formal_gap_planner_executable_handoff_context_complete",
             runtime_formal_gap_planner_handoff_rows <= 0,
         )
     )
-    runtime_formal_gap_planner_followthrough = bool(
+    runtime_formal_gap_planner_followthrough = _bool(
         counts.get(
             "research_agent_runtime_formal_gap_planner_live_route_planner_followthrough",
             runtime_formal_gap_planner_handoff_rows <= 0,
@@ -1603,13 +1613,13 @@ def _suite_rows(
             and bool(runtime_deferred_meta_gap_requirement_ids)
         )
     )
-    runtime_deferred_meta_gaps_visible = bool(
+    runtime_deferred_meta_gaps_visible = _bool(
         counts.get(
             "research_agent_runtime_architect_deferred_meta_capability_gaps_visible",
             runtime_deferred_meta_gap_details_present,
         )
     )
-    runtime_deferred_meta_gaps_resolved = bool(
+    runtime_deferred_meta_gaps_resolved = _bool(
         counts.get(
             "research_agent_runtime_architect_deferred_meta_capability_gaps_resolved",
             runtime_deferred_meta_gap_count <= 0,
@@ -1621,7 +1631,7 @@ def _suite_rows(
             [],
         )
     )
-    runtime_deferred_meta_gap_resolution_replay_priority_pinned = bool(
+    runtime_deferred_meta_gap_resolution_replay_priority_pinned = _bool(
         counts.get(
             "research_agent_runtime_architect_deferred_meta_capability_gap_resolution_replay_priority_pinned",
             runtime_deferred_meta_gap_count <= 0
@@ -1634,10 +1644,10 @@ def _suite_rows(
         and runtime_deferred_meta_gaps_visible
         and runtime_deferred_meta_gap_resolution_replay_priority_pinned
     )
-    s13_capability_ready = bool(
+    s13_capability_ready = _bool(
         counts.get("research_agent_runtime_capability_ready_for_full_ai_statistician")
     )
-    runtime_exact_semantic_authoring_required = bool(
+    runtime_exact_semantic_authoring_required = _bool(
         counts.get("research_agent_runtime_exact_semantic_definition_authoring_required")
     )
     runtime_exact_semantic_authoring_live_attempted = _int(
@@ -1655,12 +1665,12 @@ def _suite_rows(
             "research_agent_runtime_exact_semantic_definition_authoring_post_runtime_local_lean_compiled"
         )
     )
-    runtime_pf_bv_component_attached = bool(
+    runtime_pf_bv_component_attached = _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_block_verifier_component_gate_attached"
         )
     )
-    runtime_pf_bv_component_capability_evidence_ok = bool(
+    runtime_pf_bv_component_capability_evidence_ok = _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_block_verifier_component_gate_capability_evidence_ok"
         )
@@ -1685,7 +1695,7 @@ def _suite_rows(
             "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_jsonl_path_count"
         )
     )
-    runtime_pf_bv_component_source_runtime_learning_lineage_ok = bool(
+    runtime_pf_bv_component_source_runtime_learning_lineage_ok = _bool(
         counts.get(
             "research_agent_runtime_pseudo_formal_block_verifier_component_gate_source_runtime_learning_lineage_ok"
         )
@@ -2041,11 +2051,11 @@ def _suite_rows(
             suite_id="S6_algorithm_simulation_stress",
             exercised=bool(artifacts.get("algorithm_simulation_stress_audit")),
             status="OK"
-            if bool(counts.get("algorithm_simulation_stress_multi_seed_checked"))
-            and bool(counts.get("algorithm_simulation_stress_all_passed"))
-            and bool(counts.get("algorithm_simulation_stress_all_finite_metrics"))
-            and bool(counts.get("algorithm_simulation_stress_all_stress_ledgers_ok"))
-            and bool(counts.get("algorithm_simulation_stress_all_diagnoses_ok"))
+            if _bool(counts.get("algorithm_simulation_stress_multi_seed_checked"))
+            and _bool(counts.get("algorithm_simulation_stress_all_passed"))
+            and _bool(counts.get("algorithm_simulation_stress_all_finite_metrics"))
+            and _bool(counts.get("algorithm_simulation_stress_all_stress_ledgers_ok"))
+            and _bool(counts.get("algorithm_simulation_stress_all_diagnoses_ok"))
             else "UNDER_SPECIFIED",
             evidence_paths=(
                 str(artifacts.get("algorithm_simulation_stress_audit", "")),
@@ -2070,11 +2080,11 @@ def _suite_rows(
             },
             honesty_boundary="Simulation diagnostics are empirical checks, not guarantees.",
             issues=()
-            if bool(counts.get("algorithm_simulation_stress_multi_seed_checked"))
-            and bool(counts.get("algorithm_simulation_stress_all_passed"))
-            and bool(counts.get("algorithm_simulation_stress_all_finite_metrics"))
-            and bool(counts.get("algorithm_simulation_stress_all_stress_ledgers_ok"))
-            and bool(counts.get("algorithm_simulation_stress_all_diagnoses_ok"))
+            if _bool(counts.get("algorithm_simulation_stress_multi_seed_checked"))
+            and _bool(counts.get("algorithm_simulation_stress_all_passed"))
+            and _bool(counts.get("algorithm_simulation_stress_all_finite_metrics"))
+            and _bool(counts.get("algorithm_simulation_stress_all_stress_ledgers_ok"))
+            and _bool(counts.get("algorithm_simulation_stress_all_diagnoses_ok"))
             else ("needs passing multi-seed stress ledgers and finite metric checks",),
         ),
         BenchmarkSuiteGuidanceRow(
@@ -2127,11 +2137,11 @@ def _suite_rows(
             suite_id="S9_fresh_holdout_frontier",
             exercised=bool(artifacts.get("fresh_holdout_frontier_audit")),
             status="OK"
-            if bool(counts.get("fresh_holdout_frontier_all_ok"))
+            if _bool(counts.get("fresh_holdout_frontier_all_ok"))
             and _int(counts.get("fresh_holdout_frontier_entries")) > 0
             and _int(counts.get("fresh_holdout_frontier_scored_traces")) > 0
-            and bool(counts.get("fresh_holdout_frontier_identity_withheld"))
-            and not bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
+            and _bool(counts.get("fresh_holdout_frontier_identity_withheld"))
+            and not _bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
             else "STALE_OR_MISSING",
             evidence_paths=(
                 str(artifacts.get("fresh_holdout_frontier_audit", "")),
@@ -2160,18 +2170,18 @@ def _suite_rows(
             },
             honesty_boundary="Fresh holdout papers are needed before claiming generalization beyond curated templates.",
             issues=()
-            if bool(counts.get("fresh_holdout_frontier_all_ok"))
+            if _bool(counts.get("fresh_holdout_frontier_all_ok"))
             and _int(counts.get("fresh_holdout_frontier_entries")) > 0
             and _int(counts.get("fresh_holdout_frontier_scored_traces")) > 0
-            and bool(counts.get("fresh_holdout_frontier_identity_withheld"))
-            and not bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
+            and _bool(counts.get("fresh_holdout_frontier_identity_withheld"))
+            and not _bool(counts.get("fresh_holdout_frontier_source_leakage_detected"))
             else ("no passing source-withheld fresh holdout frontier suite is currently present",),
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S10_live_coding_agent_generated_repair",
             exercised=bool(artifacts.get("coding_agent_generated_code_repair_eval")),
             status="OK"
-            if bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
+            if _bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
             else "CAPACITY_GAP",
             evidence_paths=(
                 str(artifacts.get("coding_agent_generated_code_repair_eval", "")),
@@ -2200,7 +2210,7 @@ def _suite_rows(
                 "it is not theorem proof evidence."
             ),
             issues=()
-            if bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
+            if _bool(counts.get("coding_agent_generated_code_repair_capability_evidence_ok"))
             else (
                 "no live Claude/OpenAI combined AlgorithmEngineer+SimulationEngineer generated-code fail-then-pass repair evidence is present",
             ),
@@ -2209,7 +2219,7 @@ def _suite_rows(
             suite_id="S11_live_formalizer_lean_candidate_repair",
             exercised=bool(artifacts.get("formalizer_lean_candidate_repair_eval")),
             status="OK"
-            if bool(counts.get("formalizer_lean_candidate_repair_capability_evidence_ok"))
+            if _bool(counts.get("formalizer_lean_candidate_repair_capability_evidence_ok"))
             else "CAPACITY_GAP",
             evidence_paths=(
                 str(artifacts.get("formalizer_lean_candidate_repair_eval", "")),
@@ -2242,7 +2252,7 @@ def _suite_rows(
                 "static fixture plumbing cannot count as capability."
             ),
             issues=()
-            if bool(counts.get("formalizer_lean_candidate_repair_capability_evidence_ok"))
+            if _bool(counts.get("formalizer_lean_candidate_repair_capability_evidence_ok"))
             else (
                 "no live Claude/OpenAI Formalizer Lean-candidate fail-then-pass repair evidence is present",
             ),
@@ -2521,7 +2531,7 @@ def _suite_rows(
             suite_id="S12_live_architect_research_path_policy",
             exercised=bool(artifacts.get("architect_research_path_policy_eval")),
             status="OK"
-            if bool(counts.get("architect_research_path_policy_capability_evidence_ok"))
+            if _bool(counts.get("architect_research_path_policy_capability_evidence_ok"))
             else "CAPACITY_GAP",
             evidence_paths=(
                 str(artifacts.get("architect_research_path_policy_eval", "")),
@@ -2554,14 +2564,14 @@ def _suite_rows(
                 "Architect capability."
             ),
             issues=()
-            if bool(counts.get("architect_research_path_policy_capability_evidence_ok"))
+            if _bool(counts.get("architect_research_path_policy_capability_evidence_ok"))
             else (
                 "no live Claude/OpenAI Architect research-path policy evidence is present",
             ),
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S13_live_integrated_agent_runtime_capability",
-            exercised=bool(counts.get("research_agent_runtime_audit_requested"))
+            exercised=_bool(counts.get("research_agent_runtime_audit_requested"))
             or bool(artifacts.get("research_agent_runtime_audit")),
             status="OK"
             if (
@@ -3454,6 +3464,18 @@ def _int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def _any_bool(*values: Any) -> bool:
+    return any(_bool(value) for value in values)
 
 
 def _string_set(value: Any) -> set[str]:
