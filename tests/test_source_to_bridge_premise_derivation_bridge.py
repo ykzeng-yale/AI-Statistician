@@ -774,6 +774,104 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     ] == ["split_conformal_coverage"]
 
 
+def test_premise_bridge_uses_goal_context_for_goal_sourced_target(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    adapter_attempt = tmp_path / "adapter_attempt.lean"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage",
+                "    (hExch : Exchangeable P s)",
+                "    (q : ℝ)",
+                "    (hq : ∀ᵐ ... / ↑n ≥ 1 - alpha) :",
+                f"    {PROOF_BODY_GOAL_CONCLUSION} := by",
+                "  fail_if_success trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    adapter_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage_source_to_bridge_adapter",
+                f"    (hGoodCovered : {PROOF_BODY_GOAL_CONCLUSION}) :",
+                f"    {PROOF_BODY_GOAL_CONCLUSION} := by",
+                "  exact hGoodCovered",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        queue,
+        [
+            _premise_work_order(
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_candidate_artifact_path=str(adapter_attempt),
+                premise_target_source="proof_body_goal_conclusion",
+            )
+        ],
+    )
+
+    manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    row = manifest["rows"][0]
+    assert row["premise_target_type"] == PROOF_BODY_GOAL_CONCLUSION
+    assert row["premise_target_source"] == "proof_body_goal_conclusion"
+    assert list(row["premise_semantic_anchor_binder_names"]) == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert any(
+        "reached proof-body goal binder hExch" in requirement
+        for requirement in row["premise_semantic_dependency_requirements"]
+    )
+    assert any(
+        "reached proof-body goal binder hq" in requirement
+        for requirement in row["premise_semantic_dependency_requirements"]
+    )
+    assert not any(
+        "BadRanks" in requirement or "covered from" in requirement
+        for requirement in row["premise_semantic_dependency_requirements"]
+    )
+    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert "-- required semantic anchor binder: hExch" in candidate_source
+    assert "-- required semantic anchor binder: q" in candidate_source
+    assert "-- required semantic anchor binder: hq" in candidate_source
+    assert "the reached proof-body goal" in candidate_source
+    assert "define covered from the exact source coverage event" not in candidate_source
+    assert "adapter objects such as covered, rank, BadRanks" not in candidate_source
+
+    request = json.loads(
+        Path(str(manifest["candidate_requests_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert request["premise_target_source"] == "proof_body_goal_conclusion"
+    assert request["required_semantic_anchor_reference_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert "proof_body_goal_context anchors" in request[
+        "bridge_object_instantiation_policy"
+    ]
+    assert "covered, rank, BadRanks" not in request[
+        "bridge_object_instantiation_policy"
+    ]
+
+
 def test_premise_bridge_prefers_artifact_semantic_requirements(
     tmp_path: Path,
 ) -> None:

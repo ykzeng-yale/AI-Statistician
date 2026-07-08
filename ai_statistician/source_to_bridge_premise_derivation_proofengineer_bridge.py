@@ -552,6 +552,11 @@ def _premise_derivation_check_row(
         or row.get("source_to_bridge_premise_target_source", "")
         or ("adapter_signature" if premise_target_type else "")
     ).strip()
+    premise_target_uses_goal_context = _premise_target_uses_proof_body_goal_context(
+        premise_target_source=premise_target_source,
+        premise_target_type=premise_target_type,
+        proof_body_goal_conclusion=proof_body_goal_conclusion,
+    )
     adapter_instantiation_group_id = _adapter_instantiation_group_id(
         row=row,
         target_declaration=target_declaration,
@@ -603,28 +608,50 @@ def _premise_derivation_check_row(
             row.get("forbidden_as_adapter_assumption", False)
         ),
     )
-    semantic_requirements = (
-        _explicit_premise_semantic_dependency_requirements(
-            row,
-            candidate_request,
-            grouped_candidate_request,
-        )
-        or _premise_semantic_dependency_requirements(
-            premise_name=premise_name,
-            premise_target_type=premise_target_type,
-            source_signature=source_context["source_theorem_signature"],
-        )
-    )
     exact_source_binders = _request_mapping_tuple(
         row.get("exact_source_theorem_binders", [])
         or candidate_request.get("exact_source_theorem_binders", [])
         or grouped_candidate_request.get("exact_source_theorem_binders", [])
         or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
     )
+    goal_context_semantic_requirements = (
+        _proof_body_goal_semantic_dependency_requirements(
+            proof_body_goal_context=proof_body_goal_context,
+            proof_body_goal_binder_names=proof_body_goal_binder_names,
+            proof_body_goal_conclusion=proof_body_goal_conclusion,
+        )
+        if premise_target_uses_goal_context
+        else ()
+    )
+    semantic_requirements = (
+        _explicit_premise_semantic_dependency_requirements(
+            row,
+            candidate_request,
+            grouped_candidate_request,
+        )
+        or goal_context_semantic_requirements
+        or _premise_semantic_dependency_requirements(
+            premise_name=premise_name,
+            premise_target_type=premise_target_type,
+            source_signature=source_context["source_theorem_signature"],
+        )
+    )
+    goal_context_anchor_binders = (
+        _proof_body_goal_semantic_anchor_binders(
+            proof_body_goal_context=proof_body_goal_context,
+            proof_body_goal_binder_names=proof_body_goal_binder_names,
+            source_binders=tuple(
+                dict(item) for item in exact_source_binders if isinstance(item, Mapping)
+            ),
+        )
+        if premise_target_uses_goal_context
+        else ()
+    )
     semantic_anchor_binders = _request_mapping_tuple(
         row.get("premise_semantic_anchor_binders", [])
         or candidate_request.get("premise_semantic_anchor_binders", [])
         or grouped_candidate_request.get("premise_semantic_anchor_binders", [])
+        or goal_context_anchor_binders
         or _premise_semantic_anchor_binder_summaries(
             premise_name=premise_name,
             premise_target_type=premise_target_type,
@@ -641,6 +668,11 @@ def _premise_derivation_check_row(
         or row.get("premise_semantic_anchor_binder_names", [])
         or candidate_request.get("premise_semantic_anchor_binder_names", [])
         or grouped_candidate_request.get("premise_semantic_anchor_binder_names", [])
+        or [
+            str(item.get("name", "") or "")
+            for item in goal_context_anchor_binders
+            if isinstance(item, Mapping) and str(item.get("name", "") or "")
+        ]
         or [
             str(item.get("name", "") or "")
             for item in semantic_anchor_binders
@@ -1004,6 +1036,113 @@ def _proof_body_goal_conclusion_from_sources(
     if direct:
         return direct
     return str(proof_body_goal_context.get("conclusion", "") or "")
+
+
+def _premise_target_uses_proof_body_goal_context(
+    *,
+    premise_target_source: str,
+    premise_target_type: str,
+    proof_body_goal_conclusion: str,
+) -> bool:
+    source = str(premise_target_source or "").strip()
+    if source in {
+        "proof_body_goal_conclusion",
+        "source_to_bridge_premise_goal_conclusion",
+    }:
+        return True
+    target = re.sub(r"\s+", " ", str(premise_target_type or "").strip())
+    conclusion = re.sub(r"\s+", " ", str(proof_body_goal_conclusion or "").strip())
+    return bool(target and conclusion and target == conclusion)
+
+
+def _proof_body_goal_hypothesis_rows(
+    proof_body_goal_context: Mapping[str, object],
+) -> tuple[dict[str, str], ...]:
+    rows: list[dict[str, str]] = []
+    for item in proof_body_goal_context.get("hypothesis_rows", []) or []:
+        if not isinstance(item, Mapping):
+            continue
+        name = str(item.get("binder_name", "") or "").strip()
+        if not name:
+            continue
+        rows.append(
+            {
+                "name": name,
+                "type": str(item.get("binder_type", "") or "").strip(),
+            }
+        )
+    seen = {_normalize_premise_identifier(row["name"]) for row in rows}
+    for name in _str_tuple(proof_body_goal_context.get("binder_names", [])):
+        key = _normalize_premise_identifier(name)
+        if key and key not in seen:
+            rows.append({"name": name, "type": ""})
+            seen.add(key)
+    return tuple(rows)
+
+
+def _proof_body_goal_semantic_dependency_requirements(
+    *,
+    proof_body_goal_context: Mapping[str, object],
+    proof_body_goal_binder_names: tuple[str, ...],
+    proof_body_goal_conclusion: str,
+) -> tuple[str, ...]:
+    rows = _proof_body_goal_hypothesis_rows(proof_body_goal_context)
+    if not rows and proof_body_goal_binder_names:
+        rows = tuple({"name": name, "type": ""} for name in proof_body_goal_binder_names)
+    requirements: list[str] = []
+    if proof_body_goal_conclusion:
+        requirements.append(
+            "derive the premise target from the reached Lean proof-body goal conclusion: "
+            + proof_body_goal_conclusion[:180]
+        )
+    for row in rows:
+        name = row["name"]
+        binder_type = row["type"]
+        if binder_type:
+            requirements.append(
+                f"use reached proof-body goal binder {name} : {binder_type} as a source semantic anchor"
+            )
+        else:
+            requirements.append(
+                f"use reached proof-body goal binder {name} as a source semantic anchor"
+            )
+    return tuple(dict.fromkeys(requirements))
+
+
+def _proof_body_goal_semantic_anchor_binders(
+    *,
+    proof_body_goal_context: Mapping[str, object],
+    proof_body_goal_binder_names: tuple[str, ...],
+    source_binders: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    source_by_name = {
+        _normalize_premise_identifier(str(binder.get("name", "") or "")): dict(binder)
+        for binder in source_binders
+        if str(binder.get("name", "") or "").strip()
+    }
+    rows = list(_proof_body_goal_hypothesis_rows(proof_body_goal_context))
+    if not rows and proof_body_goal_binder_names:
+        rows = [{"name": name, "type": ""} for name in proof_body_goal_binder_names]
+    result: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for row in rows:
+        name = row["name"]
+        key = _normalize_premise_identifier(name)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        if key in source_by_name:
+            result.append(source_by_name[key])
+            continue
+        binder_type = row["type"]
+        result.append(
+            {
+                "name": name,
+                "type": binder_type,
+                "role": _source_binder_role(name=name, binder_type=binder_type),
+            }
+        )
+    return tuple(result)
 
 
 def _first_nonempty_str_tuple_from_sources(
@@ -1516,28 +1655,62 @@ def _generated_premise_derivation_skeleton(
             ),
         ]
     )
-    semantic_requirements = (
-        _explicit_premise_semantic_dependency_requirements(
-            row,
-            candidate_request,
-            grouped_candidate_request,
-        )
-        or _premise_semantic_dependency_requirements(
-            premise_name=premise_name,
-            premise_target_type=str(premise_target["premise_type"]),
-            source_signature=source_context["source_theorem_signature"],
-        )
-    )
     exact_source_binders = _request_mapping_tuple(
         row.get("exact_source_theorem_binders", [])
         or candidate_request.get("exact_source_theorem_binders", [])
         or grouped_candidate_request.get("exact_source_theorem_binders", [])
         or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
     )
+    premise_target_source = str(
+        row.get("premise_target_source", "")
+        or row.get("source_to_bridge_premise_target_source", "")
+        or ("adapter_signature" if premise_target["premise_type"] else "")
+    ).strip()
+    premise_target_uses_goal_context = _premise_target_uses_proof_body_goal_context(
+        premise_target_source=premise_target_source,
+        premise_target_type=str(premise_target["premise_type"]),
+        proof_body_goal_conclusion=proof_body_goal_conclusion,
+    )
+    goal_context_semantic_requirements = (
+        _proof_body_goal_semantic_dependency_requirements(
+            proof_body_goal_context=proof_body_goal_context,
+            proof_body_goal_binder_names=proof_body_goal_binder_names,
+            proof_body_goal_conclusion=proof_body_goal_conclusion,
+        )
+        if premise_target_uses_goal_context
+        else ()
+    )
+    semantic_requirements = (
+        _explicit_premise_semantic_dependency_requirements(
+            row,
+            candidate_request,
+            grouped_candidate_request,
+        )
+        or goal_context_semantic_requirements
+        or _premise_semantic_dependency_requirements(
+            premise_name=premise_name,
+            premise_target_type=str(premise_target["premise_type"]),
+            source_signature=source_context["source_theorem_signature"],
+        )
+    )
+    goal_context_anchor_binders = (
+        _proof_body_goal_semantic_anchor_binders(
+            proof_body_goal_context=proof_body_goal_context,
+            proof_body_goal_binder_names=proof_body_goal_binder_names,
+            source_binders=tuple(
+                dict(item)
+                for item in exact_source_binders
+                if isinstance(item, Mapping)
+            ),
+        )
+        if premise_target_uses_goal_context
+        else ()
+    )
     semantic_anchor_binders = _request_mapping_tuple(
         row.get("premise_semantic_anchor_binders", [])
         or candidate_request.get("premise_semantic_anchor_binders", [])
         or grouped_candidate_request.get("premise_semantic_anchor_binders", [])
+        or goal_context_anchor_binders
         or _premise_semantic_anchor_binder_summaries(
             premise_name=premise_name,
             premise_target_type=str(premise_target["premise_type"]),
@@ -1577,6 +1750,19 @@ def _generated_premise_derivation_skeleton(
         )
         for binder in semantic_anchor_binders
     )
+    skeleton_instantiation_policy = (
+        "-- bridge object instantiation policy: this premise target comes from "
+        "the reached proof-body goal; derive it from exact source binders and "
+        "the listed proof-body goal anchors, without introducing those binders "
+        "or the goal conclusion as free assumptions.\n"
+        if premise_target_uses_goal_context
+        else (
+            "-- bridge object instantiation policy: adapter objects such as covered, "
+            "rank, BadRanks, α, and α_total are not free proof assumptions for the "
+            "source theorem; define or instantiate them from exact source binders, "
+            "or report the missing semantic primitive as a blocker.\n"
+        )
+    )
     theorem_statement = _premise_derivation_theorem_statement(
         declaration_name=declaration_name,
         premise_target=premise_target,
@@ -1611,10 +1797,7 @@ def _generated_premise_derivation_skeleton(
         f"{semantic_requirement_comment}\n"
         f"{source_binder_comment}\n"
         f"{semantic_anchor_comment}\n"
-        "-- bridge object instantiation policy: adapter objects such as covered, "
-        "rank, BadRanks, α, and α_total are not free proof assumptions for the "
-        "source theorem; define or instantiate them from exact source binders, "
-        "or report the missing semantic primitive as a blocker.\n"
+        f"{skeleton_instantiation_policy}"
         f"{theorem_statement}"
         "  -- ProofEngineer must derive the bridge premise from exact source hypotheses.\n"
         "  fail_if_success trivial\n\n"
@@ -3487,6 +3670,52 @@ def _premise_derivation_candidate_request_row(
             source_binders=source_binders,
         )
     )
+    target_uses_goal_context = _premise_target_uses_proof_body_goal_context(
+        premise_target_source=row.premise_target_source,
+        premise_target_type=row.premise_target_type,
+        proof_body_goal_conclusion=row.proof_body_goal_conclusion,
+    )
+    default_shared_contract = (
+        "All source-to-bridge premise candidates with the same "
+        "adapter_instantiation_group_id must use the same reached proof-body "
+        "goal context and exact source binders when deriving the listed "
+        "premises. Independently proving premises with incompatible goal-context "
+        "interpretations cannot be combined into source theorem proof evidence."
+        if target_uses_goal_context
+        else (
+            "All source-to-bridge premise candidates with the same "
+            "adapter_instantiation_group_id must use one shared definition of "
+            "covered, rank, BadRanks, α, and α_total from the exact source "
+            "theorem binders. Independently proving premises with incompatible "
+            "adapter-object definitions cannot be combined into source theorem "
+            "proof evidence."
+        )
+    )
+    bridge_object_instantiation_policy = (
+        "This premise target was extracted from the reached proof-body goal. The "
+        "candidate must derive it from exact source-theorem binders and the "
+        "listed proof_body_goal_context anchors; do not introduce those goal "
+        "binders or the target conclusion as arbitrary assumptions."
+        if target_uses_goal_context
+        else (
+            "Adapter objects appearing in premise_target_type, such as covered, "
+            "rank, BadRanks, α, and α_total, are not source-theorem assumptions. "
+            "The candidate must define or instantiate them from the exact source "
+            "binders, or report a semantic blocker instead of treating them as "
+            "arbitrary variables."
+        )
+    )
+    arbitrary_free_variable_clause = (
+        "Do not treat reached proof-body goal binders or the target conclusion as "
+        "arbitrary free variables or theorem parameters when they must be derived "
+        "from the source theorem. "
+        if target_uses_goal_context
+        else (
+            "Do not treat adapter objects such as covered, rank, BadRanks, α, or "
+            "α_total as arbitrary free variables or theorem parameters when they "
+            "must be instantiated from the source theorem. "
+        )
+    )
     return {
         "schema_version": 1,
         "artifact_kind": "SourceToBridgePremiseDerivationCandidateRequest",
@@ -3523,15 +3752,7 @@ def _premise_derivation_candidate_request_row(
             or ((row.premise_name,) if row.premise_name else ())
         ),
         "shared_adapter_instantiation_contract": (
-            row.shared_adapter_instantiation_contract
-            or (
-                "All source-to-bridge premise candidates with the same "
-                "adapter_instantiation_group_id must use one shared definition of "
-                "covered, rank, BadRanks, α, and α_total from the exact source "
-                "theorem binders. Independently proving premises with incompatible "
-                "adapter-object definitions cannot be combined into source theorem "
-                "proof evidence."
-            )
+            row.shared_adapter_instantiation_contract or default_shared_contract
         ),
         "premise_candidate_declaration_name": row.premise_candidate_declaration_name,
         "premise_candidate_artifact_path": row.premise_candidate_artifact_path,
@@ -3576,11 +3797,7 @@ def _premise_derivation_candidate_request_row(
             "evidence."
         ),
         "bridge_object_instantiation_policy": (
-            "Adapter objects appearing in premise_target_type, such as covered, "
-            "rank, BadRanks, α, and α_total, are not source-theorem assumptions. "
-            "The candidate must define or instantiate them from the exact source "
-            "binders, or report a semantic blocker instead of treating them as "
-            "arbitrary variables."
+            bridge_object_instantiation_policy
         ),
         "adapter_object_names_requiring_source_instantiation": list(
             row.adapter_object_names_requiring_source_instantiation
@@ -3636,11 +3853,9 @@ def _premise_derivation_candidate_request_row(
             "exact source-theorem hypotheses and semantic dependencies. Use the "
             "premise_semantic_anchor_binders as the preferred source binders for "
             "this premise and reference every required_semantic_anchor_reference_names "
-            "entry in the Lean source outside comments. Do not treat adapter "
-            "objects such as covered, rank, BadRanks, α, or α_total as arbitrary "
-            "free variables or theorem parameters when they must be instantiated "
-            "from the source theorem. "
-            "Do not reintroduce the forbidden adapter premise as an assumption."
+            "entry in the Lean source outside comments. "
+            + arbitrary_free_variable_clause
+            + "Do not reintroduce the forbidden adapter premise as an assumption."
         ),
         "forbidden_actions": [
             "do not add axiom, sorry, admit, unsafe, or placeholder definitions",
