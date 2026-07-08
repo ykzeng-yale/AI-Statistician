@@ -6,6 +6,9 @@ import sys
 from pathlib import Path
 
 from ai_statistician.cli import _research_agent_runtime_capability_config_errors, main
+from ai_statistician.source_to_bridge_premise_derivation_proofengineer_bridge import (
+    run_source_to_bridge_premise_derivation_proofengineer_bridge,
+)
 from ai_statistician.source_theorem_proof_body_adapter_proofengineer_bridge import (
     resolve_source_theorem_proof_body_adapter_queue_path,
     run_source_theorem_proof_body_adapter_proofengineer_bridge,
@@ -251,6 +254,10 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         in adapter_source
     )
     assert "-- forbidden as adapter assumption: true" in adapter_source
+    assert "-- source-to-bridge premise target: hGoodCovered" in adapter_source
+    assert "-- premise target type: Prop" in adapter_source
+    assert "-- premise target source: opaque_prop_fallback" in adapter_source
+    assert "(hGoodCovered : Prop)" in adapter_source
     assert "-- proof-body attempt: 1:simpa:returncode=1:compiled=False" in adapter_source
     assert "-- proof-body attempt count: 1" in adapter_source
     assert (
@@ -358,6 +365,8 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "SourceToBridgePremiseDerivationWorkOrder"
     )
     assert premise_queue_rows[0]["premise_name"] == "hGoodCovered"
+    assert premise_queue_rows[0]["premise_target_type"] == "Prop"
+    assert premise_queue_rows[0]["premise_target_source"] == "opaque_prop_fallback"
     assert premise_queue_rows[0]["source_candidate_artifact_path"] == (
         "runs/split_conformal_coverage_attempt.lean"
     )
@@ -682,10 +691,107 @@ def test_adapter_bridge_synthesizes_premise_queue_from_closure_signature(
         "hRank",
         "h_total",
     ]
+    assert premise_queue_rows[0]["premise_target_type"] == (
+        "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered"
+    )
+    assert premise_queue_rows[0]["premise_target_source"] == (
+        "verified_closure_signature"
+    )
+    assert premise_queue_rows[1]["premise_target_type"] == (
+        "MeasurableSet {ω | rank ω ∈ BadRanks}"
+    )
+    adapter_source = Path(
+        manifest["rows"][0]["adapter_candidate_artifact_path"]
+    ).read_text(encoding="utf-8")
+    assert "(hGoodCovered : {ω | rank ω ∈ BadRanks}ᶜ ⊆ covered)" in adapter_source
+    assert (
+        "(hBadEvent : MeasurableSet {ω | rank ω ∈ BadRanks})"
+        in adapter_source
+    )
     assert all(
         row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
         for row in premise_queue_rows
     )
+
+
+def test_adapter_bridge_goal_conclusion_target_feeds_premise_bridge(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_proof_body_adapter_work_orders.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage",
+                "    (hExch : Prop) (q : ℝ) (hq : Prop) :",
+                "    ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q} := by",
+                "  fail_if_success trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    conclusion = (
+        "ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}"
+    )
+    _write_jsonl(
+        queue,
+        [
+            _adapter_work_order(
+                proof_body_candidate_artifact_path=str(source_attempt),
+                proof_body_goal_excerpt=[
+                    "hExch : Prop",
+                    "q : ℝ",
+                    "hq : Prop",
+                    f"⊢ {conclusion}",
+                ],
+                proof_body_gate_status="PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                source_theorem_exact_proof_body_reached=True,
+                source_theorem_exact_proof_body_gate_open_for_kernel_repair=True,
+                source_to_bridge_premise_derivation_work_items=[
+                    {
+                        "premise_name": "hGoodCovered",
+                        "required_derivation": (
+                            "derive hGoodCovered from exact source hypotheses"
+                        ),
+                        "forbidden_as_adapter_assumption": True,
+                        "proof_evidence_status": "WORK_ITEM_NOT_PROOF_EVIDENCE",
+                    }
+                ],
+            )
+        ],
+    )
+
+    adapter_manifest = run_source_theorem_proof_body_adapter_proofengineer_bridge(
+        out_dir=tmp_path / "adapter_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+    adapter_source = Path(
+        adapter_manifest["rows"][0]["adapter_candidate_artifact_path"]
+    ).read_text(encoding="utf-8")
+    assert f"(hGoodCovered : {conclusion})" in adapter_source
+    assert "-- premise target source: proof_body_goal_conclusion" in adapter_source
+
+    premise_manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        adapter_bridge_dir=tmp_path / "adapter_bridge",
+        local_lean=False,
+    )
+
+    assert premise_manifest["n_premise_derivation_candidate_requests"] == 1
+    row = premise_manifest["rows"][0]
+    assert row["source_context_status"] == "SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED"
+    assert row["premise_target_status"] == "ADAPTER_PREMISE_TARGET_EXTRACTED"
+    assert row["premise_target_matched_binder"] == f"(hGoodCovered : {conclusion})"
+    assert row["premise_target_type"] == conclusion
+    request = json.loads(
+        Path(str(premise_manifest["candidate_requests_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert request["premise_name"] == "hGoodCovered"
+    assert request["premise_target_type"] == conclusion
 
 
 def test_adapter_bridge_consumes_exact_goal_shape_adapter_instantiation_queue(

@@ -380,6 +380,7 @@ def _adapter_check_row(
     unproven_bridge_premise_names = _adapter_unproven_bridge_premise_names(
         source,
         row=row,
+        enforce=generation_mode == "formalizer_provided_adapter_candidate",
     )
     adapter_candidate_imports = _lean_import_modules_from_source(source)
     proof_body_goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))
@@ -662,6 +663,49 @@ def _generated_adapter_skeleton(
         row,
         proof_body_goal_context=goal_context,
     )[:12]
+    premise_target_rows = _adapter_premise_target_rows(premise_work_items)
+    premise_target_comment = "\n".join(
+        "\n".join(
+            line
+            for line in (
+                (
+                    "-- source-to-bridge premise target: "
+                    + _sanitize_comment_text(target_row["premise_name"])
+                ),
+                (
+                    "-- premise target type: "
+                    + _sanitize_comment_text(target_row["premise_target_type"])
+                ),
+                (
+                    "-- premise target source: "
+                    + _sanitize_comment_text(target_row["premise_target_source"])
+                ),
+            )
+            if line
+        )
+        for target_row in premise_target_rows
+    )
+    premise_binder_lines = "\n".join(
+        "    "
+        f"({_safe_identifier(target_row['premise_name'])} : "
+        f"{target_row['premise_target_type']})"
+        for target_row in premise_target_rows
+    )
+    single_premise_target = (
+        premise_target_rows[0]["premise_target_type"]
+        if len(premise_target_rows) == 1
+        else ""
+    )
+    adapter_header = (
+        f"theorem {adapter_declaration}\n"
+        "    (source_hypotheses : Prop)\n"
+        "    (hsource : source_hypotheses)\n"
+    )
+    if len(premise_target_rows) != 1:
+        adapter_header += "    (bridge_premises : Prop)\n"
+    if premise_binder_lines:
+        adapter_header += f"{premise_binder_lines}\n"
+    adapter_conclusion = single_premise_target or "bridge_premises"
     reason_comment = "\n".join(
         f"-- reason: {_sanitize_comment_text(reason)}" for reason in reasons
     )
@@ -846,6 +890,7 @@ def _generated_adapter_skeleton(
         f"{verified_premise_derivation_declaration_comment}\n"
         f"{verified_premise_derivation_signature_comment}\n"
         f"{premise_work_item_comment}\n"
+        f"{premise_target_comment}\n"
         f"{goal_comment}\n"
         f"{goal_binder_comment}\n"
         f"{goal_conclusion_comment}\n"
@@ -858,9 +903,9 @@ def _generated_adapter_skeleton(
         f"{semantic_blocker_comment}\n"
         "-- adapter task: materialize/import the missing dependency context above,\n"
         "-- then derive the bridge or reduction premise from exact source-level hypotheses.\n"
-        f"theorem {adapter_declaration} (source_hypotheses bridge_premises : Prop) "
-        "(hsource : source_hypotheses) :\n"
-        "    bridge_premises := by\n"
+        "-- Generated premise binders are target scaffolds for downstream premise derivation, not proof evidence.\n"
+        f"{adapter_header}"
+        f"    : {adapter_conclusion} := by\n"
         "  -- ProofEngineer must derive bridge premises from the exact source hypotheses.\n"
         "  fail_if_success trivial\n\n"
         "end AIStatisticianSourceTheoremProofBodyAdapter\n"
@@ -930,7 +975,11 @@ def _source_to_bridge_premise_derivation_work_items(
             normalized["proof_body_goal_conclusion"] = goal_conclusion
         items.append(normalized)
     if items or not _requires_exact_source_to_bridge_derivation(row):
-        return tuple(items)
+        return _attach_premise_target_metadata(
+            items,
+            row=row,
+            goal_context=goal_context,
+        )
     for premise_name in _bridge_premise_names_from_context(row):
         items.append(
             {
@@ -970,7 +1019,105 @@ def _source_to_bridge_premise_derivation_work_items(
                 "proof_evidence_status": "WORK_ITEM_NOT_PROOF_EVIDENCE",
             }
         )
-    return tuple(items)
+    return _attach_premise_target_metadata(
+        items,
+        row=row,
+        goal_context=goal_context,
+    )
+
+
+def _attach_premise_target_metadata(
+    items: list[dict[str, Any]],
+    *,
+    row: Mapping[str, Any],
+    goal_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    enriched: list[dict[str, Any]] = []
+    for item in items:
+        premise_name = str(item.get("premise_name", "") or "").strip()
+        if not premise_name:
+            continue
+        target_type, target_source = _source_to_bridge_premise_target_type(
+            item=item,
+            row=row,
+            premise_name=premise_name,
+            goal_context=goal_context,
+            n_items=len(items),
+        )
+        payload = dict(item)
+        payload.setdefault("premise_target_type", target_type)
+        payload.setdefault("source_to_bridge_premise_target_type", target_type)
+        payload.setdefault("premise_target_source", target_source)
+        enriched.append(payload)
+    return tuple(enriched)
+
+
+def _source_to_bridge_premise_target_type(
+    *,
+    item: Mapping[str, Any],
+    row: Mapping[str, Any],
+    premise_name: str,
+    goal_context: Mapping[str, Any],
+    n_items: int,
+) -> tuple[str, str]:
+    for key in (
+        "premise_target_type",
+        "source_to_bridge_premise_target_type",
+        "target_type",
+        "lean_target_type",
+        "premise_type",
+    ):
+        value = str(item.get(key, "") or "").strip()
+        if value:
+            return value, "explicit_work_item"
+    context_target = _bridge_premise_target_type_from_context(
+        row,
+        premise_name=premise_name,
+    )
+    if context_target:
+        return context_target, "verified_closure_signature"
+    goal_conclusion = str(goal_context.get("conclusion", "") or "").strip()
+    if n_items == 1 and _looks_like_complete_premise_target_type(goal_conclusion):
+        return goal_conclusion, "proof_body_goal_conclusion"
+    return "Prop", "opaque_prop_fallback"
+
+
+def _adapter_premise_target_rows(
+    premise_work_items: tuple[dict[str, Any], ...],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for item in premise_work_items:
+        premise_name = str(item.get("premise_name", "") or "").strip()
+        premise_target_type = str(item.get("premise_target_type", "") or "").strip()
+        if not premise_name or not premise_target_type:
+            continue
+        rows.append(
+            {
+                "premise_name": premise_name,
+                "premise_target_type": premise_target_type,
+                "premise_target_source": str(
+                    item.get("premise_target_source", "") or ""
+                ).strip(),
+            }
+        )
+    return rows
+
+
+def _looks_like_complete_premise_target_type(target: str) -> bool:
+    text = str(target or "").strip()
+    if not text:
+        return False
+    if text.endswith(("∧", "∨", "→", "↔", ",", ":=", "=>")):
+        return False
+    balance = 0
+    for char in text:
+        if char == "(":
+            balance += 1
+        elif char == ")":
+            balance -= 1
+        if balance < 0:
+            return False
+    return balance == 0
 
 
 def _proof_body_goal_context_from_excerpt(
@@ -1077,6 +1224,27 @@ def _looks_like_proof_body_diagnostic_line(line: str) -> bool:
 
 
 def _bridge_premise_names_from_context(row: Mapping[str, Any]) -> tuple[str, ...]:
+    context = _bridge_premise_context_text(row)
+    names = [
+        name
+        for name in BRIDGE_PREMISE_BINDER_NAMES
+        if re.search(rf"\(\s*{re.escape(name)}\b", context)
+    ]
+    return tuple(dict.fromkeys(names))
+
+
+def _bridge_premise_target_type_from_context(
+    row: Mapping[str, Any],
+    *,
+    premise_name: str,
+) -> str:
+    return _named_lean_binder_type(
+        _bridge_premise_context_text(row),
+        binder_name=premise_name,
+    )
+
+
+def _bridge_premise_context_text(row: Mapping[str, Any]) -> str:
     context_fragments = [
         *[
             str(value)
@@ -1103,13 +1271,34 @@ def _bridge_premise_names_from_context(row: Mapping[str, Any]) -> tuple[str, ...
             context_fragments.append(Path(path_text).expanduser().read_text(encoding="utf-8"))
         except OSError:
             continue
-    context = "\n".join(context_fragments)
-    names = [
-        name
-        for name in BRIDGE_PREMISE_BINDER_NAMES
-        if re.search(rf"\(\s*{re.escape(name)}\b", context)
-    ]
-    return tuple(dict.fromkeys(names))
+    return "\n".join(context_fragments)
+
+
+def _named_lean_binder_type(source: str, *, binder_name: str) -> str:
+    name = str(binder_name or "").strip()
+    if not name:
+        return ""
+    pattern = re.compile(rf"\(\s*{re.escape(name)}\b\s*:")
+    for match in pattern.finditer(source):
+        start = match.start()
+        depth = 0
+        end = -1
+        for index, char in enumerate(source[start:], start=start):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end < 0:
+            continue
+        content = source[start + 1 : end]
+        _, _, target_type = content.partition(":")
+        target = re.sub(r"\s+", " ", target_type).strip()
+        if target:
+            return target
+    return ""
 
 
 def _normalize_adapter_source(source: str) -> str:
@@ -1298,7 +1487,10 @@ def _adapter_unproven_bridge_premise_names(
     source: str,
     *,
     row: Mapping[str, Any],
+    enforce: bool = True,
 ) -> tuple[str, ...]:
+    if not enforce:
+        return ()
     if not _requires_exact_source_to_bridge_derivation(row):
         return ()
     header = _lean_theorem_header_without_comments(source)
@@ -1664,6 +1856,19 @@ def _export_source_to_bridge_premise_derivation_queue(
                     "target_lean_declaration": row.target_lean_declaration,
                     "target_theorem_goal_ids": list(row.target_theorem_goal_ids),
                     "premise_name": premise_name,
+                    "premise_target_type": str(
+                        item.get("premise_target_type", "") or ""
+                    ),
+                    "source_to_bridge_premise_target_type": str(
+                        item.get(
+                            "source_to_bridge_premise_target_type",
+                            item.get("premise_target_type", ""),
+                        )
+                        or ""
+                    ),
+                    "premise_target_source": str(
+                        item.get("premise_target_source", "") or ""
+                    ),
                     "required_derivation": str(
                         item.get("required_derivation", "")
                         or (

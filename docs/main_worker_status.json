@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T11:08:05Z",
+  "updated_at": "2026-07-08T11:13:59Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Source-to-bridge premise derivation now preserves structured proof-body goal context downstream: proof_body_goal_context, binder names, and active conclusion flow through check rows, generated premise skeleton comments, candidate requests, grouped requests, runtime-learning rows, and adapter-object semantic-definition work orders without becoming proof evidence. The bridge also resolves adapter declarations from separate adapter_candidate_artifact_path files instead of assuming source and adapter declarations live in one source artifact.",
-  "latest_main_worker_live_probe": "runs/main_worker_premise_derivation_goal_context_replay_20260708/ replayed the real good-rank adapter bridge output. It exited 0 with n_work_orders=1, n_premise_derivation_check_rows=1, n_proof_body_goal_context_rows=1, proof_body_goal_context_binder_names=[hExch,hq,q], conclusion `ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}`, source_context_status=SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED, and proof_evidence_status=SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE. It still emits n_premise_derivation_candidate_requests=0 because the real adapter skeleton exposes generic `bridge_premises : Prop` rather than a named hGoodCovered premise target; that is the next upstream adapter-shape blocker, not a proof claim.",
+  "latest_main_worker_patch": "Source-theorem proof-body adapter skeletons now expose named source-to-bridge premise targets instead of only a generic bridge_premises Prop. Work items receive premise_target_type/premise_target_source from explicit metadata, verified closure signatures, or a complete reached proof-body conclusion; generated adapter artifacts render named binders such as hGoodCovered with that target while staying non-proof scaffolds. Formalizer-provided candidates that assume bridge premises are still rejected, and premise queue rows carry the same target metadata for resume/compaction.",
+  "latest_main_worker_live_probe": "runs/main_worker_adapter_named_premise_target_replay_20260708 plus runs/main_worker_premise_named_target_replay_20260708 replayed the real good-rank adapter-to-premise path. Adapter replay exited 0 with n_source_to_bridge_premise_derivation_queue_rows=1 and hGoodCovered premise_target_source=proof_body_goal_conclusion. Premise replay exited 0 with source_context_status=SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED, premise_target_status=ADAPTER_PREMISE_TARGET_EXTRACTED, premise_target_type=`ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}`, n_premise_derivation_candidate_requests=1, n_grouped_premise_derivation_candidate_requests=1, and proof_evidence_status=SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE. The remaining blocker is now generating/checking a non-vacuous source-to-bridge premise derivation, not task routing.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -1368,6 +1368,7 @@
       "real_replay_manifest": "runs/main_worker_premise_derivation_goal_context_replay_20260708/source_to_bridge_premise_derivation_proofengineer_bridge_manifest.json",
       "real_replay_result": "Replaying runs/main_worker_proof_body_adapter_goal_context_replay_20260708 exited 0 with n_work_orders=1, n_premise_derivation_check_rows=1, source_context_status=SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED, n_proof_body_goal_context_rows=1, proof_body_goal_context_binder_names=[hExch,hq,q], proof_body_goal_context_conclusions=[ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}], runtime_learning_rows=1, and proof_evidence_status=SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE.",
       "remaining_blocker": "The same real replay still emits n_premise_derivation_candidate_requests=0 and n_grouped_premise_derivation_candidate_requests=0 because the upstream adapter skeleton signature is theorem split_conformal_finite_sample_coverage_repair_v3_source_to_bridge_adapter (source_hypotheses bridge_premises : Prop) (hsource : source_hypotheses) : bridge_premises, so no named hGoodCovered binder/target can be extracted. Next fix should be upstream adapter-shape generation, not relaxing proof evidence gates.",
+      "superseded_by": "adapter_named_premise_target_scaffold_patch_20260708",
       "regression_evidence": [
         "python3 -m py_compile ai_statistician/source_to_bridge_premise_derivation_proofengineer_bridge.py tests/test_source_to_bridge_premise_derivation_bridge.py # passed",
         "PYTHONPATH=$PWD .venv/bin/pytest tests/test_source_to_bridge_premise_derivation_bridge.py -q # 22 passed",
@@ -1375,6 +1376,26 @@
         "PYTHONPATH=$PWD .venv/bin/python -m ai_statistician.cli source-to-bridge-premise-derivation-proofengineer-bridge --adapter-bridge-dir runs/main_worker_proof_body_adapter_goal_context_replay_20260708 --question-id conformal_prediction_coverage --out runs/main_worker_premise_derivation_goal_context_replay_20260708 # exited 0"
       ],
       "proof_boundary": "This patch improves non-proof repair context and artifact routing only. It does not make premise derivations, adapter-object definitions, or source theorem proofs evidence eligible; proof_evidence_status stays SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE unless a later local Lean/AXLE run verifies the intended theorem or premise target."
+    },
+    "adapter_named_premise_target_scaffold_patch_20260708": {
+      "status": "implemented",
+      "components": [
+        "source_theorem_proof_body_adapter_proofengineer_bridge",
+        "source_to_bridge_premise_derivation_proofengineer_bridge"
+      ],
+      "summary": "Generated proof-body adapter skeletons now render named source-to-bridge premise target binders instead of only (source_hypotheses bridge_premises : Prop). Work items are enriched with premise_target_type and premise_target_source using explicit work-item metadata first, verified closure signature binders second, a complete single reached proof-body conclusion third, and Prop only as an opaque fallback. The same target metadata is written into source-to-bridge premise queue rows. Generated skeletons remain non-proof scaffolds, while formalizer-provided adapter candidates that assume unverified bridge premise binders still hit adapter_candidate_requires_unproven_bridge_premises.",
+      "real_adapter_replay_manifest": "runs/main_worker_adapter_named_premise_target_replay_20260708/source_theorem_proof_body_adapter_proofengineer_bridge_manifest.json",
+      "real_premise_replay_manifest": "runs/main_worker_premise_named_target_replay_20260708/source_to_bridge_premise_derivation_proofengineer_bridge_manifest.json",
+      "real_replay_result": "Replaying the real good-rank adapter work order produced hGoodCovered with premise_target_type=ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q} and premise_target_source=proof_body_goal_conclusion in the adapter work item and premise queue. The downstream premise bridge then extracted hGoodCovered from the adapter artifact, wrote n_premise_derivation_candidate_requests=1 and n_grouped_premise_derivation_candidate_requests=1, and kept proof_evidence_status=SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE.",
+      "regression_evidence": [
+        "python3 -m py_compile ai_statistician/source_theorem_proof_body_adapter_proofengineer_bridge.py tests/test_source_theorem_proof_body_adapter_bridge.py # passed",
+        "PYTHONPATH=$PWD .venv/bin/pytest tests/test_source_theorem_proof_body_adapter_bridge.py tests/test_source_to_bridge_premise_derivation_bridge.py -q # 37 passed",
+        "PYTHONPATH=$PWD .venv/bin/pytest tests/test_source_theorem_proof_body_adapter_bridge.py tests/test_source_to_bridge_premise_derivation_bridge.py tests/test_exact_source_theorem_proof_body_executor.py -q # 53 passed",
+        "PYTHONPATH=$PWD .venv/bin/python -m ai_statistician.cli source-theorem-proof-body-adapter-proofengineer-bridge --queue-jsonl runs/main_worker_proof_body_adapter_signature_handoff_replay_20260707/runtime_source_theorem_proof_body_adapter_work_orders.jsonl --question-id conformal_prediction_coverage --out runs/main_worker_adapter_named_premise_target_replay_20260708 # exited 0",
+        "PYTHONPATH=$PWD .venv/bin/python -m ai_statistician.cli source-to-bridge-premise-derivation-proofengineer-bridge --adapter-bridge-dir runs/main_worker_adapter_named_premise_target_replay_20260708 --question-id conformal_prediction_coverage --out runs/main_worker_premise_named_target_replay_20260708 # exited 0"
+      ],
+      "next_blocker": "The bridge now routes a concrete hGoodCovered premise derivation request. The next central task is to have the Formalizer/ProofEngineer generate a non-vacuous source-to-bridge premise derivation candidate, run local Lean/AXLE feedback, and only then feed verified premise evidence back into exact source theorem proof-body retry.",
+      "proof_boundary": "Named premise target scaffolds are task-shaping context only. They do not prove the adapter, premise, or source theorem; all replay manifests still report non-proof evidence status until local Lean/AXLE verifies the intended generated theorem."
     },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",
