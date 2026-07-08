@@ -586,10 +586,19 @@ def build_formalizer_prompt(
     diagnostic_helper_bridge_blocker_contract = (
         _diagnostic_helper_bridge_blocker_contract(proof_memory_summary)
     )
+    exact_semantic_definition_gate_active = (
+        _source_theorem_exact_semantic_definition_gate_active(
+            environment_feedback=environment_feedback or {},
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+    )
     source_theorem_candidate_materialization_contract = (
         {}
-        if repeated_syntax_fail_closed_active
-        else _source_theorem_candidate_materialization_contract(proof_memory_summary)
+        if repeated_syntax_fail_closed_active or exact_semantic_definition_gate_active
+        else _source_theorem_candidate_materialization_contract(
+            proof_memory_summary,
+            environment_feedback=environment_feedback or {},
+        )
     )
     payload = {
         "question": {
@@ -3227,11 +3236,116 @@ def _source_theorem_candidate_materialization_context(
                 for value in row.get("target_ids", []) or []
                 if str(value).strip()
             )
+    if _source_theorem_exact_semantic_definition_gate_active(
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+    ):
+        required = False
     return {
         "required": required,
         "target_names": list(dict.fromkeys(target_names)),
         "target_ids": list(dict.fromkeys(target_ids)),
     }
+
+
+def _source_theorem_exact_semantic_definition_gate_active(
+    *,
+    environment_feedback: Mapping[str, Any] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+) -> bool:
+    """Return true when exact source theorem proof work is blocked by semantics.
+
+    Candidate materialization is useful only after source theorem identity and
+    exact semantic definitions are reviewed enough for proof-body/signature
+    work. When the runtime has an active semantic-definition gate, the
+    Formalizer should emit a FORMAL_GAP/source-to-bridge support lane instead
+    of inventing a broad Lean source theorem artifact.
+    """
+
+    sources: list[Mapping[str, Any]] = []
+    for source in (proof_bank_runtime_memory_summary, environment_feedback):
+        if isinstance(source, Mapping):
+            sources.append(source)
+            input_summary = source.get("input_summary", {})
+            if isinstance(input_summary, Mapping):
+                sources.append(input_summary)
+
+    def _flag(name: str) -> bool:
+        return any(_formalizer_bool_like(source.get(name)) for source in sources)
+
+    if _flag("source_theorem_exact_proof_body_gate_open_for_kernel_repair") or _flag(
+        "source_theorem_ready_for_exact_proof_body"
+    ):
+        return False
+
+    for source in sources:
+        if _formalizer_bool_like(
+            source.get("source_theorem_exact_semantic_definition_repair_required")
+        ):
+            return True
+        if (
+            str(source.get("recommended_formalizer_target_mode", "") or "")
+            == "source_theorem_exact_semantic_definition_repair"
+        ):
+            return True
+        repair_feedback = source.get(
+            "source_theorem_exact_semantic_definition_repair_feedback",
+            {},
+        )
+        if isinstance(repair_feedback, Mapping) and (
+            _formalizer_bool_like(
+                repair_feedback.get(
+                    "source_theorem_exact_semantic_definition_repair_required"
+                )
+            )
+            or bool(repair_feedback.get("diagnostics"))
+        ):
+            return True
+        for row in source.get("high_priority_agenda", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            if str(row.get("id", "") or "") == (
+                "formal_gap:source_theorem_exact_semantic_definition_repair"
+            ):
+                return True
+            if str(row.get("trigger", "") or "") in {
+                "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+                "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
+            }:
+                return True
+        for row in source.get("formal_blocker_resource_requests", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            source_name = str(row.get("source", "") or "")
+            blocker_kind = str(row.get("blocker_kind", "") or "")
+            if "exact_semantic_definition" in source_name:
+                return True
+            if blocker_kind in {
+                "source_theorem_exact_semantic_definition_repair_required",
+                "typechecked_exact_semantic_definition_candidate_review_required",
+                "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT",
+            }:
+                return True
+            if "EXACT_SEMANTIC_DEFINITION" in blocker_kind:
+                return True
+        for row in source.get(
+            "source_theorem_exact_semantic_definition_typechecked_candidates",
+            [],
+        ) or []:
+            if not isinstance(row, Mapping):
+                continue
+            gate_status = str(row.get("proof_body_gate_status", "") or "")
+            evidence_status = str(
+                row.get("semantic_definition_typecheck_evidence_status", "") or ""
+            )
+            queue_status = str(row.get("runtime_queue_status", "") or "")
+            if (
+                "SEMANTIC_REVIEW_REQUIRED" in gate_status
+                or "REVIEW_REQUIRED" in evidence_status
+                or "EXACT_SEMANTIC_DEFINITION" in queue_status
+            ):
+                return True
+    return False
 
 
 def _formal_target_materialization_identity_tokens(
@@ -6101,6 +6215,27 @@ def _formalizer_mode_specific_instructions(
         or materialization_agenda_rows
         or materialization_resource_requests
     )
+    exact_semantic_definition_gate_active = (
+        _source_theorem_exact_semantic_definition_gate_active(
+            environment_feedback=runtime_environment_feedback,
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+    )
+    if (
+        source_theorem_candidate_materialization_required
+        and exact_semantic_definition_gate_active
+    ):
+        source_theorem_candidate_materialization_required = False
+        instructions.append(
+            "Exact semantic-definition gate override: suspend exact source-theorem "
+            "candidate materialization for this packet because reviewed/imported "
+            "semantic definitions are still required before proof-body or signature "
+            "work. Emit the source theorem as expected_status=FORMAL_GAP with an "
+            "empty lean_statement_sketch, then route executable work only through "
+            "source_to_bridge_premise_derivation_candidates, exact semantic-definition "
+            "candidate requests, or other support channels with copied provenance. "
+            "Do not broaden this into theory revision and do not claim proof evidence."
+        )
     if (
         source_theorem_candidate_materialization_required
         and repeated_syntax_fail_closed_active
@@ -10022,6 +10157,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
 
 def _source_theorem_candidate_materialization_contract(
     proof_memory_summary: Mapping[str, Any],
+    *,
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(proof_memory_summary, Mapping):
         return {}
@@ -10030,6 +10167,11 @@ def _source_theorem_candidate_materialization_contract(
         or proof_memory_summary.get("recommended_formalizer_target_mode")
         == "source_theorem_exact_candidate_materialization_required"
     )
+    if required and _source_theorem_exact_semantic_definition_gate_active(
+        environment_feedback=environment_feedback,
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+    ):
+        required = False
     if not required:
         return {}
     return {

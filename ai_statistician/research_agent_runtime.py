@@ -16992,6 +16992,12 @@ def _formalizer_lean_candidate_repair_feedback(
         for row in manifest.get("candidate_rows", []) or []
         if isinstance(row, Mapping)
     ]
+    compiled_non_diagnostic_rows = [
+        row
+        for row in candidate_rows
+        if _bool_like(row.get("local_lean_compiled", False))
+        and not _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
+    ]
     failed_rows: list[Mapping[str, Any]] = []
     for row in candidate_rows:
         precheck_failed = (
@@ -17008,6 +17014,12 @@ def _formalizer_lean_candidate_repair_feedback(
         ) and not _bool_like(
             row.get("local_lean_compiled", False)
         )
+        if (
+            _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
+            and compiled_non_diagnostic_rows
+            and (precheck_failed or precheck_diagnostic_failed or local_lean_failed)
+        ):
+            continue
         if precheck_failed or precheck_diagnostic_failed or local_lean_failed:
             failed_rows.append(row)
     if not failed_rows:

@@ -19929,6 +19929,72 @@ def test_formalizer_materialization_validator_suspends_on_repeated_parser_failur
     assert errors == []
 
 
+def test_formalizer_materialization_validator_suspends_on_exact_semantic_definition_gate() -> None:
+    errors = _validate_source_theorem_candidate_materialization_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "target_ids": ["split_conformal_finite_sample_coverage"],
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [
+                {
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "premise_derivation_candidate_lean_source": (
+                        "theorem split_conformal_bridge "
+                        "(good coverage : Prop) "
+                        "(h : good -> coverage) (hg : good) : coverage := by\n"
+                        "  exact h hg\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        environment_feedback={
+            "source_theorem_exact_semantic_definition_repair_feedback": {
+                "source_theorem_exact_semantic_definition_repair_required": True,
+                "diagnostics": [
+                    {
+                        "placeholder_symbol": "coverage_event",
+                        "proof_body_gate_status": (
+                            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                        ),
+                    }
+                ],
+            },
+            "formal_blocker_resource_requests": [
+                {
+                    "source": (
+                        "critic_source_theorem_exact_semantic_definition_repair_feedback"
+                    ),
+                    "blocker_kind": (
+                        "source_theorem_exact_semantic_definition_repair_required"
+                    ),
+                }
+            ],
+        },
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_theorem_exact_semantic_definition_repair_required": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+        },
+    )
+
+    assert errors == []
+
+
 def test_formalizer_materialization_validator_accepts_exact_source_candidate() -> None:
     errors = _validate_source_theorem_candidate_materialization_packet(
         {
@@ -20044,6 +20110,59 @@ def test_formalizer_materialization_prompt_suspends_after_repeated_parser_failur
 
     assert "Repeated parser/syntax fail-closed override" in prompt
     assert "suspend exact source-theorem candidate materialization" in prompt
+    assert "Mandatory source-theorem candidate-materialization repair" not in prompt
+
+
+def test_formalizer_materialization_prompt_suspends_on_exact_semantic_definition_gate() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_theorem_exact_semantic_definition_repair_required": True,
+            "source_theorem_ready_for_exact_proof_body": False,
+        },
+        environment_feedback={
+            "feedback_type": "critic_formalizer_proofengineer_repair_feedback",
+            "failure_classification": (
+                "critic_requested_formalizer_proofengineer_repair"
+            ),
+            "source_theorem_exact_semantic_definition_repair_feedback": {
+                "source_theorem_exact_semantic_definition_repair_required": True,
+                "diagnostics": [
+                    {
+                        "placeholder_symbol": "coverage_event",
+                        "proof_body_gate_status": (
+                            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                        ),
+                    }
+                ],
+            },
+            "formal_blocker_resource_requests": [
+                {
+                    "source": (
+                        "critic_source_theorem_exact_semantic_definition_repair_feedback"
+                    ),
+                    "blocker_kind": (
+                        "source_theorem_exact_semantic_definition_repair_required"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert "Exact semantic-definition gate override" in prompt
+    assert "suspend exact source-theorem candidate materialization" in prompt
+    assert "source_theorem_exact_semantic_definition_repair" in prompt
     assert "Mandatory source-theorem candidate-materialization repair" not in prompt
 
 
@@ -26660,6 +26779,78 @@ def test_formalizer_expected_token_local_lean_feedback_is_parser_contract() -> N
     assert enriched_contract["repeated_syntax_failure"] is True
     assert "pipeline syntax" in enriched_contract["repeated_syntax_failure_rule"]
     assert "FORMAL_GAP" in enriched["required_repair"]
+
+
+def test_formalizer_repair_feedback_ignores_failed_diagnostic_helper_when_support_candidate_compiles() -> None:
+    manifest = {
+        "schema_version": 1,
+        "manifest_id": "formalizer_lean_candidate_materialization:support_plus_helper",
+        "manifest_path": (
+            "runs/support_plus_helper/"
+            "formalizer_lean_candidate_materialization_manifest.json"
+        ),
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "task_id": "formalize:conformal_prediction_coverage:support_plus_helper",
+        "source_formalizer_packet_id": "formalizer_proposal:support_plus_helper",
+        "n_candidate_sources": 2,
+        "n_candidate_artifacts_written": 2,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 2,
+        "n_local_lean_compiled": 1,
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "request:hGoodRankImpliesCovered",
+                "candidate_kind": "source_to_bridge_premise_derivation_candidate",
+                "source_field": "source_to_bridge_premise_derivation_candidates",
+                "support_candidate_not_source_theorem": True,
+                "source_theorem_candidate_evidence_eligible": False,
+                "lean_source_excerpt": (
+                    "theorem bridge (good coverage : Prop) "
+                    "(h : good -> coverage) (hg : good) : coverage := by\n"
+                    "  exact h hg\n"
+                ),
+                "artifact_path": "runs/support_plus_helper/001_bridge.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "local_lean_exit_status": "0",
+                "local_lean_stdout": "",
+                "local_lean_stderr": "",
+            },
+            {
+                "schema_version": 1,
+                "candidate_id": "diagnostic_arithmetic_helper",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "diagnostic_helper_not_source_theorem": True,
+                "source_theorem_candidate_evidence_eligible": False,
+                "lean_source_excerpt": (
+                    "theorem diagnostic_arithmetic_helper : True := by\n"
+                    "  positivity\n"
+                ),
+                "artifact_path": "runs/support_plus_helper/002_helper.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": False,
+                "local_lean_exit_status": "1",
+                "local_lean_stdout": "error: unknown tactic",
+                "local_lean_stderr": "",
+            },
+        ],
+    }
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert feedback is None
+    assert runtime_module._formalizer_diagnostic_row_requires_repair(
+        manifest["candidate_rows"][1]
+    ) is True
 
 
 def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> None:
