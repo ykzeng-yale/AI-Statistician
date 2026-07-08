@@ -151,6 +151,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
     PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE,
     PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
+    PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
     PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
     PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
     PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES,
@@ -166,6 +167,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
     normalize_pseudo_formal_packet,
+    pseudo_formal_block_structural_quality,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
     pseudo_formal_work_order_row_has_required_lineage,
@@ -4788,12 +4790,15 @@ def _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
     rows = [summary_row]
     for row in validated_rows:
         copied = dict(row)
+        copied = _runtime_enrich_pseudo_formal_block_verifier_feedback_row(copied)
         copied["source_component_gate"] = "pseudo_formal_block_verifier_component_gate"
         copied["component_eval_manifest_path"] = manifest_path
         copied["component_eval"] = "PseudoFormalBlockVerifier"
-        copied.setdefault("proof_evidence_status", PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE)
-        copied.setdefault("proof_evidence_boundary", PSEUDO_FORMALIZATION_PROOF_BOUNDARY)
-        copied.setdefault("boundary", PSEUDO_FORMALIZATION_PROOF_BOUNDARY)
+        copied["kernel_verified"] = False
+        copied["source_theorem_kernel_verified"] = False
+        copied["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        copied["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+        copied["boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
         input_summary = (
             dict(copied.get("input_summary", {}))
             if isinstance(copied.get("input_summary", {}), Mapping)
@@ -4803,15 +4808,175 @@ def _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
             "pseudo_formal_block_verifier_component_gate"
         )
         input_summary["component_eval_manifest_path"] = manifest_path
-        input_summary.setdefault(
-            "proof_evidence_status", PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
-        )
-        input_summary.setdefault(
-            "proof_evidence_boundary", PSEUDO_FORMALIZATION_PROOF_BOUNDARY
-        )
+        input_summary["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+        input_summary["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
         copied["input_summary"] = input_summary
         rows.append(copied)
     return rows
+
+
+def _runtime_enrich_pseudo_formal_block_verifier_feedback_row(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fill PF/BV replay-contract metadata for copied component-gate rows."""
+
+    enriched = dict(row)
+    input_summary = (
+        dict(enriched.get("input_summary", {}))
+        if isinstance(enriched.get("input_summary", {}), Mapping)
+        else {}
+    )
+    for key, default in (
+        ("block_depth", 1),
+        ("dependency_scope", PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE),
+        ("dependency_ids", []),
+        ("dependency_statement_context", []),
+        ("scope_parent_id", ""),
+        ("inherited_scope", []),
+        ("source_block_premises", []),
+        ("source_block_proof_text", ""),
+    ):
+        if key not in enriched:
+            enriched[key] = input_summary.get(key, default)
+        if key not in input_summary:
+            input_summary[key] = enriched.get(key, default)
+
+    structural_quality = enriched.get("structural_quality", {})
+    if not isinstance(structural_quality, Mapping) or "all_ok" not in structural_quality:
+        structural_quality = input_summary.get("structural_quality", {})
+    if not isinstance(structural_quality, Mapping) or "all_ok" not in structural_quality:
+        structural_quality = pseudo_formal_block_structural_quality(
+            {
+                "premises": list(enriched.get("source_block_premises", []) or []),
+                "dependency_ids": list(enriched.get("dependency_ids", []) or []),
+                "inherited_scope": list(enriched.get("inherited_scope", []) or []),
+                "source_anchors": [
+                    dict(anchor)
+                    for anchor in enriched.get("source_anchors", []) or []
+                    if isinstance(anchor, Mapping)
+                ],
+                "conclusion": str(enriched.get("source_block_conclusion", "") or ""),
+                "proof_text": str(enriched.get("source_block_proof_text", "") or ""),
+            }
+        )
+    enriched["structural_quality"] = dict(structural_quality)
+    enriched["structural_quality_ok"] = bool(
+        structural_quality.get("all_ok", False)
+    )
+    enriched["structural_quality_issues"] = list(
+        structural_quality.get("issues", []) or []
+    )
+    input_summary["structural_quality"] = dict(structural_quality)
+    input_summary["structural_quality_ok"] = bool(
+        structural_quality.get("all_ok", False)
+    )
+    input_summary["structural_quality_issues"] = list(
+        structural_quality.get("issues", []) or []
+    )
+
+    block_verification = (
+        enriched.get("block_verification", {})
+        if isinstance(enriched.get("block_verification", {}), Mapping)
+        else input_summary.get("block_verification", {})
+        if isinstance(input_summary.get("block_verification", {}), Mapping)
+        else {}
+    )
+    bv_calibration = (
+        enriched.get("bv_calibration", {})
+        if isinstance(enriched.get("bv_calibration", {}), Mapping)
+        else input_summary.get("bv_calibration", {})
+        if isinstance(input_summary.get("bv_calibration", {}), Mapping)
+        else {}
+    )
+    if not isinstance(bv_calibration, Mapping) or not bv_calibration:
+        bv_calibration = {
+            "strictness_threshold": str(
+                block_verification.get(
+                    "strictness_threshold",
+                    PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS,
+                )
+                or PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+            ),
+            "aggregation_rule": str(
+                block_verification.get(
+                    "aggregation_rule",
+                    PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
+                )
+                or PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE
+            ),
+            "pessimistic_acceptance": (
+                str(block_verification.get("verdict", "") or "") == "accepted"
+            ),
+            "rollout_count": _int_like(
+                block_verification.get("rollout_count", 1)
+            ),
+        }
+    enriched["bv_calibration"] = dict(bv_calibration)
+    input_summary["bv_calibration"] = dict(bv_calibration)
+
+    row_kind = str(
+        enriched.get("row_kind", "")
+        or enriched.get("pseudo_formal_row_kind", "")
+        or input_summary.get("row_kind", "")
+        or ""
+    )
+    if not enriched.get("row_kind") and row_kind:
+        enriched["row_kind"] = row_kind
+    if not input_summary.get("row_kind") and row_kind:
+        input_summary["row_kind"] = row_kind
+    if row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
+        execution_fields = _pseudo_formal_block_verifier_worker_execution_fields(
+            row_kind
+        )
+        worker = (
+            dict(enriched.get("pseudo_formal_block_verifier_worker", {}))
+            if isinstance(
+                enriched.get("pseudo_formal_block_verifier_worker", {}),
+                Mapping,
+            )
+            else {}
+        )
+        default_worker = execution_fields.get("pseudo_formal_block_verifier_worker", {})
+        if isinstance(default_worker, Mapping):
+            for key, value in default_worker.items():
+                worker.setdefault(key, value)
+        enriched["pseudo_formal_block_verifier_worker"] = worker
+        input_summary["pseudo_formal_block_verifier_worker"] = dict(worker)
+        recommended_commands = [
+            str(value)
+            for value in enriched.get("recommended_commands", []) or []
+            if str(value).strip()
+        ]
+        for command in execution_fields.get("recommended_commands", []) or []:
+            command_text = str(command)
+            if command_text.strip() and command_text not in recommended_commands:
+                recommended_commands.append(command_text)
+        enriched["recommended_commands"] = recommended_commands
+        input_summary["recommended_commands"] = list(recommended_commands)
+        if not enriched.get("recommended_next_action"):
+            enriched["recommended_next_action"] = str(
+                execution_fields.get("recommended_next_action", "") or ""
+            )
+        if not input_summary.get("recommended_next_action"):
+            input_summary["recommended_next_action"] = str(
+                enriched.get("recommended_next_action", "") or ""
+            )
+
+    enriched.setdefault("target_behavior", "")
+    if not str(enriched.get("target_behavior", "") or "").strip():
+        enriched["target_behavior"] = (
+            "consume independent PF/BV block-verifier feedback for the bounded "
+            "pseudo-formal block; repair, split, or route the block without "
+            "treating BV as theorem proof"
+        )
+    enriched.setdefault("acceptance_gate", "")
+    if not str(enriched.get("acceptance_gate", "") or "").strip():
+        enriched["acceptance_gate"] = (
+            "PF/BV feedback can guide Formalizer/RAG/source-to-bridge work only; "
+            "source theorem proof promotion still requires target-prover kernel replay"
+        )
+    enriched["input_summary"] = input_summary
+    return enriched
 
 
 def _runtime_truth_row_proof_body_signature_artifact_count(

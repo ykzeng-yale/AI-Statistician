@@ -30541,6 +30541,179 @@ def test_runtime_learning_memory_pf_bv_prefers_rich_latest_work_order_row(
     ] == "pseudo-formal-block-verifier-llm-responses"
 
 
+def test_pseudo_formal_block_verifier_component_gate_copy_enriches_routing_contract() -> None:
+    manifest = {
+        "question_ids": ["conformal_prediction_coverage"],
+        "internal_pseudo_formal_block_verifier_eval": {
+            "artifact_kind": "RuntimeAttachedPseudoFormalBlockVerifierEval",
+            "manifest_path": (
+                "runs/pf_bv_component_gate/"
+                "pseudo_formal_block_verifier_component_gate_manifest.json"
+            ),
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
+            "component_backend_provider_names": ["anthropic"],
+            "model": "claude-sonnet",
+            "live_generator": True,
+            "static_or_fixture_only": False,
+            "fixture_plumbing_ok": True,
+            "capability_evidence_ok": True,
+            "n_prompt_packets": 1,
+            "n_ok_prompt_packets": 1,
+            "n_llm_response_rows": 1,
+            "n_ok_responses": 1,
+            "n_valid_responses": 1,
+            "n_runtime_learning_rows": 1,
+            "n_accepted_blocks": 1,
+            "n_failed_blocks": 0,
+            "runtime_learning_rows": [
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "RuntimeLearningRow",
+                    "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+                    "pseudo_formal_method_contract_id": (
+                        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+                    ),
+                    "pseudo_formal_pipeline_stage": (
+                        PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE
+                    ),
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "target_ids": ["split_conformal_coverage"],
+                    "next_owner_subsystem": "Formalizer/ProofEngineer",
+                    "memory_status": PSEUDO_FORMAL_BLOCK_ROUTING_MEMORY_STATUS,
+                    "source_pseudo_formal_work_order_id": (
+                        "pf:bv:rank_uniform"
+                    ),
+                    "source_block_id": "rank_uniformity_block",
+                    "source_block_type": "lemma",
+                    "source_block_conclusion": (
+                        "test rank is uniform by exchangeability"
+                    ),
+                    "block_depth": 1,
+                    "dependency_scope": PSEUDO_FORMAL_DEFAULT_DEPENDENCY_SCOPE,
+                    "dependency_ids": [],
+                    "dependency_statement_context": [],
+                    "scope_parent_id": "",
+                    "inherited_scope": [],
+                    "source_block_premises": [
+                        "calibration scores and test score are exchangeable",
+                        "deterministic tie-breaking gives unique ranks",
+                    ],
+                    "source_block_proof_text": (
+                        "Condition on the multiset of scores; exchangeability "
+                        "makes the test label equally likely at each rank."
+                    ),
+                    "faithfulness_status": "faithful",
+                    "faithfulness_repair_status": "not_required",
+                    "block_verification": {
+                        "verdict": "accepted",
+                        "reason": "rank-uniformity block is locally valid",
+                        "verifier_provenance": "independent_block_verifier",
+                        "independent_verifier": True,
+                        "strictness_threshold": (
+                            PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+                        ),
+                        "aggregation_rule": "parallel_pessimistic_aggregation",
+                        "rollout_count": 1,
+                    },
+                    "block_verification_verifier_provenance": (
+                        "independent_block_verifier"
+                    ),
+                    "block_verification_independent": True,
+                    "independent_block_verification_required": False,
+                    "independent_block_verification_status": "completed",
+                    "source_anchors": [
+                        {"kind": "theory_trace", "id": "rank_uniformity"}
+                    ],
+                    "runtime_generated_queue_name": (
+                        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME
+                    ),
+                    "runtime_queue_status": (
+                        PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                            "formal_gap"
+                        ]
+                    ),
+                    "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+                    "target_lane": "formal_gap",
+                    "reason": "accepted by independent PF/BV rollout",
+                    "input_summary": {
+                        "trigger": (
+                            "PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFICATION_FEEDBACK"
+                        ),
+                        "work_order_id": "pf:bv:rank_uniform",
+                        "row_kind": (
+                            PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+                        ),
+                        "target_lane": "formal_gap",
+                        "source_block_id": "rank_uniformity_block",
+                        "runtime_queue_status": (
+                            PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
+                                "formal_gap"
+                            ]
+                        ),
+                    },
+                    "proof_evidence_status": (
+                        "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ],
+        },
+    }
+
+    rows = runtime_module._runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
+        manifest
+    )
+    copied = [
+        row
+        for row in rows
+        if row.get("learning_task") == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+    ][0]
+
+    assert copied["structural_quality"]["all_ok"] is True
+    assert copied["input_summary"]["structural_quality"]["all_ok"] is True
+    assert copied["bv_calibration"]["strictness_threshold"] == (
+        PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS
+    )
+    assert "pseudo-formal-block-verifier-component-gate" in " ".join(
+        copied["recommended_commands"]
+    )
+    assert copied["pseudo_formal_block_verifier_worker"][
+        "response_validation_command"
+    ].startswith("python -m ai_statistician.cli")
+    assert copied["proof_evidence_status"] == (
+        runtime_module.PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    )
+    assert copied["kernel_verified"] is False
+    assert copied["source_theorem_kernel_verified"] is False
+
+    summary = _runtime_pseudo_formal_block_routing_contract_audit_summary(
+        agenda_rows=[],
+        learning_rows=[copied],
+        pending_memory_rows=[copy.deepcopy(copied)],
+    )
+    assert summary["runtime_pseudo_formal_block_routing_contract_complete"] is True
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_structural_quality"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_or_invalid_bv_quality"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_runtime_pseudo_formal_block_routing_rows_missing_or_wrong_nonproof_boundary"
+        ]
+        == 0
+    )
+
+
 def test_runtime_learning_memory_keeps_non_routable_pseudo_formal_rows_diagnostic(
     tmp_path: Path,
 ) -> None:
