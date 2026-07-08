@@ -1855,7 +1855,9 @@ def _runtime_learning_memory_row_requires_candidate_materialization(
     input_summary = row.get("input_summary", {})
     if not isinstance(input_summary, Mapping):
         input_summary = {}
-    if bool(row.get("candidate_materialization_required", False)) or bool(
+    if _runtime_learning_memory_bool_like(
+        row.get("candidate_materialization_required", False)
+    ) or _runtime_learning_memory_bool_like(
         input_summary.get("candidate_materialization_required", False)
     ):
         return True
@@ -1871,7 +1873,9 @@ def _runtime_learning_memory_row_requires_candidate_materialization(
         if not isinstance(probe_row, Mapping):
             continue
         probe_failure = str(probe_row.get("failure_classification", "") or "")
-        if bool(probe_row.get("candidate_materialization_required", False)):
+        if _runtime_learning_memory_bool_like(
+            probe_row.get("candidate_materialization_required", False)
+        ):
             return True
         if probe_failure in materialization_failures:
             return True
@@ -2700,7 +2704,9 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         )
     ):
         return True
-    if bool(row.get("candidate_materialization_required", False)) or bool(
+    if _runtime_learning_memory_bool_like(
+        row.get("candidate_materialization_required", False)
+    ) or _runtime_learning_memory_bool_like(
         input_summary.get("candidate_materialization_required", False)
     ):
         return True
@@ -2716,7 +2722,9 @@ def _runtime_learning_memory_should_pin_row(row: Mapping[str, object]) -> bool:
         if not isinstance(probe_row, Mapping):
             continue
         probe_failure = str(probe_row.get("failure_classification", "") or "")
-        if bool(probe_row.get("candidate_materialization_required", False)):
+        if _runtime_learning_memory_bool_like(
+            probe_row.get("candidate_materialization_required", False)
+        ):
             return True
         if probe_failure in materialization_failures:
             return True

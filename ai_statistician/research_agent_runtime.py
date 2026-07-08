@@ -39858,7 +39858,7 @@ def _runtime_learning_memory_row_requires_candidate_materialization(
     row: Mapping[str, Any],
     input_summary: Mapping[str, Any],
 ) -> bool:
-    if bool(row.get("candidate_materialization_required", False)) or bool(
+    if _bool_like(row.get("candidate_materialization_required", False)) or _bool_like(
         input_summary.get("candidate_materialization_required", False)
     ):
         return True
@@ -39874,7 +39874,7 @@ def _runtime_learning_memory_row_requires_candidate_materialization(
         if not isinstance(probe_row, Mapping):
             continue
         probe_failure = str(probe_row.get("failure_classification", "") or "")
-        if bool(probe_row.get("candidate_materialization_required", False)):
+        if _bool_like(probe_row.get("candidate_materialization_required", False)):
             return True
         if probe_failure in materialization_failures:
             return True
@@ -46046,10 +46046,12 @@ def _critic_next_action_agenda(
             )
             == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
         )
-        source_theorem_candidate_materialization_required = bool(
-            proof_bank_memory_summary.get(
-                "source_theorem_candidate_materialization_required",
-                False,
+        source_theorem_candidate_materialization_required = (
+            _bool_like(
+                proof_bank_memory_summary.get(
+                    "source_theorem_candidate_materialization_required",
+                    False,
+                )
             )
             or str(
                 proof_bank_memory_summary.get(
@@ -47996,7 +47998,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         is_source_theorem_formal_environment_feedback = (
             learning_task == "source_theorem_formal_environment_repair_feedback"
         )
-        candidate_materialization_required = bool(
+        candidate_materialization_required = _bool_like(
             row.get("candidate_materialization_required", False)
         )
         candidate_materialization_statuses = [
@@ -48008,9 +48010,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             row.get("candidate_materialization_contract", "") or ""
         ).strip()
         if isinstance(input_summary, Mapping):
-            candidate_materialization_required = bool(
+            candidate_materialization_required = (
                 candidate_materialization_required
-                or input_summary.get("candidate_materialization_required", False)
+                or _bool_like(
+                    input_summary.get("candidate_materialization_required", False)
+                )
             )
             candidate_materialization_statuses.extend(
                 str(value).strip()
@@ -48031,9 +48035,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 probe_failure = str(
                     probe_row.get("failure_classification", "") or ""
                 ).strip()
-                candidate_materialization_required = bool(
+                candidate_materialization_required = (
                     candidate_materialization_required
-                    or probe_row.get("candidate_materialization_required", False)
+                    or _bool_like(
+                        probe_row.get("candidate_materialization_required", False)
+                    )
                     or probe_failure
                     in {
                         "source_theorem_candidate_materialization_required",
@@ -53485,7 +53491,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
     exact_candidate_materialization_required_rows = tuple(
         row
         for row in source_theorem_exact_candidate_repairs
-        if bool(row.get("candidate_materialization_required", False))
+        if _bool_like(row.get("candidate_materialization_required", False))
         or str(row.get("failure_classification", "") or "").strip()
         in {
             "source_theorem_candidate_materialization_required",

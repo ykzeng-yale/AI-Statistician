@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:48:19Z",
+  "updated_at": "2026-07-08T00:52:53Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Formalizer Lean repair-sequence evidence now parses candidate-row local_lean_attempted/local_lean_compiled flags with compact-memory boolean semantics instead of raw Python truthiness. A prior failed candidate followed by an integrated repair row with local_lean_compiled='false' no longer fabricates a failed-then-passed Formalizer repair sequence or capability evidence. This protects the S13/capability scorecard from overclaiming repair-loop readiness while preserving the strict boundary that compiled helpers and repair loops are not source theorem proof.",
+  "latest_main_worker_patch": "Candidate-materialization runtime memory now parses candidate_materialization_required with compact-memory boolean semantics in both CLI memory compaction and AgentRuntime proof-bank/Critic routing. Rows or signature-probe summaries carrying candidate_materialization_required='false' no longer get pinned as materialization blockers, no longer set source_theorem_candidate_materialization_required in proof-bank summaries, and no longer produce Critic source-theorem materialization resource requests. Real missing-artifact classifications still route as non-proof materialization blockers.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",

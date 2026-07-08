@@ -27448,6 +27448,102 @@ def test_runtime_learning_memory_loader_pins_candidate_materialization_blocker(
     assert summary["source_theorem_candidate_materialization_required"] is True
 
 
+def test_runtime_learning_memory_string_false_materialization_not_pinned_or_routed(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    false_materialization_row = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "artifact_kind": "RuntimeLearningRow",
+        "learning_task": "retrieval_to_theory_context",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "candidate_materialization_required": "false",
+        "input_summary": {
+            "candidate_materialization_required": "false",
+            "signature_probe_rows": [
+                {
+                    "candidate_materialization_required": "false",
+                    "failure_classification": "formal_environment_placeholder_primitives",
+                }
+            ],
+        },
+    }
+    latest_row = {
+        "schema_version": 1,
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "retrieval_to_theory_context",
+        "target_behavior": "latest non-materialization row",
+    }
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in [false_materialization_row, latest_row])
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert cli_module._runtime_learning_memory_pin_key(
+        false_materialization_row
+    ) != "candidate_materialization_required:split_conformal_finite_sample_coverage"
+    assert memory["counts"]["rows_loaded"] == 1
+    assert memory["rows"][0]["target_behavior"] == "latest non-materialization row"
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    false_formal_environment_row = {
+        **false_materialization_row,
+        "learning_task": "source_theorem_formal_environment_repair_feedback",
+        "failure_classification": "formal_environment_placeholder_primitives",
+        "input_summary": {
+            **false_materialization_row["input_summary"],
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "missing_formal_symbols": ["coverage_event"],
+        },
+    }
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {"kernel_verified_proof_obligation_ids": verified_ids},
+                    false_formal_environment_row,
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_candidate_environment_gap"] is True
+    assert summary["source_theorem_candidate_materialization_required"] is False
+    assert (
+        "source_theorem_candidate_materialization_required"
+        not in summary["source_theorem_exact_candidate_failure_classifications"]
+    )
+    requests = _critic_formal_blocker_resource_requests(
+        formalization_manifest={
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:string_false_materialization",
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": summary,
+        },
+        agenda=[],
+    )
+    assert not any(
+        row["blocker_kind"] == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
+        for row in requests
+    )
+
+
 def test_runtime_learning_memory_materialization_blocker_outprioritizes_environment_repair_when_tight(
     tmp_path: Path,
 ) -> None:
