@@ -12406,6 +12406,12 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
                 {},
             )
         ),
+        "pseudo_formal_failure_validator_ready_copy_contract": (
+            eval_manifest.get(
+                "pseudo_formal_failure_validator_ready_copy_contract",
+                {},
+            )
+        ),
         "pseudo_formal_failure_required_target_lanes": [
             str(value)
             for value in eval_manifest.get(
@@ -12536,6 +12542,9 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest[
         "internal_formalizer_pseudo_formal_packet_eval_failure_concrete_lane_routable_repair_seed"
     ] = attached["pseudo_formal_failure_concrete_lane_routable_repair_seed"]
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_validator_ready_copy_contract"
+    ] = attached["pseudo_formal_failure_validator_ready_copy_contract"]
     manifest["internal_formalizer_pseudo_formal_packet_eval_live_generator"] = bool(
         attached["live_generator"]
     )

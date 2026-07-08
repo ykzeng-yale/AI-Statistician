@@ -4027,6 +4027,23 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
         )
         else {}
     )
+    failure_validator_ready_copy_contract = (
+        dict(
+            attached.get(
+                "pseudo_formal_failure_validator_ready_copy_contract",
+                {},
+            )
+            or {}
+        )
+        if isinstance(
+            attached.get(
+                "pseudo_formal_failure_validator_ready_copy_contract",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
     failure_repair_seed_available = bool(
         failure_repair_seed.get("blocks", []) if failure_repair_seed else []
     )
@@ -4086,6 +4103,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             ),
             "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
                 failure_repair_seed
+            ),
+            "pseudo_formal_failure_validator_ready_copy_contract": (
+                failure_validator_ready_copy_contract
             ),
             "pseudo_formal_failure_repair_seed_available": (
                 failure_repair_seed_available
@@ -4168,6 +4188,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 ),
                 "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
                     failure_repair_seed
+                ),
+                "pseudo_formal_failure_validator_ready_copy_contract": (
+                    failure_validator_ready_copy_contract
                 ),
                 "pseudo_formal_failure_repair_seed_available": (
                     failure_repair_seed_available
@@ -52593,6 +52616,18 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
             if isinstance(raw_failure_seed, Mapping)
             else {}
         )
+        raw_copy_contract = row.get(
+            "pseudo_formal_failure_validator_ready_copy_contract",
+            input_summary.get(
+                "pseudo_formal_failure_validator_ready_copy_contract",
+                {},
+            ),
+        )
+        validator_ready_copy_contract = (
+            dict(raw_copy_contract)
+            if isinstance(raw_copy_contract, Mapping)
+            else {}
+        )
         raw_issue_summary = row.get(
             "pseudo_formal_failure_validation_issue_summary",
             input_summary.get(
@@ -52675,6 +52710,9 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
                 ),
                 "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
                     failure_seed
+                ),
+                "pseudo_formal_failure_validator_ready_copy_contract": (
+                    validator_ready_copy_contract
                 ),
                 "pseudo_formal_failure_repair_seed_available": _bool_like(
                     failure_seed.get("blocks", []) if failure_seed else []
@@ -57357,6 +57395,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     )
                     else {}
                 ),
+                "pseudo_formal_failure_validator_ready_copy_contract": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_validator_ready_copy_contract",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_validator_ready_copy_contract",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
                 "pseudo_formal_failure_repair_seed_available": _bool_like(
                     row.get("pseudo_formal_failure_repair_seed_available", False)
                 ),
@@ -57423,6 +57477,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     if isinstance(
                         row.get(
                             "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "validator_ready_copy_contract": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_validator_ready_copy_contract",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_validator_ready_copy_contract",
                             {},
                         ),
                         Mapping,

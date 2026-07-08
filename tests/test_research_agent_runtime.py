@@ -91037,6 +91037,9 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     repair_seed = manifest[
         "internal_formalizer_pseudo_formal_packet_eval_failure_concrete_lane_routable_repair_seed"
     ]
+    copy_contract = manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_validator_ready_copy_contract"
+    ]
     issue_summary = manifest[
         "internal_formalizer_pseudo_formal_packet_eval_failure_validation_issue_summary"
     ]
@@ -91066,6 +91069,13 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
         "proof_body:rank_threshold_step"
     )
     assert repair_seed["blocks"][0]["semantic_primitive_requirements"]
+    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
+    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
+    assert attached[
+        "pseudo_formal_failure_validator_ready_copy_contract"
+    ]["copy_source_path"] == (
+        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
+    )
     assert attached["attachment_gate_requirements"][
         "manifest_capability_evidence_ok"
     ] is False
@@ -91106,6 +91116,9 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert pf_row[
         "pseudo_formal_failure_concrete_lane_routable_repair_seed"
     ]["blocks"][0]["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
+    assert pf_row["pseudo_formal_failure_validator_ready_copy_contract"][
+        "copy_destination_path"
+    ] == "pseudo_formal_proof_packets"
 
     proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
         context={
@@ -91140,6 +91153,9 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert failure_memory[0]["concrete_lane_routable_repair_seed"]["blocks"][0][
         "semantic_primitive_requirements"
     ]
+    assert failure_memory[0]["validator_ready_copy_contract"][
+        "copy_destination_path"
+    ] == "pseudo_formal_proof_packets"
 
     prompt = build_formalizer_prompt(
         question=OpenResearchQuestion(
@@ -91166,10 +91182,16 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     ][0]["concrete_lane_routable_repair_seed"]["blocks"][0]["source_anchors"][0][
         "id"
     ] == "proof_body:rank_threshold_step"
+    assert prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ][0]["validator_ready_copy_contract"]["copy_destination_path"] == (
+        "pseudo_formal_proof_packets"
+    )
     assert (
         "Formalizer PF/BV packet component-gate failure memory is active"
         in prompt
     )
+    assert "validator_ready_copy_contract is available" in prompt
 
 
 def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(

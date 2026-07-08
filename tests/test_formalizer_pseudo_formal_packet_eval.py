@@ -695,6 +695,9 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     concrete_seed = manifest[
         "pseudo_formal_failure_concrete_lane_routable_repair_seed"
     ]
+    copy_contract = manifest[
+        "pseudo_formal_failure_validator_ready_copy_contract"
+    ]
     concrete_block = concrete_seed["blocks"][0]
     rows = pseudo_formal_routable_work_order_rows(
         pseudo_formal_block_work_order_rows(concrete_seed)
@@ -713,6 +716,14 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     )
     assert concrete_block["semantic_primitive_requirements"]
     assert concrete_block["lean_feasibility"] == "needs_semantic_definition"
+    assert copy_contract["copy_source_path"] == (
+        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
+    )
+    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
+    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
+    assert "pseudo_formal_proof_packets[0].blocks[0].source_anchors" in (
+        copy_contract["required_preserved_paths"]
+    )
     assert any(
         row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         and row["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
@@ -725,6 +736,9 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     assert result["pseudo_formal_failure_concrete_lane_routable_repair_seed"][
         "blocks"
     ][0]["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
+    assert result["pseudo_formal_failure_validator_ready_copy_contract"][
+        "copy_destination_path"
+    ] == "pseudo_formal_proof_packets"
 
 
 def test_formalizer_pseudo_formal_packet_eval_cli_fixture_gate(

@@ -6371,6 +6371,7 @@ def _formalizer_mode_specific_instructions(
         target_lanes: list[str] = []
         issue_kinds: list[str] = []
         manifest_paths: list[str] = []
+        copy_contract_paths: list[str] = []
         for row in pseudo_formal_packet_gate_failure_memory[:3]:
             manifest_path = str(row.get("component_eval_manifest_path", "") or "")
             if manifest_path:
@@ -6387,6 +6388,11 @@ def _formalizer_mode_specific_instructions(
                     for value in issue_summary.get("blocking_issue_kinds", []) or []
                     if str(value).strip()
                 )
+            copy_contract = row.get("validator_ready_copy_contract", {})
+            if isinstance(copy_contract, Mapping):
+                copy_path = str(copy_contract.get("copy_source_path", "") or "")
+                if copy_path:
+                    copy_contract_paths.append(copy_path)
         instruction = (
             "Formalizer PF/BV packet component-gate failure memory is active: "
             "proof_bank_runtime_memory_summary."
@@ -6400,6 +6406,12 @@ def _formalizer_mode_specific_instructions(
             "semantic_primitive_requirements, required target lanes, and PF/BV "
             "non-proof boundary."
         )
+        if copy_contract_paths:
+            instruction += (
+                " A validator_ready_copy_contract is available; copy "
+                + ", ".join(list(dict.fromkeys(copy_contract_paths))[:3])
+                + " into pseudo_formal_proof_packets before optional edits."
+            )
         if target_lanes:
             instruction += (
                 " Required target lane(s): "

@@ -159,6 +159,11 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         if isinstance(repair_context.get("pseudo_formal_required_repair_blueprint", {}), Mapping)
         else {}
     )
+    validator_ready_copy_contract = (
+        dict(repair_blueprint.get("validator_ready_copy_contract", {}) or {})
+        if isinstance(repair_blueprint.get("validator_ready_copy_contract", {}), Mapping)
+        else {}
+    )
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
@@ -184,6 +189,9 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         ),
         "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
             repair_blueprint.get("concrete_lane_routable_repair_seed", {})
+        ),
+        "pseudo_formal_failure_validator_ready_copy_contract": (
+            validator_ready_copy_contract
         ),
         "pseudo_formal_failure_required_target_lanes": list(
             repair_blueprint.get(
@@ -219,6 +227,11 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
                 "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
                     manifest[
                         "pseudo_formal_failure_concrete_lane_routable_repair_seed"
+                    ]
+                ),
+                "pseudo_formal_failure_validator_ready_copy_contract": (
+                    manifest[
+                        "pseudo_formal_failure_validator_ready_copy_contract"
                     ]
                 ),
             },
