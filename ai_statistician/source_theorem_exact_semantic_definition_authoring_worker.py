@@ -4438,6 +4438,7 @@ def _materialization_row(
     missing_source_anchor_references = _missing_required_anchor_references(
         lean_source,
         candidate_definition_request.get("required_anchor_names", []) or [],
+        candidate_definition_request.get("required_anchor_bindings", []) or [],
     )
     semantic_alignment_blockers = list(
         dict.fromkeys(
@@ -4742,16 +4743,52 @@ def _lean_repair_task_from_materialization_row(row: Mapping[str, Any]) -> dict[s
 def _missing_required_anchor_references(
     lean_source: str,
     required_anchor_names: Sequence[Any],
+    required_anchor_bindings: Sequence[Any] = (),
 ) -> list[str]:
     source = str(lean_source or "")
+    actual_names_by_required = _actual_anchor_names_by_required_anchor(
+        required_anchor_bindings
+    )
     missing: list[str] = []
     for raw_name in required_anchor_names:
         name = str(raw_name or "").strip()
         if not name:
             continue
-        if not _lean_source_mentions_identifier(source, name):
+        candidate_names = list(
+            dict.fromkeys([name, *actual_names_by_required.get(name, [])])
+        )
+        if not any(
+            _lean_source_mentions_identifier(source, candidate_name)
+            for candidate_name in candidate_names
+        ):
             missing.append(name)
     return missing
+
+
+def _actual_anchor_names_by_required_anchor(
+    required_anchor_bindings: Sequence[Any],
+) -> dict[str, list[str]]:
+    actual_by_required: dict[str, list[str]] = {}
+    for raw_binding in required_anchor_bindings:
+        if not isinstance(raw_binding, Mapping):
+            continue
+        required_name = str(
+            raw_binding.get("required_anchor_name", "") or ""
+        ).strip()
+        actual_name = str(raw_binding.get("actual_anchor_name", "") or "").strip()
+        binder = raw_binding.get("binder", {}) or {}
+        binder_name = (
+            str(binder.get("name", "") or "").strip()
+            if isinstance(binder, Mapping)
+            else ""
+        )
+        if not required_name:
+            continue
+        names = actual_by_required.setdefault(required_name, [])
+        for name in (actual_name, binder_name):
+            if name and name not in names:
+                names.append(name)
+    return actual_by_required
 
 
 def _lean_source_mentions_identifier(lean_source: str, identifier: str) -> bool:

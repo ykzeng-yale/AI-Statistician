@@ -2344,6 +2344,154 @@ def test_authoring_candidate_materializer_writes_lean_repair_task(
     assert repair_manifest["semantic_definition_kernel_verified"] is False
 
 
+def test_authoring_candidate_materializer_honors_actual_required_anchor_bindings(
+    tmp_path: Path,
+) -> None:
+    candidate_path = tmp_path / "candidate_packets.jsonl"
+    candidate = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringCandidatePacket",
+        "candidate_packet_id": "candidate:good-rank-bound-source-names",
+        "source_prompt_packet_id": "prompt:good-rank",
+        "source_authoring_task_id": "authoring:good-rank",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "good_rank_event",
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "placeholder_symbol": "good_rank_event",
+            "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+            "available_anchor_names": [
+                "n",
+                "score",
+                "q",
+                "hq",
+                "n2",
+                "s",
+                "q_hat",
+            ],
+            "missing_required_anchor_names": [],
+            "required_anchor_bindings": [
+                {
+                    "required_anchor_name": "n2",
+                    "actual_anchor_name": "n",
+                    "match_kind": "source_anchor_role",
+                    "role": "calibration_size_anchor",
+                    "binder": {
+                        "name": "n",
+                        "type": "Nat",
+                        "role": "calibration_size_anchor",
+                    },
+                },
+                {
+                    "required_anchor_name": "s",
+                    "actual_anchor_name": "score",
+                    "match_kind": "source_anchor_role",
+                    "role": "score_process_anchor",
+                    "binder": {
+                        "name": "score",
+                        "type": "Fin (n + 1) -> Omega -> Real",
+                        "role": "score_process_anchor",
+                    },
+                },
+                {
+                    "required_anchor_name": "q_hat",
+                    "actual_anchor_name": "q",
+                    "match_kind": "source_anchor_role",
+                    "role": "threshold_function_anchor",
+                    "binder": {
+                        "name": "q",
+                        "type": "Real",
+                        "role": "threshold_function_anchor",
+                    },
+                },
+                {
+                    "required_anchor_name": "hq",
+                    "actual_anchor_name": "hq",
+                    "match_kind": "exact_name",
+                    "role": "quantile_definition_anchor",
+                    "binder": {
+                        "name": "hq",
+                        "type": "Prop",
+                        "role": "quantile_definition_anchor",
+                    },
+                },
+            ],
+            "required_binders": [
+                {"name": "n", "type": "Nat", "role": "calibration_size_anchor"},
+                {
+                    "name": "score",
+                    "type": "Fin (n + 1) -> Omega -> Real",
+                    "role": "score_process_anchor",
+                },
+                {"name": "q", "type": "Real", "role": "threshold_function_anchor"},
+                {"name": "hq", "type": "Prop", "role": "quantile_definition_anchor"},
+            ],
+        },
+        "definition_design": "Good-rank event is parameterized by the actual source binders.",
+        "lean_definition_candidate": (
+            "def reviewedGoodRankEvent "
+            "(n : Nat) "
+            "(score : Fin (n + 1) -> Omega -> Real) "
+            "(q : Real) "
+            "(hq : Prop) : Prop := hq"
+        ),
+        "required_imports": [],
+        "binder_usage": [
+            {"name": "n", "how_used": "actual calibration-size binder"},
+            {"name": "score", "how_used": "actual score-process binder"},
+            {"name": "q", "how_used": "actual threshold binder"},
+            {"name": "hq", "how_used": "actual quantile-condition binder"},
+        ],
+        "semantic_alignment_notes": [
+            "Uses actual source theorem binder names from required_anchor_bindings."
+        ],
+        "known_gaps": [],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": CANDIDATE_PROOF_EVIDENCE_STATUS,
+        "ok": True,
+    }
+    candidate_path.write_text(
+        json.dumps(candidate, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    materializer_manifest = (
+        run_source_theorem_exact_semantic_definition_authoring_candidate_materializer(
+            out_dir=tmp_path / "materializer",
+            candidate_packets_jsonl=candidate_path,
+            config=AuthoringCandidateMaterializerConfig(),
+        )
+    )
+
+    rows = [
+        json.loads(line)
+        for line in Path(
+            materializer_manifest["materialization_rows_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert rows[0]["missing_required_anchor_references"] == []
+    assert not any(
+        "does not reference required source anchor" in blocker
+        for blocker in rows[0]["semantic_alignment_blockers"]
+    )
+    repair_tasks = [
+        json.loads(line)
+        for line in Path(
+            materializer_manifest["materialized_lean_repair_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert repair_tasks[0]["semantic_alignment_blockers"] == []
+    assert repair_tasks[0]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "n"
+
+
 def test_authoring_candidate_materializer_orders_grouped_adapter_dependencies(
     tmp_path: Path,
 ) -> None:
