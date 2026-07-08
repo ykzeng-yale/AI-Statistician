@@ -59632,11 +59632,15 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
     for row in learning_rows:
         if not isinstance(row, Mapping):
             continue
-        input_summary = row.get("input_summary", {})
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
         trigger = _runtime_learning_row_trigger(row, input_summary)
+        learning_task = _runtime_learning_row_task(row, input_summary)
         if (
-            str(row.get("learning_task", "") or "")
-            != "exact_source_theorem_proof_body_execution_feedback"
+            learning_task != "exact_source_theorem_proof_body_execution_feedback"
             and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
         ):
             continue
@@ -59795,7 +59799,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
                 "work_order_id": work_order_id,
-                "source_learning_task": str(row.get("learning_task", "") or ""),
+                "source_learning_task": learning_task,
                 "source_learning_row_id": source_learning_row_id,
                 "source_execution_result_id": execution_result_id,
                 "source_execution_queue_id": execution_queue_id,
@@ -67011,7 +67015,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             input_summary = {}
         exact_semantic_context = _runtime_exact_semantic_definition_context(row)
         trigger = _runtime_learning_row_trigger(row, input_summary)
-        learning_task = str(row.get("learning_task", "") or "").strip()
+        learning_task = _runtime_learning_row_task(row, input_summary)
         if not learning_task and str(row.get("id", "") or "").startswith(
             "proof_feedback:"
         ):
@@ -67023,8 +67027,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             continue
         is_source_to_bridge_premise_feedback = (
             learning_task == "source_to_bridge_premise_derivation_feedback"
-            or str(row.get("learning_task", "") or "")
-            == "source_theorem_truth_table_feedback"
+            or learning_task == "source_theorem_truth_table_feedback"
             or trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_FEEDBACK"
             or trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
             or trigger == "RUNTIME_EVIDENCE_TRUTH_TABLE"
@@ -67304,15 +67307,14 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer",
                     "question_id": question_id,
                     "question_title": question_title,
-                    "source_learning_task": str(row.get("learning_task", "") or ""),
+                    "source_learning_task": learning_task,
                     "source_learning_row_id": source_learning_row_id,
                     "source_premise_work_order_id": source_work_order_id,
                     "target_theorem_name": target_theorem_name,
                     "target_ids": target_ids,
-                    "source_theorem_target_known": bool(
-                        source_target_provenance.get(
-                            "source_theorem_target_known", False
-                        )
+                    "source_theorem_target_known": (
+                        _source_theorem_target_known_value(source_target_provenance)
+                        is True
                     ),
                     "source_theorem_target_provenance": source_target_provenance,
                     "candidate_artifact_path": str(
@@ -67404,8 +67406,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             )
             continue
         if (
-            str(row.get("learning_task", "") or "")
-            != "exact_source_theorem_proof_body_execution_feedback"
+            learning_task != "exact_source_theorem_proof_body_execution_feedback"
             and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
         ):
             continue
@@ -67631,7 +67632,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "next_owner": "FormalizerProofEngineer",
                     "question_id": question_id,
                     "question_title": question_title,
-                    "source_learning_task": str(row.get("learning_task", "") or ""),
+                    "source_learning_task": learning_task,
                     "source_learning_row_id": source_learning_row_id,
                     "source_execution_result_id": str(
                         row.get("execution_result_id", "") or ""
@@ -67644,8 +67645,9 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     ),
                     "target_theorem_name": target_theorem_name,
                     "target_ids": target_ids,
-                    "source_theorem_target_known": bool(
-                        source_target_provenance.get("source_theorem_target_known", False)
+                    "source_theorem_target_known": (
+                        _source_theorem_target_known_value(source_target_provenance)
+                        is True
                     ),
                     "source_theorem_target_provenance": source_target_provenance,
                     "semantic_alignment_constraints": semantic_alignment_constraints,
@@ -67655,10 +67657,10 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "failure_classification": failure_classification,
                     "diagnostics": diagnostics,
                     "formal_environment_typeclass_blockers": typeclass_blockers,
-                    "proof_body_attempted": bool(
+                    "proof_body_attempted": _bool_like(
                         input_summary.get("proof_body_attempted", False)
                     ),
-                    "proof_body_attempt_success": bool(
+                    "proof_body_attempt_success": _bool_like(
                         input_summary.get("proof_body_attempt_success", False)
                     ),
                     "proof_body_attempt_summaries": proof_body_attempt_summaries,
@@ -67730,7 +67732,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "next_owner": "FormalizerProofEngineer",
                     "question_id": question_id,
                     "question_title": question_title,
-                    "source_learning_task": str(row.get("learning_task", "") or ""),
+                    "source_learning_task": learning_task,
                     "source_learning_row_id": source_learning_row_id,
                     "source_execution_result_id": str(
                         row.get("execution_result_id", "") or ""
@@ -67743,8 +67745,9 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     ),
                     "target_theorem_name": target_theorem_name,
                     "target_ids": target_ids,
-                    "source_theorem_target_known": bool(
-                        source_target_provenance.get("source_theorem_target_known", False)
+                    "source_theorem_target_known": (
+                        _source_theorem_target_known_value(source_target_provenance)
+                        is True
                     ),
                     "source_theorem_target_provenance": source_target_provenance,
                     "semantic_alignment_constraints": semantic_alignment_constraints,
@@ -67754,10 +67757,10 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "failure_classification": failure_classification,
                     "diagnostics": diagnostics,
                     "formal_environment_typeclass_blockers": typeclass_blockers,
-                    "proof_body_attempted": bool(
+                    "proof_body_attempted": _bool_like(
                         input_summary.get("proof_body_attempted", False)
                     ),
-                    "proof_body_attempt_success": bool(
+                    "proof_body_attempt_success": _bool_like(
                         input_summary.get("proof_body_attempt_success", False)
                     ),
                     "proof_body_attempt_summaries": proof_body_attempt_summaries,

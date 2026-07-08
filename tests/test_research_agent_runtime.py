@@ -43116,6 +43116,50 @@ def test_source_to_bridge_premise_gap_generates_semantic_primitive_work_order() 
     assert "hq, hC" in work_order["semantic_primitive_gap"]
 
 
+def test_compact_source_to_bridge_premise_gap_generates_semantic_work_order() -> None:
+    premise_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "input_summary": {
+            "learning_task": "source_to_bridge_premise_derivation_feedback",
+            "target_theorem_name": "compact_source_theorem",
+            "target_ids": ["compact_source_goal"],
+            "source_theorem_target_known": "false",
+            "work_order_id": (
+                "source_to_bridge_premise_derivation_work_order:hCompact"
+            ),
+            "premise_name": "hCompact",
+            "premise_target_type": "CompactBridgeTarget",
+            "premise_derivation_kernel_verified": "false",
+            "premise_derivation_gap_kind": (
+                "concrete_premise_target_lacks_nonvacuous_derivation_candidate"
+            ),
+        },
+        "proof_evidence_status": (
+            "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows(
+            [premise_row]
+        )
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["source_learning_task"] == (
+        "source_to_bridge_premise_derivation_feedback"
+    )
+    assert work_order["premise_name"] == "hCompact"
+    assert work_order["target_ids"] == ["compact_source_goal"]
+    assert work_order["source_theorem_target_known"] is False
+    assert work_order["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_REPAIR"
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_source_to_bridge_premise_semantic_repair_feedback_does_not_requeue_semantic_work_order() -> None:
     feedback_row = {
         "schema_version": 1,
@@ -57710,6 +57754,44 @@ def test_proof_body_executor_feedback_exports_formal_environment_work_order() ->
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_compact_proof_body_feedback_exports_formal_environment_work_order() -> None:
+    learning_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "input_summary": {
+            "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+            "target_theorem_name": "compact_source_theorem",
+            "target_lean_declaration": "compact_source_theorem",
+            "target_ids": ["compact_source_goal"],
+            "candidate_artifact_path": "runs/proof_body/compact_source.lean",
+            "source_theorem_kernel_verified": "false",
+            "source_theorem_target_known": "false",
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "formal_environment_placeholder_symbols": ["CompactPlaceholder"],
+        },
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    work_orders = (
+        _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
+            [learning_row]
+        )
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["source_learning_task"] == (
+        "exact_source_theorem_proof_body_execution_feedback"
+    )
+    assert work_order["target_theorem_name"] == "compact_source_theorem"
+    assert work_order["target_ids"] == ["compact_source_goal"]
+    assert work_order["source_theorem_target_known"] is False
+    assert work_order["missing_formal_symbols"] == ["CompactPlaceholder"]
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     tmp_path: Path,
 ) -> None:
@@ -58003,6 +58085,49 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders(
     )
     assert duplicate_rows == []
     assert len(agenda_rows) == 3
+
+
+def test_compact_proof_body_feedback_exports_semantic_work_order_with_string_false() -> None:
+    learning_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "input_summary": {
+            "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+            "target_theorem_name": "compact_source_theorem",
+            "target_ids": ["compact_source_goal"],
+            "source_theorem_target_known": "false",
+            "source_theorem_kernel_verified": "false",
+            "candidate_artifact_path": "runs/proof_body/compact_source.lean",
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "formal_environment_placeholder_symbols": ["CompactPlaceholder"],
+            "proof_body_attempted": "false",
+            "proof_body_attempt_success": "false",
+        },
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows(
+            [learning_row]
+        )
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["source_learning_task"] == (
+        "exact_source_theorem_proof_body_execution_feedback"
+    )
+    assert work_order["placeholder_symbol"] == "CompactPlaceholder"
+    assert work_order["target_ids"] == ["compact_source_goal"]
+    assert work_order["source_theorem_target_known"] is False
+    assert work_order["proof_body_attempted"] is False
+    assert work_order["proof_body_attempt_success"] is False
+    assert work_order["runtime_queue_status"] == (
+        "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
 def test_runtime_next_action_agenda_dedupes_generic_rows_preserving_provenance() -> None:

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:29:18Z",
+  "updated_at": "2026-07-08T00:38:22Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Exact semantic-definition authoring retry extraction now consumes compact runtime-learning rows whose learning_task, trigger, validation_errors, and environment-repair fields live under input_summary, and it normalizes serialized false booleans before deciding structural reformulation, semantic-review, or Lean-environment authoring repair. A compact C_n-style LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT row now becomes a non-proof authoring repair task instead of being dropped or suppressed by ready_to_rerun_lean_repair='false'. Source theorem proof and proof-body routing remain gated behind reviewed exact semantics plus local Lean/AXLE kernel verification.",
+  "latest_main_worker_patch": "Source-theorem formal-environment and semantic-primitive work-order replay now consumes compact runtime-learning rows whose learning_task lives under input_summary. Compact exact proof-body feedback can emit non-proof formal-environment and semantic-primitive repair work orders instead of being silently skipped, compact source-to-bridge premise feedback can emit semantic repair work orders, and serialized 'false' values no longer become truthy source_theorem_target_known or proof_body_attempted/proof_body_attempt_success flags. Source theorem proof and proof-body routing remain gated behind reviewed exact semantics plus local Lean/AXLE kernel verification.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
