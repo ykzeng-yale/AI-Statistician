@@ -505,27 +505,27 @@ def _candidate_definition_request_from_row(
     target_theorem_name: str,
     target_ids: list[str],
 ) -> dict[str, Any]:
-    raw_request = row.get("candidate_definition_request", {})
+    sources = _exact_semantic_context_sources(row)
+    raw_request = _first_context_value(sources, "candidate_definition_request")
     request = dict(raw_request) if isinstance(raw_request, Mapping) else {}
-    placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
+    placeholder_symbol = str(
+        _first_context_value(sources, "placeholder_symbol") or ""
+    )
     if target_theorem_name:
         request.setdefault("target_theorem_name", target_theorem_name)
     if target_ids and not request.get("target_ids"):
         request["target_ids"] = list(target_ids)
     if placeholder_symbol and not request.get("placeholder_symbol"):
         request["placeholder_symbol"] = placeholder_symbol
-    normalize_exact_semantic_definition_signature_probe_context(request, row)
+    normalize_exact_semantic_definition_signature_probe_context(request, *sources)
     return request
 
 
 def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]:
     context: dict[str, Any] = {}
+    sources = _exact_semantic_context_sources(row)
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
-        value = row.get(key, None)
-        if value in (None, "", [], {}):
-            input_summary = row.get("input_summary", {})
-            if isinstance(input_summary, Mapping):
-                value = input_summary.get(key, None)
+        value = _first_context_value(sources, key)
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -536,8 +536,12 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context[key] = value
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
-        target_theorem_name = str(row.get("target_theorem_name", "") or "")
-        placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
+        target_theorem_name = str(
+            _first_context_value(sources, "target_theorem_name") or ""
+        )
+        placeholder_symbol = str(
+            _first_context_value(sources, "placeholder_symbol") or ""
+        )
         target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
         normalized_request = dict(candidate_request)
         normalized_request.setdefault("target_theorem_name", target_theorem_name)
@@ -546,8 +550,38 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
-    normalize_exact_semantic_definition_signature_probe_context(context, row)
+    normalize_exact_semantic_definition_signature_probe_context(context, *sources)
     return context
+
+
+def _exact_semantic_context_sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = [row]
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    if input_summary:
+        sources.append(input_summary)
+    typechecked_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if isinstance(typechecked_candidate, Mapping) and typechecked_candidate:
+        sources.append(typechecked_candidate)
+    for source in list(sources):
+        nested_context = source.get("exact_semantic_definition_context", {})
+        if isinstance(nested_context, Mapping) and nested_context:
+            sources.append(nested_context)
+    return sources
+
+
+def _first_context_value(sources: Sequence[Mapping[str, Any]], key: str) -> Any:
+    for source in sources:
+        value = source.get(key, None)
+        if value not in (None, "", [], {}):
+            return value
+    return None
 
 
 def _target_ids_from_row(

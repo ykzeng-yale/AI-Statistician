@@ -137,6 +137,124 @@ def test_lean_environment_repair_executor_detects_missing_manifest(
     ]
 
 
+def test_lean_environment_repair_executor_preserves_nested_anchor_bindings(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "LeanProject"
+    candidate = project / "StatInference" / "Conformal.lean"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text("-- source\n", encoding="utf-8")
+    (project / "lakefile.lean").write_text("import Lake\n", encoding="utf-8")
+    (project / "lean-toolchain").write_text(
+        "leanprover/lean4:v4.30.0-rc2\n",
+        encoding="utf-8",
+    )
+    nested_context = {
+        "semantic_primitive": "good_rank_event",
+        "source_anchors": [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "pf:block:good_rank_event",
+                "excerpt": "rank event source block",
+            }
+        ],
+        "source_anchor_context": [
+            {
+                "source": "candidate_definition_request.required_anchor_bindings",
+                "kind": "required_anchor_binding",
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q",
+                "semantic_anchor_name": "q_hat",
+                "name": "q",
+                "type": "Real",
+                "role": "threshold_function_anchor",
+                "binder": {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                },
+            }
+        ],
+        "source_anchor_context_rows": 1,
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "placeholder_symbol": "good_rank_event",
+            "required_anchor_names": ["q_hat"],
+            "available_anchor_names": ["q", "q_hat"],
+            "missing_required_anchor_names": [],
+            "required_anchor_bindings": [
+                {
+                    "required_anchor_name": "q_hat",
+                    "actual_anchor_name": "q",
+                    "match_kind": "source_anchor_role",
+                    "role": "threshold_function_anchor",
+                    "binder": {
+                        "name": "q",
+                        "type": "Real",
+                        "role": "threshold_function_anchor",
+                    },
+                }
+            ],
+            "required_binders": [
+                {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                }
+            ],
+        },
+    }
+    tasks = tmp_path / "environment_tasks.jsonl"
+    _write_environment_task(
+        tasks,
+        project=project,
+        candidate=candidate,
+    )
+    task_row = json.loads(tasks.read_text(encoding="utf-8"))
+    task_row["placeholder_symbol"] = "good_rank_event"
+    task_row["candidate_definition_request"] = {}
+    task_row["input_summary"] = {
+        "exact_semantic_definition_context": nested_context,
+    }
+    tasks.write_text(json.dumps(task_row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_environment_repair_executor(
+        out_dir=tmp_path / "out",
+        environment_tasks_jsonl=tasks,
+    )
+
+    results = [
+        json.loads(line)
+        for line in Path(
+            manifest["environment_repair_results_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert results[0]["source_anchor_context"][0]["actual_anchor_name"] == "q"
+    assert results[0]["source_anchor_context_rows"] == 1
+    assert results[0]["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert results[0]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+    assert results[0]["candidate_definition_request"]["placeholder_symbol"] == (
+        "good_rank_event"
+    )
+
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert learning_rows[0]["source_anchor_context"][0]["name"] == "q"
+    assert learning_rows[0]["candidate_definition_request"]["required_binders"][0][
+        "name"
+    ] == "q"
+    assert learning_rows[0]["input_summary"]["source_anchor_context"][0][
+        "actual_anchor_name"
+    ] == "q"
+    assert learning_rows[0]["input_summary"]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+
+
 def test_lean_environment_repair_executor_detects_ready_project(
     tmp_path: Path,
 ) -> None:
