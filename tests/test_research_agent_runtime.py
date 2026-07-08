@@ -57608,6 +57608,64 @@ def test_critic_memory_routes_candidate_materialization_blocker_request() -> Non
     )
 
 
+def test_exact_semantic_repair_blocker_request_preserves_definition_candidate_artifact() -> None:
+    feedback = {
+        "source_theorem_exact_semantic_definition_repair_required": True,
+        "target_names": ["split_conformal_finite_sample_coverage"],
+        "diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "placeholder_symbol": "covered",
+                "failure_classification": (
+                    "source_theorem_exact_semantic_definition_repair_required"
+                ),
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW"
+                ),
+                "proof_body_gate_status": (
+                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                ),
+                "definition_only_candidate_artifact_path": (
+                    "runs/candidate_artifacts/covered_definition_only.lean"
+                ),
+                "local_definition_lean_checked": True,
+                "local_definition_lean_compiled": True,
+                "semantic_definition_typecheck_evidence_status": (
+                    "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                    "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                ),
+                "recommended_next_action": (
+                    "review the typechecked definition-only candidate for source "
+                    "semantic faithfulness before importing it"
+                ),
+            }
+        ],
+    }
+
+    requests = (
+        runtime_module._formal_blocker_resource_requests_from_exact_semantic_definition_repair_feedback(
+            feedback
+        )
+    )
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request["placeholder_symbol"] == "covered"
+    assert request["candidate_artifact_path"] == (
+        "runs/candidate_artifacts/covered_definition_only.lean"
+    )
+    assert request["definition_only_candidate_artifact_path"] == (
+        "runs/candidate_artifacts/covered_definition_only.lean"
+    )
+    assert "candidate_artifact=runs/candidate_artifacts/covered_definition_only.lean" in request[
+        "blocker"
+    ]
+    assert request["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_exact_proof_body_unready_queue_routes_candidate_materialization_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)

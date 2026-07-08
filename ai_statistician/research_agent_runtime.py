@@ -43565,8 +43565,27 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
             for value in diagnostic.get("recommended_commands", []) or []
             if str(value).strip()
         ]
+        definition_only_candidate_path = str(
+            diagnostic.get("definition_only_candidate_artifact_path", "") or ""
+        ).strip()
+        nested_typechecked_candidate = diagnostic.get(
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+            {},
+        )
+        if not isinstance(nested_typechecked_candidate, Mapping):
+            nested_typechecked_candidate = {}
+        if not definition_only_candidate_path:
+            definition_only_candidate_path = str(
+                nested_typechecked_candidate.get(
+                    "definition_only_candidate_artifact_path", ""
+                )
+                or ""
+            ).strip()
         candidate_path = str(
-            diagnostic.get("candidate_artifact_path", "") or ""
+            diagnostic.get("candidate_artifact_path", "")
+            or nested_typechecked_candidate.get("candidate_artifact_path", "")
+            or definition_only_candidate_path
+            or ""
         ).strip()
         semantic_blockers = [
             str(value).strip()
@@ -43678,6 +43697,9 @@ def _formal_blocker_resource_requests_from_exact_semantic_definition_repair_feed
                 "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
                 "target_ids": target_ids,
                 "candidate_artifact_path": candidate_path,
+                "definition_only_candidate_artifact_path": (
+                    definition_only_candidate_path
+                ),
                 "semantic_alignment_blockers": semantic_blockers,
                 "verified_adapter_context_ids": adapter_ids[:5],
                 "formal_source_queries": _formal_blocker_resource_request_queries(
