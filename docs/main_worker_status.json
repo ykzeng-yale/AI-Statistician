@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T10:31:00Z",
+  "updated_at": "2026-07-08T10:43:14Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "FormalizationGapPlanner live-route execution is now bounded at the real runtime boundary: resumed live follow-up tasks scope bridge/handoff materialization to selected bridge_ids/selected_handoff_ids before smoke/audit, stale task-local live timeout_seconds are capped by the current runtime config, true Anthropic/OpenAI route-planner exports run in a killable subprocess, and timeout/exit failures are recorded as RuntimeFormalizationGapPlannerLiveRoutePlannerManifest provider_failures rather than wedging AgentRuntime. The shared model wall-clock helper also preserves shorter outer deadlines for nested provider calls.",
-  "latest_main_worker_live_probe": "runs/main_worker_formalizer_repair_pending_probe_live_resume_full_live_route_timeout_probe_capfix/ verified the fix on the real pending gap-planner-live-route:conformal_prediction_coverage:abf13cf47d95. The scoped FormalizationGapPlanner run audited exactly one selected handoff (49 checks, 0 failed), wrote runtime_formalization_gap_planner_live_route_planner_manifest.json with timeout_seconds=8.0, live_llm_invoked=true, provider_failures=1, and failure_classification=formalization_gap_planner_live_route_planner_timeout after killing the live route-planner subprocess. The step finished BLOCKED with structured non-proof evidence instead of hanging. The outer probe later timed out only after downstream formal-environment Lean signature probing started; no source theorem or full frontier theorem proof is claimed.",
+  "latest_main_worker_patch": "AgentRuntime finalization now suppresses proof-only postprocessing when the current integrated FormalizationGapPlanner live route planner blocks without a contract-valid route or route-revision feedback. It preserves agenda, learning, work-order, and non-proof failure artifacts, records runtime_proof_postprocessing_suppressed metadata in the manifest, and disables theorem-closure/source-semantic/source-theorem-promotion/formal-environment/exact-semantic/Lean executor lanes for that run so stale memory rows cannot wake proof bridges after a fresh route failure.",
+  "latest_main_worker_live_probe": "runs/main_worker_live_route_timeout_postprocessing_suppression_probe_no_preset/ directly resumed the real pending gap-planner-live-route:conformal_prediction_coverage:abf13cf47d95 with the proof postprocessing flags enabled and a 4s live route-planner timeout. It exited 0 in 15.7s with status_counts={'BLOCKED': 1}, terminal FormalizationGapPlanner formalization_gap_planner_live_route_planner_blocked, live_llm_invoked=1, response_present=0, response_contract_ok=0, provider_failures=1, route_revision_feedback_recorded=0, runtime_proof_postprocessing_suppressed=true, and no formal-environment bridge, proof-body executor, exact-semantic source lookup, or Lean repair executor manifest. No source theorem or full frontier theorem proof is claimed.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -1389,7 +1389,16 @@
     "formalizer_repair_pending_probe_pending_owner": "FormalizationGapPlanner",
     "formalizer_repair_pending_probe_terminal": "formalization_gap_planner_live_route_planner_requested",
     "post_runtime_formalizer_repair_eval_hang_fixed": true,
-    "post_runtime_formalizer_repair_eval_watchdog_default_seconds": 300.0
+    "post_runtime_formalizer_repair_eval_watchdog_default_seconds": 300.0,
+    "live_route_timeout_postprocessing_suppression_probe_manifest": "runs/main_worker_live_route_timeout_postprocessing_suppression_probe_no_preset/research_agent_runtime_manifest.json",
+    "live_route_timeout_postprocessing_suppression_probe_status": "BLOCKED",
+    "live_route_timeout_postprocessing_suppression_probe_terminal": "FormalizationGapPlanner formalization_gap_planner_live_route_planner_blocked",
+    "live_route_timeout_postprocessing_suppression_probe_result": "Direct resume of the real pending FormalizationGapPlanner live route-planner task with proof postprocessing flags enabled exited 0 after the 4s live route timeout and wrote a top-level manifest. Manifest evidence: runtime_proof_postprocessing_suppressed=true, reason=formalization_gap_planner_live_route_planner_blocked_without_feedback, response_present=0, response_contract_ok=0, provider_failures=1, route_revision_feedback_recorded=0, and no formal-environment bridge/proof-body executor/exact-semantic source lookup/Lean repair executor manifests. This preserves non-proof route-failure evidence without waking stale proof queues.",
+    "live_route_timeout_postprocessing_suppression_tests": [
+      "PYTHONPATH=$PWD .venv/bin/pytest tests/test_research_agent_runtime.py -k \"live_route_planner_timeout or proof_postprocessing_suppressed or runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda or capability_eval_full_live_preset_attaches_component_repair_gates\" # 5 passed, 945 deselected",
+      "PYTHONPATH=$PWD .venv/bin/pytest tests/test_model_backend.py -k \"wall_clock_timeout or outer_wall_clock_timeout\" # 2 passed, 17 deselected",
+      "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py"
+    ]
   },
   "latest_runtime_eval_alignment": {
     "date": "2026-07-02",

@@ -3107,6 +3107,90 @@ def test_formalization_gap_planner_live_route_planner_subprocess_timeout_fails_c
     )
 
 
+def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_without_feedback() -> None:
+    results = [
+        {
+            "status": "BLOCKED",
+            "traces": [
+                {
+                    "subsystem": "FormalizationGapPlanner",
+                    "status": "BLOCKED",
+                    "failure_classification": (
+                        "formalization_gap_planner_live_route_planner_blocked"
+                    ),
+                }
+            ],
+        }
+    ]
+    live_route_summary = {
+        "n_runtime_formalization_gap_planner_live_route_planner_requested": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_invocations": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_response_present": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_ready": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded": 0,
+    }
+
+    suppression = runtime_module._runtime_proof_postprocessing_suppression(
+        results,
+        live_route_planner_summary=live_route_summary,
+    )
+
+    assert suppression["runtime_proof_postprocessing_suppressed"] is True
+    assert suppression["runtime_proof_postprocessing_suppressed_reason"] == (
+        "formalization_gap_planner_live_route_planner_blocked_without_feedback"
+    )
+    assert (
+        "source_theorem_formal_environment_proofengineer_execute_proof_body"
+        in suppression["runtime_proof_postprocessing_disabled_config_fields"]
+    )
+    config = ResearchAgentRuntimeConfig(
+        theorem_closure_proofengineer_bridge=True,
+        source_semantic_proofengineer_bridge=True,
+        source_theorem_proof_body_adapter_proofengineer_bridge=True,
+        source_to_bridge_premise_derivation_proofengineer_bridge=True,
+        source_theorem_formal_environment_proofengineer_bridge=True,
+        source_theorem_formal_environment_proofengineer_signature_probes=True,
+        source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+        source_theorem_formal_environment_proofengineer_proof_body_local_lean=True,
+        source_theorem_promotion_proofengineer_bridge=True,
+        source_theorem_exact_semantic_definition_source_lookup=True,
+        source_theorem_exact_semantic_definition_proofengineer_bridge=True,
+        source_theorem_exact_semantic_definition_lean_repair_executor=True,
+        source_theorem_exact_semantic_definition_lean_repair_executor_local_lean=True,
+        source_theorem_exact_semantic_definition_lean_environment_repair_executor=True,
+        source_theorem_exact_semantic_definition_authoring_worker=True,
+        source_theorem_exact_semantic_definition_closure_review=True,
+        source_theorem_exact_semantic_definition_candidate_synthesis=True,
+        source_theorem_exact_semantic_definition_candidate_synthesis_local_lean=True,
+        formalization_gap_planner_live_route_planner=True,
+    )
+    suppressed_config = (
+        runtime_module._runtime_config_with_proof_postprocessing_suppressed(config)
+    )
+
+    for field_name in runtime_module.RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS:
+        assert getattr(config, field_name) is True
+        assert getattr(suppressed_config, field_name) is False
+    assert suppressed_config.formalization_gap_planner_live_route_planner is True
+
+    feedback_summary = dict(live_route_summary)
+    feedback_summary[
+        "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded"
+    ] = 1
+    assert (
+        runtime_module._runtime_proof_postprocessing_suppression(
+            results,
+            live_route_planner_summary=feedback_summary,
+        )["runtime_proof_postprocessing_suppressed"]
+        is False
+    )
+
+
 def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda() -> None:
     live_manifest = {
         "schema_version": 1,

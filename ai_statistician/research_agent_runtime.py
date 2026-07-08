@@ -23483,6 +23483,13 @@ def run_research_agent_runtime(
     gap_planner_live_route_planner_summary = (
         _runtime_formalization_gap_planner_live_route_planner_summary(results)
     )
+    proof_postprocessing_suppression = _runtime_proof_postprocessing_suppression(
+        results,
+        live_route_planner_summary=gap_planner_live_route_planner_summary,
+    )
+    manifest.update(proof_postprocessing_suppression)
+    if proof_postprocessing_suppression["runtime_proof_postprocessing_suppressed"]:
+        config = _runtime_config_with_proof_postprocessing_suppressed(config)
     gap_planner_live_route_planner_contract_next_action_rows = (
         _append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows(
             agenda_rows,
@@ -75607,6 +75614,210 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             "planning, and reuse smoke, but they are not theorem proof evidence."
         ),
     }
+
+
+RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_LIVE_ROUTE_BLOCKED_WITHOUT_FEEDBACK = (
+    "formalization_gap_planner_live_route_planner_blocked_without_feedback"
+)
+
+RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS: tuple[str, ...] = (
+    "theorem_closure_proofengineer_bridge",
+    "source_semantic_proofengineer_bridge",
+    "source_theorem_proof_body_adapter_proofengineer_bridge",
+    "source_to_bridge_premise_derivation_proofengineer_bridge",
+    "source_theorem_formal_environment_proofengineer_bridge",
+    "source_theorem_formal_environment_proofengineer_signature_probes",
+    "source_theorem_formal_environment_proofengineer_execute_proof_body",
+    "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+    "source_theorem_promotion_proofengineer_bridge",
+    "source_theorem_exact_semantic_definition_source_lookup",
+    "source_theorem_exact_semantic_definition_proofengineer_bridge",
+    "source_theorem_exact_semantic_definition_lean_repair_executor",
+    "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
+    "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
+    "source_theorem_exact_semantic_definition_authoring_worker",
+    "source_theorem_exact_semantic_definition_closure_review",
+    "source_theorem_exact_semantic_definition_candidate_synthesis",
+    "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
+)
+
+
+def _runtime_has_live_route_planner_blocked_trace(
+    results: list[dict[str, Any]],
+) -> bool:
+    for result in results:
+        if str(result.get("status", "") or "").upper() != "BLOCKED":
+            continue
+        traces = result.get("traces", [])
+        if not isinstance(traces, list):
+            continue
+        for trace in traces:
+            if not isinstance(trace, Mapping):
+                continue
+            if str(trace.get("subsystem", "") or "") != "FormalizationGapPlanner":
+                continue
+            if str(trace.get("status", "") or "").upper() != "BLOCKED":
+                continue
+            failure_classification = str(
+                trace.get("failure_classification", "") or ""
+            )
+            if (
+                failure_classification
+                == "formalization_gap_planner_live_route_planner_blocked"
+            ):
+                return True
+    return False
+
+
+def _runtime_proof_postprocessing_suppression(
+    results: list[dict[str, Any]],
+    *,
+    live_route_planner_summary: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    summary = (
+        dict(live_route_planner_summary)
+        if isinstance(live_route_planner_summary, Mapping)
+        else _runtime_formalization_gap_planner_live_route_planner_summary(results)
+    )
+    requested = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_requested",
+            0,
+        )
+        or 0
+    )
+    invocations = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_invocations",
+            0,
+        )
+        or 0
+    )
+    responses_recorded = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded",
+            0,
+        )
+        or 0
+    )
+    response_present = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_response_present",
+            0,
+        )
+        or 0
+    )
+    response_contract_ok = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_response_contract_ok",
+            0,
+        )
+        or 0
+    )
+    provider_failures = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_provider_failures",
+            0,
+        )
+        or 0
+    )
+    awaiting_llm_response = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_awaiting_llm_response",
+            0,
+        )
+        or 0
+    )
+    route_adoption_ready = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_route_adoption_ready",
+            0,
+        )
+        or 0
+    )
+    target_prover_replay_complete = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_target_prover_replay_complete",
+            0,
+        )
+        or 0
+    )
+    route_revision_feedback_recorded = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_route_revision_feedback_recorded",
+            0,
+        )
+        or 0
+    )
+    no_usable_current_route = (
+        response_contract_ok <= 0
+        and route_adoption_ready <= 0
+        and target_prover_replay_complete <= 0
+    )
+    no_feedback = route_revision_feedback_recorded <= 0
+    no_response_or_provider_still_blocked = (
+        responses_recorded <= 0
+        or response_present <= 0
+        or provider_failures > 0
+        or awaiting_llm_response > 0
+    )
+    suppressed = bool(
+        _runtime_has_live_route_planner_blocked_trace(results)
+        and (requested > 0 or invocations > 0)
+        and no_usable_current_route
+        and no_feedback
+        and no_response_or_provider_still_blocked
+    )
+    reason = (
+        RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_LIVE_ROUTE_BLOCKED_WITHOUT_FEEDBACK
+        if suppressed
+        else ""
+    )
+    disabled_fields = (
+        list(RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS)
+        if suppressed
+        else []
+    )
+    return {
+        "runtime_proof_postprocessing_suppressed": suppressed,
+        "runtime_proof_postprocessing_suppressed_reason": reason,
+        "runtime_proof_postprocessing_disabled_config_fields": disabled_fields,
+        "runtime_proof_postprocessing_suppression_inputs": {
+            "live_route_planner_blocked_trace": (
+                _runtime_has_live_route_planner_blocked_trace(results)
+            ),
+            "requested": requested,
+            "invocations": invocations,
+            "responses_recorded": responses_recorded,
+            "response_present": response_present,
+            "response_contract_ok": response_contract_ok,
+            "provider_failures": provider_failures,
+            "awaiting_llm_response": awaiting_llm_response,
+            "route_adoption_ready": route_adoption_ready,
+            "target_prover_replay_complete": target_prover_replay_complete,
+            "route_revision_feedback_recorded": route_revision_feedback_recorded,
+        },
+        "runtime_proof_postprocessing_boundary": (
+            "Post-runtime proof bridge, proof-body, exact-semantic, and local "
+            "Lean postprocessing is disabled when the current integrated "
+            "FormalizationGapPlanner live route planner blocks without a "
+            "contract-valid route or route-revision feedback. The runtime may "
+            "still write agenda, learning, and non-proof failure evidence, but "
+            "it must not wake stale proof queues from older memory rows."
+        ),
+    }
+
+
+def _runtime_config_with_proof_postprocessing_suppressed(
+    config: ResearchAgentRuntimeConfig,
+) -> ResearchAgentRuntimeConfig:
+    return replace(
+        config,
+        **{
+            field_name: False
+            for field_name in RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS
+        },
+    )
 
 
 def _runtime_formalization_gap_planner_bridge_target_ids(
