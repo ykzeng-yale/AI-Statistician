@@ -4014,8 +4014,14 @@ def _source_theorem_binder_summaries(
 ) -> tuple[dict[str, str], ...]:
     binders: list[dict[str, str]] = []
     seen: set[str] = set()
-    for line in source_signature:
-        for name, binder_type in _parse_named_binders(str(line).strip()):
+    joined_signature = " ".join(
+        str(line).strip() for line in source_signature if str(line).strip()
+    )
+    parse_sources = (
+        (joined_signature,) if joined_signature else ()
+    ) + tuple(str(line).strip() for line in source_signature)
+    for text in parse_sources:
+        for name, binder_type in _parse_named_binders(text):
             if name in seen:
                 continue
             seen.add(name)

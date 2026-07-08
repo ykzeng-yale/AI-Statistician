@@ -2042,9 +2042,13 @@ def test_premise_bridge_parses_multi_binder_source_signature(tmp_path: Path) -> 
                 "    (P : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure P]",
                 "    (n2 : ℕ) (hn2 : 1 ≤ n2) (alpha : ℝ) (halpha : 0 < alpha ∧ alpha < 1)",
                 "    (s : Fin (n2 + 1) → Ω → ℝ)",
-                "    (hexch : Exchangeable P s)",
+                "    (hExch : ∀ (σ : Equiv.Perm (Fin (n2 + 1))),",
+                "      P.map (fun ω => fun i => s i ω) =",
+                "      P.map (fun ω => fun i => s (σ i) ω))",
                 "    (q_hat : Ω → ℝ)",
-                "    (hq : q_hat = fun ω => orderStat s k ω)",
+                "    (hq : ∀ᵐ ω ∂P,",
+                "      (Finset.card (Finset.filter (fun i : Fin n2 => s i.castSucc ω ≤ q_hat ω)",
+                "        Finset.univ) : ℝ) / n2 ≥ 1 - alpha)",
                 "    (C : (Ω → ℝ) → Set ℝ)",
                 "    (hC : ∀ ω, C (fun _ => s (Fin.last n2) ω) = {y | s (Fin.last n2) ω ≤ q_hat ω}) :",
                 "    True := by",
@@ -2075,6 +2079,10 @@ def test_premise_bridge_parses_multi_binder_source_signature(tmp_path: Path) -> 
     assert source_binders["hn2"] == "1 ≤ n2"
     assert source_binders["alpha"] == "ℝ"
     assert source_binders["halpha"] == "0 < alpha ∧ alpha < 1"
+    assert source_binders["hExch"].startswith("∀ (σ : Equiv.Perm")
+    assert "P.map (fun ω => fun i => s (σ i) ω)" in source_binders["hExch"]
+    assert source_binders["hq"].startswith("∀ᵐ ω ∂P")
+    assert "Finset.filter" in source_binders["hq"]
     assert source_binders["hC"].startswith("∀ ω, C")
     candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
         encoding="utf-8"
