@@ -60542,6 +60542,137 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() ->
     assert validate_formalizer_packet(packet) == []
 
 
+def test_formalizer_autofills_runtime_request_when_candidate_has_partial_anchor_metadata() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_source_theorem_still_gap",
+                "informal_source": "full source theorem remains unproved",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "runtime source anchors",
+                "to": "hGoodCovered",
+                "role": "source-to-bridge premise derivation",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal hq hC source-to-bridge",
+                "target_library": "local",
+                "purpose": "premise derivation",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["run local Lean on premise candidate"],
+            "known_blockers": [],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [
+            {
+                "premise_name": "hGoodCovered",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "required_semantic_anchor_reference_names": ["hq"],
+                "adapter_object_names_requiring_source_instantiation": ["covered"],
+                "premise_derivation_candidate_lean_source": (
+                    "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
+                    "(hq hC : Prop) : hq ∧ hC := by\n"
+                    "  exact And.intro hq hC\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+        "gap_taxonomy": [
+            {"gap": "premise derivation still unverified", "kind": "proof_search"}
+        ],
+        "critic_findings": [
+            {
+                "critic": "validator",
+                "finding": "partial anchor metadata still needs copied request",
+            }
+        ],
+        "next_actions": [
+            {"owner_agent": "ProofEngineer", "action": "run local Lean after validation"}
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    memory_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_to_bridge_premise_derivation_required"
+        ),
+        "source_to_bridge_premise_derivation_required": True,
+        "source_to_bridge_metadata_authoring_candidate_requests": [
+            {
+                "candidate_request_id": "request:hGoodCovered",
+                "source_to_bridge_premise_derivation_candidate_request_id": (
+                    "request:hGoodCovered"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request": {
+                    "candidate_request_id": "request:hGoodCovered",
+                    "premise_name": "hGoodCovered",
+                    "target_theorem_name": "split_conformal_coverage",
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "premise_candidate_declaration_name": (
+                        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+                    ),
+                    "exact_source_theorem_binders": [
+                        {"name": "hq", "type": "quantile anchor"},
+                        {"name": "hC", "type": "coverage anchor"},
+                    ],
+                    "premise_semantic_anchor_binders": [
+                        {"name": "hq", "role": "quantile_definition_anchor"},
+                        {"name": "hC", "role": "coverage_event_anchor"},
+                    ],
+                    "premise_semantic_anchor_binder_names": ["hq", "hC"],
+                    "required_semantic_anchor_reference_names": ["hq", "hC"],
+                    "adapter_object_names_requiring_source_instantiation": [
+                        "covered",
+                        "rank",
+                    ],
+                },
+                "request_complete": True,
+            }
+        ],
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:partial-anchor-autofill"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=memory_summary,
+    )
+
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert candidate["source_binding_metadata_autofilled_from_runtime_memory"] is True
+    assert (
+        candidate["source_to_bridge_premise_derivation_candidate_request_id"]
+        == "request:hGoodCovered"
+    )
+    assert candidate["required_semantic_anchor_reference_names"] == ["hq", "hC"]
+    assert candidate["premise_semantic_anchor_binder_names"] == ["hq", "hC"]
+    assert candidate["adapter_object_names_requiring_source_instantiation"] == [
+        "covered",
+        "rank",
+    ]
+    assert validate_formalizer_packet(packet) == []
+
+
 def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     request = {

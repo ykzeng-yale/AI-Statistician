@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T08:29:45Z",
+  "updated_at": "2026-07-08T08:36:09Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Formalizer PF/BV repair prompts now promote prior failed component-gate concrete_lane_routable_repair_seed rows into pseudo_formalization_required_packet_seed, pseudo_formalization_component_gate_failure_repair_seed, the copy fragment, and the validation-repair context. This makes the next Formalizer attempt copy an already source-anchored, conclusion-bearing, lane-routable PF/BV seed instead of rediscovering malformed packet structure. Formalizer-side PF/BV activation also now normalizes serialized false booleans before requiring pseudo_formal_proof_packets, preserving the strict non-proof PF/BV boundary.",
+  "latest_main_worker_patch": "Formalizer source-to-bridge request/anchor handoff now treats compact serialized false source_to_bridge_metadata_authoring_required flags as false, distinguishes copied request objects from partial explicit metadata during autofill, and merges runtime request anchor/adapter metadata into partially annotated source_to_bridge_premise_derivation_candidates. This prevents partial anchor strings from blocking the real source-binding request object while preserving the strict boundary: request metadata and PF/BV/anchor feedback are routing context, not Lean/kernel proof evidence.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -186,6 +186,11 @@
     "source_to_bridge_metadata_autofill_live_probe_status": "MAX_ITERATIONS_REACHED",
     "source_to_bridge_metadata_autofill_live_probe_pending_next_task": "formalize-repair:conformal_prediction_coverage:1af7fb86",
     "source_to_bridge_metadata_autofill_live_probe_result": "After the autofill patch, the live one-iteration Formalizer repair no longer failed on missing source-binding metadata; missing_source_binding_contract_metadata=false. It instead failed on a stricter semantic-anchor validator error: source_to_bridge_premise_derivation_candidates Lean candidate missing required semantic anchor references hQuantileThreshold and hGoodRank. Runtime still emitted zero executable work orders, preserving the proof boundary until a locally valid candidate references the anchors non-vacuously and then passes Lean/AXLE.",
+    "source_to_bridge_partial_anchor_autofill_patch": "formalizer_llm.py now distinguishes copied source_to_bridge request objects from partial explicit metadata when enriching candidates. A candidate that only carries partial anchor/adapter fields no longer blocks runtime-memory request-object autofill; the copied request then merges complete exact_source_theorem_binders, premise_semantic_anchor_binders/names, required_semantic_anchor_reference_names, and adapter_object_names_requiring_source_instantiation into the candidate. Grouped request autofill also copies metadata from the grouped request object itself. Serialized source_to_bridge_metadata_authoring_required='false' no longer incorrectly activates metadata-authoring mode in prompts. This is request/anchor routing hardening, not proof evidence.",
+    "source_to_bridge_partial_anchor_autofill_tests": [
+      "tests/test_formalizer_pseudo_formal_packet_eval.py::test_formalizer_prompt_string_false_does_not_enter_metadata_authoring_mode",
+      "tests/test_research_agent_runtime.py::test_formalizer_autofills_runtime_request_when_candidate_has_partial_anchor_metadata"
+    ],
     "source_to_bridge_metadata_autofill_tests": [
       "tests/test_research_agent_runtime.py::test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory",
       "tests/test_research_agent_runtime.py::test_formalizer_autofills_single_source_to_bridge_request_fallback",
@@ -2984,6 +2989,11 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic and (work_order or input_summary or string_false or source_theorem_repair)\" # 20 passed, 910 deselected after compact exact-semantic authoring environment repair patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 884 deselected after compact exact-semantic authoring environment repair patch",
     "git diff --check # passed after compact exact-semantic authoring environment repair patch",
-    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 885 deselected after compact exact-semantic authoring environment repair patch"
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 885 deselected after compact exact-semantic authoring environment repair patch",
+    "uv run python -m py_compile ai_statistician/formalizer_llm.py tests/test_formalizer_pseudo_formal_packet_eval.py tests/test_research_agent_runtime.py # passed after source-to-bridge partial-anchor request autofill patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_formalizer_pseudo_formal_packet_eval.py # 9 passed after source-to-bridge partial-anchor request autofill patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"source_to_bridge_metadata_from_runtime_memory or partial_anchor_metadata or source_to_bridge_metadata_from_same_packet_request or single_source_to_bridge_request_fallback or missing_source_to_bridge_anchor_references or without_contract_metadata\" # 6 passed, 932 deselected after source-to-bridge partial-anchor request autofill patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"source_to_bridge_metadata_authoring or source_to_bridge_premise_derivation_required or grouped_premise_derivation_candidate or premise_derivation_candidate_becomes_runtime_work_order or semantic_anchor_blocker\" # 3 passed, 935 deselected after source-to-bridge partial-anchor request autofill patch",
+    "git diff --check # passed after source-to-bridge partial-anchor request autofill patch"
   ]
 }

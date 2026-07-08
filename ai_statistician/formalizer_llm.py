@@ -689,7 +689,9 @@ def build_formalizer_prompt(
         "boundary": FORMALIZER_BOUNDARY,
     }
     metadata_authoring_mode = bool(
-        proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
+        _formalizer_bool_like(
+            proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
+        )
         or proof_memory_summary.get("recommended_formalizer_target_mode")
         == "source_to_bridge_metadata_authoring_required"
     )
@@ -5117,7 +5119,7 @@ def _enrich_source_to_bridge_candidates_from_shortcuts(
     unbound_candidates_before_autofill = [
         candidate
         for candidate in candidate_dicts
-        if not _source_to_bridge_candidate_has_source_binding_contract(candidate)
+        if not _source_to_bridge_candidate_has_copied_request_contract(candidate)
     ]
     allow_single_request_single_candidate_fallback = bool(
         len(unbound_candidates_before_autofill) == 1
@@ -5127,7 +5129,7 @@ def _enrich_source_to_bridge_candidates_from_shortcuts(
     for candidate in candidates:
         if not isinstance(candidate, dict):
             continue
-        if _source_to_bridge_candidate_has_source_binding_contract(candidate):
+        if _source_to_bridge_candidate_has_copied_request_contract(candidate):
             continue
         premise_names = [
             str(value).strip()
@@ -5155,6 +5157,11 @@ def _enrich_source_to_bridge_candidates_from_shortcuts(
             candidate[
                 "source_to_bridge_grouped_premise_derivation_candidate_request"
             ] = matched_group["copy_this_grouped_request"]
+            if isinstance(matched_group.get("copy_this_grouped_request"), Mapping):
+                _copy_missing_candidate_metadata(
+                    candidate,
+                    matched_group["copy_this_grouped_request"],
+                )
             _copy_missing_candidate_metadata(candidate, matched_group)
             _mark_source_to_bridge_candidate_metadata_autofill(
                 candidate,
@@ -5187,6 +5194,27 @@ def _copy_missing_candidate_metadata(
     candidate: dict[str, Any],
     source: Mapping[str, Any],
 ) -> None:
+    def merged_metadata_sequence(
+        existing_values: Sequence[Any],
+        source_values: Sequence[Any],
+    ) -> list[Any]:
+        merged: list[Any] = []
+        seen: set[str] = set()
+        for item in [*existing_values, *source_values]:
+            key = json.dumps(item, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+        return merged
+
+    list_merge_keys = {
+        "exact_source_theorem_binders",
+        "premise_semantic_anchor_binders",
+        "premise_semantic_anchor_binder_names",
+        "required_semantic_anchor_reference_names",
+        "adapter_object_names_requiring_source_instantiation",
+    }
     for key in (
         "exact_source_theorem_binders",
         "premise_semantic_anchor_binders",
@@ -5201,8 +5229,8 @@ def _copy_missing_candidate_metadata(
         "target_lean_declaration",
         "candidate_contract",
     ):
+        values = source.get(key, [])
         if candidate.get(key) in (None, "", [], {}):
-            values = source.get(key, [])
             if values not in (None, "", [], {}):
                 if isinstance(values, list | tuple | set):
                     candidate[key] = list(values)
@@ -5210,6 +5238,13 @@ def _copy_missing_candidate_metadata(
                     candidate[key] = dict(values)
                 else:
                     candidate[key] = values
+        elif key in list_merge_keys and isinstance(values, list | tuple | set):
+            existing = candidate.get(key, [])
+            if isinstance(existing, list | tuple | set):
+                candidate[key] = merged_metadata_sequence(
+                    list(existing),
+                    list(values),
+                )
 
 
 def _attach_single_source_to_bridge_request_shortcut(
@@ -6319,7 +6354,9 @@ def _formalizer_mode_specific_instructions(
         )
     if (
         mode == "source_to_bridge_metadata_authoring_required"
-        or proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
+        or _formalizer_bool_like(
+            proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
+        )
     ):
         instructions.append(
             "Source-to-bridge metadata authoring is active: consume "
@@ -7259,7 +7296,9 @@ def _formalizer_mode_specific_instructions(
         )
     if (
         mode == "source_to_bridge_premise_derivation_required"
-        or proof_memory_summary.get("source_to_bridge_premise_derivation_required")
+        or _formalizer_bool_like(
+            proof_memory_summary.get("source_to_bridge_premise_derivation_required")
+        )
     ):
         instructions.append(
             "For source_to_bridge_premise_derivation_required, make the main formal target "
@@ -9315,14 +9354,39 @@ def _source_to_bridge_candidate_has_source_binding_contract(
         nested = row.get(key, {})
         if isinstance(nested, Mapping) and nested:
             return True
+    has_exact_source_binders = row.get("exact_source_theorem_binders") not in (
+        None,
+        "",
+        [],
+        {},
+    )
+    has_anchor_metadata = any(
+        row.get(key) not in (None, "", [], {})
+        for key in (
+            "premise_semantic_anchor_binders",
+            "premise_semantic_anchor_binder_names",
+            "required_semantic_anchor_reference_names",
+        )
+    )
+    has_adapter_instantiation_metadata = row.get(
+        "adapter_object_names_requiring_source_instantiation"
+    ) not in (None, "", [], {})
+    return bool(
+        (has_exact_source_binders and has_anchor_metadata)
+        or (has_anchor_metadata and has_adapter_instantiation_metadata)
+        or has_adapter_instantiation_metadata
+    )
+
+
+def _source_to_bridge_candidate_has_copied_request_contract(
+    row: Mapping[str, Any],
+) -> bool:
     for key in (
-        "exact_source_theorem_binders",
-        "premise_semantic_anchor_binders",
-        "premise_semantic_anchor_binder_names",
-        "required_semantic_anchor_reference_names",
-        "adapter_object_names_requiring_source_instantiation",
+        "source_to_bridge_premise_derivation_candidate_request",
+        "source_to_bridge_grouped_premise_derivation_candidate_request",
     ):
-        if row.get(key) not in (None, "", [], {}):
+        nested = row.get(key, {})
+        if isinstance(nested, Mapping) and nested:
             return True
     return False
 

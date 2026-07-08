@@ -403,6 +403,43 @@ def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
     assert "you must emit at least one pseudo_formal_proof_packets" not in prompt
 
 
+def test_formalizer_prompt_string_false_does_not_enter_metadata_authoring_mode() -> None:
+    question = _pseudo_formal_packet_eval_question()
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        simulation_manifest={
+            "manifest_id": "simulation:false_metadata_authoring",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:false_metadata_authoring"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={
+            "source_to_bridge_metadata_authoring_required": "false",
+            "recommended_formalizer_target_mode": "source_to_bridge_premise_derivation_required",
+            "source_to_bridge_premise_derivation_required": "true",
+        },
+        environment_feedback={
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_formalizer_lean_candidate": True,
+            },
+        },
+    )
+    payload = _prompt_payload(prompt)
+
+    assert (
+        payload["formalizer_lean_candidate_contract"][
+            "capability_eval_requires_formalizer_lean_candidate"
+        ]
+        is True
+    )
+    assert "Source-to-bridge metadata authoring is active" not in prompt
+    assert "metadata authoring takes priority" not in prompt
+    assert "For source_to_bridge_premise_derivation_required" in prompt
+
+
 def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     tmp_path: Path,
 ) -> None:
