@@ -47797,6 +47797,126 @@ def test_exact_semantic_definition_work_orders_from_semantic_alignment_feedback(
     } == {"Exchangeable", "orderStat"}
 
 
+def test_exact_semantic_definition_work_orders_retarget_stale_candidate_request() -> None:
+    seed_rows = [
+        {
+            "materialization_seed_status": (
+                "BLOCKED_NEEDS_REVIEWED_EXACT_SEMANTIC_DEFINITIONS"
+            ),
+            "materialization_seed_id": "seed:stale-candidate-request",
+            "question_id": "conformal_prediction_coverage",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "source_theorem_exact_candidate_placeholder_resolution_plan": [
+                {
+                    "placeholder_symbol": "C_n",
+                    "replacement_strategy": "define the conformal threshold object",
+                    "search_targets": ["conformal threshold"],
+                },
+                {
+                    "placeholder_symbol": "Exchangeable",
+                    "replacement_strategy": "define exchangeability of scores",
+                    "search_targets": ["exchangeable finite family"],
+                },
+                {
+                    "placeholder_symbol": "orderStat",
+                    "replacement_strategy": "define finite order statistic",
+                    "search_targets": ["finite order statistic"],
+                },
+            ],
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "semantic_goal": "Define C_n from the order-statistic quantile rule.",
+                "required_anchor_names": [
+                    "hQuantileThreshold",
+                    "hGoodRank",
+                    "hExch",
+                ],
+                "required_adapter_object_names": ["C_n"],
+                "available_adapter_object_names": [
+                    "coverage_event",
+                    "good_rank_event",
+                    "C_n",
+                ],
+                "source_to_bridge_adapter_instantiation_group_id": (
+                    "split_conformal_coverage_adapter_v6"
+                ),
+                "required_bridge_premise_names_for_shared_instantiation": [
+                    "hGoodRankImpliesCovered",
+                    "hQuantileThreshold",
+                ],
+                "proof_evidence_status": (
+                    "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        }
+    ]
+
+    work_orders = _runtime_source_theorem_exact_semantic_definition_work_order_rows(
+        seed_rows
+    )
+
+    rows_by_symbol = {row["placeholder_symbol"]: row for row in work_orders}
+    assert set(rows_by_symbol) == {"C_n", "Exchangeable", "orderStat"}
+    assert rows_by_symbol["C_n"]["candidate_definition_request"][
+        "placeholder_symbol"
+    ] == "C_n"
+    assert rows_by_symbol["C_n"]["candidate_definition_request"][
+        "required_adapter_object_names"
+    ] == ["C_n"]
+    for symbol in ("Exchangeable", "orderStat"):
+        request = rows_by_symbol[symbol]["candidate_definition_request"]
+        assert request["placeholder_symbol"] == symbol
+        assert request["source_candidate_definition_request_placeholder_symbol"] == "C_n"
+        assert request["source_candidate_definition_request_was_retargeted"] is True
+        assert request["source_candidate_definition_request"][
+            "placeholder_symbol"
+        ] == "C_n"
+        assert "semantic_goal" not in request
+        assert request.get("required_adapter_object_names") != ["C_n"]
+
+    learning_rows = _runtime_source_theorem_exact_semantic_definition_learning_rows(
+        work_orders
+    )
+    learning_by_symbol = {
+        row["placeholder_symbol"]: row
+        for row in learning_rows
+    }
+    for symbol in ("Exchangeable", "orderStat"):
+        assert learning_by_symbol[symbol]["candidate_definition_request"][
+            "placeholder_symbol"
+        ] == symbol
+        assert learning_by_symbol[symbol]["input_summary"][
+            "candidate_definition_request"
+        ]["placeholder_symbol"] == symbol
+
+    legacy_replay_row = dict(rows_by_symbol["Exchangeable"])
+    legacy_replay_row["candidate_definition_request"] = dict(
+        seed_rows[0]["candidate_definition_request"]
+    )
+    legacy_replay_row["input_summary"] = {
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "Exchangeable",
+        "candidate_definition_request": dict(seed_rows[0]["candidate_definition_request"]),
+    }
+    replayed_rows = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
+            [legacy_replay_row]
+        )
+    )
+    assert len(replayed_rows) == 1
+    replayed_request = replayed_rows[0]["candidate_definition_request"]
+    assert replayed_request["placeholder_symbol"] == "Exchangeable"
+    assert (
+        replayed_request["source_candidate_definition_request_placeholder_symbol"]
+        == "C_n"
+    )
+    assert replayed_request["source_candidate_definition_request_was_retargeted"] is True
+    assert replayed_request.get("required_adapter_object_names") != ["C_n"]
+
+
 def test_exact_semantic_definition_work_orders_from_typechecked_candidate_synthesis() -> None:
     learning_rows = [
         {

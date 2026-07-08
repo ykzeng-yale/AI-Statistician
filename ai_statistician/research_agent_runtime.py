@@ -72720,6 +72720,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows(
             _normalize_exact_semantic_work_order_status_from_local_definition(
                 work_order
             )
+            _normalize_runtime_exact_semantic_candidate_request_fields(work_order)
             rows.append(work_order)
     return rows
 
@@ -72821,6 +72822,139 @@ def _runtime_exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[s
         nested_typechecked_candidate_context,
     )
     return context
+
+
+def _runtime_candidate_definition_request_for_placeholder(
+    request_raw: Any,
+    *,
+    placeholder_symbol: str,
+    target_theorem_name: str = "",
+    target_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(request_raw, Mapping):
+        return {}
+    request = dict(request_raw)
+    symbol = str(placeholder_symbol or "").strip()
+    target = str(target_theorem_name or "").strip()
+    normalized_target_ids = [
+        str(value).strip()
+        for value in (target_ids or [])
+        if str(value).strip()
+    ]
+    normalized_target_ids = list(dict.fromkeys(normalized_target_ids))
+    if not symbol:
+        return request
+
+    previous_symbol = str(request.get("placeholder_symbol", "") or "").strip()
+    if previous_symbol and previous_symbol != symbol:
+        source_request = dict(request)
+        retargeted: dict[str, Any] = {
+            "schema_version": request.get("schema_version", RUNTIME_SCHEMA_VERSION),
+            "request_kind": (
+                request.get("request_kind")
+                or "source_theorem_exact_semantic_definition_candidate"
+            ),
+            "placeholder_symbol": symbol,
+            "source_candidate_definition_request_placeholder_symbol": previous_symbol,
+            "source_candidate_definition_request_was_retargeted": True,
+            "source_candidate_definition_request": source_request,
+            "retargeting_note": (
+                "The upstream candidate_definition_request targeted a different "
+                "placeholder; runtime preserved it as lineage and regenerated "
+                "the authoritative request around this work-order placeholder."
+            ),
+            "proof_evidence_status": (
+                request.get("proof_evidence_status")
+                or "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        if target:
+            retargeted["target_theorem_name"] = target
+        elif request.get("target_theorem_name"):
+            retargeted["target_theorem_name"] = request.get("target_theorem_name")
+        if normalized_target_ids:
+            retargeted["target_ids"] = normalized_target_ids
+        elif request.get("target_ids"):
+            retargeted["target_ids"] = list(request.get("target_ids") or [])
+        for key in (
+            "source_to_bridge_adapter_instantiation_group_id",
+            "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+            "required_bridge_premise_names_for_shared_instantiation",
+            "forbidden_shortcuts",
+            "local_lean_gate",
+        ):
+            value = request.get(key)
+            if value not in (None, "", [], {}):
+                retargeted[key] = list(value) if isinstance(value, list) else value
+        return retargeted
+
+    normalized = dict(request)
+    normalized["placeholder_symbol"] = symbol
+    normalized.setdefault(
+        "request_kind",
+        "source_theorem_exact_semantic_definition_candidate",
+    )
+    if target:
+        normalized["target_theorem_name"] = target
+    if normalized_target_ids and not normalized.get("target_ids"):
+        normalized["target_ids"] = normalized_target_ids
+    normalized.setdefault(
+        "proof_evidence_status",
+        "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE",
+    )
+    return normalized
+
+
+def _normalize_runtime_exact_semantic_candidate_request_fields(
+    row: dict[str, Any],
+) -> None:
+    symbol = str(row.get("placeholder_symbol", "") or "").strip()
+    target = str(
+        row.get("target_theorem_name", "")
+        or row.get("target_lean_declaration", "")
+        or ""
+    ).strip()
+    target_ids = _runtime_exact_semantic_definition_target_ids(
+        row,
+        target_theorem_name=target,
+    )
+    request = _runtime_candidate_definition_request_for_placeholder(
+        row.get("candidate_definition_request", {}),
+        placeholder_symbol=symbol,
+        target_theorem_name=target,
+        target_ids=target_ids,
+    )
+    if request:
+        row["candidate_definition_request"] = request
+    elif "candidate_definition_request" in row:
+        row["candidate_definition_request"] = {}
+
+    typechecked_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if not isinstance(typechecked_candidate, Mapping):
+        return
+    typechecked_candidate = dict(typechecked_candidate)
+    if symbol and not str(typechecked_candidate.get("placeholder_symbol", "") or ""):
+        typechecked_candidate["placeholder_symbol"] = symbol
+    nested_request = _runtime_candidate_definition_request_for_placeholder(
+        typechecked_candidate.get("candidate_definition_request", {}),
+        placeholder_symbol=str(
+            typechecked_candidate.get("placeholder_symbol", "") or symbol
+        ),
+        target_theorem_name=str(
+            typechecked_candidate.get("target_theorem_name", "") or target
+        ),
+        target_ids=target_ids,
+    )
+    if nested_request:
+        typechecked_candidate["candidate_definition_request"] = nested_request
+    elif "candidate_definition_request" in typechecked_candidate:
+        typechecked_candidate["candidate_definition_request"] = {}
+    row[
+        "source_theorem_exact_semantic_definition_typechecked_candidate"
+    ] = typechecked_candidate
 
 
 def _copy_exact_semantic_definition_lineage_fields(
@@ -73807,6 +73941,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                 work_order[key_name] = value
         _copy_exact_semantic_definition_lineage_fields(work_order, row)
         _normalize_exact_semantic_work_order_status_from_local_definition(work_order)
+        _normalize_runtime_exact_semantic_candidate_request_fields(work_order)
         rows.append(work_order)
     return rows
 
@@ -74726,6 +74861,17 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         ).strip()
         if not target or not symbol:
             continue
+        candidate_definition_request = (
+            _runtime_candidate_definition_request_for_placeholder(
+                candidate_definition_request,
+                placeholder_symbol=symbol,
+                target_theorem_name=target,
+                target_ids=_runtime_exact_semantic_definition_target_ids(
+                    row,
+                    target_theorem_name=target,
+                ),
+            )
+        )
         request_fingerprint = stable_hash(candidate_definition_request)[:20]
         key = (
             target,
@@ -75641,6 +75787,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
             "semantics and pass local Lean/AXLE before proof-body search resumes."
         )
         _normalize_exact_semantic_work_order_status_from_local_definition(row)
+        _normalize_runtime_exact_semantic_candidate_request_fields(row)
     return rows
 
 
@@ -75662,6 +75809,7 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
             continue
         item = dict(item)
         _normalize_exact_semantic_work_order_status_from_local_definition(item)
+        _normalize_runtime_exact_semantic_candidate_request_fields(item)
         support_ids = [
             str(value).strip()
             for value in item.get(
