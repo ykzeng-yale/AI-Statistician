@@ -77,6 +77,32 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     assert alpha_total.required_adapter_object_names == ("BadRanks",)
 
 
+def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:
+    covered = exact_semantic_definition_placeholder_policy("covered")
+    rank = exact_semantic_definition_placeholder_policy("rank")
+    alpha_total = exact_semantic_definition_placeholder_policy("alpha_total")
+
+    assert "hGoodCovered" in covered.source_to_bridge_premise_aliases
+    assert (
+        "define covered from the exact source coverage event using hC"
+        in covered.source_to_bridge_dependency_requirements
+    )
+    assert covered.source_to_bridge_required_anchor_names == ("hq", "hC")
+    assert covered.source_anchor_roles["hC"] == "coverage_event_anchor"
+
+    assert (
+        "derive the rank point-mass bound from exact exchangeability hexch"
+        in rank.source_to_bridge_dependency_requirements
+    )
+    assert rank.source_anchor_roles["hq"] == "quantile_definition_anchor"
+
+    assert "hTotal" in alpha_total.source_to_bridge_premise_aliases
+    assert (
+        "prove the finite bad-rank budget sum bound for \u03b1 over BadRanks"
+        in alpha_total.source_to_bridge_dependency_requirements
+    )
+
+
 def test_placeholder_policy_keeps_alpha_aliases_and_generic_fallback() -> None:
     assert compact_exact_semantic_placeholder_key("alpha_total") == "alphatotal"
     assert (

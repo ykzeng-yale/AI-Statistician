@@ -10,6 +10,18 @@
       "placeholder_key": "exchangeable",
       "semantic_goal": "Define finite exchangeability as permutation-invariant joint law of the score process, not only pairwise score-order symmetry.",
       "required_anchor_names": ["P", "s"],
+      "source_to_bridge_premise_aliases": ["hexch", "hExchangeability"],
+      "source_to_bridge_dependency_requirements": [
+        "derive the rank point-mass bound from exact exchangeability hexch",
+        "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities"
+      ],
+      "source_to_bridge_required_anchor_names": ["hexch", "P", "s"],
+      "source_anchor_roles": {
+        "hexch": "exchangeability_anchor",
+        "hExchangeability": "exchangeability_anchor",
+        "P": "probability_measure_anchor",
+        "s": "score_process_anchor"
+      },
       "source_lookup_search_terms": ["exchangeability", "exchangeab"],
       "source_lookup_aliases": ["exchangeable", "exchangeability"],
       "definition_contract": {
@@ -46,7 +58,20 @@
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "covered",
       "semantic_goal": "Define the source coverage event/object from the exact source theorem coverage binder hC and threshold q_hat, matching the held-out score event {\u03c9 | s (Fin.last n2) \u03c9 \u2264 q_hat \u03c9}.",
-      "required_anchor_names": ["s", "q_hat", "C", "hC"]
+      "required_anchor_names": ["s", "q_hat", "C", "hC"],
+      "source_to_bridge_premise_aliases": ["hGoodCovered", "hGoodRankCovered", "hGoodRankImpliesCovered", "hGoodImpliesCovered"],
+      "source_to_bridge_dependency_requirements": [
+        "define covered from the exact source coverage event using hC",
+        "define rank and BadRanks from the exact order-statistic threshold hq",
+        "prove good-rank containment: rank outside BadRanks implies the covered event"
+      ],
+      "source_to_bridge_required_anchor_names": ["hq", "hC"],
+      "source_anchor_roles": {
+        "hC": "coverage_event_anchor",
+        "C": "coverage_event_anchor",
+        "q_hat": "threshold_function_anchor",
+        "s": "score_process_anchor"
+      }
     },
     {
       "policy_id": "split_conformal_coverage.rank",
@@ -54,6 +79,21 @@
       "placeholder_key": "rank",
       "semantic_goal": "Define the rank object from the exact score process s and the order-statistic threshold equation hq; it must support good-rank containment and bad-rank probability premises.",
       "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+      "source_to_bridge_premise_aliases": ["hRank", "rank_uniformity", "rank_point_mass"],
+      "source_to_bridge_dependency_requirements": [
+        "derive the rank point-mass bound from exact exchangeability hexch",
+        "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities",
+        "define \u03b1 on ranks so each bad-rank event has probability bounded by \u03b1 r"
+      ],
+      "source_to_bridge_required_anchor_names": ["hexch", "hq"],
+      "source_anchor_roles": {
+        "hexch": "exchangeability_anchor",
+        "hq": "quantile_definition_anchor",
+        "n2": "calibration_size_anchor",
+        "hn2": "calibration_size_anchor",
+        "s": "score_process_anchor",
+        "q_hat": "threshold_function_anchor"
+      },
       "source_lookup_aliases": ["rank", "rank_uniformity"]
     },
     {
@@ -63,6 +103,19 @@
       "placeholder_aliases": ["orderStat", "orderStatistic"],
       "semantic_goal": "Define the finite-sample conformal order-statistic threshold from the exact score process s and the order-statistic threshold equation hq. The definition must preserve the requested rank, duplicate score multiplicities, and the reviewed tie policy instead of collapsing scores through a set/image shortcut.",
       "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+      "source_to_bridge_premise_aliases": ["hQuantileThreshold", "good_rank_event"],
+      "source_to_bridge_dependency_requirements": [
+        "define rank and BadRanks from the exact order-statistic threshold hq",
+        "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities"
+      ],
+      "source_to_bridge_required_anchor_names": ["hq", "q_hat", "s", "n2"],
+      "source_anchor_roles": {
+        "hq": "quantile_definition_anchor",
+        "n2": "calibration_size_anchor",
+        "hn2": "calibration_size_anchor",
+        "s": "score_process_anchor",
+        "q_hat": "threshold_function_anchor"
+      },
       "semantic_import_incompatible_terms": [
         "samplemean",
         "trimmedmean",
@@ -128,6 +181,21 @@
       "semantic_goal": "Define the finite bad-rank set from n2, alpha, halpha, and hq so it matches the ranks that violate conformal coverage containment.",
       "required_anchor_names": ["n2", "alpha", "halpha", "s", "q_hat", "hq"],
       "required_adapter_object_names": ["rank"],
+      "source_to_bridge_premise_aliases": ["hBadEvent", "BadRanks", "bad_rank_event"],
+      "source_to_bridge_dependency_requirements": [
+        "provide measurability of the rank map or of the finite bad-rank event",
+        "connect BadRanks to a finite/rank-indexed event in the exact source environment"
+      ],
+      "source_to_bridge_required_anchor_names": ["hq", "alpha", "halpha", "n2"],
+      "source_anchor_roles": {
+        "hq": "quantile_definition_anchor",
+        "alpha": "miscoverage_level_anchor",
+        "halpha": "miscoverage_level_anchor",
+        "n2": "calibration_size_anchor",
+        "hn2": "calibration_size_anchor",
+        "s": "score_process_anchor",
+        "q_hat": "threshold_function_anchor"
+      },
       "source_lookup_aliases": ["BadRanks", "bad ranks", "bad-rank"]
     },
     {
@@ -137,6 +205,21 @@
       "placeholder_aliases": ["\u03b1"],
       "semantic_goal": "Define the rank-indexed probability budget \u03b1 from the exact source miscoverage level alpha and rank-uniformity/exchangeability anchor hexch.",
       "required_anchor_names": ["P", "n2", "alpha", "s", "hexch"],
+      "source_to_bridge_premise_aliases": ["hRank", "hAlpha", "rank_budget"],
+      "source_to_bridge_dependency_requirements": [
+        "derive the rank point-mass bound from exact exchangeability hexch",
+        "define \u03b1 on ranks so each bad-rank event has probability bounded by \u03b1 r"
+      ],
+      "source_to_bridge_required_anchor_names": ["hexch", "alpha", "n2"],
+      "source_anchor_roles": {
+        "hexch": "exchangeability_anchor",
+        "alpha": "miscoverage_level_anchor",
+        "halpha": "miscoverage_level_anchor",
+        "n2": "calibration_size_anchor",
+        "hn2": "calibration_size_anchor",
+        "P": "probability_measure_anchor",
+        "s": "score_process_anchor"
+      },
       "source_lookup_search_terms": ["alpha", "\u03b1", "miscoverage"],
       "source_lookup_aliases": ["alpha", "\u03b1"]
     },
@@ -148,6 +231,18 @@
       "semantic_goal": "Define the total bad-rank budget \u03b1_total from alpha and BadRanks, with the intended downstream finite-sum bound.",
       "required_anchor_names": ["n2", "alpha", "halpha"],
       "required_adapter_object_names": ["BadRanks"],
+      "source_to_bridge_premise_aliases": ["hTotal", "h_total", "total_budget"],
+      "source_to_bridge_dependency_requirements": [
+        "define \u03b1_total from alpha and the conformal rank threshold",
+        "prove the finite bad-rank budget sum bound for \u03b1 over BadRanks"
+      ],
+      "source_to_bridge_required_anchor_names": ["alpha", "halpha", "n2"],
+      "source_anchor_roles": {
+        "alpha": "miscoverage_level_anchor",
+        "halpha": "miscoverage_level_anchor",
+        "n2": "calibration_size_anchor",
+        "hn2": "calibration_size_anchor"
+      },
       "source_lookup_search_terms": ["alpha_total", "\u03b1_total", "alpha", "bad-rank budget"],
       "source_lookup_aliases": ["alpha_total", "\u03b1_total", "alphatotal", "alpha", "\u03b1"]
     }

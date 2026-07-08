@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .exact_semantic_definition_policy import (
+    EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
+    ExactSemanticDefinitionPlaceholderPolicy,
+    compact_exact_semantic_placeholder_key,
+)
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
     _lean_command,
@@ -1945,6 +1950,87 @@ def _explicit_premise_semantic_dependency_requirements(
     return tuple(requirements)
 
 
+def _source_to_bridge_policy_rows(
+    *,
+    premise_name: str,
+    premise_target_type: str,
+) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, ...]:
+    text = f"{premise_name} {premise_target_type}"
+    compact_text = compact_exact_semantic_placeholder_key(text)
+    lowered_text = text.lower()
+    rows: list[ExactSemanticDefinitionPlaceholderPolicy] = []
+    seen_policy_ids: set[str] = set()
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        keys = (
+            policy.placeholder_key,
+            *policy.placeholder_aliases,
+            *policy.source_lookup_aliases,
+            *policy.source_to_bridge_premise_aliases,
+        )
+        matched = False
+        for key in keys:
+            raw_key = str(key or "").strip()
+            compact_key = compact_exact_semantic_placeholder_key(raw_key)
+            if compact_key and compact_key in compact_text:
+                matched = True
+                break
+            if raw_key and raw_key.lower() in lowered_text:
+                matched = True
+                break
+        if not matched or policy.policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy.policy_id)
+        rows.append(policy)
+    return tuple(rows)
+
+
+def _source_to_bridge_policy_dependency_requirements(
+    *,
+    premise_name: str,
+    premise_target_type: str,
+) -> tuple[str, ...]:
+    requirements: list[str] = []
+    for policy in _source_to_bridge_policy_rows(
+        premise_name=premise_name,
+        premise_target_type=premise_target_type,
+    ):
+        for requirement in policy.source_to_bridge_dependency_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+    return tuple(requirements)
+
+
+def _source_to_bridge_policy_required_anchor_names(
+    *,
+    premise_name: str,
+    premise_target_type: str,
+) -> tuple[str, ...]:
+    anchor_names: list[str] = []
+    for policy in _source_to_bridge_policy_rows(
+        premise_name=premise_name,
+        premise_target_type=premise_target_type,
+    ):
+        values = (
+            policy.source_to_bridge_required_anchor_names
+            or policy.required_anchor_names
+        )
+        for value in values:
+            if value not in anchor_names:
+                anchor_names.append(value)
+    return tuple(anchor_names)
+
+
+def _source_to_bridge_policy_anchor_role(name: str) -> str:
+    normalized = compact_exact_semantic_placeholder_key(name)
+    if not normalized:
+        return ""
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        for key, role in policy.source_anchor_roles.items():
+            if compact_exact_semantic_placeholder_key(key) == normalized:
+                return str(role or "")
+    return ""
+
+
 def _premise_semantic_dependency_requirements(
     *,
     premise_name: str,
@@ -1957,53 +2043,30 @@ def _premise_semantic_dependency_requirements(
     premise without a later local Lean/AXLE check of a non-vacuous derivation.
     """
 
-    normalized_name = _normalize_premise_identifier(premise_name)
     target = re.sub(r"\s+", " ", str(premise_target_type or "").strip())
-    source_text = "\n".join(source_signature)
-    requirements: list[str] = []
-    if normalized_name == "hgoodcovered" or "ᶜ ⊆ covered" in target:
-        requirements.extend(
-            [
-                "define covered from the exact source coverage event using hC",
-                "define rank and BadRanks from the exact order-statistic threshold hq",
-                "prove good-rank containment: rank outside BadRanks implies the covered event",
-            ]
+    requirements = list(
+        _source_to_bridge_policy_dependency_requirements(
+            premise_name=premise_name,
+            premise_target_type=target,
         )
-    if normalized_name == "hbadevent" or target.startswith("MeasurableSet"):
-        requirements.extend(
-            [
-                "provide measurability of the rank map or of the finite bad-rank event",
-                "connect BadRanks to a finite/rank-indexed event in the exact source environment",
-            ]
-        )
-    if normalized_name == "hrank" or "P {ω | rank ω =" in target:
-        requirements.extend(
-            [
-                "derive the rank point-mass bound from exact exchangeability hexch",
-                "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities",
-                "define α on ranks so each bad-rank event has probability bounded by α r",
-            ]
-        )
-    if normalized_name in {"htotal", "h_total"} or "∑ r ∈ BadRanks" in target:
-        requirements.extend(
-            [
-                "define α_total from alpha and the conformal rank threshold",
-                "prove the finite bad-rank budget sum bound for α over BadRanks",
-            ]
-        )
+    )
     if not requirements and target:
         requirements.append(
             "formalize exact source-to-bridge definitions for the identifiers in: "
             + target[:180]
         )
-    if "hC" in source_text and any("covered" in item for item in requirements):
-        requirements.append(
-            "use the exact source hC binder as the semantic anchor for the coverage event"
-        )
-    if "hexch" in source_text and any("exchangeability" in item for item in requirements):
-        requirements.append(
-            "use the exact source hexch binder as the semantic anchor for rank uniformity"
-        )
+    source_text = "\n".join(source_signature)
+    for anchor_name in _source_to_bridge_policy_required_anchor_names(
+        premise_name=premise_name,
+        premise_target_type=target,
+    ):
+        if re.search(rf"\b{re.escape(anchor_name)}\b", source_text):
+            requirements.append(
+                "use the exact source "
+                + anchor_name
+                + " binder as a semantic anchor for the policy-driven "
+                + "source-to-bridge derivation"
+            )
     return tuple(dict.fromkeys(requirements))
 
 
@@ -4185,22 +4248,13 @@ def _parse_named_binder_inner(inner: str) -> tuple[tuple[str, str], ...]:
 def _source_binder_role(*, name: str, binder_type: str) -> str:
     normalized = _normalize_premise_identifier(name)
     type_text = str(binder_type or "")
-    if normalized in {"hexch", "hexchangeability"} or "Exchangeable" in type_text:
+    policy_role = _source_to_bridge_policy_anchor_role(name)
+    if policy_role:
+        return policy_role
+    if "Exchangeable" in type_text:
         return "exchangeability_anchor"
-    if normalized == "hq" or "orderStat" in type_text:
+    if "orderStat" in type_text:
         return "quantile_definition_anchor"
-    if normalized == "hc":
-        return "coverage_event_anchor"
-    if normalized in {"halpha", "alpha"}:
-        return "miscoverage_level_anchor"
-    if normalized in {"hn2", "n2", "m"}:
-        return "calibration_size_anchor"
-    if normalized == "s":
-        return "score_process_anchor"
-    if normalized in {"qhat", "q_hat"}:
-        return "threshold_function_anchor"
-    if normalized == "c":
-        return "prediction_set_family_anchor"
     if normalized.startswith("h"):
         return "source_hypothesis"
     return "source_parameter"
@@ -4220,6 +4274,22 @@ def _premise_semantic_anchor_binder_summaries(
             *semantic_requirements,
         ]
     ).lower()
+    policy_anchor_names = _source_to_bridge_policy_required_anchor_names(
+        premise_name=premise_name,
+        premise_target_type=premise_target_type,
+    )
+    if policy_anchor_names:
+        normalized_policy_anchors = {
+            _normalize_premise_identifier(name) for name in policy_anchor_names
+        }
+        selected_from_policy = [
+            binder
+            for binder in source_binders
+            if _normalize_premise_identifier(binder.get("name", ""))
+            in normalized_policy_anchors
+        ]
+        if selected_from_policy:
+            return tuple(selected_from_policy[:12])
     wanted: set[str] = set()
     if any(token in text for token in ("covered", "coverage event", "hc")):
         wanted.update({"hC", "C", "q_hat", "s"})

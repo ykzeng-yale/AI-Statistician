@@ -49,6 +49,10 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     source_lookup_search_terms: tuple[str, ...] = ()
     source_lookup_aliases: tuple[str, ...] = ()
     definition_contract: Mapping[str, Any] = field(default_factory=dict)
+    source_to_bridge_premise_aliases: tuple[str, ...] = ()
+    source_to_bridge_dependency_requirements: tuple[str, ...] = ()
+    source_to_bridge_required_anchor_names: tuple[str, ...] = ()
+    source_anchor_roles: Mapping[str, str] = field(default_factory=dict)
     candidate_risk_rules: tuple[
         ExactSemanticDefinitionCandidateRiskRule,
         ...,
@@ -179,6 +183,16 @@ def _policy_from_mapping(
         ),
         source_lookup_aliases=_string_tuple(row.get("source_lookup_aliases")),
         definition_contract=_mapping_or_empty(row.get("definition_contract")),
+        source_to_bridge_premise_aliases=_string_tuple(
+            row.get("source_to_bridge_premise_aliases")
+        ),
+        source_to_bridge_dependency_requirements=_string_tuple(
+            row.get("source_to_bridge_dependency_requirements")
+        ),
+        source_to_bridge_required_anchor_names=_string_tuple(
+            row.get("source_to_bridge_required_anchor_names")
+        ),
+        source_anchor_roles=_string_mapping(row.get("source_anchor_roles")),
         candidate_risk_rules=tuple(
             _risk_rule_from_mapping(rule)
             for rule in row.get("candidate_risk_rules", [])
@@ -237,6 +251,18 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
 
 def _mapping_or_empty(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _string_mapping(value: Any) -> Mapping[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    rows: dict[str, str] = {}
+    for key, child in value.items():
+        text_key = str(key or "").strip()
+        text_value = str(child or "").strip()
+        if text_key and text_value:
+            rows[text_key] = text_value
+    return rows
 
 
 def _build_policy_registry() -> tuple[
