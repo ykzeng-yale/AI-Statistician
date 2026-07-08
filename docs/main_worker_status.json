@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:23:02Z",
+  "updated_at": "2026-07-08T00:29:18Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Exact semantic-definition work-order replay now consumes compact runtime-learning rows whose learning_task lives under input_summary, and normalizes serialized local_definition_lean_checked/local_definition_lean_compiled plus environment-repair booleans before queue/status normalization. Compact exact-semantic repair memory can therefore regenerate Formalizer/ProofEngineer work orders, while string 'false' local Lean fields stay false and cannot promote an uncompiled definition-only candidate into semantic-review-ready proof-body routing. This is non-proof repair-memory hardening; source theorem proof still requires local Lean/AXLE kernel verification.",
+  "latest_main_worker_patch": "Exact semantic-definition authoring retry extraction now consumes compact runtime-learning rows whose learning_task, trigger, validation_errors, and environment-repair fields live under input_summary, and it normalizes serialized false booleans before deciding structural reformulation, semantic-review, or Lean-environment authoring repair. A compact C_n-style LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT row now becomes a non-proof authoring repair task instead of being dropped or suppressed by ready_to_rerun_lean_repair='false'. Source theorem proof and proof-body routing remain gated behind reviewed exact semantics plus local Lean/AXLE kernel verification.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -2977,6 +2977,13 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"source_theorem_repair_memory_accepts_compact_learning_task_rows or runtime_learning_memory_loader_pins_compact_source_theorem_repair_rows or runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic\" # 3 passed, 926 deselected after compact exact-semantic work-order replay bool/task patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 883 deselected after compact exact-semantic work-order replay bool/task patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 884 deselected after compact exact-semantic work-order replay bool/task patch",
-    "git diff --check # passed after compact exact-semantic work-order replay bool/task patch"
+    "git diff --check # passed after compact exact-semantic work-order replay bool/task patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after compact exact-semantic authoring environment repair patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic_environment_import_blocker_becomes_authoring_task or exact_semantic_compact_environment_import_blocker_becomes_authoring_task\" # 2 passed, 928 deselected after compact exact-semantic authoring environment repair patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic and (authoring or environment_import_blocker or compact_environment or structural_reformulation)\" # 43 passed, 887 deselected after compact exact-semantic authoring environment repair patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic and (work_order or input_summary or string_false or source_theorem_repair)\" # 20 passed, 910 deselected after compact exact-semantic authoring environment repair patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 884 deselected after compact exact-semantic authoring environment repair patch",
+    "git diff --check # passed after compact exact-semantic authoring environment repair patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 885 deselected after compact exact-semantic authoring environment repair patch"
   ]
 }

@@ -47065,6 +47065,88 @@ def test_exact_semantic_environment_import_blocker_becomes_authoring_task() -> N
     assert task["source_theorem_kernel_verified"] is False
 
 
+def test_exact_semantic_compact_environment_import_blocker_becomes_authoring_task() -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeLearningRow",
+            "input_summary": {
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_"
+                    "lean_environment_repair_execution"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "candidate_definition_request": {
+                    "request_kind": (
+                        "source_theorem_exact_semantic_definition_candidate"
+                    ),
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "placeholder_symbol": "C_n",
+                },
+                "candidate_lean_project_hint": (
+                    "legacy_sources/emperical_process_lean"
+                ),
+                "candidate_source_file": (
+                    "legacy_sources/ai_statistician/StatInference/Asymptotics/"
+                    "AsymptoticNormal.lean"
+                ),
+                "environment_repair_status": (
+                    "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+                ),
+                "unavailable_module_prefix": "StatInference",
+                "ready_to_rerun_lean_repair": "false",
+                "dependency_fetch_required": "false",
+                "structural_reformulation_required": "false",
+                "semantic_review_required_before_proof_body": "false",
+                "recommended_next_action": (
+                    "port the reviewed declaration into the active Lean project"
+                ),
+                "validation_errors": [
+                    "unknown module prefix 'StatInference'",
+                ],
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_REPAIR_EXECUTION_"
+                    "NOT_PROOF_EVIDENCE"
+                ),
+            },
+        }
+    ]
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            rows
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+    )
+    assert task["authoring_mode"] == (
+        "port_or_synthesize_exact_definition_for_active_lean_project"
+    )
+    assert task["retry_failure_classification"] == (
+        "LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT"
+    )
+    assert task["candidate_lean_project_hint"] == (
+        "legacy_sources/emperical_process_lean"
+    )
+    assert task["unavailable_module_prefix"] == "StatInference"
+    assert task["ready_to_rerun_lean_repair"] is False
+    assert task["dependency_fetch_required"] is False
+    assert task["structural_reformulation_required"] is False
+    assert task["semantic_review_required_before_proof_body"] is False
+    assert task["source_theorem_ready_for_exact_proof_body"] is False
+    assert task["validation_errors"] == ["unknown module prefix 'StatInference'"]
+    assert task["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_exact_semantic_authoring_repair_tasks_include_local_lean_source_excerpts(
     tmp_path: Path,
 ) -> None:

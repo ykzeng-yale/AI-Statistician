@@ -70840,8 +70840,8 @@ def _exact_semantic_environment_repair_requires_authoring(
     ):
         return False
     return not bool(
-        row.get("ready_to_rerun_lean_repair", False)
-        or input_summary.get("ready_to_rerun_lean_repair", False)
+        _bool_like(row.get("ready_to_rerun_lean_repair", False))
+        or _bool_like(input_summary.get("ready_to_rerun_lean_repair", False))
     )
 
 
@@ -72408,6 +72408,7 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        learning_task = _runtime_learning_row_task(row, input_summary)
         runtime_queue_status = str(
             row.get("runtime_queue_status", "")
             or input_summary.get("runtime_queue_status", "")
@@ -72423,9 +72424,7 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             or input_summary.get("environment_repair_status", "")
             or ""
         ).strip()
-        row_trigger = str(
-            row.get("trigger", "") or input_summary.get("trigger", "") or ""
-        ).strip()
+        row_trigger = _runtime_learning_row_trigger(row, input_summary)
         source_proof_evidence_status = str(
             row.get("proof_evidence_status", "")
             or input_summary.get("proof_evidence_status", "")
@@ -72439,15 +72438,12 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         authoring_prompt_response_pending = (
             runtime_queue_status
             == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RESPONSE"
-            or str(input_summary.get("trigger", "") or "").strip()
-            == "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET"
+            or row_trigger == "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET"
         )
         exact_environment_repair_row = bool(
             environment_repair_status
             and (
-                str(row.get("learning_task", "") or "").startswith(
-                    "source_theorem_exact_semantic_definition_"
-                )
+                learning_task.startswith("source_theorem_exact_semantic_definition_")
                 or str(input_summary.get("trigger", "") or "")
                 == "EXACT_SEMANTIC_DEFINITION_LEAN_ENVIRONMENT_PREFLIGHT"
             )
@@ -72468,8 +72464,10 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
         structural_reformulation_required = (
             runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
             or failure_classification == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
-            or bool(row.get("structural_reformulation_required", False))
-            or bool(input_summary.get("structural_reformulation_required", False))
+            or _bool_like(row.get("structural_reformulation_required", False))
+            or _bool_like(
+                input_summary.get("structural_reformulation_required", False)
+            )
             or str(row.get("authoring_trigger", "") or "").strip()
             == "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
             or str(input_summary.get("authoring_trigger", "") or "").strip()
@@ -72496,14 +72494,24 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                     "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_REVIEW_BLOCKED",
                     "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
                 }
-                or str(row.get("action_type", "") or "").strip()
+                or str(
+                    row.get("action_type", "")
+                    or input_summary.get("action_type", "")
+                    or ""
+                ).strip()
                 == "review_typechecked_exact_semantic_definition_candidate"
                 or (
-                    bool(
-                        row.get("semantic_review_required_before_proof_body", False)
-                        or input_summary.get(
-                            "semantic_review_required_before_proof_body",
-                            False,
+                    (
+                        _bool_like(
+                            row.get(
+                                "semantic_review_required_before_proof_body", False
+                            )
+                        )
+                        or _bool_like(
+                            input_summary.get(
+                                "semantic_review_required_before_proof_body",
+                                False,
+                            )
                         )
                     )
                     and (
@@ -72678,10 +72686,14 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
                 ),
                 "semantic_review_required_before_proof_body": bool(
                     semantic_review_required
-                    or row.get("semantic_review_required_before_proof_body", False)
-                    or input_summary.get(
-                        "semantic_review_required_before_proof_body",
-                        False,
+                    or _bool_like(
+                        row.get("semantic_review_required_before_proof_body", False)
+                    )
+                    or _bool_like(
+                        input_summary.get(
+                            "semantic_review_required_before_proof_body",
+                            False,
+                        )
                     )
                 ),
                 "source_theorem_ready_for_exact_proof_body": False,
@@ -72844,14 +72856,17 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             task["candidate_repair_feedback"] = candidate_repair_feedback
         if task.get("validation_errors") in (None, "", [], {}):
             validation_errors = list(
-                _runtime_row_string_values(row, "validation_errors")
+                _runtime_learning_row_string_values(
+                    row, input_summary, "validation_errors"
+                )
             )
             if validation_errors:
                 task["validation_errors"] = validation_errors
         if task.get("retry_validation_errors") in (None, "", [], {}):
             retry_validation_errors = list(
-                _runtime_row_string_values(
+                _runtime_learning_row_string_values(
                     row,
+                    input_summary,
                     "retry_validation_errors",
                     "validation_errors",
                 )
@@ -72943,6 +72958,23 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             )
         if not str(task.get("lean_repair_action", "") or "").strip():
             task["lean_repair_action"] = "synthesize_exact_definition"
+        for bool_key in (
+            "retry_of_authoring_failure",
+            "structural_reformulation_required",
+            "pseudo_formalization_required",
+            "requires_pseudo_formalization",
+            "repair_of_semantic_alignment_blockers",
+            "semantic_review_required_before_proof_body",
+            "source_theorem_ready_for_exact_proof_body",
+            "source_theorem_kernel_verified",
+            "semantic_definition_kernel_verified",
+            "local_definition_lean_checked",
+            "local_definition_lean_compiled",
+            "dependency_fetch_required",
+            "ready_to_rerun_lean_repair",
+        ):
+            if bool_key in task:
+                task[bool_key] = _bool_like(task.get(bool_key))
         rows.append(task)
     return rows
 
