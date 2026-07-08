@@ -62376,29 +62376,40 @@ def _append_runtime_generated_next_action_rows(
     for row in generated_rows:
         if not isinstance(row, Mapping):
             continue
-        work_order_id = str(
-            row.get("work_order_id", "")
-            or row.get("repair_queue_id", "")
-            or row.get("source_lean_repair_task_id", "")
-            or row.get("lean_repair_task_id", "")
-            or row.get("environment_repair_task_id", "")
-            or row.get("source_environment_repair_task_id", "")
-            or row.get("environment_repair_result_id", "")
-            or row.get("source_definition_closure_work_order_id", "")
-            or row.get("source_prompt_packet_id", "")
-            or row.get("prompt_packet_id", "")
-            or row.get("source_authoring_task_id", "")
-            or ""
-        ).strip()
-        if not work_order_id:
-            continue
-        agenda_id = f"proof_feedback:{queue_name}:{stable_hash(work_order_id)[:12]}"
-        learning_task = str(row.get("learning_task", "") or "")
         input_summary = (
             row.get("input_summary", {})
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or row.get("repair_queue_id", "")
+            or input_summary.get("repair_queue_id", "")
+            or row.get("source_lean_repair_task_id", "")
+            or input_summary.get("source_lean_repair_task_id", "")
+            or row.get("lean_repair_task_id", "")
+            or input_summary.get("lean_repair_task_id", "")
+            or row.get("environment_repair_task_id", "")
+            or input_summary.get("environment_repair_task_id", "")
+            or row.get("source_environment_repair_task_id", "")
+            or input_summary.get("source_environment_repair_task_id", "")
+            or row.get("environment_repair_result_id", "")
+            or input_summary.get("environment_repair_result_id", "")
+            or row.get("source_definition_closure_work_order_id", "")
+            or input_summary.get("source_definition_closure_work_order_id", "")
+            or row.get("source_prompt_packet_id", "")
+            or input_summary.get("source_prompt_packet_id", "")
+            or row.get("prompt_packet_id", "")
+            or input_summary.get("prompt_packet_id", "")
+            or row.get("source_authoring_task_id", "")
+            or input_summary.get("source_authoring_task_id", "")
+            or ""
+        ).strip()
+        if not work_order_id:
+            continue
+        agenda_id = f"proof_feedback:{queue_name}:{stable_hash(work_order_id)[:12]}"
+        learning_task = _runtime_learning_row_task(row, input_summary)
         source_trigger = str(
             row.get("trigger", "") or input_summary.get("trigger", "") or ""
         ).strip()
@@ -62747,9 +62758,13 @@ def _append_runtime_generated_next_action_rows(
             "target_ids": list(
                 _str_tuple(
                     row.get("target_ids", [])
+                    or input_summary.get("target_ids", [])
                     or row.get("target_theorem_goal_ids", [])
+                    or input_summary.get("target_theorem_goal_ids", [])
                     or row.get("target_theorem_name", "")
+                    or input_summary.get("target_theorem_name", "")
                     or row.get("semantic_primitive_id", "")
+                    or input_summary.get("semantic_primitive_id", "")
                 )
             ),
             "work_order_id": work_order_id,
@@ -62764,13 +62779,13 @@ def _append_runtime_generated_next_action_rows(
                 or ""
             ),
             "candidate_definition_request": candidate_definition_request,
-            "provider_requested": bool(
-                row.get("provider_requested", False)
-                or input_summary.get("provider_requested", False)
+            "provider_requested": (
+                _bool_like(row.get("provider_requested", False))
+                or _bool_like(input_summary.get("provider_requested", False))
             ),
-            "external_export_blocked": bool(
-                row.get("external_export_blocked", False)
-                or input_summary.get("external_export_blocked", False)
+            "external_export_blocked": (
+                _bool_like(row.get("external_export_blocked", False))
+                or _bool_like(input_summary.get("external_export_blocked", False))
             ),
             "source_learning_task": learning_task,
             "source_learning_tasks": [learning_task] if learning_task else [],
@@ -62782,10 +62797,22 @@ def _append_runtime_generated_next_action_rows(
             ),
             "blocker_feedback_id": blocker_feedback_id,
             "blocker_feedback_ids": [blocker_feedback_id] if blocker_feedback_id else [],
-            "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
-            "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+            "semantic_primitive_id": str(
+                row.get("semantic_primitive_id", "")
+                or input_summary.get("semantic_primitive_id", "")
+                or ""
+            ),
+            "target_theorem_name": str(
+                row.get("target_theorem_name", "")
+                or input_summary.get("target_theorem_name", "")
+                or ""
+            ),
             "premise_name": premise_name,
-            "premise_target_status": str(row.get("premise_target_status", "") or ""),
+            "premise_target_status": str(
+                row.get("premise_target_status", "")
+                or input_summary.get("premise_target_status", "")
+                or ""
+            ),
             "premise_target_type": premise_target_type,
             "premise_derivation_gap_kind": premise_gap_kind,
             "premise_derivation_gap_summary": str(
@@ -62811,18 +62838,41 @@ def _append_runtime_generated_next_action_rows(
                     "premise_semantic_dependency_requirements",
                 )
             ),
-            "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
-            "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
+            "placeholder_symbol": str(
+                row.get("placeholder_symbol", "")
+                or input_summary.get("placeholder_symbol", "")
+                or ""
+            ),
+            "candidate_artifact_path": str(
+                row.get("candidate_artifact_path", "")
+                or input_summary.get("candidate_artifact_path", "")
+                or ""
+            ),
             "definition_only_candidate_artifact_path": str(
-                row.get("definition_only_candidate_artifact_path", "") or ""
+                row.get("definition_only_candidate_artifact_path", "")
+                or input_summary.get("definition_only_candidate_artifact_path", "")
+                or ""
             ),
-            "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
-            "local_definition_lean_checked": bool(
-                row.get("local_definition_lean_checked", False)
+            "local_lean_compiled": (
+                _bool_like(row.get("local_lean_compiled", False))
+                or _bool_like(input_summary.get("local_lean_compiled", False))
             ),
-            "local_definition_lean_compiled": bool(
-                row.get("local_definition_lean_compiled", False)
-                or row.get("execution_status", "")
+            "local_definition_lean_checked": (
+                _bool_like(row.get("local_definition_lean_checked", False))
+                or _bool_like(
+                    input_summary.get("local_definition_lean_checked", False)
+                )
+            ),
+            "local_definition_lean_compiled": (
+                _bool_like(row.get("local_definition_lean_compiled", False))
+                or _bool_like(
+                    input_summary.get("local_definition_lean_compiled", False)
+                )
+                or str(
+                    row.get("execution_status", "")
+                    or input_summary.get("execution_status", "")
+                    or ""
+                )
                 == "EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_COMPILED"
             ),
             "semantic_definition_typecheck_evidence_status": str(
@@ -62855,17 +62905,27 @@ def _append_runtime_generated_next_action_rows(
             "source_theorem_kernel_evidence_eligible": (
                 source_theorem_kernel_evidence_eligible
             ),
-            "semantic_definition_import_candidate_ready": bool(
-                row.get("semantic_definition_import_candidate_ready", False)
+            "semantic_definition_import_candidate_ready": (
+                _bool_like(
+                    row.get("semantic_definition_import_candidate_ready", False)
+                )
+                or _bool_like(
+                    input_summary.get(
+                        "semantic_definition_import_candidate_ready",
+                        False,
+                    )
+                )
             ),
             "runtime_queue_status": str(
                 row.get("runtime_queue_status", "")
+                or input_summary.get("runtime_queue_status", "")
                 or (
                     "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
                     if exact_semantic_definition_repair_queue_ready
                     else ""
                 )
                 or row.get("environment_repair_status", "")
+                or input_summary.get("environment_repair_status", "")
                 or ""
             ),
             "proof_body_gate_status": str(
@@ -62892,7 +62952,9 @@ def _append_runtime_generated_next_action_rows(
             ),
             "runtime_generated_queue_name": queue_name,
             "environment_repair_status": str(
-                row.get("environment_repair_status", "") or ""
+                row.get("environment_repair_status", "")
+                or input_summary.get("environment_repair_status", "")
+                or ""
             ),
             "recommended_next_action": recommended_next_action,
             "recommended_commands": recommended_commands,
@@ -63153,10 +63215,10 @@ def _runtime_generated_next_action_learning_rows(
                         )
                         else {}
                     ),
-                    "provider_requested": bool(
+                    "provider_requested": _bool_like(
                         row.get("provider_requested", False)
                     ),
-                    "external_export_blocked": bool(
+                    "external_export_blocked": _bool_like(
                         row.get("external_export_blocked", False)
                     ),
                     "source_learning_task": str(
@@ -63218,17 +63280,19 @@ def _runtime_generated_next_action_learning_rows(
                     "definition_only_candidate_artifact_path": str(
                         row.get("definition_only_candidate_artifact_path", "") or ""
                     ),
-                    "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
-                    "local_definition_lean_checked": bool(
+                    "local_lean_compiled": _bool_like(
+                        row.get("local_lean_compiled", False)
+                    ),
+                    "local_definition_lean_checked": _bool_like(
                         row.get("local_definition_lean_checked", False)
                     ),
-                    "local_definition_lean_compiled": bool(
+                    "local_definition_lean_compiled": _bool_like(
                         row.get("local_definition_lean_compiled", False)
                     ),
                     "semantic_definition_typecheck_evidence_status": str(
                         row.get("semantic_definition_typecheck_evidence_status", "") or ""
                     ),
-                    "semantic_review_required_before_proof_body": bool(
+                    "semantic_review_required_before_proof_body": _bool_like(
                         row.get("semantic_review_required_before_proof_body", False)
                     ),
                     "source_theorem_ready_for_exact_proof_body": _bool_like(
@@ -63261,7 +63325,7 @@ def _runtime_generated_next_action_learning_rows(
                     "required_next_checks": list(
                         _runtime_row_string_values(row, "required_next_checks")
                     ),
-                    "semantic_definition_import_candidate_ready": bool(
+                    "semantic_definition_import_candidate_ready": _bool_like(
                         row.get("semantic_definition_import_candidate_ready", False)
                     ),
                     "runtime_queue_status": str(
@@ -63273,7 +63337,7 @@ def _runtime_generated_next_action_learning_rows(
                     "proof_body_status": str(
                         row.get("proof_body_status", "") or ""
                     ),
-                    "proof_body_goal_reached": bool(
+                    "proof_body_goal_reached": _bool_like(
                         row.get("proof_body_goal_reached", False)
                     ),
                     "source_theorem_exact_proof_body_gate_open_for_kernel_repair": (

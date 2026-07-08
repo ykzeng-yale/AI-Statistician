@@ -41855,6 +41855,85 @@ def test_exact_semantic_authoring_prompt_generates_backend_next_action() -> None
     )
 
 
+def test_compact_generated_next_action_replay_uses_input_summary_and_string_false() -> None:
+    compact_prompt_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeGeneratedNextActionLearningRow",
+        "input_summary": {
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_authoring_worker"
+            ),
+            "trigger": "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_PACKET",
+            "work_order_id": "authoring-prompt:compact-covered",
+            "source_prompt_packet_id": "authoring-prompt:compact-covered",
+            "source_authoring_task_id": "authoring-task:compact-covered",
+            "target_theorem_name": "compact_source_theorem",
+            "target_ids": ["compact_source_goal"],
+            "placeholder_symbol": "covered",
+            "runtime_queue_status": (
+                "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+            ),
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "compact_source_theorem",
+                "placeholder_symbol": "covered",
+                "required_anchor_names": ["s", "q_hat", "C", "hC"],
+                "missing_required_anchor_names": [],
+            },
+            "provider_requested": "false",
+            "external_export_blocked": "false",
+            "local_lean_compiled": "false",
+            "local_definition_lean_checked": "false",
+            "local_definition_lean_compiled": "false",
+            "semantic_definition_import_candidate_ready": "false",
+            "semantic_review_required_before_proof_body": "true",
+            "source_theorem_ready_for_exact_proof_body": "false",
+        },
+        "proof_evidence_status": "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE",
+    }
+
+    generated_rows = _append_runtime_generated_next_action_rows(
+        [],
+        [compact_prompt_row],
+        queue_name="source_theorem_exact_semantic_definition_authoring_prompts",
+    )
+    learning_rows = _runtime_generated_next_action_learning_rows(generated_rows)
+
+    assert len(generated_rows) == 1
+    row = generated_rows[0]
+    assert row["work_order_id"] == "authoring-prompt:compact-covered"
+    assert row["source_learning_task"] == (
+        "source_theorem_exact_semantic_definition_authoring_worker"
+    )
+    assert row["trigger"] == (
+        "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
+    )
+    assert row["target_ids"] == ["compact_source_goal"]
+    assert row["target_theorem_name"] == "compact_source_theorem"
+    assert row["placeholder_symbol"] == "covered"
+    assert row["provider_requested"] is False
+    assert row["external_export_blocked"] is False
+    assert row["local_lean_compiled"] is False
+    assert row["local_definition_lean_checked"] is False
+    assert row["local_definition_lean_compiled"] is False
+    assert row["semantic_definition_import_candidate_ready"] is False
+    assert row["semantic_review_required_before_proof_body"] is True
+    assert row["source_theorem_ready_for_exact_proof_body"] is False
+    assert row["proof_boundary"] == runtime_module.KERNEL_PROOF_BOUNDARY
+    learning_summary = learning_rows[0]["input_summary"]
+    assert learning_summary["provider_requested"] is False
+    assert learning_summary["external_export_blocked"] is False
+    assert learning_summary["local_lean_compiled"] is False
+    assert learning_summary["local_definition_lean_checked"] is False
+    assert learning_summary["local_definition_lean_compiled"] is False
+    assert learning_summary["semantic_definition_import_candidate_ready"] is False
+    assert learning_summary["semantic_review_required_before_proof_body"] is True
+    assert learning_summary["source_theorem_ready_for_exact_proof_body"] is False
+    assert learning_rows[0]["proof_evidence_status"] == (
+        "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_exact_semantic_authoring_backend_routing_survives_memory_compaction(
     tmp_path: Path,
 ) -> None:
