@@ -2887,6 +2887,226 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     )
 
 
+def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    distractor_bridge = copy.deepcopy(bridge)
+    distractor_bridge["bridge_id"] = f"{bridge['bridge_id']}:distractor"
+    blackboard = BlackboardState(project_id="gap-planner-runtime-live-timeout-test")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    blackboard.artifacts[str(distractor_bridge["bridge_id"])] = distractor_bridge
+    task = AgentTask(
+        task_id="gap-planner-live-route:causal_ate_aipw:timeout",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Execute bounded live route planner.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "max_route_requests_per_handoff": 1,
+            "provider": "anthropic",
+            "model": "",
+            "model_tier": "auto",
+            "max_tokens": 9000,
+            "temperature": 0.1,
+            "max_repair_attempts": 1,
+            "max_staged_followup_stage_calls": 3,
+            "timeout_seconds": 2.5,
+            "architect_context": {},
+            "environment_feedback": {
+                "failure_classification": (
+                    "formalization_gap_planner_live_route_planner_requested"
+                ),
+                "formalization_gap_planner_bridge_ids": [bridge["bridge_id"]],
+            },
+        },
+    )
+    timeout_calls: list[dict[str, object]] = []
+
+    def fake_wall_clock_timeout(call, *, timeout_s, provider_name, model):
+        timeout_calls.append(
+            {
+                "timeout_s": timeout_s,
+                "provider_name": provider_name,
+                "model": model,
+            }
+        )
+        raise TimeoutError("outer route planner deadline")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_call_with_wall_clock_timeout",
+        fake_wall_clock_timeout,
+    )
+    monkeypatch.setattr(
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem,
+        "_live_route_planner_use_subprocess_export",
+        lambda self, *, provider, generator_backend: False,
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "formalization_gap_planner_live_route_planner_blocked"
+    )
+    assert timeout_calls == [
+        {
+            "timeout_s": 2.5,
+            "provider_name": "anthropic",
+            "model": "formalization_gap_planner_live_route_planner",
+        }
+    ]
+    live_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest"
+    )
+    execution_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    assert execution_manifest["counts"]["bridge_rows"] == 1
+    assert execution_manifest["audit_payload"]["n_handoffs"] == 1
+    assert live_manifest["all_live_route_planner_responses_recorded"] is False
+    assert live_manifest["feedback_loop_recorded"] is False
+    assert live_manifest["counts"]["provider_failures"] == 1
+    assert live_manifest["counts"]["request_packets"] == 0
+    assert live_manifest["errors"] == ["TimeoutError: outer route planner deadline"]
+    live_row = live_manifest["rows"][0]
+    assert live_row["failure_classification"] == (
+        "formalization_gap_planner_live_route_planner_timeout"
+    )
+    assert live_row["n_provider_failures"] == 1
+    assert live_row["target_prover_replay"]["attempted"] is False
+    assert any(
+        tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
+        and tool.exit_status == "failed"
+        for tool in result.tool_calls
+    )
+    assert any(
+        row.evidence_type == "formalization_gap_planner_runtime_execution"
+        and row.status == "LIVE_ROUTE_PLANNER_BLOCKED_NOT_PROOF_EVIDENCE"
+        for row in result.evidence_entries
+    )
+
+
+def test_formalization_gap_planner_live_route_planner_timeout_uses_runtime_cap() -> None:
+    subsystem = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=Path("runs/test-unused"),
+        runtime_config=ResearchAgentRuntimeConfig(
+            formalization_gap_planner_live_timeout_seconds=8.0,
+        ),
+    )
+    task = AgentTask(
+        task_id="gap-planner-live-route:timeout-cap",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Check timeout cap.",
+        inputs={"timeout_seconds": 120.0},
+    )
+
+    assert subsystem._live_route_planner_timeout_seconds(task) == 8.0
+
+    shorter_task = AgentTask(
+        task_id="gap-planner-live-route:timeout-short",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Check shorter timeout.",
+        inputs={"timeout_seconds": 2.5},
+    )
+
+    assert subsystem._live_route_planner_timeout_seconds(shorter_task) == 2.5
+
+
+def test_formalization_gap_planner_live_route_planner_subprocess_timeout_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(
+        project_id="gap-planner-runtime-live-subprocess-timeout-test"
+    )
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-live-route:causal_ate_aipw:subprocess-timeout",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Execute subprocess-bounded live route planner.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "max_route_requests_per_handoff": 1,
+            "provider": "anthropic",
+            "model": "",
+            "model_tier": "auto",
+            "max_tokens": 9000,
+            "temperature": 0.1,
+            "max_repair_attempts": 1,
+            "max_staged_followup_stage_calls": 3,
+            "timeout_seconds": 3.0,
+            "architect_context": {},
+            "environment_feedback": {
+                "failure_classification": (
+                    "formalization_gap_planner_live_route_planner_requested"
+                )
+            },
+        },
+    )
+    subprocess_calls: list[dict[str, object]] = []
+
+    def fake_subprocess_run(cmd, **kwargs):
+        subprocess_calls.append({"cmd": cmd, "kwargs": kwargs})
+        raise runtime_module.subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=kwargs["timeout"],
+            output="route planner started",
+            stderr="provider still running",
+        )
+
+    monkeypatch.setattr(runtime_module.subprocess, "run", fake_subprocess_run)
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    ).run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert subprocess_calls
+    cmd = subprocess_calls[0]["cmd"]
+    kwargs = subprocess_calls[0]["kwargs"]
+    assert kwargs["timeout"] == 3.0
+    assert "formalization-gap-planner-llm-route-planner" in cmd
+    assert "--invoke-provider" in cmd
+    assert cmd[cmd.index("--max-route-requests") + 1] == "1"
+    live_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest"
+    )
+    assert live_manifest["counts"]["provider_failures"] == 1
+    assert live_manifest["counts"]["request_packets"] == 0
+    assert live_manifest["errors"]
+    assert "TimeoutError: formalization gap planner live route-planner" in (
+        live_manifest["errors"][0]
+    )
+    assert live_manifest["rows"][0]["failure_classification"] == (
+        "formalization_gap_planner_live_route_planner_timeout"
+    )
+    assert any(
+        tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
+        and tool.exit_status == "failed"
+        for tool in result.tool_calls
+    )
+
+
 def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda() -> None:
     live_manifest = {
         "schema_version": 1,

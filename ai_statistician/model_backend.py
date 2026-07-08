@@ -817,22 +817,25 @@ def _call_with_wall_clock_timeout(
 
     old_handler = signal.getsignal(signal.SIGALRM)
     old_timer = signal.getitimer(signal.ITIMER_REAL)
+    previous_delay, previous_interval = old_timer
+    effective_timeout = timeout
+    if previous_delay > 0:
+        effective_timeout = min(timeout, previous_delay)
     started = time.monotonic()
 
     def _handle_timeout(_signum: int, _frame: Any) -> None:
         raise LiveGeneratorTimeoutError(
             f"{provider_name} generator request for {model} exceeded "
-            f"wall-clock timeout {timeout:g}s"
+            f"wall-clock timeout {effective_timeout:g}s"
         )
 
     signal.signal(signal.SIGALRM, _handle_timeout)
-    signal.setitimer(signal.ITIMER_REAL, timeout)
+    signal.setitimer(signal.ITIMER_REAL, effective_timeout)
     try:
         return call()
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, old_handler)
-        previous_delay, previous_interval = old_timer
         if previous_delay > 0:
             remaining = max(0.0, previous_delay - (time.monotonic() - started))
             if remaining > 0:

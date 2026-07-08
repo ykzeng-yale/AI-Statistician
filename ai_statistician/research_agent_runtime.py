@@ -126,6 +126,7 @@ from .model_backend import (
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     GeneratorBackend,
     StaticJSONGeneratorBackend,
+    _call_with_wall_clock_timeout,
     claude_tier_routing_contract,
     claude_model_tier_mismatch,
     is_live_generator_backend,
@@ -19229,19 +19230,16 @@ class FormalizationGapPlannerRuntimeSubsystem:
             )
 
     def _live_route_planner_timeout_seconds(self, task: AgentTask) -> float:
-        raw = task.inputs.get(
-            "timeout_seconds",
-            self.runtime_config.formalization_gap_planner_live_timeout_seconds,
+        config_timeout = max(
+            1.0,
+            float(self.runtime_config.formalization_gap_planner_live_timeout_seconds),
         )
+        raw = task.inputs.get("timeout_seconds", config_timeout)
         try:
-            return max(1.0, float(raw))
+            task_timeout = max(1.0, float(raw))
         except (TypeError, ValueError):
-            return max(
-                1.0,
-                float(
-                    self.runtime_config.formalization_gap_planner_live_timeout_seconds
-                ),
-            )
+            task_timeout = config_timeout
+        return min(task_timeout, config_timeout)
 
     def _live_route_planner_replay_lean_project(self, task: AgentTask) -> Path | None:
         for raw in (
@@ -19297,6 +19295,66 @@ class FormalizationGapPlannerRuntimeSubsystem:
             selected.append(dict(handoff))
         return selected
 
+    @staticmethod
+    def _feedback_string_list(
+        feedback: Mapping[str, Any],
+        key: str,
+    ) -> list[str]:
+        raw = feedback.get(key, [])
+        if isinstance(raw, str):
+            values = [raw]
+        elif isinstance(raw, Sequence) and not isinstance(raw, (bytes, bytearray)):
+            values = list(raw)
+        else:
+            values = []
+        return [str(value).strip() for value in values if str(value).strip()]
+
+    def _live_route_planner_scoped_bridge_rows(
+        self,
+        task: AgentTask,
+        bridge_rows: Sequence[Mapping[str, Any]],
+        environment_feedback: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        selected_bridge_ids = self._feedback_string_list(
+            environment_feedback,
+            "formalization_gap_planner_bridge_ids",
+        )
+        if not selected_bridge_ids:
+            return [dict(row) for row in bridge_rows if isinstance(row, Mapping)]
+        selected = set(selected_bridge_ids)
+        filtered = [
+            dict(row)
+            for row in bridge_rows
+            if isinstance(row, Mapping)
+            and str(row.get("bridge_id", "") or "").strip() in selected
+        ]
+        return filtered or [dict(row) for row in bridge_rows if isinstance(row, Mapping)]
+
+    def _live_route_planner_scoped_handoff_rows(
+        self,
+        task: AgentTask,
+        handoff_rows: Sequence[Mapping[str, Any]],
+        environment_feedback: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        selected_handoff_ids = self._feedback_string_list(
+            environment_feedback,
+            "selected_handoff_ids",
+        )
+        if selected_handoff_ids:
+            selected = set(selected_handoff_ids)
+            filtered = [
+                dict(row)
+                for row in handoff_rows
+                if isinstance(row, Mapping)
+                and str(row.get("handoff_id", "") or "").strip() in selected
+            ]
+            if filtered:
+                return filtered
+        return self._bounded_live_route_handoffs(
+            handoff_rows,
+            max_handoffs=self._live_route_planner_max_handoffs(task),
+        )
+
     def _optional_handoff_path(
         self,
         handoff: Mapping[str, Any],
@@ -19304,6 +19362,136 @@ class FormalizationGapPlannerRuntimeSubsystem:
     ) -> Path | None:
         text = str(handoff.get(key, "") or "").strip()
         return Path(text) if text else None
+
+    def _live_route_planner_use_subprocess_export(
+        self,
+        *,
+        provider: str,
+        generator_backend: GeneratorBackend | None,
+    ) -> bool:
+        if (
+            getattr(
+                export_formalization_gap_planner_llm_route_planner,
+                "__module__",
+                "",
+            )
+            != "ai_statistician.formalization_gap_planner_llm_route_planner"
+        ):
+            return False
+        backend_provider = str(getattr(generator_backend, "provider_name", "") or "")
+        return is_live_generator_backend(provider, backend_provider)
+
+    def _export_live_route_planner_subprocess(
+        self,
+        *,
+        standalone_seed_path: Path,
+        out_dir: Path,
+        provider: str,
+        model: str,
+        model_tier: str,
+        max_tokens: int,
+        temperature: float,
+        max_route_requests_per_handoff: int,
+        max_repair_attempts: int,
+        max_staged_followup_stage_calls: int,
+        timeout_seconds: float,
+        target_intake_dir: Path | None,
+        standalone_plan_dir: Path | None,
+        component_resource_registry_dir: Path | None,
+        route_contract_feedback_jsonl: Path | None,
+        route_revision_overlay_dir: Path | None,
+    ) -> dict[str, Any]:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            sys.executable,
+            "-m",
+            "ai_statistician.cli",
+            "formalization-gap-planner-llm-route-planner",
+            "--input",
+            str(standalone_seed_path),
+            "--provider",
+            provider,
+            "--model-tier",
+            model_tier,
+            "--max-tokens",
+            str(max_tokens),
+            "--temperature",
+            str(float(temperature)),
+            "--max-estimated-prompt-input-tokens",
+            str(RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS),
+            "--max-route-requests",
+            str(max_route_requests_per_handoff),
+            "--max-repair-attempts",
+            str(max_repair_attempts),
+            "--max-staged-followup-stage-calls",
+            str(max_staged_followup_stage_calls),
+            "--invoke-provider",
+            "--out",
+            str(out_dir),
+        ]
+        if model:
+            cmd.extend(["--model", model])
+
+        def _add_path(flag: str, path: Path | None) -> None:
+            if path is not None:
+                cmd.extend([flag, str(path)])
+
+        _add_path(
+            "--formalization-gap-planner-target-intake-dir",
+            target_intake_dir,
+        )
+        _add_path(
+            "--goal-conditioned-minimal-formalization-plan-dir",
+            standalone_plan_dir,
+        )
+        _add_path(
+            "--formalization-gap-planner-component-resource-registry-dir",
+            component_resource_registry_dir,
+        )
+        _add_path(
+            "--formalization-gap-planner-route-contract-feedback-jsonl",
+            route_contract_feedback_jsonl,
+        )
+        _add_path(
+            "--formalization-gap-planner-route-revision-overlay-dir",
+            route_revision_overlay_dir,
+        )
+        try:
+            completed = subprocess.run(
+                cmd,
+                cwd=Path.cwd(),
+                text=True,
+                capture_output=True,
+                timeout=max(1.0, float(timeout_seconds)),
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout_tail = str(exc.stdout or "")[-1000:]
+            stderr_tail = str(exc.stderr or "")[-1000:]
+            detail = (
+                f"; stdout_tail={stdout_tail!r}; stderr_tail={stderr_tail!r}"
+                if stdout_tail or stderr_tail
+                else ""
+            )
+            raise TimeoutError(
+                "formalization gap planner live route-planner subprocess "
+                f"exceeded {timeout_seconds:g}s{detail}"
+            ) from exc
+        if completed.returncode != 0:
+            raise RuntimeError(
+                "formalization gap planner live route-planner subprocess exited "
+                f"{completed.returncode}; stdout_tail={completed.stdout[-1000:]!r}; "
+                f"stderr_tail={completed.stderr[-1000:]!r}"
+            )
+        manifest_path = (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        )
+        if not manifest_path.exists():
+            raise RuntimeError(
+                "formalization gap planner live route-planner subprocess did not "
+                f"write manifest: {manifest_path}"
+            )
+        return dict(json.loads(manifest_path.read_text(encoding="utf-8")))
 
     def _materialize_live_route_planner_context(
         self,
@@ -19802,50 +19990,97 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 for path in context_materialization.get("output_paths", [])
                 if str(path).strip()
             )
+            target_intake_dir = self._optional_handoff_path(
+                handoff,
+                "target_intake_dir",
+            )
+            standalone_plan_dir = self._optional_handoff_path(
+                handoff,
+                "standalone_plan_dir",
+            )
+            component_resource_registry_dir = self._optional_handoff_path(
+                handoff,
+                "component_resource_registry_dir",
+            )
+            route_contract_feedback_jsonl = self._optional_handoff_path(
+                handoff,
+                "route_contract_feedback_jsonl",
+            )
+            route_revision_overlay_dir = self._optional_handoff_path(
+                handoff,
+                "route_revision_overlay_dir",
+            )
             try:
-                payload = export_formalization_gap_planner_llm_route_planner(
-                    standalone_seed_path,
-                    out_dir=out_dir,
-                    provider_name=provider,
-                    model=model,
-                    model_tier=model_tier,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    max_estimated_prompt_input_tokens=(
-                        RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
-                    ),
-                    max_route_requests=max_route_requests_per_handoff,
-                    max_repair_attempts=max_repair_attempts,
-                    max_staged_followup_stage_calls=(
-                        max_staged_followup_stage_calls
-                    ),
-                    invoke_provider=True,
+                if self._live_route_planner_use_subprocess_export(
+                    provider=provider,
                     generator_backend=generator_backend,
-                    formalization_gap_planner_target_intake_dir=(
-                        self._optional_handoff_path(handoff, "target_intake_dir")
-                    ),
-                    goal_conditioned_minimal_formalization_plan_dir=(
-                        self._optional_handoff_path(handoff, "standalone_plan_dir")
-                    ),
-                    formalization_gap_planner_component_resource_registry_dir=(
-                        self._optional_handoff_path(
-                            handoff,
-                            "component_resource_registry_dir",
-                        )
-                    ),
-                    formalization_gap_planner_route_contract_feedback_jsonl=(
-                        self._optional_handoff_path(
-                            handoff,
-                            "route_contract_feedback_jsonl",
-                        )
-                    ),
-                    formalization_gap_planner_route_revision_overlay_dir=(
-                        self._optional_handoff_path(
-                            handoff,
-                            "route_revision_overlay_dir",
-                        )
-                    ),
-                )
+                ):
+                    payload = self._export_live_route_planner_subprocess(
+                        standalone_seed_path=standalone_seed_path,
+                        out_dir=out_dir,
+                        provider=provider,
+                        model=model,
+                        model_tier=model_tier,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        max_route_requests_per_handoff=(
+                            max_route_requests_per_handoff
+                        ),
+                        max_repair_attempts=max_repair_attempts,
+                        max_staged_followup_stage_calls=(
+                            max_staged_followup_stage_calls
+                        ),
+                        timeout_seconds=timeout_seconds,
+                        target_intake_dir=target_intake_dir,
+                        standalone_plan_dir=standalone_plan_dir,
+                        component_resource_registry_dir=(
+                            component_resource_registry_dir
+                        ),
+                        route_contract_feedback_jsonl=(
+                            route_contract_feedback_jsonl
+                        ),
+                        route_revision_overlay_dir=route_revision_overlay_dir,
+                    )
+                else:
+                    payload = _call_with_wall_clock_timeout(
+                        lambda: export_formalization_gap_planner_llm_route_planner(
+                        standalone_seed_path,
+                        out_dir=out_dir,
+                        provider_name=provider,
+                        model=model,
+                        model_tier=model_tier,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        max_estimated_prompt_input_tokens=(
+                            RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
+                        ),
+                        max_route_requests=max_route_requests_per_handoff,
+                        max_repair_attempts=max_repair_attempts,
+                        max_staged_followup_stage_calls=(
+                            max_staged_followup_stage_calls
+                        ),
+                        invoke_provider=True,
+                        generator_backend=generator_backend,
+                        formalization_gap_planner_target_intake_dir=(
+                            target_intake_dir
+                        ),
+                        goal_conditioned_minimal_formalization_plan_dir=(
+                            standalone_plan_dir
+                        ),
+                        formalization_gap_planner_component_resource_registry_dir=(
+                            component_resource_registry_dir
+                        ),
+                        formalization_gap_planner_route_contract_feedback_jsonl=(
+                            route_contract_feedback_jsonl
+                        ),
+                        formalization_gap_planner_route_revision_overlay_dir=(
+                            route_revision_overlay_dir
+                        ),
+                        ),
+                        timeout_s=timeout_seconds,
+                        provider_name=provider,
+                        model=model or "formalization_gap_planner_live_route_planner",
+                    )
                 target_prover_replay = (
                     self._materialize_live_route_planner_target_prover_replay(
                         task=task,
@@ -20224,6 +20459,13 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 )
             except Exception as exc:  # pragma: no cover - exercised by live infra.
                 message = f"{type(exc).__name__}: {exc}"
+                failure_classification = (
+                    "formalization_gap_planner_live_route_planner_timeout"
+                    if "timeout" in type(exc).__name__.lower()
+                    or "timeout" in str(exc).lower()
+                    or "timed out" in str(exc).lower()
+                    else "formalization_gap_planner_live_route_planner_export_failed"
+                )
                 errors.append(message)
                 rows.append(
                     {
@@ -20258,6 +20500,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             handoff_execution_plan_stage_ids
                         ),
                         "context_materialization": context_materialization,
+                        "failure_classification": failure_classification,
+                        "timeout_seconds": timeout_seconds,
+                        "provider_name": provider,
+                        "model": model,
+                        "model_tier": model_tier,
                         "target_prover_replay": {
                             "attempted": False,
                             "all_ok": False,
@@ -20829,6 +21076,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
             else {}
         )
+        invoke_live_route_planner = bool(
+            task.inputs.get("invoke_live_route_planner", False)
+        )
         runtime_learning_rows = (
             _runtime_formalization_gap_planner_task_runtime_learning_rows(task.inputs)
         )
@@ -20859,6 +21109,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 for index, row in enumerate(bridge_rows)
                 if isinstance(row, Mapping)
             ]
+        if invoke_live_route_planner:
+            bridge_rows = self._live_route_planner_scoped_bridge_rows(
+                task,
+                bridge_rows,
+                environment_feedback,
+            )
         planner_root = self.out_dir
         planner_root.mkdir(parents=True, exist_ok=True)
         seed_dir = planner_root / "runtime_formalization_gap_planner_seeds"
@@ -20898,6 +21154,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     for index, row in enumerate(handoff_rows)
                     if isinstance(row, Mapping)
                 ]
+            if invoke_live_route_planner:
+                handoff_rows = self._live_route_planner_scoped_handoff_rows(
+                    task,
+                    handoff_rows,
+                    environment_feedback,
+                )
             _write_jsonl(handoffs_path, handoff_rows)
             audit_payload = dict(
                 audit_formalization_gap_planner_runtime_handoffs(
@@ -20981,9 +21243,6 @@ class FormalizationGapPlannerRuntimeSubsystem:
             if handoff_id:
                 produced_artifacts[handoff_id] = handoff
         all_ok = bool(audit_payload.get("all_ok", False))
-        invoke_live_route_planner = bool(
-            task.inputs.get("invoke_live_route_planner", False)
-        )
         live_route_planner_manifest: dict[str, Any] = {}
         if invoke_live_route_planner and all_ok:
             live_route_planner_manifest, live_tool_call = (

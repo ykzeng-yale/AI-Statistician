@@ -26,6 +26,7 @@ from ai_statistician.model_backend import (
     LiveGeneratorTimeoutError,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
+    _call_with_wall_clock_timeout,
     claude_outside_cost_tier_family_for_model,
     claude_model_freshness_warnings,
     claude_model_tier_for_model,
@@ -353,6 +354,25 @@ def test_anthropic_generator_backend_enforces_outer_wall_clock_timeout(
 
     assert calls["count"] == 1
     assert time.monotonic() - started < 1.8
+
+
+def test_wall_clock_timeout_respects_shorter_nested_deadline() -> None:
+    started = time.monotonic()
+
+    with pytest.raises(LiveGeneratorTimeoutError):
+        _call_with_wall_clock_timeout(
+            lambda: _call_with_wall_clock_timeout(
+                lambda: time.sleep(2.0),
+                timeout_s=5.0,
+                provider_name="inner",
+                model="slow-model",
+            ),
+            timeout_s=0.4,
+            provider_name="outer",
+            model="route-planner",
+        )
+
+    assert time.monotonic() - started < 1.3
 
 
 def test_anthropic_generator_backend_does_not_retry_non_transport_error(
