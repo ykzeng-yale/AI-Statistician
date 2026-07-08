@@ -424,6 +424,17 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert row["premise_semantic_dependency_status"] == (
         "SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_DEPENDENCIES_REQUIRED"
     )
+    assert row["premise_semantic_dependency_source"] == "policy_pack"
+    assert list(row["source_to_bridge_policy_pack_ids"]) == [
+        "split_conformal_exact_semantic_definition_placeholder_policies_v1"
+    ]
+    assert list(row["source_to_bridge_policy_ids"]) == [
+        "split_conformal_coverage.covered"
+    ]
+    assert list(row["source_to_bridge_policy_required_anchor_names"]) == [
+        "hq",
+        "hC",
+    ]
     assert (
         "define covered from the exact source coverage event using hC"
         in row["premise_semantic_dependency_requirements"]
@@ -476,6 +487,10 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "define covered from the exact source coverage event using hC"
         in request["premise_semantic_dependency_requirements"]
     )
+    assert request["premise_semantic_dependency_source"] == "policy_pack"
+    assert request["source_to_bridge_policy_ids"] == [
+        "split_conformal_coverage.covered"
+    ]
     assert request["exact_source_theorem_binders"] == [
         {"name": "hexch", "type": "Prop", "role": "exchangeability_anchor"},
         {"name": "hq", "type": "Prop", "role": "quantile_definition_anchor"},
@@ -726,6 +741,10 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "define covered from the exact source coverage event using hC"
         in learning_rows[0]["premise_semantic_dependency_requirements"]
     )
+    assert learning_rows[0]["premise_semantic_dependency_source"] == "policy_pack"
+    assert learning_rows[0]["source_to_bridge_policy_ids"] == [
+        "split_conformal_coverage.covered"
+    ]
     assert learning_rows[0]["premise_semantic_anchor_binder_names"] == [
         "hq",
         "hC",
@@ -1167,6 +1186,7 @@ def test_premise_bridge_prefers_artifact_semantic_requirements(
     assert list(row["premise_semantic_dependency_requirements"]) == [
         retrieved_requirement
     ]
+    assert row["premise_semantic_dependency_source"] == "explicit_runtime_metadata"
     assert list(row["exact_source_theorem_binders"]) == [retrieved_binder]
     assert list(row["premise_semantic_anchor_binders"]) == [retrieved_binder]
     assert list(row["premise_semantic_anchor_binder_names"]) == [
@@ -1193,6 +1213,9 @@ def test_premise_bridge_prefers_artifact_semantic_requirements(
     assert request["premise_semantic_dependency_requirements"] == [
         retrieved_requirement
     ]
+    assert request["premise_semantic_dependency_source"] == (
+        "explicit_runtime_metadata"
+    )
     assert request["exact_source_theorem_binders"] == [retrieved_binder]
 
 

@@ -5033,6 +5033,16 @@ def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[s
     return compact
 
 
+_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS = (
+    "premise_semantic_dependency_source",
+    "source_to_bridge_policy_pack_ids",
+    "source_to_bridge_policy_ids",
+    "source_to_bridge_policy_scopes",
+    "source_to_bridge_policy_required_anchor_names",
+    "source_to_bridge_policy_dependency_requirements",
+)
+
+
 def _source_to_bridge_premise_candidate_artifact_path(
     row: Mapping[str, Any],
 ) -> str:
@@ -5106,6 +5116,7 @@ def _compact_premise_derivation_candidate_request(
             "required_formalizer_output_key",
             "required_candidate_fields",
             "candidate_contract",
+            *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
             "premise_semantic_dependency_requirements",
             "exact_source_theorem_binders",
             "premise_semantic_anchor_binders",
@@ -5163,6 +5174,7 @@ def _compact_grouped_premise_derivation_candidate_request(
             "required_formalizer_output_key",
             "required_candidate_fields",
             "candidate_contract",
+            *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
             "exact_source_theorem_binders",
             "premise_semantic_anchor_binders",
             "premise_semantic_anchor_binder_names",
@@ -5185,6 +5197,7 @@ def _compact_grouped_premise_derivation_candidate_request(
                 "source_to_bridge_premise_candidate_artifact_path",
                 "premise_derivation_candidate_skeleton_lean_source_excerpt",
                 "premise_candidate_skeleton_lean_source_excerpt",
+                *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
                 "premise_semantic_dependency_requirements",
                 "required_semantic_anchor_reference_names",
                 "adapter_object_names_requiring_source_instantiation",
@@ -5237,6 +5250,12 @@ def _source_to_bridge_candidate_request_shortcuts(
             "source_to_bridge_grouped_premise_derivation_candidate_request", {}
         )
         if isinstance(grouped_request, Mapping) and grouped_request:
+            grouped_request = dict(grouped_request)
+            for lineage_key in _SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS:
+                if grouped_request.get(lineage_key) in (None, "", [], {}) and (
+                    diagnostic.get(lineage_key) not in (None, "", [], {})
+                ):
+                    grouped_request[lineage_key] = diagnostic[lineage_key]
             grouped_id = str(
                 diagnostic.get(
                     "source_to_bridge_grouped_premise_derivation_candidate_request_id",
@@ -5295,6 +5314,11 @@ def _source_to_bridge_candidate_request_shortcuts(
         if isinstance(candidate_request, Mapping) and candidate_request:
             candidate_request = dict(candidate_request)
             ensure_premise_candidate_declaration_name(candidate_request)
+            for lineage_key in _SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS:
+                if candidate_request.get(lineage_key) in (None, "", [], {}) and (
+                    diagnostic.get(lineage_key) not in (None, "", [], {})
+                ):
+                    candidate_request[lineage_key] = diagnostic[lineage_key]
             request_id = str(
                 diagnostic.get(
                     "source_to_bridge_premise_derivation_candidate_request_id",
@@ -9307,6 +9331,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "premise_derivation_gap_kind",
                 "premise_derivation_gap_summary",
                 "premise_semantic_dependency_status",
+                *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
                 "premise_semantic_dependency_requirements",
                 "source_to_bridge_premise_derivation_candidate_request_id",
                 "source_to_bridge_premise_derivation_candidate_request",

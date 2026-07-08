@@ -47258,6 +47258,15 @@ def _runtime_row_string_values(
     return tuple(dict.fromkeys(values))
 
 
+_SOURCE_TO_BRIDGE_POLICY_LINEAGE_SEQUENCE_FIELDS = (
+    "source_to_bridge_policy_pack_ids",
+    "source_to_bridge_policy_ids",
+    "source_to_bridge_policy_scopes",
+    "source_to_bridge_policy_required_anchor_names",
+    "source_to_bridge_policy_dependency_requirements",
+)
+
+
 def _runtime_set_text_if_missing(
     payload: dict[str, Any],
     key: str,
@@ -47291,6 +47300,24 @@ def _runtime_row_nested_string_values(
         if isinstance(grouped_candidate_request, Mapping):
             sources.append(grouped_candidate_request)
     for source in sources:
+        for key in keys:
+            raw = source.get(key)
+            candidates = raw if isinstance(raw, list | tuple | set) else [raw]
+            for value in candidates:
+                text = str(value or "").strip()
+                if text:
+                    values.append(text)
+    return tuple(dict.fromkeys(values))
+
+
+def _runtime_string_values_from_sources(
+    *sources: Mapping[str, Any],
+    keys: tuple[str, ...],
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
         for key in keys:
             raw = source.get(key)
             candidates = raw if isinstance(raw, list | tuple | set) else [raw]
@@ -47794,6 +47821,7 @@ def _runtime_learning_row_with_source_to_bridge_declaration_contract(
         "premise_target_type",
         "premise_candidate_declaration_name",
         "source_to_bridge_premise_candidate_declaration_name",
+        "premise_semantic_dependency_source",
         "semantic_anchor_reference_gate",
         "candidate_contract",
     )
@@ -47801,6 +47829,7 @@ def _runtime_learning_row_with_source_to_bridge_declaration_contract(
         "target_theorem_goal_ids",
         "premise_names",
         "premise_semantic_dependency_requirements",
+        *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_SEQUENCE_FIELDS,
         "exact_source_theorem_binders",
         "premise_semantic_anchor_binders",
         "premise_semantic_anchor_binder_names",
@@ -50238,6 +50267,86 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             if isinstance(grouped_premise_candidate_request_raw, Mapping)
             else {}
         )
+        lineage_sources = (
+            row,
+            input_summary if isinstance(input_summary, Mapping) else {},
+            premise_candidate_request,
+            grouped_premise_candidate_request,
+        )
+        premise_semantic_dependency_source = next(
+            iter(
+                _runtime_string_values_from_sources(
+                    *lineage_sources,
+                    keys=(
+                        "source_to_bridge_premise_semantic_dependency_source",
+                        "premise_semantic_dependency_source",
+                    ),
+                )
+            ),
+            "",
+        )
+        source_to_bridge_policy_pack_ids = list(
+            _runtime_string_values_from_sources(
+                *lineage_sources,
+                keys=("source_to_bridge_policy_pack_ids",),
+            )
+        )[:8]
+        source_to_bridge_policy_ids = list(
+            _runtime_string_values_from_sources(
+                *lineage_sources,
+                keys=("source_to_bridge_policy_ids",),
+            )
+        )[:12]
+        source_to_bridge_policy_scopes = list(
+            _runtime_string_values_from_sources(
+                *lineage_sources,
+                keys=("source_to_bridge_policy_scopes",),
+            )
+        )[:12]
+        source_to_bridge_policy_required_anchor_names = list(
+            _runtime_string_values_from_sources(
+                *lineage_sources,
+                keys=("source_to_bridge_policy_required_anchor_names",),
+            )
+        )[:12]
+        source_to_bridge_policy_dependency_requirements = list(
+            _runtime_string_values_from_sources(
+                *lineage_sources,
+                keys=("source_to_bridge_policy_dependency_requirements",),
+            )
+        )[:8]
+        for request_payload in (
+            premise_candidate_request,
+            grouped_premise_candidate_request,
+        ):
+            if not request_payload:
+                continue
+            if premise_semantic_dependency_source:
+                _runtime_set_text_if_missing(
+                    request_payload,
+                    "premise_semantic_dependency_source",
+                    premise_semantic_dependency_source,
+                )
+            for lineage_key, lineage_values in (
+                ("source_to_bridge_policy_pack_ids", source_to_bridge_policy_pack_ids),
+                ("source_to_bridge_policy_ids", source_to_bridge_policy_ids),
+                ("source_to_bridge_policy_scopes", source_to_bridge_policy_scopes),
+                (
+                    "source_to_bridge_policy_required_anchor_names",
+                    source_to_bridge_policy_required_anchor_names,
+                ),
+                (
+                    "source_to_bridge_policy_dependency_requirements",
+                    source_to_bridge_policy_dependency_requirements,
+                ),
+            ):
+                if lineage_values and request_payload.get(lineage_key) in (
+                    None,
+                    "",
+                    [],
+                    {},
+                ):
+                    request_payload[lineage_key] = list(lineage_values)
         grouped_premise_candidate_request_id = str(
             row.get(
                 "source_to_bridge_grouped_premise_derivation_candidate_request_id",
@@ -51078,8 +51187,23 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "source_to_bridge_premise_semantic_dependency_status": (
                     premise_semantic_dependency_status
                 ),
+                "source_to_bridge_premise_semantic_dependency_source": (
+                    premise_semantic_dependency_source
+                ),
+                "premise_semantic_dependency_source": (
+                    premise_semantic_dependency_source
+                ),
                 "source_to_bridge_premise_semantic_dependency_requirements": list(
                     premise_semantic_dependency_requirements
+                ),
+                "source_to_bridge_policy_pack_ids": source_to_bridge_policy_pack_ids,
+                "source_to_bridge_policy_ids": source_to_bridge_policy_ids,
+                "source_to_bridge_policy_scopes": source_to_bridge_policy_scopes,
+                "source_to_bridge_policy_required_anchor_names": (
+                    source_to_bridge_policy_required_anchor_names
+                ),
+                "source_to_bridge_policy_dependency_requirements": (
+                    source_to_bridge_policy_dependency_requirements
                 ),
                 "source_to_bridge_premise_derivation_candidate_request_id": (
                     premise_candidate_request_id
@@ -56294,11 +56418,53 @@ def _formalizer_proof_bank_runtime_memory_summary(
                         "",
                     )
                 ),
+                "premise_semantic_dependency_source": str(
+                    next(
+                        iter(
+                            _runtime_row_nested_string_values(
+                                row,
+                                "source_to_bridge_premise_semantic_dependency_source",
+                                "premise_semantic_dependency_source",
+                            )
+                        ),
+                        "",
+                    )
+                ),
                 "premise_semantic_dependency_requirements": list(
                     _runtime_row_string_values(
                         row,
                         "source_to_bridge_premise_semantic_dependency_requirements",
                         "premise_semantic_dependency_requirements",
+                    )
+                )[:8],
+                "source_to_bridge_policy_pack_ids": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_pack_ids",
+                    )
+                )[:8],
+                "source_to_bridge_policy_ids": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_ids",
+                    )
+                )[:12],
+                "source_to_bridge_policy_scopes": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_scopes",
+                    )
+                )[:12],
+                "source_to_bridge_policy_required_anchor_names": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_required_anchor_names",
+                    )
+                )[:12],
+                "source_to_bridge_policy_dependency_requirements": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_dependency_requirements",
                     )
                 )[:8],
                 "source_to_bridge_premise_derivation_candidate_request_id": str(
@@ -56442,6 +56608,53 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "semantic_anchor_reference_gate": str(
                     row.get("semantic_anchor_reference_gate", "") or ""
                 ),
+                "premise_semantic_dependency_source": str(
+                    next(
+                        iter(
+                            _runtime_row_nested_string_values(
+                                row,
+                                "premise_semantic_dependency_source",
+                            )
+                        ),
+                        "",
+                    )
+                ),
+                "premise_semantic_dependency_requirements": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "premise_semantic_dependency_requirements",
+                    )
+                )[:8],
+                "source_to_bridge_policy_pack_ids": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_pack_ids",
+                    )
+                )[:8],
+                "source_to_bridge_policy_ids": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_ids",
+                    )
+                )[:12],
+                "source_to_bridge_policy_scopes": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_scopes",
+                    )
+                )[:12],
+                "source_to_bridge_policy_required_anchor_names": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_required_anchor_names",
+                    )
+                )[:12],
+                "source_to_bridge_policy_dependency_requirements": list(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_policy_dependency_requirements",
+                    )
+                )[:8],
                 "premise_target_type": str(
                     row.get("premise_target_type", "") or ""
                 ),
@@ -58423,6 +58636,51 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                 or diagnostic.get("semantic_anchor_reference_gate", "")
                 or ""
             )
+            lineage_sources = (
+                candidate,
+                grouped_candidate_request,
+                candidate_request,
+                diagnostic,
+            )
+            premise_semantic_dependency_source = next(
+                iter(
+                    _runtime_string_values_from_sources(
+                        *lineage_sources,
+                        keys=("premise_semantic_dependency_source",),
+                    )
+                ),
+                "",
+            )
+            source_to_bridge_policy_pack_ids = list(
+                _runtime_string_values_from_sources(
+                    *lineage_sources,
+                    keys=("source_to_bridge_policy_pack_ids",),
+                )
+            )[:8]
+            source_to_bridge_policy_ids = list(
+                _runtime_string_values_from_sources(
+                    *lineage_sources,
+                    keys=("source_to_bridge_policy_ids",),
+                )
+            )[:12]
+            source_to_bridge_policy_scopes = list(
+                _runtime_string_values_from_sources(
+                    *lineage_sources,
+                    keys=("source_to_bridge_policy_scopes",),
+                )
+            )[:12]
+            source_to_bridge_policy_required_anchor_names = list(
+                _runtime_string_values_from_sources(
+                    *lineage_sources,
+                    keys=("source_to_bridge_policy_required_anchor_names",),
+                )
+            )[:12]
+            source_to_bridge_policy_dependency_requirements = list(
+                _runtime_string_values_from_sources(
+                    *lineage_sources,
+                    keys=("source_to_bridge_policy_dependency_requirements",),
+                )
+            )[:8]
             adapter_instantiation_group_id = str(
                 candidate.get("adapter_instantiation_group_id", "")
                 or grouped_candidate_request.get("adapter_instantiation_group_id", "")
@@ -58596,6 +58854,32 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                         "target_lean_declaration",
                         target_lean_declaration,
                     )
+                if premise_semantic_dependency_source:
+                    _runtime_set_text_if_missing(
+                        nested_request,
+                        "premise_semantic_dependency_source",
+                        premise_semantic_dependency_source,
+                    )
+                for lineage_key, lineage_values in (
+                    ("source_to_bridge_policy_pack_ids", source_to_bridge_policy_pack_ids),
+                    ("source_to_bridge_policy_ids", source_to_bridge_policy_ids),
+                    ("source_to_bridge_policy_scopes", source_to_bridge_policy_scopes),
+                    (
+                        "source_to_bridge_policy_required_anchor_names",
+                        source_to_bridge_policy_required_anchor_names,
+                    ),
+                    (
+                        "source_to_bridge_policy_dependency_requirements",
+                        source_to_bridge_policy_dependency_requirements,
+                    ),
+                ):
+                    if lineage_values and nested_request.get(lineage_key) in (
+                        None,
+                        "",
+                        [],
+                        {},
+                    ):
+                        nested_request[lineage_key] = list(lineage_values)
             dedupe_key = (premise_name, target_lean_declaration, source)
             if dedupe_key in seen:
                 continue
@@ -58704,10 +58988,22 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
                     "premise_semantic_dependency_status": str(
                         diagnostic.get("premise_semantic_dependency_status", "") or ""
                     ),
+                    "premise_semantic_dependency_source": (
+                        premise_semantic_dependency_source
+                    ),
                     "premise_semantic_dependency_requirements": list(
                         diagnostic.get("premise_semantic_dependency_requirements", [])
                         or []
                     )[:8],
+                    "source_to_bridge_policy_pack_ids": source_to_bridge_policy_pack_ids,
+                    "source_to_bridge_policy_ids": source_to_bridge_policy_ids,
+                    "source_to_bridge_policy_scopes": source_to_bridge_policy_scopes,
+                    "source_to_bridge_policy_required_anchor_names": (
+                        source_to_bridge_policy_required_anchor_names
+                    ),
+                    "source_to_bridge_policy_dependency_requirements": (
+                        source_to_bridge_policy_dependency_requirements
+                    ),
                     "exact_source_theorem_binders": exact_source_theorem_binders,
                     "premise_semantic_anchor_binders": premise_semantic_anchor_binders,
                     "premise_semantic_anchor_binder_names": (
@@ -67746,6 +68042,46 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                         "premise_semantic_dependency_requirements",
                     )
                 )
+            premise_semantic_dependency_source = next(
+                iter(
+                    _runtime_row_nested_string_values(
+                        row,
+                        "source_to_bridge_premise_semantic_dependency_source",
+                        "premise_semantic_dependency_source",
+                    )
+                ),
+                "",
+            )
+            source_to_bridge_policy_pack_ids = list(
+                _runtime_row_nested_string_values(
+                    row,
+                    "source_to_bridge_policy_pack_ids",
+                )
+            )[:8]
+            source_to_bridge_policy_ids = list(
+                _runtime_row_nested_string_values(
+                    row,
+                    "source_to_bridge_policy_ids",
+                )
+            )[:12]
+            source_to_bridge_policy_scopes = list(
+                _runtime_row_nested_string_values(
+                    row,
+                    "source_to_bridge_policy_scopes",
+                )
+            )[:12]
+            source_to_bridge_policy_required_anchor_names = list(
+                _runtime_row_nested_string_values(
+                    row,
+                    "source_to_bridge_policy_required_anchor_names",
+                )
+            )[:12]
+            source_to_bridge_policy_dependency_requirements = list(
+                _runtime_row_nested_string_values(
+                    row,
+                    "source_to_bridge_policy_dependency_requirements",
+                )
+            )[:8]
             recommended_repair_tasks = list(
                 _runtime_row_string_values(row, "recommended_repair_tasks")
             )
@@ -67840,6 +68176,20 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     ),
                     "premise_semantic_dependency_requirements": (
                         premise_semantic_dependency_requirements[:8]
+                    ),
+                    "premise_semantic_dependency_source": (
+                        premise_semantic_dependency_source
+                    ),
+                    "source_to_bridge_policy_pack_ids": (
+                        source_to_bridge_policy_pack_ids
+                    ),
+                    "source_to_bridge_policy_ids": source_to_bridge_policy_ids,
+                    "source_to_bridge_policy_scopes": source_to_bridge_policy_scopes,
+                    "source_to_bridge_policy_required_anchor_names": (
+                        source_to_bridge_policy_required_anchor_names
+                    ),
+                    "source_to_bridge_policy_dependency_requirements": (
+                        source_to_bridge_policy_dependency_requirements
                     ),
                     "exact_source_theorem_binders": exact_source_theorem_binders,
                     "premise_semantic_anchor_binders": (

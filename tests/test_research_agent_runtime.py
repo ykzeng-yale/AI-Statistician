@@ -67297,7 +67297,22 @@ def test_formalizer_memory_surfaces_source_to_bridge_premise_derivation_feedback
                 "premise_semantic_dependency_status": (
                     "SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_DEPENDENCIES_REQUIRED"
                 ),
+                "premise_semantic_dependency_source": "policy_pack",
                 "premise_semantic_dependency_requirements": [
+                    "define covered from the exact source coverage event using hC",
+                    "prove good-rank containment",
+                ],
+                "source_to_bridge_policy_pack_ids": [
+                    "split_conformal_exact_semantic_definition_placeholder_policies_v1",
+                ],
+                "source_to_bridge_policy_ids": [
+                    "split_conformal_coverage.covered",
+                ],
+                "source_to_bridge_policy_scopes": [
+                    "split_conformal_coverage",
+                ],
+                "source_to_bridge_policy_required_anchor_names": ["hq", "hC"],
+                "source_to_bridge_policy_dependency_requirements": [
                     "define covered from the exact source coverage event using hC",
                     "prove good-rank containment",
                 ],
@@ -67624,9 +67639,24 @@ def test_formalizer_memory_surfaces_source_to_bridge_premise_derivation_feedback
     assert diagnostic["premise_semantic_dependency_status"] == (
         "SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_DEPENDENCIES_REQUIRED"
     )
+    assert diagnostic["premise_semantic_dependency_source"] == "policy_pack"
     assert (
         "define covered from the exact source coverage event using hC"
         in diagnostic["premise_semantic_dependency_requirements"]
+    )
+    assert diagnostic["source_to_bridge_policy_pack_ids"] == [
+        "split_conformal_exact_semantic_definition_placeholder_policies_v1",
+    ]
+    assert diagnostic["source_to_bridge_policy_ids"] == [
+        "split_conformal_coverage.covered",
+    ]
+    assert diagnostic["source_to_bridge_policy_required_anchor_names"] == [
+        "hq",
+        "hC",
+    ]
+    assert (
+        "define covered from the exact source coverage event using hC"
+        in diagnostic["source_to_bridge_policy_dependency_requirements"]
     )
     assert any(
         "references missing exact source semantic anchor binder(s) outside comments: hq, hC"
@@ -67722,6 +67752,12 @@ def test_formalizer_memory_surfaces_source_to_bridge_premise_derivation_feedback
     assert "⊢ 1 - alpha" in prompt
     assert "P.real" in prompt
     assert "premise_semantic_dependency_requirements" in prompt
+    assert "premise_semantic_dependency_source" in prompt
+    assert "policy_pack" in prompt
+    assert "source_to_bridge_policy_pack_ids" in prompt
+    assert "source_to_bridge_policy_ids" in prompt
+    assert "split_conformal_coverage.covered" in prompt
+    assert "source_to_bridge_policy_required_anchor_names" in prompt
     assert "exact source coverage event using hC" in prompt
     assert "source_to_bridge_premise_derivation_candidate_request" in prompt
     assert "source_to_bridge_grouped_premise_derivation_candidate_request" in prompt
@@ -67859,7 +67895,22 @@ def test_formalizer_premise_derivation_candidate_becomes_runtime_work_order(
                 "premise_semantic_dependency_status": (
                     "SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_DEPENDENCIES_REQUIRED"
                 ),
+                "premise_semantic_dependency_source": "policy_pack",
                 "premise_semantic_dependency_requirements": [
+                    "define covered from the exact source coverage event using hC",
+                    "prove good-rank containment",
+                ],
+                "source_to_bridge_policy_pack_ids": [
+                    "split_conformal_exact_semantic_definition_placeholder_policies_v1",
+                ],
+                "source_to_bridge_policy_ids": [
+                    "split_conformal_coverage.covered",
+                ],
+                "source_to_bridge_policy_scopes": [
+                    "split_conformal_coverage",
+                ],
+                "source_to_bridge_policy_required_anchor_names": ["hq", "hC"],
+                "source_to_bridge_policy_dependency_requirements": [
                     "define covered from the exact source coverage event using hC",
                     "prove good-rank containment",
                 ],
@@ -68026,6 +68077,19 @@ def test_formalizer_premise_derivation_candidate_becomes_runtime_work_order(
         "define covered from the exact source coverage event using hC"
         in row["premise_semantic_dependency_requirements"]
     )
+    assert row["premise_semantic_dependency_source"] == "policy_pack"
+    assert row["source_to_bridge_policy_pack_ids"] == [
+        "split_conformal_exact_semantic_definition_placeholder_policies_v1",
+    ]
+    assert row["source_to_bridge_policy_ids"] == [
+        "split_conformal_coverage.covered",
+    ]
+    assert row[
+        "source_to_bridge_premise_derivation_candidate_request"
+    ]["premise_semantic_dependency_source"] == "policy_pack"
+    assert row["source_to_bridge_premise_derivation_candidate_request"][
+        "source_to_bridge_policy_ids"
+    ] == ["split_conformal_coverage.covered"]
     assert row["exact_source_theorem_binders"] == [
         {"name": "hexch", "type": "Exchangeable P s", "role": "exchangeability_anchor"},
         {

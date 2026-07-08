@@ -12,6 +12,7 @@ from .exact_semantic_definition_policy import (
     EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
     ExactSemanticDefinitionPlaceholderPolicy,
     compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_policy_pack_ids,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
@@ -110,7 +111,13 @@ class SourceToBridgePremiseDerivationCheckRow:
     premise_derivation_gap_kind: str
     premise_derivation_gap_summary: str
     premise_semantic_dependency_status: str
+    premise_semantic_dependency_source: str
     premise_semantic_dependency_requirements: tuple[str, ...]
+    source_to_bridge_policy_pack_ids: tuple[str, ...]
+    source_to_bridge_policy_ids: tuple[str, ...]
+    source_to_bridge_policy_scopes: tuple[str, ...]
+    source_to_bridge_policy_required_anchor_names: tuple[str, ...]
+    source_to_bridge_policy_dependency_requirements: tuple[str, ...]
     premise_candidate_artifact_path: str
     premise_candidate_declaration_name: str
     premise_candidate_generation_mode: str
@@ -294,9 +301,14 @@ def run_source_to_bridge_premise_derivation_proofengineer_bridge(
         if row.premise_derivation_kernel_verified
     ]
     by_failure_classification: dict[str, int] = {}
+    by_semantic_dependency_source: dict[str, int] = {}
     for row in rows:
         failure = row.failure_classification or "none"
         by_failure_classification[failure] = by_failure_classification.get(failure, 0) + 1
+        dependency_source = row.premise_semantic_dependency_source or "none"
+        by_semantic_dependency_source[dependency_source] = (
+            by_semantic_dependency_source.get(dependency_source, 0) + 1
+        )
     dominant_failure_classification = ""
     if by_failure_classification:
         dominant_failure_classification = sorted(
@@ -358,6 +370,26 @@ def run_source_to_bridge_premise_derivation_proofengineer_bridge(
         "n_source_to_bridge_adapter_object_semantic_definition_work_orders": len(
             adapter_object_semantic_definition_work_order_rows
         ),
+        "n_source_to_bridge_policy_lineage_rows": sum(
+            1 for row in rows if row.source_to_bridge_policy_ids
+        ),
+        "source_to_bridge_policy_pack_ids": list(
+            dict.fromkeys(
+                policy_pack_id
+                for row in rows
+                for policy_pack_id in row.source_to_bridge_policy_pack_ids
+                if policy_pack_id
+            )
+        ),
+        "source_to_bridge_policy_ids": list(
+            dict.fromkeys(
+                policy_id
+                for row in rows
+                for policy_id in row.source_to_bridge_policy_ids
+                if policy_id
+            )
+        ),
+        "by_premise_semantic_dependency_source": by_semantic_dependency_source,
         "proof_body_gate_statuses": sorted(
             {
                 row.proof_body_gate_status
@@ -628,19 +660,35 @@ def _premise_derivation_check_row(
         if premise_target_uses_goal_context
         else ()
     )
-    semantic_requirements = (
-        _explicit_premise_semantic_dependency_requirements(
-            row,
-            candidate_request,
-            grouped_candidate_request,
-        )
-        or goal_context_semantic_requirements
-        or _premise_semantic_dependency_requirements(
-            premise_name=premise_name,
-            premise_target_type=premise_target_type,
-            source_signature=source_context["source_theorem_signature"],
-        )
+    explicit_semantic_requirements = _explicit_premise_semantic_dependency_requirements(
+        row,
+        candidate_request,
+        grouped_candidate_request,
     )
+    policy_context = _source_to_bridge_policy_context(
+        premise_name=premise_name,
+        premise_target_type=premise_target_type,
+    )
+    fallback_semantic_requirements = _premise_semantic_dependency_requirements(
+        premise_name=premise_name,
+        premise_target_type=premise_target_type,
+        source_signature=source_context["source_theorem_signature"],
+    )
+    if explicit_semantic_requirements:
+        semantic_requirements = explicit_semantic_requirements
+        semantic_dependency_source = "explicit_runtime_metadata"
+    elif goal_context_semantic_requirements:
+        semantic_requirements = goal_context_semantic_requirements
+        semantic_dependency_source = "proof_body_goal_context"
+    elif policy_context["source_to_bridge_policy_dependency_requirements"]:
+        semantic_requirements = fallback_semantic_requirements
+        semantic_dependency_source = "policy_pack"
+    elif fallback_semantic_requirements:
+        semantic_requirements = fallback_semantic_requirements
+        semantic_dependency_source = "generic_target_fallback"
+    else:
+        semantic_requirements = ()
+        semantic_dependency_source = "none"
     goal_context_anchor_binders = (
         _proof_body_goal_semantic_anchor_binders(
             proof_body_goal_context=proof_body_goal_context,
@@ -852,7 +900,23 @@ def _premise_derivation_check_row(
         premise_derivation_gap_kind=gap_kind,
         premise_derivation_gap_summary=gap_summary,
         premise_semantic_dependency_status=semantic_dependency_status,
+        premise_semantic_dependency_source=semantic_dependency_source,
         premise_semantic_dependency_requirements=semantic_requirements,
+        source_to_bridge_policy_pack_ids=tuple(
+            policy_context["source_to_bridge_policy_pack_ids"]
+        ),
+        source_to_bridge_policy_ids=tuple(
+            policy_context["source_to_bridge_policy_ids"]
+        ),
+        source_to_bridge_policy_scopes=tuple(
+            policy_context["source_to_bridge_policy_scopes"]
+        ),
+        source_to_bridge_policy_required_anchor_names=tuple(
+            policy_context["source_to_bridge_policy_required_anchor_names"]
+        ),
+        source_to_bridge_policy_dependency_requirements=tuple(
+            policy_context["source_to_bridge_policy_dependency_requirements"]
+        ),
         premise_candidate_artifact_path=str(candidate_path),
         premise_candidate_declaration_name=declaration_name,
         premise_candidate_generation_mode=generation_mode,
@@ -2000,6 +2064,46 @@ def _source_to_bridge_policy_dependency_requirements(
     return tuple(requirements)
 
 
+def _source_to_bridge_policy_context(
+    *,
+    premise_name: str,
+    premise_target_type: str,
+) -> dict[str, tuple[str, ...]]:
+    policy_rows = _source_to_bridge_policy_rows(
+        premise_name=premise_name,
+        premise_target_type=premise_target_type,
+    )
+    dependency_requirements: list[str] = []
+    required_anchor_names: list[str] = []
+    policy_ids: list[str] = []
+    policy_scopes: list[str] = []
+    for policy in policy_rows:
+        policy_ids.append(policy.policy_id)
+        policy_scopes.append(policy.policy_scope)
+        for requirement in policy.source_to_bridge_dependency_requirements:
+            if requirement not in dependency_requirements:
+                dependency_requirements.append(requirement)
+        for anchor_name in (
+            policy.source_to_bridge_required_anchor_names
+            or policy.required_anchor_names
+        ):
+            if anchor_name not in required_anchor_names:
+                required_anchor_names.append(anchor_name)
+    return {
+        "source_to_bridge_policy_pack_ids": (
+            exact_semantic_definition_policy_pack_ids() if policy_rows else ()
+        ),
+        "source_to_bridge_policy_ids": tuple(dict.fromkeys(policy_ids)),
+        "source_to_bridge_policy_scopes": tuple(dict.fromkeys(policy_scopes)),
+        "source_to_bridge_policy_required_anchor_names": tuple(
+            required_anchor_names
+        ),
+        "source_to_bridge_policy_dependency_requirements": tuple(
+            dependency_requirements
+        ),
+    }
+
+
 def _source_to_bridge_policy_required_anchor_names(
     *,
     premise_name: str,
@@ -2216,8 +2320,26 @@ def _export_runtime_learning_rows(
                 "premise_semantic_dependency_status": (
                     row.premise_semantic_dependency_status
                 ),
+                "premise_semantic_dependency_source": (
+                    row.premise_semantic_dependency_source
+                ),
                 "premise_semantic_dependency_requirements": list(
                     row.premise_semantic_dependency_requirements
+                ),
+                "source_to_bridge_policy_pack_ids": list(
+                    row.source_to_bridge_policy_pack_ids
+                ),
+                "source_to_bridge_policy_ids": list(
+                    row.source_to_bridge_policy_ids
+                ),
+                "source_to_bridge_policy_scopes": list(
+                    row.source_to_bridge_policy_scopes
+                ),
+                "source_to_bridge_policy_required_anchor_names": list(
+                    row.source_to_bridge_policy_required_anchor_names
+                ),
+                "source_to_bridge_policy_dependency_requirements": list(
+                    row.source_to_bridge_policy_dependency_requirements
                 ),
                 "source_to_bridge_premise_derivation_candidate_request_id": (
                     str(candidate_request.get("candidate_request_id", ""))
@@ -4061,8 +4183,18 @@ def _premise_derivation_candidate_request_row(
         "premise_derivation_gap_kind": row.premise_derivation_gap_kind,
         "premise_derivation_gap_summary": row.premise_derivation_gap_summary,
         "premise_semantic_dependency_status": row.premise_semantic_dependency_status,
+        "premise_semantic_dependency_source": row.premise_semantic_dependency_source,
         "premise_semantic_dependency_requirements": list(
             row.premise_semantic_dependency_requirements
+        ),
+        "source_to_bridge_policy_pack_ids": list(row.source_to_bridge_policy_pack_ids),
+        "source_to_bridge_policy_ids": list(row.source_to_bridge_policy_ids),
+        "source_to_bridge_policy_scopes": list(row.source_to_bridge_policy_scopes),
+        "source_to_bridge_policy_required_anchor_names": list(
+            row.source_to_bridge_policy_required_anchor_names
+        ),
+        "source_to_bridge_policy_dependency_requirements": list(
+            row.source_to_bridge_policy_dependency_requirements
         ),
         "source_candidate_artifact_path": row.source_candidate_artifact_path,
         "adapter_candidate_artifact_path": row.adapter_candidate_artifact_path,
