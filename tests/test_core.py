@@ -6657,6 +6657,49 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_ok"
             ]
         )
+        structured_lane_fallback_payload = json.loads(
+            json.dumps(runtime_scorecard_lane_payload)
+        )
+        structured_lane_fallback_payload["counts"].update(
+            {
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": False,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": False,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes": [
+                    "exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck"
+                ],
+                "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes": [
+                    "exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck"
+                ],
+            }
+        )
+        structured_lane_fallback_guidance = build_evaluation_benchmark_guidance(
+            Path("runs/test_evaluation_benchmark_guidance_structured_lane_fallback"),
+            system_audit_payload=structured_lane_fallback_payload,
+        )
+        structured_lane_fallback_s13 = next(
+            row
+            for row in structured_lane_fallback_guidance["suites"]
+            if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
+        )
+        self.assertEqual(structured_lane_fallback_s13["status"], "OK")
+        self.assertTrue(
+            structured_lane_fallback_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_structured_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertTrue(
+            structured_lane_fallback_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_authoritative_same_lane_local_lean_or_kernel_ok"
+            ]
+        )
+        self.assertEqual(
+            structured_lane_fallback_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes"
+            ],
+            [
+                "exact_semantic_definition_materialized_typechecked_review_verifier_approved_proof_body_recheck"
+            ],
+        )
         runtime_executor_scorecard_failed_payload = json.loads(
             json.dumps(semantic_bridge_ok_payload)
         )

@@ -1485,10 +1485,11 @@ def _suite_rows(
         runtime_source_theorem_approved_proof_body_recheck_result_rows > 0
         and runtime_source_theorem_approved_proof_body_recheck_kernel_verified > 0
     )
-    runtime_source_theorem_proof_body_same_lane_gate_ok = bool(
-        runtime_source_theorem_formal_environment_proof_body_lane_ok
-        or runtime_source_theorem_exact_proof_body_repair_lane_ok
-        or runtime_source_theorem_approved_proof_body_recheck_lane_ok
+    runtime_source_theorem_proof_body_structured_verified_lanes = _string_set(
+        counts.get(
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes",
+            [],
+        )
     )
     runtime_source_theorem_proof_body_same_lane_scorecard_present = _bool(
         counts.get(
@@ -1496,6 +1497,16 @@ def _suite_rows(
             "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence"
             in counts,
         )
+    )
+    runtime_source_theorem_proof_body_structured_same_lane_gate_ok = bool(
+        runtime_source_theorem_proof_body_structured_verified_lanes
+        and not runtime_source_theorem_proof_body_same_lane_scorecard_present
+    )
+    runtime_source_theorem_proof_body_same_lane_gate_ok = bool(
+        runtime_source_theorem_formal_environment_proof_body_lane_ok
+        or runtime_source_theorem_exact_proof_body_repair_lane_ok
+        or runtime_source_theorem_approved_proof_body_recheck_lane_ok
+        or runtime_source_theorem_proof_body_structured_same_lane_gate_ok
     )
     runtime_source_theorem_proof_body_same_lane_scorecard_ok = _bool(
         counts.get(
@@ -3393,6 +3404,7 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_local_lean_gate_scorecard_blocker": runtime_source_theorem_local_lean_gate_scorecard_blocker,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_same_lane_gate_ok,
                 "research_agent_runtime_source_theorem_proof_body_authoritative_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_authoritative_same_lane_gate_ok,
+                "research_agent_runtime_source_theorem_proof_body_structured_same_lane_local_lean_or_kernel_ok": runtime_source_theorem_proof_body_structured_same_lane_gate_ok,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": runtime_source_theorem_proof_body_same_lane_scorecard_present,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_ok,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_evidence,
