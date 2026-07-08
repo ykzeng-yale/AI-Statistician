@@ -4,10 +4,40 @@ import json
 import sys
 from pathlib import Path
 
+from ai_statistician.research_architect import KERNEL_PROOF_BOUNDARY
 from ai_statistician.source_to_bridge_premise_derivation_proofengineer_bridge import (
     resolve_source_to_bridge_premise_derivation_queue_path,
     run_source_to_bridge_premise_derivation_proofengineer_bridge,
 )
+
+PROOF_BODY_GOAL_CONCLUSION = (
+    "P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)"
+)
+
+PROOF_BODY_GOAL_CONTEXT = {
+    "schema_version": 1,
+    "artifact_kind": "ExactSourceTheoremProofBodyGoalContext",
+    "binder_names": ["hExch", "q", "hq"],
+    "hypothesis_rows": [
+        {
+            "binder_name": "hExch",
+            "binder_type": "Exchangeable P s",
+            "raw_lines": ["hExch : Exchangeable P s"],
+        },
+        {
+            "binder_name": "q",
+            "binder_type": "ℝ",
+            "raw_lines": ["q : ℝ"],
+        },
+        {
+            "binder_name": "hq",
+            "binder_type": "∀ᵐ ... / ↑n ≥ 1 - alpha",
+            "raw_lines": ["hq : ∀ᵐ ... / ↑n ≥ 1 - alpha"],
+        },
+    ],
+    "conclusion": PROOF_BODY_GOAL_CONCLUSION,
+    "proof_evidence_status": "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE",
+}
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
@@ -55,8 +85,14 @@ def _premise_work_order(**overrides: object) -> dict[str, object]:
         ),
         "adapter_declaration_name": "split_conformal_coverage_source_to_bridge_adapter",
         "proof_body_goal_excerpt": [
-            "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)"
+            "hExch : Exchangeable P s",
+            "q : ℝ",
+            "hq : ∀ᵐ ... / ↑n ≥ 1 - alpha",
+            f"⊢ {PROOF_BODY_GOAL_CONCLUSION}",
         ],
+        "source_to_bridge_premise_goal_context": PROOF_BODY_GOAL_CONTEXT,
+        "source_to_bridge_premise_goal_binder_names": ["hExch", "q", "hq"],
+        "source_to_bridge_premise_goal_conclusion": PROOF_BODY_GOAL_CONCLUSION,
         "proof_body_attempt_summaries": [
             "1:exact split_conformal_coverage_source_to_bridge_adapter:returncode=1"
         ],
@@ -170,6 +206,7 @@ def test_premise_bridge_resolves_runtime_formalizer_work_order_fallback(
 def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
     source_attempt = tmp_path / "source_attempt.lean"
+    adapter_attempt = tmp_path / "adapter_attempt.lean"
     source_attempt.write_text(
         "\n".join(
             [
@@ -178,6 +215,14 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
                 "    (hexch hq hC : Prop) :",
                 "    True := by",
                 "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    adapter_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
                 "theorem split_conformal_coverage_source_to_bridge_adapter",
                 "    (covered : Set Nat)",
                 "    (hGoodCovered : covered ⊆ covered) :",
@@ -189,7 +234,12 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     )
     _write_jsonl(
         queue,
-        [_premise_work_order(source_candidate_artifact_path=str(source_attempt))],
+        [
+            _premise_work_order(
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_candidate_artifact_path=str(adapter_attempt),
+            )
+        ],
     )
 
     manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
@@ -213,6 +263,15 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert manifest["n_proof_body_signature_probe_artifact_rows"] == 1
     assert manifest["proof_body_signature_probe_artifact_paths"] == [
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
+    ]
+    assert manifest["n_proof_body_goal_context_rows"] == 1
+    assert manifest["proof_body_goal_context_binder_names"] == [
+        "hExch",
+        "hq",
+        "q",
+    ]
+    assert manifest["proof_body_goal_context_conclusions"] == [
+        PROOF_BODY_GOAL_CONCLUSION
     ]
     assert manifest[
         "source_theorem_exact_proof_body_gate_open_target_names"
@@ -240,6 +299,17 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert row["source_theorem_signature_probe_artifact_path"] == (
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     )
+    assert list(row["proof_body_goal_binder_names"]) == ["hExch", "q", "hq"]
+    assert row["proof_body_goal_conclusion"] == PROOF_BODY_GOAL_CONCLUSION
+    assert row["proof_body_goal_context"]["conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
+    assert row["proof_body_goal_context"]["proof_evidence_status"] == (
+        "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE"
+    )
+    assert row["proof_body_goal_context"]["proof_evidence_boundary"] == (
+        KERNEL_PROOF_BOUNDARY
+    )
     assert row["source_theorem_exact_proof_body_reached"] is True
     assert (
         row["source_theorem_exact_proof_body_gate_open_for_kernel_repair"] is True
@@ -256,7 +326,10 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert "fail_if_success trivial" in candidate_source
     assert "-- premise name: hGoodCovered" in candidate_source
     assert f"-- exact source candidate artifact: {source_attempt}" in candidate_source
-    assert "-- source-to-bridge adapter candidate artifact: runs/adapter_attempt.lean" in candidate_source
+    assert (
+        f"-- source-to-bridge adapter candidate artifact: {adapter_attempt}"
+        in candidate_source
+    )
     assert (
         "-- source theorem signature probe artifact: "
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
@@ -283,6 +356,12 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert (
         "-- exact source proof-body gate-open target: split_conformal_coverage"
         in candidate_source
+    )
+    assert "-- proof body goal binder: hExch" in candidate_source
+    assert "-- proof body goal binder: q" in candidate_source
+    assert "-- proof body goal binder: hq" in candidate_source
+    assert f"-- proof body goal conclusion: {PROOF_BODY_GOAL_CONCLUSION}" in (
+        candidate_source
     )
     assert (
         "-- source theorem kernel evidence eligible before premise derivation: true"
@@ -416,6 +495,19 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert request["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert request["proof_body_goal_binder_names"] == ["hExch", "q", "hq"]
+    assert request["proof_body_goal_conclusion"] == PROOF_BODY_GOAL_CONCLUSION
+    assert request["proof_body_goal_context"]["conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
+    assert request["source_to_bridge_premise_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert request["source_to_bridge_premise_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
     assert request["source_theorem_exact_proof_body_reached"] is True
     assert (
         request["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
@@ -444,6 +536,26 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert request["proof_evidence_status"] == (
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_REQUEST_NOT_PROOF_EVIDENCE"
     )
+    grouped_requests = [
+        json.loads(line)
+        for line in Path(str(manifest["grouped_candidate_requests_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(grouped_requests) == 1
+    grouped_request = grouped_requests[0]
+    assert grouped_request["proof_body_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert grouped_request["proof_body_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
+    assert grouped_request["source_to_bridge_premise_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
     learning_rows = [
         json.loads(line)
         for line in Path(str(manifest["runtime_learning_rows_jsonl"]))
@@ -460,6 +572,22 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["proof_body_attempt_count"] == 1
     assert learning_rows[0]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert learning_rows[0]["proof_body_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert learning_rows[0]["proof_body_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
+    assert learning_rows[0]["source_to_bridge_premise_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert learning_rows[0]["source_to_bridge_premise_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
     )
     assert learning_rows[0]["proof_body_signature_probe_artifact_path"] == (
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
@@ -486,6 +614,14 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["input_summary"]["proof_body_attempt_count"] == 1
     assert learning_rows[0]["input_summary"]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert learning_rows[0]["input_summary"]["proof_body_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert learning_rows[0]["input_summary"]["proof_body_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
     )
     assert learning_rows[0]["input_summary"][
         "proof_body_signature_probe_artifact_path"
@@ -520,6 +656,17 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[1]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert learning_rows[1]["proof_body_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert learning_rows[1]["proof_body_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
+    assert learning_rows[1]["source_to_bridge_premise_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
+    )
     assert (
         learning_rows[1][
             "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
@@ -538,6 +685,15 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         ]
         is True
     )
+    assert learning_rows[1]["candidate_definition_request"][
+        "proof_body_goal_binder_names"
+    ] == ["hExch", "q", "hq"]
+    assert learning_rows[1]["candidate_definition_request"][
+        "proof_body_goal_conclusion"
+    ] == PROOF_BODY_GOAL_CONCLUSION
+    assert learning_rows[1]["candidate_definition_request"][
+        "source_to_bridge_premise_goal_conclusion"
+    ] == PROOF_BODY_GOAL_CONCLUSION
     assert learning_rows[1]["proof_body_signature_probe_artifact_path"] == (
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     )
@@ -552,6 +708,14 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     ] == "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     assert learning_rows[1]["input_summary"]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
+    )
+    assert learning_rows[1]["input_summary"]["proof_body_goal_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert learning_rows[1]["input_summary"]["proof_body_goal_conclusion"] == (
+        PROOF_BODY_GOAL_CONCLUSION
     )
     assert learning_rows[1]["input_summary"][
         "proof_body_signature_probe_artifact_path"
@@ -593,6 +757,15 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         == 1
     )
     assert export_manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert export_manifest["n_proof_body_goal_context_rows"] == 1
+    assert export_manifest["proof_body_goal_context_binder_names"] == [
+        "hExch",
+        "hq",
+        "q",
+    ]
+    assert export_manifest["proof_body_goal_context_conclusions"] == [
+        PROOF_BODY_GOAL_CONCLUSION
+    ]
     assert export_manifest["proof_body_signature_probe_artifact_paths"] == [
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     ]

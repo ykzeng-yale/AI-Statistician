@@ -117,6 +117,9 @@ class SourceToBridgePremiseDerivationCheckRow:
     premise_candidate_evidence_eligible: bool
     exact_goal_shape_obligation_ids: tuple[str, ...]
     proof_body_goal_excerpt: tuple[str, ...]
+    proof_body_goal_context: dict[str, object]
+    proof_body_goal_binder_names: tuple[str, ...]
+    proof_body_goal_conclusion: str
     proof_body_attempt_summaries: tuple[str, ...]
     proof_body_attempt_count: int
     proof_body_gate_status: str
@@ -364,6 +367,24 @@ def run_source_to_bridge_premise_derivation_proofengineer_bridge(
         "n_proof_body_signature_probe_artifact_rows": sum(
             1 for row in rows if row.proof_body_signature_probe_artifact_path
         ),
+        "n_proof_body_goal_context_rows": sum(
+            1
+            for row in rows
+            if row.proof_body_goal_binder_names or row.proof_body_goal_conclusion
+        ),
+        "proof_body_goal_context_binder_names": sorted(
+            {
+                binder_name
+                for row in rows
+                for binder_name in row.proof_body_goal_binder_names
+                if binder_name
+            }
+        ),
+        "proof_body_goal_context_conclusions": [
+            row.proof_body_goal_conclusion
+            for row in rows
+            if row.proof_body_goal_conclusion
+        ][:8],
         "proof_body_signature_probe_artifact_paths": sorted(
             {
                 row.proof_body_signature_probe_artifact_path
@@ -466,6 +487,23 @@ def _premise_derivation_check_row(
         candidate_request_id=candidate_request_id,
         grouped_candidate_request_id=grouped_candidate_request_id,
     )
+    proof_body_goal_context = _proof_body_goal_context_from_sources(
+        row,
+        candidate_request,
+        grouped_candidate_request,
+    )
+    proof_body_goal_binder_names = _proof_body_goal_binder_names_from_sources(
+        row,
+        candidate_request,
+        grouped_candidate_request,
+        proof_body_goal_context=proof_body_goal_context,
+    )
+    proof_body_goal_conclusion = _proof_body_goal_conclusion_from_sources(
+        row,
+        candidate_request,
+        grouped_candidate_request,
+        proof_body_goal_context=proof_body_goal_context,
+    )
     safe_target = _safe_identifier(target_declaration or f"source_theorem_{rank}")
     safe_premise = _safe_identifier(premise_name or f"premise_{rank}")
     default_declaration_name = f"{safe_target}_{safe_premise}_source_to_bridge_derivation"
@@ -499,6 +537,7 @@ def _premise_derivation_check_row(
     )
     source_context = _source_context_from_candidate(
         source_candidate_artifact_path=source_candidate_artifact_path,
+        adapter_candidate_artifact_path=adapter_candidate_artifact_path,
         target_declaration=target_declaration,
         adapter_declaration_name=adapter_declaration_name,
     )
@@ -786,6 +825,9 @@ def _premise_derivation_check_row(
             row.get("exact_goal_shape_obligation_ids", [])
         ),
         proof_body_goal_excerpt=_str_tuple(row.get("proof_body_goal_excerpt", [])),
+        proof_body_goal_context=proof_body_goal_context,
+        proof_body_goal_binder_names=proof_body_goal_binder_names,
+        proof_body_goal_conclusion=proof_body_goal_conclusion,
         proof_body_attempt_summaries=_str_tuple(
             row.get("proof_body_attempt_summaries", [])
         ),
@@ -881,6 +923,106 @@ def _candidate_source_from_work_order(row: Mapping[str, Any]) -> str:
     return ""
 
 
+def _proof_body_goal_context_from_sources(
+    *sources: Mapping[str, Any],
+) -> dict[str, object]:
+    for source in sources:
+        for key in (
+            "source_to_bridge_premise_goal_context",
+            "proof_body_goal_context",
+        ):
+            value = source.get(key, {})
+            if isinstance(value, Mapping) and value:
+                payload = dict(value)
+                payload.setdefault(
+                    "proof_evidence_status",
+                    "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE",
+                )
+                payload.setdefault("proof_evidence_boundary", KERNEL_PROOF_BOUNDARY)
+                return payload
+    binder_names = _first_nonempty_str_tuple_from_sources(
+        sources,
+        (
+            "source_to_bridge_premise_goal_binder_names",
+            "proof_body_goal_binder_names",
+        ),
+    )
+    conclusion = _first_nonempty_string_from_sources(
+        sources,
+        (
+            "source_to_bridge_premise_goal_conclusion",
+            "proof_body_goal_conclusion",
+        ),
+    )
+    if not binder_names and not conclusion:
+        return {}
+    return {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyGoalContext",
+        "binder_names": list(binder_names),
+        "hypothesis_rows": [],
+        "conclusion": conclusion,
+        "proof_evidence_status": "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _proof_body_goal_binder_names_from_sources(
+    *sources: Mapping[str, Any],
+    proof_body_goal_context: Mapping[str, object],
+) -> tuple[str, ...]:
+    direct = _first_nonempty_str_tuple_from_sources(
+        sources,
+        (
+            "source_to_bridge_premise_goal_binder_names",
+            "proof_body_goal_binder_names",
+        ),
+    )
+    if direct:
+        return direct
+    return _str_tuple(proof_body_goal_context.get("binder_names", []))
+
+
+def _proof_body_goal_conclusion_from_sources(
+    *sources: Mapping[str, Any],
+    proof_body_goal_context: Mapping[str, object],
+) -> str:
+    direct = _first_nonempty_string_from_sources(
+        sources,
+        (
+            "source_to_bridge_premise_goal_conclusion",
+            "proof_body_goal_conclusion",
+        ),
+    )
+    if direct:
+        return direct
+    return str(proof_body_goal_context.get("conclusion", "") or "")
+
+
+def _first_nonempty_str_tuple_from_sources(
+    sources: Sequence[Mapping[str, Any]],
+    keys: Sequence[str],
+) -> tuple[str, ...]:
+    for source in sources:
+        for key in keys:
+            values = _str_tuple(source.get(key, []))
+            if values:
+                return values
+    return ()
+
+
+def _first_nonempty_string_from_sources(
+    sources: Sequence[Mapping[str, Any]],
+    keys: Sequence[str],
+) -> str:
+    for source in sources:
+        for key in keys:
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                return value
+    return ""
+
+
 def _candidate_source_from_candidate_mapping(
     candidate: Mapping[str, Any],
     *,
@@ -969,6 +1111,7 @@ def _is_safe_lean_declaration_identifier(value: str) -> bool:
 def _source_context_from_candidate(
     *,
     source_candidate_artifact_path: str,
+    adapter_candidate_artifact_path: str = "",
     target_declaration: str,
     adapter_declaration_name: str,
 ) -> dict[str, Any]:
@@ -998,10 +1141,24 @@ def _source_context_from_candidate(
         source,
         target_declaration,
     )
-    adapter_signature = _extract_declaration_signature(
-        source,
-        adapter_declaration_name,
-    )
+    adapter_sources: list[str] = []
+    adapter_raw_path = str(adapter_candidate_artifact_path or "").strip()
+    if adapter_raw_path:
+        adapter_path = Path(adapter_raw_path)
+        if adapter_path.exists():
+            try:
+                adapter_sources.append(adapter_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+    adapter_sources.append(source)
+    adapter_signature: tuple[str, ...] = ()
+    for adapter_source in adapter_sources:
+        adapter_signature = _extract_declaration_signature(
+            adapter_source,
+            adapter_declaration_name,
+        )
+        if adapter_signature:
+            break
     if source_signature and adapter_signature:
         status = "SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED"
     elif source_signature:
@@ -1182,6 +1339,7 @@ def _generated_premise_derivation_skeleton(
     ).strip()
     source_context = _source_context_from_candidate(
         source_candidate_artifact_path=source_candidate_artifact_path,
+        adapter_candidate_artifact_path=adapter_candidate_artifact_path,
         target_declaration=str(row.get("target_lean_declaration", "") or "").strip(),
         adapter_declaration_name=adapter_declaration_name,
     )
@@ -1199,6 +1357,23 @@ def _generated_premise_derivation_skeleton(
         row.get("kernel_verified_source_theorem_semantic_support_obligation_ids", [])
     )[:12]
     goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
+    proof_body_goal_context = _proof_body_goal_context_from_sources(
+        row,
+        candidate_request,
+        grouped_candidate_request,
+    )
+    proof_body_goal_binder_names = _proof_body_goal_binder_names_from_sources(
+        row,
+        candidate_request,
+        grouped_candidate_request,
+        proof_body_goal_context=proof_body_goal_context,
+    )[:24]
+    proof_body_goal_conclusion = _proof_body_goal_conclusion_from_sources(
+        row,
+        candidate_request,
+        grouped_candidate_request,
+        proof_body_goal_context=proof_body_goal_context,
+    )
     attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
     attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
     proof_body_gate_status = str(row.get("proof_body_gate_status", "") or "").strip()
@@ -1257,6 +1432,16 @@ def _generated_premise_derivation_skeleton(
     goal_comment = "\n".join(
         f"-- proof body goal: {_sanitize_comment_text(value)}"
         for value in goal_excerpt
+    )
+    goal_binder_comment = "\n".join(
+        f"-- proof body goal binder: {_sanitize_comment_text(value)}"
+        for value in proof_body_goal_binder_names
+    )
+    goal_conclusion_comment = (
+        "-- proof body goal conclusion: "
+        + _sanitize_comment_text(proof_body_goal_conclusion)
+        if proof_body_goal_conclusion
+        else ""
     )
     attempt_comment = "\n".join(
         f"-- proof body attempt: {_sanitize_comment_text(value)}"
@@ -1394,6 +1579,8 @@ def _generated_premise_derivation_skeleton(
         f"{closure_artifact_comment}\n"
         f"{semantic_support_comment}\n"
         f"{goal_comment}\n"
+        f"{goal_binder_comment}\n"
+        f"{goal_conclusion_comment}\n"
         f"{attempt_comment}\n"
         f"{attempt_count_comment}\n"
         f"{proof_body_gate_status_comment}\n"
@@ -1663,6 +1850,18 @@ def _export_runtime_learning_rows(
                     row.source_theorem_kernel_evidence_eligible
                 ),
                 "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
+                "proof_body_goal_context": row.proof_body_goal_context,
+                "proof_body_goal_binder_names": list(
+                    row.proof_body_goal_binder_names
+                ),
+                "proof_body_goal_conclusion": row.proof_body_goal_conclusion,
+                "source_to_bridge_premise_goal_context": row.proof_body_goal_context,
+                "source_to_bridge_premise_goal_binder_names": list(
+                    row.proof_body_goal_binder_names
+                ),
+                "source_to_bridge_premise_goal_conclusion": (
+                    row.proof_body_goal_conclusion
+                ),
                 "proof_body_attempt_summaries": list(
                     row.proof_body_attempt_summaries
                 ),
@@ -1820,6 +2019,30 @@ def _export_runtime_learning_rows(
             "proof_body_goal_excerpt": list(
                 grouped_request.get("proof_body_goal_excerpt", []) or []
             ),
+            "proof_body_goal_context": dict(
+                grouped_request.get("proof_body_goal_context", {}) or {}
+            ),
+            "proof_body_goal_binder_names": list(
+                grouped_request.get("proof_body_goal_binder_names", []) or []
+            ),
+            "proof_body_goal_conclusion": str(
+                grouped_request.get("proof_body_goal_conclusion", "") or ""
+            ),
+            "source_to_bridge_premise_goal_context": dict(
+                grouped_request.get("source_to_bridge_premise_goal_context", {})
+                or grouped_request.get("proof_body_goal_context", {})
+                or {}
+            ),
+            "source_to_bridge_premise_goal_binder_names": list(
+                grouped_request.get("source_to_bridge_premise_goal_binder_names", [])
+                or grouped_request.get("proof_body_goal_binder_names", [])
+                or []
+            ),
+            "source_to_bridge_premise_goal_conclusion": str(
+                grouped_request.get("source_to_bridge_premise_goal_conclusion", "")
+                or grouped_request.get("proof_body_goal_conclusion", "")
+                or ""
+            ),
             "proof_body_attempt_summaries": list(
                 grouped_request.get("proof_body_attempt_summaries", []) or []
             ),
@@ -1877,6 +2100,24 @@ def _export_runtime_learning_rows(
         "n_proof_body_signature_probe_artifact_rows": sum(
             1 for row in rows if row.proof_body_signature_probe_artifact_path
         ),
+        "n_proof_body_goal_context_rows": sum(
+            1
+            for row in rows
+            if row.proof_body_goal_binder_names or row.proof_body_goal_conclusion
+        ),
+        "proof_body_goal_context_binder_names": sorted(
+            {
+                binder_name
+                for row in rows
+                for binder_name in row.proof_body_goal_binder_names
+                if binder_name
+            }
+        ),
+        "proof_body_goal_context_conclusions": [
+            row.proof_body_goal_conclusion
+            for row in rows
+            if row.proof_body_goal_conclusion
+        ][:8],
         "proof_body_signature_probe_artifact_paths": sorted(
             {
                 row.proof_body_signature_probe_artifact_path
@@ -1954,6 +2195,10 @@ def _adapter_object_semantic_definition_work_order_rows(
             "target_lean_declaration",
             "source_to_bridge_grouped_premise_derivation_candidate_request_id",
             "proof_body_gate_status",
+            "proof_body_goal_context",
+            "proof_body_goal_conclusion",
+            "source_to_bridge_premise_goal_context",
+            "source_to_bridge_premise_goal_conclusion",
             "proof_body_signature_probe_artifact_path",
             "source_theorem_signature_probe_artifact_path",
             "signature_probe_artifact_path",
@@ -1988,6 +2233,8 @@ def _adapter_object_semantic_definition_work_order_rows(
             "semantic_alignment_constraints",
             "semantic_alignment_blockers",
             "exact_goal_shape_obligation_ids",
+            "proof_body_goal_binder_names",
+            "source_to_bridge_premise_goal_binder_names",
             "source_theorem_exact_proof_body_gate_open_target_names",
             "kernel_verified_theorem_reduction_closure_declarations",
             "verified_theorem_reduction_closure_artifact_paths",
@@ -2009,6 +2256,10 @@ def _adapter_object_semantic_definition_work_order_rows(
             "source_to_bridge_adapter_instantiation_group_id",
             "work_order_id",
             "proof_body_gate_status",
+            "proof_body_goal_context",
+            "proof_body_goal_conclusion",
+            "source_to_bridge_premise_goal_context",
+            "source_to_bridge_premise_goal_conclusion",
             "proof_body_signature_probe_artifact_path",
             "source_theorem_signature_probe_artifact_path",
             "signature_probe_artifact_path",
@@ -2033,6 +2284,8 @@ def _adapter_object_semantic_definition_work_order_rows(
             "premise_semantic_dependency_requirements",
             "semantic_alignment_blockers",
             "candidate_registered_obligation_ids",
+            "proof_body_goal_binder_names",
+            "source_to_bridge_premise_goal_binder_names",
             "source_theorem_exact_proof_body_gate_open_target_names",
         ):
             extend_unique(
@@ -2178,6 +2431,26 @@ def _adapter_object_semantic_definition_work_order_rows(
             (row.proof_body_gate_status for row in group_rows if row.proof_body_gate_status),
             "",
         )
+        proof_body_goal_context = next(
+            (row.proof_body_goal_context for row in group_rows if row.proof_body_goal_context),
+            {},
+        )
+        proof_body_goal_binder_names = tuple(
+            dict.fromkeys(
+                value
+                for row in group_rows
+                for value in row.proof_body_goal_binder_names
+                if value
+            )
+        )
+        proof_body_goal_conclusion = next(
+            (
+                row.proof_body_goal_conclusion
+                for row in group_rows
+                if row.proof_body_goal_conclusion
+            ),
+            "",
+        )
         source_theorem_exact_proof_body_reached = any(
             row.source_theorem_exact_proof_body_reached for row in group_rows
         )
@@ -2307,6 +2580,9 @@ def _adapter_object_semantic_definition_work_order_rows(
                     source_theorem_signature_probe_artifact_path=(
                         source_theorem_signature_probe_artifact_path
                     ),
+                    proof_body_goal_context=proof_body_goal_context,
+                    proof_body_goal_binder_names=proof_body_goal_binder_names,
+                    proof_body_goal_conclusion=proof_body_goal_conclusion,
                 )
             )
             work_orders.append(
@@ -2325,6 +2601,20 @@ def _adapter_object_semantic_definition_work_order_rows(
                     "target_ids": list(target_ids),
                     "target_theorem_goal_ids": list(target_goal_ids),
                     "proof_body_gate_status": proof_body_gate_status,
+                    "proof_body_goal_context": dict(proof_body_goal_context),
+                    "proof_body_goal_binder_names": list(
+                        proof_body_goal_binder_names
+                    ),
+                    "proof_body_goal_conclusion": proof_body_goal_conclusion,
+                    "source_to_bridge_premise_goal_context": dict(
+                        proof_body_goal_context
+                    ),
+                    "source_to_bridge_premise_goal_binder_names": list(
+                        proof_body_goal_binder_names
+                    ),
+                    "source_to_bridge_premise_goal_conclusion": (
+                        proof_body_goal_conclusion
+                    ),
                     "source_theorem_exact_proof_body_reached": (
                         source_theorem_exact_proof_body_reached
                     ),
@@ -2435,6 +2725,20 @@ def _adapter_object_semantic_definition_work_order_rows(
                         "target_lean_declaration": target_lean_declaration,
                         "target_ids": list(target_ids),
                         "proof_body_gate_status": proof_body_gate_status,
+                        "proof_body_goal_context": dict(proof_body_goal_context),
+                        "proof_body_goal_binder_names": list(
+                            proof_body_goal_binder_names
+                        ),
+                        "proof_body_goal_conclusion": proof_body_goal_conclusion,
+                        "source_to_bridge_premise_goal_context": dict(
+                            proof_body_goal_context
+                        ),
+                        "source_to_bridge_premise_goal_binder_names": list(
+                            proof_body_goal_binder_names
+                        ),
+                        "source_to_bridge_premise_goal_conclusion": (
+                            proof_body_goal_conclusion
+                        ),
                         "source_theorem_exact_proof_body_reached": (
                             source_theorem_exact_proof_body_reached
                         ),
@@ -2533,6 +2837,9 @@ def _adapter_object_candidate_definition_request(
     source_theorem_exact_proof_body_gate_open_target_names: Sequence[str],
     proof_body_signature_probe_artifact_path: str = "",
     source_theorem_signature_probe_artifact_path: str = "",
+    proof_body_goal_context: Mapping[str, object] | None = None,
+    proof_body_goal_binder_names: Sequence[str] = (),
+    proof_body_goal_conclusion: str = "",
 ) -> dict[str, Any]:
     available_adapter_object_names = [
         str(value).strip()
@@ -2552,6 +2859,16 @@ def _adapter_object_candidate_definition_request(
         "target_lean_declaration": target_lean_declaration,
         "target_ids": list(target_ids),
         "proof_body_gate_status": proof_body_gate_status,
+        "proof_body_goal_context": dict(proof_body_goal_context or {}),
+        "proof_body_goal_binder_names": list(proof_body_goal_binder_names),
+        "proof_body_goal_conclusion": proof_body_goal_conclusion,
+        "source_to_bridge_premise_goal_context": dict(
+            proof_body_goal_context or {}
+        ),
+        "source_to_bridge_premise_goal_binder_names": list(
+            proof_body_goal_binder_names
+        ),
+        "source_to_bridge_premise_goal_conclusion": proof_body_goal_conclusion,
         "source_theorem_exact_proof_body_reached": (
             source_theorem_exact_proof_body_reached
         ),
@@ -2643,6 +2960,10 @@ def _merge_candidate_definition_request(
         "local_lean_gate",
         "proof_evidence_status",
         "proof_body_gate_status",
+        "proof_body_goal_context",
+        "proof_body_goal_conclusion",
+        "source_to_bridge_premise_goal_context",
+        "source_to_bridge_premise_goal_conclusion",
         "proof_body_signature_probe_artifact_path",
         "source_theorem_signature_probe_artifact_path",
         "signature_probe_artifact_path",
@@ -2670,6 +2991,8 @@ def _merge_candidate_definition_request(
         "source_to_bridge_adapter_instantiation_group_ids",
         "required_bridge_premise_names_for_shared_instantiation",
         "premise_semantic_dependency_requirements",
+        "proof_body_goal_binder_names",
+        "source_to_bridge_premise_goal_binder_names",
         "source_theorem_exact_proof_body_gate_open_target_names",
         "forbidden_shortcuts",
     ):
@@ -2834,6 +3157,26 @@ def _grouped_premise_derivation_candidate_request_rows(
             (row.proof_body_gate_status for row in group_rows if row.proof_body_gate_status),
             "",
         )
+        proof_body_goal_context = next(
+            (row.proof_body_goal_context for row in group_rows if row.proof_body_goal_context),
+            {},
+        )
+        proof_body_goal_binder_names = tuple(
+            dict.fromkeys(
+                value
+                for row in group_rows
+                for value in row.proof_body_goal_binder_names
+                if value
+            )
+        )
+        proof_body_goal_conclusion = next(
+            (
+                row.proof_body_goal_conclusion
+                for row in group_rows
+                if row.proof_body_goal_conclusion
+            ),
+            "",
+        )
         source_theorem_exact_proof_body_reached = any(
             row.source_theorem_exact_proof_body_reached for row in group_rows
         )
@@ -2994,6 +3337,20 @@ def _grouped_premise_derivation_candidate_request_rows(
                         if value
                     )
                 )[:12],
+                "proof_body_goal_context": dict(proof_body_goal_context),
+                "proof_body_goal_binder_names": list(
+                    proof_body_goal_binder_names
+                ),
+                "proof_body_goal_conclusion": proof_body_goal_conclusion,
+                "source_to_bridge_premise_goal_context": dict(
+                    proof_body_goal_context
+                ),
+                "source_to_bridge_premise_goal_binder_names": list(
+                    proof_body_goal_binder_names
+                ),
+                "source_to_bridge_premise_goal_conclusion": (
+                    proof_body_goal_conclusion
+                ),
                 "proof_body_attempt_summaries": list(
                     dict.fromkeys(
                         value
@@ -3209,6 +3566,14 @@ def _premise_derivation_candidate_request_row(
         ),
         "exact_goal_shape_obligation_ids": list(row.exact_goal_shape_obligation_ids),
         "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
+        "proof_body_goal_context": row.proof_body_goal_context,
+        "proof_body_goal_binder_names": list(row.proof_body_goal_binder_names),
+        "proof_body_goal_conclusion": row.proof_body_goal_conclusion,
+        "source_to_bridge_premise_goal_context": row.proof_body_goal_context,
+        "source_to_bridge_premise_goal_binder_names": list(
+            row.proof_body_goal_binder_names
+        ),
+        "source_to_bridge_premise_goal_conclusion": row.proof_body_goal_conclusion,
         "proof_body_attempt_summaries": list(row.proof_body_attempt_summaries),
         "proof_body_attempt_count": row.proof_body_attempt_count,
         "proof_body_gate_status": row.proof_body_gate_status,
