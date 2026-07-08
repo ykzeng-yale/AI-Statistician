@@ -1216,6 +1216,174 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
     assert result.observations[0].payload["truncation_detected"] is True
 
 
+def test_theory_developer_second_truncation_routes_ultra_compact_retry() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = runtime_module._question_to_payload(question)
+
+    class RejectingTheoryDeveloper:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper packet",
+                attempts=3,
+                errors=["JSONDecodeError: response ended inside theorem_cards"],
+                history=[
+                    {
+                        "attempt_index": 3,
+                        "provider": "anthropic",
+                        "model": "claude-sonnet-4-6",
+                        "ok": False,
+                        "errors": [
+                            "JSONDecodeError: response ended inside theorem_cards"
+                        ],
+                        "request_max_tokens": 3000,
+                        "response_metadata": {
+                            "provider_stop_reason": "max_tokens",
+                            "provider_usage": {"output_tokens": 3000},
+                        },
+                    }
+                ],
+            )
+
+    subsystem = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RejectingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=5,
+        seed=20260629,
+    )
+    task = AgentTask(
+        task_id="theory-validation-retry:conformal_prediction_coverage:test",
+        owner_subsystem="TheoryDeveloper",
+        objective="Retry a compact theory packet after truncation.",
+        inputs={
+            "question": question_payload,
+            "theory_developer_validation_retry_attempt": 1,
+            "architect_context": {
+                "runtime_feedback_loop": {
+                    "source_subsystem": "CriticEvaluator",
+                    "critic_repair_round": 1,
+                    "max_critic_repair_rounds": 1,
+                    "critic_evaluator_manifest_id": (
+                        "critic_evaluator_manifest:test"
+                    ),
+                },
+                "runtime_capability_gap_routing": {
+                    "artifact_kind": "RuntimeCapabilityGapRoutingContext",
+                    "rows": [
+                        {
+                            "requirement_id": (
+                                "source_theorem_exact_proof_body_candidate_"
+                                "materialized"
+                            ),
+                            "capability_owner_subsystem": (
+                                "FormalizationEvaluator"
+                            ),
+                            "immediate_next_owner_subsystem": "TheoryDeveloper",
+                            "target_behavior": (
+                                "Materialize an exact source-theorem Lean "
+                                "candidate before proof-body execution."
+                            ),
+                            "success_metric": "queue_n_ready>0",
+                            "blocker": "no executable target declaration",
+                        }
+                    ],
+                },
+            },
+            "environment_feedback": {
+                "feedback_type": "critic_repair_feedback",
+                "failure_classification": "critic_requested_theory_revision",
+                "required_repair": "address exact semantic-definition gap",
+                "target_behavior": (
+                    "Preserve the exact source-theorem materialization target."
+                ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "recommended_formalizer_target_mode": (
+                    "source_theorem_exact_candidate_materialization_required"
+                ),
+                "proof_evidence_status": "CRITIC_FEEDBACK_NOT_PROOF_EVIDENCE",
+            },
+        },
+        allowed_tools=("model_backend", "rag_memory"),
+        expected_artifacts=("theory_derivation_packet",),
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="theory-retry-test"))
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.inputs["theory_developer_validation_retry_attempt"] == 2
+    retry_feedback = result.next_task.inputs["environment_feedback"]
+    assert retry_feedback["retry_mode"] == "ultra_compact_truncation_retry"
+    assert retry_feedback["max_runtime_validation_retries"] == 2
+    assert "one theorem card" in retry_feedback["required_revision"]
+    assert "source_runtime_feedback_summary" in retry_feedback
+    summary = retry_feedback["source_runtime_feedback_summary"]
+    assert summary["environment_feedback"]["failure_classification"] == (
+        "critic_requested_theory_revision"
+    )
+    assert summary["environment_feedback"]["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert summary["runtime_feedback_loop"]["source_subsystem"] == (
+        "CriticEvaluator"
+    )
+    assert summary["capability_gap_routing"]["n_rows_summarized"] == 1
+    assert summary["capability_gap_routing"]["rows"][0]["requirement_id"] == (
+        "source_theorem_exact_proof_body_candidate_materialized"
+    )
+    assert "not theory proof" in summary["boundary"]
+    assert result.observations[0].payload["max_runtime_validation_retries"] == 2
+
+
+def test_theory_developer_non_truncation_second_failure_fails_closed() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = runtime_module._question_to_payload(question)
+
+    class RejectingTheoryDeveloper:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper packet",
+                attempts=2,
+                errors=["missing theorem_cards"],
+                history=[
+                    {
+                        "attempt_index": 2,
+                        "provider": "anthropic",
+                        "model": "claude-sonnet-4-6",
+                        "ok": False,
+                        "errors": ["missing theorem_cards"],
+                        "request_max_tokens": 3000,
+                        "response_metadata": {
+                            "provider_stop_reason": "end_turn",
+                            "provider_usage": {"output_tokens": 1200},
+                        },
+                    }
+                ],
+            )
+
+    subsystem = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RejectingTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=5,
+        seed=20260629,
+    )
+    task = AgentTask(
+        task_id="theory-validation-retry:non-truncation:test",
+        owner_subsystem="TheoryDeveloper",
+        objective="Retry a compact theory packet after validation failure.",
+        inputs={
+            "question": question_payload,
+            "theory_developer_validation_retry_attempt": 1,
+        },
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="theory-retry-test"))
+
+    assert result.status == "FAILED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "theory_developer_packet_validation_failed"
+    )
+
+
 def test_critic_routes_explicit_weak_theory_trace_to_theory_developer() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     weak_packet_id = "theory_derivation:critic_legacy"

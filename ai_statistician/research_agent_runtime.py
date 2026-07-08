@@ -9103,9 +9103,11 @@ def _theory_developer_packet_validation_failure_result(
     retry_attempt = _runtime_safe_int(
         task.inputs.get("theory_developer_validation_retry_attempt", 0)
     )
+    truncation_detected = _packet_validation_error_truncation_detected(exc)
+    max_runtime_validation_retries = 2 if truncation_detected else 1
     failure_classification = (
         "theory_developer_packet_truncated_json"
-        if _packet_validation_error_truncation_detected(exc)
+        if truncation_detected
         else "theory_developer_packet_validation_failed"
     )
     failure_id = (
@@ -9126,7 +9128,8 @@ def _theory_developer_packet_validation_failure_result(
             "attempts": exc.attempts,
             "retry_attempt": retry_attempt,
             "last_attempt_summary": exc.history[-1] if exc.history else {},
-            "truncation_detected": _packet_validation_error_truncation_detected(exc),
+            "truncation_detected": truncation_detected,
+            "max_runtime_validation_retries": max_runtime_validation_retries,
         },
         "target_behavior": (
             "rerun TheoryDeveloper with a compact but structured "
@@ -9175,7 +9178,8 @@ def _theory_developer_packet_validation_failure_result(
                 "failure_classification": failure_classification,
                 "validation_errors": validation_errors,
                 "retry_attempt": retry_attempt,
-                "truncation_detected": _packet_validation_error_truncation_detected(exc),
+                "truncation_detected": truncation_detected,
+                "max_runtime_validation_retries": max_runtime_validation_retries,
                 "proof_evidence_status": (
                     "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
                 ),
@@ -9183,8 +9187,33 @@ def _theory_developer_packet_validation_failure_result(
         ),
     )
     next_task = None
-    if retry_attempt < 1:
+    if retry_attempt < max_runtime_validation_retries:
         retry_context = dict(context)
+        retry_mode = (
+            "ultra_compact_truncation_retry"
+            if truncation_detected and retry_attempt >= 1
+            else "compact_validation_retry"
+        )
+        source_feedback_summary = (
+            _theory_developer_compact_runtime_feedback_summary(context)
+        )
+        required_revision = (
+            "Return one complete ultra-compact JSON object satisfying the "
+            "TheoryDeveloper output contract. Use exactly the minimum "
+            "validator-satisfying structure: one problem card, one theorem card, "
+            f"{THEORY_MIN_DERIVATION_STEPS} derivation steps, "
+            f"{THEORY_MIN_EQUATION_CHAIN_STEPS} equation-chain rows, one "
+            "assumption-ledger row, and one formalization_handoff. Use short "
+            "symbolic strings and preserve the upstream formal/proof feedback "
+            "summarized in source_runtime_feedback_summary."
+            if retry_mode == "ultra_compact_truncation_retry"
+            else (
+                "Return one complete compact JSON object satisfying the "
+                "TheoryDeveloper output contract. Use minimum row counts, short "
+                "symbolic equations, and preserve proof_evidence_status as "
+                f"{THEORY_DERIVATION_NOT_PROOF_EVIDENCE}."
+            )
+        )
         retry_feedback = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeTheoryDeveloperValidationFeedback",
@@ -9194,13 +9223,11 @@ def _theory_developer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             "retry_attempt": retry_attempt + 1,
-            "truncation_detected": _packet_validation_error_truncation_detected(exc),
-            "required_revision": (
-                "Return one complete compact JSON object satisfying the "
-                "TheoryDeveloper output contract. Use minimum row counts, short "
-                "symbolic equations, and preserve proof_evidence_status as "
-                f"{THEORY_DERIVATION_NOT_PROOF_EVIDENCE}."
-            ),
+            "max_runtime_validation_retries": max_runtime_validation_retries,
+            "retry_mode": retry_mode,
+            "truncation_detected": truncation_detected,
+            "required_revision": required_revision,
+            "source_runtime_feedback_summary": source_feedback_summary,
             "acceptance_gate": learning_row["acceptance_gate"],
             "proof_evidence_status": (
                 "THEORY_DEVELOPER_PACKET_VALIDATION_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -9244,6 +9271,107 @@ def _theory_developer_packet_validation_failure_result(
         next_task=next_task,
         failure_classification=failure_classification,
     )
+
+
+def _theory_developer_compact_runtime_feedback_summary(
+    context: Mapping[str, Any],
+    *,
+    max_capability_rows: int = 5,
+) -> dict[str, Any]:
+    environment_feedback = (
+        context.get("environment_feedback", {})
+        if isinstance(context.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    runtime_feedback_loop = (
+        context.get("runtime_feedback_loop", {})
+        if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+        else {}
+    )
+    capability_gap_routing = (
+        context.get("runtime_capability_gap_routing", {})
+        if isinstance(context.get("runtime_capability_gap_routing", {}), Mapping)
+        else {}
+    )
+    raw_capability_rows = (
+        capability_gap_routing.get("rows", [])
+        if isinstance(capability_gap_routing.get("rows", []), list)
+        else []
+    )
+    capability_rows: list[dict[str, Any]] = []
+    for row in raw_capability_rows:
+        if not isinstance(row, Mapping):
+            continue
+        compact_row = {
+            key: row.get(key)
+            for key in (
+                "requirement_id",
+                "capability_owner_subsystem",
+                "next_owner_subsystem",
+                "immediate_next_owner_subsystem",
+                "failure_classification",
+                "target_behavior",
+                "success_metric",
+                "blocker",
+            )
+            if row.get(key) not in (None, "", [], {})
+        }
+        if compact_row:
+            capability_rows.append(compact_row)
+        if len(capability_rows) >= max_capability_rows:
+            break
+
+    summary = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryDeveloperCompactFeedbackSummary",
+        "summary_kind": "theory_developer_validation_retry_context",
+        "environment_feedback": {
+            key: environment_feedback.get(key)
+            for key in (
+                "feedback_type",
+                "feedback_source",
+                "failure_classification",
+                "failure_classifications",
+                "required_repair",
+                "required_revision",
+                "target_behavior",
+                "acceptance_gate",
+                "recommended_formalizer_target_mode",
+                "target_ids",
+                "target_names",
+                "source_theorem_exact_semantic_definition_repair_required",
+                "source_theorem_candidate_materialization_required",
+                "source_theorem_exact_proof_body_repair_required",
+                "proof_evidence_status",
+            )
+            if environment_feedback.get(key) not in (None, "", [], {})
+        },
+        "runtime_feedback_loop": {
+            key: runtime_feedback_loop.get(key)
+            for key in (
+                "source_subsystem",
+                "critic_repair_round",
+                "max_critic_repair_rounds",
+                "critic_evaluator_manifest_id",
+                "handoff",
+            )
+            if runtime_feedback_loop.get(key) not in (None, "", [], {})
+        },
+        "capability_gap_routing": {
+            "rows": capability_rows,
+            "n_rows_summarized": len(capability_rows),
+            "n_rows_available": len(raw_capability_rows),
+        },
+        "proof_evidence_status": (
+            "THEORY_DEVELOPER_COMPACT_FEEDBACK_SUMMARY_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This summary preserves only routing and validation context for a "
+            "smaller TheoryDeveloper retry. It is not theory proof, simulation "
+            "evidence, generated-code evidence, or Lean/kernel proof evidence."
+        ),
+    }
+    return summary
 
 
 def _packet_validation_error_truncation_detected(
