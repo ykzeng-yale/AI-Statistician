@@ -82,6 +82,9 @@ class SourceTheoremProofBodyAdapterCheckRow:
     forbidden_tokens_found: tuple[str, ...]
     adapter_candidate_evidence_eligible: bool
     proof_body_goal_excerpt: tuple[str, ...]
+    proof_body_goal_context: dict[str, Any]
+    proof_body_goal_binder_names: tuple[str, ...]
+    proof_body_goal_conclusion: str
     proof_body_attempt_summaries: tuple[str, ...]
     proof_body_attempt_count: int
     proof_body_gate_status: str
@@ -241,6 +244,24 @@ def run_source_theorem_proof_body_adapter_proofengineer_bridge(
         "n_proof_body_signature_probe_artifact_rows": sum(
             1 for row in rows if row.proof_body_signature_probe_artifact_path
         ),
+        "n_proof_body_goal_context_rows": sum(
+            1
+            for row in rows
+            if row.proof_body_goal_binder_names or row.proof_body_goal_conclusion
+        ),
+        "proof_body_goal_context_binder_names": sorted(
+            {
+                binder_name
+                for row in rows
+                for binder_name in row.proof_body_goal_binder_names
+                if binder_name
+            }
+        ),
+        "proof_body_goal_context_conclusions": [
+            row.proof_body_goal_conclusion
+            for row in rows
+            if row.proof_body_goal_conclusion
+        ][:8],
         "proof_body_signature_probe_artifact_paths": sorted(
             {
                 row.proof_body_signature_probe_artifact_path
@@ -361,8 +382,19 @@ def _adapter_check_row(
         row=row,
     )
     adapter_candidate_imports = _lean_import_modules_from_source(source)
+    proof_body_goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))
+    proof_body_goal_context = _proof_body_goal_context_from_excerpt(
+        proof_body_goal_excerpt
+    )
+    proof_body_goal_binder_names = _str_tuple(
+        proof_body_goal_context.get("binder_names", [])
+    )
+    proof_body_goal_conclusion = str(
+        proof_body_goal_context.get("conclusion", "") or ""
+    )
     premise_derivation_work_items = _source_to_bridge_premise_derivation_work_items(
-        row
+        row,
+        proof_body_goal_context=proof_body_goal_context,
     )
     verified_premise_signature_excerpts = (
         _verified_source_to_bridge_premise_derivation_signature_excerpts(row)
@@ -484,7 +516,10 @@ def _adapter_check_row(
         ),
         forbidden_tokens_found=forbidden_tokens,
         adapter_candidate_evidence_eligible=evidence_eligible,
-        proof_body_goal_excerpt=_str_tuple(row.get("proof_body_goal_excerpt", [])),
+        proof_body_goal_excerpt=proof_body_goal_excerpt,
+        proof_body_goal_context=proof_body_goal_context,
+        proof_body_goal_binder_names=proof_body_goal_binder_names,
+        proof_body_goal_conclusion=proof_body_goal_conclusion,
         proof_body_attempt_summaries=_str_tuple(
             row.get("proof_body_attempt_summaries", [])
         ),
@@ -561,6 +596,11 @@ def _generated_adapter_skeleton(
     target = str(row.get("target_theorem_name", "") or "").strip()
     reasons = _proof_body_adapter_required_reasons(row)
     goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
+    goal_context = _proof_body_goal_context_from_excerpt(
+        _str_tuple(row.get("proof_body_goal_excerpt", []))
+    )
+    goal_binder_names = _str_tuple(goal_context.get("binder_names", []))[:24]
+    goal_conclusion = str(goal_context.get("conclusion", "") or "").strip()
     attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
     attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
     proof_body_gate_status = str(row.get("proof_body_gate_status", "") or "").strip()
@@ -618,12 +658,24 @@ def _generated_adapter_skeleton(
     verified_premise_derivation_signature_excerpts = (
         _verified_source_to_bridge_premise_derivation_signature_excerpts(row)[:6]
     )
-    premise_work_items = _source_to_bridge_premise_derivation_work_items(row)[:12]
+    premise_work_items = _source_to_bridge_premise_derivation_work_items(
+        row,
+        proof_body_goal_context=goal_context,
+    )[:12]
     reason_comment = "\n".join(
         f"-- reason: {_sanitize_comment_text(reason)}" for reason in reasons
     )
     goal_comment = "\n".join(
         f"-- goal: {_sanitize_comment_text(line)}" for line in goal_excerpt
+    )
+    goal_binder_comment = "\n".join(
+        f"-- proof-body goal binder: {_sanitize_comment_text(name)}"
+        for name in goal_binder_names
+    )
+    goal_conclusion_comment = (
+        "-- proof-body goal conclusion: " + _sanitize_comment_text(goal_conclusion)
+        if goal_conclusion
+        else ""
     )
     attempt_comment = "\n".join(
         f"-- proof-body attempt: {_sanitize_comment_text(line)}"
@@ -795,6 +847,8 @@ def _generated_adapter_skeleton(
         f"{verified_premise_derivation_signature_comment}\n"
         f"{premise_work_item_comment}\n"
         f"{goal_comment}\n"
+        f"{goal_binder_comment}\n"
+        f"{goal_conclusion_comment}\n"
         f"{attempt_comment}\n"
         f"{attempt_count_comment}\n"
         f"{proof_body_gate_status_comment}\n"
@@ -843,7 +897,17 @@ def _proof_body_adapter_required_reasons(row: Mapping[str, Any]) -> tuple[str, .
 
 def _source_to_bridge_premise_derivation_work_items(
     row: Mapping[str, Any],
+    *,
+    proof_body_goal_context: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], ...]:
+    goal_context = dict(
+        proof_body_goal_context
+        or _proof_body_goal_context_from_excerpt(
+            _str_tuple(row.get("proof_body_goal_excerpt", []))
+        )
+    )
+    goal_binder_names = list(_str_tuple(goal_context.get("binder_names", [])))
+    goal_conclusion = str(goal_context.get("conclusion", "") or "").strip()
     items: list[dict[str, Any]] = []
     for item in row.get("source_to_bridge_premise_derivation_work_items", []) or []:
         if not isinstance(item, Mapping):
@@ -858,6 +922,12 @@ def _source_to_bridge_premise_derivation_work_items(
         )
         if "proof_evidence_status" not in normalized:
             normalized["proof_evidence_status"] = "WORK_ITEM_NOT_PROOF_EVIDENCE"
+        if goal_context and "proof_body_goal_context" not in normalized:
+            normalized["proof_body_goal_context"] = goal_context
+        if goal_binder_names and "proof_body_goal_binder_names" not in normalized:
+            normalized["proof_body_goal_binder_names"] = goal_binder_names
+        if goal_conclusion and "proof_body_goal_conclusion" not in normalized:
+            normalized["proof_body_goal_conclusion"] = goal_conclusion
         items.append(normalized)
     if items or not _requires_exact_source_to_bridge_derivation(row):
         return tuple(items)
@@ -894,10 +964,116 @@ def _source_to_bridge_premise_derivation_work_items(
                     "remains unproved until the exact theorem is rerun and kernel "
                     "verified."
                 ),
+                "proof_body_goal_context": goal_context,
+                "proof_body_goal_binder_names": goal_binder_names,
+                "proof_body_goal_conclusion": goal_conclusion,
                 "proof_evidence_status": "WORK_ITEM_NOT_PROOF_EVIDENCE",
             }
         )
     return tuple(items)
+
+
+def _proof_body_goal_context_from_excerpt(
+    proof_body_goal_excerpt: tuple[str, ...] | list[str],
+) -> dict[str, Any]:
+    raw_lines = [
+        str(line).strip()
+        for line in proof_body_goal_excerpt or []
+        if str(line or "").strip()
+    ]
+    hypothesis_rows: list[dict[str, Any]] = []
+    conclusion_lines: list[str] = []
+    current: dict[str, Any] | None = None
+    collecting_conclusion = False
+    for line in raw_lines:
+        stripped = line.strip()
+        if stripped.startswith("⊢"):
+            if current is not None:
+                hypothesis_rows.append(current)
+                current = None
+            collecting_conclusion = True
+            conclusion_lines.append(stripped[1:].strip())
+            continue
+        binder = _proof_body_goal_binder_from_line(stripped)
+        if binder is not None:
+            if current is not None:
+                hypothesis_rows.append(current)
+            collecting_conclusion = False
+            current = binder
+            continue
+        if collecting_conclusion:
+            if _looks_like_proof_body_diagnostic_line(stripped):
+                collecting_conclusion = False
+                continue
+            conclusion_lines.append(stripped)
+            continue
+        if current is not None and _looks_like_lean_goal_continuation(stripped):
+            current["binder_type"] = " ".join(
+                part
+                for part in (
+                    str(current.get("binder_type", "") or "").strip(),
+                    stripped,
+                )
+                if part
+            )
+            current["raw_lines"].append(stripped)
+    if current is not None:
+        hypothesis_rows.append(current)
+    binder_names = [
+        str(row.get("binder_name", "") or "")
+        for row in hypothesis_rows
+        if str(row.get("binder_name", "") or "").strip()
+    ]
+    conclusion = " ".join(line for line in conclusion_lines if line).strip()
+    return {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyGoalContext",
+        "binder_names": list(dict.fromkeys(binder_names)),
+        "hypothesis_rows": hypothesis_rows[:32],
+        "conclusion": conclusion,
+        "raw_excerpt": raw_lines[:32],
+        "proof_evidence_status": "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _proof_body_goal_binder_from_line(line: str) -> dict[str, Any] | None:
+    if not line or _looks_like_proof_body_diagnostic_line(line):
+        return None
+    match = re.match(r"^\s*([A-Za-z_][^\s:]*?)\s*:\s*(.*)$", line)
+    if not match:
+        return None
+    binder_name = match.group(1).strip()
+    binder_type = match.group(2).strip()
+    if not binder_name or binder_name in {"theorem", "lemma", "def"}:
+        return None
+    return {
+        "binder_name": binder_name,
+        "binder_type": binder_type,
+        "raw_lines": [line],
+    }
+
+
+def _looks_like_lean_goal_continuation(line: str) -> bool:
+    if not line or _looks_like_proof_body_diagnostic_line(line):
+        return False
+    if re.match(r"^\d+:", line):
+        return False
+    if "/" in line and ".lean:" in line:
+        return False
+    return bool(
+        line.startswith(("∀", "∃", "(", ")", "→", "↔", "MeasureTheory.", "ENNReal."))
+        or line[:1].islower()
+        or line[:1].isupper()
+    )
+
+
+def _looks_like_proof_body_diagnostic_line(line: str) -> bool:
+    if not line or line.startswith(("error:", "warning:", "--")):
+        return True
+    if re.match(r"^\d+:", line):
+        return True
+    return bool(".lean:" in line or "returncode=" in line or "compiled=" in line)
 
 
 def _bridge_premise_names_from_context(row: Mapping[str, Any]) -> tuple[str, ...]:
@@ -1338,6 +1514,11 @@ def _export_runtime_learning_rows(
                     row.proof_body_attempt_summaries
                 ),
                 "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
+                "proof_body_goal_context": row.proof_body_goal_context,
+                "proof_body_goal_binder_names": list(
+                    row.proof_body_goal_binder_names
+                ),
+                "proof_body_goal_conclusion": row.proof_body_goal_conclusion,
                 "proof_body_adapter_required_reasons": list(
                     row.proof_body_adapter_required_reasons
                 ),
@@ -1388,6 +1569,24 @@ def _export_runtime_learning_rows(
         "n_proof_body_signature_probe_artifact_rows": sum(
             1 for row in rows if row.proof_body_signature_probe_artifact_path
         ),
+        "n_proof_body_goal_context_rows": sum(
+            1
+            for row in rows
+            if row.proof_body_goal_binder_names or row.proof_body_goal_conclusion
+        ),
+        "proof_body_goal_context_binder_names": sorted(
+            {
+                binder_name
+                for row in rows
+                for binder_name in row.proof_body_goal_binder_names
+                if binder_name
+            }
+        ),
+        "proof_body_goal_context_conclusions": [
+            row.proof_body_goal_conclusion
+            for row in rows
+            if row.proof_body_goal_conclusion
+        ][:8],
         "proof_body_signature_probe_artifact_paths": sorted(
             {
                 row.proof_body_signature_probe_artifact_path
@@ -1494,6 +1693,11 @@ def _export_source_to_bridge_premise_derivation_queue(
                     ),
                     "adapter_declaration_name": row.adapter_declaration_name,
                     "proof_body_goal_excerpt": list(row.proof_body_goal_excerpt),
+                    "proof_body_goal_context": row.proof_body_goal_context,
+                    "proof_body_goal_binder_names": list(
+                        row.proof_body_goal_binder_names
+                    ),
+                    "proof_body_goal_conclusion": row.proof_body_goal_conclusion,
                     "proof_body_attempt_summaries": list(
                         row.proof_body_attempt_summaries
                     ),
@@ -1516,6 +1720,23 @@ def _export_source_to_bridge_premise_derivation_queue(
                     ),
                     "source_theorem_kernel_evidence_eligible": (
                         row.source_theorem_kernel_evidence_eligible
+                    ),
+                    "source_to_bridge_premise_goal_context": item.get(
+                        "proof_body_goal_context", row.proof_body_goal_context
+                    ),
+                    "source_to_bridge_premise_goal_binder_names": list(
+                        item.get(
+                            "proof_body_goal_binder_names",
+                            row.proof_body_goal_binder_names,
+                        )
+                        or []
+                    ),
+                    "source_to_bridge_premise_goal_conclusion": str(
+                        item.get(
+                            "proof_body_goal_conclusion",
+                            row.proof_body_goal_conclusion,
+                        )
+                        or ""
                     ),
                     "kernel_verified_theorem_reduction_closure_declarations": (
                         list(row.kernel_verified_theorem_reduction_closure_declarations)
@@ -1578,6 +1799,25 @@ def _export_source_to_bridge_premise_derivation_queue(
             for row in queue_rows
             if row.get("proof_body_signature_probe_artifact_path")
         ),
+        "n_proof_body_goal_context_rows": sum(
+            1
+            for row in queue_rows
+            if row.get("source_to_bridge_premise_goal_binder_names")
+            or row.get("source_to_bridge_premise_goal_conclusion")
+        ),
+        "proof_body_goal_context_binder_names": sorted(
+            {
+                str(name)
+                for row in queue_rows
+                for name in row.get("source_to_bridge_premise_goal_binder_names", [])
+                if str(name).strip()
+            }
+        ),
+        "proof_body_goal_context_conclusions": [
+            str(row.get("source_to_bridge_premise_goal_conclusion", "") or "")
+            for row in queue_rows
+            if row.get("source_to_bridge_premise_goal_conclusion")
+        ][:8],
         "proof_body_signature_probe_artifact_paths": sorted(
             {
                 str(row.get("proof_body_signature_probe_artifact_path", "") or "")

@@ -325,6 +325,16 @@ def export_exact_source_theorem_proof_body_execution_results(
         "n_exact_semantic_definition_context_rows": sum(
             1 for row in rows if row.exact_semantic_definition_context
         ),
+        "n_proof_body_signature_probe_artifact_rows": sum(
+            1 for row in rows if row.proof_body_signature_probe_artifact_path
+        ),
+        "proof_body_signature_probe_artifact_paths": list(
+            dict.fromkeys(
+                row.proof_body_signature_probe_artifact_path
+                for row in rows
+                if row.proof_body_signature_probe_artifact_path
+            )
+        ),
         "n_source_theorem_proof_body_adapter_context_rows": sum(
             1
             for row in rows
@@ -2277,6 +2287,12 @@ def _export_runtime_learning_rows(
         ],
         "n_exact_semantic_definition_context_rows": manifest[
             "n_exact_semantic_definition_context_rows"
+        ],
+        "n_proof_body_signature_probe_artifact_rows": manifest[
+            "n_proof_body_signature_probe_artifact_rows"
+        ],
+        "proof_body_signature_probe_artifact_paths": manifest[
+            "proof_body_signature_probe_artifact_paths"
         ],
         "n_source_theorem_proof_body_adapter_context_rows": manifest[
             "n_source_theorem_proof_body_adapter_context_rows"

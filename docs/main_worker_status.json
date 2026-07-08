@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T10:49:04Z",
+  "updated_at": "2026-07-08T10:56:37Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Full-live AgentRuntime attachment finalization now bounds the attached Formalizer PF/BV packet eval with a wall-clock runtime timeout, writes timeout/provider failures as FormalizerPseudoFormalPacketEvalManifest failure artifacts, records internal_formalizer_pseudo_formal_packet_eval_attachment_runtime_timeout_seconds in the runtime manifest, and still exports non-proof component-gate feedback rows. This prevents the full-live CLI from leaving an empty internal_formalizer_pseudo_formal_packet_eval directory after the main AgentRuntime manifest is already written.",
-  "latest_main_worker_live_probe": "runs/main_worker_full_live_pf_packet_timeout_bound_probe/ resumed the real pending gap-planner-live-route:conformal_prediction_coverage:abf13cf47d95 with full-live preset, reused prior coding/Formalizer repair-eval manifests, attached an existing PF/BV component-gate manifest, and bounded the live Formalizer PF packet eval to 2.5s. The command exited 0 in 18.4s with status_counts={'BLOCKED': 1}; runtime_proof_postprocessing_suppressed=true; internal_formalizer_pseudo_formal_packet_eval_result_status=FAILED; failure_type=APITimeoutError; attachment_runtime_timeout_seconds=2.5; the PF failure manifest/result JSON were written; coding-agent and Formalizer repair component gates stayed capability_evidence_ok=true; PF/BV component gate attached as capability_evidence_ok=true but lineage_ok=false because it reused a standalone manifest. No source theorem or full frontier theorem proof is claimed.",
+  "latest_main_worker_patch": "Source-theorem proof-body adapter handoff now parses reached Lean proof-body excerpts into structured non-proof goal context: binder names, hypothesis rows, and active conclusion flow through SourceTheoremProofBodyAdapterCheckRow, generated adapter skeleton comments, runtime-learning rows, and source-to-bridge premise-derivation work orders. The exact source proof-body executor also exposes proof_body_signature_probe_artifact counters in the top-level execution manifest and returned learning export summary, so signature-backed proof-body repair evidence is not hidden in nested files.",
+  "latest_main_worker_live_probe": "runs/main_worker_proof_body_adapter_goal_context_replay_20260708/ replayed the real good-rank proof-body adapter work order from runs/main_worker_proof_body_adapter_signature_handoff_replay_20260707. It exited 0 with n_adapter_check_rows=1, n_proof_body_goal_context_rows=1, proof_body_goal_context_binder_names=[hExch,hq,q], clean conclusion `ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}`, n_source_to_bridge_premise_derivation_queue_rows=1, n_proof_body_signature_probe_artifact_rows=1, and proof_evidence_status=SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE. No source theorem or full frontier theorem proof is claimed.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -1343,6 +1343,21 @@
         "tests/test_exact_source_theorem_proof_body_executor.py::test_exact_source_executor_approved_semantic_review_unblocks_guidance_constraints"
       ],
       "proof_boundary": "This keeps proof-body signature/proof-state lineage intact through recheck and executor feedback. It does not prove the source theorem; source_theorem_kernel_verified remains false unless local Lean/AXLE verifies the exact target declaration."
+    },
+    "proof_body_adapter_goal_context_handoff_patch_20260708": {
+      "status": "implemented",
+      "components": [
+        "source_theorem_proof_body_adapter_proofengineer_bridge",
+        "exact_source_theorem_proof_body_executor"
+      ],
+      "summary": "Proof-body adapter bridge rows now normalize reached Lean goal excerpts into proof_body_goal_context with binder names, hypothesis rows, active conclusion, and a PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE boundary. The structured goal context is emitted in adapter check rows, runtime-learning rows, generated adapter skeleton comments, and source-to-bridge premise-derivation work orders. The exact source proof-body executor now also surfaces proof_body_signature_probe_artifact counters in the top-level manifest and returned runtime-learning export summary.",
+      "real_replay_manifest": "runs/main_worker_proof_body_adapter_goal_context_replay_20260708/source_theorem_proof_body_adapter_proofengineer_bridge_manifest.json",
+      "real_replay_result": "Replaying the real good-rank proof-body adapter work order produced n_adapter_check_rows=1, n_proof_body_goal_context_rows=1, proof_body_goal_context_binder_names=[hExch,hq,q], proof_body_goal_context_conclusions=[ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}], n_source_to_bridge_premise_derivation_queue_rows=1, n_proof_body_signature_probe_artifact_rows=1, and proof_evidence_status=SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE.",
+      "regression_evidence": [
+        "PYTHONPATH=$PWD .venv/bin/pytest tests/test_source_theorem_proof_body_adapter_bridge.py tests/test_source_to_bridge_premise_derivation_bridge.py tests/test_exact_source_theorem_proof_body_executor.py -q # 52 passed",
+        "python3 -m py_compile ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/source_theorem_proof_body_adapter_proofengineer_bridge.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_source_theorem_proof_body_adapter_bridge.py"
+      ],
+      "proof_boundary": "Structured proof-body goal context and premise-derivation queues are repair context only. They do not promote adapter, premise, semantic-definition, or source theorem rows to proof evidence; source_theorem_kernel_verified remains false until the intended source theorem declaration passes local Lean/AXLE."
     },
     "verified_evidence_runtime_boolean_normalization_patch": {
       "status": "implemented",

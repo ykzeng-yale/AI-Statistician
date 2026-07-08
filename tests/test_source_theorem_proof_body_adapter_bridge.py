@@ -49,7 +49,7 @@ def _adapter_work_order(**overrides: object) -> dict[str, object]:
         ),
         "proof_body_goal_excerpt": [
             "hexch : Exchangeable P s",
-            "hq : q_hat = fun ω => orderStat s sorry ω",
+            "hq : ∀ᵐ (ω : Ω) ∂P, ↑{i | s i.castSucc ω ≤ q_hat ω}.card / ↑n ≥ 1 - alpha",
             "hC : ∀ (ω : Ω), (C fun x => s (Fin.last n2) ω) = {y | s (Fin.last n2) ω ≤ q_hat ω}",
             "⊢ 1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧",
         ],
@@ -155,6 +155,15 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "split_conformal_coverage"
     ]
     assert manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert manifest["n_proof_body_goal_context_rows"] == 1
+    assert manifest["proof_body_goal_context_binder_names"] == [
+        "hC",
+        "hexch",
+        "hq",
+    ]
+    assert manifest["proof_body_goal_context_conclusions"] == [
+        "1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧"
+    ]
     assert manifest["proof_body_signature_probe_artifact_paths"] == [
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     ]
@@ -191,9 +200,22 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     )
     assert row["semantic_alignment_blockers"] == ()
     assert row["proof_body_attempt_count"] == 1
+    assert row["proof_body_goal_binder_names"] == ("hexch", "hq", "hC")
+    assert row["proof_body_goal_conclusion"] == (
+        "1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧"
+    )
+    assert row["proof_body_goal_context"]["hypothesis_rows"][0]["binder_name"] == (
+        "hexch"
+    )
+    assert row["proof_body_goal_context"]["proof_evidence_status"] == (
+        "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE"
+    )
     assert row["source_to_bridge_premise_derivation_work_items"][0][
         "premise_name"
     ] == "hGoodCovered"
+    assert row["source_to_bridge_premise_derivation_work_items"][0][
+        "proof_body_goal_binder_names"
+    ] == ["hexch", "hq", "hC"]
     adapter_source = Path(row["adapter_candidate_artifact_path"]).read_text(
         encoding="utf-8"
     )
@@ -235,6 +257,13 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "-- proof-body gate status: PROOF_BODY_REACHED_PROOF_INCOMPLETE"
         in adapter_source
     )
+    assert "-- proof-body goal binder: hexch" in adapter_source
+    assert "-- proof-body goal binder: hq" in adapter_source
+    assert "-- proof-body goal binder: hC" in adapter_source
+    assert (
+        "-- proof-body goal conclusion: 1 - alpha ≤ P.real "
+        "{ω | s (Fin.last n2) ω ≤ q_hat ω} ∧"
+    ) in adapter_source
     assert (
         "-- exact source proof-body gate open for kernel repair: true"
         in adapter_source
@@ -287,6 +316,12 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "source_theorem_exact_proof_body_gate_open_target_names"
     ] == ["split_conformal_coverage"]
     assert learning_export_manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert learning_export_manifest["n_proof_body_goal_context_rows"] == 1
+    assert learning_export_manifest["proof_body_goal_context_binder_names"] == [
+        "hC",
+        "hexch",
+        "hq",
+    ]
     assert learning_export_manifest["proof_body_signature_probe_artifact_paths"] == [
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     ]
@@ -307,6 +342,12 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         "source_theorem_exact_proof_body_gate_open_target_names"
     ] == ["split_conformal_coverage"]
     assert premise_queue_manifest["n_proof_body_signature_probe_artifact_rows"] == 1
+    assert premise_queue_manifest["n_proof_body_goal_context_rows"] == 1
+    assert premise_queue_manifest["proof_body_goal_context_binder_names"] == [
+        "hC",
+        "hexch",
+        "hq",
+    ]
     assert premise_queue_manifest["proof_body_signature_probe_artifact_paths"] == [
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     ]
@@ -332,6 +373,22 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert premise_queue_rows[0]["source_theorem_kernel_evidence_eligible"] is True
     assert premise_queue_rows[0]["semantic_alignment_blockers"] == []
     assert premise_queue_rows[0]["proof_body_attempt_count"] == 1
+    assert premise_queue_rows[0]["proof_body_goal_binder_names"] == [
+        "hexch",
+        "hq",
+        "hC",
+    ]
+    assert premise_queue_rows[0]["source_to_bridge_premise_goal_binder_names"] == [
+        "hexch",
+        "hq",
+        "hC",
+    ]
+    assert premise_queue_rows[0]["source_to_bridge_premise_goal_conclusion"] == (
+        "1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧"
+    )
+    assert premise_queue_rows[0]["source_to_bridge_premise_goal_context"][
+        "proof_evidence_status"
+    ] == "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE"
     assert premise_queue_rows[0]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
@@ -383,6 +440,14 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["proof_body_attempt_summaries"] == [
         "1:simpa:returncode=1:compiled=False"
     ]
+    assert learning_rows[0]["proof_body_goal_binder_names"] == [
+        "hexch",
+        "hq",
+        "hC",
+    ]
+    assert learning_rows[0]["proof_body_goal_context"]["conclusion"] == (
+        "1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧"
+    )
     assert learning_rows[0]["input_summary"][
         "source_theorem_kernel_evidence_eligible"
     ] is True
@@ -396,6 +461,11 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert learning_rows[0]["input_summary"]["proof_body_gate_status"] == (
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
+    assert learning_rows[0]["input_summary"]["proof_body_goal_binder_names"] == [
+        "hexch",
+        "hq",
+        "hC",
+    ]
     assert (
         learning_rows[0]["input_summary"][
             "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
