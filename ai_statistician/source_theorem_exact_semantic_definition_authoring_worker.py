@@ -3111,6 +3111,14 @@ def validate_authoring_candidate_packet(packet: Mapping[str, Any]) -> list[str]:
             "resolved_gap_evidence and downstream theorem obligations in "
             "proof_body_obligations"
         )
+    missing_review_anchors = _approved_review_packet_missing_required_anchors(packet)
+    if missing_review_anchors:
+        errors.append(
+            "review_typechecked approved_definition_candidate packets cannot "
+            "approve semantic review while candidate_definition_request still "
+            "has missing_required_anchor_names: "
+            + ", ".join(missing_review_anchors[:8])
+        )
     forbidden_claim = _contains_forbidden_proof_claim(packet)
     if forbidden_claim:
         errors.append(f"packet contains forbidden proof claim: {forbidden_claim}")
@@ -3189,6 +3197,24 @@ def _approved_review_packet_has_known_gaps(packet: Mapping[str, Any]) -> bool:
     ):
         return False
     return bool(_string_list(packet.get("known_gaps", [])))
+
+
+def _approved_review_packet_missing_required_anchors(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    if (
+        str(packet.get("authoring_mode", "") or "")
+        != "review_typechecked_semantic_definition_candidate"
+    ):
+        return []
+    if str(packet.get("semantic_review_decision", "") or "") != (
+        "approved_definition_candidate"
+    ):
+        return []
+    request = packet.get("candidate_definition_request", {})
+    if not isinstance(request, Mapping):
+        return []
+    return _string_list(request.get("missing_required_anchor_names", []) or [])
 
 
 def _verified_import_modules_for_candidate_packet(

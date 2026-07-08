@@ -57,6 +57,7 @@
       "policy_id": "split_conformal_coverage.covered",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "covered",
+      "placeholder_aliases": ["coverage_event", "coverageEvent", "coverage-event"],
       "semantic_goal": "Define the source coverage event/object from the exact source theorem coverage binder hC and threshold q_hat, matching the held-out score event {\u03c9 | s (Fin.last n2) \u03c9 \u2264 q_hat \u03c9}.",
       "required_anchor_names": ["s", "q_hat", "C", "hC"],
       "source_to_bridge_premise_aliases": ["hGoodCovered", "hGoodRankCovered", "hGoodRankImpliesCovered", "hGoodImpliesCovered"],
@@ -95,6 +96,94 @@
         "q_hat": "threshold_function_anchor"
       },
       "source_lookup_aliases": ["rank", "rank_uniformity"]
+    },
+    {
+      "policy_id": "split_conformal_coverage.good_rank_event",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "good_rank_event",
+      "placeholder_aliases": ["goodRankEvent", "good-rank-event"],
+      "semantic_goal": "Define the good-rank event from the exact finite rank/order-statistic threshold anchors, so it captures the rank condition that implies coverage without asserting a probability bound or restating the source theorem.",
+      "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+      "source_to_bridge_premise_aliases": ["hGoodRank", "hGoodRankEvent", "hGoodRankCovered", "hGoodImpliesCovered"],
+      "source_to_bridge_dependency_requirements": [
+        "define rank and BadRanks from the exact order-statistic threshold hq",
+        "prove good-rank containment: rank outside BadRanks implies the covered event",
+        "keep probability/exchangeability arguments in separate rank-uniformity or bad-rank probability premises"
+      ],
+      "source_to_bridge_required_anchor_names": ["hq", "q_hat", "s", "n2"],
+      "source_anchor_roles": {
+        "hq": "quantile_definition_anchor",
+        "n2": "calibration_size_anchor",
+        "hn2": "calibration_size_anchor",
+        "s": "score_process_anchor",
+        "q_hat": "threshold_function_anchor"
+      },
+      "source_lookup_search_terms": ["good_rank_event", "good rank", "rank event", "rank containment"],
+      "source_lookup_aliases": ["good_rank_event", "goodRankEvent", "rank event"],
+      "definition_contract": {
+        "semantic_intent": "rank/order-statistic event whose occurrence is sufficient for held-out score coverage",
+        "lean_target_shape": "predicate over the finite score family, conformal threshold, and reviewed rank/tie convention",
+        "required_properties": [
+          "uses the exact order-statistic threshold equation hq",
+          "does not claim coverage probability or exchangeability",
+          "is suitable for a later bridge premise from good-rank event to covered event"
+        ],
+        "forbidden_shortcuts": [
+          "do not define good_rank_event as True",
+          "do not define it as an unrelated Nat inequality without source threshold anchors",
+          "do not assert the coverage theorem or a probability bound",
+          "do not add axiom/sorry/admit/unsafe"
+        ]
+      },
+      "candidate_risk_rules": [
+        {
+          "message": "semantic_definition_risk: good_rank_event candidate does not mention the source threshold/quantile anchor hq or q_hat",
+          "scope": "definition_block",
+          "absent_all": ["hq", "q_hat"]
+        },
+        {
+          "message": "semantic_definition_risk: good_rank_event candidate appears to assert a probability/coverage theorem rather than defining the rank event",
+          "scope": "definition_block",
+          "present_any": ["Measure", "Probability", "P ", "Pr["]
+        }
+      ]
+    },
+    {
+      "policy_id": "split_conformal_coverage.prediction_set",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "C_n",
+      "placeholder_aliases": ["Cn", "C_n_set", "prediction_set", "predictionSet", "conformal_set"],
+      "semantic_goal": "Define the split-conformal prediction set C_n from the score process and conformal threshold q_hat, keeping the coverage event and probability proof separate.",
+      "required_anchor_names": ["s", "q_hat"],
+      "source_to_bridge_premise_aliases": ["hPredictionSet", "hCn", "hCnMembership", "hScoreBelowThreshold"],
+      "source_to_bridge_dependency_requirements": [
+        "define the held-out coverage event from membership in C_n",
+        "connect C_n membership to the score-threshold event using q_hat",
+        "keep finite-sample probability coverage in a later proof-body or bridge premise"
+      ],
+      "source_to_bridge_required_anchor_names": ["s", "q_hat", "hC"],
+      "source_anchor_roles": {
+        "hC": "coverage_event_anchor",
+        "C": "coverage_event_anchor",
+        "q_hat": "threshold_function_anchor",
+        "s": "score_process_anchor"
+      },
+      "source_lookup_search_terms": ["C_n", "prediction set", "conformal set", "coverage event"],
+      "source_lookup_aliases": ["C_n", "prediction_set", "conformal_set"],
+      "definition_contract": {
+        "semantic_intent": "split-conformal prediction set induced by scores below the learned threshold q_hat",
+        "lean_target_shape": "set-valued object or membership predicate parameterized by the score process and q_hat",
+        "required_properties": [
+          "uses q_hat as the learned conformal threshold",
+          "uses the source score function s",
+          "does not collapse C_n into the coverage event proof or theorem statement"
+        ],
+        "forbidden_shortcuts": [
+          "do not define C_n as Set.univ or True",
+          "do not define C_n as the theorem coverage conclusion",
+          "do not add axiom/sorry/admit/unsafe"
+        ]
+      }
     },
     {
       "policy_id": "split_conformal_coverage.order_statistic_threshold",

@@ -1085,6 +1085,35 @@ def test_authoring_worker_rejects_approved_review_packet_with_known_gaps() -> No
     assert any("known_gaps empty" in error for error in errors)
 
 
+def test_authoring_worker_rejects_approved_review_packet_with_missing_required_anchors() -> None:
+    packet = {
+        **_valid_authoring_response(),
+        "authoring_mode": "review_typechecked_semantic_definition_candidate",
+        "semantic_review_decision": "approved_definition_candidate",
+        "candidate_definition_request": {
+            "placeholder_symbol": "good_rank_event",
+            "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+            "missing_required_anchor_names": ["n2", "s", "q_hat", "hq"],
+        },
+        "known_gaps": [],
+        "semantic_review_evidence": [
+            "candidate was only generic and did not recover source anchors"
+        ],
+        "forbidden_shortcuts_absent": True,
+        "requires_local_lean_check": True,
+        "local_definition_lean_checked": False,
+        "local_definition_lean_compiled": False,
+        "semantic_definition_kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": CANDIDATE_PROOF_EVIDENCE_STATUS,
+    }
+
+    errors = validate_authoring_candidate_packet(packet)
+
+    assert any("missing_required_anchor_names" in error for error in errors)
+    assert any("n2, s, q_hat, hq" in error for error in errors)
+
+
 def test_authoring_worker_filters_by_placeholder_symbol(
     tmp_path: Path,
 ) -> None:
@@ -1170,6 +1199,85 @@ def test_authoring_worker_filters_by_placeholder_symbol(
         "hq",
     ]
     assert "order-statistic threshold equation hq" in request["semantic_goal"]
+
+
+def test_authoring_worker_completes_minimal_runtime_request_from_policy_alias(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+        "authoring_task_id": "authoring:good-rank-event",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "good_rank_event",
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+        ),
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "good_rank_event",
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "exact_source_theorem_binders": [
+            {"name": "n2", "role": "calibration_size_anchor", "type": "Nat"},
+            {
+                "name": "s",
+                "role": "score_process_anchor",
+                "type": "Fin (n2 + 1) -> Omega -> Real",
+            },
+            {
+                "name": "q_hat",
+                "role": "threshold_function_anchor",
+                "type": "Omega -> Real",
+            },
+            {
+                "name": "hq",
+                "role": "quantile_definition_anchor",
+                "type": "q_hat = orderStat s",
+            },
+        ],
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    prompt_packets = [
+        json.loads(line)
+        for line in Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+
+    assert manifest["n_candidate_definition_requests_autofilled"] == 0
+    assert manifest["n_candidate_definition_requests_completed_from_task_policy"] == 1
+    request = prompt_packets[0]["candidate_definition_request"]
+    assert request["placeholder_symbol"] == "good_rank_event"
+    assert request["placeholder_policy_id"] == (
+        "split_conformal_coverage.good_rank_event"
+    )
+    assert request["placeholder_policy_scope"] == "split_conformal_coverage"
+    assert request["required_anchor_names"] == ["n2", "s", "q_hat", "hq"]
+    assert request["missing_required_anchor_names"] == []
+    assert [binder["name"] for binder in request["required_binders"]] == [
+        "n2",
+        "s",
+        "q_hat",
+        "hq",
+    ]
+    assert "without asserting a probability bound" in request["semantic_goal"]
 
 
 def test_authoring_worker_marks_provider_connection_failure_retryable(

@@ -40,17 +40,32 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     )
 
     covered = exact_semantic_definition_placeholder_policy("covered")
+    coverage_event = exact_semantic_definition_placeholder_policy("coverage_event")
     rank = exact_semantic_definition_placeholder_policy("rank")
+    good_rank_event = exact_semantic_definition_placeholder_policy("good_rank_event")
+    prediction_set = exact_semantic_definition_placeholder_policy("C_n")
     bad_ranks = exact_semantic_definition_placeholder_policy("BadRanks")
     alpha_total = exact_semantic_definition_placeholder_policy("alpha_total")
 
     assert covered.policy_id == "split_conformal_coverage.covered"
     assert covered.required_anchor_names == ("s", "q_hat", "C", "hC")
     assert "hC" in covered.semantic_goal
+    assert coverage_event.policy_id == "split_conformal_coverage.covered"
+    assert coverage_event.required_anchor_names == ("s", "q_hat", "C", "hC")
 
     assert rank.policy_id == "split_conformal_coverage.rank"
     assert rank.required_anchor_names == ("n2", "s", "q_hat", "hq")
     assert "order-statistic threshold equation hq" in rank.semantic_goal
+
+    assert good_rank_event.policy_id == (
+        "split_conformal_coverage.good_rank_event"
+    )
+    assert good_rank_event.required_anchor_names == ("n2", "s", "q_hat", "hq")
+    assert "without asserting a probability bound" in good_rank_event.semantic_goal
+
+    assert prediction_set.policy_id == "split_conformal_coverage.prediction_set"
+    assert prediction_set.required_anchor_names == ("s", "q_hat")
+    assert "prediction set C_n" in prediction_set.semantic_goal
 
     order_stat = exact_semantic_definition_placeholder_policy("orderStat")
     assert order_stat.policy_id == (
