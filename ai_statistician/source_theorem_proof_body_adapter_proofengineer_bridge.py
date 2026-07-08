@@ -1044,10 +1044,25 @@ def _attach_premise_target_metadata(
             goal_context=goal_context,
             n_items=len(items),
         )
+        source_conclusion = _source_theorem_conclusion_from_row(row)
+        proof_body_goal_conclusion = str(
+            goal_context.get("conclusion", "") or ""
+        ).strip()
+        target_alignment_status = _premise_target_alignment_status(
+            proof_body_goal_conclusion=proof_body_goal_conclusion,
+            source_theorem_conclusion=source_conclusion,
+            target_source=target_source,
+        )
         payload = dict(item)
         payload.setdefault("premise_target_type", target_type)
         payload.setdefault("source_to_bridge_premise_target_type", target_type)
         payload.setdefault("premise_target_source", target_source)
+        if source_conclusion:
+            payload.setdefault("source_theorem_signature_conclusion", source_conclusion)
+        payload.setdefault(
+            "proof_body_goal_target_alignment_status",
+            target_alignment_status,
+        )
         enriched.append(payload)
     return tuple(enriched)
 
@@ -1077,9 +1092,116 @@ def _source_to_bridge_premise_target_type(
     if context_target:
         return context_target, "verified_closure_signature"
     goal_conclusion = str(goal_context.get("conclusion", "") or "").strip()
+    source_conclusion = _source_theorem_conclusion_from_row(row)
     if n_items == 1 and _looks_like_complete_premise_target_type(goal_conclusion):
+        if source_conclusion and not _same_lean_target_type(
+            goal_conclusion,
+            source_conclusion,
+        ):
+            return source_conclusion, "source_theorem_signature_conclusion"
         return goal_conclusion, "proof_body_goal_conclusion"
+    if _looks_like_complete_premise_target_type(source_conclusion):
+        return source_conclusion, "source_theorem_signature_conclusion"
     return "Prop", "opaque_prop_fallback"
+
+
+def _source_theorem_conclusion_from_row(row: Mapping[str, Any]) -> str:
+    for key in (
+        "source_theorem_conclusion",
+        "source_theorem_signature_conclusion",
+        "target_theorem_conclusion",
+    ):
+        value = str(row.get(key, "") or "").strip()
+        if value:
+            return value
+    target_declaration = str(
+        row.get("target_lean_declaration", "")
+        or _target_declaration_from_provenance(row)
+        or row.get("target_theorem_name", "")
+        or ""
+    ).strip()
+    artifact_paths = (
+        str(row.get("source_candidate_artifact_path", "") or ""),
+        str(row.get("proof_body_candidate_artifact_path", "") or ""),
+        str(row.get("candidate_artifact_path", "") or ""),
+        str(row.get("source_theorem_signature_probe_artifact_path", "") or ""),
+        str(row.get("proof_body_signature_probe_artifact_path", "") or ""),
+        str(row.get("signature_probe_artifact_path", "") or ""),
+    )
+    for artifact_path in artifact_paths:
+        excerpt = _lean_declaration_signature_excerpt_from_artifact_path(
+            artifact_path,
+            declaration=target_declaration,
+        )
+        conclusion = _lean_signature_conclusion_from_excerpt(excerpt)
+        if conclusion:
+            return conclusion
+    return ""
+
+
+def _lean_signature_conclusion_from_excerpt(excerpt: str) -> str:
+    text = " ".join(
+        line.strip() for line in str(excerpt or "").splitlines() if line.strip()
+    )
+    if not text:
+        return ""
+    colon_index = _declaration_type_colon_index(text)
+    if colon_index < 0:
+        return ""
+    conclusion = text[colon_index + 1 :].strip()
+    return conclusion[:-1].rstrip() if conclusion.endswith(":") else conclusion
+
+
+def _declaration_type_colon_index(text: str) -> int:
+    paren_depth = 0
+    bracket_depth = 0
+    brace_depth = 0
+    for index, char in enumerate(str(text or "")):
+        if char == "(":
+            paren_depth += 1
+        elif char == ")" and paren_depth:
+            paren_depth -= 1
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]" and bracket_depth:
+            bracket_depth -= 1
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}" and brace_depth:
+            brace_depth -= 1
+        elif (
+            char == ":"
+            and paren_depth == 0
+            and bracket_depth == 0
+            and brace_depth == 0
+        ):
+            return index
+    return -1
+
+
+def _same_lean_target_type(left: str, right: str) -> bool:
+    return _normalize_lean_target_type(left) == _normalize_lean_target_type(right)
+
+
+def _normalize_lean_target_type(value: str) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def _premise_target_alignment_status(
+    *,
+    proof_body_goal_conclusion: str,
+    source_theorem_conclusion: str,
+    target_source: str,
+) -> str:
+    goal = str(proof_body_goal_conclusion or "").strip()
+    source = str(source_theorem_conclusion or "").strip()
+    if not goal or not source:
+        return "PREMISE_TARGET_ALIGNMENT_NOT_CHECKED"
+    if _same_lean_target_type(goal, source):
+        return "PROOF_BODY_GOAL_MATCHES_SOURCE_THEOREM_CONCLUSION"
+    if target_source == "source_theorem_signature_conclusion":
+        return "PROOF_BODY_GOAL_DIFFERS_FROM_SOURCE_THEOREM_CONCLUSION_SOURCE_CONCLUSION_USED"
+    return "PROOF_BODY_GOAL_DIFFERS_FROM_SOURCE_THEOREM_CONCLUSION"
 
 
 def _adapter_premise_target_rows(
@@ -1868,6 +1990,12 @@ def _export_source_to_bridge_premise_derivation_queue(
                     ),
                     "premise_target_source": str(
                         item.get("premise_target_source", "") or ""
+                    ),
+                    "source_theorem_signature_conclusion": str(
+                        item.get("source_theorem_signature_conclusion", "") or ""
+                    ),
+                    "proof_body_goal_target_alignment_status": str(
+                        item.get("proof_body_goal_target_alignment_status", "") or ""
                     ),
                     "required_derivation": str(
                         item.get("required_derivation", "")

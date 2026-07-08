@@ -796,6 +796,160 @@ def test_adapter_bridge_goal_conclusion_target_feeds_premise_bridge(
     assert request["premise_target_source"] == "proof_body_goal_conclusion"
 
 
+def test_adapter_bridge_prefers_source_conclusion_over_mismatched_goal(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_proof_body_adapter_work_orders.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    source_conclusion = (
+        "P {ω | score (Fin.last n) ω ≤ q} ≥ ENNReal.ofReal (1 - alpha)"
+    )
+    proof_body_goal = (
+        "ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}"
+    )
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage",
+                "    (hExch : Prop) (q : ℝ) (hq : Prop) :",
+                f"    {source_conclusion} := by",
+                "  simp",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        queue,
+        [
+            _adapter_work_order(
+                proof_body_candidate_artifact_path=str(source_attempt),
+                proof_body_goal_excerpt=[
+                    "hExch : Prop",
+                    "q : ℝ",
+                    "hq : Prop",
+                    f"⊢ {proof_body_goal}",
+                ],
+                proof_body_gate_status="PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                source_theorem_exact_proof_body_reached=True,
+                source_theorem_exact_proof_body_gate_open_for_kernel_repair=True,
+                source_to_bridge_premise_derivation_work_items=[
+                    {
+                        "premise_name": "hGoodCovered",
+                        "required_derivation": (
+                            "derive hGoodCovered from exact source hypotheses"
+                        ),
+                        "forbidden_as_adapter_assumption": True,
+                        "proof_evidence_status": "WORK_ITEM_NOT_PROOF_EVIDENCE",
+                    }
+                ],
+            )
+        ],
+    )
+
+    manifest = run_source_theorem_proof_body_adapter_proofengineer_bridge(
+        out_dir=tmp_path / "adapter_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    adapter_source = Path(
+        manifest["rows"][0]["adapter_candidate_artifact_path"]
+    ).read_text(encoding="utf-8")
+    assert f"(hGoodCovered : {source_conclusion})" in adapter_source
+    assert f"(hGoodCovered : {proof_body_goal})" not in adapter_source
+    assert "-- premise target source: source_theorem_signature_conclusion" in (
+        adapter_source
+    )
+
+    premise_queue_rows = [
+        json.loads(line)
+        for line in Path(str(manifest["source_to_bridge_premise_derivation_queue_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert premise_queue_rows[0]["premise_target_type"] == source_conclusion
+    assert premise_queue_rows[0]["premise_target_source"] == (
+        "source_theorem_signature_conclusion"
+    )
+    assert premise_queue_rows[0]["source_theorem_signature_conclusion"] == (
+        source_conclusion
+    )
+    assert premise_queue_rows[0]["proof_body_goal_target_alignment_status"] == (
+        "PROOF_BODY_GOAL_DIFFERS_FROM_SOURCE_THEOREM_CONCLUSION_SOURCE_CONCLUSION_USED"
+    )
+
+
+def test_adapter_bridge_extracts_forall_source_conclusion_from_signature(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_proof_body_adapter_work_orders.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    source_conclusion = "∀ x : Nat, P x"
+    proof_body_goal = "P 0"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem dependent_source_goal",
+                "    (P : Nat → Prop) :",
+                f"    {source_conclusion} := by",
+                "  intro x",
+                "  simp",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        queue,
+        [
+            _adapter_work_order(
+                target_lean_declaration="dependent_source_goal",
+                proof_body_candidate_artifact_path=str(source_attempt),
+                proof_body_goal_excerpt=[
+                    "P : Nat → Prop",
+                    f"⊢ {proof_body_goal}",
+                ],
+                proof_body_gate_status="PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                source_theorem_exact_proof_body_reached=True,
+                source_theorem_exact_proof_body_gate_open_for_kernel_repair=True,
+                source_to_bridge_premise_derivation_work_items=[
+                    {
+                        "premise_name": "hForallSource",
+                        "required_derivation": (
+                            "derive hForallSource from exact source hypotheses"
+                        ),
+                        "forbidden_as_adapter_assumption": True,
+                        "proof_evidence_status": "WORK_ITEM_NOT_PROOF_EVIDENCE",
+                    }
+                ],
+            )
+        ],
+    )
+
+    manifest = run_source_theorem_proof_body_adapter_proofengineer_bridge(
+        out_dir=tmp_path / "adapter_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    premise_queue_rows = [
+        json.loads(line)
+        for line in Path(str(manifest["source_to_bridge_premise_derivation_queue_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert premise_queue_rows[0]["premise_target_type"] == source_conclusion
+    assert premise_queue_rows[0]["premise_target_source"] == (
+        "source_theorem_signature_conclusion"
+    )
+    assert premise_queue_rows[0]["source_theorem_signature_conclusion"] == (
+        source_conclusion
+    )
+
+
 def test_adapter_bridge_consumes_exact_goal_shape_adapter_instantiation_queue(
     tmp_path: Path,
 ) -> None:
