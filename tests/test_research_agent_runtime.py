@@ -55748,6 +55748,78 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
     assert unknown_placeholder_summary["source_theorem_ready_for_exact_proof_body"] is False
 
 
+def test_exact_semantic_work_order_replay_accepts_compact_task_and_string_false_flags() -> None:
+    compact_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "input_summary": {
+            "learning_task": "source_theorem_exact_semantic_definition_work_order",
+            "target_theorem_name": "compact_semantic_source_theorem",
+            "target_ids": ["compact_semantic_source_theorem"],
+            "placeholder_symbol": "compact_event",
+            "definition_only_candidate_artifact_path": "runs/compact_event.lean",
+            "local_definition_lean_checked": "true",
+            "local_definition_lean_compiled": "false",
+            "source_theorem_kernel_verified": "false",
+            "runtime_queue_status": (
+                "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+            ),
+            "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+        },
+    }
+    artifact_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "target_theorem_name": "compact_semantic_source_theorem",
+        "target_ids": ["compact_semantic_source_theorem"],
+        "placeholder_symbol": "compact_rank",
+        "definition_only_candidate_artifact_path": "runs/compact_rank.lean",
+        "local_definition_lean_checked": "true",
+        "local_definition_lean_compiled": "false",
+        "runtime_queue_status": "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR",
+        "source_theorem_exact_semantic_definition_typechecked_candidate": {
+            "placeholder_symbol": "compact_rank",
+            "definition_only_candidate_artifact_path": "runs/compact_rank.lean",
+            "local_definition_lean_checked": "true",
+            "local_definition_lean_compiled": "false",
+            "proof_evidence_status": (
+                "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_NOT_PROOF_EVIDENCE"
+            ),
+        },
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+
+    rows = (
+        _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learning_rows(
+            [compact_row, artifact_row]
+        )
+    )
+
+    assert {row["placeholder_symbol"] for row in rows} == {
+        "compact_event",
+        "compact_rank",
+    }
+    by_symbol = {row["placeholder_symbol"]: row for row in rows}
+    assert by_symbol["compact_event"]["source_runtime_learning_task"] == (
+        "source_theorem_exact_semantic_definition_work_order"
+    )
+    for row in rows:
+        assert row["local_definition_lean_checked"] is True
+        assert row["local_definition_lean_compiled"] is False
+        assert row["runtime_queue_status"] == (
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+        )
+        assert row["source_theorem_ready_for_exact_proof_body"] is False
+        assert row["proof_evidence_status"] == (
+            "WORK_ORDER_FROM_RUNTIME_MEMORY_NOT_PROOF_EVIDENCE"
+        )
+    compact_rank_candidate = by_symbol["compact_rank"][
+        "source_theorem_exact_semantic_definition_typechecked_candidate"
+    ]
+    assert compact_rank_candidate["local_definition_lean_checked"] is True
+    assert compact_rank_candidate["local_definition_lean_compiled"] is False
+
+
 def test_source_theorem_promotion_seed_blocks_unresolved_semantic_placeholders(
     tmp_path: Path,
 ) -> None:

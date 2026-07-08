@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:17:15Z",
+  "updated_at": "2026-07-08T00:23:02Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "S13 guidance fallback now consumes structured source-theorem proof-body same-lane verified_lanes when the same-lane verifier scorecard row is absent, so materialized/late/authoring-retry lanes exported by AgentRuntime audit can satisfy the diagnostic local Lean/kernel fallback without brittle prose parsing. Existing same-lane verifier scorecards remain authoritative when present; a failed or stale scorecard is not overridden by structured diagnostics, and kernel verification remains the proof boundary.",
+  "latest_main_worker_patch": "Exact semantic-definition work-order replay now consumes compact runtime-learning rows whose learning_task lives under input_summary, and normalizes serialized local_definition_lean_checked/local_definition_lean_compiled plus environment-repair booleans before queue/status normalization. Compact exact-semantic repair memory can therefore regenerate Formalizer/ProofEngineer work orders, while string 'false' local Lean fields stay false and cannot promote an uncompiled definition-only candidate into semantic-review-ready proof-body routing. This is non-proof repair-memory hardening; source theorem proof still requires local Lean/AXLE kernel verification.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -2970,6 +2970,13 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_core.py -k \"research_system_audit or evaluation_benchmark_guidance\" # 11 passed, 282 deselected, 6 subtests passed after structured same-lane S13 fallback patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 883 deselected after structured same-lane S13 fallback patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 882 deselected after structured same-lane S13 fallback patch",
-    "git diff --check # passed after structured same-lane S13 fallback patch"
+    "git diff --check # passed after structured same-lane S13 fallback patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after compact exact-semantic work-order replay bool/task patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic_work_order_replay_accepts_compact_task_and_string_false_flags or source_promotion_waits_for_all_placeholder_semantic_support\" # 2 passed, 927 deselected after compact exact-semantic work-order replay bool/task patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic and (work_order or input_summary or string_false or source_theorem_repair)\" # 20 passed, 909 deselected after compact exact-semantic work-order replay bool/task patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"source_theorem_repair_memory_accepts_compact_learning_task_rows or runtime_learning_memory_loader_pins_compact_source_theorem_repair_rows or runtime_learning_memory_loader_string_false_verified_rows_do_not_outrank_exact_semantic\" # 3 passed, 926 deselected after compact exact-semantic work-order replay bool/task patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (truth_table or generated_next_action or adapter or gate_open or source_theorem)\" # 46 passed, 883 deselected after compact exact-semantic work-order replay bool/task patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"proof_body and (scorecard or audit or truth_table)\" # 45 passed, 884 deselected after compact exact-semantic work-order replay bool/task patch",
+    "git diff --check # passed after compact exact-semantic work-order replay bool/task patch"
   ]
 }

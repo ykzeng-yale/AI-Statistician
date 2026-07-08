@@ -71249,8 +71249,8 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
             if isinstance(row.get("input_summary", {}), Mapping)
             else {}
         )
-        learning_task = str(row.get("learning_task", "") or "")
-        trigger = str(input_summary.get("trigger", "") or row.get("trigger", "") or "")
+        learning_task = _runtime_learning_row_task(row, input_summary)
+        trigger = _runtime_learning_row_trigger(row, input_summary)
         environment_repair_status = str(
             row.get("environment_repair_status", "")
             or input_summary.get("environment_repair_status", "")
@@ -71268,7 +71268,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
         if (
             str(row.get("artifact_kind", "") or "")
             != "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
-            and str(row.get("learning_task", "") or "")
+            and learning_task
             != "source_theorem_exact_semantic_definition_work_order"
             and not exact_environment_repair_row
         ):
@@ -71351,6 +71351,17 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
         )
         for candidate_key, candidate_value in input_typechecked_candidate.items():
             typechecked_candidate.setdefault(candidate_key, candidate_value)
+        for bool_key in (
+            "local_definition_lean_checked",
+            "local_definition_lean_compiled",
+            "semantic_definition_import_candidate_ready",
+            "source_theorem_ready_for_exact_proof_body",
+            "source_theorem_kernel_verified",
+        ):
+            if bool_key in typechecked_candidate:
+                typechecked_candidate[bool_key] = _bool_like(
+                    typechecked_candidate.get(bool_key)
+                )
         definition_only_candidate_artifact_path = str(
             row.get("definition_only_candidate_artifact_path", "")
             or input_summary.get("definition_only_candidate_artifact_path", "")
@@ -71363,15 +71374,21 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
             or typechecked_candidate.get("candidate_artifact_path", "")
             or ""
         )
-        local_definition_lean_checked = bool(
-            row.get("local_definition_lean_checked", False)
-            or input_summary.get("local_definition_lean_checked", False)
-            or typechecked_candidate.get("local_definition_lean_checked", False)
+        local_definition_lean_checked = any(
+            _bool_like(value)
+            for value in (
+                row.get("local_definition_lean_checked", False),
+                input_summary.get("local_definition_lean_checked", False),
+                typechecked_candidate.get("local_definition_lean_checked", False),
+            )
         )
-        local_definition_lean_compiled = bool(
-            row.get("local_definition_lean_compiled", False)
-            or input_summary.get("local_definition_lean_compiled", False)
-            or typechecked_candidate.get("local_definition_lean_compiled", False)
+        local_definition_lean_compiled = any(
+            _bool_like(value)
+            for value in (
+                row.get("local_definition_lean_compiled", False),
+                input_summary.get("local_definition_lean_compiled", False),
+                typechecked_candidate.get("local_definition_lean_compiled", False),
+            )
         )
         semantic_definition_typecheck_evidence_status = str(
             row.get("semantic_definition_typecheck_evidence_status", "")
@@ -71544,12 +71561,12 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_learn
                 or ""
             ),
             "dependency_fetch_required": bool(
-                row.get("dependency_fetch_required", False)
-                or input_summary.get("dependency_fetch_required", False)
+                _bool_like(row.get("dependency_fetch_required", False))
+                or _bool_like(input_summary.get("dependency_fetch_required", False))
             ),
             "ready_to_rerun_lean_repair": bool(
-                row.get("ready_to_rerun_lean_repair", False)
-                or input_summary.get("ready_to_rerun_lean_repair", False)
+                _bool_like(row.get("ready_to_rerun_lean_repair", False))
+                or _bool_like(input_summary.get("ready_to_rerun_lean_repair", False))
             ),
             "recommended_commands": list(
                 _str_tuple(
@@ -73069,6 +73086,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
         input_summary = row.get("input_summary", {})
         if not isinstance(input_summary, Mapping):
             input_summary = {}
+        learning_task = _runtime_learning_row_task(row, input_summary)
         trigger = _runtime_learning_row_trigger(row, input_summary)
         failure_classification = str(
             input_summary.get("failure_classification", "")
@@ -73089,8 +73107,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
         ).strip()
         source_to_bridge_premise_gap = bool(
             trigger == "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP"
-            or str(row.get("learning_task", "") or "")
-            == "source_to_bridge_premise_semantic_repair_feedback"
+            or learning_task == "source_to_bridge_premise_semantic_repair_feedback"
             or str(row.get("semantic_primitive_gap_kind", "") or "")
             == "source_to_bridge_premise_semantic_gap"
             or str(input_summary.get("semantic_primitive_gap_kind", "") or "")
@@ -73106,7 +73123,7 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
             )
         )
         materialized_candidate_review_required = bool(
-            str(row.get("learning_task", "") or "") == "generated_next_action_routing"
+            learning_task == "generated_next_action_routing"
             and (
                 runtime_queue_status
                 in {
