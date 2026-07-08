@@ -396,7 +396,8 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
         candidate_source
     )
     assert "-- bridge object instantiation policy:" in candidate_source
-    assert "adapter objects such as covered, rank, BadRanks" in candidate_source
+    assert "the listed adapter objects covered" in candidate_source
+    assert "rank, BadRanks" not in candidate_source
     assert "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation" in (
         candidate_source
     )
@@ -532,7 +533,8 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     ]
     assert "premise_semantic_anchor_binders" in request["candidate_contract"]
     assert "required_semantic_anchor_reference_names" in request["candidate_contract"]
-    assert "covered, rank, BadRanks" in request["candidate_contract"]
+    assert "the listed adapter objects covered" in request["candidate_contract"]
+    assert "rank, BadRanks" not in request["candidate_contract"]
     assert request["proof_evidence_status"] == (
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_REQUEST_NOT_PROOF_EVIDENCE"
     )
@@ -1383,7 +1385,7 @@ def test_premise_bridge_groups_shared_adapter_instantiation_requests(
         in grouped_request["forbidden_actions"]
     )
     assert any(
-        "do not put adapter objects" in action
+        "do not put the listed adapter objects" in action
         for action in grouped_request["forbidden_actions"]
     )
     for request in requests:

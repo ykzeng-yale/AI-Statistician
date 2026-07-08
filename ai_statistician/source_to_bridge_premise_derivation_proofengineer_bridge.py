@@ -1750,6 +1750,12 @@ def _generated_premise_derivation_skeleton(
         )
         for binder in semantic_anchor_binders
     )
+    adapter_object_names = _adapter_object_names_requiring_source_instantiation(
+        premise_target_type=str(premise_target["premise_type"]),
+        row=row,
+        candidate_request={**grouped_candidate_request, **candidate_request},
+    )
+    adapter_object_phrase = _adapter_object_contract_phrase(adapter_object_names)
     skeleton_instantiation_policy = (
         "-- bridge object instantiation policy: this premise target comes from "
         "the reached proof-body goal; derive it from exact source binders and "
@@ -1757,10 +1763,10 @@ def _generated_premise_derivation_skeleton(
         "or the goal conclusion as free assumptions.\n"
         if premise_target_uses_goal_context
         else (
-            "-- bridge object instantiation policy: adapter objects such as covered, "
-            "rank, BadRanks, α, and α_total are not free proof assumptions for the "
-            "source theorem; define or instantiate them from exact source binders, "
-            "or report the missing semantic primitive as a blocker.\n"
+            f"-- bridge object instantiation policy: {adapter_object_phrase} "
+            "are not free proof assumptions for the source theorem; define or "
+            "instantiate them from exact source binders, or report the missing "
+            "semantic primitive as a blocker.\n"
         )
     )
     theorem_statement = _premise_derivation_theorem_statement(
@@ -3516,6 +3522,7 @@ def _grouped_premise_derivation_candidate_request_rows(
             "",
         )
         if not shared_contract:
+            adapter_object_phrase = _adapter_object_contract_phrase(adapter_objects)
             shared_contract = (
                 "Use one shared reached proof-body goal context and exact "
                 "source-binder interpretation across all listed premise_names; "
@@ -3523,9 +3530,9 @@ def _grouped_premise_derivation_candidate_request_rows(
                 "interpretations."
                 if group_uses_goal_context and not adapter_objects
                 else (
-                    "Use one shared source-derived instantiation of adapter "
-                    "objects across all listed premise_names; do not prove "
-                    "grouped premises with incompatible definitions."
+                    f"Use one shared source-derived instantiation of "
+                    f"{adapter_object_phrase} across all listed premise_names; "
+                    "do not prove grouped premises with incompatible definitions."
                 )
             )
         grouped_candidate_contract = (
@@ -3569,7 +3576,9 @@ def _grouped_premise_derivation_candidate_request_rows(
             )
         else:
             grouped_forbidden_actions.append(
-                "do not put adapter objects such as covered, rank, BadRanks, α, or α_total in the theorem header as free binders"
+                "do not put "
+                + _adapter_object_contract_phrase(adapter_objects)
+                + " in the theorem header as free binders"
             )
         grouped_forbidden_actions.extend(
             [
@@ -3807,6 +3816,9 @@ def _premise_derivation_candidate_request_row(
         premise_target_type=row.premise_target_type,
         proof_body_goal_conclusion=row.proof_body_goal_conclusion,
     )
+    adapter_object_phrase = _adapter_object_contract_phrase(
+        row.adapter_object_names_requiring_source_instantiation
+    )
     default_shared_contract = (
         "All source-to-bridge premise candidates with the same "
         "adapter_instantiation_group_id must use the same reached proof-body "
@@ -3817,10 +3829,9 @@ def _premise_derivation_candidate_request_row(
         else (
             "All source-to-bridge premise candidates with the same "
             "adapter_instantiation_group_id must use one shared definition of "
-            "covered, rank, BadRanks, α, and α_total from the exact source "
-            "theorem binders. Independently proving premises with incompatible "
-            "adapter-object definitions cannot be combined into source theorem "
-            "proof evidence."
+            f"{adapter_object_phrase} from the exact source theorem binders. "
+            "Independently proving premises with incompatible adapter-object "
+            "definitions cannot be combined into source theorem proof evidence."
         )
     )
     bridge_object_instantiation_policy = (
@@ -3830,9 +3841,8 @@ def _premise_derivation_candidate_request_row(
         "binders or the target conclusion as arbitrary assumptions."
         if target_uses_goal_context
         else (
-            "Adapter objects appearing in premise_target_type, such as covered, "
-            "rank, BadRanks, α, and α_total, are not source-theorem assumptions. "
-            "The candidate must define or instantiate them from the exact source "
+            f"{adapter_object_phrase} are not source-theorem assumptions. The "
+            "candidate must define or instantiate them from the exact source "
             "binders, or report a semantic blocker instead of treating them as "
             "arbitrary variables."
         )
@@ -3843,9 +3853,9 @@ def _premise_derivation_candidate_request_row(
         "from the source theorem. "
         if target_uses_goal_context
         else (
-            "Do not treat adapter objects such as covered, rank, BadRanks, α, or "
-            "α_total as arbitrary free variables or theorem parameters when they "
-            "must be instantiated from the source theorem. "
+            f"Do not treat {adapter_object_phrase} as arbitrary free variables "
+            "or theorem parameters when they must be instantiated from the "
+            "source theorem. "
         )
     )
     return {
@@ -4507,6 +4517,33 @@ def _adapter_object_names_requiring_source_instantiation(
     if candidate_request.get("bridge_object_instantiation_policy"):
         names.extend(DEFAULT_ADAPTER_OBJECT_NAMES_REQUIRING_SOURCE_INSTANTIATION)
     return tuple(dict.fromkeys(name for name in names if name))
+
+
+def _adapter_object_contract_phrase(adapter_object_names: Sequence[str]) -> str:
+    names = tuple(
+        dict.fromkeys(
+            str(name).strip()
+            for name in adapter_object_names
+            if str(name).strip()
+        )
+    )
+    if not names:
+        return (
+            "source-to-bridge adapter objects required by the semantic "
+            "dependency rows"
+        )
+    return f"the listed adapter objects {_human_join(names)}"
+
+
+def _human_join(values: Sequence[str]) -> str:
+    items = [str(value).strip() for value in values if str(value).strip()]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
 
 
 def _candidate_uninstantiated_adapter_object_binders(
