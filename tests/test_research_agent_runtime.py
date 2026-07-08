@@ -85058,6 +85058,87 @@ def test_runtime_capability_scorecard_accepts_formalizer_pf_component_gate_exact
     assert "pf_missing_lookup_symbols=[]" in row["evidence"]
 
 
+def test_runtime_capability_scorecard_blocks_formalizer_pf_component_gate_handoff_diagnostic() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_pseudo_formal": 0,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_formalizer_pf_component_gate": 1,
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders_from_learning_memory_formalizer_pf_component_gate": 1,
+        "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_placeholder_symbols": [
+            "coverage_event"
+        ],
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows": 1,
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_failure_classifications": [
+            "formalizer_pf_component_gate_exact_rows_jsonl_missing"
+        ],
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_missing_artifact_ids": [
+            "/tmp/missing_exact_rows.jsonl"
+        ],
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths": [
+            "/tmp/missing_exact_rows.jsonl"
+        ],
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "source_theorem_exact_semantic_definition_source_lookup_effective": True,
+        "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        "source_theorem_exact_semantic_definition_n_closure_review_packets": 0,
+        "source_theorem_exact_semantic_definition_source_lookup_n_work_orders_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_lookup_rows_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows_from_formalizer_pf_component_gate": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_pseudo_formal_origin_lineage_complete": True,
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_ids": [
+            "pseudo_formal_copy_fragment:coverage"
+        ],
+        "source_theorem_exact_semantic_definition_source_lookup_source_prompt_scaffold_kinds": [
+            "pseudo_formalization_required_copy_fragment"
+        ],
+        "source_theorem_exact_semantic_definition_source_lookup_source_pseudo_formal_placeholder_symbols": [
+            "coverage_event"
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows[
+        "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+    ]
+
+    assert row["passed"] is False
+    assert "pf_component_gate_handoff_diagnostic_rows=1" in row["evidence"]
+    assert "formalizer_pf_component_gate_exact_rows_jsonl_missing" in row[
+        "evidence"
+    ]
+    assert "/tmp/missing_exact_rows.jsonl" in row["evidence"]
+    assert "handoff diagnostics were recorded" in row["blocker"]
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+    routing_row = next(
+        row
+        for row in routing_rows
+        if row["requirement_id"]
+        == "pseudo_formal_exact_semantic_definitions_reach_exact_definition_source_lookup"
+    )
+    assert routing_row["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert "zero PF component-gate exact-row handoff diagnostics" in routing_row[
+        "success_metric"
+    ]
+    assert (
+        routing_row["proof_evidence_status"]
+        == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_runtime_capability_scorecard_rejects_pseudo_formal_exact_definition_lookup_missing_symbol() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
@@ -91622,6 +91703,26 @@ def test_runtime_formalizer_pf_component_gate_missing_exact_rows_artifact_routes
     assert "not proof evidence" in diagnostic["boundary"]
     assert diagnostic["input_summary"]["missing_artifact_role"] == (
         "formalizer_pf_component_gate_exact_semantic_definition_rows_jsonl"
+    )
+    audit_summary = (
+        audit_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
+            learning_rows=rows
+        )
+    )
+    assert (
+        audit_summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows"
+        ]
+        == 1
+    )
+    assert audit_summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths"
+    ] == [str(missing_exact_rows)]
+    assert (
+        "formalizer_pf_component_gate_exact_rows_jsonl_missing"
+        in audit_summary[
+            "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_failure_classifications"
+        ]
     )
     proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
         context={

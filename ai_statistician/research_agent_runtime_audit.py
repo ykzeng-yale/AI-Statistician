@@ -1376,6 +1376,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     learning_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
     learning_task = "formalizer_pseudo_formal_packet_component_gate_feedback"
+    handoff_diagnostic_learning_task = (
+        "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic"
+    )
     source_component_gate = "formalizer_pseudo_formal_packet_component_gate"
     proof_evidence_status = (
         "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -1405,6 +1408,11 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     failure_required_target_lanes: list[str] = []
     failure_copy_target_lanes: list[str] = []
     failure_types: list[str] = []
+    handoff_diagnostic_rows = 0
+    handoff_diagnostic_exact_rows_paths: list[str] = []
+    handoff_diagnostic_missing_artifact_ids: list[str] = []
+    handoff_diagnostic_failure_classifications: list[str] = []
+    handoff_diagnostic_next_owner_subsystems: list[str] = []
 
     def _row_field(row: Mapping[str, Any], key: str, default: Any = None) -> Any:
         input_summary = (
@@ -1417,11 +1425,42 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     for row in learning_rows:
         if not isinstance(row, Mapping):
             continue
-        if str(_row_field(row, "learning_task", "") or "").strip() != learning_task:
+        row_learning_task = str(_row_field(row, "learning_task", "") or "").strip()
+        row_source_component_gate = str(
+            _row_field(row, "source_component_gate", "") or ""
+        ).strip()
+        if row_learning_task == handoff_diagnostic_learning_task:
+            if row_source_component_gate not in ("", source_component_gate):
+                continue
+            handoff_diagnostic_rows += 1
+            handoff_diagnostic_exact_rows_paths.append(
+                str(_row_field(row, "source_component_gate_exact_rows_jsonl", "") or "")
+            )
+            handoff_diagnostic_missing_artifact_ids.append(
+                str(_row_field(row, "missing_artifact_id", "") or "")
+            )
+            handoff_diagnostic_failure_classifications.append(
+                str(_row_field(row, "failure_classification", "") or "")
+            )
+            handoff_diagnostic_failure_classifications.extend(
+                _compact_string_list(
+                    _row_field(row, "failure_classifications", [])
+                )
+            )
+            handoff_diagnostic_next_owner_subsystems.append(
+                str(
+                    _row_field(
+                        row,
+                        "next_owner_subsystem",
+                        "AgentRuntime/HandoffRecovery",
+                    )
+                    or ""
+                )
+            )
             continue
-        if str(_row_field(row, "source_component_gate", "") or "").strip() != (
-            source_component_gate
-        ):
+        if row_learning_task != learning_task:
+            continue
+        if row_source_component_gate != source_component_gate:
             continue
         rows.append(row)
         manifest_path = str(
@@ -1644,6 +1683,21 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         ),
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": (
             failure_repair_seed_invalid_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows": (
+            handoff_diagnostic_rows
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths": (
+            _compact_string_list(handoff_diagnostic_exact_rows_paths)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_missing_artifact_ids": (
+            _compact_string_list(handoff_diagnostic_missing_artifact_ids)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_failure_classifications": (
+            _compact_string_list(handoff_diagnostic_failure_classifications)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_next_owner_subsystems": (
+            _compact_string_list(handoff_diagnostic_next_owner_subsystems)
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": (
             max_routable_work_order_rows
@@ -5032,6 +5086,31 @@ def audit_research_agent_runtime(
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": int(
             runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
                 "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_missing_artifact_ids": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_missing_artifact_ids"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_failure_classifications": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_failure_classifications"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_next_owner_subsystems": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_next_owner_subsystems"
             ]
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": int(
@@ -18658,6 +18737,43 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_formalizer_pseudo_formal_component_gate_handoff_diagnostic_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows",
+            payload.get(
+                "n_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows",
+                0,
+            ),
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_gate_handoff_failure_classifications = (
+        _compact_string_list(
+            payload.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_failure_classifications",
+                [],
+            )
+        )
+    )
+    runtime_formalizer_pseudo_formal_component_gate_handoff_missing_artifacts = (
+        _compact_string_list(
+            payload.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_missing_artifact_ids",
+                [],
+            )
+        )
+    )
+    runtime_formalizer_pseudo_formal_component_gate_handoff_exact_rows_paths = (
+        _compact_string_list(
+            payload.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths",
+                payload.get(
+                    "runtime_source_theorem_exact_semantic_definition_formalizer_pf_component_gate_exact_rows_jsonl_paths",
+                    [],
+                ),
+            )
+        )
+    )
     runtime_formalizer_pseudo_formal_component_learning_failure_copy_routable_rows = int(
         payload.get(
             "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_failure_copy_routable_work_order_rows",
@@ -20548,6 +20664,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         not pseudo_formal_exact_semantic_expected_symbols
         or not missing_exact_semantic_source_lookup_pf_symbols
     )
+    formalizer_pf_component_gate_exact_rows_handoff_clear = (
+        runtime_formalizer_pseudo_formal_component_gate_handoff_diagnostic_rows <= 0
+    )
     exact_semantic_source_lookup_policy_lineage_complete = (
         payload.get(
             "source_theorem_exact_semantic_definition_source_lookup_placeholder_policy_lineage_complete"
@@ -20563,8 +20682,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     pseudo_formal_exact_semantic_source_lookup_consumed = (
         pseudo_formal_exact_semantic_work_orders <= 0
+        and formalizer_pf_component_gate_exact_rows_handoff_clear
         or (
-            exact_semantic_source_lookup_required_present
+            formalizer_pf_component_gate_exact_rows_handoff_clear
+            and exact_semantic_source_lookup_required_present
             and exact_semantic_source_lookup_required
             and exact_semantic_source_lookup_effective_present
             and exact_semantic_source_lookup_effective
@@ -24420,6 +24541,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{pseudo_formal_exact_semantic_component_gate_work_orders} "
                 "formalizer_pf_component_gate_learning_memory_work_orders="
                 f"{pseudo_formal_exact_semantic_learning_memory_component_gate_work_orders} "
+                "pf_component_gate_handoff_diagnostic_rows="
+                f"{runtime_formalizer_pseudo_formal_component_gate_handoff_diagnostic_rows} "
+                "pf_component_gate_handoff_failure_classifications="
+                f"{runtime_formalizer_pseudo_formal_component_gate_handoff_failure_classifications} "
+                "pf_component_gate_handoff_missing_artifacts="
+                f"{runtime_formalizer_pseudo_formal_component_gate_handoff_missing_artifacts} "
+                "pf_component_gate_handoff_exact_rows_jsonl_paths="
+                f"{runtime_formalizer_pseudo_formal_component_gate_handoff_exact_rows_paths} "
                 "total_exact_semantic_work_orders="
                 f"{payload.get('n_runtime_source_theorem_exact_semantic_definition_work_orders')} "
                 "lookup_required_present="
@@ -24475,8 +24604,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "pseudo-formal exact semantic-definition work orders were "
-                "emitted but did not reach the exact semantic-definition source "
-                "lookup/review loop as non-proof definition-authoring work"
+                "emitted, or PF component-gate exact-row handoff diagnostics "
+                "were recorded, but they did not reach the exact semantic-"
+                "definition source lookup/review loop as non-proof "
+                "definition-authoring work"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -24494,10 +24625,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "source_theorem_exact_semantic_definition_source_lookup_ran=true, "
                     "PF-origin lookup rows are produced, PF-origin learning rows "
                     "or closure review packets are produced, and PF/BV origin "
-                    "lineage plus prompt scaffold IDs/kinds are preserved; when "
-                    "recomputed PF exact-semantic symbols are available, every "
-                    "expected symbol appears in PF-origin lookup placeholder/"
-                    "semantic telemetry"
+                    "lineage plus prompt scaffold IDs/kinds are preserved, "
+                    "with zero PF component-gate exact-row handoff diagnostics; "
+                    "when recomputed PF exact-semantic symbols are available, "
+                    "every expected symbol appears in PF-origin lookup "
+                    "placeholder/semantic telemetry"
                 ),
             ),
         ),
