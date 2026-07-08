@@ -95,6 +95,53 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
         encoding="utf-8",
     )
     exact_rows_jsonl = "runs/formalizer_pf/exact_semantic_definition_rows.jsonl"
+    nested_exact_context = {
+        "source_anchor_context": [
+            {
+                "source": "candidate_definition_request.required_anchor_bindings",
+                "kind": "required_anchor_binding",
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q",
+                "semantic_anchor_name": "q_hat",
+                "name": "q",
+                "type": "Real",
+                "role": "threshold_function_anchor",
+                "binder": {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                },
+            }
+        ],
+        "source_anchor_context_rows": 1,
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "placeholder_symbol": "good_rank_event",
+            "required_anchor_names": ["q_hat"],
+            "available_anchor_names": ["q", "q_hat"],
+            "missing_required_anchor_names": [],
+            "required_anchor_bindings": [
+                {
+                    "required_anchor_name": "q_hat",
+                    "actual_anchor_name": "q",
+                    "match_kind": "source_anchor_role",
+                    "role": "threshold_function_anchor",
+                    "binder": {
+                        "name": "q",
+                        "type": "Real",
+                        "role": "threshold_function_anchor",
+                    },
+                }
+            ],
+            "required_binders": [
+                {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                }
+            ],
+        },
+    }
     work_orders_jsonl = tmp_path / "runtime_source_theorem_promotion_work_orders.jsonl"
     work_orders_jsonl.write_text(
         json.dumps(
@@ -178,6 +225,9 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                 "pseudo_formal_proof_evidence_status": (
                     "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
                 ),
+                "input_summary": {
+                    "exact_semantic_definition_context": nested_exact_context,
+                },
                 "source_theorem_exact_proof_body_repair_diagnostics": [
                     {
                         "target_theorem_name": "split_conformal_coverage",
@@ -280,6 +330,17 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["exact_semantic_definition_context"][
         "pseudo_formal_proof_evidence_status"
     ] == "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE"
+    assert execution_row["source_anchor_context"][0]["actual_anchor_name"] == "q"
+    assert execution_row["source_anchor_context_rows"] == 1
+    assert execution_row["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+    assert execution_row["live_proof_state_request"]["source_anchor_context"][0][
+        "actual_anchor_name"
+    ] == "q"
+    assert execution_row["exact_semantic_definition_context"][
+        "candidate_definition_request"
+    ]["required_binders"][0]["name"] == "q"
     assert execution_row["proof_body_attempts"][:2] == [
         "simpa using splitConformalFiniteSampleCoverage_reductionClosure",
         "exact splitConformalFiniteSampleCoverage_reductionClosure",

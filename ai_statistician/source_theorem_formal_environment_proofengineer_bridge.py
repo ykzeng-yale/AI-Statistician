@@ -1745,17 +1745,7 @@ def _exact_semantic_definition_context(
     *fallback_rows: Mapping[str, Any],
 ) -> dict[str, Any]:
     context: dict[str, Any] = {}
-    sources: list[Mapping[str, Any]] = []
-    for source in (row, *fallback_rows):
-        if not isinstance(source, Mapping):
-            continue
-        sources.append(source)
-        input_summary = source.get("input_summary", {})
-        if isinstance(input_summary, Mapping):
-            sources.append(input_summary)
-        nested = source.get("exact_semantic_definition_context", {})
-        if isinstance(nested, Mapping):
-            sources.append(nested)
+    sources = _exact_semantic_context_sources(row, *fallback_rows)
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
         for source in sources:
             value = source.get(key, None)
@@ -1769,6 +1759,31 @@ def _exact_semantic_definition_context(
                 context[key] = value
             break
     return context
+
+
+def _exact_semantic_context_sources(
+    row: Mapping[str, Any],
+    *fallback_rows: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = []
+    for source in (row, *fallback_rows):
+        if not isinstance(source, Mapping):
+            continue
+        sources.append(source)
+        input_summary = source.get("input_summary", {})
+        if isinstance(input_summary, Mapping) and input_summary:
+            sources.append(input_summary)
+        typechecked_candidate = source.get(
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+            {},
+        )
+        if isinstance(typechecked_candidate, Mapping) and typechecked_candidate:
+            sources.append(typechecked_candidate)
+    for source in list(sources):
+        nested = source.get("exact_semantic_definition_context", {})
+        if isinstance(nested, Mapping) and nested:
+            sources.append(nested)
+    return sources
 
 
 def _has_pseudo_formal_origin(row: Mapping[str, Any]) -> bool:
