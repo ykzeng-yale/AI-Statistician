@@ -47209,7 +47209,7 @@ def _source_theorem_exact_semantic_definition_repair_agenda_item(
             if str(value).strip()
         )
     )
-    return {
+    item = {
         "id": "formal_gap:source_theorem_exact_semantic_definition_repair",
         "owner_subsystem": "TheoryDeveloper/Formalizer/ProofEngineer/LeanProver",
         "trigger": "SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
@@ -47241,6 +47241,158 @@ def _source_theorem_exact_semantic_definition_repair_agenda_item(
             "Lean/AXLE verification of the exact theorem declaration."
         ),
     }
+    if _bool_like(
+        proof_bank_memory_summary.get(
+            "source_theorem_candidate_materialization_required",
+            False,
+        )
+    ):
+        item["deferred_source_theorem_candidate_materialization_required"] = True
+        item["deferred_source_theorem_candidate_materialization_reason"] = (
+            "Exact source-theorem candidate materialization is suspended until "
+            "the active exact semantic-definition gate is reviewed/imported and "
+            "the proof-body gate is open."
+        )
+        item["deferred_source_theorem_candidate_materialization_target_ids"] = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in (
+                    proof_bank_memory_summary.get(
+                        "source_theorem_candidate_materialization_required_target_ids",
+                        [],
+                    )
+                    or proof_bank_memory_summary.get(
+                        "source_theorem_candidate_materialization_required_target_names",
+                        [],
+                    )
+                    or []
+                )
+                if str(value).strip()
+            )
+        )
+        item["deferred_source_theorem_candidate_materialization_statuses"] = [
+            str(value).strip()
+            for value in proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_required_statuses",
+                [],
+            )
+            or []
+            if str(value).strip()
+        ]
+        materialization_contract = str(
+            proof_bank_memory_summary.get(
+                "source_theorem_candidate_materialization_contract",
+                "",
+            )
+            or ""
+        ).strip()
+        if materialization_contract:
+            item[
+                "deferred_source_theorem_candidate_materialization_contract"
+            ] = materialization_contract
+    return item
+
+
+def _critic_exact_semantic_definition_gate_active(
+    proof_bank_memory_summary: Mapping[str, Any],
+) -> bool:
+    if not isinstance(proof_bank_memory_summary, Mapping):
+        return False
+    if _bool_like(
+        proof_bank_memory_summary.get(
+            "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
+            False,
+        )
+    ) or _bool_like(
+        proof_bank_memory_summary.get("source_theorem_ready_for_exact_proof_body", False)
+    ):
+        return False
+    if _bool_like(
+        proof_bank_memory_summary.get(
+            "source_theorem_exact_semantic_definition_repair_required",
+            False,
+        )
+    ):
+        return True
+    if (
+        str(
+            proof_bank_memory_summary.get(
+                "recommended_formalizer_target_mode",
+                "",
+            )
+            or ""
+        )
+        == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
+    ):
+        return True
+    failure_classifications = {
+        str(value).strip()
+        for value in proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_failure_classifications",
+            [],
+        )
+        or []
+        if str(value).strip()
+    }
+    if failure_classifications & set(_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES):
+        return True
+    triggers = {
+        str(value).strip()
+        for value in proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_repair_triggers",
+            [],
+        )
+        or []
+        if str(value).strip()
+    }
+    if triggers & set(_SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS):
+        return True
+    repair_feedback = proof_bank_memory_summary.get(
+        "source_theorem_exact_semantic_definition_repair_feedback",
+        {},
+    )
+    if isinstance(repair_feedback, Mapping) and (
+        _bool_like(
+            repair_feedback.get(
+                "source_theorem_exact_semantic_definition_repair_required",
+                False,
+            )
+        )
+        or bool(repair_feedback.get("diagnostics"))
+    ):
+        return True
+    for row in proof_bank_memory_summary.get(
+        "source_theorem_exact_candidate_repair_diagnostics",
+        [],
+    ) or []:
+        if not isinstance(row, Mapping):
+            continue
+        failure = str(row.get("failure_classification", "") or "").strip()
+        trigger = str(row.get("trigger", "") or "").strip()
+        proof_body_gate_status = str(
+            row.get("proof_body_gate_status", "") or ""
+        ).strip()
+        runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+        semantic_typecheck_status = str(
+            row.get("semantic_definition_typecheck_evidence_status", "") or ""
+        ).strip()
+        if failure in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_FAILURES:
+            return True
+        if trigger in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_TRIGGERS:
+            return True
+        if proof_body_gate_status in _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_GATES:
+            return True
+        if (
+            runtime_queue_status
+            in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_STATUSES
+        ):
+            return True
+        if (
+            semantic_typecheck_status
+            in _SOURCE_THEOREM_EXACT_SEMANTIC_DEFINITION_TYPECHECKED_STATUSES
+        ):
+            return True
+    return False
 
 
 def _critic_next_action_agenda(
@@ -47273,19 +47425,10 @@ def _critic_next_action_agenda(
             for row in formalization_manifest.get("deterministic_theorem_goals", []) or []
             if isinstance(row, Mapping)
         ]
-        exact_semantic_definition_repair_required = bool(
-            proof_bank_memory_summary.get(
-                "source_theorem_exact_semantic_definition_repair_required",
-                False,
+        exact_semantic_definition_repair_required = (
+            _critic_exact_semantic_definition_gate_active(
+                proof_bank_memory_summary
             )
-            or str(
-                proof_bank_memory_summary.get(
-                    "recommended_formalizer_target_mode",
-                    "",
-                )
-                or ""
-            )
-            == _SOURCE_THEOREM_EXACT_SEMANTIC_REPAIR_MODE
         )
         source_theorem_candidate_materialization_required = (
             _bool_like(
@@ -47303,7 +47446,14 @@ def _critic_next_action_agenda(
             )
             == "source_theorem_exact_candidate_materialization_required"
         )
-        if source_theorem_candidate_materialization_required:
+        materialization_suspended_by_exact_semantic_gate = bool(
+            source_theorem_candidate_materialization_required
+            and exact_semantic_definition_repair_required
+        )
+        if (
+            source_theorem_candidate_materialization_required
+            and not materialization_suspended_by_exact_semantic_gate
+        ):
             materialization_statuses = [
                 str(value).strip()
                 for value in proof_bank_memory_summary.get(

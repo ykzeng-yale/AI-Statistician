@@ -59903,6 +59903,117 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
     assert "source_theorem_formal_environment_repair" not in prompt
 
 
+def test_critic_agenda_defers_materialization_behind_exact_semantic_gate() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    summary = {
+        "source_theorem_candidate_materialization_required": True,
+        "source_theorem_candidate_materialization_required_target_ids": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_candidate_materialization_required_statuses": [
+            "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+            "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+        ],
+        "source_theorem_candidate_materialization_contract": (
+            "Formalizer/ProofEngineer must materialize an exact source-theorem "
+            "Lean candidate artifact with a signature probe and live proof-body "
+            "location before exact proof-body execution can run."
+        ),
+        "source_theorem_exact_semantic_definition_repair_required": True,
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_semantic_definition_repair"
+        ),
+        "source_theorem_exact_candidate_repair_target_names": [
+            "split_conformal_finite_sample_coverage"
+        ],
+        "source_theorem_exact_candidate_failure_classifications": [
+            "typechecked_exact_semantic_definition_candidate_review_required",
+            "source_theorem_candidate_materialization_required",
+        ],
+        "source_theorem_exact_candidate_repair_triggers": [
+            "EXACT_SOURCE_SEMANTIC_DEFINITION_TYPECHECKED_SEMANTIC_REVIEW_REQUIRED",
+            "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED",
+        ],
+        "source_theorem_exact_candidate_repair_diagnostics": [
+            {
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "placeholder_symbol": "covered",
+                "failure_classification": (
+                    "typechecked_exact_semantic_definition_candidate_review_required"
+                ),
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+                ),
+                "proof_body_gate_status": (
+                    "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                ),
+            }
+        ],
+    }
+
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={},
+        formalization_manifest={
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:semantic_gate_first",
+            "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": summary,
+        },
+    )
+
+    agenda_ids = [row["id"] for row in agenda]
+    assert agenda_ids[0] == "formal_gap:source_theorem_exact_semantic_definition_repair"
+    assert "formal_gap:source_theorem_candidate_materialization" not in agenda_ids
+    exact_agenda = agenda[0]
+    assert exact_agenda["deferred_source_theorem_candidate_materialization_required"]
+    assert exact_agenda[
+        "deferred_source_theorem_candidate_materialization_target_ids"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert exact_agenda[
+        "deferred_source_theorem_candidate_materialization_statuses"
+    ] == [
+        "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY",
+        "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING",
+    ]
+    assert "semantic-definition gate" in exact_agenda[
+        "deferred_source_theorem_candidate_materialization_reason"
+    ]
+    assert exact_agenda["proof_body_gate_statuses"] == [
+        "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+    ]
+
+    stale_semantic_flag_summary = dict(summary)
+    stale_semantic_flag_summary[
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+    ] = True
+    ungated_agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={},
+        formalization_manifest={
+            "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:semantic_gate_open",
+            "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+            "deterministic_theorem_goals": [
+                {"id": "split_conformal_finite_sample_coverage"}
+            ],
+            "proof_bank_runtime_memory_summary": stale_semantic_flag_summary,
+        },
+    )
+
+    assert ungated_agenda[0]["id"] == "formal_gap:source_theorem_candidate_materialization"
+
+
 def test_candidate_materialization_precedes_verified_adapter_proof_body_retry() -> None:
     memory = runtime_module._runtime_learning_memory_context_from_rows(
         [
