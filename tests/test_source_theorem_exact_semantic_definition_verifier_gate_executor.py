@@ -459,6 +459,174 @@ def test_verifier_gate_executor_accepts_nested_exact_semantic_context(
     )
 
 
+def test_verifier_gate_executor_preserves_required_anchor_bindings(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate.lean"
+    candidate.write_text(
+        "def good_rank_event (n : Nat) (score : Nat -> Nat) (q : Nat) (hq : Prop) : Prop :=\n"
+        "  hq\n",
+        encoding="utf-8",
+    )
+    work_orders = tmp_path / "work_orders.jsonl"
+    row = {
+        **_base_work_order(candidate),
+        "input_summary": {
+            "exact_semantic_definition_context": {
+                "semantic_primitive": "good_rank_event",
+                "candidate_definition_request": {
+                    "request_kind": (
+                        "source_theorem_exact_semantic_definition_candidate"
+                    ),
+                    "placeholder_symbol": "good_rank_event",
+                    "required_anchor_names": ["n2", "s", "q_hat", "hq"],
+                    "available_anchor_names": [
+                        "n",
+                        "score",
+                        "q",
+                        "hq",
+                        "n2",
+                        "s",
+                        "q_hat",
+                    ],
+                    "missing_required_anchor_names": [],
+                    "required_anchor_bindings": [
+                        {
+                            "required_anchor_name": "n2",
+                            "actual_anchor_name": "n",
+                            "match_kind": "source_anchor_role",
+                            "role": "calibration_size_anchor",
+                            "binder": {
+                                "name": "n",
+                                "type": "Nat",
+                                "role": "calibration_size_anchor",
+                            },
+                        },
+                        {
+                            "required_anchor_name": "s",
+                            "actual_anchor_name": "score",
+                            "match_kind": "source_anchor_role",
+                            "role": "score_process_anchor",
+                            "binder": {
+                                "name": "score",
+                                "type": "Nat -> Nat",
+                                "role": "score_process_anchor",
+                            },
+                        },
+                        {
+                            "required_anchor_name": "q_hat",
+                            "actual_anchor_name": "q",
+                            "match_kind": "source_anchor_role",
+                            "role": "threshold_function_anchor",
+                            "binder": {
+                                "name": "q",
+                                "type": "Nat",
+                                "role": "threshold_function_anchor",
+                            },
+                        },
+                        {
+                            "required_anchor_name": "hq",
+                            "actual_anchor_name": "hq",
+                            "match_kind": "exact_name",
+                            "role": "quantile_definition_anchor",
+                            "binder": {
+                                "name": "hq",
+                                "type": "Prop",
+                                "role": "quantile_definition_anchor",
+                            },
+                        },
+                    ],
+                    "required_binders": [
+                        {
+                            "name": "n",
+                            "type": "Nat",
+                            "role": "calibration_size_anchor",
+                        },
+                        {
+                            "name": "score",
+                            "type": "Nat -> Nat",
+                            "role": "score_process_anchor",
+                        },
+                        {
+                            "name": "q",
+                            "type": "Nat",
+                            "role": "threshold_function_anchor",
+                        },
+                        {
+                            "name": "hq",
+                            "type": "Prop",
+                            "role": "quantile_definition_anchor",
+                        },
+                    ],
+                },
+            }
+        },
+    }
+    _write_jsonl(work_orders, [row])
+
+    manifest = run_source_theorem_exact_semantic_definition_verifier_gate_executor(
+        out_dir=tmp_path / "verifier",
+        work_orders_jsonl=work_orders,
+        local_lean=True,
+        lean_command=("true",),
+    )
+
+    assert manifest["n_verifier_approved"] == 1
+    assert manifest["n_source_anchor_context_missing"] == 0
+    results = [
+        json.loads(line)
+        for line in Path(manifest["verifier_gate_results_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    binding_rows = [
+        item
+        for item in results[0]["source_anchor_context"]
+        if item.get("kind") == "required_anchor_binding"
+    ]
+    assert {
+        (
+            item["required_anchor_name"],
+            item["actual_anchor_name"],
+            item["name"],
+            item["type"],
+            item["role"],
+        )
+        for item in binding_rows
+    } >= {
+        ("n2", "n", "n", "Nat", "calibration_size_anchor"),
+        ("s", "score", "score", "Nat -> Nat", "score_process_anchor"),
+        ("q_hat", "q", "q", "Nat", "threshold_function_anchor"),
+        ("hq", "hq", "hq", "Prop", "quantile_definition_anchor"),
+    }
+    assert any(
+        item.get("source") == "candidate_definition_request.required_binders"
+        and item.get("name") == "q"
+        and item.get("type") == "Nat"
+        for item in results[0]["source_anchor_context"]
+    )
+    approved = [
+        json.loads(line)
+        for line in Path(manifest["verifier_approved_review_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    approved_binding_rows = [
+        item
+        for item in approved[0]["source_anchor_context"]
+        if item.get("kind") == "required_anchor_binding"
+    ]
+    assert {
+        (item["required_anchor_name"], item["actual_anchor_name"])
+        for item in approved_binding_rows
+    } >= {("n2", "n"), ("s", "score"), ("q_hat", "q"), ("hq", "hq")}
+    assert approved[0]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][2]["actual_anchor_name"] == "q"
+
+
 def test_verifier_gate_executor_blocks_nested_known_gaps(
     tmp_path: Path,
 ) -> None:

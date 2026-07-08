@@ -341,8 +341,10 @@ def _verifier_gate_result(
     if not semantic_review_evidence:
         blockers.append("semantic_review_evidence_missing")
     source_context = _source_anchor_context(row)
-    candidate_definition_request = row.get("candidate_definition_request")
-    definition_contract = row.get("definition_contract")
+    candidate_definition_request = _first_context_mapping(
+        row, "candidate_definition_request"
+    )
+    definition_contract = _first_context_mapping(row, "definition_contract")
     if not source_context:
         blockers.append("source_anchor_context_missing")
     known_gaps = _known_gaps(row)
@@ -402,12 +404,8 @@ def _verifier_gate_result(
         "semantic_review_evidence": semantic_review_evidence,
         "semantic_review_required_before_proof_body": not source_theorem_ready,
         **_exact_semantic_definition_context(row),
-        "candidate_definition_request": dict(candidate_definition_request)
-        if isinstance(candidate_definition_request, Mapping)
-        else {},
-        "definition_contract": dict(definition_contract)
-        if isinstance(definition_contract, Mapping)
-        else {},
+        "candidate_definition_request": candidate_definition_request,
+        "definition_contract": definition_contract,
         "known_gaps": known_gaps,
         "source_anchor_context": source_context,
         "verifier_gate_status": status,
@@ -558,6 +556,14 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
     return context
 
 
+def _first_context_mapping(row: Mapping[str, Any], key: str) -> dict[str, Any]:
+    for source in _exact_semantic_context_sources(row):
+        value = source.get(key)
+        if isinstance(value, Mapping) and value:
+            return dict(value)
+    return {}
+
+
 def _exact_semantic_context_sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     sources: list[Mapping[str, Any]] = [row]
     input_summary = (
@@ -649,19 +655,84 @@ def _source_anchor_context(row: Mapping[str, Any]) -> list[dict[str, Any]]:
                 context.append({"source": key, "name": item})
         request = source.get("candidate_definition_request")
         if isinstance(request, Mapping):
-            for key in (
-                "required_binders",
-                "required_anchor_names",
-                "available_anchor_names",
-            ):
-                for item in _string_list(request.get(key, [])):
+            context.extend(_candidate_definition_request_anchor_context(request))
+    return _dedupe_context_rows(context)
+
+
+def _candidate_definition_request_anchor_context(
+    request: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    context: list[dict[str, Any]] = []
+    for key in ("required_binders",):
+        value = request.get(key)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            for item in value:
+                if isinstance(item, Mapping):
                     context.append(
                         {
                             "source": f"candidate_definition_request.{key}",
-                            "name": item,
+                            **dict(item),
                         }
                     )
-    return _dedupe_context_rows(context)
+                elif str(item).strip():
+                    context.append(
+                        {
+                            "source": f"candidate_definition_request.{key}",
+                            "name": str(item),
+                        }
+                    )
+    for raw_binding in request.get("required_anchor_bindings", []) or []:
+        if not isinstance(raw_binding, Mapping):
+            continue
+        row = _required_anchor_binding_context_row(raw_binding)
+        if row:
+            context.append(row)
+    for key in (
+        "required_anchor_names",
+        "available_anchor_names",
+    ):
+        for item in _string_list(request.get(key, [])):
+            context.append(
+                {
+                    "source": f"candidate_definition_request.{key}",
+                    "name": item,
+                }
+            )
+    return context
+
+
+def _required_anchor_binding_context_row(
+    binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    binder = (
+        dict(binding.get("binder", {}))
+        if isinstance(binding.get("binder", {}), Mapping)
+        else {}
+    )
+    required_name = str(binding.get("required_anchor_name", "") or "").strip()
+    actual_name = str(
+        binding.get("actual_anchor_name", "") or binder.get("name", "") or ""
+    ).strip()
+    if not required_name and not actual_name:
+        return {}
+    row: dict[str, Any] = {
+        "source": "candidate_definition_request.required_anchor_bindings",
+        "kind": "required_anchor_binding",
+        "required_anchor_name": required_name,
+        "actual_anchor_name": actual_name,
+        "semantic_anchor_name": required_name,
+        "name": actual_name or required_name,
+        "match_kind": str(binding.get("match_kind", "") or "").strip(),
+    }
+    role = str(binding.get("role", "") or binder.get("role", "") or "").strip()
+    if role:
+        row["role"] = role
+    binder_type = str(binder.get("type", "") or "").strip()
+    if binder_type:
+        row["type"] = binder_type
+    if binder:
+        row["binder"] = binder
+    return row
 
 
 def _dedupe_context_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
