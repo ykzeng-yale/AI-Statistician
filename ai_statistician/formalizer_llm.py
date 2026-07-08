@@ -4791,6 +4791,58 @@ def _compact_rows(
     return compact
 
 
+def _compact_formal_blocker_resource_requests(rows: Any) -> list[dict[str, Any]]:
+    return _compact_rows(
+        [
+            row
+            for row in rows or []
+            if isinstance(row, Mapping)
+        ],
+        keys=(
+            "request_id",
+            "source",
+            "blocker_kind",
+            "blocker",
+            "next_owner",
+            "target_ids",
+            "target_id",
+            "target_names",
+            "target_name",
+            "target_theorem_name",
+            "target_lean_declaration",
+            "placeholder_symbol",
+            "candidate_artifact_path",
+            "definition_only_candidate_artifact_path",
+            "source_candidate_artifact_path",
+            "adapter_candidate_artifact_path",
+            "adapter_candidate_artifact_paths",
+            "premise_candidate_artifact_path",
+            "proof_body_candidate_artifact_path",
+            "runtime_queue_status",
+            "proof_body_gate_status",
+            "failure_classification",
+            "unavailable_import",
+            "unavailable_import_exact",
+            "unknown_identifier",
+            "missing_formal_symbols",
+            "typeclass_blockers",
+            "formal_source_queries",
+            "source_lookup_hits",
+            "recommended_tools",
+            "recommended_repair_tasks",
+            "semantic_alignment_blockers",
+            "semantic_definition_risks",
+            "local_definition_lean_checked",
+            "local_definition_lean_compiled",
+            "semantic_definition_typecheck_evidence_status",
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ),
+        limit=8,
+    )
+
+
 def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for key in keys:
@@ -7565,8 +7617,10 @@ def _compact_formalizer_environment_feedback(
         or input_summary.get("formal_blocker_resource_requests", [])
     )
     if formal_blocker_resource_requests:
-        payload["formal_blocker_resource_requests"] = _compact_value(
-            formal_blocker_resource_requests
+        payload["formal_blocker_resource_requests"] = (
+            _compact_formal_blocker_resource_requests(
+                formal_blocker_resource_requests
+            )
         )
     high_priority_agenda = (
         feedback.get("high_priority_agenda", [])

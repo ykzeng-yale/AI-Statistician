@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T08:41:11Z",
+  "updated_at": "2026-07-08T08:46:23Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Critic exact-semantic formal-blocker resource requests now preserve definition_only_candidate_artifact_path and fall back candidate_artifact_path to the compiled definition-only candidate when no fuller candidate artifact exists. This keeps good_rank_event/coverage_event/covered semantic-review blockers actionable for the next Formalizer/ProofEngineer turn without treating compiled definition-only candidates as source-theorem Lean/kernel proof evidence.",
+  "latest_main_worker_patch": "Formalizer prompt compaction now treats formal_blocker_resource_requests as typed work orders and preserves artifact-bearing fields such as candidate_artifact_path and definition_only_candidate_artifact_path instead of relying on generic first-16-key JSON compaction. This closes the Formalizer-side half of the exact-semantic blocker handoff: compiled definition-only candidates remain non-proof semantic-review/prover routing context, but the next Formalizer/ProofEngineer turn can actually see the concrete Lean artifact paths.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -1010,6 +1010,7 @@
     "critic_after_exact_semantic_work_order_status_live_formal_gaps": 80,
     "critic_after_exact_semantic_work_order_status_live_exact_work_orders": "4 exact-semantic work orders; good_rank_event/coverage_event/covered are local-Lean compiled definition-only candidates requiring semantic review, while C_n remains LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT. Source theorem proof counters remain 0.",
     "exact_semantic_blocker_candidate_artifact_handoff_patch": "Critic formal_blocker_resource_requests derived from source_theorem_exact_semantic_definition_repair_feedback now carry definition_only_candidate_artifact_path and set candidate_artifact_path to the compiled definition-only candidate path when no fuller candidate artifact path is present. This repairs the latest pending-task handoff shape where semantic-review blockers had proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY but empty candidate_artifact_path despite compiled definition-only candidates in diagnostics. The request remains FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE and is only review/retrieval/prover routing context.",
+    "formalizer_blocker_request_artifact_prompt_compaction_patch": "Formalizer prompt compaction now uses a dedicated formal_blocker_resource_requests schema that keeps request identity, target, blocker class, runtime/proof-body gate status, artifact paths, source lookup/prover queries, semantic-review risks, and proof_evidence_status for up to 8 blocker rows. This prevents long exact-semantic repair requests from losing candidate_artifact_path or definition_only_candidate_artifact_path before the Formalizer/ProofEngineer turn.",
     "formalizer_after_exact_semantic_work_order_status_live_runtime_manifest": "runs/main_worker_formalizer_after_exact_semantic_work_order_status_live/research_agent_runtime_manifest.json",
     "formalizer_after_exact_semantic_work_order_status_live_scorecard": "44/49",
     "formalizer_after_exact_semantic_work_order_status_live_status": "MAX_ITERATIONS_REACHED",
@@ -2999,6 +3000,10 @@
     "uv run python -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed after exact-semantic blocker candidate-artifact handoff patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic_repair_blocker_request_preserves_definition_candidate_artifact\" # 1 passed, 938 deselected after exact-semantic blocker candidate-artifact handoff patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"formal_blocker_resource_requests or candidate_materialization_blocker_request or exact_semantic_repair_blocker_request or exact_semantic_definition_repair_feedback or typechecked_semantic_review_memory\" # 3 passed, 936 deselected after exact-semantic blocker candidate-artifact handoff patch",
-    "git diff --check # passed after exact-semantic blocker candidate-artifact handoff patch"
+    "git diff --check # passed after exact-semantic blocker candidate-artifact handoff patch",
+    "uv run python -m py_compile ai_statistician/formalizer_llm.py tests/test_research_agent_runtime.py # passed after Formalizer blocker artifact prompt-compaction patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"formalizer_prompt_preserves_exact_semantic_blocker_artifact_keys\" # 1 passed, 939 deselected after Formalizer blocker artifact prompt-compaction patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"exact_semantic_repair_blocker_request_preserves_definition_candidate_artifact or exact_semantic_definition_work_orders_from_typechecked_candidate_synthesis or formalizer_lean_candidate_feedback_prompt_includes_formal_source_grounding\" # 2 passed, 938 deselected after Formalizer blocker artifact prompt-compaction patch",
+    "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest -q tests/test_research_agent_runtime.py -k \"formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding or carried_proofengineer_feedback_is_enriched_with_formal_source_grounding or critic_memory_routes_candidate_materialization_blocker_request or exact_semantic_repair_blocker_request_preserves_definition_candidate_artifact or formalizer_prompt_preserves_exact_semantic_blocker_artifact_keys\" # 5 passed, 935 deselected after Formalizer blocker artifact prompt-compaction patch"
   ]
 }

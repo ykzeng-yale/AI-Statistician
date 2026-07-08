@@ -57666,6 +57666,73 @@ def test_exact_semantic_repair_blocker_request_preserves_definition_candidate_ar
     )
 
 
+def test_formalizer_prompt_preserves_exact_semantic_blocker_artifact_keys() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    blocker_request = {
+        "request_id": "formal_blocker_resource_request:semantic:covered",
+        "source": "critic_exact_semantic_definition_repair_feedback",
+        "blocker_kind": "EXACT_SEMANTIC_DEFINITION_REVIEW_REQUIRED",
+        "blocker": (
+            "covered exact semantic definition needs source review before proof body"
+        ),
+        "next_owner": "Formalizer/ProofEngineer/LeanProver",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "covered",
+        "runtime_queue_status": "PENDING_EXACT_SEMANTIC_DEFINITION_REVIEW",
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "failure_classification": (
+            "source_theorem_exact_semantic_definition_repair_required"
+        ),
+        "formal_source_queries": ["covered exact semantic Lean definition"],
+        "recommended_tools": ["formal_source_retriever", "local_lean"],
+        "recommended_repair_tasks": [
+            "review the typechecked definition-only candidate for source semantics"
+        ],
+        "semantic_alignment_blockers": ["needs source semantic review"],
+        "semantic_definition_risks": ["tie behavior still needs review"],
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+            "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+        ),
+        "definition_only_candidate_artifact_path": (
+            "runs/candidate_artifacts/covered_definition_only.lean"
+        ),
+        "candidate_artifact_path": (
+            "runs/candidate_artifacts/covered_full_candidate.lean"
+        ),
+        "proof_evidence_status": (
+            "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={
+            "question_id": question.id,
+            "problem_class": "conformal",
+        },
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "formal_blocker_resource_requests": [blocker_request],
+        },
+    )
+
+    assert "Formal blocker resource requests are active" in prompt
+    assert "definition_only_candidate_artifact_path" in prompt
+    assert "candidate_artifact_path" in prompt
+    assert "runs/candidate_artifacts/covered_definition_only.lean" in prompt
+    assert "runs/candidate_artifacts/covered_full_candidate.lean" in prompt
+    assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
+
+
 def test_exact_proof_body_unready_queue_routes_candidate_materialization_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
