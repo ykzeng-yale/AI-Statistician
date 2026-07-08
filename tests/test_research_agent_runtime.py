@@ -91536,6 +91536,151 @@ def test_runtime_pf_failure_copy_contract_rejects_malformed_seed() -> None:
     assert "Runtime recomputed the copied seed as copy_contract_satisfied" not in prompt
 
 
+def test_runtime_formalizer_pf_component_gate_missing_exact_rows_artifact_routes_handoff_diagnostic(
+    tmp_path: Path,
+) -> None:
+    missing_exact_rows = tmp_path / "missing_exact_rows.jsonl"
+    rows = (
+        runtime_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
+            {
+                "question_ids": ["pf_exact_handoff"],
+                "internal_formalizer_pseudo_formal_packet_eval": {
+                    "manifest_path": str(tmp_path / "manifest.json"),
+                    "artifacts": {
+                        "exact_semantic_definition_rows_jsonl": str(
+                            missing_exact_rows
+                        )
+                    },
+                    "provider_name": "anthropic",
+                    "backend_provider_name": "anthropic",
+                    "model": "claude-sonnet",
+                    "live_generator": True,
+                    "static_or_fixture_only": False,
+                    "capability_evidence_ok": True,
+                    "fixture_plumbing_ok": True,
+                    "result_status": "OK",
+                    "n_pseudo_formal_packets": 1,
+                    "n_pseudo_formal_work_order_rows": 1,
+                    "n_pseudo_formal_routable_work_order_rows": 1,
+                    "pseudo_formal_routable_row_kinds": [
+                        "pseudo_formal_exact_semantic_definition_request"
+                    ],
+                    "pseudo_formal_routable_target_lanes": [
+                        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                    ],
+                    "nonproof_boundary_preserved": True,
+                    "exact_semantic_definition_lane_present": True,
+                    "n_pseudo_formal_exact_semantic_definition_rows": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements": 1,
+                    "n_pseudo_formal_exact_semantic_definition_rows_with_lineage": 1,
+                    "exact_semantic_definition_rows_source_anchored": True,
+                    "exact_semantic_definition_rows_semantic_requirements_present": True,
+                    "exact_semantic_definition_rows_lineage_complete": True,
+                    "proof_evidence_status_ok": True,
+                    "no_theorem_proof_claim": True,
+                    "attachment_gate_recomputed": True,
+                    "proof_evidence_status": (
+                        "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            }
+        )
+    )
+
+    assert not any(
+        row.get("learning_task")
+        == "source_theorem_exact_semantic_definition_work_order"
+        for row in rows
+    )
+    diagnostics = [
+        row
+        for row in rows
+        if row.get("learning_task")
+        == (
+            "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_"
+            "diagnostic"
+        )
+    ]
+    assert len(diagnostics) == 1
+    diagnostic = diagnostics[0]
+    assert diagnostic["next_owner_subsystem"] == "AgentRuntime/HandoffRecovery"
+    assert diagnostic["source_component_gate"] == (
+        "formalizer_pseudo_formal_packet_component_gate"
+    )
+    assert diagnostic["source_component_gate_exact_rows_jsonl"] == str(
+        missing_exact_rows
+    )
+    assert diagnostic["failure_classification"] == (
+        "formalizer_pf_component_gate_exact_rows_jsonl_missing"
+    )
+    assert "does not exist" in diagnostic["failure_detail"]
+    assert (
+        diagnostic["proof_evidence_status"]
+        == "FORMALIZER_PF_COMPONENT_GATE_HANDOFF_DIAGNOSTIC_NOT_PROOF_EVIDENCE"
+    )
+    assert "not proof evidence" in diagnostic["boundary"]
+    assert diagnostic["input_summary"]["missing_artifact_role"] == (
+        "formalizer_pf_component_gate_exact_semantic_definition_rows_jsonl"
+    )
+    proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": rows,
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert (
+        proof_memory_summary[
+            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available"
+        ]
+        is True
+    )
+    handoff_memory = proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory"
+    ]
+    assert handoff_memory[0]["source_component_gate_exact_rows_jsonl"] == str(
+        missing_exact_rows
+    )
+    assert handoff_memory[0]["next_owner_subsystem"] == (
+        "AgentRuntime/HandoffRecovery"
+    )
+
+    prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="pf_exact_handoff",
+            title="PF exact handoff",
+            description="Recover missing PF component-gate exact rows.",
+            tags=("formalizer", "pseudo_formal"),
+        ),
+        theory_packet={"packet_id": "theory:pf-exact-handoff"},
+        simulation_manifest={
+            "manifest_id": "simulation:pf-exact-handoff",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:pf-exact-handoff"},
+        registered_problem={"question_id": "pf_exact_handoff"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+    prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
+    prompt_memory = prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory"
+    ]
+    assert prompt_memory[0]["source_component_gate_exact_rows_jsonl"] == str(
+        missing_exact_rows
+    )
+    assert "exact-row handoff is blocked" in prompt
+    assert "not proof or kernel evidence" in prompt
+
+
 def test_runtime_audit_summarizes_pf_failure_copy_ready_repair_memory() -> None:
     summary = audit_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         learning_rows=[

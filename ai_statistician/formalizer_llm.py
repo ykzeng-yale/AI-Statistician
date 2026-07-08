@@ -6481,6 +6481,66 @@ def _formalizer_mode_specific_instructions(
                 + "."
             )
         instructions.append(instruction)
+    pf_component_gate_handoff_diagnostics = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available",
+            False,
+        )
+        or pf_component_gate_handoff_diagnostics
+    ):
+        exact_rows_paths = [
+            str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+            for row in pf_component_gate_handoff_diagnostics[:3]
+            if str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
+        ]
+        failure_classes = [
+            str(row.get("failure_classification", "") or "").strip()
+            for row in pf_component_gate_handoff_diagnostics[:3]
+            if str(row.get("failure_classification", "") or "").strip()
+        ]
+        owner_subsystems = [
+            str(row.get("next_owner_subsystem", "") or "").strip()
+            for row in pf_component_gate_handoff_diagnostics[:3]
+            if str(row.get("next_owner_subsystem", "") or "").strip()
+        ]
+        instruction = (
+            "Formalizer PF/BV component-gate exact-row handoff is blocked: "
+            "the runtime did not materialize source-theorem exact semantic-definition "
+            "work orders from the component-gate exact-lane artifact. Do not assume "
+            "source lookup, exact semantic-definition authoring, or proof-body repair "
+            "has consumed those rows. Regenerate, rehydrate, or request the exact rows "
+            "JSONL artifact before treating PF/BV exact-lane routing as downstream "
+            "source-lookup progress. This is handoff recovery memory only, not proof "
+            "or kernel evidence."
+        )
+        if exact_rows_paths:
+            instruction += (
+                " Exact-row artifact path(s): "
+                + ", ".join(list(dict.fromkeys(exact_rows_paths))[:3])
+                + "."
+            )
+        if failure_classes:
+            instruction += (
+                " Failure class(es): "
+                + ", ".join(list(dict.fromkeys(failure_classes))[:4])
+                + "."
+            )
+        if owner_subsystems:
+            instruction += (
+                " Next owner(s): "
+                + ", ".join(list(dict.fromkeys(owner_subsystems))[:3])
+                + "."
+            )
+        instructions.append(instruction)
     if proof_memory_summary.get("pseudo_formal_block_routing_active") or pseudo_formal_memory:
         target_lanes = [
             str(value).strip()
@@ -8992,6 +9052,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_component_gate_feedback_available",
         "formalizer_pseudo_formal_packet_component_gate_feedback_available",
         "formalizer_pseudo_formal_packet_component_gate_failure_available",
+        "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available",
+        "n_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows",
         "formalizer_lean_candidate_capability_feedback_available",
         "formalizer_runtime_capability_contract_feedback_available",
         "formalizer_lean_candidate_repair_manifest_paths",
@@ -9000,6 +9062,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_component_gate_feedback_memory",
         "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
         "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+        "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory",
         "formalizer_lean_candidate_capability_feedback_memory",
         "formalizer_runtime_capability_contract_feedback_memory",
         "recommended_source_theorem_integration_action",
@@ -9646,6 +9709,40 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "validator_ready_copy_contract_summary",
                 "validator_ready_copy_contract_satisfied",
                 "copy_ready_for_exact_semantic_definition",
+                "proof_evidence_status",
+                "boundary",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get(
+            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory"
+        ),
+        list,
+    ):
+        compact[
+            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory"
+        ] = _compact_rows(
+            row.get(
+                "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory",
+                [],
+            ),
+            keys=(
+                "learning_task",
+                "question_id",
+                "work_order_id",
+                "next_owner_subsystem",
+                "source_component_gate",
+                "component_eval_manifest_path",
+                "source_component_gate_exact_rows_jsonl",
+                "missing_artifact_id",
+                "missing_artifact_role",
+                "failure_classification",
+                "failure_classifications",
+                "failure_detail",
+                "n_exact_rows_read",
+                "target_behavior",
+                "acceptance_gate",
                 "proof_evidence_status",
                 "boundary",
             ),

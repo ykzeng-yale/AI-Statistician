@@ -4443,7 +4443,7 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
         and exact_semantic_definition_rows_source_anchored
         and exact_semantic_definition_rows_semantic_requirements_present
     ):
-        rows.extend(
+        exact_work_orders = (
             _runtime_exact_semantic_definition_work_order_rows_from_component_gate_exact_rows(
                 exact_semantic_definition_rows_jsonl,
                 component_eval_manifest_path=manifest_path,
@@ -4452,7 +4452,138 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 question_id=question_id,
             )
         )
+        rows.extend(exact_work_orders)
+        if not exact_work_orders:
+            rows.append(
+                _runtime_formalizer_pf_component_gate_exact_rows_handoff_diagnostic_row(
+                    exact_semantic_definition_rows_jsonl,
+                    component_eval_manifest_path=manifest_path,
+                    provider_name=provider_name,
+                    backend_provider_name=backend_provider_name,
+                    question_id=question_id,
+                )
+            )
     return rows
+
+
+def _runtime_formalizer_pf_component_gate_exact_rows_handoff_diagnostic_row(
+    exact_rows_jsonl: str,
+    *,
+    component_eval_manifest_path: str,
+    provider_name: str,
+    backend_provider_name: str,
+    question_id: str,
+) -> dict[str, Any]:
+    path_text = str(exact_rows_jsonl or "").strip()
+    failure_classification = "formalizer_pf_component_gate_exact_rows_jsonl_missing"
+    failure_detail = "exact_semantic_definition_rows_jsonl path is empty"
+    n_exact_rows = 0
+    if path_text:
+        path = Path(path_text)
+        if not path.exists():
+            failure_detail = f"exact_semantic_definition_rows_jsonl does not exist: {path_text}"
+        else:
+            try:
+                exact_rows = _read_jsonl(path)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                failure_classification = (
+                    "formalizer_pf_component_gate_exact_rows_jsonl_unreadable"
+                )
+                failure_detail = (
+                    "exact_semantic_definition_rows_jsonl could not be read: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+            else:
+                n_exact_rows = len(exact_rows)
+                failure_classification = (
+                    "formalizer_pf_component_gate_exact_rows_not_materializable"
+                )
+                failure_detail = (
+                    "exact_semantic_definition_rows_jsonl was readable but did "
+                    "not materialize any source-theorem exact semantic-definition "
+                    "work orders"
+                )
+    work_order_id = (
+        "formalizer_pf_component_gate_exact_rows_handoff:"
+        + stable_hash(
+            [
+                component_eval_manifest_path,
+                path_text,
+                failure_classification,
+                question_id,
+            ]
+        )[:20]
+    )
+    boundary = (
+        "This row records a broken handoff from the Formalizer PF/BV component "
+        "gate exact-lane artifact into source semantic-definition work. It is "
+        "not proof evidence and does not certify the PF/BV packet, source "
+        "faithfulness, or Lean/kernel verification."
+    )
+    input_summary = {
+        "trigger": (
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_EXACT_ROWS_"
+            "HANDOFF_BLOCKED"
+        ),
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "component_eval_manifest_path": component_eval_manifest_path,
+        "source_component_gate_exact_rows_jsonl": path_text,
+        "missing_artifact_id": path_text,
+        "missing_artifact_role": (
+            "formalizer_pf_component_gate_exact_semantic_definition_rows_jsonl"
+        ),
+        "failure_classification": failure_classification,
+        "failure_detail": failure_detail,
+        "n_exact_rows_read": n_exact_rows,
+        "proof_evidence_status": (
+            "FORMALIZER_PF_COMPONENT_GATE_HANDOFF_DIAGNOSTIC_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question_id,
+        "learning_task": (
+            "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_"
+            "diagnostic"
+        ),
+        "work_order_id": work_order_id,
+        "next_owner_subsystem": "AgentRuntime/HandoffRecovery",
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "source_component_gate_exact_rows_jsonl": path_text,
+        "component_eval_manifest_path": component_eval_manifest_path,
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "missing_artifact_id": path_text,
+        "missing_artifact_role": (
+            "formalizer_pf_component_gate_exact_semantic_definition_rows_jsonl"
+        ),
+        "failure_classification": failure_classification,
+        "failure_classifications": [
+            failure_classification,
+            "capability_gate_artifact_handoff_blocked",
+        ],
+        "failure_detail": failure_detail,
+        "n_exact_rows_read": n_exact_rows,
+        "target_behavior": (
+            "Regenerate or rehydrate the Formalizer PF/BV component-gate exact "
+            "semantic-definition rows artifact, then rematerialize "
+            "source-theorem exact semantic-definition work orders from that exact "
+            "JSONL path."
+        ),
+        "acceptance_gate": (
+            "The exact rows JSONL exists, is readable, and materializes at least "
+            "one source-anchored exact semantic-definition work order with "
+            "non-empty semantic_primitive_requirements and complete PF/BV lineage."
+        ),
+        "input_summary": input_summary,
+        "proof_evidence_status": (
+            "FORMALIZER_PF_COMPONENT_GATE_HANDOFF_DIAGNOSTIC_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": boundary,
+    }
 
 
 def _runtime_exact_semantic_definition_work_order_rows_from_component_gate_exact_rows(
@@ -39799,6 +39930,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = frozenset(
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "formalizer_pseudo_formal_packet_component_gate_feedback",
+        "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic",
         "formalizer_runtime_capability_contract_feedback",
         PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
         "coding_agent_generated_code_component_gate_feedback",
@@ -40786,6 +40918,11 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         ):
             return 89
         return 88
+    if (
+        learning_task
+        == "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic"
+    ):
+        return 89
     if learning_task == "coding_agent_generated_code_component_gate_feedback":
         return 87
     exact_semantic_definition_repair_priority = (
@@ -41409,6 +41546,31 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + repair_owner
             + ":"
             + work_order_id
+        )
+    if (
+        learning_task
+        == "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic"
+    ):
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        exact_rows_path = str(
+            row.get("source_component_gate_exact_rows_jsonl", "")
+            or input_summary.get("source_component_gate_exact_rows_jsonl", "")
+            or ""
+        ).strip()
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff:"
+            + question_id
+            + ":"
+            + component_manifest
+            + ":"
+            + exact_rows_path
         )
     return ""
 
@@ -53186,6 +53348,150 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostics(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return PF component-gate exact-row handoff diagnostics from memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows", []), list) else []
+    diagnostics: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic"
+        ):
+            continue
+        exact_rows_path = str(
+            row.get("source_component_gate_exact_rows_jsonl", "")
+            or input_summary.get("source_component_gate_exact_rows_jsonl", "")
+            or ""
+        ).strip()
+        component_manifest_path = str(
+            row.get("component_eval_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        key = (
+            component_manifest_path
+            + ":"
+            + exact_rows_path
+            + ":"
+            + str(
+                row.get("failure_classification", "")
+                or input_summary.get("failure_classification", "")
+                or ""
+            )
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        diagnostics.append(
+            {
+                "learning_task": (
+                    "formalizer_pseudo_formal_packet_component_gate_exact_rows_"
+                    "handoff_diagnostic"
+                ),
+                "question_id": str(
+                    row.get("question_id", "")
+                    or input_summary.get("question_id", "")
+                    or ""
+                ),
+                "work_order_id": str(
+                    row.get("work_order_id", "")
+                    or input_summary.get("work_order_id", "")
+                    or ""
+                ),
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "")
+                    or input_summary.get("next_owner_subsystem", "")
+                    or "AgentRuntime/HandoffRecovery"
+                ),
+                "source_component_gate": str(
+                    row.get("source_component_gate", "")
+                    or input_summary.get("source_component_gate", "")
+                    or ""
+                ),
+                "component_eval_manifest_path": component_manifest_path,
+                "source_component_gate_exact_rows_jsonl": exact_rows_path,
+                "missing_artifact_id": str(
+                    row.get("missing_artifact_id", "")
+                    or input_summary.get("missing_artifact_id", "")
+                    or exact_rows_path
+                ),
+                "missing_artifact_role": str(
+                    row.get("missing_artifact_role", "")
+                    or input_summary.get("missing_artifact_role", "")
+                    or ""
+                ),
+                "failure_classification": str(
+                    row.get("failure_classification", "")
+                    or input_summary.get("failure_classification", "")
+                    or ""
+                ),
+                "failure_classifications": [
+                    str(value)
+                    for value in row.get(
+                        "failure_classifications",
+                        input_summary.get("failure_classifications", []),
+                    )
+                    or []
+                    if str(value).strip()
+                ][:6],
+                "failure_detail": str(
+                    row.get("failure_detail", "")
+                    or input_summary.get("failure_detail", "")
+                    or ""
+                )[:600],
+                "n_exact_rows_read": _int_like(
+                    row.get(
+                        "n_exact_rows_read",
+                        input_summary.get("n_exact_rows_read", 0),
+                    )
+                ),
+                "target_behavior": str(
+                    row.get("target_behavior", "")
+                    or input_summary.get("target_behavior", "")
+                    or ""
+                ),
+                "acceptance_gate": str(
+                    row.get("acceptance_gate", "")
+                    or input_summary.get("acceptance_gate", "")
+                    or ""
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "")
+                    or input_summary.get("proof_evidence_status", "")
+                    or ""
+                ),
+                "boundary": str(
+                    row.get("boundary", "")
+                    or row.get("proof_evidence_boundary", "")
+                    or input_summary.get("boundary", "")
+                    or input_summary.get("proof_evidence_boundary", "")
+                    or ""
+                )[:500],
+            }
+        )
+    return tuple(diagnostics)
+
+
 def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -54327,6 +54633,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     formalizer_pseudo_formal_packet_component_gate_feedback_rows = (
         _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feedback(
+            context
+        )
+    )
+    formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows = (
+        _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostics(
             context
         )
     )
@@ -57610,6 +57921,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_pseudo_formal_packet_component_gate_failure_available": bool(
             formalizer_pseudo_formal_packet_component_gate_failure_rows
         ),
+        "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available": bool(
+            formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows
+        ),
+        "n_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows": len(
+            formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows
+        ),
         "formalizer_lean_candidate_capability_feedback_available": bool(
             formalizer_lean_candidate_capability_feedback_rows
         ),
@@ -57982,6 +58299,50 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "boundary": str(row.get("boundary", "") or ""),
             }
             for row in formalizer_pseudo_formal_packet_component_gate_failure_rows[:3]
+        ],
+        "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "question_id": str(row.get("question_id", "") or ""),
+                "work_order_id": str(row.get("work_order_id", "") or ""),
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "") or ""
+                ),
+                "source_component_gate": str(
+                    row.get("source_component_gate", "") or ""
+                ),
+                "component_eval_manifest_path": str(
+                    row.get("component_eval_manifest_path", "") or ""
+                ),
+                "source_component_gate_exact_rows_jsonl": str(
+                    row.get("source_component_gate_exact_rows_jsonl", "") or ""
+                ),
+                "missing_artifact_id": str(
+                    row.get("missing_artifact_id", "") or ""
+                ),
+                "missing_artifact_role": str(
+                    row.get("missing_artifact_role", "") or ""
+                ),
+                "failure_classification": str(
+                    row.get("failure_classification", "") or ""
+                ),
+                "failure_classifications": list(
+                    row.get("failure_classifications", []) or []
+                )[:6],
+                "failure_detail": str(row.get("failure_detail", "") or ""),
+                "n_exact_rows_read": _int_like(
+                    row.get("n_exact_rows_read", 0)
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows[
+                :3
+            ]
         ],
         "formalizer_lean_candidate_proof_state_feedback_memory": [
             {
