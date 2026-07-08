@@ -67,6 +67,17 @@ FORMALIZER_MAX_PROOF_BANK_ROWS = 12
 FORMALIZER_MAX_TEXT_CHARS = 300
 
 
+def _is_compaction_path_key(key: Any) -> bool:
+    lowered = str(key).lower()
+    return (
+        lowered == "path"
+        or lowered.endswith("_path")
+        or lowered.endswith("_paths")
+        or lowered.endswith("_file")
+        or lowered.endswith("_files")
+    )
+
+
 @dataclass(frozen=True)
 class FormalizerConfig:
     model: str = ""
@@ -4843,6 +4854,155 @@ def _compact_formal_blocker_resource_requests(rows: Any) -> list[dict[str, Any]]
     )
 
 
+def _exact_semantic_repair_diagnostics_by_placeholder(
+    *feedback_payloads: Any,
+) -> dict[tuple[str, str], Mapping[str, Any]]:
+    diagnostics_by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for payload in feedback_payloads:
+        if not isinstance(payload, Mapping):
+            continue
+        exact_feedback = payload.get(
+            "source_theorem_exact_semantic_definition_repair_feedback",
+            {},
+        )
+        if isinstance(exact_feedback, Mapping):
+            diagnostics = exact_feedback.get("diagnostics", [])
+        else:
+            diagnostics = []
+        work_order_feedback = payload.get(
+            "runtime_exact_semantic_definition_work_order_feedback",
+            {},
+        )
+        work_orders = (
+            work_order_feedback.get("work_orders", [])
+            if isinstance(work_order_feedback, Mapping)
+            else []
+        )
+        for row in list(diagnostics or []) + list(work_orders or []):
+            if not isinstance(row, Mapping):
+                continue
+            placeholder = str(row.get("placeholder_symbol", "") or "").strip()
+            if not placeholder:
+                continue
+            target_ids = [
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            ]
+            target_names = [
+                str(value).strip()
+                for value in row.get("target_names", []) or []
+                if str(value).strip()
+            ]
+            target_name = str(
+                row.get("target_theorem_name", "") or row.get("target_name", "") or ""
+            ).strip()
+            targets = (
+                target_ids
+                or target_names
+                or ([target_name] if target_name else [""])
+            )
+            for target in targets:
+                diagnostics_by_key.setdefault((placeholder, target), row)
+    return diagnostics_by_key
+
+
+def _formal_blocker_resource_requests_with_exact_semantic_artifacts(
+    rows: Any,
+    *,
+    feedback: Mapping[str, Any],
+    input_summary: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    if not isinstance(rows, list | tuple):
+        return []
+    diagnostics_by_key = _exact_semantic_repair_diagnostics_by_placeholder(
+        feedback,
+        input_summary,
+    )
+    hydrated: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        copied = dict(row)
+        placeholder = str(copied.get("placeholder_symbol", "") or "").strip()
+        if not placeholder:
+            hydrated.append(copied)
+            continue
+        target_ids = [
+            str(value).strip()
+            for value in copied.get("target_ids", []) or []
+            if str(value).strip()
+        ]
+        target_names = [
+            str(value).strip()
+            for value in copied.get("target_names", []) or []
+            if str(value).strip()
+        ]
+        target_name = str(
+            copied.get("target_theorem_name", "")
+            or copied.get("target_name", "")
+            or ""
+        ).strip()
+        targets = (
+            target_ids
+            or target_names
+            or ([target_name] if target_name else [""])
+        )
+        diagnostic = next(
+            (
+                diagnostics_by_key.get((placeholder, target))
+                for target in targets
+                if diagnostics_by_key.get((placeholder, target))
+            ),
+            diagnostics_by_key.get((placeholder, "")),
+        )
+        if not isinstance(diagnostic, Mapping):
+            hydrated.append(copied)
+            continue
+        definition_only_path = str(
+            diagnostic.get("definition_only_candidate_artifact_path", "") or ""
+        ).strip()
+        candidate_path = str(
+            diagnostic.get("candidate_artifact_path", "")
+            or diagnostic.get("synthesized_candidate_artifact_path", "")
+            or definition_only_path
+            or ""
+        ).strip()
+        for key, value in (
+            ("definition_only_candidate_artifact_path", definition_only_path),
+            ("candidate_artifact_path", candidate_path),
+            (
+                "semantic_definition_typecheck_evidence_status",
+                diagnostic.get("semantic_definition_typecheck_evidence_status"),
+            ),
+            (
+                "local_definition_lean_checked",
+                diagnostic.get("local_definition_lean_checked"),
+            ),
+            (
+                "local_definition_lean_compiled",
+                diagnostic.get("local_definition_lean_compiled"),
+            ),
+            (
+                "source_theorem_exact_semantic_definition_typechecked_candidate",
+                diagnostic.get(
+                    "source_theorem_exact_semantic_definition_typechecked_candidate"
+                ),
+            ),
+        ):
+            if copied.get(key) in (None, "", [], {}) and value not in (None, "", [], {}):
+                copied[key] = value
+        if (
+            copied.get("proof_evidence_status") in (None, "")
+            and definition_only_path
+        ):
+            copied["proof_evidence_status"] = (
+                "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+            )
+        hydrated.append(copied)
+    return hydrated
+
+
 def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for key in keys:
@@ -4861,7 +5021,7 @@ def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[s
         ):
             compact[key] = _compact_premise_derivation_candidate_request(row[key])
         else:
-            compact[key] = _compact_value(row.get(key))
+            compact[key] = _compact_value_for_key(key, row.get(key))
     return compact
 
 
@@ -7619,7 +7779,11 @@ def _compact_formalizer_environment_feedback(
     if formal_blocker_resource_requests:
         payload["formal_blocker_resource_requests"] = (
             _compact_formal_blocker_resource_requests(
-                formal_blocker_resource_requests
+                _formal_blocker_resource_requests_with_exact_semantic_artifacts(
+                    formal_blocker_resource_requests,
+                    feedback=feedback,
+                    input_summary=input_summary,
+                )
             )
         )
     high_priority_agenda = (
@@ -9143,6 +9307,18 @@ def _source_theorem_candidate_materialization_contract(
     }
 
 
+def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if _is_compaction_path_key(key):
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list | tuple):
+            return [
+                child if isinstance(child, str) else _compact_value(child)
+                for child in list(value)[:8]
+            ]
+    return _compact_value(value)
+
+
 def _compact_value(value: Any) -> Any:
     if isinstance(value, str):
         return value[:FORMALIZER_MAX_TEXT_CHARS]
@@ -9196,7 +9372,7 @@ def _compact_value(value: Any) -> Any:
             if key not in ordered_keys and value.get(key) not in (None, "", [], {}):
                 ordered_keys.append(key)
         return {
-            str(key): _compact_value(child)
+            str(key): _compact_value_for_key(key, child)
             for key in ordered_keys[:16]
             for child in (value.get(key),)
         }

@@ -57733,6 +57733,85 @@ def test_formalizer_prompt_preserves_exact_semantic_blocker_artifact_keys() -> N
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
 
 
+def test_formalizer_prompt_hydrates_exact_semantic_blocker_artifacts_from_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    definition_only_path = (
+        "runs/main_worker_exact_semantic_definition_authoring_live/"
+        "runtime_source_theorem_exact_semantic_definition_authoring_candidate_"
+        "materializer_from_source_theorem_exact_semantic_definitions_from_"
+        "source_to_bridge_premise_derivation_formalizer_feedback/"
+        "candidate_artifacts/split_conformal_finite_sample_coverage_"
+        "good_rank_event_source_theorem_exact_semantic_definition_"
+        "candidate_definition_only.lean"
+    )
+    assert len(definition_only_path) > 300
+    blocker_request = {
+        "request_id": "formal_blocker_resource_request:semantic:good_rank_event",
+        "source": "critic_source_theorem_exact_semantic_definition_repair_feedback",
+        "blocker_kind": "source_theorem_exact_semantic_definition_repair_required",
+        "blocker": (
+            "Exact source-theorem proof-body execution is blocked until exact "
+            "semantic definitions are reviewed"
+        ),
+        "next_owner": "Formalizer/ProofEngineer/LeanProver",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "placeholder_symbol": "good_rank_event",
+        "candidate_artifact_path": "",
+        "definition_only_candidate_artifact_path": "",
+        "runtime_queue_status": (
+            "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW"
+        ),
+        "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+        "proof_evidence_status": (
+            "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={
+            "question_id": question.id,
+            "problem_class": "conformal",
+        },
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "formal_blocker_resource_requests": [blocker_request],
+            "source_theorem_exact_semantic_definition_repair_feedback": {
+                "diagnostics": [
+                    {
+                        "placeholder_symbol": "good_rank_event",
+                        "target_ids": ["split_conformal_finite_sample_coverage"],
+                        "target_theorem_name": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "definition_only_candidate_artifact_path": (
+                            definition_only_path
+                        ),
+                        "local_definition_lean_checked": True,
+                        "local_definition_lean_compiled": True,
+                        "semantic_definition_typecheck_evidence_status": (
+                            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_"
+                            "LOCAL_LEAN_COMPILED_REVIEW_REQUIRED"
+                        ),
+                    }
+                ],
+            },
+        },
+    )
+
+    assert "definition_only_candidate_artifact_path" in prompt
+    assert "candidate_artifact_path" in prompt
+    assert definition_only_path in prompt
+    assert "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_" in prompt
+    assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
+
+
 def test_exact_proof_body_unready_queue_routes_candidate_materialization_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
