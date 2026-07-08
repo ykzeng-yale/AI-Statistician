@@ -73968,6 +73968,15 @@ def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_
     assert audit[local_lean_key] == 1
     assert audit["source_theorem_proof_body_result_row_count"] == 1
     assert audit["source_theorem_proof_body_local_lean_checked_count"] == 1
+    assert audit["source_theorem_proof_body_same_lane_verified_lanes"] == [
+        lane_id
+    ]
+    assert audit["source_theorem_proof_body_same_lane_result_lanes"] == [
+        lane_id
+    ]
+    assert audit[
+        "source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress"
+    ] == []
     assert local_lean_row["passed"] is True
     assert "proof_body_local_lean_checked=1" in local_lean_row["evidence"]
     assert same_lane_row["passed"] is True

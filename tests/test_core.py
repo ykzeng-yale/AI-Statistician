@@ -6590,6 +6590,15 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_proof_body_executor_ran_scorecard_blocker": "",
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present": True,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": True,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes": [
+                    "exact_semantic_definition_proof_body_recheck"
+                ],
+                "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes": [
+                    "exact_semantic_definition_proof_body_recheck"
+                ],
+                "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes_without_verifier": [],
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_result": [],
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress": [],
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": (
                     "verified_lanes=['exact_semantic_definition_proof_body_recheck']"
                 ),
@@ -6631,6 +6640,12 @@ class SystemTests(unittest.TestCase):
             runtime_scorecard_lane_s13["key_counts"][
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence_present"
             ]
+        )
+        self.assertEqual(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes"
+            ],
+            ["exact_semantic_definition_proof_body_recheck"],
         )
         self.assertTrue(
             runtime_scorecard_lane_s13["key_counts"][

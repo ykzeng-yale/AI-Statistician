@@ -294,6 +294,11 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence",
                         "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes_without_verifier",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_result",
+                        "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress",
                         "research_agent_runtime_source_theorem_raw_kernel_verified",
                         "research_agent_runtime_source_theorem_target_bound_kernel_verified",
                         "research_agent_runtime_source_theorem_current_target_ids",
@@ -3392,6 +3397,21 @@ def _suite_rows(
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_ok,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_evidence": runtime_source_theorem_proof_body_same_lane_scorecard_evidence,
                 "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_scorecard_blocker": runtime_source_theorem_proof_body_same_lane_scorecard_blocker,
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes_without_verifier": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes_without_verifier"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_result": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_result"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress"
+                ),
                 "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_present": runtime_live_lean_lsp_mcp_scorecard_present,
                 "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_ok": runtime_live_lean_lsp_mcp_scorecard_ok,
                 "research_agent_runtime_live_lean_lsp_mcp_called_scorecard_evidence": runtime_live_lean_lsp_mcp_scorecard_evidence,

@@ -4043,6 +4043,26 @@ async def run_research_system_audit(
                 "source_theorem_proof_body_result_row_count",
                 0,
             ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verified_lanes": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_same_lane_verified_lanes",
+                [],
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_same_lane_result_lanes",
+                [],
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_result_lanes_without_verifier": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_same_lane_result_lanes_without_verifier",
+                [],
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_result": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_same_lane_verifier_lanes_without_result",
+                [],
+            ),
+            "research_agent_runtime_source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress",
+                [],
+            ),
             "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": research_agent_runtime_audit_manifest.get(
                 "source_theorem_proof_body_goal_reached_evidence_count",
                 0,

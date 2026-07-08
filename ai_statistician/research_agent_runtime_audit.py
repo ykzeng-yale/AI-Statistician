@@ -11049,6 +11049,32 @@ def audit_research_agent_runtime(
     payload["source_theorem_proof_body_local_lean_checked_count"] = (
         _payload_source_theorem_proof_body_local_lean_checked_count(payload)
     )
+    proof_body_same_lane_summary = (
+        _runtime_source_theorem_proof_body_same_lane_verification_summary(payload)
+    )
+    payload["source_theorem_proof_body_same_lane_verified_lanes"] = list(
+        proof_body_same_lane_summary.get("verified_lanes", [])
+    )
+    payload["source_theorem_proof_body_same_lane_result_lanes"] = list(
+        proof_body_same_lane_summary.get("result_lanes", [])
+    )
+    payload["source_theorem_proof_body_same_lane_result_lanes_without_verifier"] = list(
+        proof_body_same_lane_summary.get("result_lanes_without_verifier", [])
+    )
+    payload["source_theorem_proof_body_same_lane_verifier_lanes_without_result"] = list(
+        proof_body_same_lane_summary.get("verifier_lanes_without_result", [])
+    )
+    payload[
+        "source_theorem_proof_body_same_lane_verifier_lanes_without_signature_backed_progress"
+    ] = list(
+        proof_body_same_lane_summary.get(
+            "verifier_lanes_without_signature_backed_progress",
+            [],
+        )
+    )
+    payload["source_theorem_proof_body_same_lane_lane_rows"] = list(
+        proof_body_same_lane_summary.get("lane_rows", [])
+    )
     payload["source_theorem_proof_body_signature_artifact_count"] = (
         _payload_source_theorem_proof_body_signature_artifact_count(payload)
     )
