@@ -11212,7 +11212,8 @@ def _algorithm_engineer_packet_validation_failure_result(
             "rerun AlgorithmEngineer with a locally valid packet: for capability "
             "evaluation, produce Claude/OpenAI-generated sandbox_code_drafts and set "
             "registered_template_hint to none for every implementation target; each "
-            "sandbox_code_drafts entrypoint field must be exactly run_sandbox"
+            "sandbox_code_drafts entrypoint field must be exactly run_sandbox and "
+            "each draft estimator_id must match an implementation target or gap"
         ),
         "acceptance_gate": (
             "AlgorithmEngineer packet passes local validation; AgentRuntime then "
@@ -11259,7 +11260,11 @@ def _algorithm_engineer_packet_validation_failure_result(
             "estimator_id matches an implementation target or gap, set its "
             "entrypoint field exactly to run_sandbox, and set every "
             "registered_template_hint to none; registered templates may only be "
-            "mentioned as baselines."
+            "mentioned as baselines. Use this exact metadata shape: "
+            "implementation_targets[0].registered_template_hint=\"none\" and "
+            "sandbox_code_drafts[0]={\"estimator_id\":\"<matching id>\","
+            "\"language\":\"python\",\"entrypoint\":\"run_sandbox\","
+            "\"code\":\"def run_sandbox(seed: int, replicates: int) -> dict: ...\"}."
         ),
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",

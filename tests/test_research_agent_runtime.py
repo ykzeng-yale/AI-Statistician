@@ -19402,6 +19402,8 @@ def test_algorithm_engineer_capability_eval_prompt_requires_generated_code() -> 
     assert "registered_template_hint to none" in prompt
     assert "will not be executed for this capability gate" in prompt
     assert "required for capability-eval coding-agent evidence" in prompt
+    assert "sandbox_code_drafts[0].estimator_id" in prompt
+    assert '"sandbox_code_drafts"' in prompt
     assert "leave sandbox_code_drafts empty whenever a template matches" not in prompt
 
 
@@ -19575,6 +19577,73 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     assert alignment["consumer_subsystem"] == "AlgorithmEngineer"
     assert alignment["structured_alignment_observed"] is True
     assert alignment["supported_assumptions"] == ["positivity"]
+    assert validate_algorithm_engineer_packet(packet) == []
+    assert (
+        _validate_capability_eval_generated_algorithm_packet(
+            packet,
+            implementation_gaps=[
+                {
+                    "estimator_id": "E1",
+                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                }
+            ],
+        )
+        == []
+    )
+
+
+def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    packet = _normalize_algorithm_packet(
+        {
+            "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
+            "implementation_targets": [
+                {
+                    "id": "E1",
+                    "registered_template_hint": "split_conformal_interval",
+                }
+            ],
+            "sandbox_code_drafts": [
+                {
+                    "id": "E1",
+                    "language": "Python 3",
+                    "entrypoint": "def run_sandbox(seed: int, replicates: int) -> dict",
+                    "code": (
+                        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                        "    return {\n"
+                        "        'sandbox_failed': False,\n"
+                        "        'empirical_coverage': 1.0,\n"
+                        "        'target_coverage': 0.95,\n"
+                        "        'replicates': max(5, int(replicates)),\n"
+                        "    }\n"
+                    ),
+                }
+            ],
+            "next_actions": [{"owner": "AlgorithmEngineer", "action": "execute"}],
+        },
+        question=question,
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        raw_response="{}",
+        theory_packet=_structured_theory_packet_fixture(),
+        implementation_gaps=[
+            {
+                "estimator_id": "E1",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        requires_generated_code=True,
+    )
+
+    target = packet["implementation_targets"][0]
+    draft = packet["sandbox_code_drafts"][0]
+    assert target["estimator_id"] == "E1"
+    assert target["registered_template_hint"] == "none"
+    assert draft["estimator_id"] == "E1"
+    assert draft["language"] == "python"
+    assert draft["entrypoint"] == "run_sandbox"
     assert validate_algorithm_engineer_packet(packet) == []
     assert (
         _validate_capability_eval_generated_algorithm_packet(
@@ -35111,7 +35180,10 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert feedback["failure_classification"] == "algorithm_engineer_packet_validation_failed"
     assert "sandbox_code_drafts" in feedback["required_repair"]
     assert "entrypoint field exactly to run_sandbox" in feedback["required_repair"]
+    assert "estimator_id" in feedback["required_repair"]
+    assert "registered_template_hint=\"none\"" in feedback["required_repair"]
     assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
+    assert "draft estimator_id" in feedback["target_behavior"]
 
 
 def test_algorithm_runtime_enforces_generated_code_required_from_learning_memory(

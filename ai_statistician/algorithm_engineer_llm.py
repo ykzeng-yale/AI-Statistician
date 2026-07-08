@@ -99,6 +99,10 @@ class LLMAlgorithmEngineerAgent:
             },
         )
 
+        requires_generated_code = _feedback_requires_generated_algorithm_code(
+            environment_feedback or {}
+        )
+
         def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
             return _normalize_algorithm_packet(
                 payload,
@@ -110,11 +114,8 @@ class LLMAlgorithmEngineerAgent:
                 raw_response=raw_text,
                 theory_packet=theory_packet,
                 implementation_gaps=implementation_gaps,
+                requires_generated_code=requires_generated_code,
             )
-
-        requires_generated_code = _feedback_requires_generated_algorithm_code(
-            environment_feedback or {}
-        )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_algorithm_engineer_packet(packet)
@@ -146,6 +147,12 @@ def build_algorithm_engineer_prompt(
     implementation_gaps: list[Mapping[str, Any]],
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> str:
+    runtime_environment_feedback = _compact_algorithm_environment_feedback(
+        environment_feedback or {}
+    )
+    requires_generated_code = _feedback_requires_generated_algorithm_code(
+        runtime_environment_feedback
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -162,9 +169,7 @@ def build_algorithm_engineer_prompt(
         ),
         "simulation_manifest_summary": _compact_simulation_manifest_for_algorithm(simulation_manifest),
         "implementation_gaps": _compact_implementation_gaps(implementation_gaps),
-        "runtime_environment_feedback": _compact_algorithm_environment_feedback(
-            environment_feedback or {}
-        ),
+        "runtime_environment_feedback": runtime_environment_feedback,
         "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
         "generated_code_sandbox_contract": {
             "status": "optional fallback when no registered template matches",
@@ -183,12 +188,11 @@ def build_algorithm_engineer_prompt(
                 "do not claim theorem proof evidence",
             ],
         },
-        "required_output_contract": ALGORITHM_ENGINEER_OUTPUT_CONTRACT,
+        "required_output_contract": _algorithm_engineer_output_contract(
+            requires_generated_code=requires_generated_code
+        ),
         "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
-    requires_generated_code = _feedback_requires_generated_algorithm_code(
-        payload["runtime_environment_feedback"]
-    )
     if requires_generated_code:
         payload["generated_code_sandbox_contract"]["status"] = (
             "required for capability-eval coding-agent evidence"
@@ -204,7 +208,9 @@ def build_algorithm_engineer_prompt(
         "implementation_targets row registered_template_hint to none so AgentRuntime "
         "can test Claude-generated algorithm code execution. Registered templates may "
         "be named only in prose as baselines; they will not be executed for this "
-        "capability gate. "
+        "capability gate. The JSON must contain sandbox_code_drafts[0].estimator_id "
+        "matching implementation_targets[0].estimator_id, language \"python\", "
+        "entrypoint \"run_sandbox\", and code with the run_sandbox definition. "
         if requires_generated_code
         else (
             "Prefer registered runtime templates over sandbox_code_drafts; leave "
@@ -735,6 +741,23 @@ ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
 }
 
 
+def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dict[str, Any]:
+    contract = dict(ALGORITHM_ENGINEER_OUTPUT_CONTRACT)
+    if requires_generated_code:
+        contract["sandbox_code_drafts"] = [
+            {
+                "estimator_id": "same string as implementation_targets[0].estimator_id",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    return {'sandbox_failed': False}"
+                ),
+            }
+        ]
+    return contract
+
+
 ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -886,8 +909,14 @@ def _normalize_algorithm_packet(
     raw_response: str,
     theory_packet: Mapping[str, Any],
     implementation_gaps: list[Mapping[str, Any]],
+    requires_generated_code: bool = False,
 ) -> dict[str, Any]:
     body = dict(payload)
+    _normalize_algorithm_implementation_targets(
+        body,
+        implementation_gaps=implementation_gaps,
+        requires_generated_code=requires_generated_code,
+    )
     _normalize_algorithm_sandbox_code_drafts(
         body,
         implementation_gaps=implementation_gaps,
@@ -969,6 +998,10 @@ def _normalize_algorithm_sandbox_code_drafts(
             normalized_drafts.append(row)
             continue
         normalized = dict(row)
+        if not str(normalized.get("estimator_id", "") or "").strip():
+            alias = _algorithm_estimator_id_alias(normalized)
+            if alias:
+                normalized["estimator_id"] = alias
         language = str(normalized.get("language", "") or "").strip().lower()
         if language in {"", "py", "py3", "python3", "python 3"} and str(
             normalized.get("code", "") or ""
@@ -984,6 +1017,57 @@ def _normalize_algorithm_sandbox_code_drafts(
             normalized["entrypoint"] = "run_sandbox"
         normalized_drafts.append(normalized)
     body["sandbox_code_drafts"] = normalized_drafts
+
+
+def _normalize_algorithm_implementation_targets(
+    body: dict[str, Any],
+    *,
+    implementation_gaps: list[Mapping[str, Any]],
+    requires_generated_code: bool,
+) -> None:
+    raw_targets = body.get("implementation_targets", [])
+    if not isinstance(raw_targets, list):
+        return
+    raw_drafts = body.get("sandbox_code_drafts", [])
+    draft_rows = raw_drafts if isinstance(raw_drafts, list) else []
+    has_code_draft = any(
+        isinstance(row, Mapping) and str(row.get("code", "") or "").strip()
+        for row in draft_rows
+    )
+    default_estimator_id = _single_algorithm_estimator_id(
+        raw_targets,
+        implementation_gaps=implementation_gaps,
+    )
+    normalized_targets: list[Any] = []
+    for row in raw_targets:
+        if not isinstance(row, Mapping):
+            normalized_targets.append(row)
+            continue
+        normalized = dict(row)
+        if not str(normalized.get("estimator_id", "") or "").strip():
+            alias = _algorithm_estimator_id_alias(normalized)
+            if alias:
+                normalized["estimator_id"] = alias
+            elif default_estimator_id:
+                normalized["estimator_id"] = default_estimator_id
+        if requires_generated_code and has_code_draft:
+            normalized["registered_template_hint"] = "none"
+        normalized_targets.append(normalized)
+    body["implementation_targets"] = normalized_targets
+
+
+def _algorithm_estimator_id_alias(row: Mapping[str, Any]) -> str:
+    for key in (
+        "estimator_id",
+        "estimator",
+        "target_estimator_id",
+        "implementation_target_id",
+        "id",
+    ):
+        value = str(row.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:
