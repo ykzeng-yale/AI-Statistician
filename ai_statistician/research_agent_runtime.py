@@ -4818,7 +4818,7 @@ def _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(
 def _runtime_enrich_pseudo_formal_block_verifier_feedback_row(
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Fill PF/BV replay-contract metadata for copied component-gate rows."""
+    """Fill PF/BV replay-contract metadata for runtime memory rows."""
 
     enriched = dict(row)
     input_summary = (
@@ -4833,6 +4833,7 @@ def _runtime_enrich_pseudo_formal_block_verifier_feedback_row(
         ("dependency_statement_context", []),
         ("scope_parent_id", ""),
         ("inherited_scope", []),
+        ("source_anchors", []),
         ("source_block_premises", []),
         ("source_block_proof_text", ""),
     ):
@@ -52477,6 +52478,15 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
         target_row = dict(input_summary)
         target_row.update(dict(row))
         target_row["input_summary"] = input_summary
+        target_row = _runtime_enrich_pseudo_formal_block_verifier_feedback_row(
+            target_row
+        )
+        input_summary = (
+            target_row.get("input_summary", {})
+            if isinstance(target_row.get("input_summary", {}), Mapping)
+            else input_summary
+        )
+        row = target_row
         target_ids = _source_theorem_target_ids_from_row(
             target_row,
             fallback_target_theorem_name=str(
@@ -52667,6 +52677,17 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                     or input_summary.get("source_block_proof_text", "")
                     or ""
                 )[:1200],
+                "structural_quality": dict(
+                    row.get("structural_quality", {})
+                    if isinstance(row.get("structural_quality", {}), Mapping)
+                    else {}
+                ),
+                "structural_quality_ok": bool(
+                    row.get("structural_quality_ok", False)
+                ),
+                "structural_quality_issues": list(
+                    row.get("structural_quality_issues", []) or []
+                ),
                 "faithfulness_status": str(
                     row.get("faithfulness_status", "")
                     or input_summary.get("faithfulness_status", "")
@@ -52733,6 +52754,24 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                 "runtime_generated_queue_name": str(
                     row.get("runtime_generated_queue_name", "")
                     or input_summary.get("runtime_generated_queue_name", "")
+                    or ""
+                ),
+                "pseudo_formal_block_verifier_worker": dict(
+                    row.get("pseudo_formal_block_verifier_worker", {})
+                    if isinstance(
+                        row.get("pseudo_formal_block_verifier_worker", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "recommended_commands": [
+                    str(command)
+                    for command in row.get("recommended_commands", []) or []
+                    if str(command).strip()
+                ],
+                "recommended_next_action": str(
+                    row.get("recommended_next_action", "")
+                    or input_summary.get("recommended_next_action", "")
                     or ""
                 ),
                 "target_behavior": str(
@@ -58729,6 +58768,15 @@ def _pseudo_formal_runtime_memory_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "inherited_scope": list(row.get("inherited_scope", []) or []),
         "source_block_premises": list(row.get("source_block_premises", []) or []),
         "source_block_proof_text": str(row.get("source_block_proof_text", "") or ""),
+        "structural_quality": dict(
+            row.get("structural_quality", {})
+            if isinstance(row.get("structural_quality", {}), Mapping)
+            else {}
+        ),
+        "structural_quality_ok": bool(row.get("structural_quality_ok", False)),
+        "structural_quality_issues": list(
+            row.get("structural_quality_issues", []) or []
+        ),
         "faithfulness_status": str(row.get("faithfulness_status", "") or ""),
         "faithfulness_repair_status": str(
             row.get("faithfulness_repair_status", "") or ""

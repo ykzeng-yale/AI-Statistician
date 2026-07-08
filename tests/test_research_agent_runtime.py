@@ -30382,6 +30382,18 @@ def test_runtime_learning_memory_replays_independent_pseudo_formal_bv_feedback(
     )
     assert bv_memory[0]["source_block_premises"] == ["scores are exchangeable"]
     assert "equally likely" in bv_memory[0]["source_block_proof_text"]
+    assert bv_memory[0]["structural_quality"]["all_ok"] is True
+    assert bv_memory[0]["structural_quality_ok"] is True
+    assert bv_memory[0]["pseudo_formal_block_verifier_worker"][
+        "component_gate_command"
+    ].startswith("python -m ai_statistician.cli")
+    assert any(
+        "pseudo-formal-block-verifier-response-validation" in command
+        for command in bv_memory[0]["recommended_commands"]
+    )
+    assert summary["pseudo_formal_block_routing_memory"][0][
+        "structural_quality_ok"
+    ] is True
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -30398,6 +30410,8 @@ def test_runtime_learning_memory_replays_independent_pseudo_formal_bv_feedback(
     assert "pseudo_formal_independent_block_verification_feedback_memory" in prompt
     assert "independent_block_verifier" in prompt
     assert "By exchangeability, every rank position is equally likely." in prompt
+    assert "structural_quality" in prompt
+    assert "pseudo-formal-block-verifier-response-validation" in prompt
     assert "not Lean kernel evidence" in prompt
 
 
