@@ -435,6 +435,7 @@ from .model_backend import (
     SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     OpenAIResponsesGeneratorBackend,
+    _call_with_wall_clock_timeout,
     default_generator_model,
     default_generator_provider,
 )
@@ -11980,6 +11981,15 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         getattr(args, "formalizer_repair_eval_out", "")
         or Path(args.out) / "internal_formalizer_lean_candidate_repair_eval"
     )
+    eval_model = str(getattr(args, "formalizer_repair_eval_model", "") or "")
+    runtime_timeout_seconds = float(
+        getattr(
+            args,
+            "formalizer_repair_eval_runtime_timeout_seconds",
+            max(DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0, 300.0),
+        )
+        or 0.0
+    )
     existing_manifest_path = str(
         getattr(args, "formalizer_repair_eval_existing_manifest", "") or ""
     ).strip()
@@ -11989,42 +11999,74 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
             expected_artifact_kind="FormalizerLeanCandidateRepairEvalManifest",
         )
     else:
-        eval_manifest = run_formalizer_lean_candidate_repair_eval(
-            question_file=Path(args.question_file),
-            question_id=(
-                str(getattr(args, "formalizer_repair_eval_question_id", "") or "")
-                or "conformal_prediction_coverage"
-            ),
-            out_dir=out_dir,
-            provider_name=provider_name,
-            model=str(getattr(args, "formalizer_repair_eval_model", "") or ""),
-            static_response_file=(
-                Path(getattr(args, "formalizer_repair_eval_static_response_file", ""))
-                if getattr(args, "formalizer_repair_eval_static_response_file", "")
-                else None
-            ),
-            llm_timeout_seconds=float(
-                getattr(
-                    args,
-                    "formalizer_repair_eval_llm_timeout_seconds",
-                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-                )
-            ),
-            max_tokens=int(getattr(args, "formalizer_repair_eval_max_tokens", 4000)),
-            temperature=float(getattr(args, "formalizer_repair_eval_temperature", 0.1)),
-            lean_project=(
-                Path(getattr(args, "formalizer_repair_eval_lean_project", ""))
-                if getattr(args, "formalizer_repair_eval_lean_project", "")
-                else None
-            ),
-            lean_timeout=int(getattr(args, "formalizer_repair_eval_lean_timeout", 15)),
-            lean_lsp_mcp_proof_state_feedback=bool(
-                getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
-            ),
-            max_repair_attempts=int(
-                getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
-            ),
+        question_id = (
+            str(getattr(args, "formalizer_repair_eval_question_id", "") or "")
+            or "conformal_prediction_coverage"
         )
+
+        def _run_eval() -> dict[str, Any]:
+            return run_formalizer_lean_candidate_repair_eval(
+                question_file=Path(args.question_file),
+                question_id=question_id,
+                out_dir=out_dir,
+                provider_name=provider_name,
+                model=eval_model,
+                static_response_file=(
+                    Path(
+                        getattr(
+                            args,
+                            "formalizer_repair_eval_static_response_file",
+                            "",
+                        )
+                    )
+                    if getattr(args, "formalizer_repair_eval_static_response_file", "")
+                    else None
+                ),
+                llm_timeout_seconds=float(
+                    getattr(
+                        args,
+                        "formalizer_repair_eval_llm_timeout_seconds",
+                        DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                    )
+                ),
+                max_tokens=int(getattr(args, "formalizer_repair_eval_max_tokens", 4000)),
+                temperature=float(
+                    getattr(args, "formalizer_repair_eval_temperature", 0.1)
+                ),
+                lean_project=(
+                    Path(getattr(args, "formalizer_repair_eval_lean_project", ""))
+                    if getattr(args, "formalizer_repair_eval_lean_project", "")
+                    else None
+                ),
+                lean_timeout=int(
+                    getattr(args, "formalizer_repair_eval_lean_timeout", 15)
+                ),
+                lean_lsp_mcp_proof_state_feedback=bool(
+                    getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+                ),
+                max_repair_attempts=int(
+                    getattr(args, "formalizer_repair_eval_max_repair_attempts", 3)
+                ),
+            )
+
+        try:
+            if runtime_timeout_seconds > 0:
+                eval_manifest = _call_with_wall_clock_timeout(
+                    _run_eval,
+                    timeout_s=runtime_timeout_seconds,
+                    provider_name=f"{provider_name}:formalizer_repair_eval",
+                    model=eval_model or "formalizer_lean_candidate_repair_eval",
+                )
+            else:
+                eval_manifest = _run_eval()
+        except Exception as exc:
+            eval_manifest = write_formalizer_lean_candidate_repair_eval_failure_manifest(
+                out_dir=out_dir,
+                provider_name=provider_name,
+                model=eval_model,
+                question_id=question_id,
+                exc=exc,
+            )
     gate_summary = _runtime_component_gate_summary(eval_manifest)
     prior_feedback_counts = dict(
         eval_manifest.get("prior_feedback_proof_state_counts", {}) or {}
@@ -12035,9 +12077,18 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
         "provider_name": str(gate_summary["provider_name"]),
         "backend_provider_name": str(gate_summary["backend_provider_name"]),
         "model": str(eval_manifest.get("model", "")),
+        "result_status": str(eval_manifest.get("result_status", "") or ""),
+        "failure_classification": str(
+            eval_manifest.get("failure_classification", "") or ""
+        ),
+        "failure_exception_type": str(
+            eval_manifest.get("failure_exception_type", "") or ""
+        ),
+        "failure_message": str(eval_manifest.get("failure_message", "") or ""),
         "live_generator": bool(gate_summary["live_generator"]),
         "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
         "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
+        "attachment_runtime_timeout_seconds": runtime_timeout_seconds,
         "candidate_kernel_verified": bool(
             eval_manifest.get("candidate_kernel_verified", False)
         ),
@@ -12106,6 +12157,12 @@ def _attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
     manifest["internal_formalizer_lean_candidate_repair_eval_live_generator"] = bool(
         attached["live_generator"]
     )
+    manifest["internal_formalizer_lean_candidate_repair_eval_result_status"] = str(
+        attached["result_status"]
+    )
+    manifest[
+        "internal_formalizer_lean_candidate_repair_eval_failure_classification"
+    ] = str(attached["failure_classification"])
     manifest["internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"] = bool(
         attached["capability_evidence_ok"]
     )
@@ -20940,6 +20997,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--formalizer-repair-eval-llm-timeout-seconds",
         type=float,
         default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-repair-eval-runtime-timeout-seconds",
+        type=float,
+        default=max(DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0, 300.0),
+        help=(
+            "wall-clock timeout for the attached Formalizer Lean-candidate "
+            "repair eval as a whole; use 0 to disable. Timeout produces an "
+            "attached failure manifest and does not invalidate the completed "
+            "AgentRuntime manifest."
+        ),
     )
     research_agent_runtime.add_argument(
         "--formalizer-repair-eval-max-tokens",

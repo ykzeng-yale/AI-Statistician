@@ -3720,6 +3720,26 @@ def _runtime_formalizer_component_gate_learning_rows(
         )
         or ""
     )
+    result_status = str(attached.get("result_status", "") or "")
+    failure_type = str(
+        attached.get("failure_type", "")
+        or attached.get("failure_classification", "")
+        or ""
+    )
+    failure_exception_type = str(attached.get("failure_exception_type", "") or "")
+    failure_message = str(attached.get("failure_message", "") or "")
+    failure_errors = [
+        str(value)
+        for value in attached.get("errors", [])
+        if str(value).strip()
+    ]
+    if failure_message and not failure_errors:
+        failure_errors = [failure_message]
+    failure_required_target_lanes: list[str] = []
+    failure_issue_summary = failure_message
+    failure_issue_actions: list[str] = []
+    failure_repair_seed: dict[str, Any] = {}
+    failure_repair_seed_available = False
     return [
         {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -3736,6 +3756,8 @@ def _runtime_formalizer_component_gate_learning_rows(
             "model": str(attached.get("model", "") or ""),
             "result_status": result_status,
             "failure_type": failure_type,
+            "failure_exception_type": failure_exception_type,
+            "failure_message": failure_message,
             "errors": failure_errors,
             "pseudo_formal_failure_required_target_lanes": (
                 failure_required_target_lanes
@@ -3795,6 +3817,10 @@ def _runtime_formalizer_component_gate_learning_rows(
                 "component_eval_manifest_path": manifest_path,
                 "provider_name": provider_name,
                 "backend_provider_name": backend_provider_name,
+                "result_status": result_status,
+                "failure_type": failure_type,
+                "failure_exception_type": failure_exception_type,
+                "failure_message": failure_message,
                 "capability_evidence_ok": capability_ok,
                 "live_generator": live_generator,
                 "static_or_fixture_only": static_or_fixture_only,

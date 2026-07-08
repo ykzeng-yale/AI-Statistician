@@ -90232,6 +90232,112 @@ def test_runtime_attaches_existing_live_component_repair_manifests(
     )
 
 
+def test_runtime_attaches_failed_formalizer_lean_repair_eval_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_out = tmp_path / "runtime"
+    runtime_out.mkdir()
+    seen: dict[str, object] = {}
+
+    def timed_out_component_eval(
+        _call: object,
+        *,
+        timeout_s: float,
+        provider_name: str,
+        model: str,
+    ) -> dict[str, object]:
+        seen["timeout_s"] = timeout_s
+        seen["provider_name"] = provider_name
+        seen["model"] = model
+        raise TimeoutError("synthetic component eval watchdog timeout")
+
+    monkeypatch.setattr(
+        cli_module,
+        "_call_with_wall_clock_timeout",
+        timed_out_component_eval,
+    )
+
+    args = argparse.Namespace(
+        out=str(runtime_out),
+        question_file="examples/research_questions.json",
+        provider="anthropic",
+        formalizer_repair_eval_provider="same",
+        formalizer_repair_eval_model="",
+        formalizer_repair_eval_question_id="conformal_prediction_coverage",
+        formalizer_repair_eval_static_response_file="",
+        formalizer_repair_eval_llm_timeout_seconds=120.0,
+        formalizer_repair_eval_runtime_timeout_seconds=7.0,
+        formalizer_repair_eval_max_tokens=4000,
+        formalizer_repair_eval_temperature=0.1,
+        formalizer_repair_eval_lean_project="",
+        formalizer_repair_eval_lean_timeout=15,
+        formalizer_candidate_lean_lsp_mcp=True,
+        formalizer_repair_eval_max_repair_attempts=3,
+        formalizer_repair_eval_out="",
+        formalizer_repair_eval_existing_manifest="",
+    )
+    manifest = cli_module._attach_formalizer_lean_candidate_repair_eval_to_runtime_manifest(
+        args,
+        {
+            "artifacts": {
+                "runtime_learning_rows_jsonl": str(
+                    runtime_out / "runtime_learning_rows.jsonl"
+                )
+            }
+        },
+    )
+
+    attached = manifest["internal_formalizer_lean_candidate_repair_eval"]
+    assert seen == {
+        "timeout_s": 7.0,
+        "provider_name": "anthropic:formalizer_repair_eval",
+        "model": "formalizer_lean_candidate_repair_eval",
+    }
+    assert attached["result_status"] == "PROVIDER_OR_RUNTIME_FAILURE"
+    assert attached["failure_classification"] == "provider_or_runtime_exception"
+    assert attached["failure_exception_type"] == "TimeoutError"
+    assert attached["attachment_runtime_timeout_seconds"] == 7.0
+    assert attached["capability_evidence_ok"] is False
+    assert attached["candidate_kernel_verified"] is False
+    assert attached["source_theorem_kernel_verified"] is False
+    assert (
+        manifest[
+            "internal_formalizer_lean_candidate_repair_eval_result_status"
+        ]
+        == "PROVIDER_OR_RUNTIME_FAILURE"
+    )
+    assert (
+        manifest[
+            "internal_formalizer_lean_candidate_repair_eval_failure_classification"
+        ]
+        == "provider_or_runtime_exception"
+    )
+    assert (
+        manifest[
+            "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok"
+        ]
+        is False
+    )
+    assert Path(attached["manifest_path"]).exists()
+    assert (runtime_out / "research_agent_runtime_manifest.json").exists()
+    learning_rows = [
+        json.loads(line)
+        for line in (runtime_out / "runtime_learning_rows.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("learning_task")
+        == "formalizer_lean_candidate_component_gate_feedback"
+        and row.get("capability_evidence_ok") is False
+        and row.get("proof_evidence_status")
+        == "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+        for row in learning_rows
+    )
+
+
 def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
