@@ -12531,14 +12531,18 @@ def _formalizer_provider_failure_result(
         proof_bank_runtime_memory_summary,
         {"provider_failure_classification": failure_classification},
     )
-    structural_reformulation_required = bool(
-        proof_bank_runtime_memory_summary.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_required",
-            False,
+    structural_reformulation_required = (
+        _bool_like(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_required",
+                False,
+            )
         )
-        or environment_feedback.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_required",
-            False,
+        or _bool_like(
+            environment_feedback.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_required",
+                False,
+            )
         )
     )
     failure_id = "formalizer_provider_failure:" + stable_hash(
@@ -12823,14 +12827,18 @@ def _formalizer_packet_validation_failure_result(
         )
         > 0
     )
-    source_theorem_exact_semantic_definition_structural_reformulation_required = bool(
-        proof_bank_runtime_memory_summary.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_required",
-            False,
+    source_theorem_exact_semantic_definition_structural_reformulation_required = (
+        _bool_like(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_required",
+                False,
+            )
         )
-        or prior_environment_feedback.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_required",
-            False,
+        or _bool_like(
+            prior_environment_feedback.get(
+                "source_theorem_exact_semantic_definition_structural_reformulation_required",
+                False,
+            )
         )
     )
     structural_response_validation_feedback = (
@@ -41632,15 +41640,21 @@ def _critic_should_route_to_formalizer_proofengineer(
     ).strip()
     if mode in formalizer_modes:
         return True
-    if bool(proof_bank_summary.get("source_to_bridge_premise_derivation_required")):
+    if _bool_like(
+        proof_bank_summary.get("source_to_bridge_premise_derivation_required")
+    ):
         return True
-    if bool(
+    if _bool_like(
         proof_bank_summary.get("source_theorem_exact_semantic_definition_repair_required")
     ):
         return True
-    if bool(proof_bank_summary.get("source_theorem_exact_proof_body_repair_required")):
+    if _bool_like(
+        proof_bank_summary.get("source_theorem_exact_proof_body_repair_required")
+    ):
         return True
-    if bool(proof_bank_summary.get("source_theorem_proof_body_adapter_required")):
+    if _bool_like(
+        proof_bank_summary.get("source_theorem_proof_body_adapter_required")
+    ):
         return True
     formal_counts = (
         formalization_manifest.get("counts", {})
@@ -47973,10 +47987,10 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 row_runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
                 or row_failure_classification
                 == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
-                or bool(row.get("structural_reformulation_required", False))
+                or _bool_like(row.get("structural_reformulation_required", False))
                 or (
                     isinstance(input_summary, Mapping)
-                    and bool(
+                    and _bool_like(
                         input_summary.get(
                             "structural_reformulation_required",
                             False,
@@ -50943,7 +50957,7 @@ def _source_theorem_proof_body_adapter_required_reasons(
         and proof_body_gate_status != "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     ):
         return []
-    if not bool(repair.get("proof_body_goal_reached", False)):
+    if not _bool_like(repair.get("proof_body_goal_reached", False)):
         return []
     if not _runtime_truth_row_has_proof_body_signature_artifact(repair):
         return []
@@ -53107,8 +53121,8 @@ def _runtime_environment_feedback_source_theorem_proof_body_adapter_rows(
     if rows:
         return tuple(rows)
     if not (
-        bool(feedback.get("source_theorem_proof_body_adapter_required", False))
-        or bool(
+        _bool_like(feedback.get("source_theorem_proof_body_adapter_required", False))
+        or _bool_like(
             feedback.get("source_theorem_proof_body_adapter_feedback_available", False)
         )
     ):
@@ -53575,7 +53589,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         == STRUCTURAL_REFORMULATION_QUEUE_STATUS
         or str(row.get("failure_classification", "") or "")
         == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
-        or bool(row.get("structural_reformulation_required", False))
+        or _bool_like(row.get("structural_reformulation_required", False))
     )
     verified_adapter_targets_for_semantic_repair = {
         str(row.get("target_theorem_name", "") or "").strip()
@@ -53626,7 +53640,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             == STRUCTURAL_REFORMULATION_QUEUE_STATUS
             or str(row.get("failure_classification", "") or "")
             == STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
-            or bool(row.get("structural_reformulation_required", False))
+            or _bool_like(row.get("structural_reformulation_required", False))
             or str(row.get("failure_classification", "") or "")
             == "exact_semantic_definition_authoring_required"
             or str(row.get("failure_classification", "") or "")
@@ -53762,7 +53776,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         [
             row
             for row in exact_source_proof_body_repair_rows
-            if bool(row.get("proof_body_adapter_required", False))
+            if _bool_like(row.get("proof_body_adapter_required", False))
             and str(row.get("target_theorem_name", "") or "").strip()
             not in adapter_verified_targets
         ]
@@ -53795,7 +53809,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             row
             for row in exact_source_proof_body_repair_rows
             if (
-                not bool(row.get("proof_body_adapter_required", False))
+                not _bool_like(row.get("proof_body_adapter_required", False))
                 or str(row.get("target_theorem_name", "") or "").strip()
                 in adapter_verified_targets
             )

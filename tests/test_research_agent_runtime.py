@@ -47422,6 +47422,82 @@ def test_exact_semantic_compact_environment_import_blocker_becomes_authoring_tas
     )
 
 
+def test_compact_exact_semantic_string_false_structural_flag_stays_authoring_retry() -> None:
+    row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "input_summary": {
+            "learning_task": (
+                "source_theorem_exact_semantic_definition_authoring_worker"
+            ),
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "placeholder_symbol": "C_n",
+            "runtime_queue_status": (
+                "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+            ),
+            "failure_classification": "provider_timeout_error",
+            "structural_reformulation_required": "false",
+            "candidate_definition_request": {
+                "request_kind": "source_theorem_exact_semantic_definition_candidate",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "placeholder_symbol": "C_n",
+                "semantic_goal": (
+                    "Retry exact semantic-definition authoring after a provider "
+                    "timeout."
+                ),
+            },
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    }
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [row],
+    }
+
+    repairs = runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs(
+        {"runtime_learning_memory": memory}
+    )
+    assert len(repairs) == 1
+    repair = repairs[0]
+    assert repair["trigger"] == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+    assert repair["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+    )
+    assert repair["failure_classification"] == "provider_timeout_error"
+    assert repair["structural_reformulation_required"] is False
+    assert repair["pseudo_formalization_required"] is False
+    assert "exact_semantic_definition_structural_reformulation_required=true" not in (
+        repair["diagnostics"]
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary[
+        "source_theorem_exact_semantic_definition_authoring_retry_required"
+    ] is True
+    assert summary[
+        "source_theorem_exact_semantic_definition_structural_reformulation_required"
+    ] is False
+    assert summary["pseudo_formalization_required"] is False
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_reviewed_exact_semantic_definitions"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantic_definition_repair"
+    )
+    diagnostic = summary["source_theorem_exact_candidate_repair_diagnostics"][0]
+    assert diagnostic["structural_reformulation_required"] is False
+    assert diagnostic["pseudo_formalization_required"] is False
+
+
 def test_exact_semantic_authoring_repair_tasks_include_local_lean_source_excerpts(
     tmp_path: Path,
 ) -> None:

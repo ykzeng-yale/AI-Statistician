@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:52:53Z",
+  "updated_at": "2026-07-08T00:59:33Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Candidate-materialization runtime memory now parses candidate_materialization_required with compact-memory boolean semantics in both CLI memory compaction and AgentRuntime proof-bank/Critic routing. Rows or signature-probe summaries carrying candidate_materialization_required='false' no longer get pinned as materialization blockers, no longer set source_theorem_candidate_materialization_required in proof-bank summaries, and no longer produce Critic source-theorem materialization resource requests. Real missing-artifact classifications still route as non-proof materialization blockers.",
+  "latest_main_worker_patch": "Exact-semantic Formalizer routing now parses compact-memory string booleans with normalized semantics before selecting PF/BV structural reformulation, provider-failure feedback, packet-validation feedback, proof-bank summaries, and source proof-body adapter partitions. Rows carrying structural_reformulation_required='false' now stay on the exact-semantic authoring/repair path instead of opening the PF/BV lane, while real structural statuses/failure classifications still trigger non-proof PF/BV work orders.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
