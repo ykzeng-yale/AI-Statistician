@@ -25512,6 +25512,13 @@ def run_research_agent_runtime(
     source_theorem_exact_semantic_definition_authoring_retry_worker_learning_rows: list[
         dict[str, Any]
     ] = []
+    source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested = (
+        bool(source_theorem_exact_semantic_definition_authoring_retry_task_rows)
+    )
+    source_theorem_exact_semantic_definition_authoring_retry_worker_enabled = bool(
+        config.source_theorem_exact_semantic_definition_authoring_worker
+        or source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested
+    )
     source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_manifest: (
         dict[str, Any] | None
     ) = None
@@ -25565,7 +25572,7 @@ def run_research_agent_runtime(
             source_theorem_exact_semantic_definition_authoring_retry_tasks_path,
             source_theorem_exact_semantic_definition_authoring_retry_task_rows,
         )
-        if config.source_theorem_exact_semantic_definition_authoring_worker:
+        if source_theorem_exact_semantic_definition_authoring_retry_worker_enabled:
             authoring_worker_provider = (
                 _exact_semantic_definition_authoring_worker_provider(config)
             )
@@ -28038,8 +28045,7 @@ def run_research_agent_runtime(
                 _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
                 _write_jsonl(learning_path, learning_rows)
         source_theorem_exact_semantic_definition_authoring_worker_auto_requested = bool(
-            str(config.evaluation_mode or "").strip() == "capability_eval"
-            and int(
+            int(
                 source_theorem_exact_semantic_definition_lean_repair_executor_manifest.get(
                     "n_exact_semantic_definition_authoring_tasks",
                     0,
@@ -34623,6 +34629,14 @@ def run_research_agent_runtime(
         is not None
     )
     manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_requested"
+    ] = bool(source_theorem_exact_semantic_definition_authoring_retry_worker_enabled)
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
+    ] = bool(
+        source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_worker_provider_name"
     ] = str(
         (
@@ -34655,7 +34669,7 @@ def run_research_agent_runtime(
         else "no_retryable_authoring_tasks"
         if not source_theorem_exact_semantic_definition_authoring_retry_task_rows
         else "authoring_worker_disabled"
-        if not config.source_theorem_exact_semantic_definition_authoring_worker
+        if not source_theorem_exact_semantic_definition_authoring_retry_worker_enabled
         else "authoring_retry_worker_not_run"
     )
     manifest[

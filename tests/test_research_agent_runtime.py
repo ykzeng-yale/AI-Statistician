@@ -49798,6 +49798,188 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
     )
 
 
+def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    learning_path = tmp_path / "authoring_retry_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+                "learning_task": (
+                    "source_theorem_exact_semantic_definition_authoring_worker"
+                ),
+                "question_id": "conformal_prediction_coverage",
+                "target_theorem_name": "split_conformal_coverage",
+                "placeholder_symbol": "coverage_event",
+                "runtime_queue_status": (
+                    "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+                ),
+                "failure_classification": "provider_connection_error",
+                "candidate_definition_request": {
+                    "request_kind": (
+                        "source_theorem_exact_semantic_definition_candidate"
+                    ),
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "coverage_event",
+                    "required_anchor_names": ["s", "q_hat", "hq"],
+                    "available_anchor_names": ["s", "q_hat", "hq", "P"],
+                    "missing_required_anchor_names": [],
+                    "proof_evidence_status": (
+                        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                "proof_evidence_status": (
+                    "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+    authoring_calls: list[dict[str, object]] = []
+
+    def fake_authoring_worker(
+        *,
+        out_dir: Path,
+        runtime_dir: Path | None = None,
+        repair_executor_manifest: Path | None = None,
+        authoring_tasks_jsonl: Path | None = None,
+        provider: object | None = None,
+        config: object | None = None,
+    ) -> dict[str, object]:
+        assert runtime_dir is None
+        assert repair_executor_manifest is None
+        assert authoring_tasks_jsonl is not None and authoring_tasks_jsonl.exists()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_authoring_worker_manifest.json"
+        )
+        prompt_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_authoring_prompt_packets.jsonl"
+        )
+        candidate_packets_path = (
+            out_dir
+            / "source_theorem_exact_semantic_definition_authoring_candidate_packets.jsonl"
+        )
+        learning_rows_path = out_dir / "runtime_learning_rows.jsonl"
+        prompt_packets_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": (
+                        "SourceTheoremExactSemanticDefinitionAuthoringPromptPacket"
+                    ),
+                    "target_theorem_name": "split_conformal_coverage",
+                    "placeholder_symbol": "coverage_event",
+                    "proof_evidence_status": (
+                        "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        candidate_packets_path.write_text("", encoding="utf-8")
+        learning_rows_path.write_text("", encoding="utf-8")
+        manifest = {
+            "schema_version": 1,
+            "manifest_path": str(manifest_path),
+            "authoring_prompt_packets_jsonl": str(prompt_packets_path),
+            "authoring_candidate_packets_jsonl": str(candidate_packets_path),
+            "runtime_learning_rows_jsonl": str(learning_rows_path),
+            "provider_name": "none",
+            "backend_provider_name": "",
+            "dry_run": True,
+            "n_prompt_packets": 1,
+            "n_llm_attempted": 0,
+            "n_live_llm_attempted": 0,
+            "n_candidate_packets": 0,
+            "proof_evidence_status": (
+                "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        authoring_calls.append(
+            {
+                "authoring_tasks_jsonl": str(authoring_tasks_jsonl),
+                "provider": provider,
+                "provider_name": getattr(config, "provider_name", None),
+                "dry_run": getattr(config, "dry_run", None),
+            }
+        )
+        return manifest
+
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_authoring_worker",
+        fake_authoring_worker,
+    )
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(
+                provider_name="static",
+                model="static-theory",
+            ),
+        ),
+        architect_context={"runtime_learning_memory": memory},
+        config=ResearchAgentRuntimeConfig(
+            n_runs=10,
+            seed=20260708,
+            max_iterations=1,
+            source_theorem_exact_semantic_definition_authoring_worker=False,
+            source_theorem_exact_semantic_definition_authoring_worker_max_tasks=1,
+        ),
+    )
+
+    assert len(authoring_calls) == 1
+    assert authoring_calls[0]["provider"] is None
+    assert authoring_calls[0]["provider_name"] == "none"
+    assert authoring_calls[0]["dry_run"] is True
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required"
+    ] is True
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_requested"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+        ]
+        is True
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+        ]
+        == ""
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_proof_evidence_status"
+        ]
+        == "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
