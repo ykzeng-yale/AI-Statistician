@@ -57808,6 +57808,9 @@ def test_formalizer_prompt_hydrates_exact_semantic_blocker_artifacts_from_feedba
     assert "definition_only_candidate_artifact_path" in prompt
     assert "candidate_artifact_path" in prompt
     assert definition_only_path in prompt
+    assert "Exact semantic-definition blocker artifacts are available" in prompt
+    assert "proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in prompt
+    assert "do not treat a locally compiled definition-only artifact" in prompt
     assert "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
 

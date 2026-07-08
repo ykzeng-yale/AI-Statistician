@@ -5559,15 +5559,24 @@ def _formalizer_mode_specific_instructions(
         "proofengineer_repair_context",
         {},
     )
-    formal_blocker_resource_requests = [
-        row
-        for row in runtime_environment_feedback.get(
-            "formal_blocker_resource_requests",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
+    feedback_input_summary = (
+        runtime_environment_feedback.get("input_summary", {})
+        if isinstance(runtime_environment_feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    formal_blocker_resource_requests = _formal_blocker_resource_requests_with_exact_semantic_artifacts(
+        [
+            row
+            for row in runtime_environment_feedback.get(
+                "formal_blocker_resource_requests",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ],
+        feedback=runtime_environment_feedback,
+        input_summary=feedback_input_summary,
+    )
     high_priority_agenda = [
         row
         for row in runtime_environment_feedback.get("high_priority_agenda", []) or []
@@ -5663,6 +5672,49 @@ def _formalizer_mode_specific_instructions(
             "proof-search blocker; if the request cannot be resolved, keep the affected "
             "source theorem as FORMAL_GAP and name the exact missing resource."
         )
+        exact_semantic_artifact_rows = [
+            row
+            for row in formal_blocker_resource_requests
+            if (
+                str(row.get("definition_only_candidate_artifact_path", "") or "").strip()
+                or str(row.get("candidate_artifact_path", "") or "").strip()
+            )
+            and (
+                "exact_semantic" in str(row.get("blocker_kind", "") or "").lower()
+                or "exact_semantic" in str(row.get("source", "") or "").lower()
+                or str(row.get("proof_body_gate_status", "") or "").strip()
+                == "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+            )
+        ][:5]
+        if exact_semantic_artifact_rows:
+            artifact_clauses: list[str] = []
+            for row in exact_semantic_artifact_rows:
+                placeholder = str(row.get("placeholder_symbol", "") or "").strip()
+                artifact_path = str(
+                    row.get("definition_only_candidate_artifact_path", "")
+                    or row.get("candidate_artifact_path", "")
+                    or ""
+                ).strip()
+                if placeholder and artifact_path:
+                    artifact_clauses.append(f"{placeholder}: {artifact_path}")
+            artifact_clause = (
+                " Artifact(s): " + "; ".join(artifact_clauses) + "."
+                if artifact_clauses
+                else ""
+            )
+            instructions.append(
+                "Exact semantic-definition blocker artifacts are available in "
+                "formal_blocker_resource_requests: inspect and review the listed "
+                "definition_only_candidate_artifact_path/candidate_artifact_path "
+                "for each placeholder, then emit an exact semantic-definition "
+                "repair/review target or a blocker that preserves the same artifact "
+                "path and names the remaining semantic-review criterion. Do not "
+                "start exact source-theorem proof-body search while "
+                "proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY, "
+                "and do not treat a locally compiled definition-only artifact as "
+                "source-theorem Lean/kernel proof evidence."
+                + artifact_clause
+            )
     if theory_trace_downstream_alignment_feedback:
         instructions.append(
             "Runtime theory-trace downstream alignment feedback is active: treat "
