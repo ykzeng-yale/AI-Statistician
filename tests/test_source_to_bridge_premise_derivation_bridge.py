@@ -897,6 +897,117 @@ def test_premise_bridge_uses_goal_context_for_goal_sourced_target(
         for action in grouped_request["forbidden_actions"]
     )
 
+    learning_row = json.loads(
+        Path(str(manifest["runtime_learning_rows_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert learning_row["required_bridge_premise_names_for_shared_instantiation"] == [
+        "hGoodCovered"
+    ]
+    assert "same reached proof-body goal context" in learning_row[
+        "shared_adapter_instantiation_contract"
+    ]
+    assert learning_row["required_semantic_anchor_reference_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert learning_row["adapter_object_names_requiring_source_instantiation"] == []
+    assert learning_row["source_to_bridge_grouped_premise_derivation_candidate_request"][
+        "candidate_contract"
+    ] == grouped_request["candidate_contract"]
+
+
+def test_premise_bridge_grouped_learning_uses_goal_context_target_behavior(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    adapter_attempt = tmp_path / "adapter_attempt.lean"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage",
+                "    (hExch : Exchangeable P s)",
+                "    (q : ℝ)",
+                "    (hq : ∀ᵐ ... / ↑n ≥ 1 - alpha) :",
+                f"    {PROOF_BODY_GOAL_CONCLUSION} := by",
+                "  fail_if_success trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    adapter_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage_source_to_bridge_adapter",
+                f"    (hGoodCovered : {PROOF_BODY_GOAL_CONCLUSION})",
+                f"    (hAlso : {PROOF_BODY_GOAL_CONCLUSION}) :",
+                f"    {PROOF_BODY_GOAL_CONCLUSION} := by",
+                "  exact hGoodCovered",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        queue,
+        [
+            _premise_work_order(
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_candidate_artifact_path=str(adapter_attempt),
+                premise_target_source="proof_body_goal_conclusion",
+            ),
+            _premise_work_order(
+                work_order_id="source_to_bridge_premise_derivation_work_order:hAlso",
+                premise_name="hAlso",
+                required_derivation="derive hAlso from exact source theorem hypotheses",
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_candidate_artifact_path=str(adapter_attempt),
+                premise_target_source="proof_body_goal_conclusion",
+            ),
+        ],
+    )
+
+    manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    learning_rows = [
+        json.loads(line)
+        for line in Path(str(manifest["runtime_learning_rows_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    grouped_learning_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "source_to_bridge_grouped_premise_derivation_candidate_request"
+    ]
+    assert len(grouped_learning_rows) == 1
+    grouped_learning_row = grouped_learning_rows[0]
+    assert grouped_learning_row["premise_names"] == ["hGoodCovered", "hAlso"]
+    assert grouped_learning_row[
+        "adapter_object_names_requiring_source_instantiation"
+    ] == []
+    assert "reached proof_body_goal_context anchors" in grouped_learning_row[
+        "target_behavior"
+    ]
+    assert "defines the adapter objects once" not in grouped_learning_row[
+        "target_behavior"
+    ]
+    grouped_request = grouped_learning_row[
+        "source_to_bridge_grouped_premise_derivation_candidate_request"
+    ]
+    assert "proof_body_goal_context anchors" in grouped_request["candidate_contract"]
+    assert "shared adapter objects" not in grouped_request["candidate_contract"]
+
 
 def test_premise_bridge_prefers_artifact_semantic_requirements(
     tmp_path: Path,

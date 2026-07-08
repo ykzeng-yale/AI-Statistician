@@ -1929,9 +1929,59 @@ def _export_runtime_learning_rows(
             row,
             queue_path=queue_path,
         )
+        candidate_request_data = candidate_request or {}
         grouped_candidate_request = grouped_requests_by_group_id.get(
             row.adapter_instantiation_group_id,
             {},
+        )
+        required_bridge_premise_names = list(
+            row.required_bridge_premise_names_for_shared_instantiation
+            or _str_tuple(
+                candidate_request_data.get(
+                    "required_bridge_premise_names_for_shared_instantiation",
+                    [],
+                )
+            )
+            or _str_tuple(
+                grouped_candidate_request.get(
+                    "required_bridge_premise_names_for_shared_instantiation",
+                    [],
+                )
+            )
+            or ((row.premise_name,) if row.premise_name else ())
+        )
+        shared_instantiation_contract = str(
+            row.shared_adapter_instantiation_contract
+            or candidate_request_data.get("shared_adapter_instantiation_contract", "")
+            or grouped_candidate_request.get("shared_adapter_instantiation_contract", "")
+            or ""
+        )
+        adapter_object_names = list(
+            row.adapter_object_names_requiring_source_instantiation
+            or _str_tuple(
+                candidate_request_data.get(
+                    "adapter_object_names_requiring_source_instantiation",
+                    [],
+                )
+            )
+            or _str_tuple(
+                grouped_candidate_request.get(
+                    "adapter_object_names_requiring_source_instantiation",
+                    [],
+                )
+            )
+        )
+        required_semantic_anchor_names = list(
+            _str_tuple(
+                candidate_request_data.get("required_semantic_anchor_reference_names", [])
+            )
+            or _str_tuple(
+                grouped_candidate_request.get(
+                    "required_semantic_anchor_reference_names",
+                    [],
+                )
+            )
+            or row.premise_semantic_anchor_binder_names
         )
         source_candidate_request = dict(
             row.source_to_bridge_premise_derivation_candidate_request
@@ -1988,13 +2038,13 @@ def _export_runtime_learning_rows(
                 "premise_target_source": row.premise_target_source,
                 "adapter_instantiation_group_id": row.adapter_instantiation_group_id,
                 "required_bridge_premise_names_for_shared_instantiation": list(
-                    row.required_bridge_premise_names_for_shared_instantiation
+                    required_bridge_premise_names
                 ),
                 "shared_adapter_instantiation_contract": (
-                    row.shared_adapter_instantiation_contract
+                    shared_instantiation_contract
                 ),
                 "adapter_object_names_requiring_source_instantiation": list(
-                    row.adapter_object_names_requiring_source_instantiation
+                    adapter_object_names
                 ),
                 "premise_derivation_gap_kind": row.premise_derivation_gap_kind,
                 "premise_derivation_gap_summary": row.premise_derivation_gap_summary,
@@ -2034,6 +2084,9 @@ def _export_runtime_learning_rows(
                 ),
                 "premise_semantic_anchor_binder_names": list(
                     row.premise_semantic_anchor_binder_names
+                ),
+                "required_semantic_anchor_reference_names": list(
+                    required_semantic_anchor_names
                 ),
                 "kernel_verified_source_to_bridge_premise_derivation_ids": (
                     [row.premise_derivation_check_id]
@@ -2105,6 +2158,48 @@ def _export_runtime_learning_rows(
         ]
         if len(premise_names) <= 1:
             continue
+        grouped_adapter_objects = list(
+            grouped_request.get(
+                "adapter_object_names_requiring_source_instantiation",
+                [],
+            )
+            or []
+        )
+        per_premise_requests = [
+            item
+            for item in grouped_request.get("per_premise_candidate_requests", []) or []
+            if isinstance(item, Mapping)
+        ]
+        grouped_request_uses_goal_context = bool(per_premise_requests) and all(
+            _premise_target_uses_proof_body_goal_context(
+                premise_target_source=str(
+                    item.get("premise_target_source", "") or ""
+                ),
+                premise_target_type=str(item.get("premise_target_type", "") or ""),
+                proof_body_goal_conclusion=str(
+                    item.get("proof_body_goal_conclusion", "")
+                    or grouped_request.get("proof_body_goal_conclusion", "")
+                    or ""
+                ),
+            )
+            for item in per_premise_requests
+        )
+        grouped_target_behavior = (
+            "Generate one shared source-to-bridge premise derivation candidate "
+            "that derives every listed premise name from exact source-theorem "
+            "binders and the reached proof_body_goal_context anchors without "
+            "assuming those premises, goal binders, or target conclusions. This "
+            "grouped request is not proof evidence; only local Lean/AXLE kernel "
+            "verification of each premise derivation can promote it."
+            if grouped_request_uses_goal_context and not grouped_adapter_objects
+            else (
+                "Generate one shared source-to-bridge premise derivation candidate "
+                "that defines the adapter objects once from exact source-theorem "
+                "binders and proves every listed premise name without assuming those "
+                "premises. This grouped request is not proof evidence; only local "
+                "Lean/AXLE kernel verification of each premise derivation can promote it."
+            )
+        )
         grouped_learning_row = {
             "schema_version": 1,
             "question_id": str(grouped_request.get("question_id", "") or question_id or ""),
@@ -2160,11 +2255,7 @@ def _export_runtime_learning_rows(
                 grouped_request.get("shared_adapter_instantiation_contract", "") or ""
             ),
             "adapter_object_names_requiring_source_instantiation": list(
-                grouped_request.get(
-                    "adapter_object_names_requiring_source_instantiation",
-                    [],
-                )
-                or []
+                grouped_adapter_objects
             ),
             "premise_semantic_anchor_binder_names": list(
                 grouped_request.get("premise_semantic_anchor_binder_names", []) or []
@@ -2247,13 +2338,7 @@ def _export_runtime_learning_rows(
             ),
             "runtime_queue_status": "PENDING_GROUPED_SOURCE_TO_BRIDGE_PREMISE_DERIVATION",
             "input_summary": dict(grouped_request),
-            "target_behavior": (
-                "Generate one shared source-to-bridge premise derivation candidate "
-                "that defines the adapter objects once from exact source-theorem "
-                "binders and proves every listed premise name without assuming those "
-                "premises. This grouped request is not proof evidence; only local "
-                "Lean/AXLE kernel verification of each premise derivation can promote it."
-            ),
+            "target_behavior": grouped_target_behavior,
             "acceptance_gate": (
                 "The grouped Lean source must local Lean/AXLE kernel verify each "
                 "listed premise derivation before the adapter or exact source theorem "
