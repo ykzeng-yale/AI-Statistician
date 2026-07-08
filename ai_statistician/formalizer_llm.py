@@ -6372,6 +6372,7 @@ def _formalizer_mode_specific_instructions(
         issue_kinds: list[str] = []
         manifest_paths: list[str] = []
         copy_contract_paths: list[str] = []
+        copy_ready_summaries: list[str] = []
         for row in pseudo_formal_packet_gate_failure_memory[:3]:
             manifest_path = str(row.get("component_eval_manifest_path", "") or "")
             if manifest_path:
@@ -6393,6 +6394,16 @@ def _formalizer_mode_specific_instructions(
                 copy_path = str(copy_contract.get("copy_source_path", "") or "")
                 if copy_path:
                     copy_contract_paths.append(copy_path)
+            copy_summary = row.get("validator_ready_copy_contract_summary", {})
+            if isinstance(copy_summary, Mapping) and copy_summary:
+                if copy_summary.get("validator_ready_copy_contract_satisfied"):
+                    copy_ready_summaries.append("copy_contract_satisfied")
+                if copy_summary.get(
+                    "exact_semantic_definition_lane_ready_if_copied"
+                ):
+                    copy_ready_summaries.append(
+                        "exact_semantic_definition_lane_ready_if_copied"
+                    )
         instruction = (
             "Formalizer PF/BV packet component-gate failure memory is active: "
             "proof_bank_runtime_memory_summary."
@@ -6411,6 +6422,12 @@ def _formalizer_mode_specific_instructions(
                 " A validator_ready_copy_contract is available; copy "
                 + ", ".join(list(dict.fromkeys(copy_contract_paths))[:3])
                 + " into pseudo_formal_proof_packets before optional edits."
+            )
+        if copy_ready_summaries:
+            instruction += (
+                " Runtime recomputed the copied seed as "
+                + ", ".join(list(dict.fromkeys(copy_ready_summaries))[:3])
+                + "; preserve those fields instead of reconstructing the packet."
             )
         if target_lanes:
             instruction += (
@@ -9655,6 +9672,32 @@ def _source_theorem_candidate_materialization_contract(
 
 
 def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if key in (
+        "validator_ready_copy_contract_summary",
+        "pseudo_formal_failure_copy_contract_summary",
+    ) and isinstance(value, Mapping):
+        return _compact_mapping(
+            value,
+            keys=(
+                "validator_ready_copy_contract_present",
+                "validator_ready_copy_contract_satisfied",
+                "exact_semantic_definition_lane_ready_if_copied",
+                "repair_seed_valid",
+                "copy_source_path",
+                "copy_destination_path",
+                "copy_destination_path_ok",
+                "n_routable_work_order_rows_if_copied",
+                "routable_target_lanes_if_copied",
+                "contract_target_lanes_covered_if_copied",
+                "n_exact_semantic_definition_rows_if_copied",
+                "n_exact_semantic_definition_rows_with_source_anchors_if_copied",
+                "n_exact_semantic_definition_rows_with_semantic_requirements_if_copied",
+                "n_exact_semantic_definition_rows_with_lineage_if_copied",
+                "validation_errors",
+                "proof_evidence_status",
+                "boundary",
+            ),
+        )
     if _is_compaction_path_key(key):
         if isinstance(value, str):
             return value

@@ -91119,6 +91119,20 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert pf_row["pseudo_formal_failure_validator_ready_copy_contract"][
         "copy_destination_path"
     ] == "pseudo_formal_proof_packets"
+    copy_summary = pf_row["pseudo_formal_failure_copy_contract_summary"]
+    assert copy_summary["validator_ready_copy_contract_satisfied"] is True
+    assert (
+        copy_summary["exact_semantic_definition_lane_ready_if_copied"] is True
+    )
+    assert copy_summary["n_routable_work_order_rows_if_copied"] >= 1
+    assert copy_summary[
+        "n_exact_semantic_definition_rows_with_source_anchors_if_copied"
+    ] >= 1
+    assert pf_row["pseudo_formal_failure_copy_ready"] is True
+    assert (
+        pf_row["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
+        is True
+    )
 
     proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
         context={
@@ -91156,6 +91170,12 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert failure_memory[0]["validator_ready_copy_contract"][
         "copy_destination_path"
     ] == "pseudo_formal_proof_packets"
+    assert failure_memory[0]["validator_ready_copy_contract_summary"][
+        "validator_ready_copy_contract_satisfied"
+    ] is True
+    assert (
+        failure_memory[0]["copy_ready_for_exact_semantic_definition"] is True
+    )
 
     prompt = build_formalizer_prompt(
         question=OpenResearchQuestion(
@@ -91187,11 +91207,97 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     ][0]["validator_ready_copy_contract"]["copy_destination_path"] == (
         "pseudo_formal_proof_packets"
     )
+    assert prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ][0]["validator_ready_copy_contract_summary"][
+        "validator_ready_copy_contract_satisfied"
+    ] is True
     assert (
         "Formalizer PF/BV packet component-gate failure memory is active"
         in prompt
     )
     assert "validator_ready_copy_contract is available" in prompt
+    assert "Runtime recomputed the copied seed as copy_contract_satisfied" in prompt
+
+
+def test_runtime_pf_failure_copy_contract_rejects_malformed_seed() -> None:
+    manifest = {
+        "question_ids": ["pf_failure_bad_seed"],
+        "internal_formalizer_pseudo_formal_packet_eval": {
+            "manifest_path": "runs/pf_failure_bad_seed/manifest.json",
+            "artifacts": {},
+            "provider_name": "anthropic",
+            "backend_provider_name": "anthropic",
+            "model": "claude-sonnet",
+            "result_status": "FAILED",
+            "failure_type": "PacketValidationError",
+            "errors": ["blocks[0] missing conclusion"],
+            "pseudo_formal_failure_required_target_lanes": [
+                PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+            ],
+            "pseudo_formal_failure_validation_issue_summary": {
+                "n_missing_conclusion": 1
+            },
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed": {
+                "schema_version": 1,
+                "packet_id": "pseudo_formal_packet:bad_component_gate_repair",
+                "theorem_id": "theorem:bad",
+                "source_artifact_id": "formalizer_pf_component_gate:bad",
+                "proof_evidence_status": "PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE",
+                "kernel_verified": False,
+                "source_theorem_kernel_verified": False,
+                "blocks": [
+                    {
+                        "block_id": "pf_block:bad",
+                        "block_type": "claim",
+                    }
+                ],
+            },
+            "pseudo_formal_failure_validator_ready_copy_contract": {
+                "copy_source_path": (
+                    "pseudo_formalization_required_copy_fragment."
+                    "pseudo_formal_proof_packets"
+                ),
+                "copy_destination_path": "pseudo_formal_proof_packets",
+                "routable_work_order_rows_if_copied": 1,
+                "routable_target_lanes_if_copied": [
+                    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                ],
+            },
+            "live_generator": True,
+            "static_or_fixture_only": False,
+            "capability_evidence_ok": False,
+            "fixture_plumbing_ok": False,
+            "nonproof_boundary_preserved": True,
+            "proof_evidence_status_ok": True,
+            "no_theorem_proof_claim": True,
+            "attachment_gate_recomputed": True,
+            "proof_evidence_status": (
+                "FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    }
+
+    rows = (
+        runtime_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
+            manifest
+        )
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["pseudo_formal_failure_repair_seed_available"] is True
+    summary = row["pseudo_formal_failure_copy_contract_summary"]
+    assert summary["validator_ready_copy_contract_present"] is True
+    assert summary["repair_seed_valid"] is False
+    assert summary["validator_ready_copy_contract_satisfied"] is False
+    assert summary["exact_semantic_definition_lane_ready_if_copied"] is False
+    assert summary["validation_errors"]
+    assert row["pseudo_formal_failure_copy_ready"] is False
+    assert (
+        row["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
+        is False
+    )
 
 
 def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(
