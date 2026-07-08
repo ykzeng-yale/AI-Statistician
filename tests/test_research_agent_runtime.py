@@ -91298,6 +91298,55 @@ def test_runtime_pf_failure_copy_contract_rejects_malformed_seed() -> None:
         row["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
         is False
     )
+    proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": rows,
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert proof_memory_summary["pseudo_formalization_required"] is True
+    failure_memory = proof_memory_summary[
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ]
+    assert (
+        failure_memory[0]["validator_ready_copy_contract_satisfied"] is False
+    )
+    prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="pf_failure_bad_seed",
+            title="PF failure bad seed",
+            description="Do not copy malformed PF/BV repair seed.",
+            tags=("formalizer", "pseudo_formal"),
+        ),
+        theory_packet={"packet_id": "theory:pf-failure-bad-seed"},
+        simulation_manifest={
+            "manifest_id": "simulation:pf-failure-bad-seed",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:pf-failure-bad-seed"},
+        registered_problem={"question_id": "pf_failure_bad_seed"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+    prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
+
+    assert (
+        prompt_payload["pseudo_formalization_component_gate_failure_repair_seed"]
+        == {}
+    )
+    assert prompt_payload["pseudo_formalization_required_packet_seed"][
+        "packet_id"
+    ] != "pseudo_formal_packet:bad_component_gate_repair"
+    assert "did not pass runtime recomputation" in prompt
+    assert "Runtime recomputed the copied seed as copy_contract_satisfied" not in prompt
 
 
 def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(

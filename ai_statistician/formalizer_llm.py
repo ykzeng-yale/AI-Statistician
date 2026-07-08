@@ -2187,6 +2187,19 @@ def _pseudo_formal_component_gate_failure_repair_seed(
         if isinstance(row, Mapping)
     ]
     for row in (*failure_rows, *feedback_rows):
+        copy_contract_summary = row.get(
+            "validator_ready_copy_contract_summary",
+            row.get("pseudo_formal_failure_copy_contract_summary", {}),
+        )
+        if (
+            isinstance(copy_contract_summary, Mapping)
+            and copy_contract_summary
+            and not copy_contract_summary.get(
+                "validator_ready_copy_contract_satisfied",
+                False,
+            )
+        ):
+            continue
         raw_seed = row.get(
             "concrete_lane_routable_repair_seed",
             row.get(
@@ -6373,6 +6386,7 @@ def _formalizer_mode_specific_instructions(
         manifest_paths: list[str] = []
         copy_contract_paths: list[str] = []
         copy_ready_summaries: list[str] = []
+        copy_blocked_summaries: list[str] = []
         for row in pseudo_formal_packet_gate_failure_memory[:3]:
             manifest_path = str(row.get("component_eval_manifest_path", "") or "")
             if manifest_path:
@@ -6389,20 +6403,32 @@ def _formalizer_mode_specific_instructions(
                     for value in issue_summary.get("blocking_issue_kinds", []) or []
                     if str(value).strip()
                 )
+            copy_summary = row.get("validator_ready_copy_contract_summary", {})
+            copy_summary_present = isinstance(copy_summary, Mapping) and bool(
+                copy_summary
+            )
+            copy_summary_satisfied = (
+                bool(copy_summary.get("validator_ready_copy_contract_satisfied"))
+                if isinstance(copy_summary, Mapping)
+                else False
+            )
             copy_contract = row.get("validator_ready_copy_contract", {})
             if isinstance(copy_contract, Mapping):
                 copy_path = str(copy_contract.get("copy_source_path", "") or "")
-                if copy_path:
+                if copy_path and (not copy_summary_present or copy_summary_satisfied):
                     copy_contract_paths.append(copy_path)
-            copy_summary = row.get("validator_ready_copy_contract_summary", {})
-            if isinstance(copy_summary, Mapping) and copy_summary:
-                if copy_summary.get("validator_ready_copy_contract_satisfied"):
+            if copy_summary_present:
+                if copy_summary_satisfied:
                     copy_ready_summaries.append("copy_contract_satisfied")
                 if copy_summary.get(
                     "exact_semantic_definition_lane_ready_if_copied"
                 ):
                     copy_ready_summaries.append(
                         "exact_semantic_definition_lane_ready_if_copied"
+                    )
+                if not copy_summary_satisfied:
+                    copy_blocked_summaries.append(
+                        "copy_contract_failed_runtime_recompute"
                     )
         instruction = (
             "Formalizer PF/BV packet component-gate failure memory is active: "
@@ -6428,6 +6454,13 @@ def _formalizer_mode_specific_instructions(
                 " Runtime recomputed the copied seed as "
                 + ", ".join(list(dict.fromkeys(copy_ready_summaries))[:3])
                 + "; preserve those fields instead of reconstructing the packet."
+            )
+        if copy_blocked_summaries:
+            instruction += (
+                " A validator_ready_copy_contract was present but did not pass "
+                "runtime recomputation; do not copy its raw repair seed verbatim. "
+                "Repair from validation_issue_summary and emit a fresh locally "
+                "valid, lane-routable pseudo_formal_proof_packets entry."
             )
         if target_lanes:
             instruction += (
@@ -9533,6 +9566,74 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_theorem_kernel_verified",
                 "target_behavior",
                 "acceptance_gate",
+                "proof_evidence_status",
+                "boundary",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_pseudo_formal_packet_component_gate_feedback_memory"),
+        list,
+    ):
+        compact["formalizer_pseudo_formal_packet_component_gate_feedback_memory"] = _compact_rows(
+            row.get(
+                "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
+                [],
+            ),
+            keys=(
+                "learning_task",
+                "component_eval",
+                "component_eval_manifest_path",
+                "provider_name",
+                "model",
+                "live_generator",
+                "static_or_fixture_only",
+                "capability_evidence_ok",
+                "fixture_plumbing_ok",
+                "result_status",
+                "failure_type",
+                "errors",
+                "pseudo_formal_failure_required_target_lanes",
+                "pseudo_formal_failure_validation_issue_summary",
+                "pseudo_formal_failure_issue_specific_repair_actions",
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                "pseudo_formal_failure_validator_ready_copy_contract",
+                "pseudo_formal_failure_copy_contract_summary",
+                "pseudo_formal_failure_copy_ready",
+                "pseudo_formal_failure_copy_exact_semantic_definition_ready",
+                "pseudo_formal_failure_repair_seed_available",
+                "pseudo_formal_routable_target_lanes",
+                "n_pseudo_formal_routable_work_order_rows",
+                "exact_semantic_definition_lane_present",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_evidence_status",
+                "boundary",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_pseudo_formal_packet_component_gate_failure_memory"),
+        list,
+    ):
+        compact["formalizer_pseudo_formal_packet_component_gate_failure_memory"] = _compact_rows(
+            row.get(
+                "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+                [],
+            ),
+            keys=(
+                "component_eval_manifest_path",
+                "result_status",
+                "failure_type",
+                "errors",
+                "required_target_lanes",
+                "validation_issue_summary",
+                "issue_specific_repair_actions",
+                "concrete_lane_routable_repair_seed",
+                "validator_ready_copy_contract",
+                "validator_ready_copy_contract_summary",
+                "validator_ready_copy_contract_satisfied",
+                "copy_ready_for_exact_semantic_definition",
                 "proof_evidence_status",
                 "boundary",
             ),
