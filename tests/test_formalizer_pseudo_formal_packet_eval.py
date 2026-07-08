@@ -6,7 +6,10 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.cli import main
-from ai_statistician.formalizer_llm import build_formalizer_prompt
+from ai_statistician.formalizer_llm import (
+    _formalizer_repair_context,
+    build_formalizer_prompt,
+)
 from ai_statistician.formalizer_pseudo_formal_packet_eval import (
     FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE,
     _pseudo_formal_packet_eval_feedback,
@@ -21,6 +24,7 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
@@ -200,6 +204,203 @@ def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> No
         "source_to_bridge",
     ]
     assert "pseudo_formalization_required_packet_seed" in prompt
+
+
+def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
+    question = _pseudo_formal_packet_eval_question()
+    component_seed = {
+        "schema_version": 1,
+        "packet_id": "pseudo_formal_packet:component_gate_repair",
+        "theorem_id": "theorem:coverage",
+        "source_artifact_id": "formalizer_pf_component_gate:failed_manifest",
+        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "blocks": [
+            {
+                "block_id": "pf_block:component_gate_exact",
+                "block_type": "claim",
+                "block_depth": 1,
+                "premises": ["calibration rank threshold source step"],
+                "conclusion": (
+                    "C_n is the exact source semantic primitive for the "
+                    "coverage event."
+                ),
+                "proof_text": "The source proof uses C_n as the rank threshold.",
+                "dependency_ids": [],
+                "scope_parent_id": "",
+                "dependency_scope": "earlier_block_statement_only",
+                "inherited_scope": [],
+                "source_anchors": [
+                    {
+                        "kind": "proof_body",
+                        "id": "proof_body:component_gate_rank_threshold",
+                        "excerpt": "C_n rank threshold coverage event",
+                    }
+                ],
+                "semantic_primitive_requirements": ["component_gate_C_n"],
+                "lean_feasibility": "needs_semantic_definition",
+                "faithfulness_status": "faithful",
+                "faithfulness_repair": {
+                    "status": "not_required",
+                    "attempts": 0,
+                    "flagged_discrepancies": [],
+                },
+                "block_verification": {
+                    "verdict": "unknown",
+                    "verifier_provenance": "not_run",
+                    "independent_verifier": False,
+                    "rollout_count": 0,
+                },
+                "kernel_verified": False,
+            }
+        ],
+    }
+    proof_memory_summary = {
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+        "pseudo_formalization_required_reason": (
+            "formalizer_pseudo_formal_packet_component_gate_failed_required_repair"
+        ),
+        "formalizer_pseudo_formal_packet_component_gate_failure_available": True,
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory": [
+            {
+                "component_eval_manifest_path": (
+                    "runs/component_gate_failure/manifest.json"
+                ),
+                "result_status": "FAILED",
+                "failure_type": "PacketValidationError",
+                "required_target_lanes": [
+                    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+                    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                ],
+                "validation_issue_summary": {
+                    "issue_kinds": [
+                        "missing_conclusion",
+                        "missing_source_anchors",
+                    ],
+                    "blocking_issue_kinds": [
+                        "missing_conclusion",
+                        "missing_source_anchors",
+                    ],
+                    "n_no_lane_routable_work_order_rows": 1,
+                },
+                "concrete_lane_routable_repair_seed": component_seed,
+                "proof_evidence_status": (
+                    "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
+                    "NOT_PROOF_EVIDENCE"
+                ),
+            }
+        ],
+    }
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        simulation_manifest={
+            "manifest_id": "simulation:component_seed_test",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:component_seed_test"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+    payload = _prompt_payload(prompt)
+    seed = payload["pseudo_formalization_required_packet_seed"]
+    copy_packet = payload["pseudo_formalization_required_copy_fragment"][
+        "pseudo_formal_proof_packets"
+    ][0]
+    rows = pseudo_formal_routable_work_order_rows(
+        pseudo_formal_block_work_order_rows(copy_packet)
+    )
+
+    assert seed["packet_id"] == "pseudo_formal_packet:component_gate_repair"
+    assert seed["component_gate_failure_seed_source"] == (
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    )
+    assert seed["prompt_scaffold_origin"]["source"] == (
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    )
+    assert seed["blocks"][0]["source_anchors"][0]["id"] == (
+        "proof_body:component_gate_rank_threshold"
+    )
+    assert seed["blocks"][0]["semantic_primitive_requirements"] == [
+        "component_gate_C_n"
+    ]
+    assert payload["pseudo_formalization_component_gate_failure_repair_seed"][
+        "packet_id"
+    ] == "pseudo_formal_packet:component_gate_repair"
+    assert copy_packet["packet_id"] == "pseudo_formal_packet:component_gate_repair"
+    assert any(
+        row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        and row["source_anchors"][0]["id"]
+        == "proof_body:component_gate_rank_threshold"
+        and row["semantic_primitive_requirements"] == ["component_gate_C_n"]
+        for row in rows
+    )
+
+    repair_context = _formalizer_repair_context(
+        errors=[
+            "pseudo_formal_proof_packets[0] invalid: blocks[0] missing conclusion",
+            (
+                "pseudo_formalization_required: valid PF/BV packet did not "
+                "produce any effective lane-routable pseudo-formal work-order rows"
+            ),
+        ],
+        question=question,
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        environment_feedback={},
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+    )
+    blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
+    assert blueprint["component_gate_failure_repair_seed"]["packet_id"] == (
+        "pseudo_formal_packet:component_gate_repair"
+    )
+    assert blueprint["copy_ready_response_fragment"]["pseudo_formal_proof_packets"][
+        0
+    ]["blocks"][0]["source_anchors"][0]["id"] == (
+        "proof_body:component_gate_rank_threshold"
+    )
+
+
+def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
+    question = _pseudo_formal_packet_eval_question()
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        simulation_manifest={
+            "manifest_id": "simulation:false_pf",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:false_pf"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={
+            "pseudo_formalization_required": "false",
+            "requires_pseudo_formalization": "false",
+            "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+                "false"
+            ),
+            "formalizer_pseudo_formal_packet_component_gate_failure_available": (
+                "false"
+            ),
+        },
+        environment_feedback={"requires_pf_bv": "false"},
+    )
+    payload = _prompt_payload(prompt)
+
+    assert payload["pseudo_formalization_required_packet_seed"] == {}
+    assert payload["pseudo_formalization_component_gate_failure_repair_seed"] == {}
+    assert payload["pseudo_formalization_required_copy_fragment"] == {}
+    assert not isinstance(
+        payload["required_output_contract"]["pseudo_formal_proof_packets"],
+        dict,
+    )
+    assert "you must emit at least one pseudo_formal_proof_packets" not in prompt
 
 
 def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(

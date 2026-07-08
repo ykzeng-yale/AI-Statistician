@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:59:33Z",
+  "updated_at": "2026-07-08T08:29:45Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Exact-semantic Formalizer routing now parses compact-memory string booleans with normalized semantics before selecting PF/BV structural reformulation, provider-failure feedback, packet-validation feedback, proof-bank summaries, and source proof-body adapter partitions. Rows carrying structural_reformulation_required='false' now stay on the exact-semantic authoring/repair path instead of opening the PF/BV lane, while real structural statuses/failure classifications still trigger non-proof PF/BV work orders.",
+  "latest_main_worker_patch": "Formalizer PF/BV repair prompts now promote prior failed component-gate concrete_lane_routable_repair_seed rows into pseudo_formalization_required_packet_seed, pseudo_formalization_component_gate_failure_repair_seed, the copy fragment, and the validation-repair context. This makes the next Formalizer attempt copy an already source-anchored, conclusion-bearing, lane-routable PF/BV seed instead of rediscovering malformed packet structure. Formalizer-side PF/BV activation also now normalizes serialized false booleans before requiring pseudo_formal_proof_packets, preserving the strict non-proof PF/BV boundary.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",

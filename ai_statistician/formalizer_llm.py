@@ -252,11 +252,19 @@ def _formalizer_repair_context(
         environment_feedback or {},
         proof_bank_runtime_memory_summary or {},
     )
-    packet_seed = _pseudo_formalization_required_packet_seed(
-        question=question,
-        theory_packet=theory_packet or {},
-        environment_feedback=environment_feedback or {},
-        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary or {},
+    component_gate_failure_repair_seed = (
+        _pseudo_formal_component_gate_failure_repair_seed(
+            proof_bank_runtime_memory_summary or {},
+            required_target_lanes=required_target_lanes,
+        )
+    )
+    packet_seed = component_gate_failure_repair_seed or (
+        _pseudo_formalization_required_packet_seed(
+            question=question,
+            theory_packet=theory_packet or {},
+            environment_feedback=environment_feedback or {},
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary or {},
+        )
     )
     concrete_repair_seed = _pseudo_formal_concrete_lane_routable_repair_seed(
         packet_seed,
@@ -329,6 +337,9 @@ def _formalizer_repair_context(
             "allowed_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
             "copy_or_complete_this_packet_seed": packet_seed,
             "concrete_lane_routable_repair_seed": concrete_repair_seed,
+            "component_gate_failure_repair_seed": (
+                component_gate_failure_repair_seed
+            ),
             "copy_ready_response_fragment": copy_fragment,
             "concrete_repair_seed_usage": (
                 "Copy copy_ready_response_fragment.pseudo_formal_proof_packets[0] "
@@ -512,8 +523,21 @@ def build_formalizer_prompt(
         environment_feedback or {},
         proof_memory_summary,
     )
+    required_pseudo_formal_target_lanes = _required_pseudo_formal_target_lanes(
+        environment_feedback or {},
+        proof_memory_summary,
+    )
+    component_gate_failure_repair_seed = (
+        _pseudo_formal_component_gate_failure_repair_seed(
+            proof_memory_summary,
+            required_target_lanes=required_pseudo_formal_target_lanes,
+        )
+        if pseudo_formalization_required
+        else {}
+    )
     pseudo_formalization_packet_seed = (
-        _pseudo_formalization_required_packet_seed(
+        component_gate_failure_repair_seed
+        or _pseudo_formalization_required_packet_seed(
             question=question,
             theory_packet=theory_packet,
             environment_feedback=environment_feedback or {},
@@ -525,10 +549,7 @@ def build_formalizer_prompt(
     pseudo_formalization_copy_fragment = (
         _pseudo_formalization_required_copy_fragment(
             pseudo_formalization_packet_seed,
-            required_target_lanes=_required_pseudo_formal_target_lanes(
-                environment_feedback or {},
-                proof_memory_summary,
-            ),
+            required_target_lanes=required_pseudo_formal_target_lanes,
         )
         if pseudo_formalization_required
         else {}
@@ -615,6 +636,9 @@ def build_formalizer_prompt(
             }
         ),
         "pseudo_formalization_required_packet_seed": pseudo_formalization_packet_seed,
+        "pseudo_formalization_component_gate_failure_repair_seed": (
+            component_gate_failure_repair_seed
+        ),
         "pseudo_formalization_required_copy_fragment": (
             pseudo_formalization_copy_fragment
         ),
@@ -1418,17 +1442,57 @@ def _feedback_suggests_pseudo_formalization(
     return False
 
 
+def _formalizer_bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"", "0", "false", "no", "none", "null", "off"}:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+    return bool(value)
+
+
+def _strip_false_pseudo_formal_required_flags(
+    value: Any,
+    *,
+    flag_keys: set[str],
+) -> Any:
+    if isinstance(value, Mapping):
+        stripped: dict[str, Any] = {}
+        for key, child in value.items():
+            key_text = str(key)
+            if key_text in flag_keys and not _formalizer_bool_like(child):
+                continue
+            stripped[key_text] = _strip_false_pseudo_formal_required_flags(
+                child,
+                flag_keys=flag_keys,
+            )
+        return stripped
+    if isinstance(value, list | tuple):
+        return [
+            _strip_false_pseudo_formal_required_flags(child, flag_keys=flag_keys)
+            for child in value
+        ]
+    return value
+
+
 def _feedback_requires_pseudo_formalization(
     *sources: Mapping[str, Any] | None,
 ) -> bool:
     """Return true only for blockers where PF/BV should be a required repair pass."""
 
-    explicit_flags = (
+    explicit_flags = {
         "pseudo_formalization_required",
         "requires_pseudo_formalization",
         "requires_pseudo_formal_block_verification",
         "requires_pf_bv",
-    )
+        "exact_semantic_definition_structural_reformulation_required",
+        "source_theorem_exact_semantic_definition_structural_reformulation_required",
+    }
     required_markers = (
         "pseudo_formalization_required",
         "requires_pseudo_formalization",
@@ -1462,9 +1526,20 @@ def _feedback_requires_pseudo_formalization(
         for nested in nested_sources:
             if not isinstance(nested, Mapping):
                 continue
-            if any(bool(nested.get(flag, False)) for flag in explicit_flags):
+            if any(
+                _formalizer_bool_like(nested.get(flag, False))
+                for flag in explicit_flags
+            ):
                 return True
-        text = json.dumps(_compact_value(source), default=str).lower()
+        text = json.dumps(
+            _compact_value(
+                _strip_false_pseudo_formal_required_flags(
+                    source,
+                    flag_keys=explicit_flags,
+                )
+            ),
+            default=str,
+        ).lower()
         if any(marker in text for marker in required_markers):
             return True
     return False
@@ -1649,13 +1724,14 @@ def _required_pseudo_formal_target_lanes(
         for nested in nested_sources:
             if not isinstance(nested, Mapping):
                 continue
-            structural_required = structural_required or bool(
-                nested.get(
+            structural_required = structural_required or any(
+                _formalizer_bool_like(nested.get(flag, False))
+                for flag in (
+                    "exact_semantic_definition_structural_reformulation_required",
                     (
                         "source_theorem_exact_semantic_definition_"
                         "structural_reformulation_required"
                     ),
-                    False,
                 )
             )
             for key in (
@@ -1996,6 +2072,136 @@ def _pseudo_formalization_required_copy_fragment(
             "kernel evidence."
         ),
     }
+
+
+def _pseudo_formal_component_gate_failure_repair_seed(
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    *,
+    required_target_lanes: Sequence[str],
+) -> dict[str, Any]:
+    if not isinstance(proof_bank_runtime_memory_summary, Mapping):
+        return {}
+    failure_rows = [
+        row
+        for row in proof_bank_runtime_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    feedback_rows = [
+        row
+        for row in proof_bank_runtime_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    for row in (*failure_rows, *feedback_rows):
+        raw_seed = row.get(
+            "concrete_lane_routable_repair_seed",
+            row.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            ),
+        )
+        if not isinstance(raw_seed, Mapping):
+            continue
+        raw_blocks = raw_seed.get("blocks", [])
+        if not isinstance(raw_blocks, Sequence) or isinstance(
+            raw_blocks,
+            (str, bytes, bytearray),
+        ):
+            continue
+        if not any(isinstance(block, Mapping) for block in raw_blocks):
+            continue
+        row_target_lanes = [
+            str(value).strip()
+            for key in (
+                "required_target_lanes",
+                "pseudo_formal_failure_required_target_lanes",
+                "pseudo_formal_routable_target_lanes",
+            )
+            for value in row.get(key, []) or []
+            if str(value).strip()
+        ]
+        seed_target_lanes = [
+            str(value).strip()
+            for value in raw_seed.get("required_target_lanes_to_satisfy", []) or []
+            if str(value).strip()
+        ]
+        target_lanes = list(
+            dict.fromkeys(
+                [
+                    *[
+                        str(lane).strip()
+                        for lane in required_target_lanes
+                        if str(lane).strip()
+                    ],
+                    *row_target_lanes,
+                    *seed_target_lanes,
+                ]
+            )
+        ) or [PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION]
+        seed = _pseudo_formal_concrete_lane_routable_repair_seed(
+            raw_seed,
+            required_target_lanes=target_lanes,
+        )
+        scaffold_origin = (
+            dict(seed.get("prompt_scaffold_origin", {}))
+            if isinstance(seed.get("prompt_scaffold_origin", {}), Mapping)
+            else {}
+        )
+        scaffold_origin.update(
+            {
+                "artifact_kind": "PseudoFormalPromptScaffoldOrigin",
+                "scaffold_kind": (
+                    "formalizer_pseudo_formal_packet_component_gate_failure_"
+                    "repair_seed"
+                ),
+                "source": (
+                    "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+                ),
+                "component_eval_manifest_path": str(
+                    row.get("component_eval_manifest_path", "") or ""
+                ),
+                "validation_issue_summary": (
+                    dict(row.get("validation_issue_summary", {}))
+                    if isinstance(row.get("validation_issue_summary", {}), Mapping)
+                    else dict(
+                        row.get(
+                            "pseudo_formal_failure_validation_issue_summary",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_validation_issue_summary",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "required_target_lanes": target_lanes,
+                "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+            }
+        )
+        seed["prompt_scaffold_origin"] = scaffold_origin
+        seed["component_gate_failure_seed_source"] = (
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+        )
+        seed["seed_usage_instruction"] = (
+            "Copy this prior component-gate repair seed into "
+            "pseudo_formal_proof_packets[0] and preserve conclusion, "
+            "source_anchors, semantic_primitive_requirements, target lanes, "
+            "kernel_verified=false, source_theorem_kernel_verified=false, and "
+            "the non-proof PF/BV boundary."
+        )
+        return seed
+    return {}
 
 
 def _pseudo_formal_primary_repair_target_lane(target_lanes: Sequence[str]) -> str:
