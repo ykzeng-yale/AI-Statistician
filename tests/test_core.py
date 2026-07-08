@@ -6118,6 +6118,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows": 1,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked": 1,
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 0,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_goal_reached_count": 1,
@@ -6477,6 +6478,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 0,
                 "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count": 1,
                 "research_agent_runtime_source_theorem_kernel_verified_count": 0,
             }
         )
@@ -6525,6 +6527,7 @@ class SystemTests(unittest.TestCase):
                 "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows": 0,
                 "research_agent_runtime_source_theorem_exact_semantic_definition_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified": 0,
                 "research_agent_runtime_source_theorem_proof_body_result_row_count": 1,
+                "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count": 0,
                 "research_agent_runtime_source_theorem_proof_body_goal_reached_evidence_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_gate_open_for_kernel_repair_count": 1,
                 "research_agent_runtime_source_theorem_proof_body_effective_signature_backed_gate_open_for_kernel_repair_count": 1,
@@ -6603,10 +6606,16 @@ class SystemTests(unittest.TestCase):
             if row["suite_id"] == "S13_live_integrated_agent_runtime_capability"
         )
         self.assertEqual(runtime_scorecard_lane_s13["status"], "OK")
-        self.assertFalse(
+        self.assertTrue(
             runtime_scorecard_lane_s13["key_counts"][
                 "research_agent_runtime_source_theorem_proof_body_aggregate_local_lean_or_kernel_ok"
             ]
+        )
+        self.assertEqual(
+            runtime_scorecard_lane_s13["key_counts"][
+                "research_agent_runtime_source_theorem_proof_body_effective_local_lean_checked"
+            ],
+            1,
         )
         self.assertFalse(
             runtime_scorecard_lane_s13["key_counts"][

@@ -73869,6 +73869,7 @@ def test_runtime_audit_counts_authoring_retry_verifier_approved_kernel_evidence(
         == 1
     )
     assert audit["source_theorem_proof_body_result_row_count"] == 1
+    assert audit["source_theorem_proof_body_local_lean_checked_count"] == 0
     assert audit["evidence_truth_table"]["source_theorem_kernel_verified"] is True
     assert scorecard_rows[
         "source_theorem_exact_proof_body_candidate_materialized"
@@ -73966,6 +73967,7 @@ def test_runtime_audit_preserves_verifier_approved_recheck_local_lean_same_lane_
 
     assert audit[local_lean_key] == 1
     assert audit["source_theorem_proof_body_result_row_count"] == 1
+    assert audit["source_theorem_proof_body_local_lean_checked_count"] == 1
     assert local_lean_row["passed"] is True
     assert "proof_body_local_lean_checked=1" in local_lean_row["evidence"]
     assert same_lane_row["passed"] is True

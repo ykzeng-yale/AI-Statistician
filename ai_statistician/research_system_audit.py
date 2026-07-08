@@ -3979,6 +3979,10 @@ async def run_research_system_audit(
                 "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
                 0,
             ),
+            "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count": research_agent_runtime_audit_manifest.get(
+                "source_theorem_proof_body_local_lean_checked_count",
+                0,
+            ),
             "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran": research_agent_runtime_audit_manifest.get(
                 "source_theorem_exact_proof_body_repair_executor_ran",
                 False,

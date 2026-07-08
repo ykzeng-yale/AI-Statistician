@@ -11046,6 +11046,9 @@ def audit_research_agent_runtime(
     payload["source_theorem_proof_body_result_row_count"] = (
         _payload_source_theorem_proof_body_result_row_count(payload)
     )
+    payload["source_theorem_proof_body_local_lean_checked_count"] = (
+        _payload_source_theorem_proof_body_local_lean_checked_count(payload)
+    )
     payload["source_theorem_proof_body_signature_artifact_count"] = (
         _payload_source_theorem_proof_body_signature_artifact_count(payload)
     )

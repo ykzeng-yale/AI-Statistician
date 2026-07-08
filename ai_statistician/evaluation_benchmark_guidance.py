@@ -253,6 +253,7 @@ def build_evaluation_benchmark_guidance(
                         "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_result_rows",
                         "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
                         "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+                        "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count",
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran",
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_result_rows",
                         "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
@@ -1310,6 +1311,11 @@ def _suite_rows(
         _int(counts.get("research_agent_runtime_source_theorem_proof_body_result_row_count")),
     )
     runtime_source_theorem_proof_body_local_lean_checked = max(
+        _int(
+            counts.get(
+                "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count"
+            )
+        ),
         runtime_source_theorem_formal_environment_proof_body_local_lean_checked,
         runtime_source_theorem_exact_proof_body_repair_local_lean_checked,
     )
@@ -3289,6 +3295,9 @@ def _suite_rows(
                 ),
                 "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": counts.get(
                     "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
+                ),
+                "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count": counts.get(
+                    "research_agent_runtime_source_theorem_proof_body_local_lean_checked_count"
                 ),
                 "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran": counts.get(
                     "research_agent_runtime_source_theorem_exact_proof_body_repair_executor_ran"
