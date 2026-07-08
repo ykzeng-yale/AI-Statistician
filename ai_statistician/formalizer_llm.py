@@ -65,7 +65,7 @@ FORMALIZER_BOUNDARY = (
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
-FORMALIZER_MAX_TEXT_CHARS = 300
+FORMALIZER_MAX_TEXT_CHARS = 240
 
 
 def _is_compaction_path_key(key: Any) -> bool:
@@ -5726,18 +5726,18 @@ def _formalizer_mode_specific_instructions(
     )
     if any(
         shortcut.get("premise_candidate_artifact_path")
-        or shortcut.get("premise_derivation_candidate_skeleton_lean_source_excerpt")
-        or (
-            isinstance(shortcut.get("copy_this_candidate_request", {}), Mapping)
-            and (
-                shortcut["copy_this_candidate_request"].get(
-                    "premise_candidate_artifact_path"
-                )
-                or shortcut["copy_this_candidate_request"].get(
-                    "premise_derivation_candidate_skeleton_lean_source_excerpt"
+            or shortcut.get("premise_derivation_candidate_skeleton_lean_source_excerpt")
+            or (
+                isinstance(shortcut.get("copy_this_candidate_request", {}), Mapping)
+                and (
+                    shortcut.get("copy_this_candidate_request", {}).get(
+                        "premise_candidate_artifact_path"
+                    )
+                    or shortcut.get("copy_this_candidate_request", {}).get(
+                        "premise_derivation_candidate_skeleton_lean_source_excerpt"
+                    )
                 )
             )
-        )
         for shortcut in source_to_bridge_request_shortcuts
     ):
         instructions.append(
@@ -9845,10 +9845,19 @@ def _source_to_bridge_candidate_has_source_binding_contract(
     has_adapter_instantiation_metadata = row.get(
         "adapter_object_names_requiring_source_instantiation"
     ) not in (None, "", [], {})
+    has_premise_identity = bool(_source_to_bridge_candidate_premise_names(row))
+    has_target_identity = bool(
+        str(
+            row.get("target_lean_declaration", "")
+            or row.get("target_theorem_name", "")
+            or ""
+        ).strip()
+    )
     return bool(
         (has_exact_source_binders and has_anchor_metadata)
         or (has_anchor_metadata and has_adapter_instantiation_metadata)
         or has_adapter_instantiation_metadata
+        or (has_premise_identity and has_target_identity and has_anchor_metadata)
     )
 
 

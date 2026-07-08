@@ -1826,6 +1826,13 @@ def _runtime_evidence_truth_table_from_manifest(
         payload,
         SOURCE_THEOREM_PROOF_BODY_SIGNATURE_ARTIFACT_ROW_KEYS,
     )
+    proof_body_reached_open = (
+        proof_body_goal_evidence_count > 0
+        and (
+            proof_body_signature_artifact_count > 0
+            or proof_body_goal_excerpt_evidence_count > 0
+        )
+    )
     proof_body_gate_open_count = max(
         _runtime_manifest_int_sum(
             payload,
@@ -2007,8 +2014,7 @@ def _runtime_evidence_truth_table_from_manifest(
             "SOURCE_KERNEL_VERIFIED"
             if source_target_bound_kernel_count > 0
             else "PROOF_BODY_REACHED_OPEN"
-            if proof_body_goal_evidence_count > 0
-            and proof_body_signature_artifact_count > 0
+            if proof_body_reached_open
             else "PROOF_BODY_ATTEMPT_BLOCKED"
             if proof_body_result_rows > 0 or proof_body_goal_evidence_count > 0
             else "MISSING",
@@ -2021,6 +2027,7 @@ def _runtime_evidence_truth_table_from_manifest(
                 if (
                     source_target_bound_kernel_count <= 0
                     and proof_body_goal_evidence_count > 0
+                    and proof_body_goal_excerpt_evidence_count <= 0
                     and proof_body_signature_artifact_count <= 0
                 )
                 else proof_body_blocker
@@ -54230,6 +54237,22 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if str(row.get("target_theorem_name", "") or "").strip()
         )
     )
+    verified_source_to_bridge_premise_target_ids = tuple(
+        dict.fromkeys(
+            value
+            for row in verified_source_to_bridge_premise_derivation_rows
+            for value in _source_theorem_target_ids_from_row(
+                row,
+                fallback_target_theorem_name=str(
+                    row.get("target_theorem_name", "") or ""
+                ).strip(),
+                fallback_source_formal_target_id=str(
+                    row.get("target_lean_declaration", "") or ""
+                ).strip(),
+            )
+            if value
+        )
+    )
 
     def metadata_request_premise_names(row: Mapping[str, Any]) -> tuple[str, ...]:
         return _runtime_source_to_bridge_premise_names(row)
@@ -54815,6 +54838,54 @@ def _formalizer_proof_bank_runtime_memory_summary(
             )
         )
     )
+
+    verified_source_to_bridge_premise_lineage_keys = set(
+        [
+            *verified_source_to_bridge_premise_targets,
+            *verified_source_to_bridge_premise_target_ids,
+        ]
+    )
+
+    def verified_source_to_bridge_premise_context_for_row(
+        row: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        if not verified_source_to_bridge_premise_derivation_rows:
+            return {}
+        row_target = str(row.get("target_theorem_name", "") or "").strip()
+        row_target_ids = _source_theorem_target_ids_from_row(
+            row,
+            fallback_target_theorem_name=row_target,
+            fallback_source_formal_target_id=str(
+                row.get("target_lean_declaration", "") or ""
+            ).strip(),
+        )
+        row_lineage = set([row_target, *row_target_ids])
+        if (
+            verified_source_to_bridge_premise_lineage_keys
+            and row_lineage
+            and not row_lineage.intersection(
+                verified_source_to_bridge_premise_lineage_keys
+            )
+        ):
+            return {}
+        return {
+            "kernel_verified_source_to_bridge_premise_derivation_ids": list(
+                verified_source_to_bridge_premise_derivation_ids
+            ),
+            "verified_source_to_bridge_premise_derivation_artifact_paths": list(
+                verified_source_to_bridge_premise_artifact_paths
+            )[:5],
+            "verified_source_to_bridge_premise_derivation_declarations": list(
+                verified_source_to_bridge_premise_declarations
+            )[:5],
+            "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                verified_source_to_bridge_premise_signature_excerpts
+            )[:5],
+            "source_to_bridge_premise_derivation_verified_premise_names": list(
+                verified_source_to_bridge_premise_names
+            )[:8],
+        }
+
     def verified_premise_row_bool(row: Mapping[str, Any], key: str) -> bool:
         input_summary = (
             row.get("input_summary", {})
@@ -55036,6 +55107,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     exact_source_proof_body_adapter_required = bool(
         exact_source_proof_body_adapter_rows
+    )
+    exact_source_proof_body_adapter_priority_ready = bool(
+        exact_source_proof_body_adapter_required
+        and exact_source_proof_body_gate_open_rows
     )
     source_to_bridge_adapter_retry_unblocked_by_verified_premises = bool(
         (
@@ -56535,6 +56610,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
                         _runtime_verified_source_to_bridge_premise_signature_excerpts(row)
                     )[:5],
+                    **verified_source_to_bridge_premise_context_for_row(row),
                     "kernel_verified_theorem_reduction_closure_declarations": list(
                         row.get(
                             "kernel_verified_theorem_reduction_closure_declarations",
@@ -57286,7 +57362,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ],
         "recommended_source_theorem_integration_action": (
             "derive_source_theorem_proof_body_adapter"
-            if source_to_bridge_adapter_retry_unblocked_by_verified_premises
+            if (
+                source_to_bridge_adapter_retry_unblocked_by_verified_premises
+                or exact_source_proof_body_adapter_priority_ready
+            )
             else "structural_reformulate_exact_semantic_definition_with_pf_bv"
             if exact_semantic_definition_structural_reformulation_rows
             else "repair_reviewed_exact_semantic_definitions"
@@ -57319,7 +57398,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "remaining_theorem_goal_ids": list(theorem_goal_ids),
         "recommended_formalizer_target_mode": (
             "source_theorem_proof_body_adapter_required"
-            if source_to_bridge_adapter_retry_unblocked_by_verified_premises
+            if (
+                source_to_bridge_adapter_retry_unblocked_by_verified_premises
+                or exact_source_proof_body_adapter_priority_ready
+            )
             else "source_theorem_exact_semantic_definition_structural_reformulation"
             if exact_semantic_definition_structural_reformulation_rows
             else "source_theorem_exact_semantic_definition_repair"
@@ -60773,6 +60855,15 @@ def _formalizer_source_theorem_promotion_work_orders(
     verified_source_to_bridge_premise_name_set = set(
         verified_source_to_bridge_premise_names
     )
+    source_to_bridge_premise_derivation_pending_premise_names = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "source_to_bridge_premise_derivation_pending_premise_names",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
     source_to_bridge_premise_derivation_all_required_verified = bool(
         proof_bank_runtime_memory_summary.get(
             "source_to_bridge_premise_derivation_all_required_verified",
@@ -60910,10 +61001,15 @@ def _formalizer_source_theorem_promotion_work_orders(
             ]
     source_proof_body_adapter_pending_bridge_premise_names = [
         premise_name
-        for premise_name in source_proof_body_adapter_unproven_bridge_premise_names
+        for premise_name in (
+            source_proof_body_adapter_unproven_bridge_premise_names
+            or source_to_bridge_premise_derivation_pending_premise_names
+        )
         if premise_name not in verified_source_to_bridge_premise_name_set
     ]
-    if not source_proof_body_adapter_pending_bridge_premise_names:
+    if source_proof_body_adapter_pending_bridge_premise_names:
+        source_proof_body_adapter_unproven_bridge_premises_required = True
+    else:
         source_proof_body_adapter_unproven_bridge_premises_required = False
     source_to_bridge_premise_derivation_work_items = [
         {

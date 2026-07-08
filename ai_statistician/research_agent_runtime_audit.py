@@ -27046,6 +27046,7 @@ def _trace_runtime_capability_gap_routing_input_identity(
     requirement_ids: list[str] = []
     priority_pinned_requirement_ids: list[str] = []
     owner_subsystems: list[str] = []
+    seen_rows: set[str] = set()
     for trace in traces:
         if not isinstance(trace, Mapping):
             continue
@@ -27068,6 +27069,26 @@ def _trace_runtime_capability_gap_routing_input_identity(
         for row in rows:
             if not isinstance(row, Mapping):
                 continue
+            row_key = str(
+                row.get("id", "")
+                or row.get("fingerprint", "")
+                or stable_hash(
+                    {
+                        "requirement_id": row.get("requirement_id", ""),
+                        "next_owner_subsystem": row.get(
+                            "next_owner_subsystem", ""
+                        ),
+                        "retention_selection": row.get(
+                            "retention_selection", ""
+                        ),
+                        "gap_status": row.get("gap_status", ""),
+                        "blocker": row.get("blocker", ""),
+                    }
+                )[:24]
+            )
+            if row_key in seen_rows:
+                continue
+            seen_rows.add(row_key)
             requirement_id = str(row.get("requirement_id", "") or "").strip()
             owner = str(row.get("next_owner_subsystem", "") or "").strip()
             if requirement_id:

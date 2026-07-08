@@ -60190,6 +60190,203 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_runtime_verified_source_to_bridge_premise_unblocks_adapter_over_stale_semantic_repair(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    candidate_path = (
+        "runs/recheck/candidate_artifacts/"
+        "split_conformal_finite_sample_coverage_repair_v3.lean"
+    )
+    signature_probe_path = (
+        "runs/signature_probes/artifacts/"
+        "split_conformal_finite_sample_coverage_repair_v3_signature_probe.lean"
+    )
+    premise_artifact = tmp_path / "hGoodRankImpliesCovered.lean"
+    premise_artifact.write_text(
+        "theorem split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation "
+        "(good covered : Prop) (h : good -> covered) (hg : good) : covered := by\n"
+        "  exact h hg\n",
+        encoding="utf-8",
+    )
+    memory = {
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "trigger": "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE",
+                "placeholder_symbol": "coverage_event",
+                "failure_classification": "semantic_definition_review_blocked",
+                "runtime_queue_status": (
+                    "PENDING_REVIEWED_EXACT_SEMANTIC_DEFINITION_REPAIR"
+                ),
+                "proof_body_gate_status": "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY",
+                "source_theorem_kernel_verified": False,
+                "proof_evidence_status": (
+                    "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            {
+                "schema_version": 1,
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage_repair_v3",
+                "target_lean_declaration": (
+                    "split_conformal_finite_sample_coverage_repair_v3"
+                ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "trigger": "EXACT_SOURCE_PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                "failure_classification": "proof_body_incomplete",
+                "runtime_queue_status": "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR",
+                "proof_body_gate_status": "PROOF_BODY_REACHED_PROOF_INCOMPLETE",
+                "proof_body_goal_reached": True,
+                "proof_body_attempted": True,
+                "proof_body_attempt_count": 3,
+                "proof_body_goal_excerpt": [
+                    "hExch : ∀ σ, P.map score = P.map (fun ω i => score (σ i) ω)",
+                    "q : ℝ",
+                    "⊢ ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}",
+                ],
+                "semantic_alignment_constraints": [
+                    "reviewed exact semantic-definition candidate approved for proof-body recheck",
+                    "Quantile threshold q and exchangeability hypotheses require bridge adapter shape",
+                ],
+                "semantic_alignment_blockers": [],
+                "source_theorem_kernel_evidence_eligible": True,
+                "source_theorem_kernel_verified": False,
+                "candidate_artifact_path": candidate_path,
+                "signature_probe_artifact_path": signature_probe_path,
+                "source_theorem_signature_probe_artifact_path": signature_probe_path,
+                "proof_evidence_status": (
+                    "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            {
+                "schema_version": 1,
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "premise_name": "hGoodRankImpliesCovered",
+                "runtime_queue_status": "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_KERNEL_VERIFIED",
+                "premise_derivation_kernel_verified": True,
+                "kernel_verified_source_to_bridge_premise_derivation_ids": [
+                    "source_to_bridge_premise_derivation_check:hGoodRankImpliesCovered"
+                ],
+                "source_to_bridge_premise_candidate_artifact_path": str(
+                    premise_artifact
+                ),
+                "source_to_bridge_premise_candidate_declaration_name": (
+                    "split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation"
+                ),
+                "proof_evidence_status": (
+                    "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
+                ),
+                "source_theorem_kernel_verified": False,
+            },
+            {
+                "schema_version": 1,
+                "learning_task": "source_to_bridge_premise_derivation_feedback",
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "premise_name": "hQuantileThreshold",
+                "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_PREMISE_DERIVATION",
+                "failure_classification": (
+                    "premise_derivation_candidate_missing_semantic_anchor_reference"
+                ),
+                "premise_derivation_kernel_verified": False,
+                "proof_evidence_status": (
+                    "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_BRIDGE_NOT_PROOF_EVIDENCE"
+                ),
+                "source_theorem_kernel_verified": False,
+            },
+        ],
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_semantic_definition_repair_required"] is True
+    assert summary["source_theorem_proof_body_adapter_required"] is True
+    assert summary["source_to_bridge_premise_derivation_required"] is True
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_proof_body_adapter_required"
+    )
+    diagnostic = summary["source_theorem_proof_body_adapter_diagnostics"][0]
+    assert diagnostic["target_theorem_name"] == (
+        "split_conformal_finite_sample_coverage_repair_v3"
+    )
+    assert diagnostic[
+        "kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] == ["source_to_bridge_premise_derivation_check:hGoodRankImpliesCovered"]
+    assert diagnostic[
+        "verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] == [str(premise_artifact)]
+    assert diagnostic[
+        "verified_source_to_bridge_premise_derivation_declarations"
+    ] == [
+        "split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation"
+    ]
+
+    proposal = {
+        "packet_id": "formalizer:adapter-after-verified-premise",
+        "question": {"id": question.id, "title": question.title},
+        "formal_targets": [
+            {
+                "id": "target:split_conformal_finite_sample_coverage_repair_v3",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage_repair_v3 : True := by"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage_repair_v3"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ],
+    }
+    work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=theorem_goals,
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["proof_mode"] == "source_theorem_proof_body_adapter_required"
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert work_order[
+        "kernel_verified_source_to_bridge_premise_derivation_ids"
+    ] == ["source_to_bridge_premise_derivation_check:hGoodRankImpliesCovered"]
+    assert work_order[
+        "verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] == [str(premise_artifact)]
+    assert [
+        item["premise_name"]
+        for item in work_order["source_to_bridge_premise_derivation_work_items"]
+    ] == ["hQuantileThreshold"]
+    assert work_order[
+        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
+    ] is True
+
+
 def test_runtime_learning_memory_loader_routes_missing_dependency_context_to_adapter(
     tmp_path: Path,
 ) -> None:
