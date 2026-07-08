@@ -161,6 +161,19 @@ class AgentSubsystem(Protocol):
         ...
 
 
+class HandoffPolicy(Protocol):
+    def __call__(
+        self,
+        *,
+        iteration: int,
+        task: AgentTask,
+        subsystem_name: str,
+        result: AgentStepResult,
+        blackboard: BlackboardState,
+    ) -> AgentStepResult:
+        ...
+
+
 @dataclass(frozen=True)
 class AgentRuntimeResult:
     status: RuntimeStatus
@@ -185,9 +198,11 @@ class AgentRuntime:
         *,
         subsystems: Mapping[str, AgentSubsystem],
         blackboard: BlackboardState,
+        handoff_policy: HandoffPolicy | None = None,
     ) -> None:
         self.subsystems = dict(subsystems)
         self.blackboard = blackboard
+        self.handoff_policy = handoff_policy
 
     def run(
         self,
@@ -324,6 +339,16 @@ class AgentRuntime:
                     )
                     break
 
+            subsystem_name = getattr(subsystem, "name", task.owner_subsystem)
+            if self.handoff_policy is not None:
+                result = self.handoff_policy(
+                    iteration=iteration,
+                    task=task,
+                    subsystem_name=subsystem_name,
+                    result=result,
+                    blackboard=self.blackboard,
+                )
+
             self.blackboard.artifacts.update(result.produced_artifacts)
             self.blackboard.evidence_ledger.extend(result.evidence_entries)
             produced_artifact_ids = tuple(result.produced_artifacts.keys())
@@ -332,7 +357,7 @@ class AgentRuntime:
                 _build_task_handoff_record(
                     iteration=iteration,
                     task=task,
-                    subsystem_name=getattr(subsystem, "name", task.owner_subsystem),
+                    subsystem_name=subsystem_name,
                     result=result,
                     produced_artifact_ids=produced_artifact_ids,
                     evidence_ids=evidence_ids,
@@ -347,7 +372,7 @@ class AgentRuntime:
             trace = RuntimeIterationTrace(
                 iteration=iteration,
                 task=task,
-                subsystem=getattr(subsystem, "name", task.owner_subsystem),
+                subsystem=subsystem_name,
                 status=result.status,
                 rationale=result.rationale,
                 observations=result.observations,

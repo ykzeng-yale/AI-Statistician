@@ -24319,8 +24319,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "ArchitectCoordinator executed, but no runtime handoff transition "
-                "was aligned to the Architect subsystem_execution_plan; routing "
-                "looks like subsystem defaults rather than visible Architect policy"
+                "was aligned to the Architect subsystem_execution_plan or routed "
+                "through architect_plan_repair; routing looks like subsystem "
+                "defaults rather than visible Architect policy"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
@@ -24328,10 +24329,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 target_behavior=(
                     "Carry Architect subsystem_execution_plan context through "
                     "runtime handoffs so transition summaries can show at least "
-                    "one architect_execution_plan-aligned route source."
+                    "one architect_execution_plan-aligned route source, or route "
+                    "unplanned Architect-context handoffs through explicit "
+                    "architect_plan_repair."
                 ),
                 success_metric=(
                     "n_runtime_handoff_transitions_aligned_with_architect_plan>0 "
+                    "or runtime_handoff_transition_route_sources.architect_plan_repair>0 "
                     "whenever ArchitectCoordinator executes and runtime handoffs occur"
                 ),
             ),
@@ -27254,12 +27258,24 @@ def _runtime_architect_transition_policy_scorecard_passed(
     top_sources = payload.get("runtime_handoff_transition_route_sources", {})
     if not isinstance(top_sources, Mapping):
         top_sources = {}
+    summary_plan_sources = _safe_int(summary_sources.get("architect_execution_plan"))
+    top_plan_sources = _safe_int(top_sources.get("architect_execution_plan"))
+    summary_plan_repair_sources = _safe_int(
+        summary_sources.get("architect_plan_repair")
+    )
+    top_plan_repair_sources = _safe_int(top_sources.get("architect_plan_repair"))
+    plan_aligned_visible = bool(
+        summary_aligned > 0
+        and summary_plan_sources > 0
+        and top_plan_sources == summary_plan_sources
+    )
+    plan_repair_visible = bool(
+        summary_plan_repair_sources > 0
+        and top_plan_repair_sources == summary_plan_repair_sources
+    )
     return bool(
         runtime_handoff_transitions_aligned_with_architect_plan == summary_aligned
-        and summary_aligned > 0
-        and _safe_int(summary_sources.get("architect_execution_plan")) > 0
-        and _safe_int(top_sources.get("architect_execution_plan"))
-        == _safe_int(summary_sources.get("architect_execution_plan"))
+        and (plan_aligned_visible or plan_repair_visible)
     )
 
 

@@ -161,6 +161,98 @@ def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:
     assert payload["traces"][1]["observations"][0]["observation_type"] == "simulation_result"
 
 
+def test_agent_runtime_handoff_policy_can_rewrite_next_task() -> None:
+    class ReviewSubsystem:
+        name = "ReviewSubsystem"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="review accepted rewritten handoff",
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="review_task_received",
+                        summary=str(task.inputs["original_next_task_id"]),
+                    ),
+                ),
+            )
+
+    def policy(
+        *,
+        iteration: int,
+        task: AgentTask,
+        subsystem_name: str,
+        result: AgentStepResult,
+        blackboard: BlackboardState,
+    ) -> AgentStepResult:
+        if result.next_task is None:
+            return result
+        assert iteration == 1
+        assert task.task_id == "theory:q1"
+        assert subsystem_name == "TheoryDeveloper"
+        assert blackboard.project_id == "runtime-policy-test"
+        return AgentStepResult(
+            status="REROUTE",
+            rationale="central policy routed handoff through review",
+            produced_artifacts=result.produced_artifacts,
+            observations=result.observations
+            + (
+                EnvironmentObservation(
+                    observation_type="handoff_policy_rewrite",
+                    summary="rewrote simulation handoff",
+                ),
+            ),
+            tool_calls=result.tool_calls,
+            evidence_entries=result.evidence_entries,
+            next_task=AgentTask(
+                task_id="review:q1",
+                owner_subsystem="ReviewSubsystem",
+                objective="review rewritten task",
+                inputs={"original_next_task_id": result.next_task.task_id},
+                expected_artifacts=("review_manifest",),
+                acceptance_gate="review accepts rewritten handoff",
+            ),
+            failure_classification="handoff_policy_rewrite",
+        )
+
+    runtime = AgentRuntime(
+        subsystems={
+            "TheoryDeveloper": TheorySubsystem(),
+            "ReviewSubsystem": ReviewSubsystem(),
+        },
+        blackboard=BlackboardState(project_id="runtime-policy-test"),
+        handoff_policy=policy,
+    )
+
+    result = runtime.run(
+        AgentTask(
+            task_id="theory:q1",
+            owner_subsystem="TheoryDeveloper",
+            objective="derive candidate frontier theorem",
+        ),
+        max_iterations=2,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert result.traces[0].next_task_id == "review:q1"
+    assert result.traces[0].failure_classification == "handoff_policy_rewrite"
+    assert result.traces[0].observations[-1].observation_type == (
+        "handoff_policy_rewrite"
+    )
+    assert result.traces[1].subsystem == "ReviewSubsystem"
+    assert result.blackboard.handoff_ledger[0].to_subsystem == "ReviewSubsystem"
+    assert result.blackboard.handoff_ledger[0].next_task_acceptance_gate == (
+        "review accepts rewritten handoff"
+    )
+    assert result.blackboard.artifacts["theory_packet:q1"]["claim"] == (
+        "candidate coverage theorem"
+    )
+
+
 def test_agent_runtime_retries_transient_subsystem_exception() -> None:
     subsystem = FlakySubsystem()
     result = AgentRuntime(

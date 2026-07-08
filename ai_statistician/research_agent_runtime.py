@@ -8119,6 +8119,173 @@ def _canonical_architect_subsystem(value: Any) -> str:
     return ""
 
 
+def _architect_plan_guard_handoff_policy(
+    *,
+    iteration: int,
+    task: AgentTask,
+    subsystem_name: str,
+    result: AgentStepResult,
+    blackboard: BlackboardState,
+) -> AgentStepResult:
+    next_task = result.next_task
+    if next_task is None:
+        return result
+    if subsystem_name == "ArchitectCoordinator":
+        return result
+    if next_task.owner_subsystem == "ArchitectCoordinator":
+        return result
+    inputs = next_task.inputs if isinstance(next_task.inputs, Mapping) else {}
+    architect_context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    if not architect_context:
+        return result
+    plan = (
+        architect_context.get("architect_runtime_plan", {})
+        if isinstance(architect_context.get("architect_runtime_plan", {}), Mapping)
+        else {}
+    )
+    stages = plan.get("subsystem_execution_plan", [])
+    if not isinstance(stages, list) or not stages:
+        return result
+    alignment = _runtime_transition_architect_plan_alignment(
+        next_task=asdict(next_task),
+        to_subsystem=next_task.owner_subsystem,
+    )
+    if alignment.get("aligned") is True:
+        return result
+    planned_subsystems = [
+        _canonical_architect_subsystem(stage.get("subsystem"))
+        for stage in stages
+        if isinstance(stage, Mapping)
+    ]
+    planned_subsystems = [item for item in planned_subsystems if item]
+    if not planned_subsystems:
+        return result
+    question_payload = (
+        inputs.get("question", {})
+        if isinstance(inputs.get("question", {}), Mapping)
+        else task.inputs.get("question", {})
+        if isinstance(task.inputs.get("question", {}), Mapping)
+        else {}
+    )
+    question_id = str(question_payload.get("id", "") or "").strip()
+    if not question_id:
+        question_id = stable_hash([task.task_id, next_task.task_id])[:12]
+    review_id = (
+        "architect_plan_repair:"
+        + stable_hash(
+            [
+                iteration,
+                task.task_id,
+                subsystem_name,
+                next_task.task_id,
+                next_task.owner_subsystem,
+                planned_subsystems,
+            ]
+        )[:20]
+    )
+    context = dict(architect_context)
+    feedback_loop = (
+        dict(context.get("runtime_feedback_loop", {}))
+        if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+        else {}
+    )
+    feedback_loop.update(
+        {
+            "handoff": "architect_plan_repair",
+            "architect_plan_repair_id": review_id,
+            "pending_next_task_id": next_task.task_id,
+            "pending_owner_subsystem": next_task.owner_subsystem,
+            "proof_evidence_status": "ARCHITECT_PLAN_REPAIR_NOT_PROOF_EVIDENCE",
+        }
+    )
+    context["runtime_feedback_loop"] = feedback_loop
+    context["runtime_unplanned_handoff_review"] = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeArchitectPlanRepairReview",
+        "review_id": review_id,
+        "source_iteration": iteration,
+        "source_task_id": task.task_id,
+        "source_subsystem": subsystem_name,
+        "proposed_next_task_id": next_task.task_id,
+        "proposed_next_owner_subsystem": next_task.owner_subsystem,
+        "architect_plan_subsystems": list(dict.fromkeys(planned_subsystems)),
+        "required_decision": (
+            "ArchitectCoordinator must approve, amend, or replace this "
+            "next_task before runtime follows it."
+        ),
+        "proof_evidence_status": "ARCHITECT_PLAN_REPAIR_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This is control-plane routing repair. It does not validate generated "
+            "code, certify simulation results, or prove any theorem."
+        ),
+    }
+    observation = EnvironmentObservation(
+        observation_type="architect_plan_repair_handoff",
+        summary=(
+            "Architect-context handoff proposed a subsystem outside the current "
+            "Architect execution plan; routing to ArchitectCoordinator for explicit "
+            "plan review."
+        ),
+        payload={
+            "review_id": review_id,
+            "from_subsystem": subsystem_name,
+            "from_task_id": task.task_id,
+            "proposed_next_task_id": next_task.task_id,
+            "proposed_next_owner_subsystem": next_task.owner_subsystem,
+            "architect_plan_subsystems": list(dict.fromkeys(planned_subsystems)),
+            "architect_plan_repair": True,
+            "proof_evidence_status": "ARCHITECT_PLAN_REPAIR_NOT_PROOF_EVIDENCE",
+            "boundary": (
+                "Architect plan repair is orchestration evidence only; it is not "
+                "statistical, simulation, implementation, or Lean proof evidence."
+            ),
+        },
+    )
+    review_task = AgentTask(
+        task_id=f"architect-plan-repair:{question_id}:{stable_hash([review_id, next_task.task_id])[:8]}",
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Review an Architect-context handoff whose target subsystem is outside "
+            "the current subsystem_execution_plan, then approve, amend, or replace "
+            "the pending next task without claiming proof evidence."
+        ),
+        inputs={
+            "question": dict(question_payload),
+            "architect_context": context,
+            "resume_pending_task": asdict(next_task),
+            "unplanned_handoff_contract": context["runtime_unplanned_handoff_review"],
+        },
+        allowed_tools=("model_backend", "blackboard"),
+        expected_artifacts=(
+            "architect_coordinator_proposal",
+            "architect_plan_repair_handoff",
+        ),
+        acceptance_gate=(
+            "ArchitectCoordinator records an explicit plan-review decision before "
+            "runtime follows the proposed next subsystem"
+        ),
+        stop_condition="coordinator routes an explicitly reviewed pending task",
+    )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            "Architect plan guard intercepted an unplanned Architect-context "
+            f"handoff from {subsystem_name} to {next_task.owner_subsystem}; "
+            "routing to ArchitectCoordinator for explicit plan repair."
+        ),
+        produced_artifacts=result.produced_artifacts,
+        observations=result.observations + (observation,),
+        tool_calls=result.tool_calls,
+        evidence_entries=result.evidence_entries,
+        next_task=review_task,
+        failure_classification="architect_plan_repair_required",
+    )
+
+
 def _architect_capability_gap_prerequisite_feedback(
     *,
     requested_subsystem: str,
@@ -23133,6 +23300,11 @@ def run_research_agent_runtime(
         runtime = AgentRuntime(
             subsystems=subsystems,
             blackboard=blackboard,
+            handoff_policy=(
+                _architect_plan_guard_handoff_policy
+                if architect_coordinator is not None
+                else None
+            ),
         )
         def record_progress(row: dict[str, Any]) -> None:
             _append_jsonl_row(
@@ -81437,6 +81609,11 @@ def _runtime_transition_route_sources(
             sources.append("architect_initial_routing")
         if payload.get("resume_review") is True:
             sources.append("architect_resume_review")
+        if (
+            observation_type == "architect_plan_repair_handoff"
+            or payload.get("architect_plan_repair") is True
+        ):
+            sources.append("architect_plan_repair")
         runtime_reroute_decision = payload.get("runtime_reroute_decision")
         if (
             isinstance(runtime_reroute_decision, Mapping)

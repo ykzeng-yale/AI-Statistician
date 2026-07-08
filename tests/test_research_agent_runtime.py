@@ -233,6 +233,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_handoff_transition_summary,
     _runtime_requested_evidence_contract,
     _runtime_architect_context_with_requested_evidence_contract,
+    _architect_plan_guard_handoff_policy,
     _architect_control_payload,
     _runtime_research_path_execution_summary,
     _runtime_failure_summary,
@@ -5210,6 +5211,83 @@ def test_runtime_pseudo_formal_block_routing_contract_audits_lane_anchors_and_bo
     assert "required_missing_routing=1" in required_absent_row["evidence"]
 
 
+def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
+    class UnplannedAlgorithmHandoffSubsystem:
+        name = "SimulationEvaluator"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="simulation proposed an algorithm handoff",
+                next_task=AgentTask(
+                    task_id="algorithm:q1",
+                    owner_subsystem="AlgorithmEngineer",
+                    objective="implement algorithm outside current plan",
+                    inputs={
+                        "question": {
+                            "id": "q1",
+                            "title": "guard test",
+                            "description": "exercise Architect plan guard",
+                            "tags": [],
+                        },
+                        "architect_context": {
+                            "architect_runtime_plan": {
+                                "subsystem_execution_plan": [
+                                    {
+                                        "subsystem": "SimulationEvaluator",
+                                        "objective": "run simulation only",
+                                    }
+                                ],
+                            },
+                        },
+                    },
+                    expected_artifacts=("algorithm_sandbox_manifest",),
+                    acceptance_gate="algorithm sandbox produced",
+                ),
+            )
+
+    runtime = AgentRuntime(
+        subsystems={
+            "SimulationEvaluator": UnplannedAlgorithmHandoffSubsystem(),
+        },
+        blackboard=BlackboardState(project_id="architect-plan-guard-test"),
+        handoff_policy=_architect_plan_guard_handoff_policy,
+    )
+
+    result = runtime.run(
+        AgentTask(
+            task_id="simulation:q1",
+            owner_subsystem="SimulationEvaluator",
+            objective="run simulation",
+        ),
+        max_iterations=1,
+    )
+    trace = result.traces[0]
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert trace.next_task is not None
+    assert trace.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert trace.next_task.inputs["resume_pending_task"]["task_id"] == "algorithm:q1"
+    assert trace.failure_classification == "architect_plan_repair_required"
+    assert trace.observations[-1].observation_type == "architect_plan_repair_handoff"
+    assert result.blackboard.handoff_ledger[0].to_subsystem == "ArchitectCoordinator"
+
+    transition_summary = _runtime_handoff_transition_summary([result.to_json()])
+    assert transition_summary["route_decision_sources"][
+        "architect_plan_repair"
+    ] == 1
+    assert transition_summary["n_transitions_with_only_default_route_source"] == 0
+    row = transition_summary["rows"][0]
+    assert row["to_subsystem"] == "ArchitectCoordinator"
+    assert row["route_decision_sources"] == ["architect_plan_repair"]
+    assert row["only_default_route_source"] is False
+    assert row["has_architect_context"] is True
+
+
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
     clean_progress_payload = {
         "n_runtime_progress_events": 4,
@@ -6082,6 +6160,43 @@ def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> Non
         "runtime_architect_transition_policy_visible"
     ]["passed"] is True
     assert positive_architect_rows[
+        "runtime_architect_handoffs_avoid_default_only_routing"
+    ]["passed"] is True
+
+    architect_plan_repair_payload = dict(architect_policy_payload)
+    architect_plan_repair_payload.update(
+        {
+            "n_runtime_handoff_transitions_aligned_with_architect_plan": 0,
+            "n_runtime_handoff_transitions_with_only_default_route_source": 0,
+            "n_runtime_architect_context_handoff_transitions_with_only_default_route_source": 0,
+            "runtime_architect_context_default_route_handoff_ids": [],
+            "runtime_handoff_transition_route_sources": {
+                "architect_plan_repair": 1,
+                "environment_feedback": 1,
+            },
+            "runtime_handoff_transition_summary": {
+                **clean_payload["runtime_handoff_transition_summary"],
+                "n_transitions_aligned_with_architect_execution_plan": 0,
+                "n_transitions_with_only_default_route_source": 0,
+                "n_architect_context_transitions_with_only_default_route_source": 0,
+                "architect_context_default_route_handoff_ids": [],
+                "route_decision_sources": {
+                    "architect_plan_repair": 1,
+                    "environment_feedback": 1,
+                },
+            },
+        }
+    )
+    architect_plan_repair_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            architect_plan_repair_payload
+        )["rows"]
+    }
+    assert architect_plan_repair_rows[
+        "runtime_architect_transition_policy_visible"
+    ]["passed"] is True
+    assert architect_plan_repair_rows[
         "runtime_architect_handoffs_avoid_default_only_routing"
     ]["passed"] is True
 
