@@ -18350,6 +18350,7 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
     classes: list[str] = []
     if (
         "unexpected token" in local_lean_text
+        or "expected token" in local_lean_text
         or "expected term" in local_lean_text
         or "parser/syntax" in local_lean_text
         or "parser error" in local_lean_text

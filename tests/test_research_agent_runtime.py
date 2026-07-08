@@ -19869,6 +19869,42 @@ def test_formalizer_materialization_validator_rejects_formal_gap_only_packet() -
     ]
 
 
+def test_formalizer_materialization_validator_suspends_on_repeated_parser_failure() -> None:
+    errors = _validate_source_theorem_candidate_materialization_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "target_ids": ["split_conformal_finite_sample_coverage"],
+                    },
+                }
+            ],
+        },
+        environment_feedback={
+            "repeated_formalizer_lean_candidate_failure": True,
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+            },
+        },
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+        },
+    )
+
+    assert errors == []
+
+
 def test_formalizer_materialization_validator_accepts_exact_source_candidate() -> None:
     errors = _validate_source_theorem_candidate_materialization_packet(
         {
@@ -19949,6 +19985,42 @@ def test_formalizer_materialization_prompt_shows_exact_candidate_schema() -> Non
     assert "premise_derivation_candidate_lean_source" in prompt
     assert "canonical Lean source field" in prompt
     assert "FORMAL_GAP-only formal_targets row" in prompt
+
+
+def test_formalizer_materialization_prompt_suspends_after_repeated_parser_failure() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+        },
+        environment_feedback={
+            "feedback_type": "formalizer_packet_validation_feedback",
+            "failure_classification": "formalizer_packet_validation_failed",
+            "repeated_formalizer_lean_candidate_failure": True,
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+            },
+            "validation_errors": [
+                "capability_eval formal target split_conformal_finite_sample_coverage "
+                "violates repeated parser/syntax repair contract",
+            ],
+        },
+    )
+
+    assert "Repeated parser/syntax fail-closed override" in prompt
+    assert "suspend exact source-theorem candidate materialization" in prompt
+    assert "Mandatory source-theorem candidate-materialization repair" not in prompt
 
 
 def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> None:
@@ -26494,6 +26566,76 @@ def test_formalizer_repair_feedback_string_false_local_lean_failed() -> None:
             "local_lean_exit_status": "",
         }
     ) is True
+
+
+def test_formalizer_expected_token_local_lean_feedback_is_parser_contract() -> None:
+    manifest = {
+        "schema_version": 1,
+        "manifest_id": "formalizer_lean_candidate_materialization:expected_token",
+        "manifest_path": "runs/expected_token/formalizer_lean_candidate_materialization_manifest.json",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "task_id": "formalize-lean-repair:conformal_prediction_coverage:expected_token",
+        "source_formalizer_packet_id": "formalizer_proposal:expected_token",
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 0,
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "split_conformal_finite_sample_coverage",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": "expected-token-local-lean",
+                "lean_source_excerpt": (
+                    "theorem split_conformal_finite_sample_coverage\n"
+                    "    {n : Nat}\n"
+                    "    (hq : q_hat = Finset.sort (fun a b => a <= b) xs\n"
+                    "            |>.getD idx 0) : True := by\n"
+                    "  trivial\n"
+                ),
+                "artifact_path": "runs/expected_token/001_split_conformal.lean",
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": False,
+                "local_lean_exit_status": "1",
+                "local_lean_stdout": (
+                    "runs/expected_token/001_split_conformal.lean:4:21: "
+                    "error: expected token"
+                ),
+                "local_lean_stderr": "",
+                "local_lean_command": ["lake", "env", "lean", "001_split_conformal.lean"],
+                "local_lean_project": "legacy_sources/emperical_process_lean",
+                "local_lean_timeout": 30,
+                "local_lean_skipped_reason": "",
+            }
+        ],
+    }
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert feedback is not None
+    repair_contract = feedback["local_lean_repair_contract"]
+    assert repair_contract["diagnostic_classes"] == [
+        "lean_parser_or_syntax_error"
+    ]
+    assert "pipeline/list syntax" in repair_contract["syntax_repair_rule"]
+
+    feedback["formalizer_lean_repair_retry_depth"] = 1
+    feedback["repeated_formalizer_lean_candidate_failure"] = True
+    enriched = runtime_module._enrich_repeated_formalizer_lean_candidate_feedback(
+        feedback
+    )
+
+    enriched_contract = enriched["local_lean_repair_contract"]
+    assert enriched_contract["repeated_syntax_failure"] is True
+    assert "pipeline syntax" in enriched_contract["repeated_syntax_failure_rule"]
+    assert "FORMAL_GAP" in enriched["required_repair"]
 
 
 def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> None:

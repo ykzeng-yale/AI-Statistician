@@ -529,6 +529,9 @@ def build_formalizer_prompt(
     has_source_theorem_target_drift = _feedback_has_source_theorem_target_drift(
         environment_feedback or {}
     )
+    repeated_syntax_fail_closed_active = (
+        _feedback_has_repeated_syntax_failure_contract(environment_feedback or {})
+    )
     initial_target_shape_contract = _initial_probability_coverage_target_shape_contract(
         question=question,
         theory_packet=theory_packet,
@@ -584,7 +587,9 @@ def build_formalizer_prompt(
         _diagnostic_helper_bridge_blocker_contract(proof_memory_summary)
     )
     source_theorem_candidate_materialization_contract = (
-        _source_theorem_candidate_materialization_contract(proof_memory_summary)
+        {}
+        if repeated_syntax_fail_closed_active
+        else _source_theorem_candidate_materialization_contract(proof_memory_summary)
     )
     payload = {
         "question": {
@@ -1496,16 +1501,22 @@ def _feedback_has_repeated_syntax_failure_contract(
             if isinstance(source.get("local_lean_repair_contract", {}), Mapping)
             else {}
         )
-        if not bool(contract.get("repeated_syntax_failure", False)):
-            continue
         diagnostic_classes = {
             str(value).strip()
             for value in contract.get("diagnostic_classes", []) or []
             if str(value).strip()
         }
         if (
-            not diagnostic_classes
-            or "lean_parser_or_syntax_error" in diagnostic_classes
+            bool(contract.get("repeated_syntax_failure", False))
+            and (
+                not diagnostic_classes
+                or "lean_parser_or_syntax_error" in diagnostic_classes
+            )
+        ):
+            return True
+        if (
+            bool(source.get("repeated_formalizer_lean_candidate_failure", False))
+            and "lean_parser_or_syntax_error" in diagnostic_classes
         ):
             return True
     return False
@@ -3269,6 +3280,21 @@ def _validate_source_theorem_candidate_materialization_packet(
         for row in packet.get("formal_targets", []) or []
         if isinstance(row, Mapping)
     ]
+    if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
+        source_to_bridge_candidate_targets = [
+            row
+            for row in packet.get(
+                "source_to_bridge_premise_derivation_candidates", []
+            )
+            or []
+            if isinstance(row, Mapping)
+            and _source_to_bridge_candidate_lean_source(row).strip()
+        ]
+        if (
+            _has_explicit_source_theorem_formal_gap_target(formal_targets)
+            or source_to_bridge_candidate_targets
+        ):
+            return []
     source_candidates: list[Mapping[str, Any]] = []
     for row in formal_targets:
         source = str(row.get("lean_statement_sketch", "") or "").strip()
@@ -5967,6 +5993,9 @@ def _formalizer_mode_specific_instructions(
 ) -> list[str]:
     instructions: list[str] = []
     mode = str(proof_memory_summary.get("recommended_formalizer_target_mode", "") or "")
+    repeated_syntax_fail_closed_active = (
+        _feedback_has_repeated_syntax_failure_contract(runtime_environment_feedback)
+    )
     integration_action = str(
         proof_memory_summary.get("recommended_source_theorem_integration_action", "")
         or ""
@@ -6072,6 +6101,22 @@ def _formalizer_mode_specific_instructions(
         or materialization_agenda_rows
         or materialization_resource_requests
     )
+    if (
+        source_theorem_candidate_materialization_required
+        and repeated_syntax_fail_closed_active
+    ):
+        source_theorem_candidate_materialization_required = False
+        instructions.append(
+            "Repeated parser/syntax fail-closed override: suspend exact "
+            "source-theorem candidate materialization for this packet. Do not emit "
+            "another broad formal_targets NEEDS_KERNEL_CHECK source theorem. Emit "
+            "the source theorem as expected_status=FORMAL_GAP with an empty "
+            "lean_statement_sketch, and route only parser-simple executable support "
+            "work through source_to_bridge_premise_derivation_candidates or another "
+            "support channel with copied source-binding metadata. Record missing "
+            "semantic definitions/imports/API as structured blockers; this is not "
+            "proof evidence."
+        )
     source_theorem_proof_body_adapter_feedback = (
         runtime_environment_feedback.get(
             "source_theorem_proof_body_adapter_feedback",
