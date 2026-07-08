@@ -38292,6 +38292,7 @@ def test_runtime_theory_trace_feedback_routes_alignment_only_gap_downstream() ->
                 "n_theory_derivation_packets_with_equation_chain": 1,
                 "n_theory_derivation_packets_with_assumption_ledger": 1,
                 "n_theory_derivation_packets_with_formalization_handoff": 1,
+                "structured_derivation_trace_observed": True,
                 "n_theory_trace_consumption_contracts": 3,
                 "n_theory_trace_alignment_contracts": 0,
                 "n_theory_trace_alignment_contracts_with_llm_alignment": 0,
@@ -38362,6 +38363,46 @@ def test_runtime_theory_trace_feedback_routes_alignment_only_gap_downstream() ->
         and "does not promote" in row["boundary"]
         for row in agenda_rows
     )
+    feedback_summary = (
+        audit_module._runtime_theory_trace_downstream_feedback_audit_summary(
+            manifest={
+                "n_runtime_theory_trace_feedback_learning_rows": len(
+                    learning_rows
+                ),
+                "n_runtime_theory_trace_feedback_next_action_rows": len(
+                    agenda_rows
+                ),
+            },
+            runtime_theory_summary=manifest["runtime_evidence_summary"]["theory"],
+            learning_rows=learning_rows,
+            agenda_rows=agenda_rows,
+        )
+    )
+    assert (
+        feedback_summary[
+            "runtime_theory_trace_downstream_feedback_routing_required"
+        ]
+        is True
+    )
+    assert (
+        feedback_summary[
+            "runtime_theory_trace_downstream_feedback_routing_complete"
+        ]
+        is True
+    )
+    assert feedback_summary[
+        "runtime_theory_trace_downstream_feedback_target_consumers"
+    ] == [
+        "SimulationEngineer",
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+    ]
+    assert feedback_summary[
+        "runtime_theory_trace_downstream_feedback_consumers_without_learning_rows"
+    ] == []
+    assert feedback_summary[
+        "runtime_theory_trace_downstream_feedback_consumers_without_next_action_rows"
+    ] == []
 
 
 def test_downstream_theory_trace_alignment_memory_replays_to_worker_prompts(
@@ -78674,6 +78715,60 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert "theory-to-artifact handoff" in rows[
         "downstream_theory_trace_alignment_observed"
     ]["blocker"]
+
+    trace_feedback_payload = _scorecard_theory_trace_consumption_payload()
+    trace_feedback_payload.update(
+        {
+            "structured_theory_derivation_trace_observed": True,
+            "all_required_theory_trace_consumers_observed": False,
+            "all_required_theory_trace_alignment_consumers_observed": False,
+            "theory_trace_consuming_subsystems": ["SimulationEngineer"],
+            "structured_theory_trace_consuming_subsystems": [
+                "SimulationEngineer"
+            ],
+            "theory_trace_aligned_subsystems": ["SimulationEngineer"],
+            "structured_theory_trace_aligned_subsystems": [
+                "SimulationEngineer"
+            ],
+        }
+    )
+    scorecard = _runtime_capability_scorecard(trace_feedback_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows["downstream_theory_trace_consumption_observed"]["passed"] is False
+    assert rows[
+        "downstream_theory_trace_missing_consumers_routed"
+    ]["passed"] is False
+    assert "AlgorithmEngineer" in rows[
+        "downstream_theory_trace_missing_consumers_routed"
+    ]["evidence"]
+    assert "without_learning=['AlgorithmEngineer', 'FormalizerProofEngineer']" in rows[
+        "downstream_theory_trace_missing_consumers_routed"
+    ]["evidence"]
+
+    trace_feedback_payload.update(
+        {
+            "runtime_theory_trace_downstream_feedback_learning_target_consumers": [
+                "AlgorithmEngineer",
+                "FormalizerProofEngineer",
+            ],
+            "runtime_theory_trace_downstream_feedback_next_action_target_consumers": [
+                "AlgorithmEngineer",
+                "FormalizerProofEngineer",
+            ],
+            "n_runtime_theory_trace_downstream_feedback_learning_rows": 2,
+            "n_runtime_theory_trace_downstream_feedback_next_action_rows": 2,
+            "n_runtime_theory_trace_downstream_feedback_rows_missing_nonproof_boundary": 0,
+        }
+    )
+    scorecard = _runtime_capability_scorecard(trace_feedback_payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows["downstream_theory_trace_consumption_observed"]["passed"] is False
+    assert rows[
+        "downstream_theory_trace_missing_consumers_routed"
+    ]["passed"] is True
+    assert "next_action_target_consumers=['AlgorithmEngineer', 'FormalizerProofEngineer']" in rows[
+        "downstream_theory_trace_missing_consumers_routed"
+    ]["evidence"]
 
     payload["all_required_theory_trace_alignment_consumers_observed"] = True
     payload["structured_theory_trace_aligned_subsystems"] = [

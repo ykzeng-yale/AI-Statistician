@@ -3863,6 +3863,14 @@ def audit_research_agent_runtime(
         runtime_theory_summary,
         _runtime_theory_summary_from_result_paths(result_paths),
     )
+    runtime_theory_trace_downstream_feedback_summary = (
+        _runtime_theory_trace_downstream_feedback_audit_summary(
+            manifest=manifest,
+            runtime_theory_summary=runtime_theory_summary,
+            learning_rows=learning_rows,
+            agenda_rows=agenda_rows,
+        )
+    )
     derived_runtime_proof_summary = _runtime_proof_summary_from_result_paths(
         result_paths
     )
@@ -11206,6 +11214,74 @@ def audit_research_agent_runtime(
         "theory_derivation_trace_boundary": str(
             runtime_theory_summary.get("boundary", "") or ""
         ),
+        "runtime_theory_trace_downstream_feedback_summary": (
+            runtime_theory_trace_downstream_feedback_summary
+        ),
+        "runtime_theory_trace_downstream_feedback_routing_required": bool(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_routing_required"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_routing_complete": bool(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_routing_complete"
+            ]
+        ),
+        "n_runtime_theory_trace_downstream_feedback_learning_rows": int(
+            runtime_theory_trace_downstream_feedback_summary[
+                "n_runtime_theory_trace_downstream_feedback_learning_rows"
+            ]
+        ),
+        "n_runtime_theory_trace_downstream_feedback_next_action_rows": int(
+            runtime_theory_trace_downstream_feedback_summary[
+                "n_runtime_theory_trace_downstream_feedback_next_action_rows"
+            ]
+        ),
+        "n_runtime_theory_trace_downstream_feedback_rows_missing_nonproof_boundary": int(
+            runtime_theory_trace_downstream_feedback_summary[
+                "n_runtime_theory_trace_downstream_feedback_rows_missing_nonproof_boundary"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_missing_consumers": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_missing_consumers"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_missing_alignment_consumers": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_missing_alignment_consumers"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_target_consumers": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_target_consumers"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_learning_target_consumers": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_learning_target_consumers"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_next_action_target_consumers": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_next_action_target_consumers"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_consumers_without_learning_rows": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_consumers_without_learning_rows"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_consumers_without_next_action_rows": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_consumers_without_next_action_rows"
+            ]
+        ),
+        "runtime_theory_trace_downstream_feedback_owner_subsystems": list(
+            runtime_theory_trace_downstream_feedback_summary[
+                "runtime_theory_trace_downstream_feedback_owner_subsystems"
+            ]
+        ),
         "has_kernel_evidence": any(row.n_kernel_verified_subclaims > 0 for row in rows),
         "has_formal_gaps": any(row.n_formal_gaps > 0 for row in rows),
         "rows": [asdict(row) for row in rows],
@@ -14853,6 +14929,168 @@ def _is_runtime_handoff_artifact_missing_agenda_row(row: Any) -> bool:
         if value.startswith("runtime_handoff_missing:"):
             return True
     return False
+
+
+def _runtime_theory_trace_downstream_feedback_audit_summary(
+    *,
+    manifest: Mapping[str, Any],
+    runtime_theory_summary: Mapping[str, Any],
+    learning_rows: list[Any],
+    agenda_rows: list[Any],
+) -> dict[str, Any]:
+    required_consumers = _compact_string_list(
+        runtime_theory_summary.get("required_theory_trace_consumers", [])
+    )
+    if not required_consumers:
+        required_consumers = [
+            "SimulationEngineer",
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+        ]
+    structured_consumers = _compact_string_list(
+        runtime_theory_summary.get("structured_theory_trace_consuming_subsystems", [])
+    )
+    structured_aligned = _compact_string_list(
+        runtime_theory_summary.get("structured_theory_trace_aligned_subsystems", [])
+    )
+    missing_consumers = [
+        consumer for consumer in required_consumers if consumer not in structured_consumers
+    ]
+    missing_alignment = [
+        consumer for consumer in required_consumers if consumer not in structured_aligned
+    ]
+    target_consumers = list(dict.fromkeys([*missing_consumers, *missing_alignment]))
+
+    learning_feedback_rows = [
+        row
+        for row in learning_rows
+        if _is_runtime_theory_trace_downstream_feedback_learning_row(row)
+    ]
+    agenda_feedback_rows = [
+        row
+        for row in agenda_rows
+        if _is_runtime_theory_trace_downstream_feedback_agenda_row(row)
+    ]
+    learning_target_consumers = _sorted_row_values(
+        learning_feedback_rows,
+        "target_consumer_subsystem",
+    )
+    agenda_target_consumers = _sorted_row_values(
+        agenda_feedback_rows,
+        "target_consumer_subsystem",
+    )
+    consumers_without_learning = [
+        consumer for consumer in target_consumers if consumer not in learning_target_consumers
+    ]
+    consumers_without_agenda = [
+        consumer for consumer in target_consumers if consumer not in agenda_target_consumers
+    ]
+    rows_missing_boundary = sum(
+        1
+        for row in [*learning_feedback_rows, *agenda_feedback_rows]
+        if not _runtime_theory_trace_downstream_feedback_row_has_nonproof_boundary(row)
+    )
+    n_learning_rows = max(
+        _safe_int(manifest.get("n_runtime_theory_trace_feedback_learning_rows", 0)),
+        len(learning_feedback_rows),
+    )
+    n_agenda_rows = max(
+        _safe_int(manifest.get("n_runtime_theory_trace_feedback_next_action_rows", 0)),
+        len(agenda_feedback_rows),
+    )
+    routing_required = bool(target_consumers) and bool(
+        runtime_theory_summary.get("structured_derivation_trace_observed", False)
+    )
+    routing_complete = bool(
+        not routing_required
+        or (
+            not consumers_without_learning
+            and not consumers_without_agenda
+            and rows_missing_boundary <= 0
+        )
+    )
+    return {
+        "runtime_theory_trace_downstream_feedback_routing_required": routing_required,
+        "runtime_theory_trace_downstream_feedback_routing_complete": routing_complete,
+        "n_runtime_theory_trace_downstream_feedback_learning_rows": n_learning_rows,
+        "n_runtime_theory_trace_downstream_feedback_next_action_rows": n_agenda_rows,
+        "n_runtime_theory_trace_downstream_feedback_rows_missing_nonproof_boundary": (
+            rows_missing_boundary
+        ),
+        "runtime_theory_trace_downstream_feedback_missing_consumers": (
+            missing_consumers
+        ),
+        "runtime_theory_trace_downstream_feedback_missing_alignment_consumers": (
+            missing_alignment
+        ),
+        "runtime_theory_trace_downstream_feedback_target_consumers": target_consumers,
+        "runtime_theory_trace_downstream_feedback_learning_target_consumers": (
+            learning_target_consumers
+        ),
+        "runtime_theory_trace_downstream_feedback_next_action_target_consumers": (
+            agenda_target_consumers
+        ),
+        "runtime_theory_trace_downstream_feedback_consumers_without_learning_rows": (
+            consumers_without_learning
+        ),
+        "runtime_theory_trace_downstream_feedback_consumers_without_next_action_rows": (
+            consumers_without_agenda
+        ),
+        "runtime_theory_trace_downstream_feedback_owner_subsystems": _sorted_row_values(
+            [*learning_feedback_rows, *agenda_feedback_rows],
+            "next_owner_subsystem",
+            "owner_subsystem",
+        ),
+        "runtime_theory_trace_downstream_feedback_boundary": (
+            "theory-trace downstream feedback rows are route-critical prompt "
+            "memory for missing consumer/alignment coverage. They are not "
+            "simulation evidence, code execution evidence, or Lean/kernel proof."
+        ),
+    }
+
+
+def _is_runtime_theory_trace_downstream_feedback_learning_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    if str(row.get("learning_task", "") or "") == (
+        "theory_trace_downstream_alignment_feedback"
+    ):
+        return True
+    input_summary = row.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        return str(input_summary.get("trigger", "") or "") == (
+            "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING"
+        )
+    return False
+
+
+def _is_runtime_theory_trace_downstream_feedback_agenda_row(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    if str(row.get("trigger", "") or "") == (
+        "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING"
+    ):
+        return True
+    row_id = str(row.get("id", "") or "")
+    return row_id.startswith("theory:downstream_trace_alignment:")
+
+
+def _runtime_theory_trace_downstream_feedback_row_has_nonproof_boundary(
+    row: Any,
+) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    status = str(row.get("proof_evidence_status", "") or "")
+    boundary = " ".join(
+        str(row.get(key, "") or "")
+        for key in ("boundary", "proof_evidence_boundary", "proof_boundary")
+    )
+    return bool(
+        "NOT_PROOF_EVIDENCE" in status
+        or "not simulation evidence" in boundary
+        or "not promote" in boundary
+        or "not proof" in boundary
+    )
 
 
 def _sorted_row_values(rows: list[Any], *keys: str) -> list[str]:
@@ -21822,6 +22060,88 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
     ]
+    theory_trace_required_consumers = _compact_string_list(
+        payload.get("required_theory_trace_consumers", [])
+    ) or [
+        "SimulationEngineer",
+        "AlgorithmEngineer",
+        "FormalizerProofEngineer",
+    ]
+    theory_trace_structured_consumers = _compact_string_list(
+        payload.get("structured_theory_trace_consuming_subsystems", [])
+    )
+    theory_trace_structured_aligned = _compact_string_list(
+        payload.get("structured_theory_trace_aligned_subsystems", [])
+    )
+    theory_trace_feedback_target_consumers = list(
+        dict.fromkeys(
+            [
+                *[
+                    consumer
+                    for consumer in theory_trace_required_consumers
+                    if consumer not in theory_trace_structured_consumers
+                ],
+                *[
+                    consumer
+                    for consumer in theory_trace_required_consumers
+                    if consumer not in theory_trace_structured_aligned
+                ],
+            ]
+        )
+    )
+    theory_trace_feedback_learning_consumers = _compact_string_list(
+        payload.get("runtime_theory_trace_downstream_feedback_learning_target_consumers", [])
+    )
+    theory_trace_feedback_next_action_consumers = _compact_string_list(
+        payload.get(
+            "runtime_theory_trace_downstream_feedback_next_action_target_consumers",
+            [],
+        )
+    )
+    theory_trace_feedback_missing_learning = (
+        _compact_string_list(
+            payload.get(
+                "runtime_theory_trace_downstream_feedback_consumers_without_learning_rows",
+                [],
+            )
+        )
+        or [
+            consumer
+            for consumer in theory_trace_feedback_target_consumers
+            if consumer not in theory_trace_feedback_learning_consumers
+        ]
+    )
+    theory_trace_feedback_missing_next_action = (
+        _compact_string_list(
+            payload.get(
+                "runtime_theory_trace_downstream_feedback_consumers_without_next_action_rows",
+                [],
+            )
+        )
+        or [
+            consumer
+            for consumer in theory_trace_feedback_target_consumers
+            if consumer not in theory_trace_feedback_next_action_consumers
+        ]
+    )
+    theory_trace_feedback_boundary_gaps = _safe_int(
+        payload.get(
+            "n_runtime_theory_trace_downstream_feedback_rows_missing_nonproof_boundary",
+            0,
+        )
+    )
+    theory_trace_feedback_required = bool(
+        payload.get("structured_theory_derivation_trace_observed") is True
+        and theory_trace_feedback_target_consumers
+    )
+    theory_trace_feedback_routed = bool(
+        not theory_trace_feedback_required
+        or (
+            not theory_trace_feedback_missing_learning
+            and not theory_trace_feedback_missing_next_action
+            and theory_trace_feedback_boundary_gaps <= 0
+        )
+    )
     rows = [
         _scorecard_row(
             "runtime_marked_capability_eval",
@@ -22205,6 +22525,51 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "all_required_theory_trace_alignment_consumers_observed=true "
                     "and n_theory_trace_alignment_contracts_with_unsupported_anchors=0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "downstream_theory_trace_missing_consumers_routed",
+            theory_trace_feedback_routed,
+            (
+                "routing_required="
+                f"{theory_trace_feedback_required} "
+                "target_consumers="
+                f"{theory_trace_feedback_target_consumers} "
+                "learning_target_consumers="
+                f"{theory_trace_feedback_learning_consumers} "
+                "next_action_target_consumers="
+                f"{theory_trace_feedback_next_action_consumers} "
+                "without_learning="
+                f"{theory_trace_feedback_missing_learning} "
+                "without_next_action="
+                f"{theory_trace_feedback_missing_next_action} "
+                "learning_rows="
+                f"{payload.get('n_runtime_theory_trace_downstream_feedback_learning_rows')} "
+                "next_action_rows="
+                f"{payload.get('n_runtime_theory_trace_downstream_feedback_next_action_rows')} "
+                "missing_nonproof_boundary="
+                f"{theory_trace_feedback_boundary_gaps}"
+            ),
+            (
+                "structured theory-trace downstream gaps were detected, but "
+                "AgentRuntime did not route consumer-specific learning-memory and "
+                "next-action rows for every missing Simulation/Algorithm/"
+                "Formalizer consumer with non-proof boundaries"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AgentRuntimeOrchestrator",
+                target_behavior=(
+                    "When a structured TheoryDerivationPacket exists but a "
+                    "downstream consumer has not consumed or aligned to it, emit "
+                    "route-critical learning-memory and next-action rows targeted "
+                    "to the missing worker, preserving the non-proof boundary."
+                ),
+                success_metric=(
+                    "every consumer in runtime_theory_trace_downstream_feedback_target_consumers "
+                    "appears in both learning and next-action target-consumer "
+                    "lists, and n_runtime_theory_trace_downstream_feedback_rows_missing_nonproof_boundary=0"
                 ),
             ),
         ),
@@ -28763,6 +29128,13 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"{payload.get('n_structured_theory_trace_alignment_contracts')} / "
         f"{payload.get('n_theory_trace_alignment_contracts_with_unsupported_anchors')} / "
         f"{payload.get('n_theory_trace_alignment_contracts_with_historical_unsupported_anchors')}",
+        "- theory trace downstream feedback routing required / complete: "
+        f"{payload.get('runtime_theory_trace_downstream_feedback_routing_required')} / "
+        f"{payload.get('runtime_theory_trace_downstream_feedback_routing_complete')}",
+        "- theory trace downstream feedback target / learning / next-action consumers: "
+        f"{payload.get('runtime_theory_trace_downstream_feedback_target_consumers')} / "
+        f"{payload.get('runtime_theory_trace_downstream_feedback_learning_target_consumers')} / "
+        f"{payload.get('runtime_theory_trace_downstream_feedback_next_action_target_consumers')}",
         f"- theory trace alignment boundary: {payload.get('theory_trace_alignment_boundary')}",
         f"- algorithm sandbox executed: {payload.get('n_algorithm_sandbox_executed')}",
         "- generated-code sandbox executed / live-generated: "
