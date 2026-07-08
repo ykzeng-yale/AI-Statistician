@@ -3310,6 +3310,14 @@ def _grouped_premise_derivation_candidate_request_rows(
                 if value
             )
         )
+        group_uses_goal_context = bool(group_rows) and all(
+            _premise_target_uses_proof_body_goal_context(
+                premise_target_source=row.premise_target_source,
+                premise_target_type=row.premise_target_type,
+                proof_body_goal_conclusion=row.proof_body_goal_conclusion,
+            )
+            for row in group_rows
+        )
         exact_binders = _merge_named_mapping_rows(
             row.exact_source_theorem_binders for row in group_rows
         )
@@ -3421,10 +3429,68 @@ def _grouped_premise_derivation_candidate_request_rows(
                 if row.shared_adapter_instantiation_contract
             ),
             "",
-        ) or (
-            "Use one shared source-derived instantiation of adapter objects "
-            "across all listed premise_names; do not prove grouped premises "
-            "with incompatible definitions."
+        )
+        if not shared_contract:
+            shared_contract = (
+                "Use one shared reached proof-body goal context and exact "
+                "source-binder interpretation across all listed premise_names; "
+                "do not prove grouped premises with incompatible goal-context "
+                "interpretations."
+                if group_uses_goal_context and not adapter_objects
+                else (
+                    "Use one shared source-derived instantiation of adapter "
+                    "objects across all listed premise_names; do not prove "
+                    "grouped premises with incompatible definitions."
+                )
+            )
+        grouped_candidate_contract = (
+            "Return one source_to_bridge_premise_derivation_candidates object "
+            "for this group. Its premise_names must list every required bridge "
+            "premise, and its Lean source must derive each listed "
+            "premise_candidate_declaration_name from exact source theorem "
+            "binders and the listed proof_body_goal_context anchors. The proof "
+            "body must substantively reference every "
+            "required_semantic_anchor_reference_names entry outside comments "
+            "and outside no-op lines such as `have h := h`. Do not add the "
+            "premise names, proof-body goal binders, or target conclusions as "
+            "arbitrary theorem assumptions."
+            if group_uses_goal_context and not adapter_objects
+            else (
+                "Return one source_to_bridge_premise_derivation_candidates "
+                "object for this group. Its premise_names must list every "
+                "required bridge premise, and its Lean source must define the "
+                "shared adapter objects once from exact source theorem binders "
+                "and include each listed premise_candidate_declaration_name. "
+                "The proof body must substantively reference every "
+                "required_semantic_anchor_reference_names entry outside "
+                "comments and outside no-op lines such as `have h := h`. "
+                "Do not add the premise names or adapter objects as arbitrary "
+                "theorem assumptions, and do not put adapter objects requiring "
+                "source instantiation in the theorem header as free binders."
+            )
+        )
+        grouped_forbidden_actions = [
+            (
+                "do not split this group into incompatible proof-body goal-context interpretations"
+                if group_uses_goal_context and not adapter_objects
+                else "do not split this group into incompatible adapter-object definitions"
+            ),
+            "do not assume any listed bridge premise as a binder",
+            "do not satisfy semantic-anchor requirements with comments or unused have/let aliases",
+        ]
+        if group_uses_goal_context and not adapter_objects:
+            grouped_forbidden_actions.append(
+                "do not introduce reached proof-body goal binders or target conclusions as free theorem assumptions"
+            )
+        else:
+            grouped_forbidden_actions.append(
+                "do not put adapter objects such as covered, rank, BadRanks, α, or α_total in the theorem header as free binders"
+            )
+        grouped_forbidden_actions.extend(
+            [
+                "do not add axiom, sorry, admit, unsafe, or placeholder definitions",
+                "do not claim full source theorem proof from this request",
+            ]
         )
         source_grouped_request = next(
             (
@@ -3582,27 +3648,8 @@ def _grouped_premise_derivation_candidate_request_rows(
                     "target_lean_declaration",
                     "premise_derivation_candidate_lean_source",
                 ],
-                "candidate_contract": (
-                    "Return one source_to_bridge_premise_derivation_candidates "
-                    "object for this group. Its premise_names must list every "
-                    "required bridge premise, and its Lean source must define the "
-                    "shared adapter objects once from exact source theorem binders "
-                    "and include each listed premise_candidate_declaration_name. "
-                    "The proof body must substantively reference every "
-                    "required_semantic_anchor_reference_names entry outside "
-                    "comments and outside no-op lines such as `have h := h`. "
-                    "Do not add the premise names or adapter objects as arbitrary "
-                    "theorem assumptions, and do not put adapter objects requiring "
-                    "source instantiation in the theorem header as free binders."
-                ),
-                "forbidden_actions": [
-                    "do not split this group into incompatible adapter-object definitions",
-                    "do not assume any listed bridge premise as a binder",
-                    "do not satisfy semantic-anchor requirements with comments or unused have/let aliases",
-                    "do not put adapter objects such as covered, rank, BadRanks, α, or α_total in the theorem header as free binders",
-                    "do not add axiom, sorry, admit, unsafe, or placeholder definitions",
-                    "do not claim full source theorem proof from this request",
-                ],
+                "candidate_contract": grouped_candidate_contract,
+                "forbidden_actions": grouped_forbidden_actions,
                 "acceptance_gate": (
                     "The SourceToBridgePremiseDerivation bridge must local Lean/AXLE "
                     "kernel verify the grouped Lean source for each listed premise. "

@@ -871,6 +871,32 @@ def test_premise_bridge_uses_goal_context_for_goal_sourced_target(
         "bridge_object_instantiation_policy"
     ]
 
+    grouped_request = json.loads(
+        Path(str(manifest["grouped_candidate_requests_jsonl"]))
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert grouped_request["adapter_object_names_requiring_source_instantiation"] == []
+    assert grouped_request["required_semantic_anchor_reference_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert "proof_body_goal_context anchors" in grouped_request["candidate_contract"]
+    assert "shared adapter objects" not in grouped_request["candidate_contract"]
+    assert "covered, rank, BadRanks" not in grouped_request["candidate_contract"]
+    assert "proof-body goal context" in grouped_request[
+        "shared_adapter_instantiation_contract"
+    ]
+    assert any(
+        "proof-body goal-context" in action
+        for action in grouped_request["forbidden_actions"]
+    )
+    assert not any(
+        "adapter objects such as covered" in action
+        for action in grouped_request["forbidden_actions"]
+    )
+
 
 def test_premise_bridge_prefers_artifact_semantic_requirements(
     tmp_path: Path,
