@@ -390,6 +390,123 @@ def test_exact_semantic_definition_source_lookup_exports_learning_hits(
     )
 
 
+def test_exact_semantic_definition_source_lookup_preserves_nested_anchor_bindings(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "work_orders.jsonl"
+    source_root = tmp_path / "Lean"
+    source_root.mkdir()
+    (source_root / "Conformal.lean").write_text(
+        "def orderStat (score : Nat) (k : Nat) := score + k\n",
+        encoding="utf-8",
+    )
+    nested_context = {
+        "semantic_primitive": "orderStat",
+        "source_anchors": [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "pf:block:order_stat",
+                "excerpt": "source rank threshold block",
+            }
+        ],
+        "source_anchor_context": [
+            {
+                "source": "candidate_definition_request.required_anchor_bindings",
+                "kind": "required_anchor_binding",
+                "required_anchor_name": "scores",
+                "actual_anchor_name": "score",
+                "semantic_anchor_name": "scores",
+                "name": "score",
+                "type": "Nat",
+                "role": "score_process_anchor",
+                "binder": {
+                    "name": "score",
+                    "type": "Nat",
+                    "role": "score_process_anchor",
+                },
+            }
+        ],
+        "source_anchor_context_rows": 1,
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "placeholder_symbol": "orderStat",
+            "required_anchor_names": ["scores"],
+            "available_anchor_names": ["score", "scores"],
+            "missing_required_anchor_names": [],
+            "required_anchor_bindings": [
+                {
+                    "required_anchor_name": "scores",
+                    "actual_anchor_name": "score",
+                    "match_kind": "source_anchor_role",
+                    "role": "score_process_anchor",
+                    "binder": {
+                        "name": "score",
+                        "type": "Nat",
+                        "role": "score_process_anchor",
+                    },
+                }
+            ],
+            "required_binders": [
+                {
+                    "name": "score",
+                    "type": "Nat",
+                    "role": "score_process_anchor",
+                }
+            ],
+        },
+    }
+    _write_work_order(
+        queue,
+        placeholder_symbol="orderStat",
+        extra={
+            "input_summary": {
+                "exact_semantic_definition_context": nested_context,
+            },
+        },
+    )
+
+    manifest = run_source_theorem_exact_semantic_definition_source_lookup(
+        out_dir=tmp_path / "lookup",
+        queue_jsonl=queue,
+        source_roots=[source_root],
+    )
+
+    lookup_rows = [
+        json.loads(line)
+        for line in Path(manifest["lookup_rows_jsonl"]).read_text().splitlines()
+    ]
+    assert lookup_rows[0]["source_anchor_context"][0]["actual_anchor_name"] == "score"
+    assert lookup_rows[0]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "score"
+    assert lookup_rows[0]["source_anchors"][0]["id"] == "pf:block:order_stat"
+
+    closure_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_work_orders_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert closure_rows[0]["source_anchor_context"][0]["name"] == "score"
+    assert closure_rows[0]["candidate_definition_request"]["required_binders"][0][
+        "name"
+    ] == "score"
+
+    review_packets = [
+        json.loads(line)
+        for line in Path(
+            manifest["definition_closure_review_packets_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert review_packets[0]["source_anchor_context_rows"] == 1
+    assert review_packets[0]["source_anchor_context"][0]["actual_anchor_name"] == (
+        "score"
+    )
+    assert review_packets[0]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "score"
+
+
 def test_exact_semantic_definition_source_lookup_uses_policy_aliases(
     tmp_path: Path,
 ) -> None:

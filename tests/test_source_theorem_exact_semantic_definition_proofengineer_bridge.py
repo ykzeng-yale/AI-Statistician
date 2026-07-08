@@ -776,6 +776,156 @@ def test_exact_semantic_definition_proofengineer_bridge_consumes_typechecked_rev
     ] is False
 
 
+def test_exact_semantic_definition_proofengineer_bridge_preserves_nested_anchor_bindings(
+    tmp_path: Path,
+) -> None:
+    review_packets = tmp_path / "verifier_approved_review_packets.jsonl"
+    nested_context = {
+        "semantic_primitive": "good_rank_event",
+        "source_anchors": [
+            {
+                "kind": "pseudo_formal_block",
+                "id": "pf:block:good_rank_event",
+                "excerpt": "source theorem rank event block",
+            }
+        ],
+        "source_anchor_context": [
+            {
+                "source": "candidate_definition_request.required_anchor_bindings",
+                "kind": "required_anchor_binding",
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q",
+                "semantic_anchor_name": "q_hat",
+                "name": "q",
+                "type": "Real",
+                "role": "threshold_function_anchor",
+                "binder": {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                },
+            }
+        ],
+        "source_anchor_context_rows": 1,
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "placeholder_symbol": "good_rank_event",
+            "required_anchor_names": ["q_hat"],
+            "available_anchor_names": ["q", "q_hat"],
+            "missing_required_anchor_names": [],
+            "required_anchor_bindings": [
+                {
+                    "required_anchor_name": "q_hat",
+                    "actual_anchor_name": "q",
+                    "match_kind": "source_anchor_role",
+                    "role": "threshold_function_anchor",
+                    "binder": {
+                        "name": "q",
+                        "type": "Real",
+                        "role": "threshold_function_anchor",
+                    },
+                }
+            ],
+            "required_binders": [
+                {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                }
+            ],
+        },
+    }
+    review_packet = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "SourceTheoremExactSemanticDefinitionTypecheckedCandidateReviewPacket"
+        ),
+        "review_packet_id": "verifier-approved-review:good-rank",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "good_rank_event",
+        "definition_only_candidate_artifact_path": (
+            "runs/candidate_artifacts/good_rank_defs_only.lean"
+        ),
+        "candidate_artifact_path": "runs/candidate_artifacts/good_rank_full.lean",
+        "local_definition_lean_checked": True,
+        "local_definition_lean_compiled": True,
+        "semantic_definition_typecheck_evidence_status": (
+            "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+        ),
+        "source_theorem_exact_semantic_definition_typechecked_candidate": {
+            "definition_only_candidate_artifact_path": (
+                "runs/candidate_artifacts/good_rank_defs_only.lean"
+            ),
+            "candidate_artifact_path": "runs/candidate_artifacts/good_rank_full.lean",
+            "local_definition_lean_checked": True,
+            "local_definition_lean_compiled": True,
+            "semantic_definition_typecheck_evidence_status": (
+                "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
+            ),
+        },
+        "input_summary": {
+            "exact_semantic_definition_context": nested_context,
+        },
+        "semantic_review_decision": "approved_definition_candidate",
+        "semantic_review_status": (
+            "verifier_gate_approved_definition_candidate_not_proof"
+        ),
+        "semantic_review_evidence": [
+            "Verifier gate approved bound source anchor q for semantic q_hat."
+        ],
+        "semantic_review_required_before_proof_body": False,
+        "source_theorem_ready_for_exact_proof_body": True,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_APPROVED_NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+    review_packets.write_text(json.dumps(review_packet) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        review_packets_jsonl=review_packets,
+        question_id="conformal_prediction_coverage",
+    )
+
+    packets = [
+        json.loads(line)
+        for line in Path(manifest["repair_packets_jsonl"]).read_text().splitlines()
+    ]
+    packet = packets[0]
+    assert packet["repair_strategy"] == "review_typechecked_exact_definition_candidate"
+    assert packet["source_anchor_context"][0]["required_anchor_name"] == "q_hat"
+    assert packet["source_anchor_context"][0]["actual_anchor_name"] == "q"
+    assert packet["source_anchor_context_rows"] == 1
+    assert packet["source_anchors"][0]["id"] == "pf:block:good_rank_event"
+    assert packet["candidate_definition_request"]["required_anchor_bindings"][0][
+        "actual_anchor_name"
+    ] == "q"
+
+    tasks = [
+        json.loads(line)
+        for line in Path(manifest["lean_repair_tasks_jsonl"]).read_text().splitlines()
+    ]
+    task = tasks[0]
+    assert task["source_anchor_context"][0]["actual_anchor_name"] == "q"
+    assert task["candidate_definition_request"]["required_binders"][0]["name"] == "q"
+
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"])
+        .read_text()
+        .splitlines()
+    ]
+    assert learning_rows[0]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+    assert learning_rows[0]["input_summary"]["source_anchor_context"][0][
+        "actual_anchor_name"
+    ] == "q"
+
+
 def test_exact_semantic_definition_proofengineer_bridge_consumes_repair_queue(
     tmp_path: Path,
 ) -> None:

@@ -3177,20 +3177,13 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
     """Preserve source-to-bridge authoring context across lookup/repair stages."""
 
     context: dict[str, Any] = {}
-    input_summary = (
-        row.get("input_summary", {})
-        if isinstance(row.get("input_summary", {}), Mapping)
-        else {}
-    )
+    sources = _exact_semantic_context_sources(row)
     placeholder_symbol = str(
-        row.get("placeholder_symbol", "")
-        or input_summary.get("placeholder_symbol", "")
+        _first_context_value(sources, "placeholder_symbol")
         or ""
     ).strip()
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
-        value = row.get(key, None)
-        if value in (None, "", [], {}):
-            value = input_summary.get(key, None)
+        value = _first_context_value(sources, key)
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -3204,7 +3197,9 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             context.setdefault(key, value)
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
-        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        target_theorem_name = str(
+            _first_context_value(sources, "target_theorem_name") or ""
+        )
         target_ids = _target_ids_from_row(row, fallback_target=target_theorem_name)
         normalized_request = dict(candidate_request)
         normalized_request.setdefault("target_theorem_name", target_theorem_name)
@@ -3218,10 +3213,39 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         context["candidate_definition_request"] = normalized_request
     normalize_exact_semantic_definition_signature_probe_context(
         context,
-        row,
-        input_summary,
+        *sources,
     )
     return context
+
+
+def _exact_semantic_context_sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = [row]
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    if input_summary:
+        sources.append(input_summary)
+    typechecked_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if isinstance(typechecked_candidate, Mapping) and typechecked_candidate:
+        sources.append(typechecked_candidate)
+    for source in list(sources):
+        nested_context = source.get("exact_semantic_definition_context", {})
+        if isinstance(nested_context, Mapping) and nested_context:
+            sources.append(nested_context)
+    return sources
+
+
+def _first_context_value(sources: Sequence[Mapping[str, Any]], key: str) -> Any:
+    for source in sources:
+        value = source.get(key, None)
+        if value not in (None, "", [], {}):
+            return value
+    return None
 
 
 def _placeholder_policy_context(placeholder_symbol: str) -> dict[str, str]:
