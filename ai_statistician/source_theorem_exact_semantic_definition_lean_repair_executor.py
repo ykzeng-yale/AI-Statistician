@@ -20,6 +20,8 @@ from .source_theorem_formal_environment_proofengineer_bridge import (
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    exact_semantic_definition_required_anchor_bindings,
+    exact_semantic_definition_source_binders_from_context,
     normalize_exact_semantic_definition_signature_probe_context,
 )
 
@@ -1411,16 +1413,33 @@ def _candidate_definition_request(
         fallback_target=target_theorem_name,
     )
     required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
-    available_anchor_names = [
+    placeholder_policy = exact_semantic_definition_placeholder_policy(
+        placeholder_symbol
+    )
+    explicit_available_anchor_names = [
         str(value).strip()
         for value in row.get("premise_semantic_anchor_binder_names", []) or []
         if str(value).strip()
     ]
     available_binders_by_name = _available_semantic_binders_by_name(row)
+    required_anchor_bindings = exact_semantic_definition_required_anchor_bindings(
+        required_anchor_names=required_anchor_names,
+        available_binders_by_name=available_binders_by_name,
+        placeholder_policy=placeholder_policy,
+    )
+    available_anchor_names = list(
+        dict.fromkeys(
+            [
+                *explicit_available_anchor_names,
+                *available_binders_by_name,
+                *required_anchor_bindings,
+            ]
+        )
+    )
     required_binders = [
-        dict(available_binders_by_name[name])
+        dict(required_anchor_bindings[name]["binder"])
         for name in required_anchor_names
-        if name in available_binders_by_name
+        if name in required_anchor_bindings
     ]
     missing_required = [
         name for name in required_anchor_names if name not in available_anchor_names
@@ -1442,9 +1461,6 @@ def _candidate_definition_request(
         for name in required_adapter_object_names
         if name not in available_adapter_object_names
     ]
-    placeholder_policy = exact_semantic_definition_placeholder_policy(
-        placeholder_symbol
-    )
     request = {
         "schema_version": 1,
         "request_kind": "source_theorem_exact_semantic_definition_candidate",
@@ -1457,6 +1473,7 @@ def _candidate_definition_request(
         "required_anchor_names": required_anchor_names,
         "available_anchor_names": available_anchor_names,
         "missing_required_anchor_names": missing_required,
+        "required_anchor_bindings": list(required_anchor_bindings.values()),
         "required_binders": required_binders,
         "required_adapter_object_names": required_adapter_object_names,
         "available_adapter_object_names": available_adapter_object_names,
@@ -1535,6 +1552,10 @@ def _available_semantic_binders_by_name(
             continue
         name = str(binder.get("name", "") or "")
         if name:
+            binders_by_name[name] = binder
+    for binder in exact_semantic_definition_source_binders_from_context(row):
+        name = str(binder.get("name", "") or "")
+        if name and name not in binders_by_name:
             binders_by_name[name] = binder
     return binders_by_name
 

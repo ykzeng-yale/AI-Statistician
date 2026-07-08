@@ -263,6 +263,433 @@ def normalize_exact_semantic_definition_signature_probe_context(
     context["candidate_definition_request"] = normalized_request
 
 
+def exact_semantic_definition_source_binders_from_context(
+    *sources: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    """Recover source theorem binders from carried context and signature probes.
+
+    These rows are source-grounding metadata only. They let exact-semantic
+    authoring requests name the binders a candidate must use, but they do not
+    count as local Lean or theorem proof evidence.
+    """
+
+    binders: list[dict[str, str]] = []
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        binders.extend(_binder_rows_from_mapping_context(source))
+    for path in _signature_probe_paths_from_sources(*sources):
+        binders.extend(_source_binders_from_signature_probe_path(path))
+    return _dedupe_binder_rows(binders)
+
+
+def exact_semantic_definition_required_anchor_bindings(
+    *,
+    required_anchor_names: Sequence[str],
+    available_binders_by_name: Mapping[str, Mapping[str, Any]],
+    placeholder_policy: Any,
+) -> dict[str, dict[str, Any]]:
+    """Bind semantic policy anchors to actual source-theorem binder rows."""
+
+    bindings: dict[str, dict[str, Any]] = {}
+    used_actual_names: set[str] = set()
+    compact_to_actual = {
+        _compact_anchor_identifier(name): name
+        for name in available_binders_by_name
+        if str(name or "").strip()
+    }
+    for required_name in required_anchor_names:
+        required = str(required_name or "").strip()
+        if not required:
+            continue
+        actual_name = (
+            required
+            if required in available_binders_by_name
+            else compact_to_actual.get(_compact_anchor_identifier(required), "")
+        )
+        if not actual_name:
+            continue
+        binder = dict(available_binders_by_name[actual_name])
+        bindings[required] = _anchor_binding_row(
+            required_anchor_name=required,
+            actual_anchor_name=actual_name,
+            binder=binder,
+            match_kind="exact_name" if actual_name == required else "compact_name",
+        )
+        used_actual_names.add(actual_name)
+    for required_name in required_anchor_names:
+        required = str(required_name or "").strip()
+        if not required or required in bindings:
+            continue
+        required_role = _required_anchor_role(
+            required,
+            placeholder_policy=placeholder_policy,
+        )
+        if not required_role:
+            continue
+        for actual_name, raw_binder in available_binders_by_name.items():
+            actual = str(actual_name or "").strip()
+            if not actual or actual in used_actual_names:
+                continue
+            binder = dict(raw_binder)
+            binder_role = str(binder.get("role", "") or "").strip()
+            if binder_role != required_role:
+                continue
+            bindings[required] = _anchor_binding_row(
+                required_anchor_name=required,
+                actual_anchor_name=actual,
+                binder=binder,
+                match_kind="source_anchor_role",
+            )
+            used_actual_names.add(actual)
+            break
+    return bindings
+
+
+def _anchor_binding_row(
+    *,
+    required_anchor_name: str,
+    actual_anchor_name: str,
+    binder: Mapping[str, Any],
+    match_kind: str,
+) -> dict[str, Any]:
+    return {
+        "required_anchor_name": required_anchor_name,
+        "actual_anchor_name": actual_anchor_name,
+        "match_kind": match_kind,
+        "role": str(binder.get("role", "") or ""),
+        "binder": dict(binder),
+    }
+
+
+def _required_anchor_role(required_anchor_name: str, *, placeholder_policy: Any) -> str:
+    roles = getattr(placeholder_policy, "source_anchor_roles", {}) or {}
+    if isinstance(roles, Mapping):
+        if required_anchor_name in roles:
+            return str(roles[required_anchor_name] or "").strip()
+        compact_required = _compact_anchor_identifier(required_anchor_name)
+        for name, role in roles.items():
+            if _compact_anchor_identifier(str(name or "")) == compact_required:
+                return str(role or "").strip()
+    return _exact_semantic_source_binder_role(name=required_anchor_name, binder_type="")
+
+
+def _compact_anchor_identifier(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+
+def _binder_rows_from_mapping_context(source: Mapping[str, Any]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for key in (
+        "premise_semantic_anchor_binders",
+        "exact_source_theorem_binders",
+    ):
+        rows.extend(_normalized_binder_rows(source.get(key, []) or []))
+    source_anchor_context = source.get("source_anchor_context", []) or []
+    if isinstance(source_anchor_context, Sequence) and not isinstance(
+        source_anchor_context, (str, bytes)
+    ):
+        for item in source_anchor_context:
+            if not isinstance(item, Mapping):
+                continue
+            rows.extend(_normalized_binder_rows([item]))
+            rows.extend(
+                _binder_rows_from_proof_body_goal_excerpt(
+                    item.get("proof_body_goal_excerpt", []) or []
+                )
+            )
+    source_anchor_summary = source.get("source_anchor_context_summary", {}) or {}
+    if isinstance(source_anchor_summary, Mapping):
+        rows.extend(
+            _normalized_binder_rows(
+                source_anchor_summary.get("source_theorem_binders", []) or []
+            )
+        )
+    input_summary = source.get("input_summary", None)
+    if (
+        isinstance(input_summary, Mapping)
+        and bool(input_summary)
+        and input_summary is not source
+    ):
+        rows.extend(_binder_rows_from_mapping_context(input_summary))
+    candidate_request = source.get("candidate_definition_request", None)
+    if (
+        isinstance(candidate_request, Mapping)
+        and bool(candidate_request)
+        and candidate_request is not source
+    ):
+        rows.extend(_binder_rows_from_mapping_context(candidate_request))
+    return rows
+
+
+def _signature_probe_paths_from_sources(*sources: Mapping[str, Any]) -> list[Path]:
+    raw_paths: list[str] = []
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        for key in SIGNATURE_PROBE_ARTIFACT_PATH_KEYS:
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                raw_paths.append(value)
+        candidate_request = source.get("candidate_definition_request", {}) or {}
+        if isinstance(candidate_request, Mapping):
+            for key in SIGNATURE_PROBE_ARTIFACT_PATH_KEYS:
+                value = str(candidate_request.get(key, "") or "").strip()
+                if value:
+                    raw_paths.append(value)
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for raw_path in raw_paths:
+        path = Path(raw_path).expanduser()
+        candidates = [path]
+        if not path.is_absolute():
+            candidates.append(Path.cwd() / path)
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve()
+            except OSError:
+                resolved = candidate
+            key = str(resolved)
+            if key in seen or not candidate.exists() or not candidate.is_file():
+                continue
+            seen.add(key)
+            paths.append(candidate)
+            break
+    return paths
+
+
+def _source_binders_from_signature_probe_path(path: Path) -> list[dict[str, str]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    binders: list[dict[str, str]] = []
+    for header in _lean_declaration_headers(text):
+        binders.extend(_binder_rows_from_lean_declaration_header(header))
+    return binders
+
+
+def _lean_declaration_headers(text: str) -> list[str]:
+    headers: list[str] = []
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if not re.match(
+            r"^\s*(?:(?:noncomputable|private)\s+)*(?:theorem|lemma)\s+",
+            line,
+        ):
+            index += 1
+            continue
+        header_lines = [line.strip()]
+        index += 1
+        while index < len(lines):
+            next_line = lines[index]
+            stripped = next_line.strip()
+            if re.match(
+                r"^\s*(?:(?:noncomputable|private)\s+)*(?:theorem|lemma)\s+",
+                next_line,
+            ):
+                break
+            header_lines.append(stripped)
+            index += 1
+            joined = " ".join(part for part in header_lines if part)
+            if ":=" in joined or " := by" in joined:
+                break
+        headers.append(" ".join(part for part in header_lines if part))
+    return headers
+
+
+def _binder_rows_from_lean_declaration_header(header: str) -> list[dict[str, str]]:
+    binder_prefix = _lean_declaration_binder_prefix(header)
+    rows: list[dict[str, str]] = []
+    for inner in _top_level_binder_group_inners(binder_prefix):
+        for name, binder_type in _parse_named_binder_group(inner):
+            rows.append(
+                {
+                    "name": name,
+                    "type": binder_type,
+                    "role": _exact_semantic_source_binder_role(
+                        name=name,
+                        binder_type=binder_type,
+                    ),
+                    "source": "signature_probe_artifact",
+                }
+            )
+    return rows
+
+
+def _lean_declaration_binder_prefix(header: str) -> str:
+    text = str(header or "").strip()
+    match = re.match(
+        r"^\s*(?:(?:noncomputable|private)\s+)*(?:theorem|lemma)\s+"
+        r"[A-Za-z_][A-Za-z0-9_'.]*\b(?P<rest>.*)$",
+        text,
+    )
+    if match is None:
+        return ""
+    rest = match.group("rest")
+    colon_index = _top_level_colon_index(rest)
+    if colon_index >= 0:
+        return rest[:colon_index]
+    if ":=" in rest:
+        return rest.split(":=", 1)[0]
+    return rest
+
+
+def _top_level_colon_index(text: str) -> int:
+    paren_depth = 0
+    bracket_depth = 0
+    brace_depth = 0
+    for index, char in enumerate(str(text or "")):
+        if char == "(":
+            paren_depth += 1
+        elif char == ")" and paren_depth:
+            paren_depth -= 1
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]" and bracket_depth:
+            bracket_depth -= 1
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}" and brace_depth:
+            brace_depth -= 1
+        elif (
+            char == ":"
+            and paren_depth == 0
+            and bracket_depth == 0
+            and brace_depth == 0
+        ):
+            return index
+    return -1
+
+
+def _top_level_binder_group_inners(text: str) -> list[str]:
+    groups: list[str] = []
+    stack: list[tuple[str, int]] = []
+    matching = {"(": ")", "{": "}"}
+    for index, char in enumerate(str(text or "")):
+        if char in matching:
+            if not stack:
+                stack.append((char, index))
+            else:
+                stack.append((char, index))
+        elif char in {")", "}"} and stack:
+            opener, start = stack.pop()
+            if matching.get(opener) != char:
+                stack.clear()
+                continue
+            if not stack:
+                groups.append(text[start + 1 : index].strip())
+    return groups
+
+
+def _parse_named_binder_group(inner: str) -> list[tuple[str, str]]:
+    if ":" not in inner:
+        return []
+    names_text, binder_type = inner.split(":", 1)
+    names = [
+        value.strip()
+        for value in names_text.split()
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_'.]*", value.strip())
+    ]
+    binder_type = binder_type.strip()
+    if not names or not binder_type:
+        return []
+    return [(name, binder_type) for name in names]
+
+
+def _binder_rows_from_proof_body_goal_excerpt(
+    proof_body_goal_excerpt: Sequence[Any],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for value in proof_body_goal_excerpt:
+        if not isinstance(value, str):
+            continue
+        stripped = value.strip()
+        if not stripped or stripped.startswith("⊢") or stripped.startswith("--"):
+            continue
+        parsed = _parse_named_binder_group(stripped)
+        for name, binder_type in parsed:
+            rows.append(
+                {
+                    "name": name,
+                    "type": binder_type,
+                    "role": _exact_semantic_source_binder_role(
+                        name=name,
+                        binder_type=binder_type,
+                    ),
+                    "source": "proof_body_goal_excerpt",
+                }
+            )
+    return rows
+
+
+def _normalized_binder_rows(values: Sequence[Any]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for value in values:
+        if not isinstance(value, Mapping):
+            continue
+        name = str(value.get("name", "") or value.get("binder_name", "") or "").strip()
+        binder_type = str(
+            value.get("type", "") or value.get("binder_type", "") or ""
+        ).strip()
+        if not name:
+            continue
+        role = str(value.get("role", "") or "").strip()
+        if not role:
+            role = _exact_semantic_source_binder_role(
+                name=name,
+                binder_type=binder_type,
+            )
+        row = {"name": name, "role": role}
+        if binder_type:
+            row["type"] = binder_type
+        source = str(value.get("source", "") or "").strip()
+        if source:
+            row["source"] = source
+        rows.append(row)
+    return rows
+
+
+def _dedupe_binder_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
+    compact: dict[str, dict[str, str]] = {}
+    for row in rows:
+        name = str(row.get("name", "") or "").strip()
+        if not name:
+            continue
+        existing = compact.setdefault(name, {"name": name})
+        for key in ("type", "role", "source"):
+            value = str(row.get(key, "") or "").strip()
+            if value and not existing.get(key):
+                existing[key] = value
+    return list(compact.values())
+
+
+def _exact_semantic_source_binder_role(*, name: str, binder_type: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]", "", str(name or "").lower())
+    type_text = str(binder_type or "")
+    if normalized in {"n", "n1", "n2", "hn", "hn1", "hn2"}:
+        return "calibration_size_anchor"
+    if normalized in {"s", "score", "scores", "hscore", "hmeas"}:
+        return "score_process_anchor"
+    if normalized in {"q", "qhat"}:
+        return "threshold_function_anchor"
+    if normalized in {"hq", "hquantilethreshold"}:
+        return "quantile_definition_anchor"
+    if normalized in {"c", "cn", "c_n", "hc", "coverageevent", "covered"}:
+        return "coverage_event_anchor"
+    if normalized in {"hexch", "hexchangeable"} or "Exchangeable" in type_text:
+        return "exchangeability_anchor"
+    if normalized in {"alpha", "halpha", "halpha1"}:
+        return "miscoverage_level_anchor"
+    if "orderStat" in type_text:
+        return "quantile_definition_anchor"
+    if normalized.startswith("h"):
+        return "source_hypothesis"
+    return "source_parameter"
+
+
 def run_source_theorem_exact_semantic_definition_source_lookup(
     *,
     out_dir: Path,

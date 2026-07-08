@@ -267,6 +267,106 @@ def test_exact_semantic_definition_lean_repair_executor_checks_import_candidate(
     )
 
 
+def test_lean_repair_executor_authoring_task_recovers_binders_from_signature_probe(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    rich_probe = tmp_path / "split_conformal_signature_probe.lean"
+    rich_probe.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage {Ω : Type _} [MeasurableSpace Ω]",
+                "    (P : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure P]",
+                "    (n : ℕ) (hn : 0 < n)",
+                "    (score : Fin (n + 1) → Ω → ℝ)",
+                "    (q : ℝ)",
+                "    (hq : ∀ᵐ ω ∂P, score (Fin.last n) ω ≤ q) :",
+                "    True := by",
+                "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    helper_probe = tmp_path / "adapter_helper_signature_probe.lean"
+    helper_probe.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem adapter_helper (good_rank_event coverage_event : Prop)",
+                "    (hC : good_rank_event -> coverage_event) :",
+                "    True := by",
+                "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+        "lean_repair_task_id": "lean-repair:good_rank_event",
+        "source_repair_packet_id": "repair:good_rank_event",
+        "source_review_packet_id": "review:good_rank_event",
+        "source_definition_closure_work_order_id": "closure:good_rank_event",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "good_rank_event",
+        "lean_repair_action": "synthesize_exact_definition",
+        "repair_strategy": "synthesize_reviewed_definition_from_source_signature",
+        "signature_probe_artifact_path": str(rich_probe),
+        "source_theorem_signature_probe_artifact_path": str(rich_probe),
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "good_rank_event",
+            "signature_probe_artifact_path": str(helper_probe),
+        },
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        source_roots=(),
+        local_lean=False,
+    )
+
+    authoring_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["exact_semantic_definition_authoring_tasks_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(authoring_tasks) == 1
+    request = authoring_tasks[0]["candidate_definition_request"]
+    assert request["placeholder_symbol"] == "good_rank_event"
+    assert request["required_anchor_names"] == ["n2", "s", "q_hat", "hq"]
+    assert request["missing_required_anchor_names"] == []
+    assert [binder["name"] for binder in request["required_binders"]] == [
+        "n",
+        "score",
+        "q",
+        "hq",
+    ]
+    assert [
+        (binding["required_anchor_name"], binding["actual_anchor_name"])
+        for binding in request["required_anchor_bindings"]
+    ] == [
+        ("hq", "hq"),
+        ("n2", "n"),
+        ("s", "score"),
+        ("q_hat", "q"),
+    ]
+    assert request["proof_evidence_status"] == (
+        "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+    )
+    assert authoring_tasks[0]["source_theorem_kernel_verified"] is False
+
+
 def test_exact_semantic_definition_lean_repair_executor_preserves_pseudo_formal_environment_repair(
     tmp_path: Path,
 ) -> None:

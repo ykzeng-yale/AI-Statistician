@@ -40,6 +40,8 @@ from .source_theorem_exact_semantic_definition_lean_repair_executor import (
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
+    exact_semantic_definition_required_anchor_bindings,
+    exact_semantic_definition_source_binders_from_context,
 )
 
 
@@ -968,6 +970,7 @@ def _prompt_payload(
         export_mode=export_mode,
     )
     response_validation_feedback = _response_validation_feedback(task)
+    source_theorem_binders = exact_semantic_definition_source_binders_from_context(task)
     return {
         "task": "author_exact_semantic_definition_candidate",
         "external_export_mode": export_mode,
@@ -980,9 +983,7 @@ def _prompt_payload(
         "authoring_mode": str(task.get("authoring_mode", "") or ""),
         "exact_semantic_definition_context": exact_context,
         "candidate_definition_request": dict(candidate_definition_request),
-        "source_theorem_binders": list(
-            task.get("exact_source_theorem_binders", []) or []
-        ),
+        "source_theorem_binders": source_theorem_binders,
         "semantic_anchor_binder_names": list(
             task.get("premise_semantic_anchor_binder_names", []) or []
         ),
@@ -2904,11 +2905,18 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
     placeholder_policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
     required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
     available_binders_by_name = _available_semantic_binders_by_name(task)
-    available_anchor_names = list(available_binders_by_name)
+    required_anchor_bindings = exact_semantic_definition_required_anchor_bindings(
+        required_anchor_names=required_anchor_names,
+        available_binders_by_name=available_binders_by_name,
+        placeholder_policy=placeholder_policy,
+    )
+    available_anchor_names = list(
+        dict.fromkeys([*available_binders_by_name, *required_anchor_bindings])
+    )
     required_binders = [
-        dict(available_binders_by_name[name])
+        dict(required_anchor_bindings[name]["binder"])
         for name in required_anchor_names
-        if name in available_binders_by_name
+        if name in required_anchor_bindings
     ]
     required_adapter_object_names = (
         _required_adapter_object_names_for_placeholder(placeholder_symbol)
@@ -2935,6 +2943,7 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
         "missing_required_anchor_names": [
             name for name in required_anchor_names if name not in available_anchor_names
         ],
+        "required_anchor_bindings": list(required_anchor_bindings.values()),
         "required_binders": required_binders,
         "required_adapter_object_names": required_adapter_object_names,
         "available_adapter_object_names": available_adapter_object_names,
@@ -2993,6 +3002,10 @@ def _available_semantic_binders_by_name(
             continue
         name = str(binder.get("name", "") or "")
         if name:
+            binders_by_name[name] = binder
+    for binder in exact_semantic_definition_source_binders_from_context(task):
+        name = str(binder.get("name", "") or "")
+        if name and name not in binders_by_name:
             binders_by_name[name] = binder
     return binders_by_name
 

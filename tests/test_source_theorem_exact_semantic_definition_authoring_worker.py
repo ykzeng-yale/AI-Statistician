@@ -1280,6 +1280,105 @@ def test_authoring_worker_completes_minimal_runtime_request_from_policy_alias(
     assert "without asserting a probability bound" in request["semantic_goal"]
 
 
+def test_authoring_worker_recovers_required_binders_from_signature_probe(
+    tmp_path: Path,
+) -> None:
+    rich_probe = tmp_path / "split_conformal_signature_probe.lean"
+    rich_probe.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem split_conformal_coverage {Ω : Type _} [MeasurableSpace Ω]",
+                "    (P : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure P]",
+                "    (n : ℕ) (hn : 0 < n)",
+                "    (score : Fin (n + 1) → Ω → ℝ)",
+                "    (q : ℝ)",
+                "    (hq : ∀ᵐ ω ∂P, score (Fin.last n) ω ≤ q) :",
+                "    True := by",
+                "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    stale_probe = tmp_path / "adapter_helper_signature_probe.lean"
+    stale_probe.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem adapter_helper (good_rank_event coverage_event : Prop)",
+                "    (hC : good_rank_event -> coverage_event) :",
+                "    True := by",
+                "  trivial",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    tasks_path = tmp_path / "authoring_tasks.jsonl"
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+        "authoring_task_id": "authoring:good-rank-event:signature-probe",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "good_rank_event",
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_REVIEW_AUTHORING"
+        ),
+        "authoring_mode": "review_typechecked_semantic_definition_candidate",
+        "signature_probe_artifact_path": str(rich_probe),
+        "source_theorem_signature_probe_artifact_path": str(rich_probe),
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "target_theorem_name": "split_conformal_coverage",
+            "placeholder_symbol": "good_rank_event",
+            "signature_probe_artifact_path": str(stale_probe),
+        },
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
+        out_dir=tmp_path / "authoring_worker",
+        authoring_tasks_jsonl=tasks_path,
+        config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
+    )
+
+    prompt_packet = json.loads(
+        Path(manifest["authoring_prompt_packets_jsonl"])
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    request = prompt_packet["candidate_definition_request"]
+    assert request["required_anchor_names"] == ["n2", "s", "q_hat", "hq"]
+    assert request["missing_required_anchor_names"] == []
+    assert [binder["name"] for binder in request["required_binders"]] == [
+        "n",
+        "score",
+        "q",
+        "hq",
+    ]
+    assert [
+        (binding["required_anchor_name"], binding["actual_anchor_name"])
+        for binding in request["required_anchor_bindings"]
+    ] == [
+        ("hq", "hq"),
+        ("n2", "n"),
+        ("s", "score"),
+        ("q_hat", "q"),
+    ]
+    payload = json.loads(prompt_packet["user_prompt"])
+    payload_binders = {
+        binder["name"]: binder["type"]
+        for binder in payload["source_theorem_binders"]
+    }
+    assert payload_binders["n"] == "ℕ"
+    assert payload_binders["score"] == "Fin (n + 1) → Ω → ℝ"
+    assert payload_binders["q"] == "ℝ"
+    assert payload_binders["hq"].startswith("∀ᵐ ω ∂P")
+
+
 def test_authoring_worker_marks_provider_connection_failure_retryable(
     tmp_path: Path,
 ) -> None:
