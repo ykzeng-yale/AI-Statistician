@@ -708,6 +708,16 @@ def build_formalizer_prompt(
         "required_output_contract": _formalizer_output_contract_for_prompt(
             has_theory_trace=bool(theory_derivation_trace),
             pseudo_formalization_required=pseudo_formalization_required,
+            source_theorem_candidate_materialization_contract=(
+                source_theorem_candidate_materialization_contract
+            ),
+            source_to_bridge_premise_derivation_required=bool(
+                proof_memory_summary.get(
+                    "source_to_bridge_premise_derivation_required"
+                )
+                or proof_memory_summary.get("recommended_formalizer_target_mode")
+                == "source_to_bridge_premise_derivation_required"
+            ),
         ),
         "boundary": FORMALIZER_BOUNDARY,
     }
@@ -985,12 +995,97 @@ def _formalizer_output_contract_for_prompt(
     *,
     has_theory_trace: bool,
     pseudo_formalization_required: bool = False,
+    source_theorem_candidate_materialization_contract: Mapping[str, Any] | None = None,
+    source_to_bridge_premise_derivation_required: bool = False,
 ) -> dict[str, Any]:
     contract = dict(FORMALIZER_OUTPUT_CONTRACT)
     contract.pop("theory_trace_alignment", None)
     if has_theory_trace:
         contract["theory_trace_alignment"] = FORMALIZER_OUTPUT_CONTRACT[
             "theory_trace_alignment"
+        ]
+    materialization_contract = (
+        source_theorem_candidate_materialization_contract
+        if isinstance(source_theorem_candidate_materialization_contract, Mapping)
+        else {}
+    )
+    if materialization_contract:
+        target_ids = [
+            str(value).strip()
+            for value in materialization_contract.get("target_ids", []) or []
+            if str(value).strip()
+        ]
+        target_names = [
+            str(value).strip()
+            for value in materialization_contract.get("target_names", []) or []
+            if str(value).strip()
+        ]
+        target_identity = (target_ids or target_names or ["requested_source_theorem_target"])[0]
+        contract["formal_targets"] = [
+            {
+                "id": target_identity,
+                "informal_source": (
+                    "exact source theorem candidate, not a helper/support lemma"
+                ),
+                "lean_statement_sketch": (
+                    "concrete theorem/lemma declaration for the exact source theorem; "
+                    "must preserve the probability/measure coverage conclusion and "
+                    "must not be FORMAL_GAP, helper-only, source-to-bridge-only, "
+                    "sorry/admit/by?/exact?, or prose"
+                ),
+                "lean_imports": [
+                    "narrow verified imports only; do not guess unavailable Mathlib root"
+                ],
+                "semantic_alignment_constraints": [
+                    "copy requested target identity and keep probability/measure coverage lower-bound shape"
+                ],
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": target_identity,
+                    "source_theorem_goal_id": target_identity,
+                    "target_ids": target_ids or [target_identity],
+                    "target_names": target_names or [target_identity],
+                },
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ]
+        contract["source_theorem_candidate_materialization_required"] = {
+            "required": True,
+            "forbidden_substitutes": [
+                "FORMAL_GAP-only formal_targets row",
+                "helper/support formal target",
+                "source_to_bridge_premise_derivation_candidates-only packet",
+                "next_actions for candidates absent from this packet",
+            ],
+            "proof_boundary": (
+                "materialization is not proof evidence until local Lean/AXLE "
+                "checks the exact emitted candidate"
+            ),
+        }
+    if source_to_bridge_premise_derivation_required:
+        contract["source_to_bridge_premise_derivation_candidates"] = [
+            {
+                "premise_name": "copy pending premise_name from runtime memory",
+                "premise_names": ["copy pending premise_name(s) from runtime memory"],
+                "premise_candidate_declaration_name": (
+                    "copy exact premise_candidate_declaration_name when supplied"
+                ),
+                "premise_derivation_candidate_lean_source": (
+                    "canonical Lean source field; declare theorem with the exact "
+                    "premise_candidate_declaration_name and do not use lean_source/"
+                    "lean_code aliases in the final JSON"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request_id": (
+                    "copy runtime request id when supplied"
+                ),
+                "source_to_bridge_premise_derivation_candidate_request": (
+                    "copy runtime request object when supplied"
+                ),
+                "required_semantic_anchor_reference_names": [
+                    "copy required semantic anchors and reference them in Lean source"
+                ],
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
         ]
     if pseudo_formalization_required:
         contract["pseudo_formal_proof_packets"] = {
@@ -1122,12 +1217,7 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not isinstance(row, Mapping):
             errors.append("source_to_bridge_premise_derivation_candidates entries must be objects")
             continue
-        candidate_source = str(
-            row.get("premise_derivation_candidate_lean_source", "")
-            or row.get("lean_statement_sketch", "")
-            or row.get("candidate_lean_source", "")
-            or ""
-        )
+        candidate_source = _source_to_bridge_candidate_lean_source(row)
         premise_names = [
             str(value).strip()
             for value in row.get("premise_names", []) or []
@@ -2898,12 +2988,7 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
         for row in packet.get("source_to_bridge_premise_derivation_candidates", [])
         or []
         if isinstance(row, Mapping)
-        and str(
-            row.get("premise_derivation_candidate_lean_source", "")
-            or row.get("lean_statement_sketch", "")
-            or row.get("candidate_lean_source", "")
-            or ""
-        ).strip()
+        and _source_to_bridge_candidate_lean_source(row).strip()
     ]
     pending_source_to_bridge_premise_names = (
         _pending_source_to_bridge_premise_names_for_capability_eval(
@@ -3040,12 +3125,7 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             or ",".join(str(value) for value in row.get("premise_names", []) or [])
             or "<unnamed>"
         )
-        source = str(
-            row.get("premise_derivation_candidate_lean_source", "")
-            or row.get("lean_statement_sketch", "")
-            or row.get("candidate_lean_source", "")
-            or ""
-        )
+        source = _source_to_bridge_candidate_lean_source(row)
         expected_status = str(row.get("expected_status", "") or "")
         if expected_status != "NEEDS_KERNEL_CHECK":
             errors.append(
@@ -3321,6 +3401,23 @@ def _source_to_bridge_candidate_premise_names(row: Mapping[str, Any]) -> list[st
     return list(dict.fromkeys(name for name in names if name))
 
 
+def _source_to_bridge_candidate_lean_source(row: Mapping[str, Any]) -> str:
+    for key in (
+        "premise_derivation_candidate_lean_source",
+        "lean_statement_sketch",
+        "candidate_lean_source",
+        "lean_source",
+        "lean_code",
+        "premise_candidate_lean_source",
+        "premise_lean_source",
+        "source",
+    ):
+        value = str(row.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def _string_list_values(row: Mapping[str, Any], *keys: str) -> list[str]:
     values: list[str] = []
     for key in keys:
@@ -3350,6 +3447,7 @@ def _normalize_formalizer_packet(
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
+    _normalize_formalizer_candidate_lean_source_aliases(body)
     _normalize_required_formalizer_scaffolding_fields(body)
     _enrich_source_to_bridge_candidates_from_memory(
         body,
@@ -3554,6 +3652,90 @@ def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) ->
     )
 
 
+def _normalize_formalizer_candidate_lean_source_aliases(packet: dict[str, Any]) -> None:
+    """Canonicalize harmless Lean-source field aliases before validation.
+
+    This does not make a candidate executable or proved. It only maps common LLM
+    schema aliases onto the fields that the runtime validators and materializers
+    already require.
+    """
+
+    normalized: list[dict[str, Any]] = []
+    for index, row in enumerate(packet.get("formal_targets", []) or [], start=1):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("lean_statement_sketch", "") or "").strip():
+            continue
+        for alias_key in (
+            "lean_source",
+            "lean_code",
+            "candidate_lean_source",
+            "formal_statement_lean",
+            "lean_theorem",
+            "theorem_lean_source",
+            "statement",
+            "lean_statement",
+        ):
+            alias_value = str(row.get(alias_key, "") or "").strip()
+            if not alias_value:
+                continue
+            row["lean_statement_sketch"] = alias_value
+            row["lean_statement_sketch_normalized_from"] = alias_key
+            normalized.append(
+                {
+                    "channel": "formal_targets",
+                    "index": index,
+                    "id": str(row.get("id", "") or ""),
+                    "normalized_from": alias_key,
+                    "lean_source_fingerprint": stable_hash(alias_value)[:20],
+                }
+            )
+            break
+
+    for index, row in enumerate(
+        packet.get("source_to_bridge_premise_derivation_candidates", []) or [],
+        start=1,
+    ):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("premise_derivation_candidate_lean_source", "") or "").strip():
+            continue
+        for alias_key in (
+            "lean_source",
+            "lean_code",
+            "candidate_lean_source",
+            "lean_statement_sketch",
+            "premise_candidate_lean_source",
+            "premise_lean_source",
+            "source",
+        ):
+            alias_value = str(row.get(alias_key, "") or "").strip()
+            if not alias_value:
+                continue
+            row["premise_derivation_candidate_lean_source"] = alias_value
+            row["premise_derivation_candidate_lean_source_normalized_from"] = alias_key
+            normalized.append(
+                {
+                    "channel": "source_to_bridge_premise_derivation_candidates",
+                    "index": index,
+                    "premise_name": str(row.get("premise_name", "") or ""),
+                    "normalized_from": alias_key,
+                    "lean_source_fingerprint": stable_hash(alias_value)[:20],
+                }
+            )
+            break
+
+    if not normalized:
+        return
+    existing = packet.get("normalized_lean_source_aliases", [])
+    if not isinstance(existing, list):
+        existing = []
+    packet["normalized_lean_source_aliases"] = [*existing, *normalized]
+    packet["lean_source_alias_normalizer_proof_evidence_status"] = (
+        "LEAN_SOURCE_ALIAS_NORMALIZED_NOT_PROOF_EVIDENCE"
+    )
+
+
 def _normalize_executable_candidate_expected_statuses(
     packet: dict[str, Any],
 ) -> None:
@@ -3599,12 +3781,7 @@ def _normalize_executable_candidate_expected_statuses(
     ):
         if not isinstance(row, dict):
             continue
-        lean_source = str(
-            row.get("premise_derivation_candidate_lean_source", "")
-            or row.get("lean_statement_sketch", "")
-            or row.get("candidate_lean_source", "")
-            or ""
-        )
+        lean_source = _source_to_bridge_candidate_lean_source(row)
         if not lean_source.strip():
             continue
         if _lean_source_is_descriptive_placeholder(lean_source):
@@ -3846,12 +4023,7 @@ def _drop_semantically_unanchored_source_to_bridge_candidates(
         if not isinstance(candidate, Mapping):
             kept.append(candidate)
             continue
-        candidate_source = str(
-            candidate.get("premise_derivation_candidate_lean_source", "")
-            or candidate.get("lean_statement_sketch", "")
-            or candidate.get("candidate_lean_source", "")
-            or ""
-        )
+        candidate_source = _source_to_bridge_candidate_lean_source(candidate)
         missing_anchor_names = _source_to_bridge_candidate_missing_anchor_references(
             candidate,
             candidate_source,
@@ -4143,12 +4315,7 @@ def _fail_closed_placeholder_lean_candidates(
             if not isinstance(candidate, Mapping):
                 kept_source_to_bridge.append(candidate)
                 continue
-            candidate_source = str(
-                candidate.get("premise_derivation_candidate_lean_source", "")
-                or candidate.get("lean_statement_sketch", "")
-                or candidate.get("candidate_lean_source", "")
-                or ""
-            )
+            candidate_source = _source_to_bridge_candidate_lean_source(candidate)
             placeholder_error = _lean_statement_placeholder_syntax_error(
                 candidate_source
             )
@@ -4481,12 +4648,7 @@ def _drop_source_to_bridge_candidates_with_uninstantiated_adapter_binders(
         if not isinstance(candidate, Mapping):
             kept.append(candidate)
             continue
-        candidate_source = str(
-            candidate.get("premise_derivation_candidate_lean_source", "")
-            or candidate.get("lean_statement_sketch", "")
-            or candidate.get("candidate_lean_source", "")
-            or ""
-        )
+        candidate_source = _source_to_bridge_candidate_lean_source(candidate)
         uninstantiated_adapter_binders = (
             _source_to_bridge_candidate_uninstantiated_adapter_object_binders(
                 candidate,

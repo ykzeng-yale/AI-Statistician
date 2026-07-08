@@ -19904,6 +19904,176 @@ def test_formalizer_materialization_validator_accepts_exact_source_candidate() -
     assert errors == []
 
 
+def test_formalizer_materialization_prompt_shows_exact_candidate_schema() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_names": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_to_bridge_premise_derivation_required": True,
+            "source_to_bridge_premise_derivation_pending_premise_names": [
+                "hGoodRankImpliesCovered"
+            ],
+        },
+        environment_feedback={
+            "feedback_type": "formalizer_packet_validation_feedback",
+            "failure_classification": "formalizer_packet_validation_failed",
+            "validation_errors": [
+                (
+                    "source_theorem_exact_candidate_materialization_required "
+                    "requires a concrete source-theorem formal_targets entry"
+                ),
+                (
+                    "source_to_bridge_premise_derivation_candidates entry "
+                    "missing Lean candidate source"
+                ),
+            ],
+        },
+    )
+
+    assert "source_theorem_candidate_materialization_required" in prompt
+    assert "split_conformal_finite_sample_coverage" in prompt
+    assert "source_theorem_target_known" in prompt
+    assert "premise_derivation_candidate_lean_source" in prompt
+    assert "canonical Lean source field" in prompt
+    assert "FORMAL_GAP-only formal_targets row" in prompt
+
+
+def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    packet = _normalize_formalizer_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "informal_source": "exact source theorem candidate",
+                    "lean_source": (
+                        "theorem split_conformal_finite_sample_coverage "
+                        "(Omega : Type) "
+                        "(mu : MeasureTheory.Measure Omega) "
+                        "(coverageEvent : Set Omega) "
+                        "(lowerBound : mu coverageEvent >= 1) : "
+                        "mu coverageEvent >= 1 := by\n"
+                        "  exact lowerBound\n"
+                    ),
+                    "expected_status": "OPEN",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "source_theorem_goal_id": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "target_ids": ["split_conformal_finite_sample_coverage"],
+                    },
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidate_requests": [
+                {
+                    "candidate_request_id": "request:hGoodRankImpliesCovered",
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "target_theorem_name": "split_conformal_finite_sample_coverage",
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "premise_candidate_declaration_name": (
+                        "hGoodRankImpliesCovered_candidate"
+                    ),
+                    "exact_source_theorem_binders": [
+                        {"name": "hC", "type": "Prop"}
+                    ],
+                    "required_semantic_anchor_reference_names": ["hC"],
+                }
+            ],
+            "source_to_bridge_premise_derivation_candidates": [
+                {
+                    "premise_name": "hGoodRankImpliesCovered",
+                    "lean_source": (
+                        "theorem hGoodRankImpliesCovered_candidate "
+                        "(hC : Prop) (hUse : hC) : hC := by\n"
+                        "  exact hUse\n"
+                    ),
+                }
+            ],
+        },
+        question=question,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        raw_response="{}",
+        theory_packet=_runtime_sample_response(),
+        proof_bank_runtime_memory_summary={
+            "source_theorem_candidate_materialization_required": True,
+            "source_theorem_candidate_materialization_required_target_names": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_theorem_candidate_materialization_required_target_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_to_bridge_premise_derivation_required": True,
+            "source_to_bridge_premise_derivation_pending_premise_names": [
+                "hGoodRankImpliesCovered"
+            ],
+        },
+        environment_feedback={},
+    )
+
+    target = packet["formal_targets"][0]
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert target["lean_statement_sketch_normalized_from"] == "lean_source"
+    assert target["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert (
+        candidate["premise_derivation_candidate_lean_source_normalized_from"]
+        == "lean_source"
+    )
+    assert candidate["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert candidate["source_to_bridge_premise_derivation_candidate_request_id"] == (
+        "request:hGoodRankImpliesCovered"
+    )
+    assert validate_formalizer_packet(packet) == []
+    assert (
+        _validate_source_theorem_candidate_materialization_packet(
+            packet,
+            proof_bank_runtime_memory_summary={
+                "source_theorem_candidate_materialization_required": True,
+                "source_theorem_candidate_materialization_required_target_names": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+                "source_theorem_candidate_materialization_required_target_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
+            },
+        )
+        == []
+    )
+    assert (
+        _validate_capability_eval_formalizer_lean_candidate_packet(
+            packet,
+            proof_bank_runtime_memory_summary={
+                "source_to_bridge_premise_derivation_required": True,
+                "source_to_bridge_premise_derivation_pending_premise_names": [
+                    "hGoodRankImpliesCovered"
+                ],
+            },
+        )
+        == []
+    )
+
+
 def test_formalizer_materialization_validator_rejects_wrong_target_identity() -> None:
     errors = _validate_source_theorem_candidate_materialization_packet(
         {
