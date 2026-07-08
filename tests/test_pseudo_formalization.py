@@ -1858,6 +1858,7 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     seed = blueprint["copy_or_complete_this_packet_seed"]
     concrete_seed = blueprint["concrete_lane_routable_repair_seed"]
     copy_fragment = blueprint["copy_ready_response_fragment"]
+    copy_contract = copy_fragment["validator_ready_copy_contract"]
     issue_summary = repair_context["pseudo_formal_validation_issue_summary"]
     issue_actions = repair_context["pseudo_formal_issue_specific_repair_actions"]
     top_level_repair_instructions = " ".join(repair_payload["repair_instructions"])
@@ -1900,6 +1901,16 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     assert concrete_seed["blocks"][0]["semantic_primitive_requirements"]
     assert copy_fragment["required_output_key"] == "pseudo_formal_proof_packets"
     assert copy_fragment["pseudo_formal_proof_packets"][0] == concrete_seed
+    assert copy_contract["copy_source_path"] == (
+        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
+    )
+    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
+    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
+    assert (
+        "pseudo_formal_proof_packets[0].blocks[0].conclusion"
+        in copy_contract["required_preserved_paths"]
+    )
+    assert blueprint["validator_ready_copy_contract"] == copy_contract
     assert copy_fragment["validator_alignment"][
         "must_have_source_anchors"
     ] is True

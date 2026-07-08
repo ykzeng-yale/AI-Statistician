@@ -318,6 +318,12 @@ def _formalizer_repair_context(
                 "and source_theorem_kernel_verified=false."
             ),
             (
+                "Treat pseudo_formal_required_repair_blueprint."
+                "copy_ready_response_fragment.validator_ready_copy_contract as a "
+                "machine-checkable copy contract. Copy the listed source path to "
+                "the listed output path before adding optional prose or Lean targets."
+            ),
+            (
                 "The repaired PF/BV packet must produce at least one effective "
                 "lane-routable work-order row; for "
                 "source_theorem_exact_semantic_definition use "
@@ -353,6 +359,11 @@ def _formalizer_repair_context(
                 component_gate_failure_repair_seed
             ),
             "copy_ready_response_fragment": copy_fragment,
+            "validator_ready_copy_contract": (
+                copy_fragment.get("validator_ready_copy_contract", {})
+                if isinstance(copy_fragment, Mapping)
+                else {}
+            ),
             "concrete_repair_seed_usage": (
                 "Copy copy_ready_response_fragment.pseudo_formal_proof_packets[0] "
                 "or concrete_lane_routable_repair_seed into "
@@ -769,6 +780,9 @@ def build_formalizer_prompt(
             "changing Lean targets. Start from "
             "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets "
             "when present; otherwise start from pseudo_formalization_required_packet_seed. "
+            "The copy fragment includes validator_ready_copy_contract; treat that "
+            "contract as the shortest valid path and copy it before reconstructing "
+            "PF/BV fields yourself. "
             "Copy its theorem_id, "
             "source_artifact_id, block_id pattern, conclusion, source_anchors, "
             "faithfulness_status, lean_feasibility, and non-proof boundary unless "
@@ -984,6 +998,15 @@ def _formalizer_output_contract_for_prompt(
             "copy_from": (
                 "pseudo_formalization_required_copy_fragment."
                 "pseudo_formal_proof_packets"
+            ),
+            "validator_ready_copy_contract_path": (
+                "pseudo_formalization_required_copy_fragment."
+                "validator_ready_copy_contract"
+            ),
+            "validator_ready_copy_rule": (
+                "Copy validator_ready_copy_contract.copy_source_path into "
+                "validator_ready_copy_contract.copy_destination_path before "
+                "optional edits; preserve every required_preserved_paths entry."
             ),
             "minimum_items": 1,
             "first_packet_must_include": [
@@ -2067,6 +2090,16 @@ def _pseudo_formalization_required_copy_fragment(
         }
     )
     concrete_seed["prompt_scaffold_origin"] = scaffold_origin
+    routable_rows = pseudo_formal_routable_work_order_rows(
+        pseudo_formal_block_work_order_rows(concrete_seed)
+    )
+    routable_target_lanes = sorted(
+        {
+            str(row.get("target_lane", "") or "")
+            for row in routable_rows
+            if str(row.get("target_lane", "") or "")
+        }
+    )
     return {
         "required_output_key": "pseudo_formal_proof_packets",
         "copy_instruction": (
@@ -2075,6 +2108,39 @@ def _pseudo_formalization_required_copy_fragment(
             "Then minimally adapt mathematical text only if runtime feedback "
             "provides a more precise source-bound claim."
         ),
+        "validator_ready_copy_contract": {
+            "copy_source_path": (
+                "pseudo_formalization_required_copy_fragment."
+                "pseudo_formal_proof_packets"
+            ),
+            "copy_destination_path": "pseudo_formal_proof_packets",
+            "first_packet_copy_source_path": (
+                "pseudo_formalization_required_copy_fragment."
+                "pseudo_formal_proof_packets[0]"
+            ),
+            "first_packet_destination_path": "pseudo_formal_proof_packets[0]",
+            "required_preserved_paths": [
+                "pseudo_formal_proof_packets[0].blocks[0].conclusion",
+                "pseudo_formal_proof_packets[0].blocks[0].source_anchors",
+                (
+                    "pseudo_formal_proof_packets[0].blocks[0]."
+                    "semantic_primitive_requirements"
+                ),
+                "pseudo_formal_proof_packets[0].blocks[0].lean_feasibility",
+                "pseudo_formal_proof_packets[0].blocks[0].faithfulness_status",
+                "pseudo_formal_proof_packets[0].proof_evidence_status",
+                "pseudo_formal_proof_packets[0].kernel_verified",
+                "pseudo_formal_proof_packets[0].source_theorem_kernel_verified",
+            ],
+            "routable_work_order_rows_if_copied": len(routable_rows),
+            "routable_target_lanes_if_copied": routable_target_lanes,
+            "copy_is_not_proof_evidence": True,
+            "validation_note": (
+                "This fragment is constructed to satisfy local PF/BV packet "
+                "structure and produce lane-routable routing rows when copied "
+                "without deleting required fields."
+            ),
+        },
         "pseudo_formal_proof_packets": [concrete_seed],
         "validator_alignment": {
             "must_have_top_level_block_conclusion": True,

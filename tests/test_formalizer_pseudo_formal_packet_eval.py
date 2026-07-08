@@ -184,6 +184,8 @@ def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> No
 
     payload = _prompt_payload(prompt)
     seed = payload["pseudo_formalization_required_packet_seed"]
+    copy_fragment = payload["pseudo_formalization_required_copy_fragment"]
+    copy_contract = copy_fragment["validator_ready_copy_contract"]
     block = seed["blocks"][0]
 
     assert seed["theorem_id"] == "theorem:coverage"
@@ -203,6 +205,24 @@ def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> No
         "source_theorem_exact_semantic_definition",
         "source_to_bridge",
     ]
+    assert copy_contract["copy_source_path"] == (
+        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
+    )
+    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
+    assert (
+        "pseudo_formal_proof_packets[0].blocks[0].source_anchors"
+        in copy_contract["required_preserved_paths"]
+    )
+    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
+    assert PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in (
+        copy_contract["routable_target_lanes_if_copied"]
+    )
+    assert payload["required_output_contract"]["pseudo_formal_proof_packets"][
+        "validator_ready_copy_contract_path"
+    ] == (
+        "pseudo_formalization_required_copy_fragment."
+        "validator_ready_copy_contract"
+    )
     assert "pseudo_formalization_required_packet_seed" in prompt
 
 
@@ -310,9 +330,9 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
     )
     payload = _prompt_payload(prompt)
     seed = payload["pseudo_formalization_required_packet_seed"]
-    copy_packet = payload["pseudo_formalization_required_copy_fragment"][
-        "pseudo_formal_proof_packets"
-    ][0]
+    copy_fragment = payload["pseudo_formalization_required_copy_fragment"]
+    copy_packet = copy_fragment["pseudo_formal_proof_packets"][0]
+    copy_contract = copy_fragment["validator_ready_copy_contract"]
     rows = pseudo_formal_routable_work_order_rows(
         pseudo_formal_block_work_order_rows(copy_packet)
     )
@@ -334,6 +354,17 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
         "packet_id"
     ] == "pseudo_formal_packet:component_gate_repair"
     assert copy_packet["packet_id"] == "pseudo_formal_packet:component_gate_repair"
+    assert copy_contract["first_packet_copy_source_path"] == (
+        "pseudo_formalization_required_copy_fragment."
+        "pseudo_formal_proof_packets[0]"
+    )
+    assert copy_contract["first_packet_destination_path"] == (
+        "pseudo_formal_proof_packets[0]"
+    )
+    assert copy_contract["copy_is_not_proof_evidence"] is True
+    assert PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in (
+        copy_contract["routable_target_lanes_if_copied"]
+    )
     assert any(
         row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         and row["source_anchors"][0]["id"]
@@ -364,6 +395,9 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
     ]["blocks"][0]["source_anchors"][0]["id"] == (
         "proof_body:component_gate_rank_threshold"
     )
+    assert blueprint["validator_ready_copy_contract"][
+        "copy_destination_path"
+    ] == "pseudo_formal_proof_packets"
 
 
 def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
