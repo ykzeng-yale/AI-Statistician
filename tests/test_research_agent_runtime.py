@@ -61117,8 +61117,29 @@ def test_formalizer_validator_rejects_phantom_source_to_bridge_next_action() -> 
     assert any("phantom source-to-bridge" in directive for directive in directives)
 
 
-def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() -> None:
+def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory(
+    tmp_path: Path,
+) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    skeleton_path = tmp_path / "hGoodCovered_skeleton.lean"
+    skeleton_path.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "",
+                "namespace Test",
+                "",
+                "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation",
+                "    (hq hC : Prop) : hq ∧ hC := by",
+                "  -- ProofEngineer must replace this generated skeleton body.",
+                "  fail_if_success trivial",
+                "",
+                "end Test",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     response = {
         "formal_targets": [
             {
@@ -61201,6 +61222,7 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() ->
                     "premise_candidate_declaration_name": (
                         "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
                     ),
+                    "premise_candidate_artifact_path": str(skeleton_path),
                     "required_semantic_anchor_reference_names": ["hq", "hC"],
                     "adapter_object_names_requiring_source_instantiation": [
                         "covered",
@@ -61211,6 +61233,25 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() ->
             }
         ],
     }
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:metadata-autofill"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=memory_summary,
+    )
+
+    assert str(skeleton_path) in prompt
+    assert "premise_derivation_candidate_skeleton_lean_source_excerpt" in prompt
+    assert (
+        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+        in prompt
+    )
+    assert "reuse that generated theorem name/header" in prompt
+
     formalizer = LLMFormalizerProofEngineerAgent(
         provider=StaticArchitectLLMProvider(response),
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
@@ -61238,6 +61279,11 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory() ->
         "rank",
         "BadRanks",
     ]
+    assert candidate["premise_candidate_artifact_path"] == str(skeleton_path)
+    assert (
+        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+        in candidate["premise_derivation_candidate_skeleton_lean_source_excerpt"]
+    )
     assert validate_formalizer_packet(packet) == []
 
 

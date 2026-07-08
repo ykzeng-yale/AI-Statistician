@@ -507,6 +507,10 @@ def memory_metadata_authoring_request_rows(
             "premise_target_type",
             "premise_candidate_declaration_name",
             "source_to_bridge_premise_candidate_declaration_name",
+            "premise_candidate_artifact_path",
+            "source_to_bridge_premise_candidate_artifact_path",
+            "premise_derivation_candidate_skeleton_lean_source_excerpt",
+            "premise_candidate_skeleton_lean_source_excerpt",
             "semantic_anchor_reference_gate",
             "candidate_contract",
         ):
@@ -576,6 +580,32 @@ def memory_metadata_authoring_request_rows(
                 "source_to_bridge_premise_candidate_declaration_name": str(
                     request.get("source_to_bridge_premise_candidate_declaration_name", "")
                     or request.get("premise_candidate_declaration_name", "")
+                    or ""
+                ),
+                "premise_candidate_artifact_path": str(
+                    request.get("premise_candidate_artifact_path", "")
+                    or request.get("source_to_bridge_premise_candidate_artifact_path", "")
+                    or ""
+                ),
+                "source_to_bridge_premise_candidate_artifact_path": str(
+                    request.get("source_to_bridge_premise_candidate_artifact_path", "")
+                    or request.get("premise_candidate_artifact_path", "")
+                    or ""
+                ),
+                "premise_derivation_candidate_skeleton_lean_source_excerpt": str(
+                    request.get(
+                        "premise_derivation_candidate_skeleton_lean_source_excerpt",
+                        "",
+                    )
+                    or request.get("premise_candidate_skeleton_lean_source_excerpt", "")
+                    or ""
+                ),
+                "premise_candidate_skeleton_lean_source_excerpt": str(
+                    request.get("premise_candidate_skeleton_lean_source_excerpt", "")
+                    or request.get(
+                        "premise_derivation_candidate_skeleton_lean_source_excerpt",
+                        "",
+                    )
                     or ""
                 ),
                 "premise_semantic_dependency_requirements": string_values(

@@ -5,6 +5,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
@@ -932,6 +933,13 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "target_lean_declaration": "split_conformal",
             "premise_candidate_declaration_name": (
                 "split_conformal_hGoodCovered_source_to_bridge_derivation"
+            ),
+            "premise_candidate_artifact_path": (
+                "runtime generated Lean skeleton artifact path when present"
+            ),
+            "premise_derivation_candidate_skeleton_lean_source_excerpt": (
+                "optional bounded excerpt of the generated skeleton/header; use "
+                "as the theorem envelope to fill, not as proof evidence"
             ),
             "premise_target_type": "adapter premise Lean type",
             "exact_source_theorem_binders": [{"name": "hC", "type": "source hyp"}],
@@ -5025,10 +5033,58 @@ def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[s
     return compact
 
 
+def _source_to_bridge_premise_candidate_artifact_path(
+    row: Mapping[str, Any],
+) -> str:
+    for key in (
+        "premise_candidate_artifact_path",
+        "source_to_bridge_premise_candidate_artifact_path",
+    ):
+        value = str(row.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _source_to_bridge_candidate_skeleton_lean_source_excerpt(
+    row: Mapping[str, Any],
+    *,
+    max_lines: int = 80,
+    max_chars: int = 8000,
+) -> str:
+    for key in (
+        "premise_derivation_candidate_skeleton_lean_source_excerpt",
+        "premise_candidate_skeleton_lean_source_excerpt",
+    ):
+        value = str(row.get(key, "") or "").strip()
+        if value:
+            return value[:max_chars]
+
+    artifact_path = _source_to_bridge_premise_candidate_artifact_path(row)
+    if not artifact_path:
+        return ""
+    path = Path(artifact_path)
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    if not path.is_file():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    theorem_start = 0
+    for index, line in enumerate(lines):
+        if re.search(r"\b(?:theorem|lemma)\s+[A-Za-z_][A-Za-z0-9_'.]*\b", line):
+            theorem_start = max(0, index - 8)
+            break
+    return "\n".join(lines[theorem_start : theorem_start + max_lines])[:max_chars]
+
+
 def _compact_premise_derivation_candidate_request(
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
-    return _compact_mapping(
+    compact = _compact_mapping(
         row,
         keys=(
             "artifact_kind",
@@ -5041,6 +5097,10 @@ def _compact_premise_derivation_candidate_request(
             "required_bridge_premise_names_for_shared_instantiation",
             "shared_adapter_instantiation_contract",
             "premise_candidate_declaration_name",
+            "premise_candidate_artifact_path",
+            "source_to_bridge_premise_candidate_artifact_path",
+            "premise_derivation_candidate_skeleton_lean_source_excerpt",
+            "premise_candidate_skeleton_lean_source_excerpt",
             "target_theorem_name",
             "target_lean_declaration",
             "required_formalizer_output_key",
@@ -5064,6 +5124,16 @@ def _compact_premise_derivation_candidate_request(
             "proof_evidence_status",
         ),
     )
+    artifact_path = _source_to_bridge_premise_candidate_artifact_path(row)
+    if artifact_path:
+        compact.setdefault("premise_candidate_artifact_path", artifact_path)
+    excerpt = _source_to_bridge_candidate_skeleton_lean_source_excerpt(row)
+    if excerpt:
+        compact.setdefault(
+            "premise_derivation_candidate_skeleton_lean_source_excerpt",
+            excerpt,
+        )
+    return compact
 
 
 def _compact_grouped_premise_derivation_candidate_request(
@@ -5086,6 +5156,8 @@ def _compact_grouped_premise_derivation_candidate_request(
             "source_to_bridge_premise_goal_binder_names",
             "source_to_bridge_premise_goal_conclusion",
             "premise_candidate_declaration_names",
+            "premise_candidate_artifact_paths",
+            "premise_derivation_candidate_skeleton_lean_source_excerpts",
             "target_theorem_name",
             "target_lean_declaration",
             "required_formalizer_output_key",
@@ -5109,6 +5181,10 @@ def _compact_grouped_premise_derivation_candidate_request(
                 "premise_target_type",
                 "premise_target_source",
                 "premise_candidate_declaration_name",
+                "premise_candidate_artifact_path",
+                "source_to_bridge_premise_candidate_artifact_path",
+                "premise_derivation_candidate_skeleton_lean_source_excerpt",
+                "premise_candidate_skeleton_lean_source_excerpt",
                 "premise_semantic_dependency_requirements",
                 "required_semantic_anchor_reference_names",
                 "adapter_object_names_requiring_source_instantiation",
@@ -5292,6 +5368,22 @@ def _source_to_bridge_candidate_request_shortcuts(
                             "",
                         )
                         or ""
+                    ),
+                    "premise_candidate_artifact_path": (
+                        _source_to_bridge_premise_candidate_artifact_path(
+                            candidate_request
+                        )
+                        or _source_to_bridge_premise_candidate_artifact_path(
+                            diagnostic
+                        )
+                    ),
+                    "premise_derivation_candidate_skeleton_lean_source_excerpt": (
+                        _source_to_bridge_candidate_skeleton_lean_source_excerpt(
+                            candidate_request
+                        )
+                        or _source_to_bridge_candidate_skeleton_lean_source_excerpt(
+                            diagnostic
+                        )
                     ),
                     "required_semantic_anchor_reference_names": list(
                         candidate_request.get(
@@ -5492,6 +5584,10 @@ def _copy_missing_candidate_metadata(
         "source_to_bridge_premise_target_type",
         "premise_candidate_declaration_name",
         "source_to_bridge_premise_candidate_declaration_name",
+        "premise_candidate_artifact_path",
+        "source_to_bridge_premise_candidate_artifact_path",
+        "premise_derivation_candidate_skeleton_lean_source_excerpt",
+        "premise_candidate_skeleton_lean_source_excerpt",
         "proof_body_goal_context",
         "proof_body_goal_binder_names",
         "proof_body_goal_conclusion",
@@ -5625,6 +5721,35 @@ def _formalizer_mode_specific_instructions(
         if isinstance(runtime_environment_feedback.get("input_summary", {}), Mapping)
         else {}
     )
+    source_to_bridge_request_shortcuts = (
+        _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
+    )
+    if any(
+        shortcut.get("premise_candidate_artifact_path")
+        or shortcut.get("premise_derivation_candidate_skeleton_lean_source_excerpt")
+        or (
+            isinstance(shortcut.get("copy_this_candidate_request", {}), Mapping)
+            and (
+                shortcut["copy_this_candidate_request"].get(
+                    "premise_candidate_artifact_path"
+                )
+                or shortcut["copy_this_candidate_request"].get(
+                    "premise_derivation_candidate_skeleton_lean_source_excerpt"
+                )
+            )
+        )
+        for shortcut in source_to_bridge_request_shortcuts
+    ):
+        instructions.append(
+            "Source-to-bridge skeleton guidance is available: when a copied "
+            "candidate request includes premise_candidate_artifact_path or "
+            "premise_derivation_candidate_skeleton_lean_source_excerpt, reuse that "
+            "generated theorem name/header as the executable Lean envelope and "
+            "replace only the proof body or explicitly report the missing semantic "
+            "primitive as FORMAL_GAP. Do not invent a different binder list, do not "
+            "turn the target premise into an assumption, and do not treat the "
+            "skeleton excerpt itself as proof evidence."
+        )
     formal_blocker_resource_requests = _formal_blocker_resource_requests_with_exact_semantic_artifacts(
         [
             row
@@ -9108,6 +9233,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "target_theorem_name",
                     "target_lean_declaration",
                     "premise_target_type",
+                    "premise_candidate_artifact_path",
+                    "source_to_bridge_premise_candidate_artifact_path",
+                    "premise_derivation_candidate_skeleton_lean_source_excerpt",
+                    "premise_candidate_skeleton_lean_source_excerpt",
                     "exact_source_theorem_binders",
                     "premise_semantic_anchor_binders",
                     "premise_semantic_anchor_binder_names",
@@ -9153,6 +9282,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "premise_derivation_kernel_verified",
                 "premise_candidate_artifact_path",
                 "premise_candidate_declaration_name",
+                "premise_derivation_candidate_skeleton_lean_source_excerpt",
+                "premise_candidate_skeleton_lean_source_excerpt",
                 "premise_candidate_signature_excerpts",
                 "premise_candidate_evidence_eligible",
                 "premise_candidate_assumes_forbidden_premise",
