@@ -5035,6 +5035,8 @@ def _compact_premise_derivation_candidate_request(
             "candidate_request_id",
             "premise_name",
             "premise_target_type",
+            "premise_target_source",
+            "source_to_bridge_premise_target_type",
             "adapter_instantiation_group_id",
             "required_bridge_premise_names_for_shared_instantiation",
             "shared_adapter_instantiation_contract",
@@ -5052,6 +5054,12 @@ def _compact_premise_derivation_candidate_request(
             "semantic_anchor_reference_gate",
             "bridge_object_instantiation_policy",
             "adapter_object_names_requiring_source_instantiation",
+            "proof_body_goal_context",
+            "proof_body_goal_binder_names",
+            "proof_body_goal_conclusion",
+            "source_to_bridge_premise_goal_context",
+            "source_to_bridge_premise_goal_binder_names",
+            "source_to_bridge_premise_goal_conclusion",
             "forbidden_actions",
             "proof_evidence_status",
         ),
@@ -5071,6 +5079,12 @@ def _compact_grouped_premise_derivation_candidate_request(
             "required_bridge_premise_names_for_shared_instantiation",
             "shared_adapter_instantiation_contract",
             "adapter_object_names_requiring_source_instantiation",
+            "proof_body_goal_context",
+            "proof_body_goal_binder_names",
+            "proof_body_goal_conclusion",
+            "source_to_bridge_premise_goal_context",
+            "source_to_bridge_premise_goal_binder_names",
+            "source_to_bridge_premise_goal_conclusion",
             "premise_candidate_declaration_names",
             "target_theorem_name",
             "target_lean_declaration",
@@ -5093,10 +5107,13 @@ def _compact_grouped_premise_derivation_candidate_request(
                 "candidate_request_id",
                 "premise_name",
                 "premise_target_type",
+                "premise_target_source",
                 "premise_candidate_declaration_name",
                 "premise_semantic_dependency_requirements",
                 "required_semantic_anchor_reference_names",
                 "adapter_object_names_requiring_source_instantiation",
+                "proof_body_goal_binder_names",
+                "proof_body_goal_conclusion",
             ),
             limit=6,
         )
@@ -5231,6 +5248,40 @@ def _source_to_bridge_candidate_request_shortcuts(
                     "premise_target_type": str(
                         candidate_request.get("premise_target_type", "")
                         or diagnostic.get("premise_target_type", "")
+                        or ""
+                    ),
+                    "premise_target_source": str(
+                        candidate_request.get("premise_target_source", "")
+                        or diagnostic.get("premise_target_source", "")
+                        or ""
+                    ),
+                    "proof_body_goal_binder_names": list(
+                        candidate_request.get(
+                            "proof_body_goal_binder_names",
+                            [],
+                        )
+                        or candidate_request.get(
+                            "source_to_bridge_premise_goal_binder_names",
+                            [],
+                        )
+                        or diagnostic.get("proof_body_goal_binder_names", [])
+                        or diagnostic.get(
+                            "source_to_bridge_premise_goal_binder_names",
+                            [],
+                        )
+                        or []
+                    ),
+                    "proof_body_goal_conclusion": str(
+                        candidate_request.get("proof_body_goal_conclusion", "")
+                        or candidate_request.get(
+                            "source_to_bridge_premise_goal_conclusion",
+                            "",
+                        )
+                        or diagnostic.get("proof_body_goal_conclusion", "")
+                        or diagnostic.get(
+                            "source_to_bridge_premise_goal_conclusion",
+                            "",
+                        )
                         or ""
                     ),
                     "premise_candidate_declaration_name": str(
@@ -5426,6 +5477,8 @@ def _copy_missing_candidate_metadata(
         "premise_semantic_anchor_binder_names",
         "required_semantic_anchor_reference_names",
         "adapter_object_names_requiring_source_instantiation",
+        "proof_body_goal_binder_names",
+        "source_to_bridge_premise_goal_binder_names",
     }
     for key in (
         "exact_source_theorem_binders",
@@ -5435,8 +5488,16 @@ def _copy_missing_candidate_metadata(
         "semantic_anchor_reference_gate",
         "adapter_object_names_requiring_source_instantiation",
         "premise_target_type",
+        "premise_target_source",
+        "source_to_bridge_premise_target_type",
         "premise_candidate_declaration_name",
         "source_to_bridge_premise_candidate_declaration_name",
+        "proof_body_goal_context",
+        "proof_body_goal_binder_names",
+        "proof_body_goal_conclusion",
+        "source_to_bridge_premise_goal_context",
+        "source_to_bridge_premise_goal_binder_names",
+        "source_to_bridge_premise_goal_conclusion",
         "target_theorem_name",
         "target_lean_declaration",
         "candidate_contract",

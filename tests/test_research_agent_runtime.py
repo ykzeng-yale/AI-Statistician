@@ -41307,6 +41307,22 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
                         "premise_target_type": (
                             "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered"
                         ),
+                        "premise_target_source": "proof_body_goal_conclusion",
+                        "proof_body_goal_context": {
+                            "binder_names": ["hExch", "q", "hq"],
+                            "conclusion": (
+                                "ENNReal.ofReal (1 - alpha) = "
+                                "P {ω | score (Fin.last n) ω ≤ q}"
+                            ),
+                            "proof_evidence_status": (
+                                "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                        "proof_body_goal_binder_names": ["hExch", "q", "hq"],
+                        "proof_body_goal_conclusion": (
+                            "ENNReal.ofReal (1 - alpha) = "
+                            "P {ω | score (Fin.last n) ω ≤ q}"
+                        ),
                         "required_semantic_anchor_reference_names": [
                             "hq",
                             "hC",
@@ -41326,6 +41342,11 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
     assert "source_to_bridge_candidate_request_shortcuts" in prompt
     assert "copy_this_candidate_request_id" in prompt
     assert "source_to_bridge_premise_derivation_candidate_request:hGoodCovered" in prompt
+    assert "premise_target_source" in prompt
+    assert "proof_body_goal_conclusion" in prompt
+    assert "proof_body_goal_context" in prompt
+    assert "hExch" in prompt
+    assert "ENNReal.ofReal (1 - alpha)" in prompt
     assert "copy one of its" in prompt
     assert "formalizer_packet_validation_failed" in prompt
     assert "Typed validation repair policy is active" in prompt

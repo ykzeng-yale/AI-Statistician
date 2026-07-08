@@ -785,6 +785,7 @@ def test_adapter_bridge_goal_conclusion_target_feeds_premise_bridge(
     assert row["premise_target_status"] == "ADAPTER_PREMISE_TARGET_EXTRACTED"
     assert row["premise_target_matched_binder"] == f"(hGoodCovered : {conclusion})"
     assert row["premise_target_type"] == conclusion
+    assert row["premise_target_source"] == "proof_body_goal_conclusion"
     request = json.loads(
         Path(str(premise_manifest["candidate_requests_jsonl"]))
         .read_text(encoding="utf-8")
@@ -792,6 +793,7 @@ def test_adapter_bridge_goal_conclusion_target_feeds_premise_bridge(
     )
     assert request["premise_name"] == "hGoodCovered"
     assert request["premise_target_type"] == conclusion
+    assert request["premise_target_source"] == "proof_body_goal_conclusion"
 
 
 def test_adapter_bridge_consumes_exact_goal_shape_adapter_instantiation_queue(

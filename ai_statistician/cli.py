@@ -3239,11 +3239,15 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "proof_body_attempted",
         "proof_body_attempt_count",
         "proof_body_attempt_success",
+        "proof_body_goal_conclusion",
+        "source_to_bridge_premise_goal_conclusion",
         "adapter_candidate_requires_unproven_bridge_premises",
         "unavailable_import",
         "premise_name",
         "source_to_bridge_premise_name",
         "premise_target_type",
+        "premise_target_source",
+        "source_to_bridge_premise_target_type",
         "premise_derivation_kernel_verified",
         "source_to_bridge_premise_derivation_kernel_verified",
         "premise_candidate_artifact_path",
@@ -3350,6 +3354,8 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "verified_bridge_obligation_ids",
         "proof_body_attempt_summaries",
         "proof_body_goal_excerpt",
+        "proof_body_goal_binder_names",
+        "source_to_bridge_premise_goal_binder_names",
         "proof_body_signature_probe_artifact_paths",
         "source_theorem_exact_proof_body_gate_open_target_names",
         "exact_goal_shape_obligation_ids",
@@ -3419,10 +3425,20 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "source_to_bridge_grouped_premise_derivation_candidate_request",
         "source_to_bridge_premise_derivation_source_candidate_request",
         "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+        "proof_body_goal_context",
+        "source_to_bridge_premise_goal_context",
     ):
         value = row.get(key)
         if isinstance(value, Mapping):
-            compact[key] = _compact_source_to_bridge_premise_request(value)
+            if key in {
+                "source_to_bridge_premise_derivation_candidate_request",
+                "source_to_bridge_grouped_premise_derivation_candidate_request",
+                "source_to_bridge_premise_derivation_source_candidate_request",
+                "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+            }:
+                compact[key] = _compact_source_to_bridge_premise_request(value)
+            else:
+                compact[key] = _compact_runtime_learning_value(value)
     value = row.get("candidate_definition_request")
     if isinstance(value, Mapping):
         compact["candidate_definition_request"] = (
@@ -3735,6 +3751,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "proof_body_attempt_source",
         "proof_body_attempt_count",
         "proof_body_attempt_success",
+        "proof_body_goal_conclusion",
+        "source_to_bridge_premise_goal_conclusion",
         "adapter_candidate_requires_unproven_bridge_premises",
         "proof_body_gate_status",
         "proof_body_status",
@@ -3785,6 +3803,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "premise_name",
         "source_to_bridge_premise_name",
         "premise_target_type",
+        "premise_target_source",
+        "source_to_bridge_premise_target_type",
         "premise_derivation_kernel_verified",
         "source_to_bridge_premise_derivation_kernel_verified",
         "premise_candidate_artifact_path",
@@ -3894,6 +3914,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "recommended_proof_obligation_ids",
         "proof_body_attempt_summaries",
         "proof_body_goal_excerpt",
+        "proof_body_goal_binder_names",
+        "source_to_bridge_premise_goal_binder_names",
         "proof_body_signature_probe_artifact_paths",
         "source_theorem_exact_proof_body_gate_open_target_names",
         "exact_goal_shape_obligation_ids",
@@ -3959,6 +3981,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_grouped_premise_derivation_candidate_request",
         "source_to_bridge_premise_derivation_source_candidate_request",
         "source_to_bridge_grouped_premise_derivation_source_candidate_request",
+        "proof_body_goal_context",
+        "source_to_bridge_premise_goal_context",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
         "contract_counts",
         "provider_token_counts",
@@ -4002,6 +4026,18 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
                 for item in goal_excerpt[:8]
                 if str(item).strip()
             ]
+        if (
+            isinstance(goal_excerpt, list)
+            and any(str(item).strip() for item in goal_excerpt)
+            and "proof_body_signature_probe_artifact_rows" not in compact
+            and "n_proof_body_signature_probe_artifact_rows" not in compact
+            and "proof_body_signature_artifact_count" not in compact
+            and "source_theorem_proof_body_signature_artifact_count" not in compact
+            and "proof_body_signature_probe_artifact_path" not in compact
+            and "source_theorem_signature_probe_artifact_path" not in compact
+            and "signature_probe_artifact_path" not in compact
+        ):
+            compact["proof_body_signature_probe_artifact_rows"] = 1
         lean_multi_attempt = live_request.get("lean_multi_attempt", {})
         if (
             isinstance(lean_multi_attempt, Mapping)
@@ -4054,6 +4090,8 @@ def _compact_source_to_bridge_premise_request(value: Mapping[str, object]) -> di
         "premise_name",
         "premise_names",
         "premise_target_type",
+        "premise_target_source",
+        "source_to_bridge_premise_target_type",
         "premise_candidate_declaration_name",
         "premise_candidate_declaration_names",
         "adapter_instantiation_group_id",
@@ -4067,6 +4105,12 @@ def _compact_source_to_bridge_premise_request(value: Mapping[str, object]) -> di
         "required_semantic_anchor_reference_names",
         "semantic_anchor_reference_gate",
         "candidate_contract",
+        "proof_body_goal_context",
+        "proof_body_goal_binder_names",
+        "proof_body_goal_conclusion",
+        "source_to_bridge_premise_goal_context",
+        "source_to_bridge_premise_goal_binder_names",
+        "source_to_bridge_premise_goal_conclusion",
         "forbidden_actions",
         "proof_evidence_status",
     )

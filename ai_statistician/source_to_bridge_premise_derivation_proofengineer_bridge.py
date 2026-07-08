@@ -97,6 +97,7 @@ class SourceToBridgePremiseDerivationCheckRow:
     premise_target_status: str
     premise_target_matched_binder: str
     premise_target_type: str
+    premise_target_source: str
     adapter_instantiation_group_id: str
     required_bridge_premise_names_for_shared_instantiation: tuple[str, ...]
     shared_adapter_instantiation_contract: str
@@ -546,6 +547,11 @@ def _premise_derivation_check_row(
         premise_name=premise_name,
     )
     premise_target_type = str(premise_target.get("premise_type", "") or "")
+    premise_target_source = str(
+        row.get("premise_target_source", "")
+        or row.get("source_to_bridge_premise_target_source", "")
+        or ("adapter_signature" if premise_target_type else "")
+    ).strip()
     adapter_instantiation_group_id = _adapter_instantiation_group_id(
         row=row,
         target_declaration=target_declaration,
@@ -799,6 +805,7 @@ def _premise_derivation_check_row(
             premise_target.get("matched_premise_binder", "") or ""
         ),
         premise_target_type=str(premise_target.get("premise_type", "") or ""),
+        premise_target_source=premise_target_source,
         adapter_instantiation_group_id=adapter_instantiation_group_id,
         required_bridge_premise_names_for_shared_instantiation=(
             required_bridge_premise_names_for_shared_instantiation
@@ -1499,6 +1506,14 @@ def _generated_premise_derivation_skeleton(
             + _sanitize_comment_text(str(premise_target["matched_premise_binder"])),
             "-- extracted premise target: "
             + _sanitize_comment_text(str(premise_target["premise_type"])),
+            "-- premise target source: "
+            + _sanitize_comment_text(
+                str(
+                    row.get("premise_target_source", "")
+                    or row.get("source_to_bridge_premise_target_source", "")
+                    or ("adapter_signature" if premise_target["premise_type"] else "")
+                )
+            ),
         ]
     )
     semantic_requirements = (
@@ -1785,19 +1800,20 @@ def _export_runtime_learning_rows(
                 ),
                 "adapter_signature_excerpt": list(row.adapter_signature_excerpt),
                 "premise_target_status": row.premise_target_status,
-        "premise_target_matched_binder": row.premise_target_matched_binder,
-        "premise_target_type": row.premise_target_type,
-        "adapter_instantiation_group_id": row.adapter_instantiation_group_id,
-        "required_bridge_premise_names_for_shared_instantiation": list(
-            row.required_bridge_premise_names_for_shared_instantiation
-        ),
-        "shared_adapter_instantiation_contract": (
-            row.shared_adapter_instantiation_contract
-        ),
-        "adapter_object_names_requiring_source_instantiation": list(
-            row.adapter_object_names_requiring_source_instantiation
-        ),
-        "premise_derivation_gap_kind": row.premise_derivation_gap_kind,
+                "premise_target_matched_binder": row.premise_target_matched_binder,
+                "premise_target_type": row.premise_target_type,
+                "premise_target_source": row.premise_target_source,
+                "adapter_instantiation_group_id": row.adapter_instantiation_group_id,
+                "required_bridge_premise_names_for_shared_instantiation": list(
+                    row.required_bridge_premise_names_for_shared_instantiation
+                ),
+                "shared_adapter_instantiation_contract": (
+                    row.shared_adapter_instantiation_contract
+                ),
+                "adapter_object_names_requiring_source_instantiation": list(
+                    row.adapter_object_names_requiring_source_instantiation
+                ),
+                "premise_derivation_gap_kind": row.premise_derivation_gap_kind,
                 "premise_derivation_gap_summary": row.premise_derivation_gap_summary,
                 "premise_semantic_dependency_status": (
                     row.premise_semantic_dependency_status
@@ -3306,6 +3322,10 @@ def _grouped_premise_derivation_candidate_request_rows(
                             "",
                         ),
                         "premise_target_type": request.get("premise_target_type", ""),
+                        "premise_target_source": request.get(
+                            "premise_target_source",
+                            "",
+                        ),
                         "candidate_request_id": request.get("candidate_request_id", ""),
                     }
                     for request in per_premise_requests
@@ -3495,6 +3515,7 @@ def _premise_derivation_candidate_request_row(
         "premise_target_status": row.premise_target_status,
         "premise_target_matched_binder": row.premise_target_matched_binder,
         "premise_target_type": row.premise_target_type,
+        "premise_target_source": row.premise_target_source,
         "adapter_instantiation_group_id": row.adapter_instantiation_group_id,
         "required_bridge_premise_names_for_shared_instantiation": list(
             row.required_bridge_premise_names_for_shared_instantiation
