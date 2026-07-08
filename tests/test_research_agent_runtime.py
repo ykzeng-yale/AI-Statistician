@@ -10039,6 +10039,19 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
         0
     ]["id"] == "formal_gap:source_to_bridge_premise_derivation"
     feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "critic_formalizer_proofengineer_repair_feedback"
+    )
+    assert feedback["failure_classification"] == (
+        "critic_requested_formalizer_proofengineer_repair"
+    )
+    assert feedback["previous_failure_classification"] == (
+        "critic_requested_theory_revision"
+    )
+    assert feedback["repair_owner_agent"] == "Formalizer/ProofEngineer/LeanProver"
+    assert feedback["proof_repair_required"] is True
+    assert feedback["reuse_critic_agenda_as_formalizer_work_orders"] is True
+    assert "Do not broaden this into a theory rewrite" in feedback["required_repair"]
     blocker_requests = feedback["formal_blocker_resource_requests"]
     assert blocker_requests[0]["source"] == "llm_formalizer_gap_taxonomy"
     assert blocker_requests[0]["blocker_kind"] == "formal_primitives"
@@ -10304,6 +10317,17 @@ def test_critic_packet_validation_failure_fail_closes_and_preserves_exact_semant
     )
 
     feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "critic_formalizer_proofengineer_repair_feedback"
+    )
+    assert feedback["failure_classification"] == (
+        "critic_requested_formalizer_proofengineer_repair"
+    )
+    assert feedback["previous_failure_classification"] == (
+        "critic_requested_theory_revision"
+    )
+    assert feedback["proof_repair_required"] is True
+    assert feedback["reuse_critic_agenda_as_formalizer_work_orders"] is True
     assert feedback["high_priority_agenda"][0]["id"] == (
         "formal_gap:source_theorem_exact_semantic_definition_repair"
     )

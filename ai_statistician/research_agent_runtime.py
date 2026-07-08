@@ -23115,8 +23115,38 @@ class CriticEvaluatorRuntimeSubsystem:
                 failure_classification="critic_requested_theory_revision",
             )
         if should_route_to_formalizer:
+            formalizer_repair_required = (
+                "Repair the Formalizer/ProofEngineer proof target using the "
+                "explicit CriticEvaluator formal-gap agenda, exact semantic-definition "
+                "work orders, source-to-bridge premise-derivation feedback, local "
+                "Lean/proof-state feedback, and formal blocker resource requests. "
+                "Do not broaden this into a theory rewrite unless a blocker explicitly "
+                "invalidates the theorem statement or assumptions. Do not claim proof "
+                "evidence unless AXLE/local Lean kernel verification closes the "
+                "intended claim."
+            )
+            formalizer_repair_feedback = dict(repair_feedback)
+            formalizer_repair_feedback.update(
+                {
+                    "feedback_type": (
+                        "critic_formalizer_proofengineer_repair_feedback"
+                    ),
+                    "failure_classification": (
+                        "critic_requested_formalizer_proofengineer_repair"
+                    ),
+                    "previous_failure_classification": str(
+                        repair_feedback.get("failure_classification", "")
+                        or ""
+                    ),
+                    "required_revision": formalizer_repair_required,
+                    "required_repair": formalizer_repair_required,
+                    "repair_owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                    "proof_repair_required": True,
+                    "reuse_critic_agenda_as_formalizer_work_orders": True,
+                }
+            )
             formalizer_context = dict(context)
-            formalizer_context["environment_feedback"] = repair_feedback
+            formalizer_context["environment_feedback"] = formalizer_repair_feedback
             formalizer_context["previous_theory_packet_id"] = str(
                 theory_packet.get("packet_id", "")
             )
@@ -23139,7 +23169,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 architect_context=formalizer_context,
             )
             formalizer_inputs = dict(formalizer_task.inputs)
-            formalizer_inputs["environment_feedback"] = repair_feedback
+            formalizer_inputs["environment_feedback"] = formalizer_repair_feedback
             formalizer_task = replace(
                 formalizer_task,
                 task_id=(
