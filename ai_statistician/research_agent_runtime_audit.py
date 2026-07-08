@@ -1389,6 +1389,12 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     max_routable_work_order_rows = 0
     failed_rows = 0
     failure_repair_seed_rows = 0
+    failure_copy_ready_rows = 0
+    failure_exact_semantic_copy_ready_rows = 0
+    failure_copy_contract_satisfied_rows = 0
+    failure_copy_contract_unsatisfied_rows = 0
+    failure_repair_seed_invalid_rows = 0
+    max_failure_copy_routable_work_order_rows = 0
     manifest_paths: list[str] = []
     work_order_rows_paths: list[str] = []
     routable_work_order_rows_paths: list[str] = []
@@ -1397,6 +1403,7 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     target_lanes: list[str] = []
     row_kinds: list[str] = []
     failure_required_target_lanes: list[str] = []
+    failure_copy_target_lanes: list[str] = []
     failure_types: list[str] = []
 
     def _row_field(row: Mapping[str, Any], key: str, default: Any = None) -> Any:
@@ -1498,6 +1505,83 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
             and bool(repair_seed.get("blocks", []) or [])
         ):
             failure_repair_seed_rows += 1
+        copy_summary = _row_field(
+            row,
+            "pseudo_formal_failure_copy_contract_summary",
+            {},
+        )
+        if not isinstance(copy_summary, Mapping):
+            copy_summary = {}
+        copy_contract = _row_field(
+            row,
+            "pseudo_formal_failure_validator_ready_copy_contract",
+            {},
+        )
+        if not isinstance(copy_contract, Mapping):
+            copy_contract = {}
+        copy_ready = _safe_bool(
+            _row_field(row, "pseudo_formal_failure_copy_ready", False)
+        ) or _safe_bool(
+            copy_summary.get("validator_ready_copy_contract_satisfied", False)
+        )
+        exact_copy_ready = copy_ready and (
+            _safe_bool(
+                _row_field(
+                    row,
+                    "pseudo_formal_failure_copy_exact_semantic_definition_ready",
+                    False,
+                )
+            )
+            or _safe_bool(
+                copy_summary.get(
+                    "exact_semantic_definition_lane_ready_if_copied",
+                    False,
+                )
+            )
+        )
+        copy_contract_present = _safe_bool(
+            copy_summary.get("validator_ready_copy_contract_present", False)
+        ) or bool(copy_contract)
+        if result_status == "FAILED" or failure_type:
+            if copy_ready:
+                failure_copy_ready_rows += 1
+            if exact_copy_ready:
+                failure_exact_semantic_copy_ready_rows += 1
+            if copy_contract_present:
+                if copy_ready:
+                    failure_copy_contract_satisfied_rows += 1
+                else:
+                    failure_copy_contract_unsatisfied_rows += 1
+            if (
+                isinstance(repair_seed, Mapping)
+                and bool(repair_seed.get("blocks", []) or [])
+                and copy_summary
+                and not _safe_bool(copy_summary.get("repair_seed_valid", False))
+            ):
+                failure_repair_seed_invalid_rows += 1
+            max_failure_copy_routable_work_order_rows = max(
+                max_failure_copy_routable_work_order_rows,
+                _safe_int(
+                    copy_summary.get(
+                        "n_routable_work_order_rows_if_copied",
+                        copy_summary.get(
+                            "contract_routable_work_order_rows_if_copied",
+                            0,
+                        ),
+                    )
+                ),
+            )
+            failure_copy_target_lanes.extend(
+                _compact_string_list(
+                    copy_summary.get(
+                        "routable_target_lanes_if_copied",
+                        copy_summary.get(
+                            "contract_routable_target_lanes_if_copied",
+                            [],
+                        ),
+                    )
+                )
+            )
         failure_required_target_lanes.extend(
             _compact_string_list(
                 _row_field(
@@ -1546,8 +1630,26 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": (
             failure_repair_seed_rows
         ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows": (
+            failure_copy_ready_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows": (
+            failure_exact_semantic_copy_ready_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": (
+            failure_copy_contract_satisfied_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": (
+            failure_copy_contract_unsatisfied_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": (
+            failure_repair_seed_invalid_rows
+        ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": (
             max_routable_work_order_rows
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_failure_copy_routable_work_order_rows": (
+            max_failure_copy_routable_work_order_rows
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_manifest_paths": (
             _compact_string_list(manifest_paths)
@@ -1572,6 +1674,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": (
             _compact_string_list(failure_required_target_lanes)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes": (
+            _compact_string_list(failure_copy_target_lanes)
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_types": (
             _compact_string_list(failure_types)
@@ -4894,9 +4999,49 @@ def audit_research_agent_runtime(
                 "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed_rows"
             ]
         ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows"
+            ]
+        ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows": int(
             runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
                 "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_routable_work_order_rows"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_failure_copy_routable_work_order_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_failure_copy_routable_work_order_rows"
             ]
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_manifest_paths": list(
@@ -4912,6 +5057,16 @@ def audit_research_agent_runtime(
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_row_kinds": list(
             runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
                 "runtime_formalizer_pseudo_formal_packet_component_gate_learning_row_kinds"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes"
             ]
         ),
         "runtime_pseudo_formal_block_routing_contract_audit_summary": (
@@ -18454,6 +18609,78 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_formalizer_pseudo_formal_component_learning_failed_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_repair_seed_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_copy_ready_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_exact_copy_ready_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_copy_satisfied_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_copy_unsatisfied_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_invalid_seed_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_copy_routable_rows = int(
+        payload.get(
+            "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_failure_copy_routable_work_order_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_required_lanes = (
+        _compact_string_list(
+            payload.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes",
+                [],
+            )
+        )
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_copy_lanes = (
+        _compact_string_list(
+            payload.get(
+                "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes",
+                [],
+            )
+        )
+    )
     runtime_formalizer_pseudo_formal_component_learning_consumed = (
         _safe_bool(
             payload.get(
@@ -18467,6 +18694,29 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and runtime_formalizer_pseudo_formal_component_learning_exact_lane_rows > 0
         and runtime_formalizer_pseudo_formal_component_learning_nonproof_rows > 0
         and runtime_formalizer_pseudo_formal_component_learning_consumed_rows > 0
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_requires_exact_copy = (
+        not runtime_formalizer_pseudo_formal_component_learning_failure_required_lanes
+        or "source_theorem_exact_semantic_definition"
+        in runtime_formalizer_pseudo_formal_component_learning_failure_required_lanes
+    )
+    runtime_formalizer_pseudo_formal_component_learning_failure_copy_ready = (
+        runtime_formalizer_pseudo_formal_component_learning_failed_rows <= 0
+        or (
+            runtime_formalizer_pseudo_formal_component_learning_failure_repair_seed_rows
+            >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
+            and runtime_formalizer_pseudo_formal_component_learning_failure_copy_ready_rows
+            >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
+            and runtime_formalizer_pseudo_formal_component_learning_failure_copy_satisfied_rows
+            >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
+            and runtime_formalizer_pseudo_formal_component_learning_failure_invalid_seed_rows
+            == 0
+            and (
+                not runtime_formalizer_pseudo_formal_component_learning_failure_requires_exact_copy
+                or runtime_formalizer_pseudo_formal_component_learning_failure_exact_copy_ready_rows
+                >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
+            )
+        )
     )
     attached_formalizer_pseudo_formal_live_gate_passed = (
         _safe_bool(
@@ -22941,6 +23191,62 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "attachment_gate_recomputed=true, and "
                     "runtime_formalizer_pseudo_formal_packet_component_gate_learning_consumed=true "
                     "with consumed_rows>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_pseudo_formal_packet_failure_repair_copy_ready",
+            runtime_formalizer_pseudo_formal_component_learning_failure_copy_ready,
+            (
+                "runtime_failure_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failed_rows} "
+                "runtime_failure_repair_seed_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_repair_seed_rows} "
+                "runtime_failure_copy_ready_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_ready_rows} "
+                "runtime_failure_exact_semantic_copy_ready_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_exact_copy_ready_rows} "
+                "runtime_failure_copy_contract_satisfied_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_satisfied_rows} "
+                "runtime_failure_copy_contract_unsatisfied_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_unsatisfied_rows} "
+                "runtime_failure_repair_seed_invalid_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_invalid_seed_rows} "
+                "runtime_failure_copy_routable_work_order_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_routable_rows} "
+                "runtime_failure_required_target_lanes="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_required_lanes} "
+                "runtime_failure_copy_target_lanes="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_lanes} "
+                "runtime_failure_requires_exact_semantic_copy="
+                f"{runtime_formalizer_pseudo_formal_component_learning_failure_requires_exact_copy}"
+            ),
+            (
+                "Formalizer PF/BV component-gate failure memory is not "
+                "runtime-recomputed as validator-copy-ready for exact-semantic "
+                "repair; rerunning Formalizer could copy a malformed seed or "
+                "continue invalid PF/BV packet retries instead of producing "
+                "source-anchored, lane-routable repair rows"
+            ),
+            scope="component_calibration",
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Repair or rerun the attached Formalizer PF/BV packet gate "
+                    "so every failed component-gate learning row has a "
+                    "validator_ready_copy_contract whose concrete repair seed "
+                    "passes runtime recomputation and routes to exact semantic "
+                    "definition work orders."
+                ),
+                success_metric=(
+                    "failed_rows=0 or, for every failed PF/BV component-gate "
+                    "learning row, failure_repair_seed_rows>=failed_rows, "
+                    "failure_copy_ready_rows>=failed_rows, "
+                    "failure_copy_contract_satisfied_rows>=failed_rows, "
+                    "failure_exact_semantic_copy_ready_rows>=failed_rows when "
+                    "exact semantic definition is required, and "
+                    "failure_repair_seed_invalid_rows=0"
                 ),
             ),
         ),

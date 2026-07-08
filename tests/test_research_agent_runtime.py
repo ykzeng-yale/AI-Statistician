@@ -91349,6 +91349,178 @@ def test_runtime_pf_failure_copy_contract_rejects_malformed_seed() -> None:
     assert "Runtime recomputed the copied seed as copy_contract_satisfied" not in prompt
 
 
+def test_runtime_audit_summarizes_pf_failure_copy_ready_repair_memory() -> None:
+    summary = audit_module._runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
+        learning_rows=[
+            {
+                "learning_task": (
+                    "formalizer_pseudo_formal_packet_component_gate_feedback"
+                ),
+                "source_component_gate": (
+                    "formalizer_pseudo_formal_packet_component_gate"
+                ),
+                "result_status": "FAILED",
+                "failure_type": "PacketValidationError",
+                "pseudo_formal_failure_repair_seed_available": True,
+                "pseudo_formal_failure_required_target_lanes": [
+                    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                ],
+                "pseudo_formal_failure_copy_ready": True,
+                "pseudo_formal_failure_copy_exact_semantic_definition_ready": True,
+                "pseudo_formal_failure_copy_contract_summary": {
+                    "validator_ready_copy_contract_present": True,
+                    "repair_seed_valid": True,
+                    "validator_ready_copy_contract_satisfied": True,
+                    "exact_semantic_definition_lane_ready_if_copied": True,
+                    "n_routable_work_order_rows_if_copied": 2,
+                    "routable_target_lanes_if_copied": [
+                        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+                        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                    ],
+                },
+            },
+            {
+                "learning_task": (
+                    "formalizer_pseudo_formal_packet_component_gate_feedback"
+                ),
+                "source_component_gate": (
+                    "formalizer_pseudo_formal_packet_component_gate"
+                ),
+                "result_status": "FAILED",
+                "failure_type": "PacketValidationError",
+                "pseudo_formal_failure_repair_seed_available": True,
+                "pseudo_formal_failure_validator_ready_copy_contract": {
+                    "copy_destination_path": "pseudo_formal_proof_packets"
+                },
+                "pseudo_formal_failure_copy_contract_summary": {
+                    "validator_ready_copy_contract_present": True,
+                    "repair_seed_valid": False,
+                    "validator_ready_copy_contract_satisfied": False,
+                    "exact_semantic_definition_lane_ready_if_copied": False,
+                    "n_routable_work_order_rows_if_copied": 0,
+                    "routable_target_lanes_if_copied": [],
+                },
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed": {
+                    "blocks": [{"block_id": "bad"}]
+                },
+            },
+        ]
+    )
+
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows"
+        ]
+        == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "runtime_formalizer_pseudo_formal_packet_component_gate_learning_max_failure_copy_routable_work_order_rows"
+        ]
+        == 2
+    )
+    assert summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes"
+    ] == [
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    ]
+
+
+def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_gap() -> None:
+    payload = {
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": 1,
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["formalizer_pseudo_formal_packet_failure_repair_copy_ready"]
+
+    assert row["passed"] is False
+    assert row["scope"] == "component_calibration"
+    assert "runtime_failure_copy_ready_rows=0" in row["evidence"]
+    assert "runtime_failure_repair_seed_invalid_rows=1" in row["evidence"]
+    assert "validator-copy-ready" in row["blocker"]
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+    routing = {row["requirement_id"]: row for row in routing_rows}
+    routing_row = routing[
+        "formalizer_pseudo_formal_packet_failure_repair_copy_ready"
+    ]
+    assert routing_row["next_owner_subsystem"] == "FormalizationEvaluator"
+    assert "validator_ready_copy_contract" in routing_row["target_behavior"]
+    assert "failure_repair_seed_invalid_rows=0" in routing_row["success_metric"]
+    assert (
+        routing_row["proof_evidence_status"]
+        == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> None:
+    payload = {
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": 0,
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["formalizer_pseudo_formal_packet_failure_repair_copy_ready"]
+
+    assert row["passed"] is True
+    assert row["blocker"] == ""
+    assert "runtime_failure_exact_semantic_copy_ready_rows=1" in row["evidence"]
+
+
 def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
