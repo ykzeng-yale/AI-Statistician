@@ -32680,6 +32680,12 @@ def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> N
     assert "formalization_handoff" in prompt
     assert "equation_chain" in prompt
     assert "at least three derivation steps" in prompt
+    assert "validator_required_key_checklist" in prompt
+    assert "top_level_required_fields" in prompt
+    assert "theorem_cards[0].informal_statement" in prompt
+    assert "theorem_cards[0].proof_strategy" in prompt
+    assert "proof_plan" in prompt
+    assert "simulation_ademp_spec" in prompt
     assert "formal_verification_policy" in prompt
     assert "simulation_first" in prompt
     assert "not formally verified" in prompt
@@ -32782,6 +32788,98 @@ def test_theory_developer_prompt_preserves_theory_trace_repair_contract() -> Non
     assert "structured TheoryDerivationPacket" in prompt
     assert "THEORY_TRACE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
     assert "THEORY_DERIVATION_TRACE_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
+    assert len(prompt) < 30000
+
+
+def test_theory_developer_prompt_preserves_exact_semantic_blocker_artifacts() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate_path = (
+        "runs/main_worker_formalizer_after_exact_artifact_instruction_live/"
+        "runtime_source_theorem_promotion_candidate_artifacts/"
+        + ("split_conformal_exact_semantic_candidate_" * 8)
+        + "good_rank_event.lean"
+    )
+    definition_only_path = (
+        "runs/main_worker_formalizer_after_exact_artifact_instruction_live/"
+        "runtime_source_theorem_exact_semantic_definition_authoring/"
+        + ("split_conformal_definition_only_candidate_" * 8)
+        + "good_rank_event.lean"
+    )
+    prompt = build_theory_developer_prompt(
+        question,
+        architect_context={
+            "environment_feedback": {
+                "feedback_source": "ArchitectCoordinator",
+                "feedback_type": "theory_derivation_trace_feedback",
+                "formal_blocker_resource_requests": [
+                    {
+                        "work_order_id": (
+                            "source_theorem_exact_semantic_definition_work_order:"
+                            "good_rank_event"
+                        ),
+                        "placeholder_symbol": "good_rank_event",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "target_lane": "source_theorem_exact_semantic_definition",
+                        "request_type": "exact_semantic_definition_repair",
+                        "candidate_artifact_path": candidate_path,
+                        "definition_only_candidate_artifact_path": definition_only_path,
+                        "proof_body_gate_status": (
+                            "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                        ),
+                        "proof_evidence_status": (
+                            "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+                "source_theorem_exact_semantic_definition_repair_feedback": {
+                    "trigger": "EXACT_SEMANTIC_DEFINITION_REPAIR_REQUIRED",
+                    "diagnostics": [
+                        {
+                            "placeholder_symbol": "good_rank_event",
+                            "candidate_artifact_path": candidate_path,
+                            "definition_only_candidate_artifact_path": (
+                                definition_only_path
+                            ),
+                            "proof_body_gate_status": (
+                                "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
+                            ),
+                        }
+                    ],
+                    "proof_evidence_status": (
+                        "EXACT_SEMANTIC_DEFINITION_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                "runtime_exact_semantic_definition_work_order_feedback": {
+                    "work_orders": [
+                        {
+                            "placeholder_symbol": "good_rank_event",
+                            "target_lane": "source_theorem_exact_semantic_definition",
+                            "candidate_artifact_path": candidate_path,
+                            "definition_only_candidate_artifact_path": (
+                                definition_only_path
+                            ),
+                            "proof_evidence_status": (
+                                "EXACT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
+                            ),
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    assert "downstream_exact_semantic_formalizer_instruction" in prompt
+    assert "ACTIVE_DOWNSTREAM_FORMALIZER_CONSTRAINT" in prompt
+    assert "formal_blocker_resource_requests" in prompt
+    assert "source_theorem_exact_semantic_definition_repair_feedback" in prompt
+    assert "runtime_exact_semantic_definition_work_order_feedback" in prompt
+    assert "good_rank_event" in prompt
+    assert candidate_path in prompt
+    assert definition_only_path in prompt
+    assert "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in prompt
+    assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
+    assert "do not open source-theorem proof-body search" in prompt
+    assert "source theorem proof" in prompt
     assert len(prompt) < 30000
 
 

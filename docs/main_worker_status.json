@@ -1,11 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T08:55:04Z",
+  "updated_at": "2026-07-08T09:20:47Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Formalizer mode-specific instructions now consume the hydrated exact-semantic formal_blocker_resource_requests, explicitly tell Formalizer/ProofEngineer to inspect/review the recovered definition_only_candidate_artifact_path/candidate_artifact_path rows, emit exact semantic-definition repair/review targets or blockers that preserve the artifact path, and keep exact proof-body search closed while proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY. Direct replay of runs/main_worker_critic_after_agenda_candidate_review_live/runtime_pending_next_task.json now shows both full recovered .lean paths and the new non-proof exact-semantic artifact action contract in the prompt.",
+  "latest_main_worker_patch": "TheoryDeveloper prompt compaction now preserves downstream exact-semantic Formalizer blocker artifacts when Architect reroutes upstream: formal_blocker_resource_requests carry candidate_artifact_path, definition_only_candidate_artifact_path, placeholder symbols, proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY, and non-proof evidence boundaries into the bounded prompt. TheoryDeveloper also now receives a validator_required_key_checklist plus JSON-repair priority instructions for all top-level required fields, theorem_cards[0].informal_statement/proof_strategy, proof_plan, simulation_ademp_spec, and the LLM-not-proof boundary.",
+  "latest_main_worker_live_probe": "runs/main_worker_theorydeveloper_exact_semantic_prompt_live/research_agent_runtime_manifest.json exercised Architect resume review only and routed back to TheoryDeveloper, scorecard=80/104 ready=false. runs/main_worker_theorydeveloper_exact_semantic_prompt_direct_live/research_agent_runtime_manifest.json directly exercised TheoryDeveloper with the exact-semantic prompt; blocker context was visible, but live output failed local validation after truncation/repair on theorem card schema keys. runs/main_worker_theorydeveloper_schema_key_retry_live/research_agent_runtime_manifest.json then moved past theorem-card key drift but still failed validation by omitting proof_plan/simulation_ademp_spec in repair attempts. The current patch addresses that next contract gap; no source theorem proof evidence is claimed.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",

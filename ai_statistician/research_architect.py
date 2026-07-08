@@ -167,6 +167,7 @@ class LLMTheoryDeveloperAgent:
             validate_packet=validate_theory_packet,
             validation_label="LLM TheoryDeveloper packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=_theory_developer_json_repair_context,
         )
 
 
@@ -282,6 +283,10 @@ def build_theory_developer_prompt(
     *,
     architect_context: Mapping[str, Any],
 ) -> str:
+    compact_context = _compact_architect_context_for_prompt(architect_context)
+    exact_semantic_instruction = (
+        _theory_developer_downstream_exact_semantic_instruction(compact_context)
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -294,8 +299,9 @@ def build_theory_developer_prompt(
             "purpose": "derive the core statistical object, procedure, theorem goals, and proof obligations without replaying full retrieval artifacts",
             "do_not_expand_full_retrieval_or_architect_json": True,
         },
-        "architect_context": _compact_architect_context_for_prompt(architect_context),
+        "architect_context": compact_context,
         "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
+        "validator_required_key_checklist": THEORY_DEVELOPER_VALIDATOR_CHECKLIST,
         "concise_output_budget": {
             "min_derivation_steps": THEORY_MIN_DERIVATION_STEPS,
             "max_derivation_steps": 5,
@@ -320,13 +326,21 @@ def build_theory_developer_prompt(
         },
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    if exact_semantic_instruction:
+        payload["downstream_exact_semantic_formalizer_instruction"] = (
+            exact_semantic_instruction
+        )
     return (
         "Derive statistical theory artifacts for the Architect loop. Return ONLY "
         "JSON matching required_output_contract. Do not classify and stop. Do not "
         "claim Lean/kernel proof evidence. Build a compact derivation trace that a "
         "Formalizer/ProofEngineer can consume: name assumptions, write a short "
         "equation chain, expose lemma dependencies, and state exactly which semantic "
-        "alignment constraints must survive formalization. This is a focused first-pass "
+        "alignment constraints must survive formalization. Before returning, check "
+        "validator_required_key_checklist exactly, including "
+        "all top_level_required_fields, theorem_cards[0].informal_statement, "
+        "theorem_cards[0].proof_strategy, proof_plan, and simulation_ademp_spec. "
+        "This is a focused first-pass "
         "discovery packet: exactly one primary procedure, one theorem card, one lemma "
         "card, one formalization request, one critic finding, and one next action, "
         "but at least three derivation steps and two equation-chain rows. Keep the "
@@ -334,6 +348,124 @@ def build_theory_developer_prompt(
         "completeness for detail.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
+
+
+THEORY_DEVELOPER_VALIDATOR_CHECKLIST: dict[str, Any] = {
+    "top_level_required_fields": [
+        "problem_card",
+        "theory_derivation_packet",
+        "estimator_specs",
+        "theorem_cards",
+        "lemma_cards",
+        "proof_plan",
+        "formalization_requests",
+        "simulation_ademp_spec",
+        "critic_findings",
+        "next_actions",
+    ],
+    "problem_card": [
+        "observed_data",
+        "dgp",
+        "estimand",
+        "assumptions",
+        "desired_theorem_type",
+    ],
+    "theory_derivation_packet": [
+        "derivation_steps[0..2].id",
+        "derivation_steps[0..2].claim",
+        "derivation_steps[0..2].equation_or_argument",
+        "equation_chain[0..1].lhs",
+        "equation_chain[0..1].rhs",
+        "equation_chain[0..1].justification",
+        "assumption_ledger[0].assumption",
+        "assumption_ledger[0].used_in",
+        "formalization_handoff.semantic_alignment_constraints",
+    ],
+    "theorem_cards[0]": [
+        "id",
+        "informal_statement",
+        "assumptions_used",
+        "conclusion",
+        "rate_or_limit_law",
+        "proof_strategy",
+        "semantic_risks",
+    ],
+    "required_arrays": [
+        "estimator_specs",
+        "theorem_cards",
+        "lemma_cards",
+        "formalization_requests",
+        "critic_findings",
+        "next_actions",
+    ],
+    "proof_plan": [
+        "proof_dependency_dag",
+        "required_primitives",
+        "acceptable_strengthening",
+        "unacceptable_changes",
+    ],
+    "simulation_ademp_spec": [
+        "aim",
+        "dgps",
+        "methods",
+        "performance_measures",
+        "stress_tests",
+        "expected_theoretical_behavior",
+    ],
+    "evidence_boundary": [
+        f"proof_evidence_status={THEORY_DERIVATION_NOT_PROOF_EVIDENCE}",
+        "kernel_verified=false",
+    ],
+}
+
+
+def _theory_developer_json_repair_context(
+    *,
+    original_user_prompt: str,
+    bad_response: str,
+    errors: list[str],
+    validation_label: str,
+    truncation_detected: bool,
+) -> dict[str, Any]:
+    del original_user_prompt, bad_response, validation_label
+    return {
+        "subsystem": "TheoryDeveloper",
+        "truncation_detected": bool(truncation_detected),
+        "validator_required_key_checklist": THEORY_DEVELOPER_VALIDATOR_CHECKLIST,
+        "last_validation_errors": [str(error) for error in errors[:8]],
+        "repair_prompt_priority_instructions": [
+            (
+                "The corrected JSON must include every field listed in "
+                "top_level_required_fields exactly; do not omit proof_plan or "
+                "simulation_ademp_spec in compact mode, and keep both as "
+                "non-empty objects with short scalar/list values."
+            ),
+            (
+                "Use exact required key names from validator_required_key_checklist; "
+                "do not replace theorem_cards[0].informal_statement with statement "
+                "or theorem_cards[0].proof_strategy with proof_idea."
+            ),
+            (
+                "theorem_cards[0] must include id, informal_statement, "
+                "assumptions_used, conclusion, rate_or_limit_law, proof_strategy, "
+                "and semantic_risks."
+            ),
+            (
+                "theory_derivation_packet must include at least three "
+                "derivation_steps, two equation_chain rows with lhs/rhs/justification, "
+                "one assumption_ledger row, and formalization_handoff."
+            ),
+            (
+                "Use exactly one item for estimator_specs, theorem_cards, "
+                "lemma_cards, formalization_requests, critic_findings, and "
+                "next_actions."
+            ),
+            (
+                f"Preserve proof_evidence_status as {THEORY_DERIVATION_NOT_PROOF_EVIDENCE} "
+                "and set kernel_verified to false."
+            ),
+        ],
+    }
 
 
 def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[str, Any]:
@@ -637,6 +769,28 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         compact["theory_trace_downstream_alignment_contract"] = _compact_feedback_row(
             theory_alignment_contract
         )
+    formal_blocker_resource_requests = feedback.get("formal_blocker_resource_requests")
+    has_exact_semantic_blocker_rows = (
+        isinstance(formal_blocker_resource_requests, (list, tuple))
+        and bool(formal_blocker_resource_requests)
+    )
+    if has_exact_semantic_blocker_rows:
+        compact["formal_blocker_resource_requests"] = (
+            _compact_exact_semantic_feedback_rows(formal_blocker_resource_requests)
+        )
+    for exact_semantic_feedback_key in (
+        "source_theorem_exact_semantic_definition_repair_feedback",
+        "runtime_exact_semantic_definition_work_order_feedback",
+        "source_theorem_exact_semantic_definition_work_order_feedback",
+    ):
+        exact_semantic_feedback = feedback.get(exact_semantic_feedback_key)
+        if isinstance(exact_semantic_feedback, Mapping) and exact_semantic_feedback:
+            compact[exact_semantic_feedback_key] = (
+                _compact_exact_semantic_feedback_mapping(
+                    exact_semantic_feedback,
+                    include_row_containers=not has_exact_semantic_blocker_rows,
+                )
+            )
     additional_feedback = feedback.get("additional_runtime_feedback", [])
     if isinstance(additional_feedback, list) and additional_feedback:
         compact["additional_runtime_feedback"] = [
@@ -656,11 +810,12 @@ def _compact_runtime_learning_memory_for_prompt(memory: Mapping[str, Any]) -> di
         "source_paths": list(memory.get("source_paths", []) or [])[:5],
         "counts": {
             "rows": len(rows),
+            "rows_prompted": min(len(rows), 8),
             "rows_loaded": memory.get("counts", {}).get("rows_loaded", len(rows))
             if isinstance(memory.get("counts", {}), Mapping)
             else len(rows),
         },
-        "rows": [_compact_learning_memory_row(row) for row in rows[:10]],
+        "rows": [_compact_learning_memory_row(row) for row in rows[:8]],
         "boundary": _truncate_text(memory.get("boundary", ""), 500),
     }
 
@@ -756,8 +911,17 @@ def _compact_learning_memory_input_summary(value: Any) -> dict[str, Any]:
         "diagnostics",
         "proof_body_goal_excerpt",
         "proof_body_attempt_summaries",
+        "proof_body_gate_status",
         "formalization_counts",
         "retrieval_counts",
+        "candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+        "source_candidate_artifact_path",
+        "adapter_candidate_artifact_path",
+        "adapter_candidate_artifact_paths",
+        "premise_candidate_artifact_path",
+        "proof_body_candidate_artifact_path",
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
         "n_theory_derivation_packets",
         "n_theory_derivation_packets_with_contract",
         "n_theory_derivation_packets_with_min_derivation_steps",
@@ -783,7 +947,16 @@ def _compact_learning_memory_input_summary(value: Any) -> dict[str, Any]:
         if key not in value or value[key] in (None, "", [], {}):
             continue
         child = value[key]
-        if isinstance(child, list):
+        if _prompt_key_is_path_like(key):
+            compact[key] = _compact_prompt_value_for_key(
+                key,
+                child,
+                list_limit=8,
+                mapping_limit=8,
+                text_limit=320,
+                path_limit=1024,
+            )
+        elif isinstance(child, list):
             limit = (
                 4
                 if key
@@ -820,24 +993,252 @@ def _compact_learning_memory_value(value: Any) -> Any:
     return _truncate_text(value, 320)
 
 
+_EXACT_SEMANTIC_FEEDBACK_MAPPING_KEYS = (
+    "artifact_kind",
+    "feedback_type",
+    "trigger",
+    "question_id",
+    "source_task_id",
+    "source_owner_subsystem",
+    "target_consumer_subsystem",
+    "target_theorem_name",
+    "target_lean_declaration",
+    "failure_classification",
+    "required_repair",
+    "required_revision",
+    "acceptance_gate",
+    "proof_body_gate_status",
+    "proof_body_goal_reached",
+    "source_theorem_kernel_verified",
+    "source_theorem_kernel_evidence_eligible",
+    "proof_evidence_status",
+    "proof_evidence_boundary",
+    "boundary",
+)
+
+
+_EXACT_SEMANTIC_FEEDBACK_ROW_KEYS = (
+    "work_order_id",
+    "repair_feedback_id",
+    "diagnostic_id",
+    "placeholder_symbol",
+    "semantic_primitive_id",
+    "target_theorem_name",
+    "target_lean_declaration",
+    "target_ids",
+    "target_lane",
+    "lane",
+    "action_type",
+    "request_type",
+    "replacement_strategy",
+    "search_targets",
+    "semantic_primitives",
+    "semantic_primitive_requirements",
+    "failure_classification",
+    "required_repair",
+    "required_revision",
+    "runtime_queue_status",
+    "verification_status",
+    "proof_body_gate_status",
+    "proof_body_goal_reached",
+    "candidate_artifact_path",
+    "definition_only_candidate_artifact_path",
+    "source_candidate_artifact_path",
+    "adapter_candidate_artifact_path",
+    "adapter_candidate_artifact_paths",
+    "premise_candidate_artifact_path",
+    "proof_body_candidate_artifact_path",
+    "source_theorem_exact_semantic_definition_typechecked_candidate",
+    "source_theorem_kernel_verified",
+    "source_theorem_kernel_evidence_eligible",
+    "proof_evidence_status",
+    "boundary",
+)
+
+
+_EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS = (
+    "formal_blocker_resource_requests",
+    "diagnostics",
+    "work_orders",
+    "rows",
+    "source_theorem_exact_semantic_definition_typechecked_candidates",
+)
+
+
+def _theory_developer_downstream_exact_semantic_instruction(
+    compact_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    environment_feedback = compact_context.get("environment_feedback")
+    if not isinstance(environment_feedback, Mapping):
+        return {}
+    if not _contains_exact_semantic_feedback(environment_feedback):
+        return {}
+    return {
+        "status": "ACTIVE_DOWNSTREAM_FORMALIZER_CONSTRAINT",
+        "required_behavior": (
+            "When refreshing theory_derivation_packet, theorem_cards, and "
+            "formalization_handoff, preserve exact source semantic primitive "
+            "names, placeholder symbols, target theorem names, "
+            "candidate_artifact_path/definition_only_candidate_artifact_path, "
+            "and proof_body_gate_status from architect_context.environment_feedback."
+        ),
+        "proof_body_gate": (
+            "If proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY, "
+            "do not open source-theorem proof-body search. Route the next handoff "
+            "to Formalizer/ProofEngineer exact semantic-definition review or repair."
+        ),
+        "proof_boundary": (
+            "Rows tagged FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE or "
+            "*_NOT_PROOF_EVIDENCE are blocker/review context only; do not describe "
+            "them as Lean proof, source theorem proof, or kernel evidence."
+        ),
+    }
+
+
+def _contains_exact_semantic_feedback(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            key_text = str(key)
+            if "source_theorem_exact_semantic_definition" in key_text:
+                return True
+            if _contains_exact_semantic_feedback(child):
+                return True
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(_contains_exact_semantic_feedback(child) for child in value[:12])
+    if isinstance(value, str):
+        return (
+            "source_theorem_exact_semantic_definition" in value
+            or "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in value
+        )
+    return False
+
+
+def _prompt_key_is_path_like(key: Any) -> bool:
+    key_text = str(key).lower()
+    return (
+        key_text.endswith("_path")
+        or key_text.endswith("_paths")
+        or key_text.endswith("_jsonl")
+        or key_text.endswith("_manifest")
+        or "artifact_path" in key_text
+    )
+
+
+def _compact_prompt_value_for_key(
+    key: Any,
+    value: Any,
+    *,
+    list_limit: int = 8,
+    mapping_limit: int = 10,
+    text_limit: int = 320,
+    path_limit: int = 1024,
+) -> Any:
+    string_limit = path_limit if _prompt_key_is_path_like(key) else text_limit
+    if isinstance(value, str):
+        return _truncate_text(value, string_limit)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    if isinstance(value, list):
+        return [
+            _compact_prompt_value_for_key(
+                key,
+                item,
+                list_limit=list_limit,
+                mapping_limit=mapping_limit,
+                text_limit=text_limit,
+                path_limit=path_limit,
+            )
+            for item in value[:list_limit]
+        ]
+    if isinstance(value, Mapping):
+        return {
+            str(child_key): _compact_prompt_value_for_key(
+                child_key,
+                child_value,
+                list_limit=list_limit,
+                mapping_limit=mapping_limit,
+                text_limit=text_limit,
+                path_limit=path_limit,
+            )
+            for child_key, child_value in list(value.items())[:mapping_limit]
+            if child_value not in (None, "", [], {})
+        }
+    return _truncate_text(value, string_limit)
+
+
+def _compact_exact_semantic_feedback_mapping(
+    value: Any,
+    *,
+    include_row_containers: bool = True,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    compact: dict[str, Any] = {}
+    for key in _EXACT_SEMANTIC_FEEDBACK_MAPPING_KEYS:
+        if value.get(key) not in (None, "", [], {}):
+            compact[key] = _compact_prompt_value_for_key(key, value.get(key))
+    if include_row_containers:
+        for key in _EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS:
+            rows = value.get(key)
+            if isinstance(rows, (list, tuple)) and rows:
+                compact[key] = _compact_exact_semantic_feedback_rows(rows)
+            elif isinstance(rows, Mapping) and rows:
+                compact[key] = _compact_exact_semantic_feedback_row(rows)
+    else:
+        for key in _EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS:
+            rows = value.get(key)
+            if isinstance(rows, (list, tuple)) and rows:
+                compact[f"n_{key}"] = len(rows)
+            elif isinstance(rows, Mapping) and rows:
+                compact[f"{key}_present"] = True
+    return {
+        key: row_value
+        for key, row_value in compact.items()
+        if row_value not in (None, "", [], {})
+    }
+
+
+def _compact_exact_semantic_feedback_rows(rows: Any) -> list[dict[str, Any]]:
+    if not isinstance(rows, (list, tuple)):
+        return []
+    return [_compact_exact_semantic_feedback_row(row) for row in list(rows)[:6]]
+
+
+def _compact_exact_semantic_feedback_row(row: Any) -> dict[str, Any]:
+    if not isinstance(row, Mapping):
+        return {"summary": _truncate_text(row, 240)}
+    compact: dict[str, Any] = {}
+    for key in _EXACT_SEMANTIC_FEEDBACK_ROW_KEYS:
+        if row.get(key) not in (None, "", [], {}):
+            compact[key] = _compact_prompt_value_for_key(key, row.get(key))
+    for key, value in row.items():
+        key_text = str(key)
+        if key_text in compact or value in (None, "", [], {}):
+            continue
+        if _prompt_key_is_path_like(key_text) or (
+            "source_theorem_exact_semantic_definition" in key_text
+        ):
+            compact[key_text] = _compact_prompt_value_for_key(key_text, value)
+    return compact
+
+
 def _compact_feedback_row(row: Any) -> dict[str, Any]:
     if not isinstance(row, Mapping):
         return {"summary": _truncate_text(row, 240)}
     compact: dict[str, Any] = {}
     for key, value in row.items():
-        if isinstance(value, str):
-            compact[str(key)] = _truncate_text(value, 320)
-        elif isinstance(value, (int, float, bool)) or value is None:
-            compact[str(key)] = value
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            compact[str(key)] = _compact_prompt_value_for_key(key, value)
         elif isinstance(value, list):
             compact[str(key)] = [
-                _compact_learning_memory_value(item)
+                _compact_prompt_value_for_key(key, item)
                 for item in value[:8]
             ]
         elif isinstance(value, Mapping):
             compact[str(key)] = {
-                str(k): _compact_learning_memory_value(v)
-                for k, v in list(value.items())[:8]
+                str(k): _compact_prompt_value_for_key(k, v)
+                for k, v in list(value.items())[:10]
                 if v not in (None, "", [], {})
             }
     return compact
