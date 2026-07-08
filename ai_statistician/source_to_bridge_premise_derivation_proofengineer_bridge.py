@@ -1772,6 +1772,9 @@ def _generated_premise_derivation_skeleton(
     theorem_statement = _premise_derivation_theorem_statement(
         declaration_name=declaration_name,
         premise_target=premise_target,
+        premise_target_source=premise_target_source,
+        source_signature=source_context["source_theorem_signature"],
+        exact_source_binders=exact_source_binders,
     )
     block_comment = "\n".join(comment_lines)
     return (
@@ -1815,6 +1818,9 @@ def _premise_derivation_theorem_statement(
     *,
     declaration_name: str,
     premise_target: Mapping[str, Any],
+    premise_target_source: str = "",
+    source_signature: tuple[str, ...] = (),
+    exact_source_binders: tuple[dict[str, object], ...] = (),
 ) -> str:
     premise_type = str(premise_target.get("premise_type", "") or "").strip()
     context_lines = tuple(
@@ -1822,6 +1828,25 @@ def _premise_derivation_theorem_statement(
         for line in premise_target.get("context_lines", ()) or ()
         if str(line).strip()
     )
+    if (
+        premise_type
+        and str(premise_target_source or "").strip()
+        == "source_theorem_signature_conclusion"
+    ):
+        source_context = _source_signature_context_for_declaration(
+            source_signature,
+            declaration_name=declaration_name,
+        )
+        if not source_context:
+            source_context = _source_binder_context_for_declaration(
+                declaration_name=declaration_name,
+                exact_source_binders=exact_source_binders,
+            )
+        if source_context:
+            return (
+                f"{source_context} :\n"
+                f"    {premise_type} := by\n"
+            )
     if not premise_type or not context_lines:
         return (
             f"theorem {declaration_name} (source_hypotheses bridge_premise : Prop) "
@@ -1834,6 +1859,77 @@ def _premise_derivation_theorem_statement(
         f"{context} :\n"
         f"    {premise_type} := by\n"
     )
+
+
+def _source_signature_context_for_declaration(
+    source_signature: tuple[str, ...],
+    *,
+    declaration_name: str,
+) -> str:
+    text = " ".join(
+        str(line).strip() for line in source_signature if str(line).strip()
+    )
+    if not text:
+        return ""
+    colon_index = _lean_declaration_type_colon_index(text)
+    if colon_index < 0:
+        return ""
+    header = text[:colon_index].strip()
+    replacement = f"theorem {declaration_name}"
+    rewritten = re.sub(
+        r"^\s*(?:(?:noncomputable|private)\s+)*(?:theorem|lemma)\s+"
+        r"[A-Za-z_][A-Za-z0-9_'.]*\b",
+        replacement,
+        header,
+        count=1,
+    )
+    if rewritten == header and not header.startswith(f"theorem {declaration_name}"):
+        return ""
+    return rewritten
+
+
+def _source_binder_context_for_declaration(
+    *,
+    declaration_name: str,
+    exact_source_binders: tuple[dict[str, object], ...],
+) -> str:
+    binder_lines: list[str] = []
+    for binder in exact_source_binders:
+        name = str(binder.get("name", "") or "").strip()
+        binder_type = str(binder.get("type", "") or "").strip()
+        if not _is_safe_lean_declaration_identifier(name) or not binder_type:
+            continue
+        binder_lines.append(f"    ({name} : {binder_type})")
+    if not binder_lines:
+        return ""
+    return "\n".join([f"theorem {declaration_name}", *binder_lines])
+
+
+def _lean_declaration_type_colon_index(text: str) -> int:
+    paren_depth = 0
+    bracket_depth = 0
+    brace_depth = 0
+    for index, char in enumerate(str(text or "")):
+        if char == "(":
+            paren_depth += 1
+        elif char == ")" and paren_depth:
+            paren_depth -= 1
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]" and bracket_depth:
+            bracket_depth -= 1
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}" and brace_depth:
+            brace_depth -= 1
+        elif (
+            char == ":"
+            and paren_depth == 0
+            and bracket_depth == 0
+            and brace_depth == 0
+        ):
+            return index
+    return -1
 
 
 def _explicit_premise_semantic_dependency_requirements(

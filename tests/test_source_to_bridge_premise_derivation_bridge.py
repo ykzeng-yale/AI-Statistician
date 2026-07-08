@@ -921,6 +921,88 @@ def test_premise_bridge_uses_goal_context_for_goal_sourced_target(
     ] == grouped_request["candidate_contract"]
 
 
+def test_premise_bridge_source_signature_target_binds_source_header(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
+    source_attempt = tmp_path / "source_attempt.lean"
+    adapter_attempt = tmp_path / "adapter_attempt.lean"
+    source_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem dependent_source_goal",
+                "    (P : Nat → Prop)",
+                "    (hP : ∀ x : Nat, P x) :",
+                "    ∀ x : Nat, P x := by",
+                "  intro x",
+                "  exact hP x",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    adapter_attempt.write_text(
+        "\n".join(
+            [
+                "import Mathlib",
+                "theorem dependent_source_goal_source_to_bridge_adapter",
+                "    (hForallSource : ∀ x : Nat, P x) :",
+                "    ∀ x : Nat, P x := by",
+                "  exact hForallSource",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        queue,
+        [
+            _premise_work_order(
+                target_theorem_name="dependent_source_goal",
+                target_lean_declaration="dependent_source_goal",
+                target_theorem_goal_ids=["dependent_source_goal"],
+                premise_name="hForallSource",
+                source_candidate_artifact_path=str(source_attempt),
+                adapter_candidate_artifact_path=str(adapter_attempt),
+                adapter_declaration_name=(
+                    "dependent_source_goal_source_to_bridge_adapter"
+                ),
+                premise_target_source="source_theorem_signature_conclusion",
+                source_to_bridge_premise_goal_context={},
+                source_to_bridge_premise_goal_binder_names=[],
+                source_to_bridge_premise_goal_conclusion="P 0",
+                proof_body_goal_excerpt=["⊢ P 0"],
+            )
+        ],
+    )
+
+    manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
+        out_dir=tmp_path / "premise_bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    row = manifest["rows"][0]
+    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert row["premise_target_source"] == "source_theorem_signature_conclusion"
+    assert row["premise_target_type"] == "∀ x : Nat, P x"
+    assert "theorem dependent_source_goal_hForallSource_source_to_bridge_derivation" in (
+        candidate_source
+    )
+    assert "(P : Nat → Prop)" in candidate_source
+    assert "(hP : ∀ x : Nat, P x)" in candidate_source
+    assert "    ∀ x : Nat, P x := by" in candidate_source
+    assert "(source_hypotheses bridge_premise : Prop)" not in candidate_source
+    theorem_start = candidate_source.rfind(
+        "theorem dependent_source_goal_hForallSource_source_to_bridge_derivation"
+    )
+    theorem_header = candidate_source[
+        theorem_start : candidate_source.find(":= by", theorem_start)
+    ]
+    assert "(hForallSource : ∀ x : Nat, P x)" not in theorem_header
+
+
 def test_premise_bridge_grouped_learning_uses_goal_context_target_behavior(
     tmp_path: Path,
 ) -> None:
