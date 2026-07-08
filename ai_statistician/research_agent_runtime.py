@@ -80716,17 +80716,39 @@ def _generated_sandbox_named_numeric_metrics(
 
     def visit(value: Any, path: tuple[str, ...]) -> None:
         if isinstance(value, Mapping):
+            direct_metric_leaf_present = any(
+                name_predicate(str(raw_key))
+                and _coerce_optional_float(raw_value) is not None
+                for raw_key, raw_value in value.items()
+            )
             for raw_key, raw_value in value.items():
                 key = str(raw_key)
                 child_path = (*path, key)
                 numeric_value = _coerce_optional_float(raw_value)
-                if name_predicate(key) and numeric_value is not None:
+                inherits_metric_name = any(name_predicate(part) for part in path)
+                if (
+                    numeric_value is not None
+                    and (
+                        name_predicate(key)
+                        or (
+                            inherits_metric_name
+                            and not direct_metric_leaf_present
+                            and not _is_generated_metric_auxiliary_name(key)
+                        )
+                    )
+                ):
                     rows.append((".".join(child_path), numeric_value))
                 if isinstance(raw_value, (Mapping, list, tuple)):
                     visit(raw_value, child_path)
         elif isinstance(value, (list, tuple)):
             for index, raw_value in enumerate(value):
                 child_path = (*path, str(index))
+                numeric_value = _coerce_optional_float(raw_value)
+                if (
+                    numeric_value is not None
+                    and any(name_predicate(part) for part in path)
+                ):
+                    rows.append((".".join(child_path), numeric_value))
                 if isinstance(raw_value, (Mapping, list, tuple)):
                     visit(raw_value, child_path)
 
@@ -80878,6 +80900,30 @@ def _is_coverage_metric_name(name: str) -> bool:
             " se",
         )
     )
+
+
+def _is_generated_metric_auxiliary_name(name: str) -> bool:
+    lowered = name.strip().lower()
+    normalized = lowered.replace("-", "_").replace(" ", "_")
+    if normalized in {
+        "alpha",
+        "n",
+        "n_cal",
+        "n_calibration",
+        "nominal",
+        "nominal_alpha",
+        "nominal_coverage",
+        "nominal_level",
+        "se",
+        "sd",
+        "stderr",
+        "std",
+        "standard_error",
+        "target",
+        "target_coverage",
+    }:
+        return True
+    return normalized.endswith(("_se", "_sd", "_std", "_stderr"))
 
 
 def _estimator_spec(packet: Any, estimator_id: str) -> dict[str, Any]:

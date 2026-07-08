@@ -36300,6 +36300,75 @@ def test_generated_simulation_sandbox_accepts_nested_coverage_metrics() -> None:
     assert errors == []
 
 
+def test_generated_simulation_sandbox_accepts_coverage_parent_metric_grids() -> None:
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "sandbox_failed": False,
+            "coverage_by_alpha": {
+                "cubic_alpha_0.05": 0.9483125,
+                "cubic_alpha_0.1": 0.9057,
+                "sin_alpha_0.05": 0.9481375,
+                "sin_alpha_0.1": 0.908425,
+            },
+            "coverage_by_n_cal": {
+                "cubic_n_cal_1000": 0.900625,
+                "cubic_n_cal_200": 0.8977125,
+                "sin_n_cal_1000": 0.8998,
+                "sin_n_cal_200": 0.9027125,
+            },
+            "width_by_alpha": {
+                "cubic_alpha_0.05": 7.48,
+                "sin_alpha_0.05": 2.58,
+            },
+        },
+        context={"question": {"tags": ["conformal", "coverage"]}},
+    )
+
+    assert errors == []
+
+
+def test_generated_simulation_sandbox_rejects_degenerate_coverage_parent_grid() -> None:
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "sandbox_failed": False,
+            "coverage_by_alpha": {
+                "sin_alpha_0.1": 0.0,
+                "sin_alpha_0.05": 0.95,
+            },
+        },
+        context={"question": {"tags": ["conformal", "coverage"]}},
+    )
+
+    assert "coverage_by_alpha.sin_alpha_0.1 is degenerate zero coverage" in errors
+
+
+def test_generated_sandbox_coverage_record_lists_ignore_noncoverage_siblings() -> None:
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "sandbox_failed": False,
+            "coverage": [
+                {
+                    "alpha": 0.05,
+                    "coverage_sd": 0.026,
+                    "empirical_coverage": 0.967,
+                    "mean_width": 8.8,
+                    "n_calib": 50,
+                },
+                {
+                    "alpha": 0.1,
+                    "coverage_sd": 0.033,
+                    "empirical_coverage": 0.900,
+                    "mean_width": 6.6,
+                    "n_calib": 200,
+                },
+            ],
+        },
+        context={"question": {"tags": ["conformal", "coverage"]}},
+    )
+
+    assert errors == []
+
+
 def test_generated_simulation_sandbox_rejects_nested_degenerate_coverage_metric() -> None:
     errors = _generated_sandbox_metric_gate_errors(
         {
