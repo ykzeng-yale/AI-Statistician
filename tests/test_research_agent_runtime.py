@@ -89391,6 +89391,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         coding_agent_repair_eval_provider="same",
         formalizer_repair_eval_provider="same",
         formalizer_pseudo_formal_packet_eval_provider="same",
+        formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds=300.0,
         formalizer_pseudo_formal_packet_eval_existing_manifest="",
         pseudo_formal_block_verifier_eval_provider="same",
         pseudo_formal_block_verifier_eval_existing_manifest="",
@@ -89629,6 +89630,7 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
     assert args.formalizer_pseudo_formal_packet_eval_provider == "same"
+    assert args.formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds > 0
     assert args.pseudo_formal_block_verifier_eval_provider == "same"
     assert args.formalizer_repair_eval_lean_project == args.lean_project
     assert args.source_theorem_exact_semantic_definition_authoring_worker is True
@@ -90685,6 +90687,7 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
         formalizer_pseudo_formal_packet_eval_existing_manifest="",
         formalizer_pseudo_formal_packet_eval_static_response_file="",
         formalizer_pseudo_formal_packet_eval_llm_timeout_seconds=1.0,
+        formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds=300.0,
         formalizer_pseudo_formal_packet_eval_max_tokens=5000,
         formalizer_pseudo_formal_packet_eval_temperature=0.1,
         formalizer_pseudo_formal_packet_eval_max_repair_attempts=1,
@@ -90713,6 +90716,9 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert manifest[
         "internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"
     ] is False
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_runtime_timeout_seconds"
+    ] == 300.0
     assert manifest[
         "internal_formalizer_pseudo_formal_packet_eval_fixture_plumbing_ok"
     ] is False
@@ -90835,6 +90841,103 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert (
         "Formalizer PF/BV packet component-gate failure memory is active"
         in prompt
+    )
+
+
+def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_out = tmp_path / "runtime"
+    runtime_out.mkdir()
+    timeout_calls: list[dict[str, object]] = []
+
+    def fake_timeout(call, *, timeout_s, provider_name, model):
+        timeout_calls.append(
+            {
+                "timeout_s": timeout_s,
+                "provider_name": provider_name,
+                "model": model,
+            }
+        )
+        raise TimeoutError("PF packet eval exceeded wall-clock cap")
+
+    def should_not_call_direct_eval(**_kwargs: object) -> dict[str, object]:
+        raise AssertionError("PF packet eval must be routed through timeout wrapper")
+
+    monkeypatch.setattr(cli_module, "_call_with_wall_clock_timeout", fake_timeout)
+    monkeypatch.setattr(
+        cli_module,
+        "run_formalizer_pseudo_formal_packet_eval",
+        should_not_call_direct_eval,
+    )
+    args = argparse.Namespace(
+        out=str(runtime_out),
+        provider="anthropic",
+        formalizer_pseudo_formal_packet_eval_provider="same",
+        formalizer_pseudo_formal_packet_eval_model="claude-sonnet",
+        formalizer_pseudo_formal_packet_eval_existing_manifest="",
+        formalizer_pseudo_formal_packet_eval_static_response_file="",
+        formalizer_pseudo_formal_packet_eval_llm_timeout_seconds=120.0,
+        formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds=2.5,
+        formalizer_pseudo_formal_packet_eval_max_tokens=5000,
+        formalizer_pseudo_formal_packet_eval_temperature=0.1,
+        formalizer_pseudo_formal_packet_eval_max_repair_attempts=1,
+        formalizer_pseudo_formal_packet_eval_out="",
+    )
+
+    manifest = cli_module._attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
+        args,
+        {
+            "artifacts": {
+                "runtime_learning_rows_jsonl": str(
+                    runtime_out / "runtime_learning_rows.jsonl"
+                )
+            }
+        },
+    )
+
+    assert timeout_calls == [
+        {
+            "timeout_s": 2.5,
+            "provider_name": "anthropic:formalizer_pseudo_formal_packet_eval",
+            "model": "claude-sonnet",
+        }
+    ]
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_result_status"
+    ] == "FAILED"
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_type"
+    ] == "TimeoutError"
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_runtime_timeout_seconds"
+    ] == 2.5
+    attached = manifest["internal_formalizer_pseudo_formal_packet_eval"]
+    assert attached["attachment_runtime_timeout_seconds"] == 2.5
+    assert attached["capability_evidence_ok"] is False
+    assert any("PF packet eval exceeded" in error for error in attached["errors"])
+    manifest_path = Path(
+        manifest["artifacts"][
+            "internal_formalizer_pseudo_formal_packet_eval_manifest_json"
+        ]
+    )
+    assert manifest_path.exists()
+    failure_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert failure_manifest["failure_type"] == "TimeoutError"
+    learning_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_learning_rows_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(
+        row.get("learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_feedback"
+        and row.get("failure_type") == "TimeoutError"
+        and row.get("capability_evidence_ok") is False
+        for row in learning_rows
     )
 
 

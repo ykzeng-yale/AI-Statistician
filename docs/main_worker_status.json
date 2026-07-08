@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T10:43:14Z",
+  "updated_at": "2026-07-08T10:49:04Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "AgentRuntime finalization now suppresses proof-only postprocessing when the current integrated FormalizationGapPlanner live route planner blocks without a contract-valid route or route-revision feedback. It preserves agenda, learning, work-order, and non-proof failure artifacts, records runtime_proof_postprocessing_suppressed metadata in the manifest, and disables theorem-closure/source-semantic/source-theorem-promotion/formal-environment/exact-semantic/Lean executor lanes for that run so stale memory rows cannot wake proof bridges after a fresh route failure.",
-  "latest_main_worker_live_probe": "runs/main_worker_live_route_timeout_postprocessing_suppression_probe_no_preset/ directly resumed the real pending gap-planner-live-route:conformal_prediction_coverage:abf13cf47d95 with the proof postprocessing flags enabled and a 4s live route-planner timeout. It exited 0 in 15.7s with status_counts={'BLOCKED': 1}, terminal FormalizationGapPlanner formalization_gap_planner_live_route_planner_blocked, live_llm_invoked=1, response_present=0, response_contract_ok=0, provider_failures=1, route_revision_feedback_recorded=0, runtime_proof_postprocessing_suppressed=true, and no formal-environment bridge, proof-body executor, exact-semantic source lookup, or Lean repair executor manifest. No source theorem or full frontier theorem proof is claimed.",
+  "latest_main_worker_patch": "Full-live AgentRuntime attachment finalization now bounds the attached Formalizer PF/BV packet eval with a wall-clock runtime timeout, writes timeout/provider failures as FormalizerPseudoFormalPacketEvalManifest failure artifacts, records internal_formalizer_pseudo_formal_packet_eval_attachment_runtime_timeout_seconds in the runtime manifest, and still exports non-proof component-gate feedback rows. This prevents the full-live CLI from leaving an empty internal_formalizer_pseudo_formal_packet_eval directory after the main AgentRuntime manifest is already written.",
+  "latest_main_worker_live_probe": "runs/main_worker_full_live_pf_packet_timeout_bound_probe/ resumed the real pending gap-planner-live-route:conformal_prediction_coverage:abf13cf47d95 with full-live preset, reused prior coding/Formalizer repair-eval manifests, attached an existing PF/BV component-gate manifest, and bounded the live Formalizer PF packet eval to 2.5s. The command exited 0 in 18.4s with status_counts={'BLOCKED': 1}; runtime_proof_postprocessing_suppressed=true; internal_formalizer_pseudo_formal_packet_eval_result_status=FAILED; failure_type=APITimeoutError; attachment_runtime_timeout_seconds=2.5; the PF failure manifest/result JSON were written; coding-agent and Formalizer repair component gates stayed capability_evidence_ok=true; PF/BV component gate attached as capability_evidence_ok=true but lineage_ok=false because it reused a standalone manifest. No source theorem or full frontier theorem proof is claimed.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -1398,6 +1398,12 @@
       "PYTHONPATH=$PWD .venv/bin/pytest tests/test_research_agent_runtime.py -k \"live_route_planner_timeout or proof_postprocessing_suppressed or runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda or capability_eval_full_live_preset_attaches_component_repair_gates\" # 5 passed, 945 deselected",
       "PYTHONPATH=$PWD .venv/bin/pytest tests/test_model_backend.py -k \"wall_clock_timeout or outer_wall_clock_timeout\" # 2 passed, 17 deselected",
       "python3 -m py_compile ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py"
+    ],
+    "full_live_pf_packet_attachment_timeout_probe_manifest": "runs/main_worker_full_live_pf_packet_timeout_bound_probe/research_agent_runtime_manifest.json",
+    "full_live_pf_packet_attachment_timeout_probe_result": "Full-live preset resume exited 0 in 18.4s while the attached Formalizer PF/BV packet eval was bounded to 2.5s. It wrote internal_formalizer_pseudo_formal_packet_eval/formalizer_pseudo_formal_packet_eval_manifest.json and result JSON with result_status=FAILED, failure_type=APITimeoutError, capability_evidence_ok=false, and attachment_runtime_timeout_seconds=2.5. The main runtime manifest remained complete, route failure proof-postprocessing suppression remained true, and no stale proof bridge/Lean executor artifacts were emitted.",
+    "full_live_pf_packet_attachment_timeout_tests": [
+      "PYTHONPATH=$PWD .venv/bin/pytest tests/test_research_agent_runtime.py -k \"formalizer_pseudo_formal_packet_eval_timeout or failed_formalizer_pseudo_formal_packet_eval_manifest or capability_eval_full_live_preset_attaches_component_repair_gates\" # 3 passed, 948 deselected",
+      "python3 -m py_compile ai_statistician/cli.py tests/test_research_agent_runtime.py"
     ]
   },
   "latest_runtime_eval_alignment": {

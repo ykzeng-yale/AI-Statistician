@@ -12235,8 +12235,17 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
             getattr(args, "formalizer_pseudo_formal_packet_eval_model", "")
             or ""
         )
-        try:
-            eval_manifest = run_formalizer_pseudo_formal_packet_eval(
+        runtime_timeout_seconds = float(
+            getattr(
+                args,
+                "formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds",
+                max(DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0, 300.0),
+            )
+            or 0.0
+        )
+
+        def _run_eval() -> dict[str, Any]:
+            return run_formalizer_pseudo_formal_packet_eval(
                 out_dir=out_dir,
                 provider_name=provider_name,
                 model=eval_model,
@@ -12284,6 +12293,17 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
                     )
                 ),
             )
+
+        try:
+            if runtime_timeout_seconds > 0:
+                eval_manifest = _call_with_wall_clock_timeout(
+                    _run_eval,
+                    timeout_s=runtime_timeout_seconds,
+                    provider_name=f"{provider_name}:formalizer_pseudo_formal_packet_eval",
+                    model=eval_model or "formalizer_pseudo_formal_packet_eval",
+                )
+            else:
+                eval_manifest = _run_eval()
         except Exception as exc:
             eval_manifest = (
                 write_formalizer_pseudo_formal_packet_eval_failure_manifest(
@@ -12354,6 +12374,14 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         "static_or_fixture_only": bool(gate_summary["static_or_fixture_only"]),
         "fixture_plumbing_ok": bool(gate_summary["fixture_plumbing_ok"]),
         "capability_evidence_ok": bool(gate_summary["capability_evidence_ok"]),
+        "attachment_runtime_timeout_seconds": float(
+            getattr(
+                args,
+                "formalizer_pseudo_formal_packet_eval_runtime_timeout_seconds",
+                max(DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0, 300.0),
+            )
+            or 0.0
+        ),
         "n_pseudo_formal_packets": int(
             eval_manifest.get("n_pseudo_formal_packets", 0) or 0
         ),
@@ -12476,6 +12504,9 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest["internal_formalizer_pseudo_formal_packet_eval_capability_evidence_ok"] = bool(
         attached["capability_evidence_ok"]
     )
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_attachment_runtime_timeout_seconds"
+    ] = float(attached["attachment_runtime_timeout_seconds"])
     manifest["internal_formalizer_pseudo_formal_packet_eval_pseudo_formal_packets"] = int(
         attached["n_pseudo_formal_packets"]
     )
@@ -21085,6 +21116,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--formalizer-pseudo-formal-packet-eval-llm-timeout-seconds",
         type=float,
         default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    )
+    research_agent_runtime.add_argument(
+        "--formalizer-pseudo-formal-packet-eval-runtime-timeout-seconds",
+        type=float,
+        default=max(DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0, 300.0),
+        help=(
+            "wall-clock cap for the attached Formalizer PF/BV packet eval; "
+            "timeouts are written as failure manifests so full-live runtime "
+            "outputs do not strand after the main manifest is written"
+        ),
     )
     research_agent_runtime.add_argument(
         "--formalizer-pseudo-formal-packet-eval-max-tokens",
