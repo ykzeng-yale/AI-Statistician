@@ -83807,6 +83807,102 @@ def test_runtime_capability_scorecard_rejects_proof_body_goal_without_signature_
     ]["blocker"]
 
 
+def test_runtime_audit_detects_stale_proof_body_executor_signature_lineage(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "runtime_proof_body_executor" / "execution_queue"
+    queue_dir.mkdir(parents=True)
+    signature_path = "runs/signature_probes/source_signature_probe.lean"
+    (queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "execution_queue_id": "queue:1",
+                        "target_theorem_name": "source_target",
+                        "signature_probe_artifact_path": signature_path,
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    executor_dir = tmp_path / "runtime_proof_body_executor"
+    (
+        executor_dir
+        / "exact_source_theorem_proof_body_execution_result_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionResultManifest",
+                "exact_source_theorem_proof_body_execution_queue_dir": str(
+                    queue_dir
+                ),
+                "n_proof_body_goal_reached": 1,
+                "n_proof_body_goal_excerpt_rows": 0,
+                "n_proof_body_signature_probe_artifact_rows": 0,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    errors: list[str] = []
+
+    summary = (
+        audit_module._runtime_proof_body_executor_signature_lineage_refresh_summary(
+            tmp_path,
+            errors,
+        )
+    )
+
+    assert errors == []
+    assert summary[
+        "n_runtime_proof_body_executor_signature_lineage_refresh_required"
+    ] == 1
+    assert (
+        summary["n_runtime_proof_body_execution_queue_signature_probe_artifact_rows"]
+        == 1
+    )
+    assert summary[
+        "runtime_proof_body_execution_queue_signature_probe_artifact_paths"
+    ] == [signature_path]
+    assert summary["runtime_proof_body_executor_signature_lineage_refresh_rows"][0][
+        "signature_lineage_refresh_required"
+    ] is True
+
+
+def test_runtime_capability_scorecard_routes_stale_proof_body_signature_lineage() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_proof_body_repair_executor_n_result_rows": 1,
+        "source_theorem_exact_proof_body_repair_executor_n_proof_body_goal_reached": 1,
+        "n_runtime_proof_body_execution_queue_signature_probe_artifact_rows": 1,
+        "n_runtime_proof_body_executor_signature_lineage_refresh_required": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    proof_body_row = rows["source_theorem_signature_probe_reached_proof_body"]
+
+    assert proof_body_row["passed"] is False
+    assert "queue_signature_artifact_rows=1" in proof_body_row["evidence"]
+    assert "signature_lineage_refresh_required=1" in proof_body_row["evidence"]
+    assert "executor manifests are stale" in proof_body_row["blocker"]
+    assert proof_body_row["next_owner_subsystem"] == "AgentRuntimeOrchestrator"
+    assert "rerun or refresh" in proof_body_row["target_behavior"].lower()
+
+
 def test_runtime_capability_scorecard_rejects_cross_lane_proof_body_signature_artifact() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",

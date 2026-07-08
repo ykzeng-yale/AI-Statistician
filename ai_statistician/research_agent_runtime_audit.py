@@ -11359,6 +11359,12 @@ def audit_research_agent_runtime(
     payload["source_theorem_proof_body_local_lean_checked_count"] = (
         _payload_source_theorem_proof_body_local_lean_checked_count(payload)
     )
+    payload.update(
+        _runtime_proof_body_executor_signature_lineage_refresh_summary(
+            runtime_dir,
+            errors,
+        )
+    )
     proof_body_same_lane_summary = (
         _runtime_source_theorem_proof_body_same_lane_verification_summary(payload)
     )
@@ -12780,6 +12786,108 @@ def _runtime_result_pending_next_task_contract(
         "pending_next_task_id": pending_next_task_id,
         "pending_next_task_owner_subsystem": pending_next_task_owner_subsystem,
         "errors": tuple(errors),
+    }
+
+
+def _runtime_proof_body_executor_signature_lineage_refresh_summary(
+    runtime_dir: Path,
+    errors: list[str],
+) -> dict[str, Any]:
+    executor_manifest_paths = sorted(
+        runtime_dir.rglob("exact_source_theorem_proof_body_execution_result_manifest.json")
+    )
+    rows: list[dict[str, Any]] = []
+    stale_manifest_paths: list[str] = []
+    queue_signature_paths: list[str] = []
+    n_executor_goal_rows = 0
+    n_executor_signature_rows = 0
+    n_queue_signature_rows = 0
+    for manifest_path in executor_manifest_paths:
+        manifest = _load_json(manifest_path, errors)
+        if not isinstance(manifest, Mapping):
+            continue
+        goal_rows = (
+            _safe_int(manifest.get("n_proof_body_goal_reached"))
+            + _safe_int(manifest.get("n_proof_body_goal_excerpt_rows"))
+            + _runtime_manifest_nonempty_entry_count(
+                manifest,
+                ("first_proof_body_goal_excerpt",),
+            )
+        )
+        signature_rows = _safe_int(
+            manifest.get("n_proof_body_signature_probe_artifact_rows")
+        )
+        n_executor_goal_rows += goal_rows
+        n_executor_signature_rows += signature_rows
+        queue_dir_raw = str(
+            manifest.get("exact_source_theorem_proof_body_execution_queue_dir", "")
+            or ""
+        ).strip()
+        queue_manifest_path = (
+            _resolve_path(runtime_dir, queue_dir_raw)
+            / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+            if queue_dir_raw
+            else manifest_path.parent
+            / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+        )
+        queue_payload: Mapping[str, Any] = {}
+        if queue_manifest_path.exists():
+            loaded_queue = _load_json(queue_manifest_path, errors)
+            if isinstance(loaded_queue, Mapping):
+                queue_payload = loaded_queue
+        queue_rows = (
+            queue_payload.get("rows", [])
+            if isinstance(queue_payload.get("rows", []), list)
+            else []
+        )
+        queue_signature_row_count = 0
+        for queue_row in queue_rows:
+            if not isinstance(queue_row, Mapping):
+                continue
+            signature_path = str(
+                queue_row.get("proof_body_signature_probe_artifact_path", "")
+                or queue_row.get("source_theorem_signature_probe_artifact_path", "")
+                or queue_row.get("signature_probe_artifact_path", "")
+                or ""
+            ).strip()
+            if not signature_path:
+                continue
+            queue_signature_row_count += 1
+            if signature_path not in queue_signature_paths:
+                queue_signature_paths.append(signature_path)
+        n_queue_signature_rows += queue_signature_row_count
+        stale = bool(goal_rows > 0 and signature_rows <= 0 and queue_signature_row_count > 0)
+        if stale:
+            stale_manifest_paths.append(str(manifest_path))
+        rows.append(
+            {
+                "executor_manifest_path": str(manifest_path),
+                "queue_manifest_path": str(queue_manifest_path),
+                "n_executor_proof_body_goal_rows": goal_rows,
+                "n_executor_signature_probe_artifact_rows": signature_rows,
+                "n_queue_signature_probe_artifact_rows": queue_signature_row_count,
+                "signature_lineage_refresh_required": stale,
+            }
+        )
+    return {
+        "runtime_proof_body_executor_signature_lineage_refresh_rows": rows,
+        "n_runtime_proof_body_executor_manifests_checked": len(rows),
+        "n_runtime_proof_body_executor_goal_rows_checked": n_executor_goal_rows,
+        "n_runtime_proof_body_executor_signature_probe_artifact_rows": (
+            n_executor_signature_rows
+        ),
+        "n_runtime_proof_body_execution_queue_signature_probe_artifact_rows": (
+            n_queue_signature_rows
+        ),
+        "runtime_proof_body_execution_queue_signature_probe_artifact_paths": (
+            queue_signature_paths[:16]
+        ),
+        "n_runtime_proof_body_executor_signature_lineage_refresh_required": len(
+            stale_manifest_paths
+        ),
+        "runtime_proof_body_executor_signature_lineage_refresh_manifest_paths": (
+            stale_manifest_paths[:16]
+        ),
     }
 
 
@@ -18328,6 +18436,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     proof_body_effective_goal_reached_count = (
         _payload_source_theorem_proof_body_effective_goal_reached_count(payload)
+    )
+    proof_body_signature_lineage_refresh_required_count = _safe_int(
+        payload.get(
+            "n_runtime_proof_body_executor_signature_lineage_refresh_required"
+        )
+    )
+    proof_body_queue_signature_artifact_rows = _safe_int(
+        payload.get(
+            "n_runtime_proof_body_execution_queue_signature_probe_artifact_rows"
+        )
     )
     proof_body_gate_open_for_kernel_repair_count = (
         _payload_source_theorem_proof_body_gate_open_for_kernel_repair_count(payload)
@@ -24620,6 +24738,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{proof_body_effective_goal_reached_count} "
                 "signature_artifact_rows="
                 f"{proof_body_signature_artifact_count} "
+                "queue_signature_artifact_rows="
+                f"{proof_body_queue_signature_artifact_rows} "
+                "signature_lineage_refresh_required="
+                f"{proof_body_signature_lineage_refresh_required_count} "
                 "raw_gate_open_for_kernel_repair="
                 f"{proof_body_gate_open_for_kernel_repair_count} "
                 "effective_signature_backed_gate_open_for_kernel_repair="
@@ -24633,6 +24755,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 (
+                    "proof-body executor manifests are stale: referenced queues "
+                    "already contain proof_body_signature_probe_artifact_path "
+                    "lineage, but executor result manifests did not report "
+                    "signature counters; rerun or refresh the exact proof-body "
+                    "executor before counting this as reached"
+                )
+                if proof_body_signature_lineage_refresh_required_count > 0
+                else (
                     "proof-body goal evidence is missing "
                     "proof_body_signature_probe_artifact_path lineage; preserve "
                     "source theorem signature artifacts through the exact "
@@ -24644,6 +24774,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "result rows without goal evidence are pre-proof-body "
                     "blockers, not proof-body repair evidence"
                 )
+            ),
+            **(
+                {
+                    "next_owner_subsystem": "AgentRuntimeOrchestrator",
+                    "target_behavior": (
+                        "Rerun or refresh exact source-theorem proof-body "
+                        "executor manifests from their referenced execution "
+                        "queues so proof_body_signature_probe_artifact_path "
+                        "lineage is copied into executor result rows and manifest "
+                        "signature counters."
+                    ),
+                    "success_metric": (
+                        "n_runtime_proof_body_executor_signature_lineage_refresh_required=0 "
+                        "and source_theorem_proof_body_effective_signature_backed_goal_reached_count>0"
+                    ),
+                }
+                if proof_body_signature_lineage_refresh_required_count > 0
+                else {}
             ),
         ),
         _scorecard_row(
