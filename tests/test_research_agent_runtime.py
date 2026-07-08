@@ -6586,6 +6586,16 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
         "runtime_capability_gap_routing_jsonl": (
             "runs/debug_audit/runtime_capability_gap_routing.jsonl"
         ),
+        "runtime_pending_next_task_id": "algorithm-revise:q1",
+        "runtime_pending_next_task_owner_subsystem": "AlgorithmEngineer",
+        "runtime_pending_next_task_terminal_kind": (
+            "budget_exhausted_with_pending_next_task"
+        ),
+        "runtime_pending_next_task_last_completed_subsystem": "AlgorithmEngineer",
+        "runtime_pending_next_task_last_completed_status": "REVISE",
+        "runtime_pending_next_task_last_failure_classification": (
+            "generated_algorithm_sandbox_metric_gate_failed"
+        ),
     }
     scorecard = _runtime_capability_scorecard(payload)
     failed_scorecard_rows = [
@@ -6611,10 +6621,29 @@ def test_runtime_capability_gap_routing_rows_cover_failed_scorecard_rows() -> No
     assert summary["n_runtime_capability_gap_routing_missing_success_metric"] == 0
     assert summary["n_runtime_capability_gap_routing_missing_command"] == 0
     assert summary["n_runtime_capability_gap_routing_missing_boundary"] == 0
+    assert summary[
+        "n_runtime_capability_gap_routing_rows_with_upstream_pending_continuation"
+    ] == len(failed_scorecard_rows)
+    assert summary["runtime_capability_gap_routing_immediate_owner_subsystems"] == {
+        "AlgorithmEngineer": len(failed_scorecard_rows)
+    }
     rows_by_requirement = {row["requirement_id"]: row for row in routing_rows}
     live_generator_row = rows_by_requirement["live_generator_agents_enabled"]
     assert live_generator_row["artifact_kind"] == "RuntimeCapabilityGapRoutingRow"
     assert live_generator_row["next_owner_subsystem"] == "ArchitectCoordinator"
+    assert live_generator_row["capability_owner_subsystem"] == "ArchitectCoordinator"
+    assert live_generator_row["immediate_next_owner_subsystem"] == (
+        "AlgorithmEngineer"
+    )
+    assert live_generator_row["upstream_pending_continuation_task_id"] == (
+        "algorithm-revise:q1"
+    )
+    assert live_generator_row[
+        "upstream_pending_continuation_last_failure_classification"
+    ] == "generated_algorithm_sandbox_metric_gate_failed"
+    assert "not proof" in live_generator_row[
+        "upstream_pending_continuation_boundary"
+    ]
     assert live_generator_row["scorecard_payload"]["artifact_kind"] == (
         "RuntimeCapabilityGapScorecardPayload"
     )

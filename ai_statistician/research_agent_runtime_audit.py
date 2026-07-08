@@ -11705,6 +11705,18 @@ def audit_research_agent_runtime(
             "runtime_capability_gap_routing_owner_subsystems"
         ]
     )
+    payload["runtime_capability_gap_routing_immediate_owner_subsystems"] = dict(
+        capability_gap_routing_summary[
+            "runtime_capability_gap_routing_immediate_owner_subsystems"
+        ]
+    )
+    payload[
+        "n_runtime_capability_gap_routing_rows_with_upstream_pending_continuation"
+    ] = int(
+        capability_gap_routing_summary[
+            "n_runtime_capability_gap_routing_rows_with_upstream_pending_continuation"
+        ]
+    )
     payload["runtime_capability_gap_routing_scopes"] = dict(
         capability_gap_routing_summary["runtime_capability_gap_routing_scopes"]
     )
@@ -14389,6 +14401,10 @@ def _runtime_capability_gap_routing_rows(
                 payload,
                 max_iterations=FULL_LIVE_RERUN_MIN_ITERATIONS,
             )
+        pending_context = _runtime_capability_gap_pending_continuation_context(
+            payload,
+            capability_owner_subsystem=owner,
+        )
         routing_rows.append(
             {
                 "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
@@ -14399,6 +14415,8 @@ def _runtime_capability_gap_routing_rows(
                 "priority": index,
                 "gap_status": "OPEN",
                 "next_owner_subsystem": owner,
+                "capability_owner_subsystem": owner,
+                **pending_context,
                 "target_behavior": target_behavior,
                 "success_metric": success_metric,
                 "recommended_capability_eval_command": recommended_command,
@@ -14434,6 +14452,10 @@ def _runtime_capability_gap_routing_rows(
                         "blocker": blocker,
                         "evidence": evidence,
                         "owner": owner,
+                        "immediate_next_owner": pending_context.get(
+                            "immediate_next_owner_subsystem",
+                            owner,
+                        ),
                         "target_behavior": target_behavior,
                         "success_metric": success_metric,
                     }
@@ -14441,6 +14463,62 @@ def _runtime_capability_gap_routing_rows(
             }
         )
     return routing_rows
+
+
+def _runtime_capability_gap_pending_continuation_context(
+    payload: Mapping[str, Any],
+    *,
+    capability_owner_subsystem: str,
+) -> dict[str, Any]:
+    pending_owner = str(
+        payload.get("runtime_pending_next_task_owner_subsystem", "") or ""
+    ).strip()
+    pending_task_id = str(
+        payload.get("runtime_pending_next_task_id", "")
+        or payload.get("pending_next_task_id", "")
+        or ""
+    ).strip()
+    immediate_owner = pending_owner or capability_owner_subsystem
+    context: dict[str, Any] = {
+        "immediate_next_owner_subsystem": immediate_owner,
+    }
+    if not pending_task_id and not pending_owner:
+        return context
+    context.update(
+        {
+            "upstream_pending_continuation_task_id": pending_task_id,
+            "upstream_pending_continuation_owner_subsystem": pending_owner,
+            "upstream_pending_continuation_terminal_kind": str(
+                payload.get("runtime_pending_next_task_terminal_kind", "") or ""
+            ),
+            "upstream_pending_continuation_last_completed_subsystem": str(
+                payload.get(
+                    "runtime_pending_next_task_last_completed_subsystem",
+                    "",
+                )
+                or ""
+            ),
+            "upstream_pending_continuation_last_completed_status": str(
+                payload.get("runtime_pending_next_task_last_completed_status", "")
+                or ""
+            ),
+            "upstream_pending_continuation_last_failure_classification": str(
+                payload.get(
+                    "runtime_pending_next_task_last_failure_classification",
+                    "",
+                )
+                or ""
+            ),
+            "upstream_pending_continuation_boundary": (
+                "This capability gap still belongs to capability_owner_subsystem, "
+                "but the current runtime must resume the upstream pending task "
+                "before downstream capability evidence can be produced. Pending "
+                "continuation context is orchestration metadata only and is not "
+                "proof, simulation, generated-code, or capability evidence."
+            ),
+        }
+    )
+    return context
 
 
 def _runtime_capability_gap_scorecard_payload(
@@ -15006,7 +15084,9 @@ def _runtime_capability_gap_routing_contract_summary(
     missing_command = 0
     missing_boundary = 0
     owners: Counter[str] = Counter()
+    immediate_owners: Counter[str] = Counter()
     scopes: Counter[str] = Counter()
+    rows_with_upstream_pending = 0
     for row_index, row in enumerate(routing_rows):
         if not isinstance(row, Mapping):
             _append_handoff_issue(
@@ -15057,6 +15137,13 @@ def _runtime_capability_gap_routing_contract_summary(
                 trace_index=row_index,
                 detail="capability gap routing row has no next_owner_subsystem",
             )
+        immediate_owner = str(
+            row.get("immediate_next_owner_subsystem", "") or ""
+        ).strip()
+        if immediate_owner:
+            immediate_owners[immediate_owner] += 1
+        if str(row.get("upstream_pending_continuation_task_id", "") or "").strip():
+            rows_with_upstream_pending += 1
         if scope:
             scopes[scope] += 1
         if not str(row.get("target_behavior", "") or "").strip():
@@ -15149,6 +15236,12 @@ def _runtime_capability_gap_routing_contract_summary(
         "n_runtime_capability_gap_routing_missing_command": missing_command,
         "n_runtime_capability_gap_routing_missing_boundary": missing_boundary,
         "runtime_capability_gap_routing_owner_subsystems": dict(sorted(owners.items())),
+        "runtime_capability_gap_routing_immediate_owner_subsystems": dict(
+            sorted(immediate_owners.items())
+        ),
+        "n_runtime_capability_gap_routing_rows_with_upstream_pending_continuation": (
+            rows_with_upstream_pending
+        ),
         "runtime_capability_gap_routing_scopes": dict(sorted(scopes.items())),
         "runtime_capability_gap_routing_requirement_ids": [
             row.get("requirement_id")
@@ -29363,6 +29456,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- runtime capability gap routing contract complete / rows: "
         f"{payload.get('runtime_capability_gap_routing_contract_complete')} / "
         f"{payload.get('n_runtime_capability_gap_routing_rows')}",
+        "- capability gap routing immediate owners / upstream-pending rows: "
+        f"{payload.get('runtime_capability_gap_routing_immediate_owner_subsystems')} / "
+        f"{payload.get('n_runtime_capability_gap_routing_rows_with_upstream_pending_continuation')}",
     ]
     cross_task_rows = [
         row
