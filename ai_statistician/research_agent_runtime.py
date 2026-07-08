@@ -10520,6 +10520,21 @@ class AlgorithmEngineerRuntimeSubsystem:
         algorithm_theory_trace_alignment_contract: dict[str, Any] = {}
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
+        metric_gate_refresh_result = (
+            _algorithm_sandbox_metric_gate_refresh_result_if_needed(
+                task=task,
+                question=question,
+                context=context,
+                environment_feedback=environment_feedback,
+                blackboard=blackboard,
+                theory_packet_id=packet_id,
+                simulation_manifest_id=simulation_manifest_id,
+                n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
+                seed=int(task.inputs.get("seed", self.seed) or self.seed),
+            )
+        )
+        if metric_gate_refresh_result is not None:
+            return metric_gate_refresh_result
         if self.proposal_agent is not None and implementation_gaps:
             try:
                 if not environment_feedback:
@@ -82206,6 +82221,287 @@ def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
             "offline gap-planner replay, prompt staging, or bounded live route "
             "planning completed with proof boundary preserved"
         ),
+    )
+
+
+def _algorithm_sandbox_metric_gate_refresh_result_if_needed(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    blackboard: BlackboardState,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    n_runs: int,
+    seed: int,
+) -> AgentStepResult | None:
+    failure_classification = str(
+        environment_feedback.get("failure_classification", "") or ""
+    )
+    if failure_classification != "generated_algorithm_sandbox_metric_gate_failed":
+        return None
+    previous_manifest_id = str(
+        context.get("previous_algorithm_sandbox_manifest_id", "")
+        or environment_feedback.get("algorithm_sandbox_manifest_id", "")
+        or (
+            context.get("runtime_feedback_loop", {}).get(
+                "algorithm_sandbox_manifest_id",
+                "",
+            )
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else ""
+        )
+        or ""
+    ).strip()
+    if not previous_manifest_id:
+        return None
+    previous_manifest = blackboard.artifacts.get(previous_manifest_id, {})
+    if not isinstance(previous_manifest, Mapping):
+        return None
+    if int(previous_manifest.get("n_metric_gate_failed", 0) or 0) <= 0:
+        return None
+    prototypes = [
+        row
+        for row in previous_manifest.get("prototypes", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not prototypes:
+        return None
+
+    refreshed_prototypes: list[dict[str, Any]] = []
+    refresh_rows: list[dict[str, Any]] = []
+    n_refreshed_failures = 0
+    for row in prototypes:
+        refreshed_row = dict(row)
+        prior_errors = list(_str_tuple(row.get("metric_gate_errors", [])))
+        needs_refresh = (
+            str(row.get("prototype_status", "") or "") == "FAILED_METRIC_GATE"
+            or bool(prior_errors)
+        )
+        if needs_refresh:
+            recomputed_errors = _generated_sandbox_metric_gate_errors(
+                row.get("metrics", {}),
+                context={
+                    "question": _question_to_payload(question),
+                    "architect_context": dict(context),
+                    "environment_feedback": dict(environment_feedback),
+                    "estimator_id": str(row.get("estimator_id", "") or ""),
+                    "spec": row.get("spec", {}) if isinstance(row.get("spec", {}), Mapping) else {},
+                },
+                code=_generated_python_sandbox_code_excerpt(row),
+            )
+            refresh_rows.append(
+                {
+                    "estimator_id": str(row.get("estimator_id", "") or ""),
+                    "prototype_status_before": str(
+                        row.get("prototype_status", "") or ""
+                    ),
+                    "prior_metric_gate_errors": prior_errors[:10],
+                    "recomputed_metric_gate_errors": recomputed_errors[:10],
+                    "execution_smoke_passed": bool(
+                        row.get(
+                            "execution_smoke_passed",
+                            row.get("smoke_passed") is True,
+                        )
+                    ),
+                }
+            )
+            if (
+                not recomputed_errors
+                and bool(
+                    row.get(
+                        "execution_smoke_passed",
+                        row.get("smoke_passed") is True,
+                    )
+                )
+            ):
+                refreshed_row["prototype_status"] = "EXECUTED"
+                refreshed_row["smoke_passed"] = True
+                refreshed_row["metric_gate_errors"] = []
+                refreshed_row["metric_gate_refresh"] = {
+                    "source_algorithm_sandbox_manifest_id": previous_manifest_id,
+                    "prior_metric_gate_errors": prior_errors[:10],
+                    "recomputed_metric_gate_errors": [],
+                    "proof_evidence_status": (
+                        "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+                n_refreshed_failures += 1
+            else:
+                refreshed_row["metric_gate_errors"] = recomputed_errors
+                if recomputed_errors:
+                    refreshed_row["prototype_status"] = "FAILED_METRIC_GATE"
+                    refreshed_row["smoke_passed"] = False
+        refreshed_prototypes.append(refreshed_row)
+
+    if n_refreshed_failures <= 0:
+        return None
+    remaining_metric_failures = sum(
+        1
+        for row in refreshed_prototypes
+        if str(row.get("prototype_status", "") or "") == "FAILED_METRIC_GATE"
+    )
+    if remaining_metric_failures > 0:
+        return None
+
+    refreshed_manifest_id = "algorithm_sandbox_manifest:" + stable_hash(
+        [
+            "metric_gate_refresh",
+            task.task_id,
+            previous_manifest_id,
+            refreshed_prototypes,
+        ]
+    )[:20]
+    refreshed_manifest = dict(previous_manifest)
+    refreshed_manifest.update(
+        {
+            "manifest_id": refreshed_manifest_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "source_algorithm_sandbox_manifest_id": previous_manifest_id,
+            "prototypes": refreshed_prototypes,
+            "n_prototypes": len(refreshed_prototypes),
+            "n_executed": sum(
+                1
+                for row in refreshed_prototypes
+                if row.get("prototype_status") in {"EXECUTED", "FAILED_METRIC_GATE"}
+            ),
+            "n_passed": sum(
+                1 for row in refreshed_prototypes if row.get("smoke_passed") is True
+            ),
+            "n_metric_gate_failed": 0,
+            "n_generated_code_executed": sum(
+                1
+                for row in refreshed_prototypes
+                if row.get("executor") == "generated_python_sandbox"
+                and _generated_sandbox_row_executed(row)
+            ),
+            "n_live_generated_code_executed": sum(
+                1
+                for row in refreshed_prototypes
+                if row.get("executor") == "generated_python_sandbox"
+                and _generated_sandbox_row_executed(row)
+                and _generated_sandbox_row_live_generated(row)
+            ),
+            "n_live_generated_code_metric_gate_failed": 0,
+            "metric_gate_refresh": {
+                "source_algorithm_sandbox_manifest_id": previous_manifest_id,
+                "n_refreshed_failures": n_refreshed_failures,
+                "refresh_rows": refresh_rows[:10],
+                "execution_evidence_status": (
+                    "PRIOR_SANDBOX_EXECUTION_REEVALUATED_BY_CURRENT_METRIC_GATE"
+                ),
+                "proof_evidence_status": (
+                    "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "Metric-gate refresh re-evaluates prior bounded sandbox "
+                    "outputs with the current metric-gate logic. It is not new "
+                    "code execution, not production registration, and not theorem "
+                    "proof evidence."
+                ),
+            },
+        }
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:"
+        + stable_hash([task.task_id, refreshed_manifest_id])[:20],
+        task_id=task.task_id,
+        artifact_id=refreshed_manifest_id,
+        evidence_type="algorithm_sandbox_metric_gate_refresh",
+        status="PRIOR_SANDBOX_EXECUTION_REEVALUATED_NOT_PROOF_EVIDENCE",
+        boundary=ALGORITHM_ENGINEER_BOUNDARY,
+        payload={
+            "source_algorithm_sandbox_manifest_id": previous_manifest_id,
+            "n_refreshed_failures": n_refreshed_failures,
+            "n_passed": refreshed_manifest["n_passed"],
+            "n_metric_gate_failed": 0,
+            "execution_evidence_status": (
+                "PRIOR_SANDBOX_EXECUTION_REEVALUATED_BY_CURRENT_METRIC_GATE"
+            ),
+            "proof_evidence_status": (
+                "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
+            ),
+        },
+    )
+    context_with_feedback = dict(context)
+    context_with_feedback["previous_algorithm_sandbox_manifest_id"] = (
+        refreshed_manifest_id
+    )
+    feedback = {
+        "feedback_type": "algorithm_sandbox_metric_gate_refresh",
+        "failure_classification": "generated_algorithm_sandbox_metric_gate_stale",
+        "source_failure_classification": failure_classification,
+        "source_algorithm_sandbox_manifest_id": previous_manifest_id,
+        "algorithm_sandbox_manifest_id": refreshed_manifest_id,
+        "n_refreshed_failures": n_refreshed_failures,
+        "target_behavior": (
+            "Continue downstream execution using the refreshed algorithm sandbox "
+            "manifest; the previous metric-gate blocker was stale under current "
+            "gate logic."
+        ),
+        "execution_evidence_status": (
+            "PRIOR_SANDBOX_EXECUTION_REEVALUATED_BY_CURRENT_METRIC_GATE"
+        ),
+        "proof_evidence_status": (
+            "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": refreshed_manifest["metric_gate_refresh"]["boundary"],
+    }
+    context_with_feedback["environment_feedback"] = feedback
+    if _runtime_generated_simulation_required_before_formalization(
+        context=context_with_feedback,
+        environment_feedback=feedback,
+        blackboard=blackboard,
+        question=question,
+        theory_packet_id=theory_packet_id,
+    ):
+        next_task = _generated_simulation_required_before_formalization_task(
+            question=question,
+            packet_id=theory_packet_id,
+            simulation_manifest_id=simulation_manifest_id,
+            algorithm_sandbox_manifest_id=refreshed_manifest_id,
+            architect_context=context_with_feedback,
+            n_runs=n_runs,
+            seed=seed,
+        )
+    else:
+        next_task = _formalization_task(
+            question=question,
+            packet_id=theory_packet_id,
+            simulation_manifest_id=simulation_manifest_id,
+            algorithm_sandbox_manifest_id=refreshed_manifest_id,
+            architect_context=context_with_feedback,
+        )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            "Prior generated AlgorithmEngineer sandbox metric-gate failure was "
+            "stale under the current metric gate; runtime refreshed the manifest "
+            "from prior bounded execution outputs and is routing downstream."
+        ),
+        produced_artifacts={refreshed_manifest_id: refreshed_manifest},
+        observations=(
+            EnvironmentObservation(
+                observation_type="algorithm_sandbox_metric_gate_refresh",
+                summary=(
+                    "recomputed prior generated algorithm sandbox metric gate "
+                    f"for {previous_manifest_id}; refreshed_failures="
+                    f"{n_refreshed_failures}"
+                ),
+                payload={
+                    "source_algorithm_sandbox_manifest_id": previous_manifest_id,
+                    "algorithm_sandbox_manifest_id": refreshed_manifest_id,
+                    "n_refreshed_failures": n_refreshed_failures,
+                    "next_owner_subsystem": next_task.owner_subsystem,
+                    "proof_evidence_status": (
+                        "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
     )
 
 

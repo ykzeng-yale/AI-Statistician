@@ -35512,6 +35512,164 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
     )
 
 
+def test_algorithm_engineer_refreshes_stale_generated_metric_gate_failure(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:algorithm-stale-metric"
+    simulation_manifest_id = "simulation:algorithm-stale-metric"
+    previous_manifest_id = "algorithm_sandbox_manifest:stale_metric_gate"
+    stale_metrics = {
+        "coverage": [
+            {
+                "alpha": 0.05,
+                "coverage_sd": 0.02,
+                "empirical_coverage": 0.96,
+                "mean_width": 8.8,
+                "n_calib": 50,
+            },
+            {
+                "alpha": 0.1,
+                "coverage_sd": 0.03,
+                "empirical_coverage": 0.91,
+                "mean_width": 6.6,
+                "n_calib": 200,
+            },
+        ],
+        "sandbox_failed": False,
+    }
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [
+                    {
+                        "id": "custom_estimator",
+                        "name": "Custom conformal estimator",
+                    }
+                ],
+            },
+            simulation_manifest_id: {
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            previous_manifest_id: {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": previous_manifest_id,
+                "question": {"id": question.id, "title": question.title},
+                "theory_packet_id": theory_packet_id,
+                "simulation_manifest_id": simulation_manifest_id,
+                "prototypes": [
+                    {
+                        "estimator_id": "custom_estimator",
+                        "prototype_status": "FAILED_METRIC_GATE",
+                        "executor": "generated_python_sandbox",
+                        "execution_smoke_passed": True,
+                        "smoke_passed": False,
+                        "metric_gate_errors": [
+                            "coverage.0.mean_width must be in [0, 1]",
+                            "coverage.0.n_calib must be in [0, 1]",
+                        ],
+                        "metrics": stale_metrics,
+                        "code_excerpt": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    n = max(1, int(replicates))\n"
+                            "    offset = int(seed) % n\n"
+                            "    return {'coverage': [], 'sandbox_failed': False, "
+                            "'replicates': n, 'offset': offset}"
+                        ),
+                    }
+                ],
+                "n_prototypes": 1,
+                "n_executed": 1,
+                "n_passed": 0,
+                "n_metric_gate_failed": 1,
+                "n_generated_code_executed": 1,
+                "n_unsafe_generated_code_rejected": 0,
+                "boundary": "algorithm sandbox evidence is not theorem proof",
+            },
+        },
+    )
+
+    class MustNotBeCalledAlgorithmEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError("stale metric refresh should avoid an LLM turn")
+
+    subsystem = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=12,
+        seed=20260623,
+        proposal_agent=MustNotBeCalledAlgorithmEngineer(),
+        timeout_s=20,
+    )
+    task = AgentTask(
+        task_id="algorithm-revise:stale-metric",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Repair stale generated algorithm metric-gate feedback.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [
+                {
+                    "estimator_id": "custom_estimator",
+                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                }
+            ],
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "previous_algorithm_sandbox_manifest_id": previous_manifest_id,
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_algorithm_code": True,
+                },
+            },
+            "environment_feedback": {
+                "feedback_type": "algorithm_sandbox_execution_feedback",
+                "algorithm_sandbox_manifest_id": previous_manifest_id,
+                "failure_classification": (
+                    "generated_algorithm_sandbox_metric_gate_failed"
+                ),
+                "n_metric_gate_failed": 1,
+            },
+        },
+        expected_artifacts=("algorithm_sandbox_manifest",),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    refreshed_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+    assert refreshed_manifest["source_algorithm_sandbox_manifest_id"] == (
+        previous_manifest_id
+    )
+    assert refreshed_manifest["n_metric_gate_failed"] == 0
+    assert refreshed_manifest["n_passed"] == 1
+    assert refreshed_manifest["prototypes"][0]["prototype_status"] == "EXECUTED"
+    assert refreshed_manifest["prototypes"][0]["metric_gate_errors"] == []
+    assert refreshed_manifest["metric_gate_refresh"]["n_refreshed_failures"] == 1
+    assert "not theorem proof" in refreshed_manifest["metric_gate_refresh"]["boundary"]
+    assert result.evidence_entries[0].evidence_type == (
+        "algorithm_sandbox_metric_gate_refresh"
+    )
+    assert result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        refreshed_manifest["manifest_id"]
+    )
+
+
 def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
     tmp_path: Path,
 ) -> None:
