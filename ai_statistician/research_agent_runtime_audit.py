@@ -3292,6 +3292,158 @@ class RuntimeAuditRow:
     errors: tuple[str, ...] = ()
 
 
+def _runtime_pending_next_task_identity_summary(
+    *,
+    manifest: Mapping[str, Any],
+    pending_task_payload: Mapping[str, Any],
+    rows: Sequence[RuntimeAuditRow],
+) -> dict[str, Any]:
+    manifest_pending_task = (
+        manifest.get("incomplete_pending_next_task", {})
+        if isinstance(manifest.get("incomplete_pending_next_task", {}), Mapping)
+        else {}
+    )
+    artifact_pending_task = (
+        pending_task_payload.get("pending_next_task", {})
+        if isinstance(pending_task_payload.get("pending_next_task", {}), Mapping)
+        else {}
+    )
+    completion_summary = (
+        manifest.get("runtime_completion_summary", {})
+        if isinstance(manifest.get("runtime_completion_summary", {}), Mapping)
+        else {}
+    )
+    completion_rows = (
+        completion_summary.get("rows", [])
+        if isinstance(completion_summary.get("rows", []), list)
+        else []
+    )
+    manifest_pending_id = str(
+        manifest.get("incomplete_pending_next_task_id", "")
+        or manifest_pending_task.get("task_id", "")
+        or ""
+    ).strip()
+    artifact_pending_id = str(
+        pending_task_payload.get("pending_next_task_id", "")
+        or artifact_pending_task.get("task_id", "")
+        or ""
+    ).strip()
+    audit_row_pending_ids = [
+        row.pending_next_task_id for row in rows if row.pending_next_task_id
+    ]
+    completion_pending_rows = [
+        row
+        for row in completion_rows
+        if isinstance(row, Mapping)
+        and str(row.get("pending_next_task_id", "") or "").strip()
+    ]
+    completion_pending_id = str(
+        (
+            completion_pending_rows[0].get("pending_next_task_id", "")
+            if completion_pending_rows
+            else ""
+        )
+        or ""
+    ).strip()
+    pending_task_id = (
+        manifest_pending_id
+        or artifact_pending_id
+        or completion_pending_id
+        or (audit_row_pending_ids[0] if audit_row_pending_ids else "")
+    )
+    completion_row = next(
+        (
+            row
+            for row in completion_pending_rows
+            if str(row.get("pending_next_task_id", "") or "").strip()
+            == pending_task_id
+        ),
+        completion_pending_rows[0] if completion_pending_rows else {},
+    )
+    completion_pending_task = (
+        completion_row.get("pending_next_task", {})
+        if isinstance(completion_row.get("pending_next_task", {}), Mapping)
+        else {}
+    )
+    audit_row_owner = next(
+        (
+            row.pending_next_task_owner_subsystem
+            for row in rows
+            if row.pending_next_task_id == pending_task_id
+            and row.pending_next_task_owner_subsystem
+        ),
+        "",
+    )
+    pending_task_owner = str(
+        manifest_pending_task.get("owner_subsystem", "")
+        or artifact_pending_task.get("owner_subsystem", "")
+        or completion_pending_task.get("owner_subsystem", "")
+        or audit_row_owner
+        or ""
+    ).strip()
+    pending_task_objective = str(
+        manifest_pending_task.get("objective", "")
+        or artifact_pending_task.get("objective", "")
+        or completion_pending_task.get("objective", "")
+        or ""
+    ).strip()
+    pending_task_ids = _compact_string_list(
+        [
+            manifest_pending_id,
+            artifact_pending_id,
+            completion_pending_id,
+            *audit_row_pending_ids,
+        ]
+    )
+    pending_task_owner_subsystems = _compact_string_list(
+        [
+            pending_task_owner,
+            *[
+                row.pending_next_task_owner_subsystem
+                for row in rows
+                if row.pending_next_task_owner_subsystem
+            ],
+        ]
+    )
+    source = ""
+    if manifest_pending_id:
+        source = "runtime_manifest_incomplete_pending_next_task"
+    elif artifact_pending_id:
+        source = "runtime_pending_next_task_artifact"
+    elif completion_pending_id:
+        source = "runtime_completion_summary"
+    elif audit_row_pending_ids:
+        source = "per_question_result_trace"
+    return {
+        "runtime_pending_next_task_id": pending_task_id,
+        "runtime_pending_next_task_owner_subsystem": pending_task_owner,
+        "runtime_pending_next_task_objective": pending_task_objective,
+        "runtime_pending_next_task_source": source,
+        "runtime_pending_next_task_ids": pending_task_ids,
+        "runtime_pending_next_task_owner_subsystems": pending_task_owner_subsystems,
+        "runtime_pending_next_task_terminal_kind": str(
+            completion_row.get("terminal_kind", "") or ""
+        ),
+        "runtime_pending_next_task_last_completed_subsystem": str(
+            completion_row.get("last_completed_subsystem", "") or ""
+        ),
+        "runtime_pending_next_task_last_completed_status": str(
+            completion_row.get("last_completed_status", "") or ""
+        ),
+        "runtime_pending_next_task_last_failure_classification": str(
+            completion_row.get("last_failure_classification", "") or ""
+        ),
+        "runtime_pending_next_task_final_task_id": str(
+            completion_row.get("final_task_id", "") or ""
+        ),
+        "runtime_pending_next_task_boundary": (
+            "Pending-task identity is orchestration continuity metadata for "
+            "resuming the runtime and assigning the next worker. It is not "
+            "simulation evidence, generated-code evidence, or Lean/kernel proof."
+        ),
+    }
+
+
 def audit_research_agent_runtime(
     runtime_dir: Path,
     out_dir: Path | None = None,
@@ -3378,6 +3530,13 @@ def audit_research_agent_runtime(
         runtime_resumable_manifest_path = ""
     runtime_pending_task_memory_rows = _runtime_pending_task_memory_rows(
         pending_task_payload
+    )
+    pending_task_identity_summary = _runtime_pending_next_task_identity_summary(
+        manifest=manifest,
+        pending_task_payload=(
+            pending_task_payload if isinstance(pending_task_payload, Mapping) else {}
+        ),
+        rows=rows,
     )
     trace_rows = _load_jsonl(trace_path, errors, required=True)
     progress_rows = _load_jsonl(
@@ -4208,6 +4367,54 @@ def audit_research_agent_runtime(
             runtime_resume_manifest_has_pending_task
         ),
         "runtime_resumable_manifest_path": runtime_resumable_manifest_path,
+        "runtime_pending_next_task_id": str(
+            pending_task_identity_summary["runtime_pending_next_task_id"]
+        ),
+        "runtime_pending_next_task_owner_subsystem": str(
+            pending_task_identity_summary[
+                "runtime_pending_next_task_owner_subsystem"
+            ]
+        ),
+        "runtime_pending_next_task_objective": str(
+            pending_task_identity_summary["runtime_pending_next_task_objective"]
+        ),
+        "runtime_pending_next_task_source": str(
+            pending_task_identity_summary["runtime_pending_next_task_source"]
+        ),
+        "runtime_pending_next_task_ids": list(
+            pending_task_identity_summary["runtime_pending_next_task_ids"]
+        ),
+        "runtime_pending_next_task_owner_subsystems": list(
+            pending_task_identity_summary[
+                "runtime_pending_next_task_owner_subsystems"
+            ]
+        ),
+        "runtime_pending_next_task_terminal_kind": str(
+            pending_task_identity_summary[
+                "runtime_pending_next_task_terminal_kind"
+            ]
+        ),
+        "runtime_pending_next_task_last_completed_subsystem": str(
+            pending_task_identity_summary[
+                "runtime_pending_next_task_last_completed_subsystem"
+            ]
+        ),
+        "runtime_pending_next_task_last_completed_status": str(
+            pending_task_identity_summary[
+                "runtime_pending_next_task_last_completed_status"
+            ]
+        ),
+        "runtime_pending_next_task_last_failure_classification": str(
+            pending_task_identity_summary[
+                "runtime_pending_next_task_last_failure_classification"
+            ]
+        ),
+        "runtime_pending_next_task_final_task_id": str(
+            pending_task_identity_summary["runtime_pending_next_task_final_task_id"]
+        ),
+        "runtime_pending_next_task_boundary": str(
+            pending_task_identity_summary["runtime_pending_next_task_boundary"]
+        ),
         "runtime_stage": manifest.get("runtime_stage", ""),
         "runtime_resume_policy": str(manifest.get("runtime_resume_policy", "") or ""),
         "runtime_resumed_from_pending_task": bool(
@@ -4230,8 +4437,7 @@ def audit_research_agent_runtime(
             else {}
         ),
         "pending_next_task_id": str(
-            manifest.get("incomplete_pending_next_task_id", "")
-            or pending_task_artifact_payload.get("task_id", "")
+            pending_task_identity_summary["runtime_pending_next_task_id"]
             or ""
         ),
         "runtime_architect_coordinator_registered": bool(
@@ -29122,6 +29328,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         "- budgeted continuations contract-ok: "
         f"{payload.get('n_budgeted_continuation_contract_ok')}/"
         f"{payload.get('n_budget_exhausted_with_pending_next_task')}",
+        "- pending next task: "
+        f"{payload.get('runtime_pending_next_task_id')} "
+        f"owner={payload.get('runtime_pending_next_task_owner_subsystem')} "
+        f"terminal={payload.get('runtime_pending_next_task_terminal_kind')} "
+        f"last={payload.get('runtime_pending_next_task_last_completed_subsystem')}/"
+        f"{payload.get('runtime_pending_next_task_last_completed_status')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
         "- runtime progress export complete / start / finish: "

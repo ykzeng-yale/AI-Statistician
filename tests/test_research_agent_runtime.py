@@ -9126,6 +9126,14 @@ def test_runtime_audit_markdown_reports_current_handoff_identity(
     )
 
     assert audit["n_runtime_pending_task_memory_rows"] == 1
+    assert audit["runtime_pending_next_task_id"] == "formalize:targeted"
+    assert (
+        audit["runtime_pending_next_task_owner_subsystem"]
+        == "FormalizationEvaluator"
+    )
+    assert audit["runtime_pending_next_task_source"] == (
+        "runtime_pending_next_task_artifact"
+    )
     assert audit["n_runtime_route_critical_target_identity_rows"] == 2
     assert audit["n_runtime_route_critical_rows_missing_target_ids"] == 0
     assert "## Runtime Handoff Identity" in report
@@ -75381,6 +75389,14 @@ def test_runtime_audit_treats_budgeted_pending_continuation_as_contract_ok(
     assert audit["rows"][0]["pending_next_task_owner_subsystem"] == (
         "FormalizationEvaluator"
     )
+    assert audit["runtime_pending_next_task_id"] == "formalize:repair:q1"
+    assert (
+        audit["runtime_pending_next_task_owner_subsystem"]
+        == "FormalizationEvaluator"
+    )
+    assert audit["runtime_pending_next_task_source"] == "per_question_result_trace"
+    assert audit["runtime_pending_next_task_terminal_kind"] == ""
+    assert audit["pending_next_task_id"] == "formalize:repair:q1"
     system_overlay = _research_agent_runtime_audit_overlay(
         runtime_dir / "system_overlay",
         configured_runtime_dir=str(runtime_dir),
