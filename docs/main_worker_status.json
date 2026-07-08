@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-08T00:44:33Z",
+  "updated_at": "2026-07-08T00:48:19Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Generated next-action replay now consumes compact runtime-learning rows whose work_order_id, learning_task, trigger, target ids, runtime status, and authoring metadata live under input_summary. Compact exact-semantic authoring prompt rows can route back to the backend agenda instead of being dropped, and serialized 'false' values no longer become truthy provider/export/local-Lean/import-ready flags when agenda rows are emitted or re-exported as learning rows. These rows remain routing memory only; source theorem proof and proof-body readiness still require reviewed exact semantics plus local Lean/AXLE kernel verification.",
+  "latest_main_worker_patch": "Formalizer Lean repair-sequence evidence now parses candidate-row local_lean_attempted/local_lean_compiled flags with compact-memory boolean semantics instead of raw Python truthiness. A prior failed candidate followed by an integrated repair row with local_lean_compiled='false' no longer fabricates a failed-then-passed Formalizer repair sequence or capability evidence. This protects the S13/capability scorecard from overclaiming repair-loop readiness while preserving the strict boundary that compiled helpers and repair loops are not source theorem proof.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",

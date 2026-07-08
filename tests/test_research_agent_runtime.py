@@ -38161,6 +38161,62 @@ def test_formalizer_lean_candidate_repair_sequence_counts_validation_repair_hop(
     ] == 1
 
 
+def test_formalizer_lean_candidate_repair_sequence_string_false_not_counted() -> None:
+    artifacts = {
+        "formalizer_lean_candidate_materialization:compact_false_fail": {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+            "created_at": "2026-06-24T00:01:00+00:00",
+            "manifest_id": (
+                "formalizer_lean_candidate_materialization:compact_false_fail"
+            ),
+            "task_id": "formalize:conformal_prediction_coverage:initial",
+            "question": {"id": "conformal_prediction_coverage"},
+            "n_precheck_rejected": 1,
+            "n_local_lean_checked": 0,
+            "n_local_lean_compiled": 0,
+            "candidate_rows": [
+                {
+                    "candidate_id": "compact_false_candidate",
+                    "precheck_status": "REJECTED_BY_RUNTIME_PRECHECK",
+                    "local_lean_attempted": "false",
+                    "local_lean_compiled": "false",
+                }
+            ],
+        },
+        "formalizer_lean_candidate_materialization:compact_false_repair": {
+            "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+            "created_at": "2026-06-24T00:02:00+00:00",
+            "manifest_id": (
+                "formalizer_lean_candidate_materialization:compact_false_repair"
+            ),
+            "task_id": "formalize-lean-repair:conformal_prediction_coverage:repair",
+            "question": {"id": "conformal_prediction_coverage"},
+            "n_precheck_rejected": 0,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "candidate_rows": [
+                {
+                    "candidate_id": "compact_false_repair_candidate",
+                    "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                    "local_lean_attempted": "true",
+                    "local_lean_compiled": "false",
+                }
+            ],
+        },
+    }
+
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": artifacts}}]
+    )
+
+    assert evidence_summary["proof"][
+        "n_formalizer_lean_candidate_failed_then_passed_repair_sequences"
+    ] == 0
+    assert evidence_summary["proof"][
+        "n_formalizer_lean_candidate_local_lean_compiled"
+    ] == 0
+
+
 def test_runtime_evidence_summary_counts_live_formalizer_proposal_without_manifest() -> None:
     artifacts = {
         "formalizer_proposal:pf-bv-only": {

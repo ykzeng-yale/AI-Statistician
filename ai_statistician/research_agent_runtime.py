@@ -77196,12 +77196,16 @@ def _formalizer_lean_candidate_repair_sequence_count(
                 str(row.get("precheck_status", "") or "")
                 == "REJECTED_BY_RUNTIME_PRECHECK"
             )
-            local_lean_failed = bool(row.get("local_lean_attempted", False)) and not bool(
+            local_lean_attempted = _bool_like(
+                row.get("local_lean_attempted", False)
+            )
+            local_lean_compiled = _bool_like(
                 row.get("local_lean_compiled", False)
             )
+            local_lean_failed = local_lean_attempted and not local_lean_compiled
             if precheck_failed or local_lean_failed:
                 manifest_has_failure = True
-            if bool(row.get("local_lean_compiled", False)):
+            if local_lean_compiled:
                 manifest_has_pass = True
 
         if (
