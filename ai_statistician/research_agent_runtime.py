@@ -210,6 +210,7 @@ from .theory_derivation_trace import (
     theory_trace_alignment_contract,
 )
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    inferred_exact_goal_shape_obligation_ids as _policy_inferred_exact_goal_shape_obligation_ids,
     placeholder_symbols_from_semantic_alignment_feedback as _policy_placeholder_symbols_from_semantic_alignment_feedback,
     placeholder_symbols_for_registered_support_ids as _policy_placeholder_symbols_for_registered_support_ids,
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
@@ -69687,6 +69688,26 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             )
             if str(value).strip()
         ]
+        if not exact_goal_shape_obligation_ids:
+            exact_goal_shape_obligation_ids = list(
+                _policy_inferred_exact_goal_shape_obligation_ids(
+                    failure_classification=failure_classification,
+                    trigger=trigger,
+                )
+            )
+            if exact_goal_shape_obligation_ids:
+                inferred_target_theorem_name = str(
+                    row.get("target_theorem_name", "")
+                    or input_summary.get("target_theorem_name", "")
+                    or ""
+                ).strip()
+                exact_goal_shape_obligations = [
+                    _semantic_primitive_gap_for_exact_goal_shape_obligation(
+                        obligation_id,
+                        target_theorem_name=inferred_target_theorem_name,
+                    )
+                    for obligation_id in exact_goal_shape_obligation_ids
+                ]
         exact_goal_shape_obligation_by_id = {
             obligation_id: (
                 exact_goal_shape_obligations[index]

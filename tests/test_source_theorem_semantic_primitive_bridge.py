@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge import (
+    inferred_exact_goal_shape_obligation_ids,
     placeholder_symbols_from_semantic_alignment_feedback,
     placeholder_symbols_for_registered_support_ids,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
@@ -86,6 +87,12 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     )
     assert (
         manifest["semantic_support_policy"]["n_theorem_closure_reduction_goal_routes"]
+        >= 1
+    )
+    assert (
+        manifest["semantic_support_policy"][
+            "n_exact_goal_shape_obligation_inference_rules"
+        ]
         >= 1
     )
     assert manifest["runtime_learning_ready"] is False
@@ -204,6 +211,39 @@ def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
         "formalize exchangeability rank uniformity semantics",
         "source_theorem_semantic_primitives",
     ) == "exchangeability_to_uniform_rank_semantics"
+
+
+def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
+    assert inferred_exact_goal_shape_obligation_ids(
+        failure_classification="proof_body_verified_adapter_context_insufficient",
+    ) == (
+        "source_to_bridge_adapter_goal_shape_mismatch",
+        "conjunctive_source_theorem_split",
+        "real_probability_lower_bound_from_ennreal_adapter",
+        "upper_coverage_bound_component",
+        "exchangeability_rank_uniformity_instantiation",
+        "order_statistic_quantile_rank_instantiation",
+        "coverage_event_identification_from_hC",
+    )
+    assert inferred_exact_goal_shape_obligation_ids(
+        trigger="EXACT_SOURCE_PROOF_BODY_VERIFIED_ADAPTER_CONTEXT_INSUFFICIENT",
+    ) == (
+        "source_to_bridge_adapter_goal_shape_mismatch",
+        "conjunctive_source_theorem_split",
+        "real_probability_lower_bound_from_ennreal_adapter",
+        "upper_coverage_bound_component",
+        "exchangeability_rank_uniformity_instantiation",
+        "order_statistic_quantile_rank_instantiation",
+        "coverage_event_identification_from_hC",
+    )
+    assert inferred_exact_goal_shape_obligation_ids(
+        failure_classification=(
+            "proof_body_reduction_closure_adapter_instantiation_missing"
+        ),
+    ) == ("source_to_bridge_adapter_goal_shape_mismatch",)
+    assert inferred_exact_goal_shape_obligation_ids(
+        failure_classification="unregistered_failure_classification",
+    ) == ()
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(

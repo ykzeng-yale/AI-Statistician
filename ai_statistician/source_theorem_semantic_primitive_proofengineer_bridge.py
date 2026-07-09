@@ -105,6 +105,11 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     exact_goal_shape_semantic_gaps = _normalize_policy_string_map(
         payload.get("exact_goal_shape_to_semantic_gap", {})
     )
+    exact_goal_shape_inference_rules = (
+        _normalize_exact_goal_shape_obligation_inference_rules(
+            payload.get("exact_goal_shape_obligation_inference_rules", [])
+        )
+    )
     return {
         "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
         "schema_version": int(payload.get("schema_version", 1) or 1),
@@ -119,6 +124,9 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "theorem_closure_reduction_strategies": theorem_closure_strategies,
         "exact_goal_shape_to_registered_support": exact_goal_shape_support,
         "exact_goal_shape_to_semantic_gap": exact_goal_shape_semantic_gaps,
+        "exact_goal_shape_obligation_inference_rules": (
+            exact_goal_shape_inference_rules
+        ),
     }
 
 
@@ -205,6 +213,47 @@ def _normalize_semantic_primitive_id_text_rules(
     return tuple(normalized)
 
 
+def _normalize_exact_goal_shape_obligation_inference_rules(
+    value: Any,
+) -> tuple[dict[str, tuple[str, ...]], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    normalized: list[dict[str, tuple[str, ...]]] = []
+    for raw_rule in value:
+        if not isinstance(raw_rule, Mapping):
+            continue
+        failure_classifications = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_rule.get("failure_classifications", []) or []
+                if str(item).strip()
+            )
+        )
+        triggers = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_rule.get("triggers", []) or []
+                if str(item).strip()
+            )
+        )
+        obligation_ids = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_rule.get("obligation_ids", []) or []
+                if str(item).strip()
+            )
+        )
+        if obligation_ids and (failure_classifications or triggers):
+            normalized.append(
+                {
+                    "failure_classifications": failure_classifications,
+                    "triggers": triggers,
+                    "obligation_ids": obligation_ids,
+                }
+            )
+    return tuple(normalized)
+
+
 def _normalize_placeholder_text_signal_map(
     value: Any,
 ) -> dict[str, dict[str, tuple[str, ...]]]:
@@ -276,6 +325,9 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
     theorem_closure_strategies = policy["theorem_closure_reduction_strategies"]
     exact_goal_shape_support = policy["exact_goal_shape_to_registered_support"]
     exact_goal_shape_semantic_gaps = policy["exact_goal_shape_to_semantic_gap"]
+    exact_goal_shape_inference_rules = policy[
+        "exact_goal_shape_obligation_inference_rules"
+    ]
     return {
         "policy_id": policy["policy_id"],
         "schema_version": policy["schema_version"],
@@ -292,11 +344,15 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "n_exact_goal_shape_semantic_gap_routes": len(
             exact_goal_shape_semantic_gaps
         ),
+        "n_exact_goal_shape_obligation_inference_rules": len(
+            exact_goal_shape_inference_rules
+        ),
         "boundary": (
             "Semantic-support policy routes task-family primitive IDs, placeholder "
-            "signals, and theorem-closure strategies to registered support "
-            "obligations. It is routing metadata only; proof evidence still "
-            "requires kernel_verified=true rows in the proof audit manifest."
+            "signals, exact goal-shape inference, and theorem-closure strategies "
+            "to registered support obligations. It is routing metadata only; "
+            "proof evidence still requires kernel_verified=true rows in the proof "
+            "audit manifest."
         ),
     }
 
@@ -367,6 +423,29 @@ def semantic_gap_for_exact_goal_shape_obligation(
         template,
         target_theorem_name=target_theorem_name,
     )
+
+
+def inferred_exact_goal_shape_obligation_ids(
+    *,
+    failure_classification: str = "",
+    trigger: str = "",
+) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    normalized_failure = str(failure_classification or "").strip()
+    normalized_trigger = str(trigger or "").strip()
+    obligation_ids: list[str] = []
+    for rule in policy["exact_goal_shape_obligation_inference_rules"]:
+        failure_matches = (
+            normalized_failure
+            and normalized_failure in rule.get("failure_classifications", ())
+        )
+        trigger_matches = (
+            normalized_trigger
+            and normalized_trigger in rule.get("triggers", ())
+        )
+        if failure_matches or trigger_matches:
+            obligation_ids.extend(rule.get("obligation_ids", ()))
+    return tuple(dict.fromkeys(obligation_ids))
 
 
 def semantic_primitive_id_for_gap(gap_text: str, gap_kind: str = "") -> str:
@@ -1108,22 +1187,10 @@ def _inferred_exact_goal_shape_obligation_ids(
     failure_classification: str,
     trigger: str,
 ) -> tuple[str, ...]:
-    if (
-        failure_classification == "proof_body_verified_adapter_context_insufficient"
-        or trigger == "EXACT_SOURCE_PROOF_BODY_VERIFIED_ADAPTER_CONTEXT_INSUFFICIENT"
-    ):
-        return (
-            "source_to_bridge_adapter_goal_shape_mismatch",
-            "conjunctive_source_theorem_split",
-            "real_probability_lower_bound_from_ennreal_adapter",
-            "upper_coverage_bound_component",
-            "exchangeability_rank_uniformity_instantiation",
-            "order_statistic_quantile_rank_instantiation",
-            "coverage_event_identification_from_hC",
-        )
-    if failure_classification == "proof_body_reduction_closure_adapter_instantiation_missing":
-        return ("source_to_bridge_adapter_goal_shape_mismatch",)
-    return ()
+    return inferred_exact_goal_shape_obligation_ids(
+        failure_classification=failure_classification,
+        trigger=trigger,
+    )
 
 
 def _registered_support_for_exact_goal_shape_obligation(

@@ -57826,6 +57826,68 @@ def test_runtime_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None
     assert "`split_conformal_coverage`" in exact_gap
 
 
+def test_runtime_infers_policy_exact_goal_shape_obligations_without_explicit_ids() -> None:
+    learning_row = {
+        "schema_version": 1,
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "execution_result_id": "exact_source_result:verified_adapter",
+        "target_theorem_name": "split_conformal_coverage",
+        "trigger": "EXACT_SOURCE_PROOF_BODY_VERIFIED_ADAPTER_CONTEXT_INSUFFICIENT",
+        "source_theorem_kernel_verified": False,
+        "input_summary": {
+            "candidate_artifact_path": "runs/proof_body_attempt.lean",
+            "failure_classification": (
+                "proof_body_verified_adapter_context_insufficient"
+            ),
+            "source_theorem_kernel_verified": False,
+            "proof_body_attempted": True,
+            "proof_body_attempt_success": False,
+            "proof_body_goal_excerpt": [
+                "⊢ 1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧",
+                "  P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ≤ 1 - alpha + 1 / ↑(n2 + 1)",
+            ],
+        },
+    }
+
+    work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows(
+            [learning_row]
+        )
+    )
+    obligation_ids = [
+        row["exact_goal_shape_obligation_id"] for row in work_orders
+    ]
+
+    assert obligation_ids == [
+        "source_to_bridge_adapter_goal_shape_mismatch",
+        "conjunctive_source_theorem_split",
+        "real_probability_lower_bound_from_ennreal_adapter",
+        "upper_coverage_bound_component",
+        "exchangeability_rank_uniformity_instantiation",
+        "order_statistic_quantile_rank_instantiation",
+        "coverage_event_identification_from_hC",
+    ]
+    by_obligation = {
+        row["exact_goal_shape_obligation_id"]: row for row in work_orders
+    }
+    assert by_obligation["real_probability_lower_bound_from_ennreal_adapter"][
+        "candidate_registered_obligation_ids"
+    ] == ["split_conformal_good_rank_coverage_bridge"]
+    assert by_obligation["upper_coverage_bound_component"][
+        "candidate_registered_obligation_ids"
+    ] == ["split_conformal_upper_coverage_rank_budget_bridge"]
+    assert "hC" in by_obligation["coverage_event_identification_from_hC"][
+        "semantic_primitive_gap"
+    ]
+    assert "`split_conformal_coverage`" in by_obligation[
+        "coverage_event_identification_from_hC"
+    ]["semantic_primitive_gap"]
+    assert all(
+        row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+        for row in work_orders
+    )
+
+
 def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
