@@ -103,6 +103,9 @@ from ai_statistician.formalizer_llm import (
 from ai_statistician.formalizer_repair_policy import (
     formalizer_validation_repair_policy,
 )
+from ai_statistician.generated_metric_repair_policy import (
+    generated_coverage_metric_required_error,
+)
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
@@ -34142,7 +34145,7 @@ def test_generated_algorithm_sandbox_requires_coverage_metric_for_coverage_conte
     assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
     assert prototype["execution_smoke_passed"] is True
     assert prototype["smoke_passed"] is False
-    assert "coverage metric required for coverage/conformal generated sandbox" in prototype[
+    assert generated_coverage_metric_required_error() in prototype[
         "metric_gate_errors"
     ]
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
@@ -34261,6 +34264,29 @@ def test_generated_metric_gate_ignores_candidate_draft_text_target() -> None:
     )
 
     assert "coverage below target_coverage" not in errors
+
+
+def test_generated_metric_gate_policy_owns_domain_trigger_vocabulary() -> None:
+    coverage_source = inspect.getsource(
+        runtime_module._generated_sandbox_requires_coverage_metric
+    )
+    auxiliary_source = inspect.getsource(
+        runtime_module._is_generated_metric_auxiliary_name
+    )
+    oracle_source = inspect.getsource(
+        runtime_module._generated_simulation_oracle_truth_metric_gate_errors
+    )
+
+    assert "policy_generated_sandbox_requires_coverage_metric" in coverage_source
+    assert "conformal" not in coverage_source
+    assert "prediction interval" not in coverage_source
+    assert "policy_is_generated_metric_auxiliary_name" in auxiliary_source
+    assert "target_coverage" not in auxiliary_source
+    assert "generated_simulation_oracle_truth_names()" in oracle_source
+    assert "generated_simulation_oracle_truth_hardcoded_error()" in oracle_source
+    assert runtime_module._generated_sandbox_requires_coverage_metric(
+        {"question": {"tags": ["conformal", "coverage"]}}
+    ) is True
 
 
 def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> None:
@@ -38791,7 +38817,7 @@ def test_generated_simulation_sandbox_requires_coverage_metric_for_coverage_targ
     assert manifest["n_generated_simulation_sandbox_passed"] == 0
     assert manifest["n_generated_simulation_sandbox_metric_gate_failed"] == 1
     assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
-    assert "coverage metric required for coverage/conformal generated sandbox" in prototype[
+    assert generated_coverage_metric_required_error() in prototype[
         "metric_gate_errors"
     ]
 

@@ -46,8 +46,13 @@ from .critic_evaluator_llm import (
 )
 from .fingerprint import stable_hash
 from .generated_metric_repair_policy import (
+    generated_coverage_metric_required_error,
     generated_metric_gate_repair_instruction,
     generated_python_sandbox_guard_repair_instruction,
+    generated_sandbox_requires_coverage_metric as policy_generated_sandbox_requires_coverage_metric,
+    generated_simulation_oracle_truth_hardcoded_error,
+    generated_simulation_oracle_truth_names,
+    is_generated_metric_auxiliary_name as policy_is_generated_metric_auxiliary_name,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
@@ -83803,7 +83808,7 @@ def _generated_sandbox_metric_gate_errors(
             errors.append(f"{key} below target_coverage")
 
     if _generated_sandbox_requires_coverage_metric(context or {}) and not coverage_metrics:
-        errors.append("coverage metric required for coverage/conformal generated sandbox")
+        errors.append(generated_coverage_metric_required_error())
 
     errors.extend(
         _generated_sandbox_code_quality_gate_errors(
@@ -83892,15 +83897,8 @@ def _generated_simulation_oracle_truth_metric_gate_errors(
         tree = ast.parse(code)
     except SyntaxError:
         return []
-    hardcoded_truth_names: set[str] = set()
-    truth_names = {
-        "oracle_ate",
-        "oracle_effect",
-        "target_ate",
-        "target_effect",
-        "true_ate",
-        "true_effect",
-    }
+    constant_truth_names: set[str] = set()
+    truth_names = set(generated_simulation_oracle_truth_names())
     for node in ast.walk(tree):
         value: ast.AST | None = None
         targets: list[ast.AST] = []
@@ -83920,8 +83918,8 @@ def _generated_simulation_oracle_truth_metric_gate_errors(
             continue
         for target in targets:
             if isinstance(target, ast.Name) and target.id.lower() in truth_names:
-                hardcoded_truth_names.add(target.id)
-    if not hardcoded_truth_names:
+                constant_truth_names.add(target.id)
+    if not constant_truth_names:
         return []
     names = {
         node.id.lower()
@@ -83934,12 +83932,7 @@ def _generated_simulation_oracle_truth_metric_gate_errors(
     )
     if not has_sample_level_potential_outcomes:
         return []
-    return [
-        "generated simulation oracle truth appears hard-coded while the DGP "
-        "defines sample-level potential outcomes; compute true_ate/true_effect "
-        "from the simulated mu1/mu0 or a matching closed-form DGP before "
-        "coverage/bias metrics"
-    ]
+    return [generated_simulation_oracle_truth_hardcoded_error()]
 
 
 def _generated_sandbox_is_generated_simulation_context(
@@ -84127,23 +84120,7 @@ def _generated_sandbox_target_coverage_from_text(value: Any) -> float | None:
 
 
 def _generated_sandbox_requires_coverage_metric(context: Mapping[str, Any]) -> bool:
-    if not isinstance(context, Mapping):
-        return False
-    try:
-        text = json.dumps(context, default=str).lower()
-    except Exception:
-        text = str(context).lower()
-    return any(
-        token in text
-        for token in (
-            "coverage",
-            "conformal",
-            "prediction interval",
-            "prediction_interval",
-            "prediction set",
-            "prediction_set",
-        )
-    )
+    return policy_generated_sandbox_requires_coverage_metric(context)
 
 
 def _coerce_optional_float(value: Any) -> float | None:
@@ -84177,27 +84154,7 @@ def _is_coverage_metric_name(name: str) -> bool:
 
 
 def _is_generated_metric_auxiliary_name(name: str) -> bool:
-    lowered = name.strip().lower()
-    normalized = lowered.replace("-", "_").replace(" ", "_")
-    if normalized in {
-        "alpha",
-        "n",
-        "n_cal",
-        "n_calibration",
-        "nominal",
-        "nominal_alpha",
-        "nominal_coverage",
-        "nominal_level",
-        "se",
-        "sd",
-        "stderr",
-        "std",
-        "standard_error",
-        "target",
-        "target_coverage",
-    }:
-        return True
-    return normalized.endswith(("_se", "_sd", "_std", "_stderr"))
+    return policy_is_generated_metric_auxiliary_name(name)
 
 
 def _estimator_spec(packet: Any, estimator_id: str) -> dict[str, Any]:

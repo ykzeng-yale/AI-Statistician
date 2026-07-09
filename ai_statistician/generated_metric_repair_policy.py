@@ -1,11 +1,97 @@
 from __future__ import annotations
 
-from typing import Sequence
+import json
+from typing import Any, Mapping, Sequence
 
 
 GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE = (
     "GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE"
 )
+GENERATED_COVERAGE_METRIC_CONTEXT_TERMS: tuple[str, ...] = (
+    "coverage",
+    "conformal",
+    "prediction interval",
+    "prediction_interval",
+    "prediction set",
+    "prediction_set",
+)
+GENERATED_COVERAGE_METRIC_REQUIRED_ERROR = (
+    "coverage metric required by generated sandbox metric policy"
+)
+GENERATED_METRIC_AUXILIARY_NAMES: tuple[str, ...] = (
+    "alpha",
+    "n",
+    "n_cal",
+    "n_calibration",
+    "nominal",
+    "nominal_alpha",
+    "nominal_coverage",
+    "nominal_level",
+    "se",
+    "sd",
+    "stderr",
+    "std",
+    "standard_error",
+    "target",
+    "target_coverage",
+)
+GENERATED_METRIC_AUXILIARY_SUFFIXES: tuple[str, ...] = (
+    "_se",
+    "_sd",
+    "_std",
+    "_stderr",
+)
+GENERATED_SIMULATION_ORACLE_TRUTH_NAMES: tuple[str, ...] = (
+    "oracle_ate",
+    "oracle_effect",
+    "target_ate",
+    "target_effect",
+    "true_ate",
+    "true_effect",
+)
+GENERATED_SIMULATION_ORACLE_TRUTH_HARDCODED_ERROR = (
+    "generated simulation oracle truth appears hard-coded while the DGP "
+    "defines sample-level potential outcomes; compute true_ate/true_effect "
+    "from the simulated mu1/mu0 or a matching closed-form DGP before "
+    "coverage/bias metrics"
+)
+
+
+def generated_coverage_metric_required_error() -> str:
+    return GENERATED_COVERAGE_METRIC_REQUIRED_ERROR
+
+
+def generated_sandbox_requires_coverage_metric(context: Mapping[str, Any]) -> bool:
+    """Return whether policy expects a named coverage metric.
+
+    This keeps task-family vocabulary out of the central runtime executor. The
+    runtime may enforce the gate, but the vocabulary deciding when coverage is
+    required belongs to the generated-metric policy layer.
+    """
+
+    if not isinstance(context, Mapping):
+        return False
+    try:
+        text = json.dumps(context, default=str).lower()
+    except Exception:
+        text = str(context).lower()
+    return any(term in text for term in GENERATED_COVERAGE_METRIC_CONTEXT_TERMS)
+
+
+def is_generated_metric_auxiliary_name(name: str) -> bool:
+    lowered = str(name or "").strip().lower()
+    normalized = lowered.replace("-", "_").replace(" ", "_")
+    if normalized in GENERATED_METRIC_AUXILIARY_NAMES:
+        return True
+    return normalized.endswith(GENERATED_METRIC_AUXILIARY_SUFFIXES)
+
+
+def generated_simulation_oracle_truth_names() -> tuple[str, ...]:
+    return GENERATED_SIMULATION_ORACLE_TRUTH_NAMES
+
+
+def generated_simulation_oracle_truth_hardcoded_error() -> str:
+    return GENERATED_SIMULATION_ORACLE_TRUTH_HARDCODED_ERROR
 
 
 def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
