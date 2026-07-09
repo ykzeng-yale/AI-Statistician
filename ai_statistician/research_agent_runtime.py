@@ -54558,6 +54558,229 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_pseudo_formal_packet_copy_ready_retry_agenda(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return prompt-ready Formalizer PF/BV copy-ready retry agenda memory."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows", []), list) else []
+    retry_rows_by_key: dict[str, dict[str, Any]] = {}
+
+    def value_present(value: Any) -> bool:
+        return value not in (None, "", [], {})
+
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        learning_task = _runtime_learning_row_task(row, input_summary)
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        source_learning_task = str(
+            row.get("source_learning_task", "")
+            or input_summary.get("source_learning_task", "")
+            or ""
+        ).strip()
+        runtime_queue_status = str(
+            row.get("runtime_queue_status", "")
+            or input_summary.get("runtime_queue_status", "")
+            or ""
+        ).strip()
+        raw_retry_task = (
+            learning_task
+            == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+        )
+        generated_retry_agenda = learning_task == "generated_next_action_routing" and (
+            trigger == "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+            or source_learning_task
+            == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+            or runtime_queue_status
+            == "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+        )
+        if not raw_retry_task and not generated_retry_agenda:
+            continue
+        if raw_retry_task:
+            trigger = "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+            source_learning_task = learning_task
+        if not runtime_queue_status:
+            runtime_queue_status = "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+        repair_seed = _runtime_learning_row_mapping_value(
+            row,
+            input_summary,
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+        )
+        copy_contract = _runtime_learning_row_mapping_value(
+            row,
+            input_summary,
+            "pseudo_formal_failure_validator_ready_copy_contract",
+        )
+        copy_contract_summary = _runtime_learning_row_mapping_value(
+            row,
+            input_summary,
+            "pseudo_formal_failure_copy_contract_summary",
+        )
+        if not copy_contract_summary and (repair_seed or copy_contract):
+            copy_contract_summary = _runtime_pseudo_formal_failure_copy_contract_summary(
+                repair_seed=repair_seed,
+                validator_ready_copy_contract=copy_contract,
+            )
+        work_order_id = str(
+            row.get("work_order_id", "")
+            or input_summary.get("work_order_id", "")
+            or ""
+        ).strip()
+        component_eval_manifest_path = str(
+            row.get("component_eval_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        target_packet_id = str(
+            row.get("target_packet_id", "")
+            or input_summary.get("target_packet_id", "")
+            or repair_seed.get("packet_id", "")
+            or ""
+        ).strip()
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or input_summary.get("target_theorem_name", "")
+            or repair_seed.get("theorem_id", "")
+            or ""
+        ).strip()
+        target_ids = list(
+            dict.fromkeys(
+                value
+                for value in (
+                    list(
+                        _runtime_learning_row_string_values(
+                            row,
+                            input_summary,
+                            "target_ids",
+                            "target_id",
+                        )
+                    )
+                    + [
+                        target_theorem_name,
+                        target_packet_id,
+                        work_order_id,
+                    ]
+                )
+                if str(value).strip()
+            )
+        )[:6]
+        agenda_id = str(
+            row.get("id", "") or input_summary.get("agenda_id", "") or ""
+        ).strip()
+        key = (
+            work_order_id
+            or agenda_id
+            or ":".join(
+                value
+                for value in (
+                    component_eval_manifest_path,
+                    target_theorem_name,
+                    target_packet_id,
+                )
+                if value
+            )
+            or json.dumps(row, sort_keys=True, default=str)
+        )
+        retry_row = {
+            "learning_task": learning_task,
+            "question_id": str(
+                row.get("question_id", "")
+                or input_summary.get("question_id", "")
+                or ""
+            ),
+            "agenda_id": agenda_id,
+            "trigger": trigger,
+            "source_learning_task": source_learning_task,
+            "work_order_id": work_order_id,
+            "component_eval_manifest_path": component_eval_manifest_path,
+            "target_ids": target_ids,
+            "target_theorem_name": target_theorem_name,
+            "target_packet_id": target_packet_id,
+            "runtime_queue_status": runtime_queue_status,
+            "runtime_generated_queue_name": str(
+                row.get("runtime_generated_queue_name", "")
+                or input_summary.get("runtime_generated_queue_name", "")
+                or "formalizer_pf_bv_copy_ready_retries"
+            ),
+            "required_target_lanes": list(
+                _runtime_learning_row_string_values(
+                    row,
+                    input_summary,
+                    "pseudo_formal_failure_required_target_lanes",
+                    "required_target_lanes",
+                )
+            )[:8],
+            "concrete_lane_routable_repair_seed": repair_seed,
+            "validator_ready_copy_contract": copy_contract,
+            "validator_ready_copy_contract_summary": copy_contract_summary,
+            "copy_contract_summary": copy_contract_summary,
+            "target_behavior": str(
+                row.get("target_behavior", "")
+                or row.get("action", "")
+                or input_summary.get("target_behavior", "")
+                or input_summary.get("action", "")
+                or ""
+            ),
+            "recommended_next_action": str(
+                row.get("recommended_next_action", "")
+                or input_summary.get("recommended_next_action", "")
+                or row.get("target_behavior", "")
+                or row.get("action", "")
+                or ""
+            ),
+            "action": str(
+                row.get("action", "")
+                or input_summary.get("action", "")
+                or row.get("target_behavior", "")
+                or ""
+            ),
+            "acceptance_gate": str(
+                row.get("acceptance_gate", "")
+                or input_summary.get("acceptance_gate", "")
+                or ""
+            ),
+            "proof_evidence_status": str(
+                row.get("proof_evidence_status", "")
+                or input_summary.get("proof_evidence_status", "")
+                or ""
+            ),
+            "boundary": str(
+                row.get("boundary", "")
+                or row.get("proof_evidence_boundary", "")
+                or row.get("proof_boundary", "")
+                or input_summary.get("boundary", "")
+                or input_summary.get("proof_evidence_boundary", "")
+                or input_summary.get("proof_boundary", "")
+                or ""
+            )[:500],
+        }
+        existing = retry_rows_by_key.get(key)
+        if existing is None:
+            retry_rows_by_key[key] = retry_row
+            continue
+        for field, value in retry_row.items():
+            if not value_present(existing.get(field)) and value_present(value):
+                existing[field] = value
+
+    return tuple(retry_rows_by_key.values())
+
+
 def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostics(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -55848,6 +56071,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     formalizer_pseudo_formal_packet_component_gate_feedback_rows = (
         _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feedback(
+            context
+        )
+    )
+    formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows = (
+        _runtime_learning_memory_formalizer_pseudo_formal_packet_copy_ready_retry_agenda(
             context
         )
     )
@@ -59137,6 +59365,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_pseudo_formal_packet_component_gate_failure_available": bool(
             formalizer_pseudo_formal_packet_component_gate_failure_rows
         ),
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available": bool(
+            formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows
+        ),
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows": len(
+            formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows
+        ),
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available": bool(
             formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows
         ),
@@ -59515,6 +59749,83 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "boundary": str(row.get("boundary", "") or ""),
             }
             for row in formalizer_pseudo_formal_packet_component_gate_failure_rows[:3]
+        ],
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "question_id": str(row.get("question_id", "") or ""),
+                "agenda_id": str(row.get("agenda_id", "") or ""),
+                "trigger": str(row.get("trigger", "") or ""),
+                "source_learning_task": str(
+                    row.get("source_learning_task", "") or ""
+                ),
+                "work_order_id": str(row.get("work_order_id", "") or ""),
+                "component_eval_manifest_path": str(
+                    row.get("component_eval_manifest_path", "") or ""
+                ),
+                "target_ids": list(row.get("target_ids", []) or [])[:6],
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "target_packet_id": str(row.get("target_packet_id", "") or ""),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "") or ""
+                ),
+                "runtime_generated_queue_name": str(
+                    row.get("runtime_generated_queue_name", "") or ""
+                ),
+                "required_target_lanes": list(
+                    row.get("required_target_lanes", []) or []
+                )[:8],
+                "concrete_lane_routable_repair_seed": (
+                    dict(row.get("concrete_lane_routable_repair_seed", {}) or {})
+                    if isinstance(
+                        row.get("concrete_lane_routable_repair_seed", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "validator_ready_copy_contract": (
+                    dict(row.get("validator_ready_copy_contract", {}) or {})
+                    if isinstance(
+                        row.get("validator_ready_copy_contract", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "validator_ready_copy_contract_summary": (
+                    dict(
+                        row.get(
+                            "validator_ready_copy_contract_summary",
+                            {},
+                        )
+                        or {}
+                    )
+                    if isinstance(
+                        row.get("validator_ready_copy_contract_summary", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "copy_contract_summary": (
+                    dict(row.get("copy_contract_summary", {}) or {})
+                    if isinstance(row.get("copy_contract_summary", {}), Mapping)
+                    else {}
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "recommended_next_action": str(
+                    row.get("recommended_next_action", "") or ""
+                ),
+                "action": str(row.get("action", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+            for row in formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows[
+                :3
+            ]
         ],
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory": [
             {

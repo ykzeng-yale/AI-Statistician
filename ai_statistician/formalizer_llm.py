@@ -6976,6 +6976,88 @@ def _formalizer_mode_specific_instructions(
                 + "."
             )
         instructions.append(instruction)
+    pf_copy_ready_retry_agenda_memory = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available",
+            False,
+        )
+        or pf_copy_ready_retry_agenda_memory
+    ):
+        agenda_ids: list[str] = []
+        work_order_ids: list[str] = []
+        target_lanes: list[str] = []
+        queue_statuses: list[str] = []
+        manifest_paths: list[str] = []
+        for row in pf_copy_ready_retry_agenda_memory[:3]:
+            agenda_id = str(row.get("agenda_id", "") or "").strip()
+            if agenda_id:
+                agenda_ids.append(agenda_id)
+            work_order_id = str(row.get("work_order_id", "") or "").strip()
+            if work_order_id:
+                work_order_ids.append(work_order_id)
+            queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+            if queue_status:
+                queue_statuses.append(queue_status)
+            manifest_path = str(row.get("component_eval_manifest_path", "") or "")
+            if manifest_path:
+                manifest_paths.append(manifest_path)
+            target_lanes.extend(
+                str(value).strip()
+                for value in row.get("required_target_lanes", []) or []
+                if str(value).strip()
+            )
+        instruction = (
+            "Formalizer PF/BV copy-ready retry agenda is active: consume "
+            "proof_bank_runtime_memory_summary."
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory "
+            "as the operational rerun instruction. Copy or minimally adapt the "
+            "validator-ready PF/BV repair fragment into "
+            "pseudo_formal_proof_packets, preserving source_anchors, conclusion, "
+            "semantic_primitive_requirements, required target lanes, packet "
+            "lineage, and the PF/BV non-proof boundary. This is non-proof retry "
+            "agenda memory only; do not count it as Lean proof, source theorem "
+            "proof, source faithfulness evidence, or kernel verification."
+        )
+        if work_order_ids:
+            instruction += (
+                " Retry work order id(s): "
+                + ", ".join(list(dict.fromkeys(work_order_ids))[:3])
+                + "."
+            )
+        if agenda_ids:
+            instruction += (
+                " Agenda id(s): "
+                + ", ".join(list(dict.fromkeys(agenda_ids))[:3])
+                + "."
+            )
+        if queue_statuses:
+            instruction += (
+                " Runtime queue status(es): "
+                + ", ".join(list(dict.fromkeys(queue_statuses))[:3])
+                + "."
+            )
+        if target_lanes:
+            instruction += (
+                " Required target lane(s): "
+                + ", ".join(list(dict.fromkeys(target_lanes))[:5])
+                + "."
+            )
+        if manifest_paths:
+            instruction += (
+                " Source component manifest(s): "
+                + ", ".join(list(dict.fromkeys(manifest_paths))[:3])
+                + "."
+            )
+        instructions.append(instruction)
     pf_component_gate_handoff_diagnostics = [
         row
         for row in proof_memory_summary.get(
@@ -9573,6 +9655,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_component_gate_feedback_available",
         "formalizer_pseudo_formal_packet_component_gate_feedback_available",
         "formalizer_pseudo_formal_packet_component_gate_failure_available",
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available",
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows",
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available",
         "n_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows",
         "formalizer_lean_candidate_capability_feedback_available",
@@ -9584,6 +9668,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_component_gate_feedback_memory",
         "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
         "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory",
         "formalizer_lean_candidate_capability_feedback_memory",
         "formalizer_runtime_capability_contract_feedback_memory",
@@ -10257,6 +10342,44 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "validator_ready_copy_contract_summary",
                 "validator_ready_copy_contract_satisfied",
                 "copy_ready_for_exact_semantic_definition",
+                "proof_evidence_status",
+                "boundary",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"),
+        list,
+    ):
+        compact[
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+        ] = _compact_rows(
+            row.get(
+                "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
+                [],
+            ),
+            keys=(
+                "learning_task",
+                "question_id",
+                "agenda_id",
+                "trigger",
+                "source_learning_task",
+                "work_order_id",
+                "component_eval_manifest_path",
+                "target_ids",
+                "target_theorem_name",
+                "target_packet_id",
+                "runtime_queue_status",
+                "runtime_generated_queue_name",
+                "required_target_lanes",
+                "concrete_lane_routable_repair_seed",
+                "validator_ready_copy_contract",
+                "validator_ready_copy_contract_summary",
+                "copy_contract_summary",
+                "target_behavior",
+                "recommended_next_action",
+                "action",
+                "acceptance_gate",
                 "proof_evidence_status",
                 "boundary",
             ),

@@ -94094,6 +94094,40 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert (
         failure_memory[0]["copy_ready_for_exact_semantic_definition"] is True
     )
+    assert proof_memory_summary[
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available"
+    ] is True
+    assert proof_memory_summary[
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows"
+    ] == 1
+    retry_memory = proof_memory_summary[
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    ]
+    assert retry_memory[0]["agenda_id"] == retry_agenda["id"]
+    assert retry_memory[0]["work_order_id"] == retry_row["work_order_id"]
+    assert retry_memory[0]["runtime_queue_status"] == (
+        "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    )
+    assert retry_memory[0]["runtime_generated_queue_name"] == (
+        "formalizer_pf_bv_copy_ready_retries"
+    )
+    assert retry_memory[0]["source_learning_task"] == (
+        "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+    )
+    assert retry_memory[0]["required_target_lanes"] == [
+        "source_theorem_exact_semantic_definition",
+        "source_to_bridge",
+    ]
+    assert retry_memory[0]["concrete_lane_routable_repair_seed"]["blocks"][0][
+        "source_anchors"
+    ][0]["id"] == "proof_body:rank_threshold_step"
+    assert retry_memory[0]["validator_ready_copy_contract"][
+        "copy_destination_path"
+    ] == "pseudo_formal_proof_packets"
+    assert retry_memory[0]["validator_ready_copy_contract_summary"][
+        "validator_ready_copy_contract_satisfied"
+    ] is True
+    assert "not theorem proof evidence" in retry_memory[0]["boundary"].lower()
 
     prompt = build_formalizer_prompt(
         question=OpenResearchQuestion(
@@ -94130,10 +94164,24 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     ][0]["validator_ready_copy_contract_summary"][
         "validator_ready_copy_contract_satisfied"
     ] is True
+    assert prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    ][0]["agenda_id"] == retry_agenda["id"]
+    assert prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    ][0]["runtime_queue_status"] == (
+        "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    )
+    assert prompt_payload["proof_bank_runtime_memory_summary"][
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    ][0]["validator_ready_copy_contract"]["copy_destination_path"] == (
+        "pseudo_formal_proof_packets"
+    )
     assert (
         "Formalizer PF/BV packet component-gate failure memory is active"
         in prompt
     )
+    assert "Formalizer PF/BV copy-ready retry agenda is active" in prompt
     assert "validator_ready_copy_contract is available" in prompt
     assert "Runtime recomputed the copied seed as copy_contract_satisfied" in prompt
 
