@@ -1807,7 +1807,151 @@ def _validate_required_pseudo_formalization_packet(
         )
         if exact_semantic_row_errors:
             return exact_semantic_row_errors
+    copy_contract_errors = _required_pseudo_formal_copy_contract_errors(
+        packet,
+        proof_bank_runtime_memory_summary or {},
+        required_target_lanes=required_target_lanes,
+    )
+    if copy_contract_errors:
+        return copy_contract_errors
     return []
+
+
+_COPY_CONTRACT_MISSING = object()
+
+
+def _required_pseudo_formal_copy_contract_errors(
+    packet: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    *,
+    required_target_lanes: Sequence[str],
+) -> list[str]:
+    if not isinstance(proof_bank_runtime_memory_summary, Mapping):
+        return []
+    candidate_rows = [
+        row
+        for row in proof_bank_runtime_memory_summary.get(
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    for row in candidate_rows:
+        copy_summary = row.get(
+            "validator_ready_copy_contract_summary",
+            row.get("pseudo_formal_failure_copy_contract_summary", {}),
+        )
+        if not (
+            isinstance(copy_summary, Mapping)
+            and _formalizer_bool_like(
+                copy_summary.get("validator_ready_copy_contract_satisfied")
+            )
+        ):
+            continue
+        raw_seed = row.get(
+            "concrete_lane_routable_repair_seed",
+            row.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            ),
+        )
+        if not isinstance(raw_seed, Mapping) or not raw_seed:
+            continue
+        copy_fragment = _pseudo_formalization_required_copy_fragment(
+            raw_seed,
+            required_target_lanes=required_target_lanes,
+        )
+        copy_contract = (
+            copy_fragment.get("validator_ready_copy_contract", {})
+            if isinstance(copy_fragment, Mapping)
+            else {}
+        )
+        if not isinstance(copy_contract, Mapping) or not copy_contract:
+            continue
+        required_paths = [
+            str(value).strip()
+            for value in copy_contract.get("required_preserved_paths", []) or []
+            if str(value).strip()
+        ]
+        mismatched_paths: list[str] = []
+        for path in required_paths:
+            expected = _pseudo_formal_copy_contract_path_value(copy_fragment, path)
+            actual = _pseudo_formal_copy_contract_path_value(packet, path)
+            if expected is _COPY_CONTRACT_MISSING:
+                continue
+            if actual is _COPY_CONTRACT_MISSING or not _copy_contract_value_preserved(
+                actual,
+                expected,
+            ):
+                mismatched_paths.append(path)
+        if mismatched_paths:
+            return [
+                "pseudo_formalization_required: runtime memory supplied a "
+                "satisfied validator_ready_copy_contract, but the response did "
+                "not preserve required PF/BV copy path(s): "
+                + ", ".join(mismatched_paths[:6])
+                + ". Copy pseudo_formalization_required_copy_fragment."
+                "pseudo_formal_proof_packets into pseudo_formal_proof_packets "
+                "before optional edits, preserving source_anchors, conclusion, "
+                "semantic_primitive_requirements, lean_feasibility, and the "
+                "non-proof boundary."
+            ]
+    return []
+
+
+def _pseudo_formal_copy_contract_path_value(source: Any, path: str) -> Any:
+    current = source
+    for part in str(path or "").split("."):
+        if not part:
+            return _COPY_CONTRACT_MISSING
+        for match in re.finditer(r"([^\[\]]+)|\[(\d+)\]", part):
+            key = match.group(1)
+            index = match.group(2)
+            if key is not None:
+                if not isinstance(current, Mapping) or key not in current:
+                    return _COPY_CONTRACT_MISSING
+                current = current[key]
+                continue
+            if index is None:
+                return _COPY_CONTRACT_MISSING
+            if not isinstance(current, Sequence) or isinstance(
+                current,
+                (str, bytes, bytearray),
+            ):
+                return _COPY_CONTRACT_MISSING
+            item_index = int(index)
+            if item_index >= len(current):
+                return _COPY_CONTRACT_MISSING
+            current = current[item_index]
+    return current
+
+
+def _copy_contract_value_preserved(actual: Any, expected: Any) -> bool:
+    if isinstance(expected, Mapping):
+        if not isinstance(actual, Mapping):
+            return False
+        return all(
+            key in actual and _copy_contract_value_preserved(actual[key], value)
+            for key, value in expected.items()
+        )
+    if isinstance(expected, Sequence) and not isinstance(
+        expected,
+        (str, bytes, bytearray),
+    ):
+        if not isinstance(actual, Sequence) or isinstance(
+            actual,
+            (str, bytes, bytearray),
+        ):
+            return False
+        return all(
+            any(_copy_contract_value_preserved(candidate, item) for candidate in actual)
+            for item in expected
+        )
+    return (
+        json.dumps(actual, sort_keys=True, default=str)
+        == json.dumps(expected, sort_keys=True, default=str)
+    )
 
 
 def _required_exact_semantic_work_order_row_errors(

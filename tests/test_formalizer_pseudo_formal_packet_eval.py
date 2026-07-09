@@ -8,6 +8,7 @@ import pytest
 from ai_statistician.cli import main
 from ai_statistician.formalizer_llm import (
     _formalizer_repair_context,
+    _validate_required_pseudo_formalization_packet,
     build_formalizer_prompt,
 )
 from ai_statistician.formalizer_pseudo_formal_packet_eval import (
@@ -398,6 +399,143 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
     assert blueprint["validator_ready_copy_contract"][
         "copy_destination_path"
     ] == "pseudo_formal_proof_packets"
+
+
+def test_required_pf_validation_enforces_satisfied_component_copy_contract() -> None:
+    component_seed = {
+        "schema_version": 1,
+        "packet_id": "pseudo_formal_packet:component_gate_repair",
+        "theorem_id": "theorem:coverage",
+        "source_artifact_id": "formalizer_pf_component_gate:failed_manifest",
+        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "blocks": [
+            {
+                "block_id": "pf_block:component_gate_exact",
+                "block_type": "claim",
+                "block_depth": 1,
+                "premises": ["calibration rank threshold source step"],
+                "conclusion": (
+                    "C_n is the exact source semantic primitive for the "
+                    "coverage event."
+                ),
+                "proof_text": "The source proof uses C_n as the rank threshold.",
+                "dependency_ids": [],
+                "scope_parent_id": "",
+                "dependency_scope": "earlier_block_statement_only",
+                "inherited_scope": [],
+                "source_anchors": [
+                    {
+                        "kind": "proof_body",
+                        "id": "proof_body:component_gate_rank_threshold",
+                        "excerpt": "C_n rank threshold coverage event",
+                    }
+                ],
+                "semantic_primitive_requirements": ["component_gate_C_n"],
+                "lean_feasibility": "needs_semantic_definition",
+                "faithfulness_status": "faithful",
+                "faithfulness_repair": {
+                    "status": "not_required",
+                    "attempts": 0,
+                    "flagged_discrepancies": [],
+                },
+                "block_verification": {
+                    "verdict": "unknown",
+                    "verifier_provenance": "not_run",
+                    "independent_verifier": False,
+                    "rollout_count": 0,
+                },
+                "kernel_verified": False,
+            }
+        ],
+    }
+    proof_memory_summary = {
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+        "formalizer_pseudo_formal_packet_component_gate_failure_available": True,
+        "formalizer_pseudo_formal_packet_component_gate_failure_memory": [
+            {
+                "required_target_lanes": [
+                    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+                    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                ],
+                "concrete_lane_routable_repair_seed": component_seed,
+                "validator_ready_copy_contract_summary": {
+                    "validator_ready_copy_contract_present": True,
+                    "validator_ready_copy_contract_satisfied": True,
+                    "exact_semantic_definition_lane_ready_if_copied": True,
+                },
+            }
+        ],
+    }
+    prompt = build_formalizer_prompt(
+        question=_pseudo_formal_packet_eval_question(),
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        simulation_manifest={
+            "manifest_id": "simulation:component_copy_contract",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:component_copy_contract"},
+        registered_problem={"question_id": "component_copy_contract"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+    copy_packet = _prompt_payload(prompt)[
+        "pseudo_formalization_required_copy_fragment"
+    ]["pseudo_formal_proof_packets"][0]
+    copied_response = {"pseudo_formal_proof_packets": [copy_packet]}
+
+    assert (
+        _validate_required_pseudo_formalization_packet(
+            copied_response,
+            environment_feedback={},
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+        == []
+    )
+
+    enriched_packet = json.loads(json.dumps(copy_packet))
+    enriched_packet["blocks"][0]["source_anchors"].append(
+        {
+            "kind": "proof_body",
+            "id": "proof_body:extra_source_bound_detail",
+            "excerpt": "extra source-bound detail",
+        }
+    )
+    enriched_packet["blocks"][0]["semantic_primitive_requirements"].append(
+        "component_gate_extra_source_bound_requirement"
+    )
+    assert (
+        _validate_required_pseudo_formalization_packet(
+            {"pseudo_formal_proof_packets": [enriched_packet]},
+            environment_feedback={},
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+        == []
+    )
+
+    drifted_packet = json.loads(json.dumps(copy_packet))
+    drifted_packet["blocks"][0]["source_anchors"] = [
+        {
+            "kind": "proof_body",
+            "id": "proof_body:generic_rank_step",
+            "excerpt": "generic rank threshold step",
+        }
+    ]
+    drifted_response = {"pseudo_formal_proof_packets": [drifted_packet]}
+
+    errors = _validate_required_pseudo_formalization_packet(
+        drifted_response,
+        environment_feedback={},
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+    )
+
+    assert len(errors) == 1
+    assert "validator_ready_copy_contract" in errors[0]
+    assert "pseudo_formal_proof_packets[0].blocks[0].source_anchors" in errors[0]
 
 
 def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
