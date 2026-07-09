@@ -19,6 +19,16 @@ from ai_statistician.source_theorem_formal_environment_proofengineer_bridge impo
 )
 
 
+def test_formal_environment_bridge_next_actions_are_domain_neutral() -> None:
+    module = sys.modules[
+        run_source_theorem_formal_environment_proofengineer_bridge.__module__
+    ]
+    module_source = Path(module.__file__).read_text(encoding="utf-8")
+
+    assert "kernel-verified conformal bridge lemmas" not in module_source
+    assert "kernel-verified bridge/reduction lemmas" in module_source
+
+
 def test_formal_environment_bridge_resolves_queue_from_promotion_bridge_manifest(
     tmp_path: Path,
 ) -> None:

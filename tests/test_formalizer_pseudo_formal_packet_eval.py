@@ -5,8 +5,10 @@ from pathlib import Path
 
 import pytest
 
+import ai_statistician.formalizer_llm as formalizer_module
 from ai_statistician.cli import main
 from ai_statistician.formalizer_llm import (
+    FORMALIZER_OUTPUT_CONTRACT,
     _formalizer_repair_context,
     _validate_required_pseudo_formalization_packet,
     build_formalizer_prompt,
@@ -30,6 +32,22 @@ from ai_statistician.pseudo_formalization import (
     pseudo_formal_routable_work_order_rows,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
 )
+
+
+def test_formalizer_output_contract_bridge_examples_are_domain_neutral() -> None:
+    module_source = Path(formalizer_module.__file__).read_text(encoding="utf-8")
+    contract_source = json.dumps(FORMALIZER_OUTPUT_CONTRACT, sort_keys=True)
+
+    for forbidden in (
+        "hGoodCovered",
+        "hBadEvent",
+        "split_conformal",
+        "BadRanks",
+    ):
+        assert forbidden not in module_source
+        assert forbidden not in contract_source
+    assert "policy_bridge_premise_name" in contract_source
+    assert "policy_adapter_object_name" in contract_source
 
 
 def _write_static_formalizer_response(path: Path) -> None:

@@ -1479,7 +1479,7 @@ def _proof_body_work_order(
         "proofengineer_next_actions": [
             "inspect the signature_probe_artifact_path proof goal",
             "replace only the AI_STAT_EVOLVE_BLOCK proof body with a non-placeholder proof",
-            "reuse existing kernel-verified conformal bridge lemmas when available",
+            "reuse existing kernel-verified bridge/reduction lemmas when available",
             "search Mathlib/StatInference/local Lean sources before inventing helper lemmas",
             "preserve source theorem target provenance and semantic alignment constraints",
             "rerun local Lean/AXLE on the repaired exact source theorem artifact",

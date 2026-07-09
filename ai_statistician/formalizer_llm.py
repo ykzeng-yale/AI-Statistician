@@ -943,20 +943,23 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
     ],
     "source_to_bridge_premise_derivation_candidates": [
         {
-            "premise_name": "hGoodCovered",
-            "premise_names": ["hGoodCovered", "hBadEvent"],
+            "premise_name": "policy_bridge_premise_name",
+            "premise_names": [
+                "policy_bridge_premise_name",
+                "policy_bridge_premise_name_2",
+            ],
             "adapter_instantiation_group_id": "shared adapter instantiation group id when present",
             "required_bridge_premise_names_for_shared_instantiation": [
-                "hGoodCovered",
-                "hBadEvent",
+                "policy_bridge_premise_name",
+                "policy_bridge_premise_name_2",
             ],
-            "target_theorem_name": "split_conformal_coverage",
-            "target_lean_declaration": "split_conformal_coverage",
+            "target_theorem_name": "source_theorem_name_from_runtime_context",
+            "target_lean_declaration": "source_theorem_declaration_from_runtime_context",
             "premise_candidate_declaration_name": (
-                "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+                "source_theorem_policy_bridge_premise_source_to_bridge_derivation"
             ),
             "premise_derivation_candidate_lean_source": (
-                "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation ... := by\n"
+                "theorem source_theorem_policy_bridge_premise_source_to_bridge_derivation ... := by\n"
                 "  ..."
             ),
             "reason": "derive the adapter premise from exact source theorem hypotheses",
@@ -965,12 +968,12 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
     ],
     "source_to_bridge_premise_derivation_candidate_requests": [
         {
-            "candidate_request_id": "request:hGoodCovered",
-            "premise_name": "hGoodCovered",
-            "target_theorem_name": "split_conformal",
-            "target_lean_declaration": "split_conformal",
+            "candidate_request_id": "request:policy_bridge_premise_name",
+            "premise_name": "policy_bridge_premise_name",
+            "target_theorem_name": "source_theorem_name_from_runtime_context",
+            "target_lean_declaration": "source_theorem_declaration_from_runtime_context",
             "premise_candidate_declaration_name": (
-                "split_conformal_hGoodCovered_source_to_bridge_derivation"
+                "source_theorem_policy_bridge_premise_source_to_bridge_derivation"
             ),
             "premise_candidate_artifact_path": (
                 "runtime generated Lean skeleton artifact path when present"
@@ -980,11 +983,17 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
                 "as the theorem envelope to fill, not as proof evidence"
             ),
             "premise_target_type": "adapter premise Lean type",
-            "exact_source_theorem_binders": [{"name": "hC", "type": "source hyp"}],
-            "premise_semantic_anchor_binders": [{"name": "hC", "role": "anchor"}],
-            "premise_semantic_anchor_binder_names": ["hC"],
-            "required_semantic_anchor_reference_names": ["hC"],
-            "adapter_object_names_requiring_source_instantiation": ["covered"],
+            "exact_source_theorem_binders": [
+                {"name": "source_anchor_binder", "type": "source hyp"}
+            ],
+            "premise_semantic_anchor_binders": [
+                {"name": "source_anchor_binder", "role": "anchor"}
+            ],
+            "premise_semantic_anchor_binder_names": ["source_anchor_binder"],
+            "required_semantic_anchor_reference_names": ["source_anchor_binder"],
+            "adapter_object_names_requiring_source_instantiation": [
+                "policy_adapter_object_name"
+            ],
             "candidate_contract": "metadata only; not executable Lean",
             "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
         }
