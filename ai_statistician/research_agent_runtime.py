@@ -40602,6 +40602,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS = frozenset(
         "formalizer_lean_candidate_proof_state_feedback",
         "formalizer_lean_candidate_component_gate_feedback",
         "formalizer_pseudo_formal_packet_component_gate_feedback",
+        "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task",
         "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic",
         "formalizer_runtime_capability_contract_feedback",
         PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
@@ -40620,6 +40621,7 @@ RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS = frozenset(
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
         "SOURCE_THEOREM_EXACT_PROOF_BODY_REPAIR",
         "SOURCE_THEOREM_FORMAL_ENVIRONMENT_REPAIR",
+        "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
         PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
         "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE",
         "RUNTIME_ARCHITECT_CONTEXT_PROPAGATED_WITHOUT_TRACE",
@@ -41386,6 +41388,7 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
         or input_summary.get("runtime_queue_status", "")
         or ""
     )
+    trigger = _runtime_learning_row_trigger(row, input_summary)
     environment_repair_status = str(
         row.get("environment_repair_status", "")
         or input_summary.get("environment_repair_status", "")
@@ -41547,6 +41550,14 @@ def _runtime_learning_memory_context_pin_priority(row: Mapping[str, Any]) -> int
             return 90
         return 89
     if learning_task == "formalizer_runtime_capability_contract_feedback":
+        return 90
+    if (
+        learning_task
+        == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+        or trigger == "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+        or runtime_queue_status
+        == "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    ):
         return 90
     if learning_task == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK:
         row_kind = str(
@@ -41954,6 +41965,58 @@ def _runtime_learning_memory_context_pin_key(row: Mapping[str, Any]) -> str:
             + (component_manifest or provider_name or "attached")
             + ":"
             + failure_type
+        )
+    pf_retry_trigger = _runtime_learning_row_trigger(row, input_summary)
+    if (
+        learning_task
+        == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+        or pf_retry_trigger == "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+        or str(
+            row.get("runtime_queue_status", "")
+            or input_summary.get("runtime_queue_status", "")
+            or ""
+        ).strip()
+        == "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    ):
+        repair_seed = row.get(
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+            input_summary.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            ),
+        )
+        if not isinstance(repair_seed, Mapping):
+            repair_seed = {}
+        question_id = str(
+            row.get("question_id", "") or input_summary.get("question_id", "") or ""
+        ).strip()
+        work_order_id = str(
+            row.get("work_order_id", "") or input_summary.get("work_order_id", "") or ""
+        ).strip()
+        component_manifest = str(
+            row.get("component_eval_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        packet_id = str(
+            row.get("target_packet_id", "")
+            or input_summary.get("target_packet_id", "")
+            or repair_seed.get("packet_id", "")
+            or ""
+        ).strip()
+        theorem_id = str(
+            row.get("target_theorem_name", "")
+            or input_summary.get("target_theorem_name", "")
+            or repair_seed.get("theorem_id", "")
+            or ""
+        ).strip()
+        return (
+            "formalizer_pseudo_formal_packet_copy_ready_retry:"
+            + (question_id or "global")
+            + ":"
+            + (component_manifest or work_order_id or packet_id or "attached")
+            + ":"
+            + (theorem_id or packet_id or work_order_id or "retry")
         )
     if learning_task == "formalizer_runtime_capability_contract_feedback":
         question_id = str(

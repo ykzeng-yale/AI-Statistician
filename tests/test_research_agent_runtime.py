@@ -11872,6 +11872,74 @@ def test_runtime_learning_memory_pins_route_planner_contract_feedback(
     )
 
 
+def test_runtime_learning_memory_pins_pf_copy_ready_retry_agenda(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    retry_routing_row = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningRow",
+        "question_id": "conformal_prediction_coverage",
+        "learning_task": "generated_next_action_routing",
+        "work_order_id": "formalizer_pf_component_gate_copy_ready_retry:rank",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_name": "split_conformal_finite_sample_coverage",
+        "target_packet_id": "pseudo_formal_packet:retry_rank",
+        "input_summary": {
+            "trigger": "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
+            "source_learning_task": (
+                "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+            ),
+            "work_order_id": (
+                "formalizer_pf_component_gate_copy_ready_retry:rank"
+            ),
+            "runtime_queue_status": (
+                "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+            ),
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+        },
+        "runtime_queue_status": (
+            "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+        ),
+        "proof_evidence_status": (
+            "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    filler_rows = [
+        {
+            "schema_version": 1,
+            "learning_task": "latest_filler",
+            "target_behavior": f"latest filler row {index}",
+        }
+        for index in range(8)
+    ]
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in [retry_routing_row, *filler_rows])
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=1)
+
+    assert memory["counts"]["retention_policy"] == "priority_pinned_latest_rows"
+    assert len(memory["rows"]) == 1
+    retained = memory["rows"][0]
+    assert retained["learning_task"] == "generated_next_action_routing"
+    assert retained["input_summary"]["trigger"] == (
+        "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+    )
+    assert retained["runtime_queue_status"] == (
+        "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    )
+    assert runtime_module._runtime_learning_memory_should_pin_context_row(retained)
+    assert cli_module._runtime_learning_memory_should_pin_row(retained)
+    assert runtime_module._runtime_learning_memory_context_pin_priority(retained) == 90
+    assert cli_module._runtime_learning_memory_pin_priority(retained) == 90
+    assert runtime_module._runtime_learning_memory_context_pin_key(retained) == (
+        cli_module._runtime_learning_memory_pin_key(retained)
+    )
+
+
 def test_runtime_learning_memory_pins_bare_target_prover_route_revision_overlay(
     tmp_path: Path,
 ) -> None:
@@ -12202,6 +12270,51 @@ def test_cli_and_runtime_route_critical_memory_pinning_stays_aligned() -> None:
             "work_order_id": "handoff:coverage",
             "missing_artifact_id": "formalizer_packet:missing",
             "repair_owner_agent": "FormalizerProofEngineer",
+        },
+        {
+            "learning_task": (
+                "formalizer_pseudo_formal_packet_component_gate_copy_ready_"
+                "retry_task"
+            ),
+            "question_id": "conformal_prediction_coverage",
+            "work_order_id": (
+                "formalizer_pf_component_gate_copy_ready_retry:rank"
+            ),
+            "source_component_gate": (
+                "formalizer_pseudo_formal_packet_component_gate"
+            ),
+            "component_eval_manifest_path": "runs/pf/manifest.json",
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed": {
+                "packet_id": "pseudo_formal_packet:retry_rank",
+                "theorem_id": "split_conformal_finite_sample_coverage",
+            },
+            "runtime_queue_status": (
+                "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+            ),
+        },
+        {
+            "learning_task": "generated_next_action_routing",
+            "question_id": "conformal_prediction_coverage",
+            "work_order_id": (
+                "formalizer_pf_component_gate_copy_ready_retry:rank"
+            ),
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "target_packet_id": "pseudo_formal_packet:retry_rank",
+            "input_summary": {
+                "trigger": "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
+                "source_learning_task": (
+                    "formalizer_pseudo_formal_packet_component_gate_copy_ready_"
+                    "retry_task"
+                ),
+                "work_order_id": (
+                    "formalizer_pf_component_gate_copy_ready_retry:rank"
+                ),
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+                ),
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+            },
         },
     ]
 
