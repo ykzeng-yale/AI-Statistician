@@ -54,6 +54,52 @@
       ]
     },
     {
+      "policy_id": "split_conformal_coverage.probability_measure",
+      "policy_scope": "split_conformal_coverage",
+      "placeholder_key": "MeasureProbability",
+      "placeholder_aliases": ["ProbabilityMeasure", "IsProbabilityMeasure", "probability_measure"],
+      "semantic_goal": "Replace generated probability-measure placeholders with the exact source theorem probability measure binder P and its Mathlib probability-measure instance, rather than inventing a local wrapper.",
+      "required_anchor_names": ["P"],
+      "source_to_bridge_premise_aliases": ["hProb", "hP", "prob_measure_univ"],
+      "source_to_bridge_dependency_requirements": [
+        "use the exact source probability measure binder P",
+        "derive probability-of-universe and real/ENNReal probability coercion facts from Mathlib measure semantics"
+      ],
+      "source_to_bridge_required_anchor_names": ["P"],
+      "source_anchor_roles": {
+        "P": "probability_measure_anchor",
+        "hP": "probability_measure_anchor",
+        "hProb": "probability_measure_anchor"
+      },
+      "source_lookup_search_terms": ["MeasureTheory.Measure", "IsProbabilityMeasure", "ProbabilityMeasure"],
+      "source_lookup_aliases": ["MeasureProbability", "probability measure", "MeasureTheory.Measure"],
+      "definition_contract": {
+        "semantic_intent": "source theorem probability measure and probability-measure instance used to interpret event probabilities",
+        "lean_target_shape": "reuse `P : MeasureTheory.Measure Ω` with `[MeasureTheory.IsProbabilityMeasure P]` or reviewed equivalent source binders",
+        "required_properties": [
+          "uses the exact source theorem measure binder P",
+          "preserves probability-measure normalization semantics",
+          "supports downstream real/ENNReal probability adapter bridge lemmas"
+        ],
+        "forbidden_shortcuts": [
+          "do not define MeasureProbability as True",
+          "do not create an unrelated local probability wrapper",
+          "do not add axiom/sorry/admit/unsafe",
+          "do not assume the split_conformal_coverage target theorem"
+        ]
+      },
+      "candidate_risk_rules": [
+        {
+          "message": "semantic_definition_risk: probability-measure placeholder candidate does not use the source measure binder P",
+          "absent_all": ["P"]
+        },
+        {
+          "message": "semantic_definition_risk: probability-measure placeholder candidate does not mention Mathlib probability-measure semantics",
+          "absent_all": ["IsProbabilityMeasure", "ProbabilityMeasure"]
+        }
+      ]
+    },
+    {
       "policy_id": "split_conformal_coverage.covered",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "covered",

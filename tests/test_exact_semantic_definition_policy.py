@@ -44,6 +44,9 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     rank = exact_semantic_definition_placeholder_policy("rank")
     good_rank_event = exact_semantic_definition_placeholder_policy("good_rank_event")
     prediction_set = exact_semantic_definition_placeholder_policy("C_n")
+    probability_measure = exact_semantic_definition_placeholder_policy(
+        "MeasureProbability"
+    )
     bad_ranks = exact_semantic_definition_placeholder_policy("BadRanks")
     alpha_total = exact_semantic_definition_placeholder_policy("alpha_total")
 
@@ -66,6 +69,14 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     assert prediction_set.policy_id == "split_conformal_coverage.prediction_set"
     assert prediction_set.required_anchor_names == ("s", "q_hat")
     assert "prediction set C_n" in prediction_set.semantic_goal
+
+    assert probability_measure.policy_id == (
+        "split_conformal_coverage.probability_measure"
+    )
+    assert probability_measure.required_anchor_names == ("P",)
+    assert probability_measure.source_anchor_roles["P"] == (
+        "probability_measure_anchor"
+    )
 
     order_stat = exact_semantic_definition_placeholder_policy("orderStat")
     assert order_stat.policy_id == (
@@ -185,6 +196,17 @@ def test_placeholder_policy_owns_draft_definitions_and_search_aliases() -> None:
     assert exact_semantic_definition_source_lookup_terms("Exchangeable") == (
         "exchangeability",
         "exchangeab",
+    )
+    probability_measure_contract = exact_semantic_definition_contract(
+        "MeasureProbability"
+    )
+    assert "source theorem probability measure" in probability_measure_contract[
+        "semantic_intent"
+    ]
+    assert exact_semantic_definition_source_lookup_terms("MeasureProbability") == (
+        "MeasureTheory.Measure",
+        "IsProbabilityMeasure",
+        "ProbabilityMeasure",
     )
 
     order_stat_draft = exact_semantic_definition_draft_definition("orderStat")

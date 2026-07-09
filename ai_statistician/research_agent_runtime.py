@@ -235,6 +235,11 @@ from .source_theorem_exact_semantic_definition_source_lookup import (
     run_source_theorem_exact_semantic_definition_source_lookup,
     run_source_theorem_exact_semantic_definition_typechecked_review_recheck_queue,
 )
+from .exact_semantic_definition_policy import (
+    exact_semantic_definition_contract,
+    exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_lookup_aliases,
+)
 from .source_theorem_exact_semantic_definition_verifier_gate_executor import (
     run_source_theorem_exact_semantic_definition_verifier_gate_executor,
 )
@@ -52313,89 +52318,6 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
 def _source_theorem_placeholder_resolution_rows(
     repairs: tuple[dict[str, Any], ...],
 ) -> list[dict[str, Any]]:
-    replacement_catalog = {
-        "MeasureProbability": {
-            "replacement_strategy": (
-                "replace generated `MeasureProbability Ω` with "
-                "`P : MeasureTheory.Measure Ω` and "
-                "`[MeasureTheory.IsProbabilityMeasure P]`"
-            ),
-            "search_targets": [
-                "MeasureTheory.Measure",
-                "MeasureTheory.IsProbabilityMeasure",
-                "Mathlib.MeasureTheory.Measure.ProbabilityMeasure",
-            ],
-            "promotion_gate": (
-                "source theorem promotion remains blocked until the probability "
-                "measure semantics are represented by reviewed Mathlib/StatInference "
-                "declarations, not a local wrapper"
-            ),
-        },
-        "Exchangeable": {
-            "replacement_strategy": (
-                "map generated `Exchangeable P s` to a reviewed exchangeability "
-                "predicate over the joint law/permutation-invariant score family"
-            ),
-            "search_targets": [
-                "exchangeable finite family",
-                "permutation invariant distribution",
-                "StatInference conformal exchangeability primitive",
-            ],
-            "promotion_gate": (
-                "source theorem promotion remains blocked until exchangeability "
-                "semantics are reviewed or kernel-proved as a source primitive"
-            ),
-        },
-        "orderStatistic": {
-            "replacement_strategy": (
-                "replace generated `orderStatistic` with a reviewed finite "
-                "order-statistic/quantile primitive compatible with calibration "
-                "indices"
-            ),
-            "search_targets": [
-                "finite order statistic real",
-                "Finset sort nth",
-                "StatInference conformal quantile primitive",
-            ],
-            "promotion_gate": (
-                "source theorem promotion remains blocked until the order-statistic "
-                "definition is tied to the rank/coverage bridge semantics"
-            ),
-        },
-        "orderStat": {
-            "replacement_strategy": (
-                "replace generated `orderStat` with a reviewed finite "
-                "order-statistic/quantile primitive compatible with calibration "
-                "indices"
-            ),
-            "search_targets": [
-                "finite order statistic real",
-                "Finset sort nth",
-                "StatInference conformal quantile primitive",
-            ],
-            "promotion_gate": (
-                "source theorem promotion remains blocked until the order-statistic "
-                "definition is tied to the rank/coverage bridge semantics"
-            ),
-        },
-        "covered": {
-            "replacement_strategy": (
-                "instantiate the adapter object `covered` from the exact source "
-                "coverage-event binder, normally the hypothesis hC tying C/q_hat "
-                "to the event {y | score <= q_hat}"
-            ),
-            "search_targets": [
-                "coverage event identity",
-                "source theorem hC coverage set",
-                "split conformal covered event",
-            ],
-            "promotion_gate": (
-                "source theorem promotion remains blocked until `covered` is "
-                "defined from exact source theorem binders rather than assumed "
-                "as an adapter premise"
-            ),
-        },
-    }
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for repair in repairs:
@@ -52408,26 +52330,16 @@ def _source_theorem_placeholder_resolution_rows(
             if key in seen:
                 continue
             seen.add(key)
-            catalog_row = replacement_catalog.get(symbol_value, {})
+            policy_row = _source_theorem_placeholder_policy_resolution_row(
+                symbol_value
+            )
             rows.append(
                 {
                     "target_theorem_name": target,
                     "placeholder_symbol": symbol_value,
+                    **policy_row,
                     "failure_classification": str(
                         repair.get("failure_classification", "") or ""
-                    ),
-                    "replacement_strategy": str(
-                        catalog_row.get(
-                            "replacement_strategy",
-                            "search Mathlib/StatInference/local Lean sources for a reviewed primitive before using a local placeholder",
-                        )
-                    ),
-                    "search_targets": list(catalog_row.get("search_targets", [])),
-                    "promotion_gate": str(
-                        catalog_row.get(
-                            "promotion_gate",
-                            "placeholder primitives are routing evidence only and block source theorem promotion",
-                        )
                     ),
                     "candidate_registered_obligation_ids": list(
                         _registered_support_for_placeholder_symbol(symbol_value)
@@ -52438,6 +52350,49 @@ def _source_theorem_placeholder_resolution_rows(
                 }
             )
     return rows
+
+
+def _source_theorem_placeholder_policy_resolution_row(symbol: str) -> dict[str, Any]:
+    symbol_value = str(symbol or "").strip()
+    policy = exact_semantic_definition_placeholder_policy(symbol_value)
+    contract = exact_semantic_definition_contract(symbol_value)
+    policy_id = str(policy.policy_id or "").strip()
+    semantic_goal = str(policy.semantic_goal or "").strip()
+    search_targets = list(exact_semantic_definition_source_lookup_aliases(symbol_value))
+    if not search_targets and symbol_value:
+        search_targets = [symbol_value]
+    forbidden_shortcuts = [
+        str(value).strip()
+        for value in contract.get("forbidden_shortcuts", []) or []
+        if str(value).strip()
+    ][:4]
+    policy_known = policy_id != "generic_exact_semantic_definition_placeholder"
+    replacement_strategy = (
+        f"formalize reviewed exact semantic definition for `{symbol_value}` "
+        f"from placeholder policy `{policy_id}`: {semantic_goal}"
+        if policy_known
+        else (
+            "search Mathlib/StatInference/local Lean sources for a reviewed "
+            f"primitive before using local placeholder `{symbol_value}`"
+        )
+    )
+    promotion_gate = (
+        f"source theorem promotion remains blocked until placeholder policy "
+        f"`{policy_id}` has reviewed exact semantics and local Lean/AXLE "
+        "verifies the downstream source theorem"
+    )
+    if forbidden_shortcuts:
+        promotion_gate += "; forbidden shortcuts: " + "; ".join(forbidden_shortcuts)
+    return {
+        "placeholder_policy_id": policy_id,
+        "placeholder_policy_scope": str(policy.policy_scope or "").strip(),
+        "semantic_goal": semantic_goal,
+        "definition_contract": dict(contract),
+        "replacement_strategy": replacement_strategy,
+        "search_targets": search_targets,
+        "promotion_gate": promotion_gate,
+        "placeholder_resolution_source": "exact_semantic_definition_policy_pack",
+    }
 
 
 def _source_theorem_proof_body_adapter_required_reasons(

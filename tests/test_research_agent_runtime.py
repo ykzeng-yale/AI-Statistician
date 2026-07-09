@@ -46422,15 +46422,23 @@ def test_formalizer_prompt_includes_exact_source_proof_body_executor_feedback() 
     assert summary["source_theorem_exact_candidate_placeholder_resolution_plan"][
         0
     ]["placeholder_symbol"] == "Exchangeable"
-    assert "reviewed exchangeability predicate" in summary[
+    exchangeable_plan = summary[
         "source_theorem_exact_candidate_placeholder_resolution_plan"
-    ][0]["replacement_strategy"]
+    ][0]
+    assert exchangeable_plan["placeholder_policy_id"] == (
+        "split_conformal_coverage.exchangeable"
+    )
+    assert "permutation-invariant joint law" in exchangeable_plan["semantic_goal"]
     assert summary["source_theorem_exact_candidate_placeholder_resolution_plan"][
         1
     ]["placeholder_symbol"] == "orderStat"
-    assert "order-statistic/quantile primitive" in summary[
+    order_stat_plan = summary[
         "source_theorem_exact_candidate_placeholder_resolution_plan"
-    ][1]["replacement_strategy"]
+    ][1]
+    assert order_stat_plan["placeholder_policy_id"] == (
+        "split_conformal_coverage.order_statistic_threshold"
+    )
+    assert "duplicate score multiplicities" in order_stat_plan["semantic_goal"]
     assert summary["recommended_source_theorem_integration_action"] == (
         "repair_exact_source_theorem_candidate_formal_environment"
     )
@@ -46438,12 +46446,63 @@ def test_formalizer_prompt_includes_exact_source_proof_body_executor_feedback() 
     assert "formal_environment_placeholder_primitives" in prompt
     assert "repair_exact_source_theorem_candidate_formal_environment" in prompt
     assert "source_theorem_exact_candidate_placeholder_resolution_plan" in prompt
-    assert "reviewed exchangeability predicate" in prompt
+    assert "split_conformal_coverage.exchangeable" in prompt
+    assert "permutation-invariant joint law" in prompt
     assert "Exchangeable" in prompt
     assert "source_theorem_ready_for_exact_proof_body" in prompt
     assert "source_theorem_semantic_support_only" in prompt
     assert "semantic_closure_status" in prompt
     assert "placeholder_definition_status" in prompt
+
+
+def test_placeholder_resolution_plan_uses_exact_semantic_policy_pack() -> None:
+    rows = runtime_module._source_theorem_placeholder_resolution_rows(
+        (
+            {
+                "target_theorem_name": "split_conformal_coverage",
+                "failure_classification": "formal_environment_placeholder_primitives",
+                "missing_formal_symbols": [
+                    "MeasureProbability",
+                    "Exchangeable",
+                    "orderStat",
+                    "covered",
+                ],
+            },
+        )
+    )
+    by_symbol = {row["placeholder_symbol"]: row for row in rows}
+
+    assert by_symbol["MeasureProbability"]["placeholder_policy_id"] == (
+        "split_conformal_coverage.probability_measure"
+    )
+    assert "MeasureTheory.Measure" in by_symbol["MeasureProbability"]["search_targets"]
+    assert "source theorem probability measure" in by_symbol["MeasureProbability"][
+        "definition_contract"
+    ]["semantic_intent"]
+    assert by_symbol["Exchangeable"]["placeholder_policy_id"] == (
+        "split_conformal_coverage.exchangeable"
+    )
+    assert "permutation-invariant joint law" in by_symbol["Exchangeable"][
+        "semantic_goal"
+    ]
+    assert by_symbol["orderStat"]["placeholder_policy_id"] == (
+        "split_conformal_coverage.order_statistic_threshold"
+    )
+    assert "orderStatistic" in by_symbol["orderStat"]["search_targets"]
+    assert by_symbol["covered"]["placeholder_policy_id"] == (
+        "split_conformal_coverage.covered"
+    )
+    assert all(
+        row["placeholder_resolution_source"] == (
+            "exact_semantic_definition_policy_pack"
+        )
+        for row in rows
+    )
+    assert all(
+        row["proof_evidence_status"]
+        == "PLACEHOLDER_RESOLUTION_PLAN_NOT_PROOF_EVIDENCE"
+        for row in rows
+    )
 
 
 def test_source_theorem_repair_memory_accepts_compact_learning_task_rows() -> None:
@@ -46724,7 +46783,7 @@ def test_runtime_learning_loader_preserves_exact_semantic_definition_work_orders
     assert summary["source_theorem_exact_candidate_placeholder_resolution_plan"][
         0
     ]["placeholder_symbol"] == "Exchangeable"
-    assert "reviewed exchangeability predicate" in prompt
+    assert "split_conformal_coverage.exchangeable" in prompt
     assert "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER" in prompt
 
     converted_learning_path = tmp_path / "runtime_learning_rows.jsonl"
