@@ -15,6 +15,7 @@ from .exact_semantic_definition_policy import (
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation as _policy_source_to_bridge_adapter_object_names,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
+    exact_semantic_definition_source_to_bridge_premise_binder_aliases,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
@@ -1433,12 +1434,10 @@ def _adapter_premise_target_from_signature(
                 premise_type = target
                 matched_binder = f"({name} : {target})"
                 continue
-            if _normalize_premise_identifier(name) in {
-                "hgoodcovered",
-                "hbadevent",
-                "hrank",
-                "htotal",
-            }:
+            if (
+                _normalize_premise_identifier(name)
+                in _source_to_bridge_policy_premise_aliases_normalized()
+            ):
                 continue
         if stripped.endswith(":="):
             continue
@@ -1499,6 +1498,14 @@ def _parse_single_named_binder(line: str) -> tuple[str, str] | None:
 
 def _normalize_premise_identifier(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+
+def _source_to_bridge_policy_premise_aliases_normalized() -> set[str]:
+    return {
+        normalized
+        for alias in exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+        if (normalized := _normalize_premise_identifier(alias))
+    }
 
 
 def _generated_premise_derivation_skeleton(

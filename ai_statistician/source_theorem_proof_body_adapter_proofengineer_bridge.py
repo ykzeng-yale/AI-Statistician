@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from .exact_semantic_definition_policy import (
+    exact_semantic_definition_source_to_bridge_premise_binder_aliases,
+)
 from .fingerprint import stable_hash
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
@@ -36,15 +39,10 @@ BOUNDARY = (
     "under local Lean/AXLE with no forbidden placeholder tokens; the exact source "
     "theorem still must be rerun and kernel verified separately."
 )
-BRIDGE_PREMISE_BINDER_NAMES = (
-    "hGoodCovered",
-    "hBadEvent",
-    "hRank",
-    "hTotal",
-    "h_total",
-    "hBad",
-    "hCoverage",
-)
+
+
+def _bridge_premise_binder_names() -> tuple[str, ...]:
+    return exact_semantic_definition_source_to_bridge_premise_binder_aliases()
 
 
 @dataclass(frozen=True)
@@ -1347,12 +1345,27 @@ def _looks_like_proof_body_diagnostic_line(line: str) -> bool:
 
 def _bridge_premise_names_from_context(row: Mapping[str, Any]) -> tuple[str, ...]:
     context = _bridge_premise_context_text(row)
+    return _bridge_premise_names_in_lean_context(context)
+
+
+def _bridge_premise_names_in_lean_context(source: str) -> tuple[str, ...]:
+    policy_names = set(_bridge_premise_binder_names())
     names = [
         name
-        for name in BRIDGE_PREMISE_BINDER_NAMES
-        if re.search(rf"\(\s*{re.escape(name)}\b", context)
+        for name in _lean_named_binder_names_in_order(source)
+        if name in policy_names
     ]
     return tuple(dict.fromkeys(names))
+
+
+def _lean_named_binder_names_in_order(source: str) -> tuple[str, ...]:
+    return tuple(
+        match.group(1)
+        for match in re.finditer(
+            r"\(\s*([A-Za-z_][A-Za-z0-9_']*)\b\s*:",
+            str(source or ""),
+        )
+    )
 
 
 def _bridge_premise_target_type_from_context(
@@ -1616,12 +1629,7 @@ def _adapter_unproven_bridge_premise_names(
     if not _requires_exact_source_to_bridge_derivation(row):
         return ()
     header = _lean_theorem_header_without_comments(source)
-    names = [
-        name
-        for name in BRIDGE_PREMISE_BINDER_NAMES
-        if re.search(rf"\(\s*{re.escape(name)}\b", header)
-    ]
-    return tuple(dict.fromkeys(names))
+    return _bridge_premise_names_in_lean_context(header)
 
 
 def _requires_exact_source_to_bridge_derivation(row: Mapping[str, Any]) -> bool:

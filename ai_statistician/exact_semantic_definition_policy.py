@@ -479,6 +479,50 @@ def exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_so
     return EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES
 
 
+def exact_semantic_definition_source_to_bridge_premise_aliases() -> tuple[str, ...]:
+    aliases: list[str] = []
+    seen_policy_ids: set[str] = set()
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        if policy.policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy.policy_id)
+        aliases.extend(policy.source_to_bridge_premise_aliases)
+    return tuple(dict.fromkeys(alias for alias in aliases if alias))
+
+
+def exact_semantic_definition_source_to_bridge_premise_binder_aliases() -> tuple[
+    str,
+    ...,
+]:
+    semantic_object_keys = {
+        compact_exact_semantic_placeholder_key(name)
+        for name in EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES
+    }
+    seen_policy_ids: set[str] = set()
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        if policy.policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy.policy_id)
+        semantic_object_keys.add(
+            compact_exact_semantic_placeholder_key(policy.placeholder_key)
+        )
+        semantic_object_keys.update(
+            compact_exact_semantic_placeholder_key(alias)
+            for alias in policy.placeholder_aliases
+        )
+        semantic_object_keys.update(
+            compact_exact_semantic_placeholder_key(name)
+            for name in policy.required_adapter_object_names
+        )
+    aliases = [
+        alias
+        for alias in exact_semantic_definition_source_to_bridge_premise_aliases()
+        if compact_exact_semantic_placeholder_key(alias)
+        not in semantic_object_keys
+    ]
+    return tuple(dict.fromkeys(aliases))
+
+
 def exact_semantic_definition_source_to_bridge_anchor_fallback_names(
     *,
     premise_name: str,

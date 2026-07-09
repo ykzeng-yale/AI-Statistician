@@ -49,6 +49,8 @@ def test_source_to_bridge_premise_bridge_uses_policy_for_domain_fallbacks() -> N
         module_source
     )
     assert "source_to_bridge_anchor_fallback_names" in module_source
+    assert '{"hgoodcovered"' not in module_source
+    assert "source_to_bridge_premise_binder_aliases" in module_source
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+import ai_statistician.source_theorem_proof_body_adapter_proofengineer_bridge as adapter_bridge_module
 from ai_statistician.cli import _research_agent_runtime_capability_config_errors, main
 from ai_statistician.source_to_bridge_premise_derivation_proofengineer_bridge import (
     run_source_to_bridge_premise_derivation_proofengineer_bridge,
@@ -13,6 +14,16 @@ from ai_statistician.source_theorem_proof_body_adapter_proofengineer_bridge impo
     resolve_source_theorem_proof_body_adapter_queue_path,
     run_source_theorem_proof_body_adapter_proofengineer_bridge,
 )
+
+
+def test_proof_body_adapter_bridge_uses_policy_for_bridge_premise_aliases() -> None:
+    module_source = Path(adapter_bridge_module.__file__).read_text(encoding="utf-8")
+
+    assert "BRIDGE_PREMISE_BINDER_NAMES" not in module_source
+    assert (
+        "exact_semantic_definition_source_to_bridge_premise_binder_aliases"
+        in module_source
+    )
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

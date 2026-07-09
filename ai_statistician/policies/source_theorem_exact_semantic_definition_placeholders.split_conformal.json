@@ -247,7 +247,7 @@
       "placeholder_aliases": ["coverage_event", "coverageEvent", "coverage-event"],
       "semantic_goal": "Define the source coverage event/object from the exact source theorem coverage binder hC and threshold q_hat, matching the held-out score event {\u03c9 | s (Fin.last n2) \u03c9 \u2264 q_hat \u03c9}.",
       "required_anchor_names": ["s", "q_hat", "C", "hC"],
-      "source_to_bridge_premise_aliases": ["hGoodCovered", "hGoodRankCovered", "hGoodRankImpliesCovered", "hGoodImpliesCovered"],
+      "source_to_bridge_premise_aliases": ["hGoodCovered", "hGoodRankCovered", "hGoodRankImpliesCovered", "hGoodImpliesCovered", "hCoverage"],
       "source_to_bridge_dependency_requirements": [
         "define covered from the exact source coverage event using hC",
         "define rank and BadRanks from the exact order-statistic threshold hq",
@@ -470,7 +470,7 @@
       "semantic_goal": "Define the finite bad-rank set from n2, alpha, halpha, and hq so it matches the ranks that violate conformal coverage containment.",
       "required_anchor_names": ["n2", "alpha", "halpha", "s", "q_hat", "hq"],
       "required_adapter_object_names": ["rank"],
-      "source_to_bridge_premise_aliases": ["hBadEvent", "BadRanks", "bad_rank_event"],
+      "source_to_bridge_premise_aliases": ["hBadEvent", "BadRanks", "bad_rank_event", "hBad"],
       "source_to_bridge_dependency_requirements": [
         "provide measurability of the rank map or of the finite bad-rank event",
         "connect BadRanks to a finite/rank-indexed event in the exact source environment"

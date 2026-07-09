@@ -18,6 +18,8 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_signature_probe_prelude,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
+    exact_semantic_definition_source_to_bridge_premise_aliases,
+    exact_semantic_definition_source_to_bridge_premise_binder_aliases,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
@@ -111,16 +113,19 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
 
 def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:
     covered = exact_semantic_definition_placeholder_policy("covered")
+    bad_ranks = exact_semantic_definition_placeholder_policy("BadRanks")
     rank = exact_semantic_definition_placeholder_policy("rank")
     alpha_total = exact_semantic_definition_placeholder_policy("alpha_total")
 
     assert "hGoodCovered" in covered.source_to_bridge_premise_aliases
+    assert "hCoverage" in covered.source_to_bridge_premise_aliases
     assert (
         "define covered from the exact source coverage event using hC"
         in covered.source_to_bridge_dependency_requirements
     )
     assert covered.source_to_bridge_required_anchor_names == ("hq", "hC")
     assert covered.source_anchor_roles["hC"] == "coverage_event_anchor"
+    assert "hBad" in bad_ranks.source_to_bridge_premise_aliases
 
     assert (
         "derive the rank point-mass bound from exact exchangeability hexch"
@@ -133,6 +138,28 @@ def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:
         "prove the finite bad-rank budget sum bound for \u03b1 over BadRanks"
         in alpha_total.source_to_bridge_dependency_requirements
     )
+    assert {
+        "hGoodCovered",
+        "hBadEvent",
+        "hRank",
+        "hTotal",
+        "h_total",
+        "hBad",
+        "hCoverage",
+    }.issubset(set(exact_semantic_definition_source_to_bridge_premise_aliases()))
+    binder_aliases = set(
+        exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+    )
+    assert {
+        "hGoodCovered",
+        "hBadEvent",
+        "hRank",
+        "hTotal",
+        "h_total",
+        "hBad",
+        "hCoverage",
+    }.issubset(binder_aliases)
+    assert "BadRanks" not in binder_aliases
 
 
 def test_placeholder_policy_keeps_alpha_aliases_and_generic_fallback() -> None:
