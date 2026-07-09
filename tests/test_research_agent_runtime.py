@@ -94829,6 +94829,12 @@ def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_gap() -> None
     assert "copy_ready_retry_next_action_rows>=failed_rows" in routing_row[
         "success_metric"
     ]
+    assert "copy_ready_retry_prompt_memory_rows>=failed_rows" in routing_row[
+        "success_metric"
+    ]
+    assert "copy_ready_retry_structured_seed_rows>=failed_rows" in routing_row[
+        "success_metric"
+    ]
     assert (
         routing_row["proof_evidence_status"]
         == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
@@ -94873,7 +94879,7 @@ def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_agenda_gap() 
     ]
 
 
-def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> None:
+def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_prompt_memory_gap() -> None:
     payload = {
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": 1,
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": 1,
@@ -94902,10 +94908,105 @@ def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> 
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     row = rows["formalizer_pseudo_formal_packet_failure_repair_copy_ready"]
 
+    assert row["passed"] is False
+    assert "runtime_copy_ready_retry_next_action_rows=1" in row["evidence"]
+    assert "runtime_copy_ready_retry_prompt_memory_rows=0" in row["evidence"]
+    assert "runtime_copy_ready_retry_structured_seed_rows=0" in row["evidence"]
+    assert "prompt-consumable Formalizer retry agenda" in row["blocker"]
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+    routing = {row["requirement_id"]: row for row in routing_rows}
+    routing_row = routing[
+        "formalizer_pseudo_formal_packet_failure_repair_copy_ready"
+    ]
+    assert "copy_ready_retry_prompt_memory_rows>=failed_rows" in routing_row[
+        "success_metric"
+    ]
+    assert "copy_ready_retry_structured_seed_rows>=failed_rows" in routing_row[
+        "success_metric"
+    ]
+
+
+def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> None:
+    payload = {
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items": 1,
+        "runtime_next_action_agenda_triggers": {
+            "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED": 1
+        },
+        "runtime_next_action_agenda_generated_queue_names": {
+            "formalizer_pf_bv_copy_ready_retries": 1
+        },
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+        "proof_bank_runtime_memory_summary": {
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available": True,
+            "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows": 1,
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory": [
+                {
+                    "agenda_id": "formalizer_pf_bv_copy_ready_retry:scorecard",
+                    "work_order_id": (
+                        "formalizer_pf_component_gate_copy_ready_retry:scorecard"
+                    ),
+                    "runtime_queue_status": (
+                        "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+                    ),
+                    "required_target_lanes": [
+                        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                    ],
+                    "concrete_lane_routable_repair_seed": {
+                        "packet_id": "pseudo_formal_packet:scorecard_retry",
+                        "theorem_id": "theorem:scorecard_retry",
+                        "blocks": [
+                            {
+                                "block_id": "pf_block:scorecard_retry",
+                                "conclusion": "copy-ready PF/BV retry block",
+                                "source_anchors": [
+                                    {"id": "proof_body:scorecard_retry"}
+                                ],
+                                "semantic_primitive_requirements": [
+                                    "semantic_primitive:scorecard_retry"
+                                ],
+                            }
+                        ],
+                    },
+                    "validator_ready_copy_contract": {
+                        "copy_source_path": (
+                            "pseudo_formalization_required_copy_fragment."
+                            "pseudo_formal_proof_packets"
+                        ),
+                        "copy_destination_path": "pseudo_formal_proof_packets",
+                    },
+                    "validator_ready_copy_contract_summary": {
+                        "validator_ready_copy_contract_satisfied": True,
+                        "exact_semantic_definition_lane_ready_if_copied": True,
+                    },
+                }
+            ],
+        },
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["formalizer_pseudo_formal_packet_failure_repair_copy_ready"]
+
     assert row["passed"] is True
     assert row["blocker"] == ""
     assert "runtime_failure_exact_semantic_copy_ready_rows=1" in row["evidence"]
     assert "runtime_copy_ready_retry_next_action_rows=1" in row["evidence"]
+    assert "runtime_copy_ready_retry_prompt_memory_rows=1" in row["evidence"]
+    assert "runtime_copy_ready_retry_structured_seed_rows=1" in row["evidence"]
 
 
 def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(
