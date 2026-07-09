@@ -897,6 +897,13 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
         is True
     )
     assert manifest["pseudo_formal_failure_repair_seed_available"] is True
+    assert manifest["nonproof_boundary_preserved"] is True
+    assert manifest["raw_model_output_written"] is False
+    assert manifest["source_theorem_kernel_verified"] is False
+    assert manifest["full_frontier_theorem_proved"] is False
+    assert manifest["proof_evidence_status"] == (
+        FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE
+    )
     assert any(
         row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         and row["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
@@ -916,6 +923,9 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
         "validator_ready_copy_contract_satisfied"
     ] is True
     assert result["pseudo_formal_failure_copy_ready"] is True
+    assert result["nonproof_boundary_preserved"] is True
+    assert result["source_theorem_kernel_verified"] is False
+    assert result["full_frontier_theorem_proved"] is False
 
 
 def test_formalizer_pseudo_formal_packet_eval_cli_fixture_gate(

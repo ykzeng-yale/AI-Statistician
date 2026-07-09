@@ -230,6 +230,10 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         ),
         "capability_evidence_ok": False,
         "fixture_plumbing_ok": False,
+        "nonproof_boundary_preserved": True,
+        "raw_model_output_written": False,
+        "source_theorem_kernel_verified": False,
+        "full_frontier_theorem_proved": False,
         "proof_evidence_status": (
             FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE
         ),
@@ -277,6 +281,17 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
                 "pseudo_formal_failure_repair_seed_available": (
                     manifest["pseudo_formal_failure_repair_seed_available"]
                 ),
+                "nonproof_boundary_preserved": (
+                    manifest["nonproof_boundary_preserved"]
+                ),
+                "raw_model_output_written": manifest["raw_model_output_written"],
+                "source_theorem_kernel_verified": (
+                    manifest["source_theorem_kernel_verified"]
+                ),
+                "full_frontier_theorem_proved": (
+                    manifest["full_frontier_theorem_proved"]
+                ),
+                "proof_evidence_status": manifest["proof_evidence_status"],
             },
             indent=2,
             sort_keys=True,

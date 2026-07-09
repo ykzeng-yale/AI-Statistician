@@ -93768,6 +93768,21 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert attached["attachment_gate_requirements"][
         "manifest_capability_evidence_ok"
     ] is False
+    assert attached["nonproof_boundary_preserved"] is True
+    assert attached["raw_model_output_written"] is False
+    assert attached["proof_evidence_status_ok"] is True
+    assert attached["no_theorem_proof_claim"] is True
+    assert attached["source_theorem_kernel_verified"] is False
+    assert attached["full_frontier_theorem_proved"] is False
+    assert attached["attachment_gate_requirements"][
+        "nonproof_boundary_preserved"
+    ] is True
+    assert attached["attachment_gate_requirements"][
+        "raw_model_output_not_written"
+    ] is True
+    assert attached["attachment_gate_requirements"][
+        "no_theorem_proof_claim"
+    ] is True
     assert attached["attachment_gate_requirements"][
         "exact_semantic_definition_lane_present"
     ] is False
