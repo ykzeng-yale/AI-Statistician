@@ -14617,8 +14617,17 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
             ),
         )
 
-    proof_state_required = (
+    proof_state_feedback_required = (
         _runtime_context_requires_formalizer_proof_state_feedback(context)
+    )
+    materialization_bound_proof_state_required = (
+        _runtime_context_requires_formalizer_materialization_bound_proof_state_feedback(
+            context,
+        )
+    )
+    proof_state_required = (
+        proof_state_feedback_required
+        or materialization_bound_proof_state_required
         or _runtime_context_requires_formalizer_local_lean_tool_call(context)
         or _runtime_context_requires_formalizer_live_prover_tool_call(context)
     )
@@ -14646,25 +14655,75 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
         )
 
     if (
-        _runtime_context_requires_formalizer_proof_state_feedback(context)
+        (proof_state_feedback_required or materialization_bound_proof_state_required)
         and not lean_candidate_contract_deferred_to_pseudo_formal_route
         and proof_state_provider is not None
         and candidate_proof_state_manifest is None
     ):
+        proof_state_feedback_flag = (
+            "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
+            if materialization_bound_proof_state_required
+            else "capability_eval_requires_formalizer_proof_state_feedback"
+        )
+        proof_state_feedback_classification = (
+            "formalizer_capability_contract_missing_materialization_bound_proof_state_feedback"
+            if materialization_bound_proof_state_required
+            else "formalizer_capability_contract_missing_proof_state_feedback"
+        )
         add_missing(
-            flag="capability_eval_requires_formalizer_proof_state_feedback",
-            classification=(
-                "formalizer_capability_contract_missing_proof_state_feedback"
-            ),
+            flag=proof_state_feedback_flag,
+            classification=proof_state_feedback_classification,
             reason=(
                 "runtime learning memory requires candidate proof-state feedback "
-                "rows, but no RuntimeFormalizerLeanCandidateProofStateFeedbackManifest "
-                "was produced"
+                "rows bound to the materialized Lean candidate, but no "
+                "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest was "
+                "produced"
             ),
             next_owner_subsystem="ProofEngineer",
             required_behavior=(
                 "route failed generated Lean candidates through ProofStateFeedbackProvider.inspect",
+                "bind feedback source_materialization_manifest_id to the current Lean candidate materialization",
                 "record residual goals, diagnostics, requested tools, and executed tools",
+            ),
+        )
+
+    current_materialization_id = str(
+        lean_candidate_materialization.get("manifest_id", "") or ""
+    ).strip()
+    proof_state_source_materialization_id = (
+        str(
+            candidate_proof_state_manifest.get("source_materialization_manifest_id", "")
+            or ""
+        ).strip()
+        if isinstance(candidate_proof_state_manifest, Mapping)
+        else ""
+    )
+    if (
+        materialization_bound_proof_state_required
+        and not lean_candidate_contract_deferred_to_pseudo_formal_route
+        and proof_state_provider is not None
+        and isinstance(candidate_proof_state_manifest, Mapping)
+        and (
+            not proof_state_source_materialization_id
+            or proof_state_source_materialization_id != current_materialization_id
+        )
+    ):
+        add_missing(
+            flag="capability_eval_requires_formalizer_materialization_bound_proof_state_feedback",
+            classification=(
+                "formalizer_capability_contract_unbound_proof_state_feedback"
+            ),
+            reason=(
+                "runtime learning memory requires proof-state feedback bound to "
+                "the current Formalizer Lean-candidate materialization, but the "
+                "feedback manifest source_materialization_manifest_id does not "
+                "match the candidate manifest_id"
+            ),
+            next_owner_subsystem="ProofEngineer",
+            required_behavior=(
+                "rerun ProofStateFeedbackProvider.inspect against the current materialized Lean candidate",
+                "record source_materialization_manifest_id equal to the current candidate manifest_id",
+                "do not count stale or cross-candidate proof-state rows as capability evidence",
             ),
         )
 
@@ -14809,6 +14868,17 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
                 if isinstance(candidate_proof_state_manifest, Mapping)
                 else ""
             ),
+            "candidate_proof_state_source_materialization_manifest_id": (
+                proof_state_source_materialization_id
+            ),
+            "candidate_proof_state_bound_to_current_materialization": (
+                bool(
+                    current_materialization_id
+                    and proof_state_source_materialization_id
+                    and proof_state_source_materialization_id
+                    == current_materialization_id
+                )
+            ),
             "candidate_proof_state_counts": dict(proof_state_counts),
         },
         "target_behavior": (
@@ -14854,6 +14924,14 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
             str(candidate_proof_state_manifest.get("manifest_id", "") or "")
             if isinstance(candidate_proof_state_manifest, Mapping)
             else ""
+        ),
+        "candidate_proof_state_source_materialization_manifest_id": (
+            proof_state_source_materialization_id
+        ),
+        "candidate_proof_state_bound_to_current_materialization": bool(
+            current_materialization_id
+            and proof_state_source_materialization_id
+            and proof_state_source_materialization_id == current_materialization_id
         ),
         "learning_rows": [learning_row],
         "recommended_next_action": learning_row["target_behavior"],
@@ -46500,6 +46578,9 @@ def _runtime_formalizer_capability_memory_contract(
         capability_id in proof_state_feedback_ids for capability_id in capability_ids
     ):
         contract["capability_eval_requires_formalizer_proof_state_feedback"] = True
+        contract[
+            "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
+        ] = True
     if "formalizer_local_lean_tool_call_observed" in capability_ids:
         contract["capability_eval_requires_formalizer_local_lean_tool_call"] = True
     if "formalizer_live_prover_tool_call_observed" in capability_ids:
@@ -59571,6 +59652,15 @@ def _runtime_context_requires_formalizer_proof_state_feedback(
     return _runtime_context_requires_formalizer_contract_flag(
         context,
         "capability_eval_requires_formalizer_proof_state_feedback",
+    )
+
+
+def _runtime_context_requires_formalizer_materialization_bound_proof_state_feedback(
+    context: Mapping[str, Any],
+) -> bool:
+    return _runtime_context_requires_formalizer_contract_flag(
+        context,
+        "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback",
     )
 
 

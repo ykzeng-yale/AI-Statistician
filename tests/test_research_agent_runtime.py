@@ -22224,6 +22224,101 @@ def test_formalizer_runtime_still_requires_lean_tool_contract_without_pf_bv_rout
     )
 
 
+def test_formalizer_runtime_rejects_unbound_candidate_proof_state_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_unbound_candidate_proof_state_feedback",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Fail closed when proof-state feedback is stale.",
+        inputs={"question": {"id": question.id, "title": question.title}},
+    )
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_formalizer_lean_candidate": True,
+            "capability_eval_requires_formalizer_proof_state_feedback": True,
+            "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback": True,
+        }
+    }
+    lean_candidate_materialization = {
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:current",
+        "n_candidate_sources": 1,
+        "n_local_lean_checked": 1,
+        "n_live_proof_state_requests": 1,
+        "n_lean_lsp_mcp_ready_requests": 1,
+    }
+    stale_candidate_proof_state_manifest = {
+        "artifact_kind": (
+            "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest"
+        ),
+        "manifest_id": (
+            "formalizer_lean_candidate_proof_state_feedback_manifest:stale"
+        ),
+        "source_materialization_manifest_id": (
+            "formalizer_lean_candidate_materialization:stale"
+        ),
+        "counts": {
+            "rows": 1,
+            "local_lean_tool_calls": 1,
+            "lean_lsp_mcp_tool_calls": 1,
+        },
+        "lean_lsp_mcp_live_called": True,
+    }
+
+    result = (
+        runtime_module._formalizer_runtime_capability_contract_failure_result_if_needed(
+            task=task,
+            question=question,
+            context=context,
+            theory_packet_id="theory_packet:test",
+            simulation_manifest_id="simulation_manifest:test",
+            algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+            lean_candidate_materialization=lean_candidate_materialization,
+            candidate_proof_state_manifest=stale_candidate_proof_state_manifest,
+            proof_state_provider=LocalLeanProofStateFeedbackProvider(
+                lean_command=("true",)
+            ),
+            lean_candidate_local_lean=True,
+            pseudo_formal_candidate_gate_satisfied=False,
+            architect_coordinator_available=False,
+            produced_artifacts={},
+            observations=(),
+            evidence_entries=(),
+        )
+    )
+
+    assert result is not None
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalizer_capability_contract_unbound_proof_state_feedback"
+    )
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizerCapabilityContractFailure"
+    )
+    assert failure["missing_contracts"][0]["flag"] == (
+        "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
+    )
+    assert failure["candidate_proof_state_bound_to_current_materialization"] is False
+    assert failure["candidate_proof_state_source_materialization_manifest_id"] == (
+        "formalizer_lean_candidate_materialization:stale"
+    )
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    contract_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalizer_runtime_capability_contract_feedback"
+    ]
+    assert contract_rows[0]["input_summary"][
+        "candidate_proof_state_bound_to_current_materialization"
+    ] is False
+
+
 def test_formalizer_runtime_exports_pf_bv_manifest_under_strict_lean_contract(
     tmp_path: Path,
 ) -> None:
@@ -32682,6 +32777,9 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
     ] is True
     assert runtime_contract[
         "capability_eval_requires_formalizer_proof_state_feedback"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
     ] is True
     assert runtime_contract[
         "capability_eval_requires_formalizer_local_lean_check"
