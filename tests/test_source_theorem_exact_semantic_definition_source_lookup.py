@@ -7,7 +7,11 @@ from ai_statistician.cli import _load_runtime_learning_memory
 from ai_statistician.research_agent_runtime import (
     _runtime_learning_memory_source_theorem_exact_candidate_repairs,
 )
+from ai_statistician.exact_semantic_definition_policy import (
+    exact_semantic_definition_placeholder_policy,
+)
 from ai_statistician.source_theorem_exact_semantic_definition_source_lookup import (
+    exact_semantic_definition_source_binders_from_context,
     run_source_theorem_exact_semantic_definition_candidate_synthesis,
     run_source_theorem_exact_semantic_definition_closure_review,
     run_source_theorem_exact_semantic_definition_source_lookup,
@@ -163,6 +167,36 @@ def _write_exact_proof_body_queue_manifest(path: Path, *, candidate: Path) -> No
         ),
         encoding="utf-8",
     )
+
+
+def test_source_binder_roles_prefer_placeholder_policy_pack() -> None:
+    source_context = {
+        "exact_source_theorem_binders": [
+            {"name": "P", "type": "MeasureTheory.Measure Ω"},
+            {"name": "n2", "type": "Nat"},
+            {"name": "alpha", "type": "Fin (n2 + 1) -> ℝ"},
+            {"name": "s", "type": "Fin (n2 + 1) -> Ω -> ℝ"},
+            {"name": "hexch", "type": "Exchangeable P s"},
+        ]
+    }
+
+    generic_roles = {
+        row["name"]: row["role"]
+        for row in exact_semantic_definition_source_binders_from_context(
+            source_context
+        )
+    }
+    policy_roles = {
+        row["name"]: row["role"]
+        for row in exact_semantic_definition_source_binders_from_context(
+            source_context,
+            placeholder_policy=exact_semantic_definition_placeholder_policy("alpha"),
+        )
+    }
+
+    assert generic_roles["P"] == "source_parameter"
+    assert policy_roles["P"] == "probability_measure_anchor"
+    assert policy_roles["alpha"] == "miscoverage_level_anchor"
 
 
 def test_exact_semantic_definition_source_lookup_exports_learning_hits(

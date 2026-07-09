@@ -14,6 +14,7 @@ from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker i
     MATERIALIZER_PROOF_EVIDENCE_STATUS,
     STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
     STRUCTURAL_REFORMULATION_QUEUE_STATUS,
+    _candidate_definition_request_from_task,
     run_source_theorem_exact_semantic_definition_authoring_candidate_materializer,
     run_source_theorem_exact_semantic_definition_authoring_worker,
     validate_authoring_candidate_packet,
@@ -205,6 +206,43 @@ def _write_authoring_tasks(path: Path) -> None:
         ),
     }
     path.write_text(json.dumps(task, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def test_authoring_request_uses_policy_roles_for_unannotated_source_binders() -> None:
+    task = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionAuthoringTask",
+        "authoring_task_id": "authoring:alpha-policy-binders",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "alpha",
+        "exact_source_theorem_binders": [
+            {"name": "P", "type": "MeasureTheory.Measure Ω"},
+            {"name": "n2", "type": "Nat"},
+            {"name": "alpha", "type": "Fin (n2 + 1) -> ℝ"},
+            {"name": "s", "type": "Fin (n2 + 1) -> Ω -> ℝ"},
+            {"name": "hexch", "type": "Exchangeable P s"},
+        ],
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    request = _candidate_definition_request_from_task(task)
+    binders_by_name = {
+        binder["name"]: binder for binder in request["required_binders"]
+    }
+    bindings_by_required = {
+        binding["required_anchor_name"]: binding
+        for binding in request["required_anchor_bindings"]
+    }
+
+    assert request["required_anchor_names"] == ["P", "n2", "alpha", "s", "hexch"]
+    assert request["missing_required_anchor_names"] == []
+    assert binders_by_name["P"]["role"] == "probability_measure_anchor"
+    assert binders_by_name["alpha"]["role"] == "miscoverage_level_anchor"
+    assert bindings_by_required["P"]["binder"]["role"] == (
+        "probability_measure_anchor"
+    )
 
 
 def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(

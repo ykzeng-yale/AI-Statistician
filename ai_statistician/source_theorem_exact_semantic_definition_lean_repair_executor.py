@@ -1406,7 +1406,10 @@ def _candidate_definition_request(
         for value in row.get("premise_semantic_anchor_binder_names", []) or []
         if str(value).strip()
     ]
-    available_binders_by_name = _available_semantic_binders_by_name(row)
+    available_binders_by_name = _available_semantic_binders_by_name(
+        row,
+        placeholder_policy=placeholder_policy,
+    )
     required_anchor_bindings = exact_semantic_definition_required_anchor_bindings(
         required_anchor_names=required_anchor_names,
         available_binders_by_name=available_binders_by_name,
@@ -1524,21 +1527,26 @@ def _required_adapter_object_names_for_placeholder(
 
 def _available_semantic_binders_by_name(
     row: Mapping[str, Any],
+    *,
+    placeholder_policy: Any | None = None,
 ) -> dict[str, Mapping[str, Any]]:
     binders_by_name: dict[str, Mapping[str, Any]] = {}
+    for binder in exact_semantic_definition_source_binders_from_context(
+        row,
+        placeholder_policy=placeholder_policy,
+    ):
+        name = str(binder.get("name", "") or "")
+        if name:
+            binders_by_name[name] = binder
     for binder in row.get("premise_semantic_anchor_binders", []) or []:
         if not isinstance(binder, Mapping):
             continue
         name = str(binder.get("name", "") or "")
-        if name:
+        if name and name not in binders_by_name:
             binders_by_name[name] = binder
     for binder in row.get("exact_source_theorem_binders", []) or []:
         if not isinstance(binder, Mapping):
             continue
-        name = str(binder.get("name", "") or "")
-        if name:
-            binders_by_name[name] = binder
-    for binder in exact_semantic_definition_source_binders_from_context(row):
         name = str(binder.get("name", "") or "")
         if name and name not in binders_by_name:
             binders_by_name[name] = binder

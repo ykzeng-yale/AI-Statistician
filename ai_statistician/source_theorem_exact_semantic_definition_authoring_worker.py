@@ -970,7 +970,13 @@ def _prompt_payload(
         export_mode=export_mode,
     )
     response_validation_feedback = _response_validation_feedback(task)
-    source_theorem_binders = exact_semantic_definition_source_binders_from_context(task)
+    placeholder_policy = exact_semantic_definition_placeholder_policy(
+        str(task.get("placeholder_symbol", "") or "")
+    )
+    source_theorem_binders = exact_semantic_definition_source_binders_from_context(
+        task,
+        placeholder_policy=placeholder_policy,
+    )
     return {
         "task": "author_exact_semantic_definition_candidate",
         "external_export_mode": export_mode,
@@ -2904,7 +2910,10 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
     placeholder_symbol = str(task.get("placeholder_symbol", "") or "")
     placeholder_policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
     required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
-    available_binders_by_name = _available_semantic_binders_by_name(task)
+    available_binders_by_name = _available_semantic_binders_by_name(
+        task,
+        placeholder_policy=placeholder_policy,
+    )
     required_anchor_bindings = exact_semantic_definition_required_anchor_bindings(
         required_anchor_names=required_anchor_names,
         available_binders_by_name=available_binders_by_name,
@@ -2989,21 +2998,26 @@ def _required_anchor_names_for_placeholder(placeholder_symbol: str) -> list[str]
 
 def _available_semantic_binders_by_name(
     task: Mapping[str, Any],
+    *,
+    placeholder_policy: Any | None = None,
 ) -> dict[str, Mapping[str, Any]]:
     binders_by_name: dict[str, Mapping[str, Any]] = {}
+    for binder in exact_semantic_definition_source_binders_from_context(
+        task,
+        placeholder_policy=placeholder_policy,
+    ):
+        name = str(binder.get("name", "") or "")
+        if name:
+            binders_by_name[name] = binder
     for binder in task.get("premise_semantic_anchor_binders", []) or []:
         if not isinstance(binder, Mapping):
             continue
         name = str(binder.get("name", "") or "")
-        if name:
+        if name and name not in binders_by_name:
             binders_by_name[name] = binder
     for binder in task.get("exact_source_theorem_binders", []) or []:
         if not isinstance(binder, Mapping):
             continue
-        name = str(binder.get("name", "") or "")
-        if name:
-            binders_by_name[name] = binder
-    for binder in exact_semantic_definition_source_binders_from_context(task):
         name = str(binder.get("name", "") or "")
         if name and name not in binders_by_name:
             binders_by_name[name] = binder

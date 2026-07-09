@@ -38,6 +38,38 @@ def test_local_lean_failure_classifier_routes_candidate_diagnostics() -> None:
     ) == "local_lean_unknown_identifier"
 
 
+def test_lean_repair_request_uses_policy_roles_for_unannotated_source_binders() -> None:
+    row = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+        "lean_repair_task_id": "lean-repair:alpha-policy-binders",
+        "target_theorem_name": "split_conformal_coverage",
+        "placeholder_symbol": "alpha",
+        "exact_source_theorem_binders": [
+            {"name": "P", "type": "MeasureTheory.Measure Ω"},
+            {"name": "n2", "type": "Nat"},
+            {"name": "alpha", "type": "Fin (n2 + 1) -> ℝ"},
+            {"name": "s", "type": "Fin (n2 + 1) -> Ω -> ℝ"},
+            {"name": "hexch", "type": "Exchangeable P s"},
+        ],
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    request = executor_module._candidate_definition_request(
+        row,
+        placeholder_symbol="alpha",
+    )
+    binders_by_name = {
+        binder["name"]: binder for binder in request["required_binders"]
+    }
+
+    assert request["missing_required_anchor_names"] == []
+    assert binders_by_name["P"]["role"] == "probability_measure_anchor"
+    assert binders_by_name["alpha"]["role"] == "miscoverage_level_anchor"
+
+
 def _write_lean_repair_tasks(path: Path) -> None:
     rows = [
         {

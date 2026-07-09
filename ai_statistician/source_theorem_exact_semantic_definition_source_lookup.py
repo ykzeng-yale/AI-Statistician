@@ -265,6 +265,7 @@ def normalize_exact_semantic_definition_signature_probe_context(
 
 def exact_semantic_definition_source_binders_from_context(
     *sources: Mapping[str, Any],
+    placeholder_policy: Any | None = None,
 ) -> list[dict[str, str]]:
     """Recover source theorem binders from carried context and signature probes.
 
@@ -277,9 +278,19 @@ def exact_semantic_definition_source_binders_from_context(
     for source in sources:
         if not isinstance(source, Mapping):
             continue
-        binders.extend(_binder_rows_from_mapping_context(source))
+        binders.extend(
+            _binder_rows_from_mapping_context(
+                source,
+                placeholder_policy=placeholder_policy,
+            )
+        )
     for path in _signature_probe_paths_from_sources(*sources):
-        binders.extend(_source_binders_from_signature_probe_path(path))
+        binders.extend(
+            _source_binders_from_signature_probe_path(
+                path,
+                placeholder_policy=placeholder_policy,
+            )
+        )
     return _dedupe_binder_rows(binders)
 
 
@@ -362,15 +373,29 @@ def _anchor_binding_row(
     }
 
 
-def _required_anchor_role(required_anchor_name: str, *, placeholder_policy: Any) -> str:
+def _source_anchor_role_from_policy(
+    name: str,
+    *,
+    placeholder_policy: Any,
+) -> str:
     roles = getattr(placeholder_policy, "source_anchor_roles", {}) or {}
     if isinstance(roles, Mapping):
-        if required_anchor_name in roles:
-            return str(roles[required_anchor_name] or "").strip()
-        compact_required = _compact_anchor_identifier(required_anchor_name)
-        for name, role in roles.items():
-            if _compact_anchor_identifier(str(name or "")) == compact_required:
+        if name in roles:
+            return str(roles[name] or "").strip()
+        compact_name = _compact_anchor_identifier(name)
+        for policy_name, role in roles.items():
+            if _compact_anchor_identifier(str(policy_name or "")) == compact_name:
                 return str(role or "").strip()
+    return ""
+
+
+def _required_anchor_role(required_anchor_name: str, *, placeholder_policy: Any) -> str:
+    policy_role = _source_anchor_role_from_policy(
+        required_anchor_name,
+        placeholder_policy=placeholder_policy,
+    )
+    if policy_role:
+        return policy_role
     return _exact_semantic_source_binder_role(name=required_anchor_name, binder_type="")
 
 
@@ -378,13 +403,22 @@ def _compact_anchor_identifier(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
 
 
-def _binder_rows_from_mapping_context(source: Mapping[str, Any]) -> list[dict[str, str]]:
+def _binder_rows_from_mapping_context(
+    source: Mapping[str, Any],
+    *,
+    placeholder_policy: Any | None = None,
+) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for key in (
         "premise_semantic_anchor_binders",
         "exact_source_theorem_binders",
     ):
-        rows.extend(_normalized_binder_rows(source.get(key, []) or []))
+        rows.extend(
+            _normalized_binder_rows(
+                source.get(key, []) or [],
+                placeholder_policy=placeholder_policy,
+            )
+        )
     source_anchor_context = source.get("source_anchor_context", []) or []
     if isinstance(source_anchor_context, Sequence) and not isinstance(
         source_anchor_context, (str, bytes)
@@ -392,17 +426,24 @@ def _binder_rows_from_mapping_context(source: Mapping[str, Any]) -> list[dict[st
         for item in source_anchor_context:
             if not isinstance(item, Mapping):
                 continue
-            rows.extend(_normalized_binder_rows([item]))
+            rows.extend(
+                _normalized_binder_rows(
+                    [item],
+                    placeholder_policy=placeholder_policy,
+                )
+            )
             rows.extend(
                 _binder_rows_from_proof_body_goal_excerpt(
-                    item.get("proof_body_goal_excerpt", []) or []
+                    item.get("proof_body_goal_excerpt", []) or [],
+                    placeholder_policy=placeholder_policy,
                 )
             )
     source_anchor_summary = source.get("source_anchor_context_summary", {}) or {}
     if isinstance(source_anchor_summary, Mapping):
         rows.extend(
             _normalized_binder_rows(
-                source_anchor_summary.get("source_theorem_binders", []) or []
+                source_anchor_summary.get("source_theorem_binders", []) or [],
+                placeholder_policy=placeholder_policy,
             )
         )
     input_summary = source.get("input_summary", None)
@@ -411,14 +452,24 @@ def _binder_rows_from_mapping_context(source: Mapping[str, Any]) -> list[dict[st
         and bool(input_summary)
         and input_summary is not source
     ):
-        rows.extend(_binder_rows_from_mapping_context(input_summary))
+        rows.extend(
+            _binder_rows_from_mapping_context(
+                input_summary,
+                placeholder_policy=placeholder_policy,
+            )
+        )
     candidate_request = source.get("candidate_definition_request", None)
     if (
         isinstance(candidate_request, Mapping)
         and bool(candidate_request)
         and candidate_request is not source
     ):
-        rows.extend(_binder_rows_from_mapping_context(candidate_request))
+        rows.extend(
+            _binder_rows_from_mapping_context(
+                candidate_request,
+                placeholder_policy=placeholder_policy,
+            )
+        )
     return rows
 
 
@@ -458,14 +509,23 @@ def _signature_probe_paths_from_sources(*sources: Mapping[str, Any]) -> list[Pat
     return paths
 
 
-def _source_binders_from_signature_probe_path(path: Path) -> list[dict[str, str]]:
+def _source_binders_from_signature_probe_path(
+    path: Path,
+    *,
+    placeholder_policy: Any | None = None,
+) -> list[dict[str, str]]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return []
     binders: list[dict[str, str]] = []
     for header in _lean_declaration_headers(text):
-        binders.extend(_binder_rows_from_lean_declaration_header(header))
+        binders.extend(
+            _binder_rows_from_lean_declaration_header(
+                header,
+                placeholder_policy=placeholder_policy,
+            )
+        )
     return binders
 
 
@@ -500,7 +560,11 @@ def _lean_declaration_headers(text: str) -> list[str]:
     return headers
 
 
-def _binder_rows_from_lean_declaration_header(header: str) -> list[dict[str, str]]:
+def _binder_rows_from_lean_declaration_header(
+    header: str,
+    *,
+    placeholder_policy: Any | None = None,
+) -> list[dict[str, str]]:
     binder_prefix = _lean_declaration_binder_prefix(header)
     rows: list[dict[str, str]] = []
     for inner in _top_level_binder_group_inners(binder_prefix):
@@ -512,6 +576,7 @@ def _binder_rows_from_lean_declaration_header(header: str) -> list[dict[str, str
                     "role": _exact_semantic_source_binder_role(
                         name=name,
                         binder_type=binder_type,
+                        placeholder_policy=placeholder_policy,
                     ),
                     "source": "signature_probe_artifact",
                 }
@@ -601,6 +666,8 @@ def _parse_named_binder_group(inner: str) -> list[tuple[str, str]]:
 
 def _binder_rows_from_proof_body_goal_excerpt(
     proof_body_goal_excerpt: Sequence[Any],
+    *,
+    placeholder_policy: Any | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for value in proof_body_goal_excerpt:
@@ -618,6 +685,7 @@ def _binder_rows_from_proof_body_goal_excerpt(
                     "role": _exact_semantic_source_binder_role(
                         name=name,
                         binder_type=binder_type,
+                        placeholder_policy=placeholder_policy,
                     ),
                     "source": "proof_body_goal_excerpt",
                 }
@@ -625,7 +693,11 @@ def _binder_rows_from_proof_body_goal_excerpt(
     return rows
 
 
-def _normalized_binder_rows(values: Sequence[Any]) -> list[dict[str, str]]:
+def _normalized_binder_rows(
+    values: Sequence[Any],
+    *,
+    placeholder_policy: Any | None = None,
+) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for value in values:
         if not isinstance(value, Mapping):
@@ -641,6 +713,7 @@ def _normalized_binder_rows(values: Sequence[Any]) -> list[dict[str, str]]:
             role = _exact_semantic_source_binder_role(
                 name=name,
                 binder_type=binder_type,
+                placeholder_policy=placeholder_policy,
             )
         row = {"name": name, "role": role}
         if binder_type:
@@ -666,7 +739,19 @@ def _dedupe_binder_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, str
     return list(compact.values())
 
 
-def _exact_semantic_source_binder_role(*, name: str, binder_type: str) -> str:
+def _exact_semantic_source_binder_role(
+    *,
+    name: str,
+    binder_type: str,
+    placeholder_policy: Any | None = None,
+) -> str:
+    if placeholder_policy is not None:
+        policy_role = _source_anchor_role_from_policy(
+            name,
+            placeholder_policy=placeholder_policy,
+        )
+        if policy_role:
+            return policy_role
     normalized = re.sub(r"[^a-z0-9]", "", str(name or "").lower())
     type_text = str(binder_type or "")
     if normalized in {"n", "n1", "n2", "hn", "hn1", "hn2"}:
@@ -2440,6 +2525,9 @@ def _typechecked_review_source_proof_body_context(
     matched_rows = _matching_typechecked_review_source_rows(row, source_rows)
     if not matched_rows:
         return {}
+    placeholder_policy = exact_semantic_definition_placeholder_policy(
+        str(row.get("placeholder_symbol", "") or "")
+    )
     source_anchors: list[dict[str, Any]] = []
     exact_source_theorem_binders: list[dict[str, Any]] = []
     for source_row in matched_rows:
@@ -2479,7 +2567,10 @@ def _typechecked_review_source_proof_body_context(
             }
         )
         exact_source_theorem_binders.extend(
-            _source_goal_binders_from_proof_body_excerpt(goal_excerpt)
+            _source_goal_binders_from_proof_body_excerpt(
+                goal_excerpt,
+                placeholder_policy=placeholder_policy,
+            )
         )
     context: dict[str, Any] = {
         "source_anchors": source_anchors,
@@ -2585,6 +2676,8 @@ def _source_row_target_identity_ready_for_recheck(row: Mapping[str, Any]) -> boo
 
 def _source_goal_binders_from_proof_body_excerpt(
     proof_body_goal_excerpt: Sequence[str],
+    *,
+    placeholder_policy: Any | None = None,
 ) -> list[dict[str, Any]]:
     binders: list[dict[str, Any]] = []
     lines = [str(line).strip() for line in proof_body_goal_excerpt]
@@ -2612,11 +2705,20 @@ def _source_goal_binders_from_proof_body_excerpt(
         full_type = " ".join([binder_type, *continuation]).strip()
         if not full_type:
             continue
+        policy_role = (
+            _source_anchor_role_from_policy(
+                name,
+                placeholder_policy=placeholder_policy,
+            )
+            if placeholder_policy is not None
+            else ""
+        )
         binders.append(
             {
                 "name": name,
                 "type": full_type,
-                "role": (
+                "role": policy_role
+                or (
                     "source_theorem_hypothesis"
                     if name.startswith("h")
                     else "source_theorem_parameter"
