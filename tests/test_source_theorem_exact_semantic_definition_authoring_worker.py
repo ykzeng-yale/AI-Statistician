@@ -1406,6 +1406,37 @@ def test_authoring_worker_recovers_required_binders_from_signature_probe(
         ("s", "score"),
         ("q_hat", "q"),
     ]
+    prompt_binders = {
+        binder["name"]: binder["type"]
+        for binder in prompt_packet["exact_source_theorem_binders"]
+    }
+    assert prompt_packet["source_theorem_binders"] == prompt_packet[
+        "exact_source_theorem_binders"
+    ]
+    assert prompt_binders["n"] == "ℕ"
+    assert prompt_binders["score"] == "Fin (n + 1) → Ω → ℝ"
+    assert prompt_binders["q"] == "ℝ"
+    assert prompt_binders["hq"].startswith("∀ᵐ ω ∂P")
+    assert prompt_packet["source_anchor_context_rows"] == 4
+    assert [
+        (row["required_anchor_name"], row["actual_anchor_name"])
+        for row in prompt_packet["source_anchor_context"]
+    ] == [
+        ("hq", "hq"),
+        ("n2", "n"),
+        ("s", "score"),
+        ("q_hat", "q"),
+    ]
+    assert prompt_packet["lean_authoring_environment_contract"][
+        "source_theorem_binder_count"
+    ] >= 4
+    contract_binders = {
+        binder["name"]: binder["type"]
+        for binder in prompt_packet["lean_authoring_environment_contract"][
+            "source_theorem_binders"
+        ]
+    }
+    assert contract_binders["score"] == "Fin (n + 1) → Ω → ℝ"
     payload = json.loads(prompt_packet["user_prompt"])
     payload_binders = {
         binder["name"]: binder["type"]
@@ -1415,6 +1446,9 @@ def test_authoring_worker_recovers_required_binders_from_signature_probe(
     assert payload_binders["score"] == "Fin (n + 1) → Ω → ℝ"
     assert payload_binders["q"] == "ℝ"
     assert payload_binders["hq"].startswith("∀ᵐ ω ∂P")
+    assert payload["lean_authoring_environment_contract"][
+        "source_theorem_binder_count"
+    ] >= 4
 
 
 def test_authoring_worker_marks_provider_connection_failure_retryable(

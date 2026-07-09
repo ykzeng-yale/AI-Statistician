@@ -857,6 +857,11 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         candidate_definition_request=request,
         export_mode=export_mode,
     )
+    structured_context = _authoring_structured_context(
+        task,
+        candidate_definition_request=request,
+        prompt_payload=prompt_payload,
+    )
     lean_authoring_environment_contract = dict(
         prompt_payload.get("lean_authoring_environment_contract", {}) or {}
     )
@@ -929,7 +934,7 @@ def _prompt_packet(task: Mapping[str, Any], *, export_mode: str = "full") -> dic
         "retry_validation_errors": list(
             prompt_payload.get("retry_validation_errors", []) or []
         ),
-        **_exact_semantic_definition_context(task),
+        **structured_context,
         "candidate_definition_request": request,
         "candidate_definition_request_autofilled": request_autofilled,
         "candidate_definition_request_completed_from_task_policy": (
@@ -973,8 +978,9 @@ def _prompt_payload(
     placeholder_policy = exact_semantic_definition_placeholder_policy(
         str(task.get("placeholder_symbol", "") or "")
     )
-    source_theorem_binders = exact_semantic_definition_source_binders_from_context(
+    source_theorem_binders = _authoring_source_theorem_binders(
         task,
+        candidate_definition_request=candidate_definition_request,
         placeholder_policy=placeholder_policy,
     )
     return {
@@ -1070,6 +1076,121 @@ def _prompt_payload(
             candidate_definition_request.get("local_lean_gate", "") or ""
         ),
     }
+
+
+def _authoring_structured_context(
+    task: Mapping[str, Any],
+    *,
+    candidate_definition_request: Mapping[str, Any],
+    prompt_payload: Mapping[str, Any] | None = None,
+    extra_sources: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    context = _exact_semantic_definition_context(task)
+    for source in extra_sources:
+        for key, value in _exact_semantic_definition_context(source).items():
+            if context.get(key) in (None, "", [], {}):
+                context[key] = value
+    placeholder_policy = exact_semantic_definition_placeholder_policy(
+        str(
+            task.get("placeholder_symbol", "")
+            or candidate_definition_request.get("placeholder_symbol", "")
+            or ""
+        )
+    )
+    source_binders = [
+        dict(row)
+        for row in (
+            (prompt_payload or {}).get("source_theorem_binders", [])
+            if isinstance(prompt_payload, Mapping)
+            else []
+        )
+        if isinstance(row, Mapping)
+    ]
+    if not source_binders:
+        source_binders = _authoring_source_theorem_binders(
+            task,
+            candidate_definition_request=candidate_definition_request,
+            placeholder_policy=placeholder_policy,
+            extra_sources=extra_sources,
+        )
+    if source_binders:
+        if context.get("exact_source_theorem_binders") in (None, "", [], {}):
+            context["exact_source_theorem_binders"] = source_binders
+        context["source_theorem_binders"] = source_binders
+    request_anchor_context = _source_anchor_context_from_candidate_definition_request(
+        candidate_definition_request
+    )
+    existing_anchor_context = [
+        dict(row)
+        for row in context.get("source_anchor_context", []) or []
+        if isinstance(row, Mapping)
+    ]
+    source_anchor_context = _dedup_mapping_rows(
+        [*existing_anchor_context, *request_anchor_context]
+    )
+    if source_anchor_context:
+        context["source_anchor_context"] = source_anchor_context[:16]
+        context["source_anchor_context_rows"] = max(
+            _safe_int(context.get("source_anchor_context_rows", 0)),
+            len(source_anchor_context),
+        )
+    return context
+
+
+def _authoring_source_theorem_binders(
+    task: Mapping[str, Any],
+    *,
+    candidate_definition_request: Mapping[str, Any],
+    placeholder_policy: Any | None = None,
+    extra_sources: Sequence[Mapping[str, Any]] = (),
+) -> list[dict[str, str]]:
+    request = dict(candidate_definition_request)
+    request_required_binders = {
+        "exact_source_theorem_binders": list(request.get("required_binders", []) or []),
+        "candidate_definition_request": request,
+    }
+    return exact_semantic_definition_source_binders_from_context(
+        task,
+        *extra_sources,
+        request,
+        request_required_binders,
+        placeholder_policy=placeholder_policy,
+    )
+
+
+def _source_anchor_context_from_candidate_definition_request(
+    candidate_definition_request: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for binding in candidate_definition_request.get("required_anchor_bindings", []) or []:
+        if not isinstance(binding, Mapping):
+            continue
+        binder = binding.get("binder", {})
+        binder = dict(binder) if isinstance(binder, Mapping) else {}
+        required_name = str(binding.get("required_anchor_name", "") or "").strip()
+        actual_name = str(
+            binding.get("actual_anchor_name", "")
+            or binder.get("name", "")
+            or required_name
+            or ""
+        ).strip()
+        row: dict[str, Any] = {
+            "source": "candidate_definition_request.required_anchor_bindings",
+            "kind": "required_anchor_binding",
+        }
+        if required_name:
+            row["required_anchor_name"] = required_name
+            row["semantic_anchor_name"] = required_name
+        if actual_name:
+            row["actual_anchor_name"] = actual_name
+            row["name"] = actual_name
+        for key in ("type", "role"):
+            value = str(binder.get(key, "") or binding.get(key, "") or "").strip()
+            if value:
+                row[key] = value
+        if row.get("name") or row.get("required_anchor_name"):
+            rows.append(row)
+    return _dedup_mapping_rows(rows)
 
 
 def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
@@ -1517,6 +1638,13 @@ def _dedup_mapping_rows(values: Any) -> list[dict[str, Any]]:
         seen.add(key)
         rows.append(row)
     return rows
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _lean_parse_error_source_fragments_from_excerpts(
@@ -2646,7 +2774,18 @@ def _lean_authoring_environment_contract(
 ) -> dict[str, Any]:
     """Return local Lean constraints that keep generated definitions checkable."""
 
-    source_binders = list(task.get("exact_source_theorem_binders", []) or [])
+    placeholder_policy = exact_semantic_definition_placeholder_policy(
+        str(
+            task.get("placeholder_symbol", "")
+            or candidate_definition_request.get("placeholder_symbol", "")
+            or ""
+        )
+    )
+    source_binders = _authoring_source_theorem_binders(
+        task,
+        candidate_definition_request=candidate_definition_request,
+        placeholder_policy=placeholder_policy,
+    )
     lean_feedback = _lean_feedback_contract(task)
     response_validation_feedback = _response_validation_feedback(task)
     response_validation_unverified_imports = _string_list(
@@ -2821,7 +2960,14 @@ def _lean_authoring_environment_contract(
     return {
         "candidate_scope": "definition_or_abbrev_only",
         "source_theorem_binder_count": len(source_binders),
+        "source_theorem_binders": source_binders[:32],
         "required_anchor_names": required_anchor_names,
+        "required_anchor_bindings": [
+            dict(row)
+            for row in candidate_definition_request.get("required_anchor_bindings", [])
+            or []
+            if isinstance(row, Mapping)
+        ],
         "import_policy": [
             (
                 "Use the smallest import list needed by the definition-only "
@@ -3551,6 +3697,15 @@ def _normalize_candidate_packet(
     )
     body["proof_evidence_status"] = CANDIDATE_PROOF_EVIDENCE_STATUS
     body["proof_evidence_boundary"] = BOUNDARY
+    candidate_definition_request = _candidate_definition_request_from_prompt(
+        prompt_packet,
+        task=task,
+    )
+    structured_context = _authoring_structured_context(
+        task,
+        candidate_definition_request=candidate_definition_request,
+        extra_sources=(prompt_packet,),
+    )
     packet_id = (
         "source_theorem_exact_semantic_definition_authoring_candidate:"
         + stable_hash(
@@ -3592,11 +3747,8 @@ def _normalize_candidate_packet(
         "model_tier": model_tier,
         "raw_response_fingerprint": stable_hash(raw_response),
         "response_metadata": _compact_response_metadata(response_metadata),
-        **_exact_semantic_definition_context(task),
-        "candidate_definition_request": _candidate_definition_request_from_prompt(
-            prompt_packet,
-            task=task,
-        ),
+        **structured_context,
+        "candidate_definition_request": candidate_definition_request,
         "candidate_repair_feedback": _candidate_repair_feedback(task),
         **body,
         "lean_authoring_environment_contract": dict(
@@ -3685,6 +3837,15 @@ def _failed_candidate_packet(
         if runtime_queue_status == STRUCTURAL_REFORMULATION_QUEUE_STATUS
         else {}
     )
+    candidate_definition_request = _candidate_definition_request_from_prompt(
+        prompt_packet,
+        task=task,
+    )
+    structured_context = _authoring_structured_context(
+        task,
+        candidate_definition_request=candidate_definition_request,
+        extra_sources=(prompt_packet,),
+    )
     return {
         "schema_version": 1,
         "artifact_kind": CANDIDATE_PACKET_ARTIFACT_KIND,
@@ -3713,11 +3874,8 @@ def _failed_candidate_packet(
         ),
         "model": model,
         "model_tier": model_tier,
-        **_exact_semantic_definition_context(task),
-        "candidate_definition_request": _candidate_definition_request_from_prompt(
-            prompt_packet,
-            task=task,
-        ),
+        **structured_context,
+        "candidate_definition_request": candidate_definition_request,
         "candidate_repair_feedback": _candidate_repair_feedback(task),
         "definition_design": "",
         "lean_definition_candidate": "",
@@ -3997,6 +4155,18 @@ def _retry_authoring_task(
         prompt_packet,
         task=task,
     )
+    structured_context = _authoring_structured_context(
+        task,
+        candidate_definition_request=retry_task["candidate_definition_request"],
+        extra_sources=(prompt_packet, failed_candidate_packet),
+    )
+    for key, value in structured_context.items():
+        if retry_task.get(key) in (None, "", [], {}) or key in {
+            "source_theorem_binders",
+            "source_anchor_context",
+            "source_anchor_context_rows",
+        }:
+            retry_task[key] = value
     failed_queue_status = str(
         failed_candidate_packet.get("runtime_queue_status", "") or ""
     )

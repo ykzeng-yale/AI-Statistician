@@ -413,6 +413,8 @@ def _binder_rows_from_mapping_context(
     for key in (
         "premise_semantic_anchor_binders",
         "exact_source_theorem_binders",
+        "source_theorem_binders",
+        "required_binders",
     ):
         rows.extend(
             _normalized_binder_rows(
@@ -420,6 +422,17 @@ def _binder_rows_from_mapping_context(
                 placeholder_policy=placeholder_policy,
             )
         )
+    for binding in source.get("required_anchor_bindings", []) or []:
+        if not isinstance(binding, Mapping):
+            continue
+        binder = binding.get("binder", {})
+        if isinstance(binder, Mapping):
+            rows.extend(
+                _normalized_binder_rows(
+                    [binder],
+                    placeholder_policy=placeholder_policy,
+                )
+            )
     source_anchor_context = source.get("source_anchor_context", []) or []
     if isinstance(source_anchor_context, Sequence) and not isinstance(
         source_anchor_context, (str, bytes)
