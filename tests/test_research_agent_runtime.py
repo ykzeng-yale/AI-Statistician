@@ -93847,6 +93847,35 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
         pf_row["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
         is True
     )
+    retry_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+    ]
+    assert len(retry_rows) == 1
+    retry_row = retry_rows[0]
+    assert retry_row["next_owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert retry_row["runtime_queue_status"] == (
+        "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    )
+    assert retry_row["pseudo_formal_failure_copy_ready"] is True
+    assert (
+        retry_row[
+            "pseudo_formal_failure_copy_exact_semantic_definition_ready"
+        ]
+        is True
+    )
+    assert retry_row["pseudo_formal_failure_copy_contract_summary"][
+        "validator_ready_copy_contract_satisfied"
+    ] is True
+    assert retry_row[
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed"
+    ]["blocks"][0]["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
+    assert retry_row["proof_evidence_status"] == (
+        "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
+    )
+    assert "not theorem proof evidence" in retry_row["boundary"].lower()
 
     proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
         context={
@@ -93999,6 +94028,11 @@ def test_runtime_pf_failure_copy_contract_rejects_malformed_seed() -> None:
     )
 
     assert len(rows) == 1
+    assert not any(
+        row.get("learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+        for row in rows
+    )
     row = rows[0]
     assert row["pseudo_formal_failure_repair_seed_available"] is True
     summary = row["pseudo_formal_failure_copy_contract_summary"]
@@ -94283,6 +94317,23 @@ def test_runtime_audit_summarizes_pf_failure_copy_ready_repair_memory() -> None:
                     "blocks": [{"block_id": "bad"}]
                 },
             },
+            {
+                "learning_task": (
+                    "formalizer_pseudo_formal_packet_component_gate_copy_ready_"
+                    "retry_task"
+                ),
+                "source_component_gate": (
+                    "formalizer_pseudo_formal_packet_component_gate"
+                ),
+                "next_owner_subsystem": "Formalizer/ProofEngineer",
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+                ),
+                "proof_evidence_status": (
+                    "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_"
+                    "EVIDENCE"
+                ),
+            },
         ]
     )
 
@@ -94334,6 +94385,18 @@ def test_runtime_audit_summarizes_pf_failure_copy_ready_repair_memory() -> None:
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
         PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     ]
+    assert (
+        summary[
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows"
+        ]
+        == 1
+    )
+    assert summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_next_owner_subsystems"
+    ] == ["Formalizer/ProofEngineer"]
+    assert summary[
+        "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_statuses"
+    ] == ["PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"]
 
 
 def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_gap() -> None:

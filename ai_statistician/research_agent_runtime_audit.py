@@ -1379,6 +1379,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     handoff_diagnostic_learning_task = (
         "formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic"
     )
+    copy_ready_retry_learning_task = (
+        "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+    )
     source_component_gate = "formalizer_pseudo_formal_packet_component_gate"
     proof_evidence_status = (
         "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -1413,6 +1416,9 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
     handoff_diagnostic_missing_artifact_ids: list[str] = []
     handoff_diagnostic_failure_classifications: list[str] = []
     handoff_diagnostic_next_owner_subsystems: list[str] = []
+    copy_ready_retry_task_rows = 0
+    copy_ready_retry_task_next_owner_subsystems: list[str] = []
+    copy_ready_retry_task_statuses: list[str] = []
 
     def _row_field(row: Mapping[str, Any], key: str, default: Any = None) -> Any:
         input_summary = (
@@ -1453,6 +1459,31 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
                         row,
                         "next_owner_subsystem",
                         "AgentRuntime/HandoffRecovery",
+                    )
+                    or ""
+                )
+            )
+            continue
+        if row_learning_task == copy_ready_retry_learning_task:
+            if row_source_component_gate not in ("", source_component_gate):
+                continue
+            copy_ready_retry_task_rows += 1
+            copy_ready_retry_task_next_owner_subsystems.append(
+                str(
+                    _row_field(
+                        row,
+                        "next_owner_subsystem",
+                        "Formalizer/ProofEngineer",
+                    )
+                    or ""
+                )
+            )
+            copy_ready_retry_task_statuses.append(
+                str(
+                    _row_field(
+                        row,
+                        "runtime_queue_status",
+                        "",
                     )
                     or ""
                 )
@@ -1686,6 +1717,15 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary(
         ),
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows": (
             handoff_diagnostic_rows
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows": (
+            copy_ready_retry_task_rows
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_next_owner_subsystems": (
+            _compact_string_list(copy_ready_retry_task_next_owner_subsystems)
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_statuses": (
+            _compact_string_list(copy_ready_retry_task_statuses)
         ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths": (
             _compact_string_list(handoff_diagnostic_exact_rows_paths)

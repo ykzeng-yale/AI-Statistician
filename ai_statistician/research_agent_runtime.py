@@ -4306,6 +4306,32 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "boundary": boundary,
         }
     ]
+    if (result_status.strip() == "FAILED" or failure_type.strip()) and (
+        failure_copy_ready and failure_repair_seed_available
+    ):
+        rows.append(
+            _runtime_formalizer_pf_component_gate_copy_ready_retry_task_row(
+                question_id=question_id,
+                component_eval_manifest_path=manifest_path,
+                provider_name=provider_name,
+                backend_provider_name=backend_provider_name,
+                model=str(attached.get("model", "") or ""),
+                result_status=result_status,
+                failure_type=failure_type,
+                failure_errors=failure_errors,
+                failure_required_target_lanes=failure_required_target_lanes,
+                failure_issue_summary=failure_issue_summary,
+                failure_issue_actions=failure_issue_actions,
+                failure_repair_seed=failure_repair_seed,
+                failure_validator_ready_copy_contract=(
+                    failure_validator_ready_copy_contract
+                ),
+                failure_copy_contract_summary=failure_copy_contract_summary,
+                failure_copy_exact_semantic_ready=(
+                    failure_copy_exact_semantic_ready
+                ),
+            )
+        )
     if (
         capability_ok
         and live_generator
@@ -4339,6 +4365,152 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 )
             )
     return rows
+
+
+def _runtime_formalizer_pf_component_gate_copy_ready_retry_task_row(
+    *,
+    question_id: str,
+    component_eval_manifest_path: str,
+    provider_name: str,
+    backend_provider_name: str,
+    model: str,
+    result_status: str,
+    failure_type: str,
+    failure_errors: list[str],
+    failure_required_target_lanes: list[str],
+    failure_issue_summary: Mapping[str, Any],
+    failure_issue_actions: list[dict[str, Any]],
+    failure_repair_seed: Mapping[str, Any],
+    failure_validator_ready_copy_contract: Mapping[str, Any],
+    failure_copy_contract_summary: Mapping[str, Any],
+    failure_copy_exact_semantic_ready: bool,
+) -> dict[str, Any]:
+    work_order_id = (
+        "formalizer_pf_component_gate_copy_ready_retry:"
+        + stable_hash(
+            [
+                component_eval_manifest_path,
+                question_id,
+                result_status,
+                failure_type,
+                failure_repair_seed.get("packet_id", ""),
+                failure_copy_contract_summary,
+            ]
+        )[:20]
+    )
+    boundary = (
+        "This row routes a failed Formalizer PF/BV packet component gate back "
+        "to Formalizer with a validator-ready copy fragment. It is not theorem "
+        "proof evidence, not Lean/kernel verification, and not a source theorem "
+        "proof claim."
+    )
+    input_summary = {
+        "trigger": (
+            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_COPY_READY_RETRY"
+        ),
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "component_eval_manifest_path": component_eval_manifest_path,
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "model": model,
+        "result_status": result_status,
+        "failure_type": failure_type,
+        "errors": list(failure_errors),
+        "pseudo_formal_failure_required_target_lanes": list(
+            failure_required_target_lanes
+        ),
+        "pseudo_formal_failure_validation_issue_summary": dict(
+            failure_issue_summary
+        ),
+        "pseudo_formal_failure_issue_specific_repair_actions": list(
+            failure_issue_actions
+        ),
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed": dict(
+            failure_repair_seed
+        ),
+        "pseudo_formal_failure_validator_ready_copy_contract": dict(
+            failure_validator_ready_copy_contract
+        ),
+        "pseudo_formal_failure_copy_contract_summary": dict(
+            failure_copy_contract_summary
+        ),
+        "pseudo_formal_failure_copy_ready": True,
+        "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
+            bool(failure_copy_exact_semantic_ready)
+        ),
+        "runtime_queue_status": (
+            "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question_id,
+        "learning_task": (
+            "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+        ),
+        "work_order_id": work_order_id,
+        "next_owner_subsystem": "Formalizer/ProofEngineer",
+        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+        "component_eval_manifest_path": component_eval_manifest_path,
+        "provider_name": provider_name,
+        "backend_provider_name": backend_provider_name,
+        "model": model,
+        "result_status": result_status,
+        "failure_type": failure_type,
+        "errors": list(failure_errors),
+        "pseudo_formal_failure_required_target_lanes": list(
+            failure_required_target_lanes
+        ),
+        "pseudo_formal_failure_validation_issue_summary": dict(
+            failure_issue_summary
+        ),
+        "pseudo_formal_failure_issue_specific_repair_actions": list(
+            failure_issue_actions
+        ),
+        "pseudo_formal_failure_concrete_lane_routable_repair_seed": dict(
+            failure_repair_seed
+        ),
+        "pseudo_formal_failure_validator_ready_copy_contract": dict(
+            failure_validator_ready_copy_contract
+        ),
+        "pseudo_formal_failure_repair_seed_available": True,
+        "pseudo_formal_failure_copy_contract_summary": dict(
+            failure_copy_contract_summary
+        ),
+        "pseudo_formal_failure_copy_ready": True,
+        "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
+            bool(failure_copy_exact_semantic_ready)
+        ),
+        "runtime_queue_status": (
+            "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+        ),
+        "target_behavior": (
+            "Rerun Formalizer/ProofEngineer on this failed PF/BV component "
+            "gate, copy the validator-ready repair fragment into "
+            "pseudo_formal_proof_packets[0], preserve source anchors, "
+            "conclusions, semantic primitive requirements, target lanes, and "
+            "the non-proof boundary, then emit a valid lane-routable PF/BV "
+            "packet for exact semantic-definition/RAG/BV follow-up."
+        ),
+        "acceptance_gate": (
+            "The retry produces a validator-accepted PF/BV packet whose "
+            "effective work-order rows include the required target lanes, whose "
+            "exact semantic-definition rows are source-anchored with non-empty "
+            "semantic_primitive_requirements and complete PF/BV lineage, and "
+            "whose manifest still makes no theorem proof claim."
+        ),
+        "input_summary": input_summary,
+        "proof_evidence_status": (
+            "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": boundary,
+        "boundary": boundary,
+    }
 
 
 def _runtime_formalizer_pf_component_gate_exact_rows_handoff_diagnostic_row(
