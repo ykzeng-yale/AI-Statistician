@@ -99,6 +99,7 @@ from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator imp
 from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
     _runtime_capability_ladder,
+    _runtime_capability_scorecard,
     _resolve_manifest_paths,
     audit_research_agent_runtime,
 )
@@ -6896,6 +6897,86 @@ def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -
 
     assert rows[7]["passed"] is True
     assert ladder["max_contiguous_level"] == 7
+
+
+def test_runtime_evidence_summary_counts_live_formalizer_vs_deterministic_seed() -> None:
+    live_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "formalizer_proposal_source": "llm_formalizer_proof_engineer_proposal",
+        "counts": {
+            "proved": 0,
+            "kernel_verified": 0,
+            "formal_gap": 1,
+            "failed": 0,
+        },
+        "theorem_reduction_closure_work_orders": [],
+        "proof_obligation_control": {},
+        "verifiers": [],
+        "formal_subclaims": [],
+    }
+    deterministic_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "formalizer_proposal_source": "deterministic_theorem_closure_work_order_seed",
+        "counts": {
+            "proved": 0,
+            "kernel_verified": 0,
+            "formal_gap": 1,
+            "failed": 0,
+        },
+        "theorem_reduction_closure_work_orders": [{"work_order_id": "wo:seed"}],
+        "proof_obligation_control": {},
+        "verifiers": [],
+        "formal_subclaims": [],
+    }
+
+    summary = _runtime_evidence_summary(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "live": live_manifest,
+                        "seed": deterministic_manifest,
+                    }
+                }
+            }
+        ]
+    )
+
+    proof = summary["proof"]
+    assert proof["n_llm_formalizer_proof_engineer_proposals"] == 1
+    assert proof["n_deterministic_formalizer_work_order_seed_proposals"] == 1
+    assert proof["n_theorem_reduction_closure_work_orders"] == 1
+
+
+def test_runtime_capability_scorecard_rejects_deterministic_formalizer_seed_only() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 2,
+        "n_runtime_traces": 1,
+        "n_llm_formalizer_proof_engineer_proposals": 0,
+        "n_deterministic_formalizer_work_order_seed_proposals": 1,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows["llm_formalizer_proofengineer_proposal_observed"]["passed"] is False
+    assert "deterministic theorem-closure seeds" in rows[
+        "llm_formalizer_proofengineer_proposal_observed"
+    ]["blocker"]
+
+    payload["n_llm_formalizer_proof_engineer_proposals"] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    assert rows["llm_formalizer_proofengineer_proposal_observed"]["passed"] is True
 
 
 def test_runtime_audit_resolves_workspace_relative_run_paths(tmp_path: Path) -> None:

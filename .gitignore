@@ -17,6 +17,12 @@ runs/
 .tmp_frontier/
 .tmp_publish/
 
+# Local handoff transcripts and key notes are operator context only. Keep
+# concise project blueprints in docs/ instead of committing raw chats/secrets.
+docs/chat_history_*_ai_statistician_system.md
+docs/api_key_inventory_redacted.md
+docs/api_key_*.md
+
 # Lean / Mathlib build artifacts
 .lake/
 build/

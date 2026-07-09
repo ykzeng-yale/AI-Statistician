@@ -1302,6 +1302,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "runtime progress JSONL did not record start/finish events for every trace",
         ),
         _scorecard_row(
+            "llm_formalizer_proofengineer_proposal_observed",
+            int(payload.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0) > 0,
+            (
+                "n_llm_formalizer_proof_engineer_proposals="
+                f"{payload.get('n_llm_formalizer_proof_engineer_proposals')} "
+                "n_deterministic_formalizer_work_order_seed_proposals="
+                f"{payload.get('n_deterministic_formalizer_work_order_seed_proposals')}"
+            ),
+            (
+                "no live LLM Formalizer/ProofEngineer proposal was observed; "
+                "deterministic theorem-closure seeds are work-order scaffolds only"
+            ),
+        ),
+        _scorecard_row(
             "source_theorem_promotion_proofengineer_bridge_ran",
             payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
             (

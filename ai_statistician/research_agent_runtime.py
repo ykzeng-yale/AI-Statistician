@@ -1331,6 +1331,16 @@ class FormalizationEvaluatorRuntimeSubsystem:
             proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
             theorem_goals=theorem_goals,
         )
+        deterministic_formalizer_work_order_seed_used = (
+            proposal_source == "deterministic_theorem_closure_work_order_seed"
+        )
+        formalizer_agentic_capability_evidence_status = (
+            "DETERMINISTIC_WORK_ORDER_SEED_NOT_AGENTIC_CAPABILITY"
+            if deterministic_formalizer_work_order_seed_used
+            else "LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_OBSERVED"
+            if proposal_source == "llm_formalizer_proof_engineer_proposal"
+            else "NO_FORMALIZER_PROPOSAL_OBSERVED"
+        )
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeFormalizationManifest",
@@ -1343,6 +1353,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "runtime_architect_control": formalization_control,
             "llm_formalizer_proof_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
+            ),
+            "formalizer_proposal_source": proposal_source,
+            "deterministic_formalizer_work_order_seed_used": (
+                deterministic_formalizer_work_order_seed_used
+            ),
+            "formalizer_agentic_capability_evidence_status": (
+                formalizer_agentic_capability_evidence_status
             ),
             "problem": _problem_to_json(problem),
             "llm_formalization_requests": (
@@ -2042,6 +2059,12 @@ def run_research_agent_runtime(
         "runtime_evidence_summary": evidence_summary,
         "n_kernel_verified_subclaims": evidence_summary["proof"]["n_kernel_verified_subclaims"],
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
+        "n_llm_formalizer_proof_engineer_proposals": evidence_summary["proof"][
+            "n_llm_formalizer_proof_engineer_proposals"
+        ],
+        "n_deterministic_formalizer_work_order_seed_proposals": evidence_summary[
+            "proof"
+        ]["n_deterministic_formalizer_work_order_seed_proposals"],
         "n_registered_proof_bank_obligation_candidates": proof_control_summary[
             "n_registered_proof_bank_obligation_candidates"
         ],
@@ -10865,6 +10888,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_formalization_gap_planner_primitives": 0,
         "n_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
+        "n_llm_formalizer_proof_engineer_proposals": 0,
+        "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "has_kernel_evidence": False,
         "has_formal_gaps": False,
         "has_formalization_gap_planner_bridge": False,
@@ -10951,6 +10976,13 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof["n_theorem_reduction_closure_work_orders"] += len(
                     artifact.get("theorem_reduction_closure_work_orders", []) or []
                 )
+                proposal_source = str(
+                    artifact.get("formalizer_proposal_source", "") or ""
+                )
+                if proposal_source == "llm_formalizer_proof_engineer_proposal":
+                    proof["n_llm_formalizer_proof_engineer_proposals"] += 1
+                elif proposal_source == "deterministic_theorem_closure_work_order_seed":
+                    proof["n_deterministic_formalizer_work_order_seed_proposals"] += 1
                 if artifact.get("full_frontier_theorem_proved") is True:
                     proof["n_full_frontier_theorem_proved"] += 1
                 control = (
