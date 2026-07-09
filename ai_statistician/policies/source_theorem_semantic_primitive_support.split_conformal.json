@@ -205,6 +205,11 @@
     "order_statistic_quantile_rank_instantiation": "Connect the exact order-statistic quantile definition to the finite-rank event used by reusable conformal bridge lemmas{target}.",
     "coverage_event_identification_from_hC": "Use the exact coverage-set hypothesis hC to identify the source theorem event with the covered event used by bridge lemmas{target}."
   },
+  "exact_goal_shape_obligation_routes": {
+    "source_to_bridge_adapter_instantiation": [
+      "source_to_bridge_adapter_goal_shape_mismatch"
+    ]
+  },
   "exact_goal_shape_obligation_inference_rules": [
     {
       "failure_classifications": [

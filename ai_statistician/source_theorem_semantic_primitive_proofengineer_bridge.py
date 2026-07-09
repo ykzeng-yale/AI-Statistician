@@ -26,9 +26,9 @@ SEMANTIC_SUPPORT_ONLY_STATUS = (
 PLACEHOLDER_DEFINITION_OPEN_STATUS = (
     "OPEN_REQUIRES_REVIEWED_FORMAL_DEFINITION"
 )
-_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_OBLIGATION_IDS = {
-    "source_to_bridge_adapter_goal_shape_mismatch",
-}
+SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE = (
+    "source_to_bridge_adapter_instantiation"
+)
 DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH = (
     Path(__file__).resolve().parent
     / "policies"
@@ -108,6 +108,11 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     exact_goal_shape_semantic_gaps = _normalize_policy_string_map(
         payload.get("exact_goal_shape_to_semantic_gap", {})
     )
+    exact_goal_shape_obligation_routes = (
+        _normalize_exact_goal_shape_obligation_routes(
+            payload.get("exact_goal_shape_obligation_routes", {})
+        )
+    )
     exact_goal_shape_inference_rules = (
         _normalize_exact_goal_shape_obligation_inference_rules(
             payload.get("exact_goal_shape_obligation_inference_rules", [])
@@ -133,6 +138,7 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "theorem_closure_reduction_strategies": theorem_closure_strategies,
         "exact_goal_shape_to_registered_support": exact_goal_shape_support,
         "exact_goal_shape_to_semantic_gap": exact_goal_shape_semantic_gaps,
+        "exact_goal_shape_obligation_routes": exact_goal_shape_obligation_routes,
         "exact_goal_shape_obligation_inference_rules": (
             exact_goal_shape_inference_rules
         ),
@@ -233,6 +239,27 @@ def _normalize_policy_string_map(value: Any) -> dict[str, str]:
         item_value = str(raw_value or "").strip()
         if item_key and item_value:
             normalized[item_key] = item_value
+    return normalized
+
+
+def _normalize_exact_goal_shape_obligation_routes(
+    value: Any,
+) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, Mapping):
+        return {}
+    normalized: dict[str, tuple[str, ...]] = {}
+    for route, raw_items in value.items():
+        route_id = str(route).strip()
+        if not route_id:
+            continue
+        items = (raw_items,) if isinstance(raw_items, str) else raw_items or []
+        normalized[route_id] = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in items
+                if str(item).strip()
+            )
+        )
     return normalized
 
 
@@ -470,6 +497,9 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
     exact_goal_shape_feedback_rules = policy[
         "exact_goal_shape_obligation_feedback_rules"
     ]
+    exact_goal_shape_obligation_routes = policy[
+        "exact_goal_shape_obligation_routes"
+    ]
     return {
         "policy_id": policy["policy_id"],
         "schema_version": policy["schema_version"],
@@ -487,6 +517,9 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "n_exact_goal_shape_semantic_gap_routes": len(
             exact_goal_shape_semantic_gaps
         ),
+        "n_exact_goal_shape_obligation_route_groups": len(
+            exact_goal_shape_obligation_routes
+        ),
         "n_exact_goal_shape_obligation_inference_rules": len(
             exact_goal_shape_inference_rules
         ),
@@ -495,7 +528,7 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         ),
         "boundary": (
             "Semantic-support policy routes task-family primitive IDs, placeholder "
-            "signals, exact goal-shape inference/feedback routing, and "
+            "signals, exact goal-shape inference/feedback/queue routing, and "
             "theorem-closure strategies to registered support obligations. It is "
             "routing metadata only; proof evidence still requires "
             "kernel_verified=true rows in the proof audit manifest."
@@ -809,6 +842,29 @@ def registered_support_for_exact_goal_shape_obligation(
 ) -> tuple[str, ...]:
     policy = _semantic_support_policy()
     return policy["exact_goal_shape_to_registered_support"].get(obligation_id, ())
+
+
+def exact_goal_shape_obligation_ids_for_route(route_id: str) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    normalized_route_id = str(route_id or "").strip()
+    if not normalized_route_id:
+        return ()
+    return policy["exact_goal_shape_obligation_routes"].get(
+        normalized_route_id,
+        (),
+    )
+
+
+def exact_goal_shape_obligation_has_route(
+    obligation_id: str,
+    route_id: str,
+) -> bool:
+    normalized_obligation_id = str(obligation_id or "").strip()
+    if not normalized_obligation_id:
+        return False
+    return normalized_obligation_id in set(
+        exact_goal_shape_obligation_ids_for_route(route_id)
+    )
 
 
 def theorem_closure_reduction_strategy_for_goal(
@@ -1873,7 +1929,10 @@ def _export_exact_goal_shape_proof_library_expansion_queue(
             continue
         if check.get("registered_candidate_obligation_ids"):
             continue
-        if obligation_id in _ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_OBLIGATION_IDS:
+        if exact_goal_shape_obligation_has_route(
+            obligation_id,
+            SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+        ):
             continue
         work_order_id = str(check.get("work_order_id", "") or "").strip()
         queue_id = (
@@ -2031,7 +2090,10 @@ def _export_exact_goal_shape_adapter_instantiation_queue(
         obligation_id = str(
             check.get("exact_goal_shape_obligation_id", "") or ""
         ).strip()
-        if obligation_id not in _ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_OBLIGATION_IDS:
+        if not exact_goal_shape_obligation_has_route(
+            obligation_id,
+            SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+        ):
             continue
         if check.get("registered_candidate_obligation_ids"):
             continue

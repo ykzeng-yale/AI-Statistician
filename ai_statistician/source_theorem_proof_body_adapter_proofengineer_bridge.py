@@ -14,6 +14,10 @@ from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     _run_local_lean,
 )
 from .research_architect import KERNEL_PROOF_BOUNDARY
+from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+    exact_goal_shape_obligation_has_route,
+)
 
 
 ARTIFACT_KIND = "SourceTheoremProofBodyAdapterProofEngineerBridgeManifest"
@@ -915,18 +919,14 @@ def _generated_adapter_skeleton(
 def _adapter_required_reasons_from_exact_goal_shape(
     row: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    obligation_id = str(row.get("exact_goal_shape_obligation_id", "") or "").strip()
-    obligation_ids = set(_str_tuple(row.get("exact_goal_shape_obligation_ids", [])))
-    if (
-        obligation_id == "source_to_bridge_adapter_goal_shape_mismatch"
-        or "source_to_bridge_adapter_goal_shape_mismatch" in obligation_ids
-    ):
+    if _has_source_to_bridge_adapter_instantiation_obligation(row):
         return (
             "verified adapter or closure dependencies do not directly match the "
             "exact source theorem goal shape",
             "derive bridge premises from exact source-theorem assumptions before "
             "retrying the exact source proof body",
         )
+    obligation_id = str(row.get("exact_goal_shape_obligation_id", "") or "").strip()
     if obligation_id:
         return (
             f"exact goal-shape obligation requires adapter repair: {obligation_id}",
@@ -1625,15 +1625,25 @@ def _adapter_unproven_bridge_premise_names(
 
 
 def _requires_exact_source_to_bridge_derivation(row: Mapping[str, Any]) -> bool:
-    obligation_id = str(row.get("exact_goal_shape_obligation_id", "") or "").strip()
-    obligation_ids = set(_str_tuple(row.get("exact_goal_shape_obligation_ids", [])))
     target_artifact_kind = str(row.get("target_artifact_kind", "") or "").strip()
     source_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
     return (
-        obligation_id == "source_to_bridge_adapter_goal_shape_mismatch"
-        or "source_to_bridge_adapter_goal_shape_mismatch" in obligation_ids
+        _has_source_to_bridge_adapter_instantiation_obligation(row)
         or target_artifact_kind == "source_theorem_exact_proof_body_adapter_instantiation"
         or source_queue_status == "PENDING_SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION"
+    )
+
+
+def _has_source_to_bridge_adapter_instantiation_obligation(
+    row: Mapping[str, Any],
+) -> bool:
+    route_id = SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE
+    obligation_id = str(row.get("exact_goal_shape_obligation_id", "") or "").strip()
+    if exact_goal_shape_obligation_has_route(obligation_id, route_id):
+        return True
+    return any(
+        exact_goal_shape_obligation_has_route(obligation_id, route_id)
+        for obligation_id in _str_tuple(row.get("exact_goal_shape_obligation_ids", []))
     )
 
 

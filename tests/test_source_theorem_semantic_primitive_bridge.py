@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge import (
+    SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+    exact_goal_shape_obligation_has_route,
+    exact_goal_shape_obligation_ids_for_route,
     inferred_exact_goal_shape_obligation_ids,
     inferred_exact_goal_shape_obligation_ids_from_feedback,
     placeholder_symbols_from_semantic_alignment_feedback,
@@ -93,6 +96,12 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     )
     assert (
         manifest["semantic_support_policy"]["n_theorem_closure_reduction_goal_routes"]
+        >= 1
+    )
+    assert (
+        manifest["semantic_support_policy"][
+            "n_exact_goal_shape_obligation_route_groups"
+        ]
         >= 1
     )
     assert (
@@ -274,6 +283,20 @@ def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
     assert inferred_exact_goal_shape_obligation_ids(
         failure_classification="unregistered_failure_classification",
     ) == ()
+
+
+def test_exact_goal_shape_obligation_routes_are_policy_driven() -> None:
+    assert exact_goal_shape_obligation_ids_for_route(
+        SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE
+    ) == ("source_to_bridge_adapter_goal_shape_mismatch",)
+    assert exact_goal_shape_obligation_has_route(
+        "source_to_bridge_adapter_goal_shape_mismatch",
+        SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+    )
+    assert not exact_goal_shape_obligation_has_route(
+        "upper_coverage_bound_component",
+        SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+    )
 
 
 def test_exact_goal_shape_obligation_feedback_rules_are_policy_driven() -> None:
