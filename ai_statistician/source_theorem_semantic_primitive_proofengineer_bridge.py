@@ -87,11 +87,23 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     placeholder_support = _normalize_policy_support_map(
         payload.get("placeholder_symbol_to_registered_support", {})
     )
+    placeholder_primitive_ids = _normalize_policy_string_map(
+        payload.get("placeholder_symbol_to_semantic_primitive_id", {})
+    )
+    placeholder_semantic_gaps = _normalize_policy_string_map(
+        payload.get("placeholder_symbol_to_semantic_gap", {})
+    )
     placeholder_text_signals = _normalize_placeholder_text_signal_map(
         payload.get("placeholder_symbol_text_signals", {})
     )
+    semantic_primitive_id_text_rules = _normalize_semantic_primitive_id_text_rules(
+        payload.get("semantic_primitive_id_text_rules", [])
+    )
     theorem_closure_strategies = _normalize_theorem_closure_reduction_strategies(
         payload.get("theorem_closure_reduction_strategies", {})
+    )
+    exact_goal_shape_semantic_gaps = _normalize_policy_string_map(
+        payload.get("exact_goal_shape_to_semantic_gap", {})
     )
     return {
         "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
@@ -100,9 +112,13 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "path": str(path),
         "primitive_to_registered_support": primitive_support,
         "placeholder_symbol_to_registered_support": placeholder_support,
+        "placeholder_symbol_to_semantic_primitive_id": placeholder_primitive_ids,
+        "placeholder_symbol_to_semantic_gap": placeholder_semantic_gaps,
         "placeholder_symbol_text_signals": placeholder_text_signals,
+        "semantic_primitive_id_text_rules": semantic_primitive_id_text_rules,
         "theorem_closure_reduction_strategies": theorem_closure_strategies,
         "exact_goal_shape_to_registered_support": exact_goal_shape_support,
+        "exact_goal_shape_to_semantic_gap": exact_goal_shape_semantic_gaps,
     }
 
 
@@ -122,6 +138,71 @@ def _normalize_policy_support_map(value: Any) -> dict[str, tuple[str, ...]]:
             )
         )
     return rows
+
+
+def _normalize_policy_string_map(value: Any) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    normalized: dict[str, str] = {}
+    for key, raw_value in value.items():
+        item_key = str(key).strip()
+        item_value = str(raw_value or "").strip()
+        if item_key and item_value:
+            normalized[item_key] = item_value
+    return normalized
+
+
+def _normalize_semantic_primitive_id_text_rules(
+    value: Any,
+) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    normalized: list[dict[str, Any]] = []
+    for raw_rule in value:
+        if not isinstance(raw_rule, Mapping):
+            continue
+        primitive_id = str(
+            raw_rule.get("semantic_primitive_id", "")
+            or raw_rule.get("primitive_id", "")
+            or ""
+        ).strip()
+        if not primitive_id:
+            continue
+        patterns: list[tuple[str, ...]] = []
+        for raw_pattern in raw_rule.get("contains_all_any", []) or []:
+            if isinstance(raw_pattern, str):
+                terms = (raw_pattern.strip().lower(),)
+            else:
+                terms = tuple(
+                    dict.fromkeys(
+                        str(term).strip().lower()
+                        for term in raw_pattern or []
+                        if str(term).strip()
+                    )
+                )
+            if terms:
+                patterns.append(terms)
+        contains_all = tuple(
+            dict.fromkeys(
+                str(term).strip().lower()
+                for term in raw_rule.get("contains_all", []) or []
+                if str(term).strip()
+            )
+        )
+        if contains_all:
+            patterns.append(contains_all)
+        for term in raw_rule.get("contains_any", []) or []:
+            normalized_term = str(term).strip().lower()
+            if normalized_term:
+                patterns.append((normalized_term,))
+        if patterns:
+            normalized.append(
+                {
+                    "semantic_primitive_id": primitive_id,
+                    "contains_all_any": tuple(patterns),
+                }
+            )
+    return tuple(normalized)
 
 
 def _normalize_placeholder_text_signal_map(
@@ -185,20 +266,32 @@ def _normalize_theorem_closure_reduction_strategies(
 def _semantic_support_policy_summary() -> dict[str, Any]:
     policy = _semantic_support_policy()
     primitive_support = policy["primitive_to_registered_support"]
+    semantic_primitive_id_text_rules = policy["semantic_primitive_id_text_rules"]
     placeholder_support = policy["placeholder_symbol_to_registered_support"]
+    placeholder_primitive_ids = policy[
+        "placeholder_symbol_to_semantic_primitive_id"
+    ]
+    placeholder_semantic_gaps = policy["placeholder_symbol_to_semantic_gap"]
     placeholder_text_signals = policy["placeholder_symbol_text_signals"]
     theorem_closure_strategies = policy["theorem_closure_reduction_strategies"]
     exact_goal_shape_support = policy["exact_goal_shape_to_registered_support"]
+    exact_goal_shape_semantic_gaps = policy["exact_goal_shape_to_semantic_gap"]
     return {
         "policy_id": policy["policy_id"],
         "schema_version": policy["schema_version"],
         "scope": policy["scope"],
         "path": policy["path"],
         "n_primitive_support_routes": len(primitive_support),
+        "n_semantic_primitive_id_text_rules": len(semantic_primitive_id_text_rules),
         "n_placeholder_symbol_support_routes": len(placeholder_support),
+        "n_placeholder_symbol_primitive_id_routes": len(placeholder_primitive_ids),
+        "n_placeholder_symbol_semantic_gap_routes": len(placeholder_semantic_gaps),
         "n_placeholder_symbol_text_signal_routes": len(placeholder_text_signals),
         "n_theorem_closure_reduction_goal_routes": len(theorem_closure_strategies),
         "n_exact_goal_shape_support_routes": len(exact_goal_shape_support),
+        "n_exact_goal_shape_semantic_gap_routes": len(
+            exact_goal_shape_semantic_gaps
+        ),
         "boundary": (
             "Semantic-support policy routes task-family primitive IDs, placeholder "
             "signals, and theorem-closure strategies to registered support "
@@ -218,6 +311,127 @@ def registered_support_for_semantic_primitive(
 def registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
     policy = _semantic_support_policy()
     return policy["placeholder_symbol_to_registered_support"].get(symbol.strip(), ())
+
+
+def _format_semantic_gap_template(
+    template: str,
+    *,
+    symbol: str = "",
+    target_theorem_name: str = "",
+) -> str:
+    target_name = str(target_theorem_name or "").strip()
+    target_suffix = f" for `{target_name}`" if target_name else ""
+    return (
+        str(template or "")
+        .replace("{symbol}", str(symbol or "").strip())
+        .replace("{target}", target_suffix)
+        .replace("{target_theorem_name}", target_name)
+        .strip()
+    )
+
+
+def semantic_gap_for_placeholder_symbol(
+    symbol: str,
+    *,
+    target_theorem_name: str = "",
+) -> str:
+    policy = _semantic_support_policy()
+    normalized_symbol = str(symbol or "").strip()
+    template = policy["placeholder_symbol_to_semantic_gap"].get(
+        normalized_symbol,
+        "",
+    )
+    if not template:
+        return ""
+    return _format_semantic_gap_template(
+        template,
+        symbol=normalized_symbol,
+        target_theorem_name=target_theorem_name,
+    )
+
+
+def semantic_gap_for_exact_goal_shape_obligation(
+    obligation_id: str,
+    *,
+    target_theorem_name: str = "",
+) -> str:
+    policy = _semantic_support_policy()
+    normalized_obligation_id = str(obligation_id or "").strip()
+    template = policy["exact_goal_shape_to_semantic_gap"].get(
+        normalized_obligation_id,
+        "",
+    )
+    if not template:
+        return ""
+    return _format_semantic_gap_template(
+        template,
+        target_theorem_name=target_theorem_name,
+    )
+
+
+def semantic_primitive_id_for_gap(gap_text: str, gap_kind: str = "") -> str:
+    policy = _semantic_support_policy()
+    text = f"{gap_kind} {gap_text}".lower()
+    for rule in policy["semantic_primitive_id_text_rules"]:
+        primitive_id = str(rule.get("semantic_primitive_id", "") or "").strip()
+        if not primitive_id:
+            continue
+        patterns = rule.get("contains_all_any", ()) or ()
+        if any(all(term in text for term in pattern) for pattern in patterns):
+            return primitive_id
+    return ""
+
+
+def semantic_primitive_id_for_placeholder_symbol(
+    symbol: str,
+    *,
+    target_theorem_name: str = "",
+) -> str:
+    policy = _semantic_support_policy()
+    normalized_symbol = str(symbol or "").strip()
+    primitive_id = policy["placeholder_symbol_to_semantic_primitive_id"].get(
+        normalized_symbol,
+        "",
+    )
+    if primitive_id:
+        return primitive_id
+    gap = semantic_gap_for_placeholder_symbol(
+        normalized_symbol,
+        target_theorem_name=target_theorem_name,
+    )
+    primitive_id = semantic_primitive_id_for_gap(
+        gap,
+        "source_theorem_semantic_primitives",
+    )
+    if primitive_id:
+        return primitive_id
+    return (
+        "source_theorem_semantic_primitive:"
+        + stable_hash([normalized_symbol, target_theorem_name])[:16]
+    )
+
+
+def semantic_primitive_for_placeholder_symbol(
+    symbol: str,
+    *,
+    target_theorem_name: str = "",
+) -> tuple[str, str]:
+    normalized_symbol = str(symbol or "").strip()
+    primitive_id = semantic_primitive_id_for_placeholder_symbol(
+        normalized_symbol,
+        target_theorem_name=target_theorem_name,
+    )
+    gap = semantic_gap_for_placeholder_symbol(
+        normalized_symbol,
+        target_theorem_name=target_theorem_name,
+    )
+    if not gap:
+        target = f" for `{target_theorem_name}`" if target_theorem_name else ""
+        gap = (
+            f"formalize placeholder {normalized_symbol} as a source-theorem "
+            f"semantic primitive{target}"
+        )
+    return primitive_id, gap
 
 
 def placeholder_symbols_for_registered_support_ids(
@@ -868,27 +1082,9 @@ def _semantic_primitive_for_placeholder_symbol(
     *,
     target_theorem_name: str,
 ) -> tuple[str, str]:
-    lowered = symbol.lower()
-    target = f" for {target_theorem_name}" if target_theorem_name else ""
-    if "order" in lowered:
-        return (
-            "order_statistic_quantile_semantics",
-            f"formalize order-statistic quantile semantics{target}",
-        )
-    if "exchange" in lowered:
-        return (
-            "exchangeability_to_uniform_rank_semantics",
-            f"formalize exchangeability-to-uniform-rank semantics{target}",
-        )
-    if "prob" in lowered or "measure" in lowered:
-        return (
-            "probability_measure_semantics",
-            f"formalize probability-measure semantics{target}",
-        )
-    return (
-        "source_theorem_semantic_primitive:"
-        + stable_hash([symbol, target_theorem_name])[:16],
-        f"formalize placeholder {symbol} as a source-theorem semantic primitive{target}",
+    return semantic_primitive_for_placeholder_symbol(
+        symbol,
+        target_theorem_name=target_theorem_name,
     )
 
 
@@ -897,43 +1093,14 @@ def _semantic_primitive_gap_for_exact_goal_shape_obligation(
     *,
     target_theorem_name: str,
 ) -> str:
-    target = f" for {target_theorem_name}" if target_theorem_name else ""
-    if obligation_id == "source_to_bridge_adapter_goal_shape_mismatch":
-        return (
-            "Close the mismatch between the kernel-verified source-to-bridge adapter "
-            f"and the exact source theorem goal shape{target}"
-        )
-    if obligation_id == "conjunctive_source_theorem_split":
-        return (
-            "Split the exact source theorem conjunction into lower and upper proof "
-            f"components before assembling the final Lean proof{target}"
-        )
-    if obligation_id == "real_probability_lower_bound_from_ennreal_adapter":
-        return (
-            "Bridge the ENNReal lower-bound coverage adapter to the exact "
-            f"real-valued probability lower-bound statement{target}"
-        )
-    if obligation_id == "upper_coverage_bound_component":
-        return (
-            "Prove the upper finite-sample split-conformal coverage component "
-            f"that is not supplied by the current lower-bound adapter{target}"
-        )
-    if obligation_id == "exchangeability_rank_uniformity_instantiation":
-        return (
-            "Instantiate exchangeability into the finite rank/uniformity primitive "
-            f"required by the exact source theorem{target}"
-        )
-    if obligation_id == "order_statistic_quantile_rank_instantiation":
-        return (
-            "Connect the exact order-statistic quantile definition to the finite-rank "
-            f"event used by reusable conformal bridge lemmas{target}"
-        )
-    if obligation_id == "coverage_event_identification_from_hC":
-        return (
-            "Use the exact coverage-set hypothesis hC to identify the source theorem "
-            f"event with the covered event used by bridge lemmas{target}"
-        )
-    return f"Close exact source theorem goal-shape obligation {obligation_id}{target}"
+    gap = semantic_gap_for_exact_goal_shape_obligation(
+        obligation_id,
+        target_theorem_name=target_theorem_name,
+    )
+    if gap:
+        return gap
+    target = f" for `{target_theorem_name}`" if target_theorem_name else ""
+    return f"Close exact source theorem goal-shape obligation {obligation_id}{target}."
 
 
 def _inferred_exact_goal_shape_obligation_ids(

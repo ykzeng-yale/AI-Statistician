@@ -20,6 +20,80 @@
       "split_conformal_good_rank_set_inclusion_bridge"
     ]
   },
+  "semantic_primitive_id_text_rules": [
+    {
+      "semantic_primitive_id": "probability_measure_semantics",
+      "contains_all_any": [
+        [
+          "measureprobability"
+        ],
+        [
+          "probability",
+          "measure"
+        ]
+      ]
+    },
+    {
+      "semantic_primitive_id": "exchangeability_to_uniform_rank_semantics",
+      "contains_all_any": [
+        [
+          "exchangeab",
+          "rank"
+        ]
+      ]
+    },
+    {
+      "semantic_primitive_id": "exchangeability_semantics",
+      "contains_all_any": [
+        [
+          "exchangeab"
+        ]
+      ]
+    },
+    {
+      "semantic_primitive_id": "order_statistic_quantile_semantics",
+      "contains_all_any": [
+        [
+          "orderstat"
+        ],
+        [
+          "order statistic"
+        ],
+        [
+          "quantile"
+        ]
+      ]
+    },
+    {
+      "semantic_primitive_id": "rank_uniformity_semantics",
+      "contains_all_any": [
+        [
+          "rank",
+          "uniform"
+        ]
+      ]
+    },
+    {
+      "semantic_primitive_id": "measurability_semantics",
+      "contains_all_any": [
+        [
+          "measur"
+        ]
+      ]
+    }
+  ],
+  "placeholder_symbol_to_semantic_primitive_id": {
+    "MeasureProbability": "probability_measure_semantics",
+    "Exchangeable": "exchangeability_to_uniform_rank_semantics",
+    "orderStat": "order_statistic_quantile_semantics",
+    "orderStatistic": "order_statistic_quantile_semantics"
+  },
+  "placeholder_symbol_to_semantic_gap": {
+    "MeasureProbability": "Replace placeholder `MeasureProbability` with reviewed Mathlib/StatInference probability-measure semantics{target}.",
+    "Exchangeable": "Replace placeholder `Exchangeable := True` with reviewed exchangeability semantics and its finite-rank/uniformity bridge{target}.",
+    "orderStat": "Replace placeholder `{symbol}` with reviewed finite-sample order-statistic/quantile semantics{target}.",
+    "orderStatistic": "Replace placeholder `{symbol}` with reviewed finite-sample order-statistic/quantile semantics{target}."
+  },
   "placeholder_symbol_to_registered_support": {
     "MeasureProbability": [
       "prob_measure_univ"
@@ -92,6 +166,15 @@
     "conjunctive_source_theorem_split": [
       "source_theorem_conjunction_from_components"
     ]
+  },
+  "exact_goal_shape_to_semantic_gap": {
+    "source_to_bridge_adapter_goal_shape_mismatch": "Close the mismatch between the kernel-verified source-to-bridge adapter and the exact source theorem goal shape{target}.",
+    "conjunctive_source_theorem_split": "Split the exact source theorem conjunction into lower and upper proof components before assembling the final Lean proof{target}.",
+    "real_probability_lower_bound_from_ennreal_adapter": "Bridge the ENNReal lower-bound coverage adapter to the exact real-valued probability lower-bound statement{target}.",
+    "upper_coverage_bound_component": "Prove the upper finite-sample split-conformal coverage component that is not supplied by the current lower-bound adapter{target}.",
+    "exchangeability_rank_uniformity_instantiation": "Instantiate exchangeability into the finite rank/uniformity primitive required by the exact source theorem{target}.",
+    "order_statistic_quantile_rank_instantiation": "Connect the exact order-statistic quantile definition to the finite-rank event used by reusable conformal bridge lemmas{target}.",
+    "coverage_event_identification_from_hC": "Use the exact coverage-set hypothesis hC to identify the source theorem event with the covered event used by bridge lemmas{target}."
   },
   "theorem_closure_reduction_strategies": {
     "split_conformal_finite_sample_coverage": [

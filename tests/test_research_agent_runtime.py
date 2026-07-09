@@ -57797,6 +57797,35 @@ def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure()
     assert all(row["proof_mode"] == "source_theorem_semantic_primitive_closure" for row in work_orders)
 
 
+def test_runtime_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
+    assert runtime_module._source_semantic_primitive_id(
+        "formalize exchangeability rank uniformity semantics",
+        "source_theorem_semantic_primitives",
+    ) == "exchangeability_to_uniform_rank_semantics"
+    assert runtime_module._source_semantic_primitive_id(
+        "formalize probability measure semantics",
+        "source_theorem_semantic_primitives",
+    ) == "probability_measure_semantics"
+
+    gap = runtime_module._semantic_primitive_gap_for_placeholder_symbol(
+        "Exchangeable",
+        target_theorem_name="split_conformal_coverage",
+    )
+    assert "Exchangeable := True" in gap
+    assert "finite-rank/uniformity bridge" in gap
+    assert "`split_conformal_coverage`" in gap
+
+    exact_gap = (
+        runtime_module._semantic_primitive_gap_for_exact_goal_shape_obligation(
+            "coverage_event_identification_from_hC",
+            target_theorem_name="split_conformal_coverage",
+        )
+    )
+    assert "hC" in exact_gap
+    assert "covered event" in exact_gap
+    assert "`split_conformal_coverage`" in exact_gap
+
+
 def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)

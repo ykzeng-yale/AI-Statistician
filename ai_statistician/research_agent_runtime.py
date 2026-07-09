@@ -214,6 +214,9 @@ from .source_theorem_semantic_primitive_proofengineer_bridge import (
     placeholder_symbols_for_registered_support_ids as _policy_placeholder_symbols_for_registered_support_ids,
     registered_support_for_exact_goal_shape_obligation as _policy_registered_support_for_exact_goal_shape_obligation,
     registered_support_for_placeholder_symbol as _policy_registered_support_for_placeholder_symbol,
+    semantic_gap_for_exact_goal_shape_obligation as _policy_semantic_gap_for_exact_goal_shape_obligation,
+    semantic_gap_for_placeholder_symbol as _policy_semantic_gap_for_placeholder_symbol,
+    semantic_primitive_id_for_gap as _policy_semantic_primitive_id_for_gap,
     theorem_closure_reduction_strategy_for_goal as _policy_theorem_closure_reduction_strategy_for_goal,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
@@ -60512,21 +60515,9 @@ def _formalizer_candidate_premise_names(
 
 
 def _source_semantic_primitive_id(gap_text: str, gap_kind: str) -> str:
-    text = f"{gap_kind} {gap_text}".lower()
-    if "measureprobability" in text or (
-        "probability" in text and "measure" in text
-    ):
-        return "probability_measure_semantics"
-    if "exchangeab" in text and "rank" in text:
-        return "exchangeability_to_uniform_rank_semantics"
-    if "exchangeab" in text:
-        return "exchangeability_semantics"
-    if "orderstat" in text or "order statistic" in text or "quantile" in text:
-        return "order_statistic_quantile_semantics"
-    if "rank" in text and "uniform" in text:
-        return "rank_uniformity_semantics"
-    if "measur" in text:
-        return "measurability_semantics"
+    primitive_id = _policy_semantic_primitive_id_for_gap(gap_text, gap_kind)
+    if primitive_id:
+        return primitive_id
     return "source_theorem_semantic_primitive:" + stable_hash(
         [gap_kind, gap_text]
     )[:16]
@@ -70078,22 +70069,13 @@ def _semantic_primitive_gap_for_placeholder_symbol(
     target_theorem_name: str,
 ) -> str:
     normalized = symbol.strip()
+    gap = _policy_semantic_gap_for_placeholder_symbol(
+        normalized,
+        target_theorem_name=target_theorem_name,
+    )
+    if gap:
+        return gap
     target = f" for `{target_theorem_name}`" if target_theorem_name else ""
-    if normalized == "MeasureProbability":
-        return (
-            "Replace placeholder `MeasureProbability` with reviewed Mathlib/StatInference "
-            f"probability-measure semantics{target}."
-        )
-    if normalized == "Exchangeable":
-        return (
-            "Replace placeholder `Exchangeable := True` with reviewed exchangeability "
-            f"semantics and its finite-rank/uniformity bridge{target}."
-        )
-    if normalized in {"orderStat", "orderStatistic"}:
-        return (
-            f"Replace placeholder `{normalized}` with reviewed finite-sample "
-            f"order-statistic/quantile semantics{target}."
-        )
     return (
         f"Replace placeholder formal primitive `{normalized}` with a reviewed "
         f"source-theorem semantic primitive{target}."
@@ -70105,42 +70087,13 @@ def _semantic_primitive_gap_for_exact_goal_shape_obligation(
     *,
     target_theorem_name: str,
 ) -> str:
+    gap = _policy_semantic_gap_for_exact_goal_shape_obligation(
+        obligation_id,
+        target_theorem_name=target_theorem_name,
+    )
+    if gap:
+        return gap
     target = f" for `{target_theorem_name}`" if target_theorem_name else ""
-    if obligation_id == "source_to_bridge_adapter_goal_shape_mismatch":
-        return (
-            "Close the mismatch between the kernel-verified source-to-bridge adapter "
-            f"and the exact source theorem goal shape{target}."
-        )
-    if obligation_id == "conjunctive_source_theorem_split":
-        return (
-            "Split the exact source theorem conjunction into lower and upper proof "
-            f"components before assembling the final Lean proof{target}."
-        )
-    if obligation_id == "real_probability_lower_bound_from_ennreal_adapter":
-        return (
-            "Bridge the ENNReal lower-bound coverage adapter to the exact real-valued "
-            f"probability lower-bound statement{target}."
-        )
-    if obligation_id == "upper_coverage_bound_component":
-        return (
-            "Prove the upper finite-sample split-conformal coverage component that is "
-            f"not supplied by the current lower-bound adapter{target}."
-        )
-    if obligation_id == "exchangeability_rank_uniformity_instantiation":
-        return (
-            "Instantiate exchangeability into the finite rank/uniformity primitive "
-            f"required by the exact source theorem{target}."
-        )
-    if obligation_id == "order_statistic_quantile_rank_instantiation":
-        return (
-            "Connect the exact order-statistic quantile definition to the finite-rank "
-            f"event used by reusable conformal bridge lemmas{target}."
-        )
-    if obligation_id == "coverage_event_identification_from_hC":
-        return (
-            "Use the exact coverage-set hypothesis hC to identify the source theorem "
-            f"event with the covered event used by bridge lemmas{target}."
-        )
     return (
         f"Close exact source theorem goal-shape obligation `{obligation_id}`{target}."
     )

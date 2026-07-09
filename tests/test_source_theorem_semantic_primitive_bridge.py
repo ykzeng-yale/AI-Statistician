@@ -7,6 +7,10 @@ from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge impo
     placeholder_symbols_from_semantic_alignment_feedback,
     placeholder_symbols_for_registered_support_ids,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
+    semantic_gap_for_exact_goal_shape_obligation,
+    semantic_gap_for_placeholder_symbol,
+    semantic_primitive_for_placeholder_symbol,
+    semantic_primitive_id_for_gap,
     theorem_closure_reduction_strategy_for_goal,
 )
 
@@ -164,6 +168,42 @@ def test_theorem_closure_reduction_strategy_is_policy_driven() -> None:
         goal_id="unregistered_goal",
         verified_bridge_ids=["split_conformal_good_rank_coverage_bridge"],
     ) == {}
+
+
+def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
+    primitive_id, gap = semantic_primitive_for_placeholder_symbol(
+        "Exchangeable",
+        target_theorem_name="split_conformal_coverage",
+    )
+
+    assert primitive_id == "exchangeability_to_uniform_rank_semantics"
+    assert "Exchangeable := True" in gap
+    assert "finite-rank/uniformity bridge" in gap
+    assert "`split_conformal_coverage`" in gap
+
+    assert semantic_gap_for_placeholder_symbol(
+        "orderStat",
+        target_theorem_name="split_conformal_coverage",
+    ) == (
+        "Replace placeholder `orderStat` with reviewed finite-sample "
+        "order-statistic/quantile semantics for `split_conformal_coverage`."
+    )
+    assert semantic_gap_for_exact_goal_shape_obligation(
+        "coverage_event_identification_from_hC",
+        target_theorem_name="split_conformal_coverage",
+    ) == (
+        "Use the exact coverage-set hypothesis hC to identify the source theorem "
+        "event with the covered event used by bridge lemmas for "
+        "`split_conformal_coverage`."
+    )
+    assert semantic_primitive_id_for_gap(
+        "formalize probability measure semantics",
+        "source_theorem_semantic_primitives",
+    ) == "probability_measure_semantics"
+    assert semantic_primitive_id_for_gap(
+        "formalize exchangeability rank uniformity semantics",
+        "source_theorem_semantic_primitives",
+    ) == "exchangeability_to_uniform_rank_semantics"
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(
