@@ -1828,6 +1828,144 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     }
 
 
+def _runtime_exact_semantic_definition_authoring_contract_status(
+    payload: Mapping[str, Any],
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare exact semantic-definition authoring contracts with runtime evidence."""
+
+    authoring_required = _runtime_requires_exact_semantic_definition_authoring_worker(
+        context,
+        environment_feedback,
+    )
+    source_grounded_required = (
+        _runtime_requires_exact_semantic_definition_source_grounded_authoring_handoff(
+            context,
+            environment_feedback,
+        )
+    )
+    provenance = _runtime_exact_semantic_definition_authoring_provenance(payload)
+    authoring_satisfied = (not authoring_required) or (
+        int(provenance.get("n_prompt_packets", 0) or 0) > 0
+        and bool(provenance.get("handoff_ready", False))
+    )
+    source_grounded_satisfied = (not source_grounded_required) or (
+        int(provenance.get("n_source_grounded_prompt_packets", 0) or 0) > 0
+        and bool(provenance.get("source_grounded_handoff_ready", False))
+    )
+    if source_grounded_required and not source_grounded_satisfied:
+        status = (
+            "SOURCE_GROUNDED_EXACT_SEMANTIC_AUTHORING_HANDOFF_REQUIRED_BUT_MISSING"
+        )
+        blocker = (
+            "runtime_requested_evidence_contract requires a source-grounded exact "
+            "semantic-definition authoring handoff, but no required authoring lane "
+            "produced fully source-grounded prompt packets"
+        )
+    elif authoring_required and not authoring_satisfied:
+        status = "EXACT_SEMANTIC_AUTHORING_HANDOFF_REQUIRED_BUT_MISSING"
+        blocker = (
+            "runtime_requested_evidence_contract requires exact semantic-definition "
+            "authoring, but the runtime did not record a prompt-packet handoff"
+        )
+    elif source_grounded_required:
+        status = "SOURCE_GROUNDED_EXACT_SEMANTIC_AUTHORING_HANDOFF_CONTRACT_SATISFIED"
+        blocker = ""
+    elif authoring_required:
+        status = "EXACT_SEMANTIC_AUTHORING_HANDOFF_CONTRACT_SATISFIED"
+        blocker = ""
+    else:
+        status = "NO_EXACT_SEMANTIC_AUTHORING_CONTRACT_REQUIRED"
+        blocker = ""
+    return {
+        "authoring_worker_contract_required": bool(authoring_required),
+        "source_grounded_authoring_handoff_contract_required": bool(
+            source_grounded_required
+        ),
+        "authoring_worker_contract_satisfied": bool(authoring_satisfied),
+        "source_grounded_authoring_handoff_contract_satisfied": bool(
+            source_grounded_satisfied
+        ),
+        "status": status,
+        "blocker": blocker,
+        "n_prompt_packets": int(provenance.get("n_prompt_packets", 0) or 0),
+        "n_source_grounded_prompt_packets": int(
+            provenance.get("n_source_grounded_prompt_packets", 0) or 0
+        ),
+        "required_channels": list(provenance.get("required_channels", []) or []),
+        "source_grounded_prompt_ready_channels": list(
+            provenance.get("source_grounded_prompt_ready_channels", []) or []
+        ),
+        "source_grounded_prompt_missing_counts": dict(
+            provenance.get("source_grounded_prompt_missing_counts", {}) or {}
+        ),
+        "missing_source_grounded_handoff_channels": list(
+            provenance.get("missing_source_grounded_handoff_channels", []) or []
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_AUTHORING_CONTRACT_STATUS_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "Exact semantic-definition authoring contract status is runtime "
+            "capability evidence only. Source-grounded prompt packets can unblock "
+            "Lean/RAG/proof-engineering work, but they are not Lean proof evidence "
+            "and do not certify a source theorem."
+        ),
+    }
+
+
+def _runtime_exact_semantic_definition_authoring_contract_fields(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    status = (
+        payload.get("source_theorem_exact_semantic_definition_authoring_contract_status", {})
+        if isinstance(
+            payload.get(
+                "source_theorem_exact_semantic_definition_authoring_contract_status",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
+    authoring_required = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_contract_required",
+            False,
+        )
+        or status.get("authoring_worker_contract_required", False)
+    )
+    source_grounded_required = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_grounded_authoring_handoff_contract_required",
+            False,
+        )
+        or status.get("source_grounded_authoring_handoff_contract_required", False)
+    )
+    authoring_satisfied = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_authoring_worker_contract_satisfied",
+            False,
+        )
+        or status.get("authoring_worker_contract_satisfied", False)
+    )
+    source_grounded_satisfied = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_source_grounded_authoring_handoff_contract_satisfied",
+            False,
+        )
+        or status.get("source_grounded_authoring_handoff_contract_satisfied", False)
+    )
+    return {
+        "status": status,
+        "authoring_required": authoring_required,
+        "source_grounded_required": source_grounded_required,
+        "authoring_satisfied": authoring_satisfied,
+        "source_grounded_satisfied": source_grounded_satisfied,
+    }
+
+
 def _runtime_architect_control_truth(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_architect_traces = _runtime_manifest_int(
         payload,
@@ -2006,8 +2144,19 @@ def _runtime_evidence_truth_table_from_manifest(
     exact_semantic_authoring = _runtime_exact_semantic_definition_authoring_provenance(
         payload
     )
+    exact_semantic_authoring_contract = (
+        _runtime_exact_semantic_definition_authoring_contract_fields(payload)
+    )
+    exact_semantic_authoring_contract_required = bool(
+        exact_semantic_authoring_contract["authoring_required"]
+    )
+    exact_semantic_authoring_source_grounded_contract_required = bool(
+        exact_semantic_authoring_contract["source_grounded_required"]
+    )
     exact_semantic_authoring_required = bool(
         exact_semantic_authoring["required"]
+        or exact_semantic_authoring_contract_required
+        or exact_semantic_authoring_source_grounded_contract_required
     )
     exact_semantic_authoring_live_attempts = int(
         exact_semantic_authoring["n_live_llm_attempted"]
@@ -2612,17 +2761,45 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     exact_semantic_authoring = _runtime_exact_semantic_definition_authoring_provenance(
         payload
     )
+    exact_semantic_authoring_contract = (
+        _runtime_exact_semantic_definition_authoring_contract_fields(payload)
+    )
+    exact_semantic_authoring_contract_status = exact_semantic_authoring_contract[
+        "status"
+    ]
+    exact_semantic_authoring_contract_required = bool(
+        exact_semantic_authoring_contract["authoring_required"]
+    )
+    exact_semantic_authoring_source_grounded_contract_required = bool(
+        exact_semantic_authoring_contract["source_grounded_required"]
+    )
+    exact_semantic_authoring_contract_satisfied = bool(
+        exact_semantic_authoring_contract["authoring_satisfied"]
+    )
+    exact_semantic_authoring_source_grounded_contract_satisfied = bool(
+        exact_semantic_authoring_contract["source_grounded_satisfied"]
+    )
     exact_semantic_authoring_required = bool(
         exact_semantic_authoring["required"]
+        or exact_semantic_authoring_contract_required
+        or exact_semantic_authoring_source_grounded_contract_required
     )
     exact_semantic_authoring_live_attempts = int(
         exact_semantic_authoring["n_live_llm_attempted"]
     )
     exact_semantic_authoring_live_ready = bool(
         exact_semantic_authoring["live_ready"]
+        and (
+            not exact_semantic_authoring_contract_required
+            or exact_semantic_authoring_contract_satisfied
+        )
     )
     exact_semantic_authoring_source_grounded_ready = bool(
         exact_semantic_authoring["source_grounded_handoff_ready"]
+        and (
+            not exact_semantic_authoring_source_grounded_contract_required
+            or exact_semantic_authoring_source_grounded_contract_satisfied
+        )
     )
     exact_semantic_authoring_generic_attempts = int(
         exact_semantic_authoring["n_llm_attempted"]
@@ -3163,7 +3340,13 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 "post_runtime_lineage_ok="
                 f"{exact_semantic_authoring['post_runtime_lineage_ok']}; "
                 "post_runtime_source_grounded_handoff_ready="
-                f"{exact_semantic_authoring['post_runtime_source_grounded_handoff_ready']}"
+                f"{exact_semantic_authoring['post_runtime_source_grounded_handoff_ready']}; "
+                "contract_required="
+                f"{exact_semantic_authoring_source_grounded_contract_required}; "
+                "contract_satisfied="
+                f"{exact_semantic_authoring_source_grounded_contract_satisfied}; "
+                "contract_status="
+                f"{exact_semantic_authoring_contract_status.get('status', '')}"
             ),
             "blocker": (
                 ""
@@ -24193,6 +24376,15 @@ def run_research_agent_runtime(
     handoff_transition_summary = _runtime_handoff_transition_summary(results)
     proof_control_summary = evidence_summary["proof"]["proof_obligation_control"]
     llm_topology_summary = _runtime_llm_topology_summary(llm_topology)
+    runtime_formalizer_contract_context = dict(runtime_architect_context)
+    for question in questions:
+        runtime_formalizer_contract_context = (
+            _runtime_context_with_formalizer_capability_memory_contract(
+                runtime_formalizer_contract_context,
+                question.id,
+                subsystem="FormalizationEvaluator",
+            )
+        )
     if not initial_task_overrides:
         runtime_resume_policy = "fresh_start"
     elif config.resume_through_architect and architect_coordinator is not None:
@@ -39987,6 +40179,52 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_lean_repair_executor_effective"
     ] = bool(source_theorem_exact_semantic_definition_lean_repair_executor_effective)
+    exact_semantic_authoring_contract_status = (
+        _runtime_exact_semantic_definition_authoring_contract_status(
+            manifest,
+            runtime_formalizer_contract_context,
+        )
+    )
+    manifest["source_theorem_exact_semantic_definition_authoring_contract_status"] = (
+        exact_semantic_authoring_contract_status
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_contract_required"
+    ] = bool(
+        exact_semantic_authoring_contract_status[
+            "authoring_worker_contract_required"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_worker_contract_satisfied"
+    ] = bool(
+        exact_semantic_authoring_contract_status[
+            "authoring_worker_contract_satisfied"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_grounded_authoring_handoff_contract_required"
+    ] = bool(
+        exact_semantic_authoring_contract_status[
+            "source_grounded_authoring_handoff_contract_required"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_source_grounded_authoring_handoff_contract_satisfied"
+    ] = bool(
+        exact_semantic_authoring_contract_status[
+            "source_grounded_authoring_handoff_contract_satisfied"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_contract_status_label"
+    ] = str(exact_semantic_authoring_contract_status["status"])
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_contract_blocker"
+    ] = str(exact_semantic_authoring_contract_status["blocker"])
+    manifest[
+        "source_theorem_exact_semantic_definition_authoring_contract_boundary"
+    ] = str(exact_semantic_authoring_contract_status["boundary"])
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
     )
@@ -47098,6 +47336,53 @@ def _runtime_requires_generated_algorithm_code(
     ) or _runtime_environment_feedback_contract_flag(
         environment_feedback,
         flag="capability_eval_requires_generated_algorithm_code",
+    )
+
+
+def _runtime_contract_flag_for_subsystems(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None,
+    *,
+    flag: str,
+    subsystems: Sequence[str],
+) -> bool:
+    return any(
+        _runtime_context_contract_flag(
+            context,
+            subsystem=subsystem,
+            flag=flag,
+        )
+        for subsystem in subsystems
+    ) or _runtime_environment_feedback_contract_flag(
+        environment_feedback,
+        flag=flag,
+    )
+
+
+def _runtime_requires_exact_semantic_definition_authoring_worker(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> bool:
+    return _runtime_contract_flag_for_subsystems(
+        context,
+        environment_feedback,
+        flag="capability_eval_requires_exact_semantic_definition_authoring_worker",
+        subsystems=("FormalizationEvaluator", "ProofEngineer"),
+    )
+
+
+def _runtime_requires_exact_semantic_definition_source_grounded_authoring_handoff(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> bool:
+    return _runtime_contract_flag_for_subsystems(
+        context,
+        environment_feedback,
+        flag=(
+            "capability_eval_requires_exact_semantic_definition_"
+            "source_grounded_authoring_handoff"
+        ),
+        subsystems=("FormalizationEvaluator", "ProofEngineer"),
     )
 
 

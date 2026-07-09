@@ -1501,6 +1501,36 @@ def _feedback_requires_formalizer_lean_candidate(
     return False
 
 
+def _feedback_contract_flag(feedback: Mapping[str, Any] | None, flag: str) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    sources: list[Mapping[str, Any]] = [feedback]
+    for key in (
+        "architect_evidence_contract",
+        "runtime_requested_evidence_contract",
+        "input_summary",
+    ):
+        value = feedback.get(key, {})
+        if isinstance(value, Mapping):
+            sources.append(value)
+    input_summary = feedback.get("input_summary", {})
+    if isinstance(input_summary, Mapping):
+        for key in ("architect_evidence_contract", "runtime_requested_evidence_contract"):
+            value = input_summary.get(key, {})
+            if isinstance(value, Mapping):
+                sources.append(value)
+    return any(source.get(flag) is True for source in sources)
+
+
+def _feedback_requires_source_grounded_exact_semantic_authoring_handoff(
+    feedback: Mapping[str, Any] | None,
+) -> bool:
+    return _feedback_contract_flag(
+        feedback,
+        "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff",
+    )
+
+
 def _feedback_has_repeated_syntax_failure_contract(
     feedback: Mapping[str, Any] | None,
 ) -> bool:
@@ -6404,6 +6434,19 @@ def _formalizer_mode_specific_instructions(
     theory_trace_downstream_alignment_feedback = (
         _theory_trace_downstream_alignment_feedback(runtime_environment_feedback)
     )
+    if _feedback_requires_source_grounded_exact_semantic_authoring_handoff(
+        runtime_environment_feedback
+    ):
+        instructions.append(
+            "Source-grounded exact semantic-definition authoring handoff is required: "
+            "route the next exact semantic-definition work through source theorem "
+            "binders, required anchor bindings, complete required anchors, "
+            "source-anchor context, and Lean authoring environment binders. If those "
+            "anchors are unavailable, emit a machine-routable source lookup or "
+            "formal-gap work order instead of an empty-shell definition request. "
+            "This handoff is runtime capability evidence for downstream Lean/RAG/"
+            "ProofEngineer workers, not theorem proof evidence."
+        )
     materialization_agenda_rows = [
         row
         for row in high_priority_agenda

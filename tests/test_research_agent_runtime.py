@@ -32894,6 +32894,104 @@ def test_formalizer_capability_memory_preserves_source_grounded_authoring_contra
     ] is True
 
 
+def test_exact_semantic_authoring_contract_status_gates_source_grounded_capability() -> None:
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_exact_semantic_definition_authoring_worker": True,
+            "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff": True,
+        }
+    }
+    missing_payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 0,
+    }
+
+    missing_status = (
+        runtime_module._runtime_exact_semantic_definition_authoring_contract_status(
+            missing_payload,
+            context,
+        )
+    )
+    assert missing_status[
+        "source_grounded_authoring_handoff_contract_required"
+    ] is True
+    assert missing_status[
+        "source_grounded_authoring_handoff_contract_satisfied"
+    ] is False
+    assert missing_status["status"] == (
+        "SOURCE_GROUNDED_EXACT_SEMANTIC_AUTHORING_HANDOFF_REQUIRED_BUT_MISSING"
+    )
+
+    capability_payload = {
+        **missing_payload,
+        "source_theorem_exact_semantic_definition_authoring_contract_status": (
+            missing_status
+        ),
+        "source_theorem_exact_semantic_definition_source_grounded_authoring_handoff_contract_required": True,
+        "source_theorem_exact_semantic_definition_source_grounded_authoring_handoff_contract_satisfied": False,
+    }
+    capability_rows = {
+        row["capability_id"]: row
+        for row in _runtime_coding_agent_capability_table(capability_payload)["rows"]
+    }
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is False
+    assert "source_grounded_prompt_missing_counts={'primary': 1}" in capability_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["evidence"]
+    assert "contract_satisfied=False" in capability_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["evidence"]
+
+    satisfied_payload = {
+        **missing_payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 1,
+    }
+    satisfied_status = (
+        runtime_module._runtime_exact_semantic_definition_authoring_contract_status(
+            satisfied_payload,
+            context,
+        )
+    )
+    assert satisfied_status[
+        "source_grounded_authoring_handoff_contract_satisfied"
+    ] is True
+    assert satisfied_status["status"] == (
+        "SOURCE_GROUNDED_EXACT_SEMANTIC_AUTHORING_HANDOFF_CONTRACT_SATISFIED"
+    )
+
+
+def test_formalizer_prompt_explains_source_grounded_authoring_handoff_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff": True
+            }
+        },
+    )
+
+    assert (
+        "Source-grounded exact semantic-definition authoring handoff is required"
+        in prompt
+    )
+    assert "source theorem binders" in prompt
+    assert "required anchor bindings" in prompt
+    assert "not theorem proof evidence" in prompt
+
+
 def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     memory = {
