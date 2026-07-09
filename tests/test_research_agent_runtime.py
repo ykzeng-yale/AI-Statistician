@@ -172,6 +172,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_algorithm_sandbox_feedback_from_learning_memory,
     _runtime_generated_simulation_feedback_from_learning_memory,
     _formalizer_proof_bank_runtime_memory_summary,
+    _runtime_proof_bank_memory_summary_from_learning_rows,
     _formalizer_lean_candidate_materialization_learning_rows,
     _formalizer_pseudo_formal_work_order_rows,
     _formalizer_source_to_bridge_metadata_authoring_request_rows,
@@ -77048,6 +77049,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ]
     assert runtime_learning_rows
     assert all(row.get("learning_task") for row in runtime_learning_rows)
+    expected_proof_memory_summary = (
+        _runtime_proof_bank_memory_summary_from_learning_rows(
+            runtime_learning_rows,
+            source="run_research_agent_runtime_manifest_refresh",
+        )
+    )
+    assert (
+        manifest["proof_bank_runtime_memory_summary"]
+        == expected_proof_memory_summary
+    )
     runtime_gap_planner_learning = next(
         row
         for row in runtime_learning_rows
@@ -77207,6 +77218,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     manifest_path = out_dir / "research_agent_runtime_manifest.json"
     manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert (
+        manifest_payload["proof_bank_runtime_memory_summary"]
+        == expected_proof_memory_summary
+    )
     legacy_manifest_payload = dict(manifest_payload)
     for key in tuple(legacy_manifest_payload):
         if key.startswith("n_runtime_formalization_gap_planner_execution_plan_"):

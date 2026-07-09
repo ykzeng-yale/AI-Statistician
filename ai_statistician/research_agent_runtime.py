@@ -40055,6 +40055,12 @@ def run_research_agent_runtime(
         generated_next_action_rows
     )
     manifest["n_runtime_learning_rows"] = len(learning_rows)
+    manifest["proof_bank_runtime_memory_summary"] = (
+        _runtime_proof_bank_memory_summary_from_learning_rows(
+            learning_rows,
+            source="run_research_agent_runtime_manifest_refresh",
+        )
+    )
     pending_memory_context = _runtime_learning_memory_context_from_rows(
         learning_rows,
         max_rows=_runtime_learning_memory_context_row_limit(
@@ -55953,6 +55959,31 @@ def _source_theorem_exact_candidate_repair_diagnostic_rows(
             ),
             key=lambda item: (-item[0], -item[1]),
         )
+    )
+
+
+def _runtime_proof_bank_memory_summary_from_learning_rows(
+    learning_rows: Sequence[Mapping[str, Any]],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    rows = [dict(row) for row in learning_rows if isinstance(row, Mapping)]
+    return _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": rows,
+                "counts": {
+                    "rows_loaded": len(rows),
+                    "source": source,
+                },
+                "retention_policy": source,
+            }
+        },
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
     )
 
 

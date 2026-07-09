@@ -461,12 +461,12 @@ from .research_agent_runtime import (
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
     _runtime_component_gate_summary,
-    _formalizer_proof_bank_runtime_memory_summary,
     _runtime_formalizer_component_gate_learning_rows,
     _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows,
     _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows,
     _runtime_generated_next_action_learning_rows,
     _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
+    _runtime_proof_bank_memory_summary_from_learning_rows,
     _dedupe_runtime_next_action_agenda_rows,
     _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
@@ -13209,22 +13209,9 @@ def _refresh_runtime_coding_agent_capability_manifest(
         "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
     ] = len(formalizer_pf_copy_ready_retry_next_action_rows)
     manifest["proof_bank_runtime_memory_summary"] = (
-        _formalizer_proof_bank_runtime_memory_summary(
-            context={
-                "runtime_learning_memory": {
-                    "artifact_kind": "RuntimeLearningMemoryContext",
-                    "rows": refreshed_rows,
-                    "counts": {
-                        "rows_loaded": len(refreshed_rows),
-                        "source": "runtime_capability_manifest_refresh",
-                    },
-                    "retention_policy": "runtime_capability_manifest_refresh",
-                }
-            },
-            proof_bank_obligation_catalog=[],
-            theorem_goals=[],
-            memory_kernel_verified_proof_obligation_ids=(),
-            memory_prioritized_proof_obligation_ids=(),
+        _runtime_proof_bank_memory_summary_from_learning_rows(
+            refreshed_rows,
+            source="runtime_capability_manifest_refresh",
         )
     )
     manifest["n_runtime_pseudo_formal_block_verifier_component_gate_learning_rows"] = len(
