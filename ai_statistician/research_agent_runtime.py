@@ -272,6 +272,7 @@ class ArchitectCoordinatorRuntimeSubsystem:
             "problem_analysis": packet.get("problem_analysis", {}),
             "stat_knowledge_bank_plan": packet.get("stat_knowledge_bank_plan", {}),
             "literature_fair_comparison_plan": packet.get("literature_fair_comparison_plan", []),
+            "evidence_contract": packet.get("evidence_contract", {}),
             "retrieval_strategy": packet.get("retrieval_strategy", {}),
             "iteration_policy": packet.get("iteration_policy", {}),
             "evidence_gates": packet.get("evidence_gates", []),
@@ -4588,6 +4589,7 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
     problem_analysis = plan.get("problem_analysis", {})
     knowledge_bank_plan = plan.get("stat_knowledge_bank_plan", {})
     fair_comparison_plan = plan.get("literature_fair_comparison_plan", [])
+    evidence_contract = plan.get("evidence_contract", {})
     return {
         "architect_coordinator_proposal_id": str(
             context.get("architect_coordinator_proposal_id", "")
@@ -4608,6 +4610,9 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
         "literature_fair_comparison_plan": [
             dict(item) for item in fair_comparison_plan if isinstance(item, Mapping)
         ],
+        "evidence_contract": (
+            dict(evidence_contract) if isinstance(evidence_contract, Mapping) else {}
+        ),
         "boundary": str(plan.get("boundary", "")),
     }
 

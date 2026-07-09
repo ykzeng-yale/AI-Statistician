@@ -153,6 +153,9 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
     assert '"problem_analysis"' in prompt
     assert '"stat_knowledge_bank_plan"' in prompt
     assert '"literature_fair_comparison_plan"' in prompt
+    assert '"evidence_contract"' in prompt
+    assert "required|optional|advisory" in prompt
+    assert "simulation_first|proof_first|dual_track" in prompt
 
 
 def test_architect_coordinator_validator_requires_research_control_fields() -> None:
@@ -167,12 +170,46 @@ def test_architect_coordinator_validator_requires_research_control_fields() -> N
     packet.pop("problem_analysis")
     packet.pop("stat_knowledge_bank_plan")
     packet.pop("literature_fair_comparison_plan")
+    packet.pop("evidence_contract")
 
     errors = validate_architect_coordinator_packet(packet)
 
     assert "missing or empty field: problem_analysis" in errors
     assert "missing or empty field: stat_knowledge_bank_plan" in errors
     assert "missing or empty field: literature_fair_comparison_plan" in errors
+    assert "missing or empty field: evidence_contract" in errors
+
+
+def test_architect_coordinator_validator_requires_evidence_contract_policy() -> None:
+    packet = dict(_architect_sample_response())
+    packet.update(
+        {
+            "proof_evidence_status": "LLM_ARCHITECT_COORDINATOR_PROPOSAL_NOT_PROOF_EVIDENCE",
+            "runtime_executed": False,
+            "kernel_verified": False,
+        }
+    )
+    packet["evidence_contract"] = {
+        "formal_verification_policy": "maybe",
+        "recommended_research_path": "manual_codex_debug",
+        "formal_required_for_final": False,
+        "simulation_required_for_final": "yes",
+        "must_disclose_formal_gaps": False,
+        "rationale": "",
+    }
+
+    errors = validate_architect_coordinator_packet(packet)
+
+    assert (
+        "evidence_contract.formal_verification_policy must be one of: advisory, optional, required"
+        in errors
+    )
+    assert (
+        "evidence_contract.recommended_research_path must be one of: dual_track, proof_first, simulation_first"
+        in errors
+    )
+    assert "evidence_contract.simulation_required_for_final must be boolean" in errors
+    assert "evidence_contract.rationale must be nonempty" in errors
 
 
 def test_simulation_engineer_prompt_compacts_theory_context() -> None:
@@ -5431,6 +5468,14 @@ def _architect_sample_response() -> dict[str, object]:
                 "unsafe_transfer_risks": ["borrowing theorem without positivity or Donsker alternative"],
             }
         ],
+        "evidence_contract": {
+            "formal_verification_policy": "optional",
+            "recommended_research_path": "dual_track",
+            "formal_required_for_final": False,
+            "simulation_required_for_final": True,
+            "must_disclose_formal_gaps": True,
+            "rationale": "algorithm and simulation feedback can move first, while formal kernels remain selective gates",
+        },
         "iteration_policy": {
             "reroute_triggers": ["simulation diagnostic failure", "formal gap", "missing algorithm adapter"],
             "max_repair_rounds": 2,
@@ -6170,6 +6215,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert architect_plan["problem_analysis"]["theorem_family"] == "semiparametric efficiency and asymptotic normality"
     assert "DML/AIPW asymptotic normality papers" in architect_plan["stat_knowledge_bank_plan"]["source_families_to_collect"]
     assert architect_plan["literature_fair_comparison_plan"][0]["candidate_source_family"] == "double machine learning ATE CLT"
+    assert architect_plan["evidence_contract"]["formal_verification_policy"] == "optional"
+    assert architect_plan["evidence_contract"]["recommended_research_path"] == "dual_track"
     assert result["traces"][2]["task"]["acceptance_gate"] == "schema-valid proposal with no proof-evidence claim"
     assert result["traces"][3]["task"]["acceptance_gate"] == "runtime records seed, metrics, and empirical boundary"
     assert result["traces"][4]["task"]["acceptance_gate"] == "sandbox prototype records reproducible metrics"
@@ -6215,6 +6262,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         ]
         == "double machine learning ATE CLT"
     )
+    assert retrieval_manifest["runtime_architect_control"]["evidence_contract"][
+        "formal_verification_policy"
+    ] == "optional"
     assert retrieval_manifest["counts"]["knowledge_cards"] > 0
     assert retrieval_manifest["counts"]["paper_sources"] > 0
     theory_packet = next(row for key, row in artifacts.items() if key.startswith("theory_derivation:"))

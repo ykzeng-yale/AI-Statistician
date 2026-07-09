@@ -21,6 +21,9 @@ ARCHITECT_COORDINATOR_BOUNDARY = (
     "authority gates."
 )
 
+FORMAL_VERIFICATION_POLICIES = frozenset(("required", "optional", "advisory"))
+RESEARCH_PATH_POLICIES = frozenset(("simulation_first", "proof_first", "dual_track"))
+
 LONG_HORIZON_RESEARCH_GUIDANCE: dict[str, Any] = {
     "problem_analysis_before_retrieval": [
         "classify theorem family, statistical object, likely analogy class, and key obstacle before choosing searches",
@@ -205,6 +208,14 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
             "unsafe_transfer_risks": ["one short string"],
         }
     ],
+    "evidence_contract": {
+        "formal_verification_policy": "required|optional|advisory",
+        "recommended_research_path": "simulation_first|proof_first|dual_track",
+        "formal_required_for_final": "boolean",
+        "simulation_required_for_final": "boolean",
+        "must_disclose_formal_gaps": "boolean",
+        "rationale": "one short string",
+    },
     "subsystem_execution_plan": [
         {
             "subsystem": "RetrievalMemory",
@@ -249,6 +260,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "problem_analysis",
         "stat_knowledge_bank_plan",
         "literature_fair_comparison_plan",
+        "evidence_contract",
         "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
@@ -261,6 +273,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "problem_analysis": {"type": "object"},
         "stat_knowledge_bank_plan": {"type": "object"},
         "literature_fair_comparison_plan": {"type": "array", "minItems": 1},
+        "evidence_contract": {"type": "object"},
         "subsystem_execution_plan": {"type": "array", "minItems": 1},
         "retrieval_strategy": {"type": "object"},
         "iteration_policy": {"type": "object"},
@@ -278,6 +291,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         "problem_analysis",
         "stat_knowledge_bank_plan",
         "literature_fair_comparison_plan",
+        "evidence_contract",
         "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
@@ -328,6 +342,43 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 errors.append(
                     f"literature_fair_comparison_plan entry missing or empty field: {field}"
                 )
+    evidence_contract = packet.get("evidence_contract", {})
+    if isinstance(evidence_contract, Mapping):
+        formal_policy = str(
+            evidence_contract.get("formal_verification_policy", "") or ""
+        )
+        research_path = str(evidence_contract.get("recommended_research_path", "") or "")
+        if formal_policy not in FORMAL_VERIFICATION_POLICIES:
+            errors.append(
+                "evidence_contract.formal_verification_policy must be one of: "
+                + ", ".join(sorted(FORMAL_VERIFICATION_POLICIES))
+            )
+        if research_path not in RESEARCH_PATH_POLICIES:
+            errors.append(
+                "evidence_contract.recommended_research_path must be one of: "
+                + ", ".join(sorted(RESEARCH_PATH_POLICIES))
+            )
+        for field in (
+            "formal_required_for_final",
+            "simulation_required_for_final",
+            "must_disclose_formal_gaps",
+        ):
+            if not isinstance(evidence_contract.get(field), bool):
+                errors.append(f"evidence_contract.{field} must be boolean")
+        if formal_policy == "required" and evidence_contract.get("formal_required_for_final") is not True:
+            errors.append(
+                "evidence_contract.formal_required_for_final must be true when formal_verification_policy=required"
+            )
+        if formal_policy in {"optional", "advisory"} and evidence_contract.get("must_disclose_formal_gaps") is not True:
+            errors.append(
+                "evidence_contract.must_disclose_formal_gaps must be true unless full formal verification is required and complete"
+            )
+        if not str(evidence_contract.get("rationale", "") or "").strip():
+            errors.append("evidence_contract.rationale must be nonempty")
+    elif evidence_contract in (None, "", [], {}):
+        pass
+    else:
+        errors.append("evidence_contract must be an object")
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
             errors.append("subsystem_execution_plan entries must be objects")
