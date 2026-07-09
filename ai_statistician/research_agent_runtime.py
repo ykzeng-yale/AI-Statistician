@@ -64685,9 +64685,21 @@ def _append_runtime_generated_next_action_rows(
                 row
             )
         )
+        exact_semantic_context = _runtime_exact_semantic_definition_context(row)
         candidate_definition_request_raw = row.get("candidate_definition_request", {})
-        if not isinstance(candidate_definition_request_raw, Mapping):
+        if (
+            candidate_definition_request_raw in (None, "", [], {})
+            or not isinstance(candidate_definition_request_raw, Mapping)
+        ):
             candidate_definition_request_raw = input_summary.get(
+                "candidate_definition_request",
+                {},
+            )
+        if (
+            candidate_definition_request_raw in (None, "", [], {})
+            or not isinstance(candidate_definition_request_raw, Mapping)
+        ):
+            candidate_definition_request_raw = exact_semantic_context.get(
                 "candidate_definition_request",
                 {},
             )
@@ -75000,9 +75012,21 @@ def _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_
             and not semantic_review_required
         ):
             continue
+        exact_semantic_context = _runtime_exact_semantic_definition_context(row)
         candidate_definition_request_raw = row.get("candidate_definition_request", {})
-        if not candidate_definition_request_raw:
+        if (
+            candidate_definition_request_raw in (None, "", [], {})
+            or not isinstance(candidate_definition_request_raw, Mapping)
+        ):
             candidate_definition_request_raw = input_summary.get(
+                "candidate_definition_request",
+                {},
+            )
+        if (
+            candidate_definition_request_raw in (None, "", [], {})
+            or not isinstance(candidate_definition_request_raw, Mapping)
+        ):
+            candidate_definition_request_raw = exact_semantic_context.get(
                 "candidate_definition_request",
                 {},
             )

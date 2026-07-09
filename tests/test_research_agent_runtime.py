@@ -45901,6 +45901,33 @@ def test_premise_semantic_repair_feedback_exports_covered_semantic_definition_wo
 
 
 def test_exact_semantic_definition_repair_queue_generates_next_action() -> None:
+    nested_candidate_request = {
+        "request_kind": "source_theorem_exact_semantic_definition_candidate",
+        "placeholder_symbol": "orderStat",
+        "required_anchor_names": ["q_hat"],
+        "available_anchor_names": ["q", "q_hat"],
+        "missing_required_anchor_names": [],
+        "required_anchor_bindings": [
+            {
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q",
+                "match_kind": "source_anchor_role",
+                "role": "threshold_function_anchor",
+                "binder": {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                },
+            }
+        ],
+        "required_binders": [
+            {
+                "name": "q",
+                "type": "Real",
+                "role": "threshold_function_anchor",
+            }
+        ],
+    }
     repair_row = {
         "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionRepairQueueRow",
         "repair_queue_id": (
@@ -45916,6 +45943,12 @@ def test_exact_semantic_definition_repair_queue_generates_next_action() -> None:
             "The candidate must replace/import reviewed exact semantics and "
             "then pass local Lean/AXLE."
         ),
+        "candidate_definition_request": {},
+        "input_summary": {
+            "exact_semantic_definition_context": {
+                "candidate_definition_request": nested_candidate_request,
+            }
+        },
         "proof_evidence_status": (
             "SEMANTIC_DEFINITION_REPAIR_QUEUE_NOT_PROOF_EVIDENCE"
         ),
@@ -45938,12 +45971,21 @@ def test_exact_semantic_definition_repair_queue_generates_next_action() -> None:
     assert generated_row["question_id"] == "q:split-conformal"
     assert generated_row["target_theorem_name"] == "split_conformal_coverage"
     assert generated_row["placeholder_symbol"] == "orderStat"
+    assert generated_row["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+    assert generated_row["candidate_definition_request"]["required_binders"][0][
+        "name"
+    ] == "q"
     assert generated_row["priority"] == "high"
     assert "not theorem proof evidence" in generated_row["boundary"]
     learning_rows = _runtime_generated_next_action_learning_rows(generated_rows)
     assert learning_rows[0]["input_summary"]["work_order_id"] == (
         repair_row["repair_queue_id"]
     )
+    assert learning_rows[0]["input_summary"]["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
     assert learning_rows[0]["proof_evidence_status"] == (
         "GENERATED_NEXT_ACTION_ROUTING_NOT_PROOF_EVIDENCE"
     )
@@ -48692,6 +48734,98 @@ def test_nested_verifier_gate_context_becomes_authoring_repair_task() -> None:
     assert task["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_authoring_retry_task_generator_uses_nested_candidate_request() -> None:
+    nested_request = {
+        "request_kind": "source_theorem_exact_semantic_definition_candidate",
+        "placeholder_symbol": "good_rank_event",
+        "required_anchor_names": ["q_hat"],
+        "available_anchor_names": ["q", "q_hat"],
+        "missing_required_anchor_names": [],
+        "required_anchor_bindings": [
+            {
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q",
+                "match_kind": "source_anchor_role",
+                "role": "threshold_function_anchor",
+                "binder": {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                },
+            }
+        ],
+        "required_binders": [
+            {
+                "name": "q",
+                "type": "Real",
+                "role": "threshold_function_anchor",
+            }
+        ],
+    }
+    repair_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionVerifierGateLearningRow"
+        ),
+        "learning_task": (
+            "source_theorem_exact_semantic_definition_"
+            "typechecked_review_verifier_gate_execution"
+        ),
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "good_rank_event",
+        "candidate_definition_request": {},
+        "runtime_queue_status": (
+            "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+        ),
+        "failure_classification": (
+            "exact_semantic_definition_verifier_gate_source_anchor_context_missing"
+        ),
+        "input_summary": {
+            "exact_semantic_definition_context": {
+                "candidate_definition_request": nested_request,
+                "source_anchor_context": [
+                    {
+                        "source": (
+                            "candidate_definition_request."
+                            "required_anchor_bindings"
+                        ),
+                        "kind": "required_anchor_binding",
+                        "required_anchor_name": "q_hat",
+                        "actual_anchor_name": "q",
+                        "semantic_anchor_name": "q_hat",
+                        "name": "q",
+                        "type": "Real",
+                        "role": "threshold_function_anchor",
+                    }
+                ],
+                "source_anchor_context_rows": 1,
+            }
+        },
+        "source_theorem_kernel_verified": False,
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": (
+            "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_VERIFIER_GATE_EXECUTION_"
+            "NOT_SOURCE_THEOREM_PROOF"
+        ),
+    }
+
+    tasks = (
+        _runtime_source_theorem_exact_semantic_definition_authoring_retry_task_rows_from_learning_rows(
+            [repair_row]
+        )
+    )
+
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["candidate_definition_request"]["required_anchor_bindings"][0][
+        "actual_anchor_name"
+    ] == "q"
+    assert task["candidate_definition_request"]["required_binders"][0]["name"] == "q"
+    assert task["source_anchor_context"][0]["actual_anchor_name"] == "q"
+    assert task["source_anchor_context_rows"] == 1
 
 
 def test_exact_semantic_definition_authoring_learning_row_preserves_source_binders() -> None:
