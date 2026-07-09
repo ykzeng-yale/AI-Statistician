@@ -30662,8 +30662,38 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     learning_path = tmp_path / "runtime_learning_rows.jsonl"
     learning_path.write_text(
-        json.dumps(
-            {
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                {
+                    "schema_version": 1,
+                    "question_id": question.id,
+                    "artifact_kind": "RuntimeLearningRow",
+                    "learning_task": "formalizer_lean_candidate_kernel_feedback",
+                    "source_artifact_kind": (
+                        "RuntimeFormalizerLeanCandidateMaterialization"
+                    ),
+                    "source_manifest_id": (
+                        "formalizer_lean_candidate_materialization:bad"
+                    ),
+                    "candidate_id": "split_conformal_finite_sample_coverage_lean",
+                    "candidate_kind": "formal_target_lean_statement_sketch",
+                    "source_field": "formal_targets",
+                    "artifact_path": "runs/bad/001_candidate.lean",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "target_theorem_goal_ids": [
+                        "split_conformal_finite_sample_coverage"
+                    ],
+                    "target_theorem_name": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "local_lean_attempted": True,
+                    "local_lean_compiled": False,
+                    "proof_evidence_status": (
+                        "FORMALIZER_LEAN_CANDIDATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+                {
                 "schema_version": 1,
                 "question_id": question.id,
                 "artifact_kind": "RuntimeLearningRow",
@@ -30720,7 +30750,8 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
                 "proof_evidence_status": (
                     "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_LEARNING_NOT_PROOF_EVIDENCE"
                 ),
-            }
+                },
+            ]
         )
         + "\n",
         encoding="utf-8",
@@ -30788,6 +30819,96 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
     assert "timeout after 60s" in prompt
     assert "⊢ P {ω | s (Fin.last m) ω ≤ q_hat ω}" in prompt
     assert "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_LEARNING_NOT_PROOF_EVIDENCE" in prompt
+
+
+def test_runtime_learning_memory_rejects_unbound_formalizer_proof_state_prompt_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "artifact_kind": "RuntimeLearningRow",
+                "learning_task": "formalizer_lean_candidate_proof_state_feedback",
+                "source_manifest_id": (
+                    "formalizer_lean_candidate_proof_state_feedback:stale"
+                ),
+                "source_materialization_manifest_id": (
+                    "formalizer_lean_candidate_materialization:not-loaded"
+                ),
+                "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "next_owner_subsystem": "ProofEngineer",
+                "input_summary": {
+                    "trigger": "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_FEEDBACK",
+                    "provider_name": "local_lean_proof_state_feedback",
+                    "n_feedback_rows": 1,
+                    "residual_goals": ["⊢ stale goal from an unloaded candidate"],
+                    "diagnostics": ["stale proof-state row should not steer repair"],
+                    "requested_tools": ["lean_goal"],
+                    "executed_tools": ["local.lake_env_lean"],
+                    "attempt_status": "LOCAL_LEAN_FAILED",
+                },
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_LEARNING_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path])
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert (
+        summary["formalizer_lean_candidate_proof_state_feedback_available"]
+        is False
+    )
+    assert (
+        summary[
+            "formalizer_lean_candidate_unbound_proof_state_feedback_available"
+        ]
+        is True
+    )
+    assert (
+        summary["n_formalizer_lean_candidate_unbound_proof_state_feedback_rows"]
+        == 1
+    )
+    unbound_memory = summary[
+        "formalizer_lean_candidate_unbound_proof_state_feedback_memory"
+    ]
+    assert unbound_memory[0]["source_materialization_manifest_id"] == (
+        "formalizer_lean_candidate_materialization:not-loaded"
+    )
+    assert "does not match" in unbound_memory[0]["rejection_reason"]
+    assert (
+        unbound_memory[0]["proof_evidence_status"]
+        == "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_UNBOUND_NOT_PROOF_EVIDENCE"
+    )
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "Prior Formalizer Lean-candidate proof-state feedback is active" not in prompt
+    assert "⊢ stale goal from an unloaded candidate" not in prompt
+    assert "stale proof-state row should not steer repair" not in prompt
 
 
 def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
@@ -32230,7 +32351,7 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
                     "question_id": question.id,
                     "source_manifest_id": "proof_state_feedback:compact",
                     "source_materialization_manifest_id": (
-                        "formalizer_materialization:compact"
+                        "formalizer_manifest:compact"
                     ),
                     "target_ids": ["compact_source_theorem"],
                     "target_theorem_goal_ids": ["compact_source_theorem"],
@@ -32448,7 +32569,7 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
         "formalizer_lean_candidate_proof_state_feedback_memory"
     ]
     assert proof_state_memory[0]["source_materialization_manifest_id"] == (
-        "formalizer_materialization:compact"
+        "formalizer_manifest:compact"
     )
     assert proof_state_memory[0]["requested_tools"] == [
         "lean_goal",

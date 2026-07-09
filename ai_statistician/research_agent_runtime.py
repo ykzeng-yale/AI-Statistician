@@ -53136,6 +53136,36 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_formalizer_lean_candidate_materialization_ids(
+    memory: Mapping[str, Any],
+) -> set[str]:
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    materialization_ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_lean_candidate_kernel_feedback"
+        ):
+            continue
+        for key in (
+            "source_manifest_id",
+            "source_materialization_manifest_id",
+            "manifest_id",
+        ):
+            materialization_id = str(
+                _runtime_learning_row_value(row, input_summary, key) or ""
+            ).strip()
+            if materialization_id:
+                materialization_ids.add(materialization_id)
+    return materialization_ids
+
+
 def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -53152,6 +53182,11 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
     ):
         return ()
     rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    materialization_ids = (
+        _runtime_learning_memory_formalizer_lean_candidate_materialization_ids(
+            memory
+        )
+    )
     feedback_rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for row in rows:
@@ -53176,6 +53211,11 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
             or input_summary.get("source_materialization_manifest_id", "")
             or ""
         ).strip()
+        if (
+            not source_materialization_manifest_id
+            or source_materialization_manifest_id not in materialization_ids
+        ):
+            continue
         key = (source_manifest_id, source_materialization_manifest_id)
         if key in seen:
             continue
@@ -53283,6 +53323,90 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
             }
         )
     return tuple(feedback_rows)
+
+
+def _runtime_learning_memory_unbound_formalizer_lean_candidate_proof_state_feedback(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return proof-state rows rejected because their materialization is absent."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    materialization_ids = (
+        _runtime_learning_memory_formalizer_lean_candidate_materialization_ids(
+            memory
+        )
+    )
+    rejected_rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        if _runtime_learning_row_task(row, input_summary) != (
+            "formalizer_lean_candidate_proof_state_feedback"
+        ):
+            continue
+        source_manifest_id = str(
+            row.get("source_manifest_id", "")
+            or input_summary.get("source_manifest_id", "")
+            or ""
+        ).strip()
+        source_materialization_manifest_id = str(
+            row.get("source_materialization_manifest_id", "")
+            or input_summary.get("source_materialization_manifest_id", "")
+            or ""
+        ).strip()
+        if (
+            source_materialization_manifest_id
+            and source_materialization_manifest_id in materialization_ids
+        ):
+            continue
+        key = (source_manifest_id, source_materialization_manifest_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        rejected_rows.append(
+            {
+                "learning_task": (
+                    "formalizer_lean_candidate_proof_state_feedback_unbound"
+                ),
+                "source_manifest_id": source_manifest_id,
+                "source_materialization_manifest_id": (
+                    source_materialization_manifest_id
+                ),
+                "provider_name": str(input_summary.get("provider_name", "") or ""),
+                "n_feedback_rows": _int_like(input_summary.get("n_feedback_rows", 0)),
+                "attempt_status": str(input_summary.get("attempt_status", "") or ""),
+                "rejection_reason": (
+                    "proof-state feedback source_materialization_manifest_id "
+                    "does not match any Formalizer Lean-candidate materialization "
+                    "feedback row in runtime learning memory"
+                ),
+                "target_behavior": (
+                    "keep this proof-state feedback out of actionable Formalizer "
+                    "prompt memory until the inspected materialization row is loaded"
+                ),
+                "proof_evidence_status": (
+                    "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_UNBOUND_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return tuple(rejected_rows)
 
 
 def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
@@ -55310,6 +55434,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     formalizer_lean_candidate_proof_state_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
+            context
+        )
+    )
+    unbound_formalizer_lean_candidate_proof_state_feedback_rows = (
+        _runtime_learning_memory_unbound_formalizer_lean_candidate_proof_state_feedback(
             context
         )
     )
@@ -58607,6 +58736,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_proof_state_feedback_available": bool(
             formalizer_lean_candidate_proof_state_feedback_rows
         ),
+        "formalizer_lean_candidate_unbound_proof_state_feedback_available": bool(
+            unbound_formalizer_lean_candidate_proof_state_feedback_rows
+        ),
+        "n_formalizer_lean_candidate_unbound_proof_state_feedback_rows": len(
+            unbound_formalizer_lean_candidate_proof_state_feedback_rows
+        ),
         "formalizer_lean_candidate_component_gate_feedback_available": bool(
             formalizer_lean_candidate_component_gate_feedback_rows
         ),
@@ -59074,6 +59209,24 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 ),
             }
             for row in formalizer_lean_candidate_proof_state_feedback_rows[:3]
+        ],
+        "formalizer_lean_candidate_unbound_proof_state_feedback_memory": [
+            {
+                "learning_task": str(row.get("learning_task", "") or ""),
+                "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
+                "source_materialization_manifest_id": str(
+                    row.get("source_materialization_manifest_id", "") or ""
+                ),
+                "provider_name": str(row.get("provider_name", "") or ""),
+                "n_feedback_rows": _int_like(row.get("n_feedback_rows", 0)),
+                "attempt_status": str(row.get("attempt_status", "") or ""),
+                "rejection_reason": str(row.get("rejection_reason", "") or ""),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", "") or ""
+                ),
+            }
+            for row in unbound_formalizer_lean_candidate_proof_state_feedback_rows[:3]
         ],
         "formalizer_lean_candidate_repair_memory": [
             {
