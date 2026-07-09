@@ -1655,6 +1655,8 @@ def _feedback_requires_pseudo_formalization(
         "requires_pf_bv",
         "exact_semantic_definition_structural_reformulation_required",
         "source_theorem_exact_semantic_definition_structural_reformulation_required",
+        "formalizer_pseudo_formal_packet_component_gate_failure_available",
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available",
     }
     required_markers = (
         "pseudo_formalization_required",
@@ -1846,6 +1848,15 @@ def _required_pseudo_formal_copy_contract_errors(
         or []
         if isinstance(row, Mapping)
     ]
+    candidate_rows.extend(
+        row
+        for row in proof_bank_runtime_memory_summary.get(
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    )
     for row in candidate_rows:
         copy_summary = row.get(
             "validator_ready_copy_contract_summary",
@@ -2022,12 +2033,25 @@ def _required_pseudo_formal_target_lanes(
             )
             else {}
         )
-        nested_sources = (
+        nested_sources: list[Any] = [
             source,
             repair_contract,
             source.get("input_summary", {}),
             repair_contract.get("input_summary", {}),
-        )
+        ]
+        for memory_key in (
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
+            "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
+        ):
+            memory_rows = source.get(memory_key, [])
+            if isinstance(memory_rows, Sequence) and not isinstance(
+                memory_rows,
+                (str, bytes, bytearray),
+            ):
+                nested_sources.extend(
+                    row for row in memory_rows if isinstance(row, Mapping)
+                )
         for nested in nested_sources:
             if not isinstance(nested, Mapping):
                 continue
@@ -2044,6 +2068,9 @@ def _required_pseudo_formal_target_lanes(
             for key in (
                 "pseudo_formal_block_routing_target_lanes",
                 "target_lanes",
+                "required_target_lanes",
+                "pseudo_formal_failure_required_target_lanes",
+                "pseudo_formal_routable_target_lanes",
             ):
                 value = nested.get(key, [])
                 if isinstance(value, str):
@@ -2449,7 +2476,37 @@ def _pseudo_formal_component_gate_failure_repair_seed(
         or []
         if isinstance(row, Mapping)
     ]
-    for row in (*failure_rows, *feedback_rows):
+    retry_agenda_rows = [
+        row
+        for row in proof_bank_runtime_memory_summary.get(
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    candidate_rows: list[tuple[Mapping[str, Any], str]] = [
+        (
+            row,
+            "formalizer_pseudo_formal_packet_component_gate_failure_memory",
+        )
+        for row in failure_rows
+    ]
+    candidate_rows.extend(
+        (
+            row,
+            "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory",
+        )
+        for row in retry_agenda_rows
+    )
+    candidate_rows.extend(
+        (
+            row,
+            "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
+        )
+        for row in feedback_rows
+    )
+    for row, row_memory_source in candidate_rows:
         copy_contract_summary = row.get(
             "validator_ready_copy_contract_summary",
             row.get("pseudo_formal_failure_copy_contract_summary", {}),
@@ -2524,11 +2581,14 @@ def _pseudo_formal_component_gate_failure_repair_seed(
                     "formalizer_pseudo_formal_packet_component_gate_failure_"
                     "repair_seed"
                 ),
-                "source": (
-                    "formalizer_pseudo_formal_packet_component_gate_failure_memory"
-                ),
+                "source": row_memory_source,
                 "component_eval_manifest_path": str(
                     row.get("component_eval_manifest_path", "") or ""
+                ),
+                "agenda_id": str(row.get("agenda_id", "") or ""),
+                "work_order_id": str(row.get("work_order_id", "") or ""),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "") or ""
                 ),
                 "validation_issue_summary": (
                     dict(row.get("validation_issue_summary", {}))
@@ -2553,9 +2613,7 @@ def _pseudo_formal_component_gate_failure_repair_seed(
             }
         )
         seed["prompt_scaffold_origin"] = scaffold_origin
-        seed["component_gate_failure_seed_source"] = (
-            "formalizer_pseudo_formal_packet_component_gate_failure_memory"
-        )
+        seed["component_gate_failure_seed_source"] = row_memory_source
         seed["seed_usage_instruction"] = (
             "Copy this prior component-gate repair seed into "
             "pseudo_formal_proof_packets[0] and preserve conclusion, "

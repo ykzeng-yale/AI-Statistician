@@ -96,6 +96,7 @@ from ai_statistician.formalizer_llm import (
     LLMFormalizerProofEngineerAgent,
     _normalize_formalizer_packet,
     _validate_capability_eval_formalizer_lean_candidate_packet,
+    _validate_required_pseudo_formalization_packet,
     _validate_source_theorem_candidate_materialization_packet,
     build_formalizer_prompt,
     validate_formalizer_packet,
@@ -21757,6 +21758,177 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
         "must_produce_lane_routable_work_order_rows"
     ] is True
     assert "not source theorem proof" in prompt_copy_fragment["boundary"]
+
+
+def test_formalizer_retry_agenda_memory_supplies_structured_pf_copy_seed() -> None:
+    repair_seed = {
+        "schema_version": 1,
+        "packet_id": "pseudo_formal_packet:retry_agenda_seed",
+        "theorem_id": "theorem:retry_agenda",
+        "source_artifact_id": "formalizer_pf_component_gate:retry",
+        "proof_evidence_status": "PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "blocks": [
+            {
+                "block_id": "pf_block:retry_agenda",
+                "block_type": "claim",
+                "conclusion": "The source proof reduces coverage to a rank-threshold event.",
+                "proof_text": "The copied PF/BV block records the blocked source step.",
+                "source_anchors": [
+                    {
+                        "kind": "proof_body",
+                        "id": "proof_body:rank_threshold_step",
+                        "excerpt": "coverage follows after the rank threshold step",
+                    }
+                ],
+                "semantic_primitive_requirements": [
+                    "semantic_primitive:rank_threshold_event"
+                ],
+                "lean_feasibility": "needs_semantic_definition",
+                "faithfulness_status": "faithful",
+                "block_verification": {
+                    "verdict": "accepted",
+                    "rollout_count": 1,
+                    "verifier_provenance": "runtime_copy_ready_retry",
+                },
+            }
+        ],
+    }
+    proof_memory_summary = {
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available": True,
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows": 1,
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory": [
+            {
+                "agenda_id": "formalizer_pf_bv_copy_ready_retry:abc123",
+                "trigger": "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
+                "source_learning_task": (
+                    "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+                ),
+                "work_order_id": (
+                    "formalizer_pf_component_gate_copy_ready_retry:abc123"
+                ),
+                "component_eval_manifest_path": (
+                    "runs/pf_retry/component_gate_manifest.json"
+                ),
+                "target_ids": [
+                    "theorem:retry_agenda",
+                    "pseudo_formal_packet:retry_agenda_seed",
+                ],
+                "target_theorem_name": "theorem:retry_agenda",
+                "target_packet_id": "pseudo_formal_packet:retry_agenda_seed",
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+                ),
+                "runtime_generated_queue_name": (
+                    "formalizer_pf_bv_copy_ready_retries"
+                ),
+                "required_target_lanes": [
+                    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+                    PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+                ],
+                "concrete_lane_routable_repair_seed": repair_seed,
+                "validator_ready_copy_contract": {
+                    "copy_source_path": (
+                        "pseudo_formalization_required_copy_fragment."
+                        "pseudo_formal_proof_packets"
+                    ),
+                    "copy_destination_path": "pseudo_formal_proof_packets",
+                    "required_preserved_paths": [
+                        "pseudo_formal_proof_packets[0].blocks[0].conclusion",
+                        "pseudo_formal_proof_packets[0].blocks[0].source_anchors",
+                        (
+                            "pseudo_formal_proof_packets[0].blocks[0]."
+                            "semantic_primitive_requirements"
+                        ),
+                    ],
+                },
+                "validator_ready_copy_contract_summary": {
+                    "validator_ready_copy_contract_satisfied": True,
+                    "exact_semantic_definition_lane_ready_if_copied": True,
+                },
+                "proof_evidence_status": (
+                    "FORMALIZER_PF_BV_COPY_READY_RETRY_AGENDA_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "This agenda row is not theorem proof evidence, not Lean "
+                    "verification, and not source theorem kernel evidence."
+                ),
+            }
+        ],
+    }
+
+    prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="pf_retry_agenda_only",
+            title="PF retry agenda only",
+            description="Retry PF/BV packet from agenda memory.",
+            tags=("formalizer", "pseudo_formal"),
+        ),
+        theory_packet={"packet_id": "theory:pf-retry-agenda-only"},
+        simulation_manifest={
+            "manifest_id": "simulation:pf-retry-agenda-only",
+            "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
+        },
+        algorithm_manifest={"manifest_id": "algorithm:pf-retry-agenda-only"},
+        registered_problem={"question_id": "pf_retry_agenda_only"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+    prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
+    prompt_seed = prompt_payload["pseudo_formalization_required_packet_seed"]
+    prompt_copy_fragment = prompt_payload[
+        "pseudo_formalization_required_copy_fragment"
+    ]
+    prompt_copy_packet = prompt_copy_fragment["pseudo_formal_proof_packets"][0]
+
+    assert prompt_seed["component_gate_failure_seed_source"] == (
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    )
+    assert prompt_seed["prompt_scaffold_origin"]["source"] == (
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    )
+    assert prompt_seed["prompt_scaffold_origin"]["agenda_id"] == (
+        "formalizer_pf_bv_copy_ready_retry:abc123"
+    )
+    assert prompt_seed["prompt_scaffold_origin"]["work_order_id"] == (
+        "formalizer_pf_component_gate_copy_ready_retry:abc123"
+    )
+    assert prompt_seed["required_target_lanes_to_satisfy"] == [
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    ]
+    assert prompt_copy_packet["blocks"][0]["source_anchors"][0]["id"] == (
+        "proof_body:rank_threshold_step"
+    )
+    assert prompt_copy_packet["blocks"][0]["semantic_primitive_requirements"] == [
+        "semantic_primitive:rank_threshold_event"
+    ]
+    assert prompt_payload["required_output_contract"]["pseudo_formal_proof_packets"][
+        "required"
+    ] is True
+    assert "Formalizer PF/BV copy-ready retry agenda is active" in prompt
+
+    assert (
+        _validate_required_pseudo_formalization_packet(
+            {"pseudo_formal_proof_packets": [prompt_copy_packet]},
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+        == []
+    )
+    mutated_packet = dict(prompt_copy_packet)
+    mutated_block = dict(prompt_copy_packet["blocks"][0])
+    mutated_block["conclusion"] = "A different PF/BV conclusion was invented."
+    mutated_packet["blocks"] = [mutated_block]
+    errors = _validate_required_pseudo_formalization_packet(
+        {"pseudo_formal_proof_packets": [mutated_packet]},
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+    )
+
+    assert any("did not preserve required PF/BV copy path" in error for error in errors)
+    assert any("blocks[0].conclusion" in error for error in errors)
 
 
 def test_formalizer_validation_failure_preserves_nested_pf_bv_repair_targets() -> None:
