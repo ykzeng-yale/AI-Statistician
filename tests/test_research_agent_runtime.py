@@ -89384,9 +89384,33 @@ def test_runtime_capability_scorecard_requires_every_required_exact_semantic_aut
         in source_grounded_row["evidence"]
     )
 
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 2,
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 1,
+        }
+    )
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    source_grounded_row = rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]
+
+    assert source_grounded_row["passed"] is False
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is False
+    assert "source_grounded_prompt_missing_counts={'retry': 1}" in source_grounded_row[
+        "evidence"
+    ]
+
     payload[
         "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
-    ] = 1
+    ] = 2
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     capability_table = _runtime_coding_agent_capability_table(payload)

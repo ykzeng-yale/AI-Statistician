@@ -1670,8 +1670,22 @@ def _runtime_exact_semantic_definition_authoring_provenance(
     source_grounded_prompt_ready_channels = [
         str(channel["name"])
         for channel in channel_states
-        if bool(channel["ran"]) and int(channel["source_grounded_prompt_packets"]) > 0
+        if bool(channel["ran"])
+        and int(channel["prompt_packets"]) > 0
+        and int(channel["source_grounded_prompt_packets"])
+        >= int(channel["prompt_packets"])
     ]
+    source_grounded_prompt_missing_counts = {
+        str(channel["name"]): max(
+            int(channel["prompt_packets"])
+            - int(channel["source_grounded_prompt_packets"]),
+            0,
+        )
+        for channel in channel_states
+        if int(channel["prompt_packets"]) > 0
+        and int(channel["source_grounded_prompt_packets"])
+        < int(channel["prompt_packets"])
+    }
     missing_handoff_channels = [
         str(channel["name"])
         for channel in channel_states
@@ -1780,6 +1794,9 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "prompt_ready_channels": prompt_ready_channels,
         "source_grounded_prompt_ready_channels": (
             source_grounded_prompt_ready_channels
+        ),
+        "source_grounded_prompt_missing_counts": (
+            source_grounded_prompt_missing_counts
         ),
         "missing_handoff_channels": missing_handoff_channels,
         "missing_source_grounded_handoff_channels": (
@@ -3133,6 +3150,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring['prompt_ready_channels']}; "
                 "source_grounded_prompt_ready_channels="
                 f"{exact_semantic_authoring['source_grounded_prompt_ready_channels']}; "
+                "source_grounded_prompt_missing_counts="
+                f"{exact_semantic_authoring['source_grounded_prompt_missing_counts']}; "
                 "missing_source_grounded_handoff_channels="
                 f"{exact_semantic_authoring['missing_source_grounded_handoff_channels']}; "
                 "n_prompt_packets="
