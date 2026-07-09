@@ -173,10 +173,8 @@ from .pseudo_formalization import (
     normalize_pseudo_formal_packet,
     pseudo_formal_block_structural_quality,
     pseudo_formal_block_work_order_rows,
+    pseudo_formal_failure_copy_contract_summary,
     pseudo_formal_routable_work_order_rows,
-    pseudo_formal_work_order_row_has_required_lineage,
-    pseudo_formal_work_order_row_has_semantic_requirements,
-    pseudo_formal_work_order_row_has_source_anchor,
     pseudo_formal_validation_issue_repair_actions,
     pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
@@ -3902,150 +3900,10 @@ def _runtime_pseudo_formal_failure_copy_contract_summary(
 ) -> dict[str, Any]:
     """Recompute whether a PF/BV failure repair seed is really copy-ready."""
 
-    copy_source_path = str(
-        validator_ready_copy_contract.get("copy_source_path", "") or ""
-    ).strip()
-    copy_destination_path = str(
-        validator_ready_copy_contract.get("copy_destination_path", "") or ""
-    ).strip()
-    contract_routable_rows = _int_like(
-        validator_ready_copy_contract.get("routable_work_order_rows_if_copied", 0)
+    return pseudo_formal_failure_copy_contract_summary(
+        repair_seed=repair_seed,
+        validator_ready_copy_contract=validator_ready_copy_contract,
     )
-    contract_target_lanes = [
-        str(value).strip()
-        for value in validator_ready_copy_contract.get(
-            "routable_target_lanes_if_copied",
-            [],
-        )
-        or []
-        if str(value).strip()
-    ]
-    required_preserved_paths = [
-        str(value).strip()
-        for value in validator_ready_copy_contract.get("required_preserved_paths", [])
-        or []
-        if str(value).strip()
-    ]
-    summary: dict[str, Any] = {
-        "validator_ready_copy_contract_present": bool(
-            copy_source_path or copy_destination_path or validator_ready_copy_contract
-        ),
-        "copy_source_path": copy_source_path,
-        "copy_destination_path": copy_destination_path,
-        "copy_destination_path_ok": (
-            copy_destination_path == "pseudo_formal_proof_packets"
-        ),
-        "required_preserved_paths": required_preserved_paths[:12],
-        "contract_routable_work_order_rows_if_copied": contract_routable_rows,
-        "contract_routable_target_lanes_if_copied": contract_target_lanes[:8],
-        "repair_seed_present": bool(
-            repair_seed.get("blocks", []) if isinstance(repair_seed, Mapping) else []
-        ),
-        "repair_seed_valid": False,
-        "validation_errors": [],
-        "n_work_order_rows_if_copied": 0,
-        "n_routable_work_order_rows_if_copied": 0,
-        "routable_row_kinds_if_copied": [],
-        "routable_target_lanes_if_copied": [],
-        "contract_target_lanes_covered_if_copied": False,
-        "n_exact_semantic_definition_rows_if_copied": 0,
-        "n_exact_semantic_definition_rows_with_source_anchors_if_copied": 0,
-        "n_exact_semantic_definition_rows_with_semantic_requirements_if_copied": 0,
-        "n_exact_semantic_definition_rows_with_lineage_if_copied": 0,
-        "exact_semantic_definition_lane_ready_if_copied": False,
-        "validator_ready_copy_contract_satisfied": False,
-        "proof_evidence_status": (
-            "FORMALIZER_PSEUDO_FORMAL_PACKET_FAILURE_COPY_CONTRACT_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "Runtime recomputation of copy-ready PF/BV repair memory only; not "
-            "Lean proof, source theorem proof, or kernel evidence."
-        ),
-    }
-    if not isinstance(repair_seed, Mapping) or not repair_seed:
-        return summary
-    validation_errors = validate_pseudo_formal_packet(repair_seed)
-    summary["validation_errors"] = validation_errors[:8]
-    if validation_errors:
-        return summary
-    summary["repair_seed_valid"] = True
-    work_order_rows = pseudo_formal_block_work_order_rows(repair_seed)
-    routable_rows = pseudo_formal_routable_work_order_rows(work_order_rows)
-    row_kinds = sorted(
-        {
-            str(row.get("row_kind", "") or "")
-            for row in routable_rows
-            if str(row.get("row_kind", "") or "").strip()
-        }
-    )
-    target_lanes = sorted(
-        {
-            str(row.get("target_lane", "") or "")
-            for row in routable_rows
-            if str(row.get("target_lane", "") or "").strip()
-        }
-    )
-    exact_rows = [
-        row
-        for row in routable_rows
-        if str(row.get("target_lane", "") or "")
-        == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
-    ]
-    exact_rows_with_source_anchors = [
-        row
-        for row in exact_rows
-        if pseudo_formal_work_order_row_has_source_anchor(row)
-    ]
-    exact_rows_with_semantic_requirements = [
-        row
-        for row in exact_rows
-        if pseudo_formal_work_order_row_has_semantic_requirements(row)
-    ]
-    exact_rows_with_lineage = [
-        row
-        for row in exact_rows
-        if pseudo_formal_work_order_row_has_required_lineage(row)
-    ]
-    minimum_routable_rows = max(1, contract_routable_rows)
-    contract_target_lanes_covered = all(
-        target_lane in target_lanes for target_lane in contract_target_lanes
-    )
-    if not contract_target_lanes:
-        contract_target_lanes_covered = bool(target_lanes)
-    exact_lane_ready = bool(exact_rows) and (
-        len(exact_rows_with_source_anchors) == len(exact_rows)
-        and len(exact_rows_with_semantic_requirements) == len(exact_rows)
-        and len(exact_rows_with_lineage) == len(exact_rows)
-    )
-    summary.update(
-        {
-            "n_work_order_rows_if_copied": len(work_order_rows),
-            "n_routable_work_order_rows_if_copied": len(routable_rows),
-            "routable_row_kinds_if_copied": row_kinds[:8],
-            "routable_target_lanes_if_copied": target_lanes[:8],
-            "contract_target_lanes_covered_if_copied": (
-                contract_target_lanes_covered
-            ),
-            "n_exact_semantic_definition_rows_if_copied": len(exact_rows),
-            "n_exact_semantic_definition_rows_with_source_anchors_if_copied": (
-                len(exact_rows_with_source_anchors)
-            ),
-            "n_exact_semantic_definition_rows_with_semantic_requirements_if_copied": (
-                len(exact_rows_with_semantic_requirements)
-            ),
-            "n_exact_semantic_definition_rows_with_lineage_if_copied": (
-                len(exact_rows_with_lineage)
-            ),
-            "exact_semantic_definition_lane_ready_if_copied": exact_lane_ready,
-            "validator_ready_copy_contract_satisfied": bool(
-                copy_source_path
-                and summary["copy_destination_path_ok"]
-                and len(routable_rows) >= minimum_routable_rows
-                and contract_target_lanes_covered
-            ),
-        }
-    )
-    return summary
 
 
 def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(

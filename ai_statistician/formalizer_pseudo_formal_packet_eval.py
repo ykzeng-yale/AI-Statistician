@@ -27,6 +27,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     pseudo_formal_block_work_order_rows,
+    pseudo_formal_failure_copy_contract_summary,
     pseudo_formal_routable_work_order_rows,
     pseudo_formal_work_order_row_has_required_lineage,
     pseudo_formal_work_order_row_has_semantic_requirements,
@@ -164,6 +165,18 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         if isinstance(repair_blueprint.get("validator_ready_copy_contract", {}), Mapping)
         else {}
     )
+    concrete_repair_seed = (
+        repair_blueprint.get("concrete_lane_routable_repair_seed", {})
+    )
+    concrete_repair_seed = (
+        dict(concrete_repair_seed)
+        if isinstance(concrete_repair_seed, Mapping)
+        else {}
+    )
+    copy_contract_summary = pseudo_formal_failure_copy_contract_summary(
+        repair_seed=concrete_repair_seed,
+        validator_ready_copy_contract=validator_ready_copy_contract,
+    )
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "artifact_kind": "FormalizerPseudoFormalPacketEvalManifest",
@@ -188,10 +201,26 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
             [],
         ),
         "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-            repair_blueprint.get("concrete_lane_routable_repair_seed", {})
+            concrete_repair_seed
         ),
         "pseudo_formal_failure_validator_ready_copy_contract": (
             validator_ready_copy_contract
+        ),
+        "pseudo_formal_failure_copy_contract_summary": copy_contract_summary,
+        "pseudo_formal_failure_copy_ready": bool(
+            copy_contract_summary.get(
+                "validator_ready_copy_contract_satisfied",
+                False,
+            )
+        ),
+        "pseudo_formal_failure_copy_exact_semantic_definition_ready": bool(
+            copy_contract_summary.get(
+                "exact_semantic_definition_lane_ready_if_copied",
+                False,
+            )
+        ),
+        "pseudo_formal_failure_repair_seed_available": bool(
+            concrete_repair_seed.get("blocks", [])
         ),
         "pseudo_formal_failure_required_target_lanes": list(
             repair_blueprint.get(
@@ -233,6 +262,20 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
                     manifest[
                         "pseudo_formal_failure_validator_ready_copy_contract"
                     ]
+                ),
+                "pseudo_formal_failure_copy_contract_summary": (
+                    manifest["pseudo_formal_failure_copy_contract_summary"]
+                ),
+                "pseudo_formal_failure_copy_ready": (
+                    manifest["pseudo_formal_failure_copy_ready"]
+                ),
+                "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
+                    manifest[
+                        "pseudo_formal_failure_copy_exact_semantic_definition_ready"
+                    ]
+                ),
+                "pseudo_formal_failure_repair_seed_available": (
+                    manifest["pseudo_formal_failure_repair_seed_available"]
                 ),
             },
             indent=2,

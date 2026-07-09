@@ -12412,6 +12412,31 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
                 {},
             )
         ),
+        "pseudo_formal_failure_copy_contract_summary": (
+            eval_manifest.get(
+                "pseudo_formal_failure_copy_contract_summary",
+                {},
+            )
+        ),
+        "pseudo_formal_failure_copy_ready": _runtime_learning_memory_bool_like(
+            eval_manifest.get("pseudo_formal_failure_copy_ready", False)
+        ),
+        "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
+            _runtime_learning_memory_bool_like(
+                eval_manifest.get(
+                    "pseudo_formal_failure_copy_exact_semantic_definition_ready",
+                    False,
+                )
+            )
+        ),
+        "pseudo_formal_failure_repair_seed_available": (
+            _runtime_learning_memory_bool_like(
+                eval_manifest.get(
+                    "pseudo_formal_failure_repair_seed_available",
+                    False,
+                )
+            )
+        ),
         "pseudo_formal_failure_required_target_lanes": [
             str(value)
             for value in eval_manifest.get(
@@ -12545,6 +12570,18 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
     manifest[
         "internal_formalizer_pseudo_formal_packet_eval_failure_validator_ready_copy_contract"
     ] = attached["pseudo_formal_failure_validator_ready_copy_contract"]
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_contract_summary"
+    ] = attached["pseudo_formal_failure_copy_contract_summary"]
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_ready"
+    ] = bool(attached["pseudo_formal_failure_copy_ready"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_exact_semantic_definition_ready"
+    ] = bool(attached["pseudo_formal_failure_copy_exact_semantic_definition_ready"])
+    manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_repair_seed_available"
+    ] = bool(attached["pseudo_formal_failure_repair_seed_available"])
     manifest["internal_formalizer_pseudo_formal_packet_eval_live_generator"] = bool(
         attached["live_generator"]
     )

@@ -854,6 +854,7 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     copy_contract = manifest[
         "pseudo_formal_failure_validator_ready_copy_contract"
     ]
+    copy_summary = manifest["pseudo_formal_failure_copy_contract_summary"]
     concrete_block = concrete_seed["blocks"][0]
     rows = pseudo_formal_routable_work_order_rows(
         pseudo_formal_block_work_order_rows(concrete_seed)
@@ -880,6 +881,22 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     assert "pseudo_formal_proof_packets[0].blocks[0].source_anchors" in (
         copy_contract["required_preserved_paths"]
     )
+    assert copy_summary["repair_seed_valid"] is True
+    assert copy_summary["validator_ready_copy_contract_satisfied"] is True
+    assert copy_summary["exact_semantic_definition_lane_ready_if_copied"] is True
+    assert copy_summary["n_routable_work_order_rows_if_copied"] >= 1
+    assert (
+        copy_summary[
+            "n_exact_semantic_definition_rows_with_source_anchors_if_copied"
+        ]
+        >= 1
+    )
+    assert manifest["pseudo_formal_failure_copy_ready"] is True
+    assert (
+        manifest["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
+        is True
+    )
+    assert manifest["pseudo_formal_failure_repair_seed_available"] is True
     assert any(
         row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         and row["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
@@ -895,6 +912,10 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     assert result["pseudo_formal_failure_validator_ready_copy_contract"][
         "copy_destination_path"
     ] == "pseudo_formal_proof_packets"
+    assert result["pseudo_formal_failure_copy_contract_summary"][
+        "validator_ready_copy_contract_satisfied"
+    ] is True
+    assert result["pseudo_formal_failure_copy_ready"] is True
 
 
 def test_formalizer_pseudo_formal_packet_eval_cli_fixture_gate(

@@ -93709,6 +93709,9 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     copy_contract = manifest[
         "internal_formalizer_pseudo_formal_packet_eval_failure_validator_ready_copy_contract"
     ]
+    internal_copy_summary = manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_contract_summary"
+    ]
     issue_summary = manifest[
         "internal_formalizer_pseudo_formal_packet_eval_failure_validation_issue_summary"
     ]
@@ -93740,10 +93743,27 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     assert repair_seed["blocks"][0]["semantic_primitive_requirements"]
     assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
     assert copy_contract["routable_work_order_rows_if_copied"] >= 1
+    assert internal_copy_summary[
+        "validator_ready_copy_contract_satisfied"
+    ] is True
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_ready"
+    ] is True
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_exact_semantic_definition_ready"
+    ] is True
+    assert manifest[
+        "internal_formalizer_pseudo_formal_packet_eval_failure_repair_seed_available"
+    ] is True
     assert attached[
         "pseudo_formal_failure_validator_ready_copy_contract"
     ]["copy_source_path"] == (
         "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
+    )
+    assert attached["pseudo_formal_failure_copy_ready"] is True
+    assert (
+        attached["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
+        is True
     )
     assert attached["attachment_gate_requirements"][
         "manifest_capability_evidence_ok"
