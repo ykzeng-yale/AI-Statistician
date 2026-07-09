@@ -77742,6 +77742,175 @@ def _write_budgeted_continuation_runtime_audit_fixture(
     return runtime_dir
 
 
+def test_runtime_audit_scorecard_consumes_manifest_pf_retry_prompt_memory(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = _write_budgeted_continuation_runtime_audit_fixture(
+        tmp_path,
+        include_pending_next_task=True,
+    )
+    manifest_path = runtime_dir / "research_agent_runtime_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    learning_path = Path(manifest["artifacts"]["runtime_learning_rows_jsonl"])
+    agenda_path = Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"])
+    seed = {
+        "packet_id": "pseudo_formal_packet:audit_retry",
+        "theorem_id": "theorem:audit_retry",
+        "blocks": [
+            {
+                "block_id": "pf_block:audit_retry",
+                "conclusion": "copy-ready PF/BV audit retry block",
+                "source_anchors": [{"id": "proof_body:audit_retry"}],
+                "semantic_primitive_requirements": [
+                    "semantic_primitive:audit_retry"
+                ],
+            }
+        ],
+    }
+    copy_contract = {
+        "copy_source_path": (
+            "pseudo_formalization_required_copy_fragment."
+            "pseudo_formal_proof_packets"
+        ),
+        "copy_destination_path": "pseudo_formal_proof_packets",
+    }
+    copy_summary = {
+        "validator_ready_copy_contract_present": True,
+        "validator_ready_copy_contract_satisfied": True,
+        "repair_seed_valid": True,
+        "exact_semantic_definition_lane_ready_if_copied": True,
+        "n_routable_work_order_rows_if_copied": 1,
+        "routable_target_lanes_if_copied": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+    }
+    work_order_id = "formalizer_pf_component_gate_copy_ready_retry:audit"
+    learning_rows = [
+        {
+            "schema_version": runtime_module.RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "q1",
+            "learning_task": (
+                "formalizer_pseudo_formal_packet_component_gate_feedback"
+            ),
+            "source_component_gate": (
+                "formalizer_pseudo_formal_packet_component_gate"
+            ),
+            "component_eval_manifest_path": "runs/pf_audit/manifest.json",
+            "result_status": "FAILED",
+            "failure_type": "PacketValidationError",
+            "capability_evidence_ok": False,
+            "pseudo_formal_failure_repair_seed_available": True,
+            "pseudo_formal_failure_copy_ready": True,
+            "pseudo_formal_failure_copy_exact_semantic_definition_ready": True,
+            "pseudo_formal_failure_required_target_lanes": [
+                PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+            ],
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed": seed,
+            "pseudo_formal_failure_validator_ready_copy_contract": copy_contract,
+            "pseudo_formal_failure_copy_contract_summary": copy_summary,
+            "proof_evidence_status": (
+                "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "This component-gate feedback is not theorem proof evidence."
+            ),
+        },
+        {
+            "schema_version": runtime_module.RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeLearningRow",
+            "question_id": "q1",
+            "learning_task": (
+                "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+            ),
+            "source_component_gate": (
+                "formalizer_pseudo_formal_packet_component_gate"
+            ),
+            "work_order_id": work_order_id,
+            "next_owner_subsystem": "Formalizer/ProofEngineer",
+            "runtime_queue_status": (
+                "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+            ),
+            "proof_evidence_status": (
+                "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": "This retry task is not theorem proof evidence.",
+        },
+    ]
+    agenda_rows = [
+        {
+            "schema_version": runtime_module.RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeNextActionAgendaRow",
+            "id": "formalizer_pf_bv_copy_ready_retry:audit",
+            "question_id": "q1",
+            "owner_subsystem": "Formalizer/ProofEngineer",
+            "trigger": "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
+            "action": "Rerun Formalizer from the copy-ready PF/BV seed.",
+            "acceptance_gate": (
+                "validator-accepted PF/BV packet with source anchors and exact "
+                "semantic-definition lane"
+            ),
+            "work_order_id": work_order_id,
+            "target_ids": ["theorem:audit_retry"],
+            "runtime_queue_status": (
+                "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+            ),
+            "runtime_generated_queue_name": (
+                "formalizer_pf_bv_copy_ready_retries"
+            ),
+            "proof_evidence_status": (
+                "FORMALIZER_PF_BV_COPY_READY_RETRY_AGENDA_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": "This agenda row is not theorem proof evidence.",
+        }
+    ]
+    learning_path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in learning_rows),
+        encoding="utf-8",
+    )
+    agenda_path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in agenda_rows),
+        encoding="utf-8",
+    )
+    manifest["n_runtime_learning_rows"] = len(learning_rows)
+    manifest["n_runtime_next_action_items"] = len(agenda_rows)
+    manifest["proof_bank_runtime_memory_summary"] = {
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available": True,
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows": 1,
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory": [
+            {
+                "agenda_id": "formalizer_pf_bv_copy_ready_retry:audit",
+                "work_order_id": work_order_id,
+                "runtime_queue_status": (
+                    "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+                ),
+                "required_target_lanes": [
+                    PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+                ],
+                "concrete_lane_routable_repair_seed": seed,
+                "validator_ready_copy_contract": copy_contract,
+                "validator_ready_copy_contract_summary": copy_summary,
+            }
+        ],
+    }
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+
+    audit = audit_research_agent_runtime(runtime_dir, runtime_dir / "audit_pf")
+    scorecard_rows = {
+        row["requirement_id"]: row for row in audit["capability_scorecard"]["rows"]
+    }
+    row = scorecard_rows[
+        "formalizer_pseudo_formal_packet_failure_repair_copy_ready"
+    ]
+
+    assert audit["proof_bank_runtime_memory_summary"][
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows"
+    ] == 1
+    assert row["passed"] is True
+    assert "runtime_copy_ready_retry_prompt_memory_rows=1" in row["evidence"]
+    assert "runtime_copy_ready_retry_structured_seed_rows=1" in row["evidence"]
+
+
 def test_runtime_audit_treats_budgeted_pending_continuation_as_contract_ok(
     tmp_path: Path,
 ) -> None:
@@ -94223,6 +94392,24 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
         == 1
     )
     assert manifest["n_runtime_next_action_items"] == len(agenda_rows)
+    manifest_proof_memory_summary = manifest["proof_bank_runtime_memory_summary"]
+    assert manifest_proof_memory_summary[
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available"
+    ] is True
+    assert manifest_proof_memory_summary[
+        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows"
+    ] == 1
+    manifest_retry_memory = manifest_proof_memory_summary[
+        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory"
+    ]
+    assert manifest_retry_memory[0]["agenda_id"] == retry_agenda["id"]
+    assert manifest_retry_memory[0]["work_order_id"] == retry_row["work_order_id"]
+    assert manifest_retry_memory[0]["validator_ready_copy_contract"][
+        "copy_destination_path"
+    ] == "pseudo_formal_proof_packets"
+    assert manifest_retry_memory[0]["validator_ready_copy_contract_summary"][
+        "validator_ready_copy_contract_satisfied"
+    ] is True
 
     proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
         context={

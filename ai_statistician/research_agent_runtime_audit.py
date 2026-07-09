@@ -5359,6 +5359,21 @@ def audit_research_agent_runtime(
                 "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows"
             ]
         ),
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows": int(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_next_owner_subsystems": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_next_owner_subsystems"
+            ]
+        ),
+        "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_statuses": list(
+            runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
+                "runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_statuses"
+            ]
+        ),
         "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths": list(
             runtime_formalizer_pseudo_formal_packet_component_gate_learning_summary[
                 "runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_exact_rows_jsonl_paths"
@@ -11667,6 +11682,11 @@ def audit_research_agent_runtime(
     payload[
         "source_theorem_exact_semantic_definition_authoring_post_runtime_audit_command"
     ] = _exact_semantic_authoring_post_runtime_audit_recovery_command(payload)
+    payload["proof_bank_runtime_memory_summary"] = (
+        dict(manifest.get("proof_bank_runtime_memory_summary", {}))
+        if isinstance(manifest.get("proof_bank_runtime_memory_summary", {}), Mapping)
+        else {}
+    )
     capability_scorecard = _runtime_capability_scorecard(payload)
     payload["capability_scorecard"] = capability_scorecard
     payload["capability_ladder"] = _runtime_capability_ladder(payload)
