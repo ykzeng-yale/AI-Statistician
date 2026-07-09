@@ -13,6 +13,7 @@ from .exact_semantic_definition_policy import (
     exact_semantic_definition_contract,
     exact_semantic_definition_draft_definition,
     exact_semantic_definition_draft_semantic_risk,
+    exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
     exact_semantic_definition_source_lookup_aliases,
@@ -752,27 +753,10 @@ def _exact_semantic_source_binder_role(
         )
         if policy_role:
             return policy_role
-    normalized = re.sub(r"[^a-z0-9]", "", str(name or "").lower())
-    type_text = str(binder_type or "")
-    if normalized in {"n", "n1", "n2", "hn", "hn1", "hn2"}:
-        return "calibration_size_anchor"
-    if normalized in {"s", "score", "scores", "hscore", "hmeas"}:
-        return "score_process_anchor"
-    if normalized in {"q", "qhat"}:
-        return "threshold_function_anchor"
-    if normalized in {"hq", "hquantilethreshold"}:
-        return "quantile_definition_anchor"
-    if normalized in {"c", "cn", "c_n", "hc", "coverageevent", "covered"}:
-        return "coverage_event_anchor"
-    if normalized in {"hexch", "hexchangeable"} or "Exchangeable" in type_text:
-        return "exchangeability_anchor"
-    if normalized in {"alpha", "halpha", "halpha1"}:
-        return "miscoverage_level_anchor"
-    if "orderStat" in type_text:
-        return "quantile_definition_anchor"
-    if normalized.startswith("h"):
-        return "source_hypothesis"
-    return "source_parameter"
+    return exact_semantic_definition_fallback_source_anchor_role(
+        name=name,
+        binder_type=binder_type,
+    )
 
 
 def run_source_theorem_exact_semantic_definition_source_lookup(

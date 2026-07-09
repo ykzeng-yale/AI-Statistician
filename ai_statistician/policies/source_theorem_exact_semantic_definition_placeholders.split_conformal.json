@@ -3,6 +3,43 @@
   "policy_pack_id": "split_conformal_exact_semantic_definition_placeholder_policies_v1",
   "scope": "task_family:split_conformal_finite_sample_coverage",
   "description": "Data-backed exact semantic-definition placeholder policies for the split-conformal source-theorem frontier. These policies guide source lookup, authoring, and semantic review only; they are not Lean proof evidence.",
+  "default_source_anchor_role": "source_parameter",
+  "source_anchor_role_fallback_rules": [
+    {
+      "role": "calibration_size_anchor",
+      "name_keys": ["n", "n1", "n2", "hn", "hn1", "hn2"]
+    },
+    {
+      "role": "score_process_anchor",
+      "name_keys": ["s", "score", "scores", "hscore", "hmeas"]
+    },
+    {
+      "role": "threshold_function_anchor",
+      "name_keys": ["q", "qhat"]
+    },
+    {
+      "role": "quantile_definition_anchor",
+      "name_keys": ["hq", "hquantilethreshold"],
+      "binder_type_contains": ["orderStat"]
+    },
+    {
+      "role": "coverage_event_anchor",
+      "name_keys": ["c", "cn", "c_n", "hc", "coverageevent", "covered"]
+    },
+    {
+      "role": "exchangeability_anchor",
+      "name_keys": ["hexch", "hexchangeable"],
+      "binder_type_contains": ["Exchangeable"]
+    },
+    {
+      "role": "miscoverage_level_anchor",
+      "name_keys": ["alpha", "halpha", "halpha1"]
+    },
+    {
+      "role": "source_hypothesis",
+      "name_prefixes": ["h"]
+    }
+  ],
   "placeholder_policies": [
     {
       "policy_id": "split_conformal_coverage.exchangeable",

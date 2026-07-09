@@ -8,7 +8,9 @@ from ai_statistician.research_agent_runtime import (
     _runtime_learning_memory_source_theorem_exact_candidate_repairs,
 )
 from ai_statistician.exact_semantic_definition_policy import (
+    exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_anchor_role_rules,
 )
 from ai_statistician.source_theorem_exact_semantic_definition_source_lookup import (
     exact_semantic_definition_source_binders_from_context,
@@ -197,6 +199,53 @@ def test_source_binder_roles_prefer_placeholder_policy_pack() -> None:
     assert generic_roles["P"] == "source_parameter"
     assert policy_roles["P"] == "probability_measure_anchor"
     assert policy_roles["alpha"] == "miscoverage_level_anchor"
+
+
+def test_source_anchor_fallback_roles_are_policy_driven() -> None:
+    rule_roles = {
+        rule.role for rule in exact_semantic_definition_source_anchor_role_rules()
+    }
+
+    assert "coverage_event_anchor" in rule_roles
+    assert exact_semantic_definition_fallback_source_anchor_role(
+        name="hC",
+        binder_type="covered = {ω | score ω ≤ q_hat ω}",
+    ) == "coverage_event_anchor"
+    assert exact_semantic_definition_fallback_source_anchor_role(
+        name="candidate_order_threshold",
+        binder_type="q_hat = fun ω => orderStat s k ω",
+    ) == "quantile_definition_anchor"
+    assert exact_semantic_definition_fallback_source_anchor_role(
+        name="hexch",
+        binder_type="Exchangeable P s",
+    ) == "exchangeability_anchor"
+    assert exact_semantic_definition_fallback_source_anchor_role(
+        name="arbitrary_parameter",
+        binder_type="Nat",
+    ) == "source_parameter"
+
+    recovered_roles = {
+        row["name"]: row["role"]
+        for row in exact_semantic_definition_source_binders_from_context(
+            {
+                "exact_source_theorem_binders": [
+                    {
+                        "name": "hC",
+                        "type": "covered = {ω | score ω ≤ q_hat ω}",
+                    },
+                    {
+                        "name": "candidate_order_threshold",
+                        "type": "q_hat = fun ω => orderStat s k ω",
+                    },
+                ]
+            }
+        )
+    }
+    assert recovered_roles["hC"] == "coverage_event_anchor"
+    assert (
+        recovered_roles["candidate_order_threshold"]
+        == "quantile_definition_anchor"
+    )
 
 
 def test_exact_semantic_definition_source_lookup_exports_learning_hits(

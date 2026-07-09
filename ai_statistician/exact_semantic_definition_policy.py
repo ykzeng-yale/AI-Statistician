@@ -59,6 +59,15 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     ] = ()
 
 
+@dataclass(frozen=True)
+class ExactSemanticDefinitionSourceAnchorRoleRule:
+    role: str
+    name_keys: tuple[str, ...] = ()
+    name_prefixes: tuple[str, ...] = ()
+    binder_type_contains: tuple[str, ...] = ()
+    case_sensitive_binder_type: bool = True
+
+
 def compact_exact_semantic_placeholder_key(value: str) -> str:
     return "".join(ch.lower() for ch in str(value or "") if ch.isalnum())
 
@@ -90,12 +99,16 @@ def _registry_from_policies(
 def _load_policy_pack_policies() -> tuple[
     tuple[ExactSemanticDefinitionPlaceholderPolicy, ...],
     tuple[str, ...],
+    tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
+    str,
 ]:
     policy_dir = Path(__file__).resolve().parent / "policies"
     if not policy_dir.exists():
-        return (), ()
+        return (), (), (), "source_parameter"
     policies: list[ExactSemanticDefinitionPlaceholderPolicy] = []
     policy_pack_ids: list[str] = []
+    source_anchor_role_rules: list[ExactSemanticDefinitionSourceAnchorRoleRule] = []
+    default_source_anchor_role = "source_parameter"
     for path in sorted(policy_dir.glob(_POLICY_PACK_GLOB)):
         payload = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(payload, Mapping):
@@ -103,6 +116,16 @@ def _load_policy_pack_policies() -> tuple[
         policy_pack_id = str(payload.get("policy_pack_id", "") or "").strip()
         if policy_pack_id:
             policy_pack_ids.append(policy_pack_id)
+        source_anchor_role_rules.extend(
+            _source_anchor_role_rule_from_mapping(row)
+            for row in payload.get("source_anchor_role_fallback_rules", [])
+            if isinstance(row, Mapping)
+        )
+        default_role = str(
+            payload.get("default_source_anchor_role", "") or ""
+        ).strip()
+        if default_role:
+            default_source_anchor_role = default_role
         raw_policies = payload.get("placeholder_policies", [])
         if not isinstance(raw_policies, list):
             raise ValueError(
@@ -114,7 +137,12 @@ def _load_policy_pack_policies() -> tuple[
             for row in raw_policies
             if isinstance(row, Mapping)
         )
-    return tuple(policies), tuple(dict.fromkeys(policy_pack_ids))
+    return (
+        tuple(policies),
+        tuple(dict.fromkeys(policy_pack_ids)),
+        tuple(source_anchor_role_rules),
+        default_source_anchor_role,
+    )
 
 
 def _policy_from_mapping(
@@ -215,6 +243,21 @@ def _risk_rule_from_mapping(
     )
 
 
+def _source_anchor_role_rule_from_mapping(
+    row: Mapping[str, Any],
+) -> ExactSemanticDefinitionSourceAnchorRoleRule:
+    return ExactSemanticDefinitionSourceAnchorRoleRule(
+        role=str(row.get("role", "") or "").strip(),
+        name_keys=_string_tuple(row.get("name_keys")),
+        name_prefixes=_string_tuple(row.get("name_prefixes")),
+        binder_type_contains=_string_tuple(row.get("binder_type_contains")),
+        case_sensitive_binder_type=_bool_like(
+            row.get("case_sensitive_binder_type", True),
+            default=True,
+        ),
+    )
+
+
 def _bool_like(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
@@ -268,23 +311,100 @@ def _string_mapping(value: Any) -> Mapping[str, str]:
 def _build_policy_registry() -> tuple[
     Mapping[str, ExactSemanticDefinitionPlaceholderPolicy],
     tuple[str, ...],
+    tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
+    str,
 ]:
     registry: dict[str, ExactSemanticDefinitionPlaceholderPolicy] = {}
-    policy_pack_policies, policy_pack_ids = _load_policy_pack_policies()
+    (
+        policy_pack_policies,
+        policy_pack_ids,
+        source_anchor_role_rules,
+        default_source_anchor_role,
+    ) = _load_policy_pack_policies()
     if policy_pack_policies:
         registry.update(_registry_from_policies(policy_pack_policies))
-        return registry, policy_pack_ids
-    return registry, ()
+    return (
+        registry,
+        policy_pack_ids,
+        source_anchor_role_rules,
+        default_source_anchor_role,
+    )
 
 
 (
     EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
     EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS,
+    EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES,
+    EXACT_SEMANTIC_DEFINITION_DEFAULT_SOURCE_ANCHOR_ROLE,
 ) = _build_policy_registry()
 
 
 def exact_semantic_definition_policy_pack_ids() -> tuple[str, ...]:
     return EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS
+
+
+def exact_semantic_definition_source_anchor_role_rules() -> tuple[
+    ExactSemanticDefinitionSourceAnchorRoleRule,
+    ...,
+]:
+    return EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES
+
+
+def exact_semantic_definition_fallback_source_anchor_role(
+    *,
+    name: str,
+    binder_type: str = "",
+) -> str:
+    compact_name = compact_exact_semantic_placeholder_key(name)
+    type_text = str(binder_type or "")
+    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES:
+        if not rule.role:
+            continue
+        compact_keys = {
+            compact_exact_semantic_placeholder_key(value)
+            for value in rule.name_keys
+            if compact_exact_semantic_placeholder_key(value)
+        }
+        if compact_name and compact_name in compact_keys:
+            return rule.role
+        compact_prefixes = tuple(
+            compact_exact_semantic_placeholder_key(value)
+            for value in rule.name_prefixes
+            if compact_exact_semantic_placeholder_key(value)
+        )
+        if compact_name and any(
+            compact_name.startswith(prefix) for prefix in compact_prefixes
+        ):
+            return rule.role
+        if _binder_type_contains_any(
+            type_text,
+            rule.binder_type_contains,
+            case_sensitive=rule.case_sensitive_binder_type,
+        ):
+            return rule.role
+    return EXACT_SEMANTIC_DEFINITION_DEFAULT_SOURCE_ANCHOR_ROLE
+
+
+def _binder_type_contains_any(
+    binder_type: str,
+    needles: tuple[str, ...],
+    *,
+    case_sensitive: bool,
+) -> bool:
+    if not needles:
+        return False
+    haystack = str(binder_type or "")
+    if not case_sensitive:
+        haystack = haystack.lower()
+    for needle in needles:
+        item = str(needle or "")
+        if not item:
+            continue
+        if not case_sensitive:
+            item = item.lower()
+        if item in haystack:
+            return True
+    return False
 
 
 def exact_semantic_definition_placeholder_policy(
