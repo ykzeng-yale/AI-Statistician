@@ -110,6 +110,11 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
             payload.get("exact_goal_shape_obligation_inference_rules", [])
         )
     )
+    exact_goal_shape_feedback_rules = (
+        _normalize_exact_goal_shape_obligation_feedback_rules(
+            payload.get("exact_goal_shape_obligation_feedback_rules", [])
+        )
+    )
     return {
         "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
         "schema_version": int(payload.get("schema_version", 1) or 1),
@@ -126,6 +131,9 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "exact_goal_shape_to_semantic_gap": exact_goal_shape_semantic_gaps,
         "exact_goal_shape_obligation_inference_rules": (
             exact_goal_shape_inference_rules
+        ),
+        "exact_goal_shape_obligation_feedback_rules": (
+            exact_goal_shape_feedback_rules
         ),
     }
 
@@ -254,6 +262,68 @@ def _normalize_exact_goal_shape_obligation_inference_rules(
     return tuple(normalized)
 
 
+def _normalize_exact_goal_shape_obligation_feedback_rules(
+    value: Any,
+) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    normalized: list[dict[str, Any]] = []
+    for raw_rule in value:
+        if not isinstance(raw_rule, Mapping):
+            continue
+        obligation_id = str(raw_rule.get("obligation_id", "") or "").strip()
+        if not obligation_id:
+            continue
+        failure_classifications = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_rule.get("failure_classifications", []) or []
+                if str(item).strip()
+            )
+        )
+        triggers = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_rule.get("triggers", []) or []
+                if str(item).strip()
+            )
+        )
+        goal_text_contains_any = tuple(
+            dict.fromkeys(
+                str(item)
+                for item in raw_rule.get("goal_text_contains_any", []) or []
+                if str(item)
+            )
+        )
+        goal_text_contains_all = tuple(
+            dict.fromkeys(
+                str(item)
+                for item in raw_rule.get("goal_text_contains_all", []) or []
+                if str(item)
+            )
+        )
+        if (
+            failure_classifications
+            or triggers
+            or goal_text_contains_any
+            or goal_text_contains_all
+        ):
+            normalized.append(
+                {
+                    "obligation_id": obligation_id,
+                    "failure_classifications": failure_classifications,
+                    "triggers": triggers,
+                    "goal_text_contains_any": goal_text_contains_any,
+                    "goal_text_contains_all": goal_text_contains_all,
+                    "case_sensitive_goal_text": _bool_like(
+                        raw_rule.get("case_sensitive_goal_text", True),
+                        default=True,
+                    ),
+                }
+            )
+    return tuple(normalized)
+
+
 def _normalize_placeholder_text_signal_map(
     value: Any,
 ) -> dict[str, dict[str, tuple[str, ...]]]:
@@ -328,6 +398,9 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
     exact_goal_shape_inference_rules = policy[
         "exact_goal_shape_obligation_inference_rules"
     ]
+    exact_goal_shape_feedback_rules = policy[
+        "exact_goal_shape_obligation_feedback_rules"
+    ]
     return {
         "policy_id": policy["policy_id"],
         "schema_version": policy["schema_version"],
@@ -347,12 +420,15 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "n_exact_goal_shape_obligation_inference_rules": len(
             exact_goal_shape_inference_rules
         ),
+        "n_exact_goal_shape_obligation_feedback_rules": len(
+            exact_goal_shape_feedback_rules
+        ),
         "boundary": (
             "Semantic-support policy routes task-family primitive IDs, placeholder "
-            "signals, exact goal-shape inference, and theorem-closure strategies "
-            "to registered support obligations. It is routing metadata only; "
-            "proof evidence still requires kernel_verified=true rows in the proof "
-            "audit manifest."
+            "signals, exact goal-shape inference/feedback routing, and "
+            "theorem-closure strategies to registered support obligations. It is "
+            "routing metadata only; proof evidence still requires "
+            "kernel_verified=true rows in the proof audit manifest."
         ),
     }
 
@@ -446,6 +522,64 @@ def inferred_exact_goal_shape_obligation_ids(
         if failure_matches or trigger_matches:
             obligation_ids.extend(rule.get("obligation_ids", ()))
     return tuple(dict.fromkeys(obligation_ids))
+
+
+def inferred_exact_goal_shape_obligation_ids_from_feedback(
+    *,
+    failure_classification: str = "",
+    trigger: str = "",
+    goal_text: str = "",
+) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    normalized_failure = str(failure_classification or "").strip()
+    normalized_trigger = str(trigger or "").strip()
+    obligation_ids: list[str] = []
+    for rule in policy["exact_goal_shape_obligation_feedback_rules"]:
+        if _exact_goal_shape_feedback_rule_matches(
+            rule,
+            failure_classification=normalized_failure,
+            trigger=normalized_trigger,
+            goal_text=goal_text,
+        ):
+            obligation_id = str(rule.get("obligation_id", "") or "").strip()
+            if obligation_id:
+                obligation_ids.append(obligation_id)
+    return tuple(dict.fromkeys(obligation_ids))
+
+
+def _exact_goal_shape_feedback_rule_matches(
+    rule: Mapping[str, Any],
+    *,
+    failure_classification: str,
+    trigger: str,
+    goal_text: str,
+) -> bool:
+    failure_classifications = rule.get("failure_classifications", ()) or ()
+    if failure_classification and failure_classification in failure_classifications:
+        return True
+    triggers = rule.get("triggers", ()) or ()
+    if trigger and trigger in triggers:
+        return True
+    case_sensitive = _bool_like(
+        rule.get("case_sensitive_goal_text", True),
+        default=True,
+    )
+    text = str(goal_text or "")
+    haystack = text if case_sensitive else text.lower()
+    contains_any = tuple(
+        str(item) for item in rule.get("goal_text_contains_any", ()) or ()
+    )
+    contains_all = tuple(
+        str(item) for item in rule.get("goal_text_contains_all", ()) or ()
+    )
+    if not case_sensitive:
+        contains_any = tuple(item.lower() for item in contains_any)
+        contains_all = tuple(item.lower() for item in contains_all)
+    if contains_any and any(item and item in haystack for item in contains_any):
+        return True
+    if contains_all and all(item and item in haystack for item in contains_all):
+        return True
+    return False
 
 
 def semantic_primitive_id_for_gap(gap_text: str, gap_kind: str = "") -> str:

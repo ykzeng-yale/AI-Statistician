@@ -755,7 +755,7 @@ def test_exact_source_executor_classifies_verified_adapter_context_insufficient(
         "order_statistic_quantile_rank_instantiation",
     )
     assert any(
-        "upper split-conformal coverage component" in obligation
+        "upper finite-sample split-conformal coverage component" in obligation
         for obligation in row["exact_goal_shape_obligations"]
     )
     assert manifest["by_failure_classification"] == {

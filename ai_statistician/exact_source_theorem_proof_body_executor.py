@@ -19,6 +19,10 @@ from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
     normalize_exact_semantic_definition_signature_probe_context,
 )
+from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    inferred_exact_goal_shape_obligation_ids_from_feedback as _policy_goal_obligations_from_feedback,
+    semantic_gap_for_exact_goal_shape_obligation as _policy_goal_obligation_gap,
+)
 
 
 SCHEMA_VERSION = 1
@@ -2628,8 +2632,7 @@ def _exact_goal_shape_obligation_ids(
     """Extract machine-routable proof obligations from the reached Lean goal shape."""
 
     text = "\n".join((source, *diagnostics, *proof_body_attempt_summaries))
-    normalized = text.lower()
-    obligations: list[str] = []
+    inferred_failure_classification = failure_classification
     if (
         failure_classification == "proof_body_verified_adapter_context_insufficient"
         or _proof_body_verified_adapter_context_insufficient(
@@ -2637,56 +2640,22 @@ def _exact_goal_shape_obligation_ids(
             verified_adapter_declarations=verified_adapter_declarations,
         )
     ):
-        obligations.append("source_to_bridge_adapter_goal_shape_mismatch")
-    if "∧" in text:
-        obligations.append("conjunctive_source_theorem_split")
-    if "p.real" in normalized:
-        obligations.append("real_probability_lower_bound_from_ennreal_adapter")
-    if "≤ 1 - alpha + 1 /" in text or "<= 1 - alpha + 1 /" in normalized:
-        obligations.append("upper_coverage_bound_component")
-    if "hexch : exchangeable" in normalized or "(hexch : exchangeable" in normalized:
-        obligations.append("exchangeability_rank_uniformity_instantiation")
-    if "orderstat" in normalized or "q_hat" in normalized:
-        obligations.append("order_statistic_quantile_rank_instantiation")
-    if "hc :" in normalized or "hC :" in text:
-        obligations.append("coverage_event_identification_from_hC")
-    return tuple(dict.fromkeys(obligations))
+        inferred_failure_classification = (
+            "proof_body_verified_adapter_context_insufficient"
+        )
+    return _policy_goal_obligations_from_feedback(
+        failure_classification=inferred_failure_classification,
+        goal_text=text,
+    )
 
 
 def _exact_goal_shape_obligation_description(obligation_id: str) -> str:
-    descriptions = {
-        "source_to_bridge_adapter_goal_shape_mismatch": (
-            "Kernel-verified source-to-bridge adapter is available, but its conclusion "
-            "does not directly close the exact source theorem goal."
-        ),
-        "conjunctive_source_theorem_split": (
-            "Exact source theorem goal is a conjunction; ProofEngineer must prove each "
-            "component separately before assembling the final proof."
-        ),
-        "real_probability_lower_bound_from_ennreal_adapter": (
-            "Bridge the ENNReal measure lower-bound adapter to the source theorem's "
-            "real-valued probability statement."
-        ),
-        "upper_coverage_bound_component": (
-            "Prove or supply the upper split-conformal coverage component; the current "
-            "verified adapter only supports the lower-bound direction."
-        ),
-        "exchangeability_rank_uniformity_instantiation": (
-            "Instantiate exchangeability into the finite-rank/uniformity primitive "
-            "needed by the exact source theorem proof."
-        ),
-        "order_statistic_quantile_rank_instantiation": (
-            "Connect the exact order statistic/quantile definition to the rank event "
-            "used by bridge and coverage lemmas."
-        ),
-        "coverage_event_identification_from_hC": (
-            "Use the exact coverage-set hypothesis hC to identify the event in the "
-            "source theorem with the bridge theorem's covered set."
-        ),
-    }
-    return descriptions.get(
-        obligation_id,
-        "Repair an exact source theorem goal-shape obligation before rerunning local Lean.",
+    description = _policy_goal_obligation_gap(obligation_id)
+    if description:
+        return description
+    return (
+        "Repair an exact source theorem goal-shape obligation before rerunning "
+        "local Lean."
     )
 
 

@@ -203,6 +203,58 @@
       ]
     }
   ],
+  "exact_goal_shape_obligation_feedback_rules": [
+    {
+      "obligation_id": "source_to_bridge_adapter_goal_shape_mismatch",
+      "failure_classifications": [
+        "proof_body_verified_adapter_context_insufficient"
+      ]
+    },
+    {
+      "obligation_id": "conjunctive_source_theorem_split",
+      "goal_text_contains_any": [
+        "\u2227"
+      ]
+    },
+    {
+      "obligation_id": "real_probability_lower_bound_from_ennreal_adapter",
+      "goal_text_contains_any": [
+        "p.real"
+      ],
+      "case_sensitive_goal_text": false
+    },
+    {
+      "obligation_id": "upper_coverage_bound_component",
+      "goal_text_contains_any": [
+        "\u2264 1 - alpha + 1 /",
+        "<= 1 - alpha + 1 /"
+      ],
+      "case_sensitive_goal_text": false
+    },
+    {
+      "obligation_id": "exchangeability_rank_uniformity_instantiation",
+      "goal_text_contains_any": [
+        "hexch : exchangeable",
+        "(hexch : exchangeable"
+      ],
+      "case_sensitive_goal_text": false
+    },
+    {
+      "obligation_id": "order_statistic_quantile_rank_instantiation",
+      "goal_text_contains_any": [
+        "orderstat",
+        "q_hat"
+      ],
+      "case_sensitive_goal_text": false
+    },
+    {
+      "obligation_id": "coverage_event_identification_from_hC",
+      "goal_text_contains_any": [
+        "hc :"
+      ],
+      "case_sensitive_goal_text": false
+    }
+  ],
   "theorem_closure_reduction_strategies": {
     "split_conformal_finite_sample_coverage": [
       {

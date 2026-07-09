@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge import (
     inferred_exact_goal_shape_obligation_ids,
+    inferred_exact_goal_shape_obligation_ids_from_feedback,
     placeholder_symbols_from_semantic_alignment_feedback,
     placeholder_symbols_for_registered_support_ids,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
@@ -92,6 +93,12 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     assert (
         manifest["semantic_support_policy"][
             "n_exact_goal_shape_obligation_inference_rules"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["semantic_support_policy"][
+            "n_exact_goal_shape_obligation_feedback_rules"
         ]
         >= 1
     )
@@ -244,6 +251,31 @@ def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
     assert inferred_exact_goal_shape_obligation_ids(
         failure_classification="unregistered_failure_classification",
     ) == ()
+
+
+def test_exact_goal_shape_obligation_feedback_rules_are_policy_driven() -> None:
+    goal_text = "\n".join(
+        [
+            "hexch : Exchangeable P s",
+            "hq : q_hat = fun ω => orderStat s k ω",
+            "hC : covered = {ω | score ω ≤ q_hat ω}",
+            "⊢ 1 - alpha ≤ P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ∧",
+            "    P.real {ω | s (Fin.last n2) ω ≤ q_hat ω} ≤ 1 - alpha + 1 / ↑(n2 + 1)",
+        ]
+    )
+
+    assert inferred_exact_goal_shape_obligation_ids_from_feedback(
+        failure_classification="proof_body_verified_adapter_context_insufficient",
+        goal_text=goal_text,
+    ) == (
+        "source_to_bridge_adapter_goal_shape_mismatch",
+        "conjunctive_source_theorem_split",
+        "real_probability_lower_bound_from_ennreal_adapter",
+        "upper_coverage_bound_component",
+        "exchangeability_rank_uniformity_instantiation",
+        "order_statistic_quantile_rank_instantiation",
+        "coverage_event_identification_from_hC",
+    )
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(
