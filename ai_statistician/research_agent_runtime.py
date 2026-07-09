@@ -279,6 +279,15 @@ from .verifier import ProofVerifier
 
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 45000
+EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS = (
+    "n_prompt_packets_with_source_theorem_binders",
+    "n_prompt_packets_with_exact_source_theorem_binders",
+    "n_prompt_packets_with_source_anchor_context",
+    "n_prompt_packets_with_required_anchor_bindings",
+    "n_prompt_packets_with_complete_required_anchors",
+    "n_prompt_packets_with_lean_contract_source_binders",
+    "n_prompt_packets_with_source_grounded_authoring_handoff",
+)
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
     "environment observations. They can falsify or support a proposal, but "
@@ -697,6 +706,12 @@ def _runtime_manifest_int(payload: Mapping[str, Any], key: str) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _worker_manifest_int(worker_manifest: Mapping[str, Any] | None, key: str) -> int:
+    if not isinstance(worker_manifest, Mapping):
+        return 0
+    return _runtime_manifest_int(worker_manifest, key)
 
 
 def _runtime_manifest_int_sum(payload: Mapping[str, Any], keys: tuple[str, ...]) -> int:
@@ -1210,6 +1225,22 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         payload,
         "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
     )
+    primary_source_grounded_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff",
+    )
+    retry_source_grounded_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff",
+    )
+    late_source_grounded_prompt_packets = _runtime_manifest_int(
+        payload,
+        "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff",
+    )
+    post_runtime_source_grounded_prompt_packets = _runtime_manifest_int(
+        payload,
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff",
+    )
     primary_ran = (
         payload.get("source_theorem_exact_semantic_definition_authoring_worker_ran")
         is True
@@ -1233,6 +1264,12 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         + retry_prompt_packets
         + late_prompt_packets
         + post_runtime_prompt_packets
+    )
+    source_grounded_prompt_packets = (
+        primary_source_grounded_prompt_packets
+        + retry_source_grounded_prompt_packets
+        + late_source_grounded_prompt_packets
+        + post_runtime_source_grounded_prompt_packets
     )
     primary_provider_name = str(
         payload.get(
@@ -1567,6 +1604,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "required": primary_required,
             "ran": primary_ran,
             "prompt_packets": primary_prompt_packets,
+            "source_grounded_prompt_packets": primary_source_grounded_prompt_packets,
             "live_attempts": primary_live_attempts,
             "candidate_packets": primary_candidate_packets,
             "materialized_lean_repair_tasks": primary_materialized_lean_repair_tasks,
@@ -1578,6 +1616,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "required": retry_required,
             "ran": retry_ran,
             "prompt_packets": retry_prompt_packets,
+            "source_grounded_prompt_packets": retry_source_grounded_prompt_packets,
             "live_attempts": retry_live_attempts,
             "candidate_packets": retry_candidate_packets,
             "materialized_lean_repair_tasks": retry_materialized_lean_repair_tasks,
@@ -1589,6 +1628,7 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "required": late_required,
             "ran": late_ran,
             "prompt_packets": late_prompt_packets,
+            "source_grounded_prompt_packets": late_source_grounded_prompt_packets,
             "live_attempts": late_live_attempts,
             "candidate_packets": late_candidate_packets,
             "materialized_lean_repair_tasks": late_materialized_lean_repair_tasks,
@@ -1600,6 +1640,9 @@ def _runtime_exact_semantic_definition_authoring_provenance(
             "required": False,
             "ran": post_runtime_ran,
             "prompt_packets": post_runtime_prompt_packets,
+            "source_grounded_prompt_packets": (
+                post_runtime_source_grounded_prompt_packets
+            ),
             "live_attempts": post_runtime_live_attempts,
             "candidate_packets": post_runtime_candidate_packets,
             "materialized_lean_repair_tasks": post_runtime_materialized_lean_repair_tasks,
@@ -1624,11 +1667,22 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         for channel in channel_states
         if bool(channel["ran"]) and int(channel["prompt_packets"]) > 0
     ]
+    source_grounded_prompt_ready_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if bool(channel["ran"]) and int(channel["source_grounded_prompt_packets"]) > 0
+    ]
     missing_handoff_channels = [
         str(channel["name"])
         for channel in channel_states
         if bool(channel["required"])
         and str(channel["name"]) not in prompt_ready_channels
+    ]
+    missing_source_grounded_handoff_channels = [
+        str(channel["name"])
+        for channel in channel_states
+        if bool(channel["required"])
+        and str(channel["name"]) not in source_grounded_prompt_ready_channels
     ]
     live_attempted_channels = [
         str(channel["name"])
@@ -1657,6 +1711,11 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         and post_runtime_lineage_ok
         and "post_runtime" in prompt_ready_channels
     )
+    post_runtime_source_grounded_handoff_ready = (
+        post_runtime_attached
+        and post_runtime_lineage_ok
+        and "post_runtime" in source_grounded_prompt_ready_channels
+    )
     handoff_ready = (
         not (primary_required or retry_required or late_required)
         or post_runtime_handoff_ready
@@ -1671,6 +1730,11 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         not candidate_verifier_required
         or post_runtime_verifier_ready
         or not missing_candidate_verifier_channels
+    )
+    source_grounded_handoff_ready = (
+        not (primary_required or retry_required or late_required)
+        or post_runtime_source_grounded_handoff_ready
+        or not missing_source_grounded_handoff_channels
     )
     provider_names = [
         str(value or "").strip()
@@ -1705,6 +1769,8 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "ran": primary_ran or retry_ran or late_ran or post_runtime_ran,
         "handoff_ready": handoff_ready,
         "n_prompt_packets": prompt_packets,
+        "source_grounded_handoff_ready": source_grounded_handoff_ready,
+        "n_source_grounded_prompt_packets": source_grounded_prompt_packets,
         "n_llm_attempted": generic_attempts,
         "n_live_llm_attempted": live_attempts,
         "n_reported_live_llm_attempted": reported_live_attempts,
@@ -1712,7 +1778,13 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "candidate_verifier_ready": candidate_verifier_ready,
         "required_channels": required_channels,
         "prompt_ready_channels": prompt_ready_channels,
+        "source_grounded_prompt_ready_channels": (
+            source_grounded_prompt_ready_channels
+        ),
         "missing_handoff_channels": missing_handoff_channels,
+        "missing_source_grounded_handoff_channels": (
+            missing_source_grounded_handoff_channels
+        ),
         "live_attempted_channels": live_attempted_channels,
         "missing_live_attempt_channels": missing_live_attempt_channels,
         "missing_candidate_verifier_channels": missing_candidate_verifier_channels,
@@ -1725,6 +1797,9 @@ def _runtime_exact_semantic_definition_authoring_provenance(
         "candidate_verifier_ready_channels": verifier_ready_channels,
         "n_candidate_verifier_ready_channels": len(verifier_ready_channels),
         "post_runtime_handoff_ready": post_runtime_handoff_ready,
+        "post_runtime_source_grounded_handoff_ready": (
+            post_runtime_source_grounded_handoff_ready
+        ),
         "post_runtime_live_ready": post_runtime_live_ready,
         "post_runtime_verifier_ready": post_runtime_verifier_ready,
         "provider_names": list(dict.fromkeys(provider_names)),
@@ -34976,6 +35051,13 @@ def run_research_agent_runtime(
         ).get("n_prompt_packets", 0)
         or 0
     )
+    for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS:
+        manifest[
+            f"source_theorem_exact_semantic_definition_authoring_retry_worker_{key}"
+        ] = _worker_manifest_int(
+            source_theorem_exact_semantic_definition_authoring_retry_worker_manifest,
+            key,
+        )
     manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_worker_n_llm_attempted"
     ] = int(
@@ -35322,6 +35404,13 @@ def run_research_agent_runtime(
         int(row.get("n_prompt_packets", 0) or 0)
         for row in late_source_theorem_exact_semantic_definition_authoring_worker_manifests
     )
+    for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS:
+        manifest[
+            f"source_theorem_exact_semantic_definition_late_authoring_worker_{key}"
+        ] = sum(
+            _worker_manifest_int(row, key)
+            for row in late_source_theorem_exact_semantic_definition_authoring_worker_manifests
+        )
     manifest[
         "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets"
     ] = sum(
@@ -36900,6 +36989,13 @@ def run_research_agent_runtime(
         ).get("n_prompt_packets", 0)
         or 0
     )
+    for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS:
+        manifest[
+            f"source_theorem_exact_semantic_definition_authoring_worker_{key}"
+        ] = _worker_manifest_int(
+            source_theorem_exact_semantic_definition_authoring_worker_manifest,
+            key,
+        )
     manifest[
         "source_theorem_exact_semantic_definition_authoring_worker_n_llm_attempted"
     ] = int(

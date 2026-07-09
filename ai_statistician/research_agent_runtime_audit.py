@@ -43,6 +43,7 @@ from .pseudo_formalization import (
 )
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
+    EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS,
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
     RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE,
     RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY,
@@ -11572,6 +11573,17 @@ def audit_research_agent_runtime(
             "full frontier theorem proof remains false unless a separate kernel-verified reduction closes formal gaps",
         ],
     }
+    for prefix in (
+        "source_theorem_exact_semantic_definition_authoring_worker",
+        "source_theorem_exact_semantic_definition_authoring_retry_worker",
+        "source_theorem_exact_semantic_definition_late_authoring_worker",
+    ):
+        for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS:
+            payload[f"{prefix}_{key}"] = _safe_int(manifest.get(f"{prefix}_{key}", 0))
+    for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS:
+        payload[f"post_runtime_exact_semantic_definition_authoring_worker_{key}"] = (
+            _safe_int(post_runtime_exact_semantic_definition_authoring_worker.get(key, 0))
+        )
     for proof_body_prefix in (
         "source_theorem_exact_proof_body_repair_executor",
         "source_theorem_exact_proof_body_repair_executor_from_proof_body_adapter_feedback",
@@ -14947,6 +14959,10 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_semantic_definition_authoring_worker_ran",
             "source_theorem_exact_semantic_definition_authoring_worker_skipped_reason",
             "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
+            *(
+                f"source_theorem_exact_semantic_definition_authoring_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
             "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets",
             "source_theorem_exact_semantic_definition_authoring_retry_tasks_required",
             "source_theorem_exact_semantic_definition_authoring_retry_n_tasks",
@@ -14954,16 +14970,28 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_semantic_definition_authoring_retry_worker_ran",
             "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason",
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets",
+            *(
+                f"source_theorem_exact_semantic_definition_authoring_retry_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets",
             "source_theorem_exact_semantic_definition_late_authoring_worker_ran",
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests",
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
+            *(
+                f"source_theorem_exact_semantic_definition_late_authoring_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
             "source_theorem_exact_semantic_definition_late_authoring_worker_n_candidate_packets",
             "post_runtime_exact_semantic_definition_authoring_worker_attached",
             "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
             "post_runtime_exact_semantic_definition_authoring_worker_ran",
             "post_runtime_exact_semantic_definition_authoring_worker_manifest_path",
             "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
+            *(
+                f"post_runtime_exact_semantic_definition_authoring_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
             "post_runtime_exact_semantic_definition_authoring_worker_n_candidate_packets",
             "post_runtime_exact_semantic_definition_authoring_candidate_materializer_attached",
             "post_runtime_exact_semantic_definition_authoring_candidate_materializer_lineage_ok",
@@ -26317,10 +26345,16 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['ran']} "
                 "prompt_packets="
                 f"{exact_semantic_definition_authoring['n_prompt_packets']} "
+                "source_grounded_prompt_packets="
+                f"{exact_semantic_definition_authoring['n_source_grounded_prompt_packets']} "
                 "prompt_ready_channels="
                 f"{exact_semantic_definition_authoring['prompt_ready_channels']} "
+                "source_grounded_prompt_ready_channels="
+                f"{exact_semantic_definition_authoring['source_grounded_prompt_ready_channels']} "
                 "missing_handoff_channels="
                 f"{exact_semantic_definition_authoring['missing_handoff_channels']} "
+                "missing_source_grounded_handoff_channels="
+                f"{exact_semantic_definition_authoring['missing_source_grounded_handoff_channels']} "
                 "candidate_packets="
                 f"{exact_semantic_definition_authoring['n_candidate_packets']} "
                 "post_runtime_attached="
@@ -26329,6 +26363,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
                 "post_runtime_handoff_ready="
                 f"{exact_semantic_definition_authoring['post_runtime_handoff_ready']} "
+                "post_runtime_source_grounded_handoff_ready="
+                f"{exact_semantic_definition_authoring['post_runtime_source_grounded_handoff_ready']} "
                 "skipped="
                 f"{payload.get('source_theorem_exact_semantic_definition_authoring_worker_skipped_reason')}"
             ),
@@ -28858,7 +28894,7 @@ def _post_runtime_exact_semantic_definition_authoring_worker_empty_summary(
     attached: bool = False,
     manifest_path: Path | None = None,
 ) -> dict[str, Any]:
-    return {
+    summary = {
         "attached": attached,
         "lineage_ok": False,
         "lineage_match": "",
@@ -28883,6 +28919,8 @@ def _post_runtime_exact_semantic_definition_authoring_worker_empty_summary(
             "frontier theorem evidence."
         ),
     }
+    summary.update({key: 0 for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS})
+    return summary
 
 
 def _exact_semantic_definition_authoring_task_ids(
@@ -29066,6 +29104,8 @@ def _post_runtime_exact_semantic_definition_authoring_worker_summary(
             "n_candidate_packets": raw_candidate_packets if trusted_counts else 0,
         }
     )
+    for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS:
+        summary[key] = _safe_int(manifest.get(key, 0)) if trusted_counts else 0
     return summary
 
 

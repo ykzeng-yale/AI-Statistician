@@ -50708,6 +50708,34 @@ def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
         assert runtime_dir is None
         assert repair_executor_manifest is None
         assert authoring_tasks_jsonl is not None and authoring_tasks_jsonl.exists()
+        task_rows = [
+            json.loads(line)
+            for line in authoring_tasks_jsonl.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        source_binders = [
+            {"name": "s", "type": "Fin (n + 1) -> Omega -> Real"},
+            {"name": "q_hat", "type": "Real"},
+            {"name": "hq", "type": "source quantile coverage hypothesis"},
+        ]
+        candidate_definition_request = dict(task_rows[0]["candidate_definition_request"])
+        candidate_definition_request["required_anchor_bindings"] = [
+            {
+                "required_anchor_name": "s",
+                "actual_anchor_name": "s",
+                "binder": source_binders[0],
+            },
+            {
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q_hat",
+                "binder": source_binders[1],
+            },
+            {
+                "required_anchor_name": "hq",
+                "actual_anchor_name": "hq",
+                "binder": source_binders[2],
+            },
+        ]
         out_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = (
             out_dir
@@ -50730,6 +50758,24 @@ def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
                     ),
                     "target_theorem_name": "split_conformal_coverage",
                     "placeholder_symbol": "coverage_event",
+                    "candidate_definition_request": candidate_definition_request,
+                    "source_theorem_binders": source_binders,
+                    "exact_source_theorem_binders": source_binders,
+                    "source_anchor_context": [
+                        {
+                            "required_anchor_name": row["required_anchor_name"],
+                            "actual_anchor_name": row["actual_anchor_name"],
+                            "name": row["actual_anchor_name"],
+                        }
+                        for row in candidate_definition_request[
+                            "required_anchor_bindings"
+                        ]
+                    ],
+                    "source_anchor_context_rows": 3,
+                    "lean_authoring_environment_contract": {
+                        "source_theorem_binder_count": 3,
+                        "source_theorem_binders": source_binders,
+                    },
                     "proof_evidence_status": (
                         "EXACT_SEMANTIC_DEFINITION_AUTHORING_PROMPT_NOT_PROOF_EVIDENCE"
                     ),
@@ -50750,6 +50796,13 @@ def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
             "backend_provider_name": "",
             "dry_run": True,
             "n_prompt_packets": 1,
+            "n_prompt_packets_with_source_theorem_binders": 1,
+            "n_prompt_packets_with_exact_source_theorem_binders": 1,
+            "n_prompt_packets_with_source_anchor_context": 1,
+            "n_prompt_packets_with_required_anchor_bindings": 1,
+            "n_prompt_packets_with_complete_required_anchors": 1,
+            "n_prompt_packets_with_lean_contract_source_binders": 1,
+            "n_prompt_packets_with_source_grounded_authoring_handoff": 1,
             "n_llm_attempted": 0,
             "n_live_llm_attempted": 0,
             "n_candidate_packets": 0,
@@ -50831,6 +50884,36 @@ def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
             "source_theorem_exact_semantic_definition_authoring_retry_worker_proof_evidence_status"
         ]
         == "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_theorem_binders"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_required_anchor_bindings"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_complete_required_anchors"
+        ]
+        == 1
+    )
+    assert (
+        manifest[
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
+        ]
+        == 1
     )
 
 

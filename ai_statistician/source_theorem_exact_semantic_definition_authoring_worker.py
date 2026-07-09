@@ -369,6 +369,7 @@ def run_source_theorem_exact_semantic_definition_authoring_worker(
         "placeholder_symbol_filter": list(config.placeholder_symbols),
         "normalized_placeholder_symbol_filter": sorted(placeholder_filter),
         "n_prompt_packets": len(prompt_packets),
+        **_prompt_packet_structured_handoff_counts(prompt_packets),
         "n_semantic_review_prompt_packets": sum(
             1
             for row in prompt_packets
@@ -1645,6 +1646,71 @@ def _safe_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _mapping_rows(value: Any) -> list[dict[str, Any]]:
+    return [dict(row) for row in value or [] if isinstance(row, Mapping)]
+
+
+def _prompt_packet_structured_handoff_counts(
+    prompt_packets: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    counts = {
+        "n_prompt_packets_with_source_theorem_binders": 0,
+        "n_prompt_packets_with_exact_source_theorem_binders": 0,
+        "n_prompt_packets_with_source_anchor_context": 0,
+        "n_prompt_packets_with_required_anchor_bindings": 0,
+        "n_prompt_packets_with_complete_required_anchors": 0,
+        "n_prompt_packets_with_lean_contract_source_binders": 0,
+        "n_prompt_packets_with_source_grounded_authoring_handoff": 0,
+    }
+    for packet in prompt_packets:
+        request = packet.get("candidate_definition_request", {})
+        request = request if isinstance(request, Mapping) else {}
+        contract = packet.get("lean_authoring_environment_contract", {})
+        contract = contract if isinstance(contract, Mapping) else {}
+        has_source_binders = bool(_mapping_rows(packet.get("source_theorem_binders", [])))
+        has_exact_binders = bool(
+            _mapping_rows(packet.get("exact_source_theorem_binders", []))
+        )
+        has_source_anchor_context = bool(
+            _mapping_rows(packet.get("source_anchor_context", []))
+        ) or _safe_int(packet.get("source_anchor_context_rows", 0)) > 0
+        has_required_anchor_bindings = bool(
+            _mapping_rows(request.get("required_anchor_bindings", []))
+        )
+        required_anchor_names = _string_list(request.get("required_anchor_names", []))
+        missing_required_anchor_names = _string_list(
+            request.get("missing_required_anchor_names", [])
+        )
+        has_complete_required_anchors = bool(
+            required_anchor_names and not missing_required_anchor_names
+        )
+        has_lean_contract_source_binders = bool(
+            _mapping_rows(contract.get("source_theorem_binders", []))
+        ) or _safe_int(contract.get("source_theorem_binder_count", 0)) > 0
+        if has_source_binders:
+            counts["n_prompt_packets_with_source_theorem_binders"] += 1
+        if has_exact_binders:
+            counts["n_prompt_packets_with_exact_source_theorem_binders"] += 1
+        if has_source_anchor_context:
+            counts["n_prompt_packets_with_source_anchor_context"] += 1
+        if has_required_anchor_bindings:
+            counts["n_prompt_packets_with_required_anchor_bindings"] += 1
+        if has_complete_required_anchors:
+            counts["n_prompt_packets_with_complete_required_anchors"] += 1
+        if has_lean_contract_source_binders:
+            counts["n_prompt_packets_with_lean_contract_source_binders"] += 1
+        if (
+            has_source_binders
+            and has_exact_binders
+            and has_source_anchor_context
+            and has_required_anchor_bindings
+            and has_complete_required_anchors
+            and has_lean_contract_source_binders
+        ):
+            counts["n_prompt_packets_with_source_grounded_authoring_handoff"] += 1
+    return counts
 
 
 def _lean_parse_error_source_fragments_from_excerpts(

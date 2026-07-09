@@ -1383,6 +1383,13 @@ def test_authoring_worker_recovers_required_binders_from_signature_probe(
         config=AuthoringWorkerConfig(provider_name="none", dry_run=True),
     )
 
+    assert manifest["n_prompt_packets_with_source_theorem_binders"] == 1
+    assert manifest["n_prompt_packets_with_exact_source_theorem_binders"] == 1
+    assert manifest["n_prompt_packets_with_source_anchor_context"] == 1
+    assert manifest["n_prompt_packets_with_required_anchor_bindings"] == 1
+    assert manifest["n_prompt_packets_with_complete_required_anchors"] == 1
+    assert manifest["n_prompt_packets_with_lean_contract_source_binders"] == 1
+    assert manifest["n_prompt_packets_with_source_grounded_authoring_handoff"] == 1
     prompt_packet = json.loads(
         Path(manifest["authoring_prompt_packets_jsonl"])
         .read_text(encoding="utf-8")
