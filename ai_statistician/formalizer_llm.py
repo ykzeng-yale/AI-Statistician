@@ -7572,6 +7572,30 @@ def _formalizer_mode_specific_instructions(
             "or a formal blocker. These rows are repair memory only, not proof "
             "evidence."
         )
+    unbound_lean_candidate_proof_state_feedback = [
+        row
+        for row in proof_memory_summary.get(
+            "formalizer_lean_candidate_unbound_proof_state_feedback_memory", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if (
+        proof_memory_summary.get(
+            "formalizer_lean_candidate_unbound_proof_state_feedback_available"
+        )
+        or unbound_lean_candidate_proof_state_feedback
+    ):
+        instructions.append(
+            "Unbound Formalizer Lean-candidate proof-state feedback was rejected "
+            "by AgentRuntime lineage checks: inspect "
+            "proof_bank_runtime_memory_summary."
+            "formalizer_lean_candidate_unbound_proof_state_feedback_memory only "
+            "as a lineage blocker. Do not use it as proof-state observations, "
+            "residual goals, or repair evidence. First load or regenerate the "
+            "matching Lean-candidate materialization feedback row, then rerun "
+            "proof-state feedback against that exact artifact."
+        )
     component_gate_feedback_memory = [
         row
         for row in proof_memory_summary.get(
@@ -9544,6 +9568,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "candidate_definition_request",
         "formalizer_lean_candidate_repair_required",
         "formalizer_lean_candidate_proof_state_feedback_available",
+        "formalizer_lean_candidate_unbound_proof_state_feedback_available",
+        "n_formalizer_lean_candidate_unbound_proof_state_feedback_rows",
         "formalizer_lean_candidate_component_gate_feedback_available",
         "formalizer_pseudo_formal_packet_component_gate_feedback_available",
         "formalizer_pseudo_formal_packet_component_gate_failure_available",
@@ -9554,6 +9580,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_lean_candidate_repair_manifest_paths",
         "formalizer_lean_candidate_repair_memory",
         "formalizer_lean_candidate_proof_state_feedback_memory",
+        "formalizer_lean_candidate_unbound_proof_state_feedback_memory",
         "formalizer_lean_candidate_component_gate_feedback_memory",
         "formalizer_pseudo_formal_packet_component_gate_feedback_memory",
         "formalizer_pseudo_formal_packet_component_gate_failure_memory",
@@ -10108,6 +10135,30 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "lean_lsp_mcp_live_called",
                 "target_behavior",
                 "acceptance_gate",
+                "proof_evidence_status",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_lean_candidate_unbound_proof_state_feedback_memory"),
+        list,
+    ):
+        compact[
+            "formalizer_lean_candidate_unbound_proof_state_feedback_memory"
+        ] = _compact_rows(
+            row.get(
+                "formalizer_lean_candidate_unbound_proof_state_feedback_memory",
+                [],
+            ),
+            keys=(
+                "learning_task",
+                "source_manifest_id",
+                "source_materialization_manifest_id",
+                "provider_name",
+                "n_feedback_rows",
+                "attempt_status",
+                "rejection_reason",
+                "target_behavior",
                 "proof_evidence_status",
             ),
             limit=3,

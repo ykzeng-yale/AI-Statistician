@@ -30907,6 +30907,16 @@ def test_runtime_learning_memory_rejects_unbound_formalizer_proof_state_prompt_m
     )
 
     assert "Prior Formalizer Lean-candidate proof-state feedback is active" not in prompt
+    assert (
+        "Unbound Formalizer Lean-candidate proof-state feedback was rejected"
+        in prompt
+    )
+    assert "formalizer_lean_candidate_unbound_proof_state_feedback_memory" in prompt
+    assert "does not match any Formalizer Lean-candidate materialization" in prompt
+    assert (
+        "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_UNBOUND_NOT_PROOF_EVIDENCE"
+        in prompt
+    )
     assert "⊢ stale goal from an unloaded candidate" not in prompt
     assert "stale proof-state row should not steer repair" not in prompt
 
