@@ -3724,6 +3724,26 @@ def _runtime_coding_agent_capability_learning_rows(
             )
         elif (
             capability_id
+            == "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+        ):
+            next_owner = "Formalizer/ProofEngineer"
+            target_behavior = (
+                "Emit exact semantic-definition authoring prompt packets that are "
+                "source-grounded and machine-routable for the Lean/RAG/"
+                "proof-engineering loop: source theorem binders, required anchor "
+                "bindings, complete required anchors, source-anchor context, and "
+                "Lean authoring environment binders must survive the handoff."
+            )
+            recommended_eval = integrated_eval_command
+            success_metric = (
+                "each required in-runtime primary/retry/late exact "
+                "semantic-definition authoring channel has "
+                "n_prompt_packets_with_source_grounded_authoring_handoff>0, or a "
+                "lineage-checked post-runtime channel has recovered a "
+                "source-grounded handoff"
+            )
+        elif (
+            capability_id
             == "exact_semantic_definition_authoring_candidate_verifier_checked"
         ):
             next_owner = "Formalizer/ProofEngineer"
@@ -8933,6 +8953,19 @@ def _architect_capability_gap_execution_contract(
         or "source-theorem semantic-definition" in text
         or "source theorem semantic definition" in text
     )
+    source_grounded_exact_semantic_definition_requested = (
+        "source_grounded" in text
+        or "source-grounded" in text
+        or "source grounded" in text
+        or "source theorem binders" in text
+        or "required anchor binding" in text
+        or "required anchor bindings" in text
+        or "complete required anchors" in text
+        or "source-anchor context" in text
+        or "source anchor context" in text
+        or "lean authoring environment" in text
+        or "machine-routable" in text
+    )
     if (
         routed_subsystem in {"FormalizationEvaluator", "ProofEngineer"}
         and exact_semantic_definition_requested
@@ -8940,6 +8973,10 @@ def _architect_capability_gap_execution_contract(
         contract[
             "capability_eval_requires_exact_semantic_definition_authoring_worker"
         ] = True
+        if source_grounded_exact_semantic_definition_requested:
+            contract[
+                "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff"
+            ] = True
         if (
             "live_attempted" in text
             or "live attempted" in text
@@ -47025,6 +47062,9 @@ def _runtime_formalizer_capability_memory_contract(
         contract[
             "capability_eval_requires_exact_semantic_definition_authoring_worker"
         ] = True
+        contract[
+            "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff"
+        ] = True
     if (
         "exact_semantic_definition_authoring_candidate_verifier_checked"
         in capability_ids
@@ -55119,6 +55159,7 @@ def _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
         "formalizer_live_prover_tool_call_observed",
         "formalizer_lean_candidate_repair_loop_observed",
         "exact_semantic_definition_authoring_worker_live_attempted",
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff",
         "exact_semantic_definition_authoring_candidate_verifier_checked",
     }
     feedback_rows: list[dict[str, Any]] = []

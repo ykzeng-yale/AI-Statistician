@@ -7437,6 +7437,42 @@ def test_runtime_capability_gap_routing_rows_carry_exact_semantic_authoring_metr
     ] == 0
 
 
+def test_runtime_capability_learning_rows_route_source_grounded_authoring_handoff() -> None:
+    rows = _runtime_coding_agent_capability_learning_rows(
+        manifest={"question_ids": ["conformal_prediction_coverage"], "artifacts": {}},
+        capability_table={
+            "coding_agent_capability_ready": False,
+            "rows": [
+                {
+                    "capability_id": (
+                        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+                    ),
+                    "passed": False,
+                    "scope": "integrated_runtime",
+                    "count": 0,
+                    "evidence": "n_source_grounded_prompt_packets=0",
+                    "blocker": (
+                        "missing source theorem binders and required anchor bindings"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["next_owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert row["learning_task"] == "coding_agent_generated_code_capability_feedback"
+    assert row["capability_id"] == (
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    )
+    assert "source-grounded" in row["target_behavior"]
+    assert "n_prompt_packets_with_source_grounded_authoring_handoff" in row[
+        "success_metric"
+    ]
+    assert row["input_summary"]["capability_id"] == row["capability_id"]
+
+
 def test_runtime_audit_preserves_exact_proof_body_candidate_queue_readiness(
     tmp_path: Path,
 ) -> None:
@@ -16613,6 +16649,41 @@ def test_architect_runtime_routes_exact_semantic_verifier_gap_with_typed_contrac
     routing = result.next_task.inputs["architect_context"]["architect_initial_routing"]
     assert routing["requested_subsystem"] == "FormalizationEvaluator"
     assert routing["selected_subsystem"] == "FormalizationEvaluator"
+
+
+def test_architect_capability_gap_contract_requests_source_grounded_authoring_handoff() -> None:
+    feedback = runtime_module._architect_capability_gap_execution_feedback(
+        requested_subsystem="Formalizer/ProofEngineer",
+        routed_subsystem="FormalizationEvaluator",
+        gap_row={
+            "artifact_kind": "RuntimeCapabilityGapRoutingRow",
+            "requirement_id": (
+                "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+            ),
+            "target_behavior": (
+                "Emit exact semantic-definition authoring prompt packets that are "
+                "source-grounded and machine-routable for the Lean/RAG/"
+                "proof-engineering loop."
+            ),
+            "success_metric": (
+                "n_prompt_packets_with_source_grounded_authoring_handoff>0 "
+                "and complete required anchors are preserved"
+            ),
+            "blocker": (
+                "source theorem binders, required anchor bindings, and source-anchor "
+                "context are missing from the authoring handoff"
+            ),
+        },
+    )
+
+    assert feedback["artifact_kind"] == "ArchitectCapabilityGapExecutionFeedback"
+    contract = feedback["runtime_requested_evidence_contract"]
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_authoring_worker"
+    ] is True
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff"
+    ] is True
 
 
 def test_architect_runtime_routes_formalizer_gap_to_algorithm_prerequisite() -> None:
@@ -32755,6 +32826,72 @@ def test_runtime_learning_memory_replays_formalizer_capability_feedback_to_promp
     assert "proof-state routing" in prompt
     assert "static replay" in prompt
     assert "formalizer_lean_candidate_proof_state_request_routed" in prompt
+
+
+def test_formalizer_capability_memory_preserves_source_grounded_authoring_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    memory = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "RuntimeLearningRow",
+                "input_summary": {
+                    "learning_task": "coding_agent_generated_code_capability_feedback",
+                    "question_id": question.id,
+                    "capability_id": (
+                        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+                    ),
+                    "next_owner_subsystem": "Formalizer/ProofEngineer",
+                    "target_behavior": (
+                        "emit exact semantic-definition authoring prompt packets "
+                        "that are source-grounded and machine-routable"
+                    ),
+                    "success_metric": (
+                        "n_prompt_packets_with_source_grounded_authoring_handoff>0"
+                    ),
+                    "blocker": (
+                        "source theorem binders and required anchor bindings missing"
+                    ),
+                    "evidence": "n_source_grounded_prompt_packets=0",
+                    "proof_evidence_status": (
+                        "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
+                    ),
+                    "boundary": (
+                        "Source-grounded authoring capability memory is prompt "
+                        "routing only."
+                    ),
+                },
+            }
+        ],
+    }
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formalizer_lean_candidate_capability_feedback_available"] is True
+    capability_memory = summary[
+        "formalizer_lean_candidate_capability_feedback_memory"
+    ]
+    assert capability_memory[0]["capability_id"] == (
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    )
+    contract = runtime_module._runtime_formalizer_capability_memory_contract(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_authoring_worker"
+    ] is True
+    assert contract[
+        "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff"
+    ] is True
 
 
 def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None:
