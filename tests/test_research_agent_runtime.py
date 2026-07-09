@@ -93926,6 +93926,12 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
         == 0
     )
     assert (
+        agenda_contract[
+            "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
+        ]
+        == 1
+    )
+    assert (
         manifest[
             "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
         ]
@@ -94487,10 +94493,51 @@ def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_gap() -> None
     assert routing_row["next_owner_subsystem"] == "FormalizationEvaluator"
     assert "validator_ready_copy_contract" in routing_row["target_behavior"]
     assert "failure_repair_seed_invalid_rows=0" in routing_row["success_metric"]
+    assert "copy_ready_retry_next_action_rows>=failed_rows" in routing_row[
+        "success_metric"
+    ]
     assert (
         routing_row["proof_evidence_status"]
         == "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_runtime_capability_scorecard_routes_pf_failure_copy_ready_agenda_gap() -> None:
+    payload = {
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_ready_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_exact_semantic_copy_ready_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items": 0,
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+        "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes": [
+            PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        ],
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["formalizer_pseudo_formal_packet_failure_repair_copy_ready"]
+
+    assert row["passed"] is False
+    assert "runtime_copy_ready_retry_task_rows=1" in row["evidence"]
+    assert "runtime_copy_ready_retry_next_action_rows=0" in row["evidence"]
+    assert "retry handoff" in row["blocker"]
+
+    routing_rows = _runtime_capability_gap_routing_rows(scorecard, payload)
+    routing = {row["requirement_id"]: row for row in routing_rows}
+    routing_row = routing[
+        "formalizer_pseudo_formal_packet_failure_repair_copy_ready"
+    ]
+    assert "copy_ready_retry_next_action_rows>=failed_rows" in routing_row[
+        "success_metric"
+    ]
 
 
 def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> None:
@@ -94502,6 +94549,14 @@ def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> 
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_satisfied_rows": 1,
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_contract_unsatisfied_rows": 0,
         "n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_repair_seed_invalid_rows": 0,
+        "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows": 1,
+        "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items": 1,
+        "runtime_next_action_agenda_triggers": {
+            "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED": 1
+        },
+        "runtime_next_action_agenda_generated_queue_names": {
+            "formalizer_pf_bv_copy_ready_retries": 1
+        },
         "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_required_target_lanes": [
             PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
         ],
@@ -94517,6 +94572,7 @@ def test_runtime_capability_scorecard_accepts_pf_failure_copy_ready_repair() -> 
     assert row["passed"] is True
     assert row["blocker"] == ""
     assert "runtime_failure_exact_semantic_copy_ready_rows=1" in row["evidence"]
+    assert "runtime_copy_ready_retry_next_action_rows=1" in row["evidence"]
 
 
 def test_runtime_formalizer_pseudo_formal_packet_eval_timeout_writes_failure_manifest(

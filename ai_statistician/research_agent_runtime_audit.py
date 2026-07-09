@@ -1935,6 +1935,10 @@ def _runtime_next_action_agenda_contract_audit_summary(
         and n_duplicate_ids == 0
         and n_route_critical_missing_target == 0
     )
+    pf_copy_ready_retry_next_action_items = max(
+        int(triggers.get("FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED", 0) or 0),
+        int(generated_queue_names.get("formalizer_pf_bv_copy_ready_retries", 0) or 0),
+    )
     return {
         "artifact_kind": "RuntimeNextActionAgendaContractAudit",
         "runtime_next_action_agenda_contract_complete": complete,
@@ -1960,6 +1964,9 @@ def _runtime_next_action_agenda_contract_audit_summary(
         "runtime_next_action_agenda_triggers": dict(sorted(triggers.items())),
         "runtime_next_action_agenda_generated_queue_names": dict(
             sorted(generated_queue_names.items())
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items": (
+            pf_copy_ready_retry_next_action_items
         ),
         "runtime_next_action_agenda_contract_issues": issues,
         "boundary": (
@@ -5218,6 +5225,11 @@ def audit_research_agent_runtime(
         "runtime_next_action_agenda_generated_queue_names": dict(
             runtime_next_action_agenda_contract_summary[
                 "runtime_next_action_agenda_generated_queue_names"
+            ]
+        ),
+        "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items": int(
+            runtime_next_action_agenda_contract_summary[
+                "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
             ]
         ),
         "runtime_next_action_agenda_contract_issues": list(
@@ -19432,6 +19444,49 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    runtime_formalizer_pseudo_formal_component_learning_copy_ready_retry_task_rows = int(
+        payload.get(
+            "n_runtime_formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task_rows",
+            0,
+        )
+        or 0
+    )
+    runtime_pf_retry_agenda_generated_queue_names = (
+        payload.get("runtime_next_action_agenda_generated_queue_names", {})
+        if isinstance(
+            payload.get("runtime_next_action_agenda_generated_queue_names", {}),
+            Mapping,
+        )
+        else {}
+    )
+    runtime_pf_retry_agenda_triggers = (
+        payload.get("runtime_next_action_agenda_triggers", {})
+        if isinstance(payload.get("runtime_next_action_agenda_triggers", {}), Mapping)
+        else {}
+    )
+    runtime_formalizer_pseudo_formal_component_learning_copy_ready_retry_next_action_rows = max(
+        int(
+            payload.get(
+                "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items",
+                0,
+            )
+            or 0
+        ),
+        int(
+            runtime_pf_retry_agenda_triggers.get(
+                "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
+                0,
+            )
+            or 0
+        ),
+        int(
+            runtime_pf_retry_agenda_generated_queue_names.get(
+                "formalizer_pf_bv_copy_ready_retries",
+                0,
+            )
+            or 0
+        ),
+    )
     runtime_formalizer_pseudo_formal_component_gate_handoff_diagnostic_rows = int(
         payload.get(
             "n_runtime_formalizer_pseudo_formal_packet_component_gate_exact_rows_handoff_diagnostic_rows",
@@ -19522,6 +19577,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
             and runtime_formalizer_pseudo_formal_component_learning_failure_invalid_seed_rows
             == 0
+            and runtime_formalizer_pseudo_formal_component_learning_copy_ready_retry_task_rows
+            >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
+            and runtime_formalizer_pseudo_formal_component_learning_copy_ready_retry_next_action_rows
+            >= runtime_formalizer_pseudo_formal_component_learning_failed_rows
             and (
                 not runtime_formalizer_pseudo_formal_component_learning_failure_requires_exact_copy
                 or runtime_formalizer_pseudo_formal_component_learning_failure_exact_copy_ready_rows
@@ -24155,6 +24214,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_unsatisfied_rows} "
                 "runtime_failure_repair_seed_invalid_rows="
                 f"{runtime_formalizer_pseudo_formal_component_learning_failure_invalid_seed_rows} "
+                "runtime_copy_ready_retry_task_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_copy_ready_retry_task_rows} "
+                "runtime_copy_ready_retry_next_action_rows="
+                f"{runtime_formalizer_pseudo_formal_component_learning_copy_ready_retry_next_action_rows} "
                 "runtime_failure_copy_routable_work_order_rows="
                 f"{runtime_formalizer_pseudo_formal_component_learning_failure_copy_routable_rows} "
                 "runtime_failure_required_target_lanes="
@@ -24166,10 +24229,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
             (
                 "Formalizer PF/BV component-gate failure memory is not "
-                "runtime-recomputed as validator-copy-ready for exact-semantic "
-                "repair; rerunning Formalizer could copy a malformed seed or "
-                "continue invalid PF/BV packet retries instead of producing "
-                "source-anchored, lane-routable repair rows"
+                "runtime-recomputed as validator-copy-ready and promoted to an "
+                "actionable Formalizer retry agenda item for exact-semantic "
+                "repair; rerunning Formalizer could copy a malformed seed, lose "
+                "the retry handoff, or continue invalid PF/BV packet retries "
+                "instead of producing source-anchored, lane-routable repair rows"
             ),
             scope="component_calibration",
             **_runtime_resume_scorecard_routing(
@@ -24189,7 +24253,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "failure_copy_contract_satisfied_rows>=failed_rows, "
                     "failure_exact_semantic_copy_ready_rows>=failed_rows when "
                     "exact semantic definition is required, and "
-                    "failure_repair_seed_invalid_rows=0"
+                    "failure_repair_seed_invalid_rows=0, "
+                    "copy_ready_retry_task_rows>=failed_rows, and "
+                    "copy_ready_retry_next_action_rows>=failed_rows"
                 ),
             ),
         ),
