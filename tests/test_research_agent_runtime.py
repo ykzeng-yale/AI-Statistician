@@ -59209,6 +59209,42 @@ theorem exact_source_claim (claim : Prop) : claim := by
     ]
 
 
+def test_runtime_extracts_generic_lean_goal_excerpt_from_diagnostics() -> None:
+    diagnostics = [
+        "/tmp/exact_source_candidate.lean:4:2: error: unsolved goals",
+        "error: unsolved goals",
+        "hExchange : ExchangeableLike mu sample",
+        "hMoment : Integrable f mu",
+        "⊢ mu {x | f x <= t} <= alpha",
+        "5:simp:returncode=1:compiled=False:diagnostic_kind=unsolved_goals",
+    ]
+
+    assert runtime_module._runtime_proof_body_goal_excerpt_lines_from_diagnostics(
+        diagnostics
+    ) == [
+        "hExchange : ExchangeableLike mu sample",
+        "hMoment : Integrable f mu",
+        "⊢ mu {x | f x <= t} <= alpha",
+    ]
+
+
+def test_runtime_goal_excerpt_diagnostic_fallback_is_not_conformal_binder_tuple() -> None:
+    source = inspect.getsource(
+        runtime_module._runtime_learning_memory_source_theorem_exact_candidate_repairs
+    )
+
+    assert "_runtime_proof_body_goal_excerpt_lines_from_diagnostics" in source
+    assert "value.startswith((\"Ω :\", \"P :\", \"n2 :\"" not in source
+    for marker in (
+        "\"hexch :\"",
+        "\"q_hat :\"",
+        "\"hC :\"",
+        "\"alpha :\"",
+        "\"n2 :\"",
+    ):
+        assert marker not in source
+
+
 def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)

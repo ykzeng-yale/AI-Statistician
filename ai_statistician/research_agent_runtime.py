@@ -48453,6 +48453,50 @@ def _proof_body_goal_excerpt_contains_goal(excerpt: Sequence[Any]) -> bool:
     return any("⊢" in str(value) for value in excerpt or [])
 
 
+def _runtime_looks_like_lean_context_or_goal_excerpt_line(value: Any) -> bool:
+    line = str(value or "").strip()
+    if not line:
+        return False
+    lowered = line.lower()
+    if lowered.startswith(("error:", "warning:", "info:", "trace:")):
+        return False
+    if any(
+        marker in lowered
+        for marker in (
+            "returncode=",
+            "compiled=",
+            "diagnostic_kind=",
+        )
+    ):
+        return False
+    if re.search(r"\.lean:\d+(?::\d+)?", line):
+        return False
+    if "⊢" in line or line.startswith("|-"):
+        return True
+    if line.startswith(("∀", "∃")):
+        return True
+    if ":" not in line:
+        return False
+    binder_prefix = line.split(":", 1)[0].strip().replace("'", "_")
+    if not binder_prefix or any(
+        char.isspace() or char in "./\\" for char in binder_prefix
+    ):
+        return False
+    return binder_prefix.isidentifier()
+
+
+def _runtime_proof_body_goal_excerpt_lines_from_diagnostics(
+    diagnostics: Iterable[Any],
+    *,
+    limit: int = 12,
+) -> list[str]:
+    return [
+        line
+        for line in _runtime_string_items(diagnostics)
+        if _runtime_looks_like_lean_context_or_goal_excerpt_line(line)
+    ][:limit]
+
+
 def _runtime_row_target_identity_keys(row: Mapping[str, Any]) -> tuple[str, ...]:
     values: list[str] = []
     sources: list[Mapping[str, Any]] = [row]
@@ -50990,9 +51034,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 if str(value).strip()
             ][:12]
         if not proof_body_goal_excerpt:
-            proof_body_goal_excerpt = [
-                value for value in diagnostics if "⊢" in value or value.startswith(("Ω :", "P :", "n2 :", "alpha :", "s :", "hexch :", "q_hat :", "hq :", "hC :"))
-            ][:12]
+            proof_body_goal_excerpt = (
+                _runtime_proof_body_goal_excerpt_lines_from_diagnostics(
+                    diagnostics,
+                    limit=12,
+                )
+            )
         exact_goal_shape_obligation_ids = _runtime_row_string_values(
             row,
             "exact_goal_shape_obligation_ids",
