@@ -14759,6 +14759,12 @@ def _runtime_capability_gap_audit_metrics(
             "source_theorem_exact_semantic_definition_late_authoring",
             "post_runtime_exact_semantic_definition_authoring",
         ),
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff": (
+            "n_source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_authoring",
+            "source_theorem_exact_semantic_definition_late_authoring",
+            "post_runtime_exact_semantic_definition_authoring",
+        ),
         "exact_semantic_definition_authoring_worker_live_attempted": (
             "n_source_theorem_exact_semantic_definition_authoring",
             "source_theorem_exact_semantic_definition_authoring",
@@ -15005,6 +15011,45 @@ def _runtime_capability_gap_audit_metrics(
             "post_runtime_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows",
             "post_runtime_exact_semantic_definition_authoring_worker_boundary",
         ),
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff": (
+            "n_source_theorem_exact_semantic_definition_authoring_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_n_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_source",
+            "source_theorem_exact_semantic_definition_authoring_worker_required",
+            "source_theorem_exact_semantic_definition_authoring_worker_requested",
+            "source_theorem_exact_semantic_definition_authoring_worker_ran",
+            "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets",
+            *(
+                f"source_theorem_exact_semantic_definition_authoring_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
+            "source_theorem_exact_semantic_definition_authoring_retry_tasks_required",
+            "source_theorem_exact_semantic_definition_authoring_retry_n_tasks",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran",
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets",
+            *(
+                f"source_theorem_exact_semantic_definition_authoring_retry_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
+            "source_theorem_exact_semantic_definition_late_authoring_worker_ran",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_manifests",
+            "source_theorem_exact_semantic_definition_late_authoring_worker_n_prompt_packets",
+            *(
+                f"source_theorem_exact_semantic_definition_late_authoring_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
+            "post_runtime_exact_semantic_definition_authoring_worker_attached",
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok",
+            "post_runtime_exact_semantic_definition_authoring_worker_ran",
+            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets",
+            *(
+                f"post_runtime_exact_semantic_definition_authoring_worker_{key}"
+                for key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+            ),
+            "post_runtime_exact_semantic_definition_authoring_worker_boundary",
+        ),
         "exact_semantic_definition_authoring_worker_live_attempted": (
             "n_source_theorem_exact_semantic_definition_authoring_tasks",
             "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_available",
@@ -15109,6 +15154,17 @@ def _runtime_capability_gap_audit_metrics(
     metrics: dict[str, Any] = {}
     for key in exact_keys:
         if key not in payload:
+            if (
+                requirement_id
+                == "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+                and any(
+                    key.endswith(f"_{count_key}")
+                    for count_key in EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS
+                )
+            ):
+                metrics[key] = 0
+                if len(metrics) >= 48:
+                    return metrics
             continue
         metrics[key] = _runtime_capability_gap_json_safe(payload.get(key))
         if len(metrics) >= 48:
@@ -26387,6 +26443,60 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                     "semantic-definition authoring channel has worker_ran "
                     "and n_prompt_packets>0, or a lineage-checked "
                     "post-runtime channel has recovered the handoff"
+                ),
+                recommended_command=(
+                    _exact_semantic_authoring_worker_recovery_command(payload) or None
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_authoring_worker_source_grounded_handoff",
+            exact_semantic_definition_authoring["source_grounded_handoff_ready"],
+            (
+                "authoring_tasks="
+                f"{exact_semantic_definition_authoring['n_tasks']} "
+                "required="
+                f"{exact_semantic_definition_authoring['required']} "
+                "required_channels="
+                f"{exact_semantic_definition_authoring['required_channels']} "
+                "prompt_packets="
+                f"{exact_semantic_definition_authoring['n_prompt_packets']} "
+                "source_grounded_prompt_packets="
+                f"{exact_semantic_definition_authoring['n_source_grounded_prompt_packets']} "
+                "prompt_ready_channels="
+                f"{exact_semantic_definition_authoring['prompt_ready_channels']} "
+                "source_grounded_prompt_ready_channels="
+                f"{exact_semantic_definition_authoring['source_grounded_prompt_ready_channels']} "
+                "missing_source_grounded_handoff_channels="
+                f"{exact_semantic_definition_authoring['missing_source_grounded_handoff_channels']} "
+                "post_runtime_attached="
+                f"{exact_semantic_definition_authoring['post_runtime_attached']} "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_definition_authoring['post_runtime_lineage_ok']} "
+                "post_runtime_source_grounded_handoff_ready="
+                f"{exact_semantic_definition_authoring['post_runtime_source_grounded_handoff_ready']}"
+            ),
+            (
+                "exact semantic-definition authoring emitted prompt packets, "
+                "but one or more required primary/retry/late lanes lacked a "
+                "source-grounded prompt packet with source theorem binders, "
+                "required anchor bindings, complete required anchors, source "
+                "anchor context, and Lean authoring environment binders"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="Formalizer/ProofEngineer",
+                target_behavior=(
+                    "Emit exact semantic-definition authoring prompt packets "
+                    "that are source-grounded and machine-routable for the "
+                    "Lean/RAG/proof-engineering loop."
+                ),
+                success_metric=(
+                    "each required in-runtime primary/retry/late exact "
+                    "semantic-definition authoring channel has "
+                    "n_prompt_packets_with_source_grounded_authoring_handoff>0, "
+                    "or a lineage-checked post-runtime channel has recovered "
+                    "a source-grounded handoff"
                 ),
                 recommended_command=(
                     _exact_semantic_authoring_worker_recovery_command(payload) or None

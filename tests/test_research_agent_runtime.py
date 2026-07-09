@@ -7359,6 +7359,18 @@ def test_runtime_capability_gap_routing_rows_carry_exact_semantic_authoring_metr
     assert handoff_metrics[
         "post_runtime_exact_semantic_definition_authoring_worker_attached"
     ] is False
+    source_grounded_metrics = routing_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["scorecard_payload"]["audit_metrics"]
+    assert source_grounded_metrics[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
+    ] == 0
+    assert source_grounded_metrics[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
+    ] == 0
+    assert source_grounded_metrics[
+        "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
+    ] == 0
 
     live_metrics = routing_rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
@@ -89067,6 +89079,9 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
     assert rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is False
+    assert rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is False
     assert (
         "one or more required primary/retry/late authoring lanes"
         in rows[
@@ -89088,8 +89103,33 @@ def test_runtime_capability_scorecard_flags_unrun_exact_semantic_authoring_worke
         "exact_semantic_definition_authoring_worker_handoff_not_dropped"
     ]["passed"] is True
     assert rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is False
+    assert "source_grounded_prompt_packets=0" in rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["evidence"]
+    assert (
+        "source theorem binders"
+        in rows[
+            "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+        ]["blocker"]
+    )
+    assert rows[
         "exact_semantic_definition_authoring_worker_live_attempted"
     ]["passed"] is False
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is True
+    assert "source_grounded_prompt_ready_channels=['primary']" in rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["evidence"]
 
     payload[
         "source_theorem_exact_semantic_definition_authoring_worker_dry_run"
@@ -89292,6 +89332,112 @@ def test_runtime_capability_scorecard_requires_every_required_exact_semantic_aut
     assert "prompt_ready_channels=['primary', 'post_runtime']" in row["evidence"]
     assert "missing_handoff_channels=['retry']" in row["evidence"]
     assert "post_runtime_handoff_ready=True" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_requires_every_required_exact_semantic_authoring_lane_source_grounded() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 6,
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_tasks_required": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_n_tasks": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": True,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    handoff_row = rows["exact_semantic_definition_authoring_worker_handoff_not_dropped"]
+    source_grounded_row = rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]
+
+    assert handoff_row["passed"] is True
+    assert source_grounded_row["passed"] is False
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is False
+    assert "required_channels=['primary', 'retry']" in source_grounded_row["evidence"]
+    assert (
+        "source_grounded_prompt_ready_channels=['primary']"
+        in source_grounded_row["evidence"]
+    )
+    assert (
+        "missing_source_grounded_handoff_channels=['retry']"
+        in source_grounded_row["evidence"]
+    )
+
+    payload[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
+    ] = 1
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    capability_table = _runtime_coding_agent_capability_table(payload)
+    capability_rows = {
+        row["capability_id"]: row for row in capability_table["rows"]
+    }
+    source_grounded_row = rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]
+
+    assert source_grounded_row["passed"] is True
+    assert capability_rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]["passed"] is True
+    assert (
+        "source_grounded_prompt_ready_channels=['primary', 'retry']"
+        in source_grounded_row["evidence"]
+    )
+    assert "missing_source_grounded_handoff_channels=[]" in source_grounded_row[
+        "evidence"
+    ]
+
+    payload.update(
+        {
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran": False,
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets": 0,
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 0,
+            "post_runtime_exact_semantic_definition_authoring_worker_attached": True,
+            "post_runtime_exact_semantic_definition_authoring_worker_lineage_ok": True,
+            "post_runtime_exact_semantic_definition_authoring_worker_ran": True,
+            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets": 1,
+            "post_runtime_exact_semantic_definition_authoring_worker_n_prompt_packets_with_source_grounded_authoring_handoff": 1,
+        }
+    )
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    source_grounded_row = rows[
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+    ]
+
+    assert source_grounded_row["passed"] is True
+    assert (
+        "source_grounded_prompt_ready_channels=['primary', 'post_runtime']"
+        in source_grounded_row["evidence"]
+    )
+    assert "missing_source_grounded_handoff_channels=['retry']" in source_grounded_row[
+        "evidence"
+    ]
+    assert "post_runtime_source_grounded_handoff_ready=True" in source_grounded_row[
+        "evidence"
+    ]
 
 
 def test_runtime_capability_scorecard_requires_every_required_exact_semantic_authoring_lane_verified() -> None:

@@ -2604,6 +2604,9 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     exact_semantic_authoring_live_ready = bool(
         exact_semantic_authoring["live_ready"]
     )
+    exact_semantic_authoring_source_grounded_ready = bool(
+        exact_semantic_authoring["source_grounded_handoff_ready"]
+    )
     exact_semantic_authoring_generic_attempts = int(
         exact_semantic_authoring["n_llm_attempted"]
     )
@@ -3114,6 +3117,44 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                     "repair proposal, bound proof-state feedback, bound local "
                     "Lean diagnostics, and a locally compiled repaired candidate; "
                     "attached component calibration is reported separately"
+                )
+            ),
+        },
+        {
+            "capability_id": "exact_semantic_definition_authoring_worker_source_grounded_handoff",
+            "passed": exact_semantic_authoring_source_grounded_ready,
+            "count": int(exact_semantic_authoring["n_source_grounded_prompt_packets"]),
+            "evidence": (
+                "required="
+                f"{exact_semantic_authoring_required}; "
+                "required_channels="
+                f"{exact_semantic_authoring['required_channels']}; "
+                "prompt_ready_channels="
+                f"{exact_semantic_authoring['prompt_ready_channels']}; "
+                "source_grounded_prompt_ready_channels="
+                f"{exact_semantic_authoring['source_grounded_prompt_ready_channels']}; "
+                "missing_source_grounded_handoff_channels="
+                f"{exact_semantic_authoring['missing_source_grounded_handoff_channels']}; "
+                "n_prompt_packets="
+                f"{exact_semantic_authoring['n_prompt_packets']}; "
+                "n_source_grounded_prompt_packets="
+                f"{exact_semantic_authoring['n_source_grounded_prompt_packets']}; "
+                "post_runtime_attached="
+                f"{exact_semantic_authoring['post_runtime_attached']}; "
+                "post_runtime_lineage_ok="
+                f"{exact_semantic_authoring['post_runtime_lineage_ok']}; "
+                "post_runtime_source_grounded_handoff_ready="
+                f"{exact_semantic_authoring['post_runtime_source_grounded_handoff_ready']}"
+            ),
+            "blocker": (
+                ""
+                if exact_semantic_authoring_source_grounded_ready
+                else (
+                    "exact semantic-definition authoring prompt packets were "
+                    "missing source theorem binders, required anchor bindings, "
+                    "complete required anchors, source-anchor context, or Lean "
+                    "authoring environment binders; downstream Lean/RAG/proof "
+                    "workers cannot consume empty-shell prompt handoffs"
                 )
             ),
         },
@@ -46957,6 +46998,13 @@ def _runtime_formalizer_capability_memory_contract(
         ] = True
         contract[
             "capability_eval_requires_exact_semantic_definition_authoring_live_attempt"
+        ] = True
+    if (
+        "exact_semantic_definition_authoring_worker_source_grounded_handoff"
+        in capability_ids
+    ):
+        contract[
+            "capability_eval_requires_exact_semantic_definition_authoring_worker"
         ] = True
     if (
         "exact_semantic_definition_authoring_candidate_verifier_checked"
