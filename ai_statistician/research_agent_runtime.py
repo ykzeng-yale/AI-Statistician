@@ -244,6 +244,8 @@ from .exact_semantic_definition_policy import (
     exact_semantic_definition_placeholder_policy,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_premise_binder_aliases,
+    exact_semantic_definition_source_to_bridge_semantic_terms,
+    exact_semantic_definition_source_to_bridge_source_anchor_terms,
     exact_semantic_definition_source_lookup_aliases,
 )
 from .source_theorem_exact_semantic_definition_verifier_gate_executor import (
@@ -52439,42 +52441,30 @@ def _source_theorem_proof_body_adapter_required_reasons(
         return []
     if not _bool_like(repair.get("proof_body_goal_reached", False)):
         return []
-    if not _runtime_truth_row_has_proof_body_signature_artifact(repair):
+    input_summary_raw = repair.get("input_summary", {})
+    input_summary = (
+        input_summary_raw if isinstance(input_summary_raw, Mapping) else {}
+    )
+    if not _runtime_truth_row_has_proof_body_signature_artifact(
+        repair,
+        input_summary,
+    ):
         return []
 
-    goal_lines = [
-        str(value)
-        for value in (
-            repair.get("proof_body_goal_excerpt", [])
-            or repair.get("diagnostics", [])
-            or []
-        )
-        if str(value).strip()
-    ]
+    goal_lines = _runtime_proof_body_goal_lines_for_adapter_detection(
+        repair,
+        input_summary=input_summary,
+    )
     goal_text = "\n".join(goal_lines)
     lower_goal = goal_text.lower()
-    source_hypothesis_markers = (
-        "hexch :",
-        "hq :",
-        "hc :",
-        "exchangeable",
-        "orderstat",
-        "order statistic",
-        "q_hat",
+    has_source_level_goal = _runtime_text_has_any_policy_marker(
+        lower_goal,
+        _runtime_source_to_bridge_source_level_goal_markers(),
     )
-    has_source_level_goal = any(
-        marker in lower_goal for marker in source_hypothesis_markers
-    )
-    bridge_markers = (
-        "split_conformal_finite_sample_coverage_reduction_closure",
-        "good_rank",
-        "bad_rank",
-        "rank_uniform",
-        "coverage_bridge",
-        "bridge",
-    )
-    has_usable_bridge_hypothesis = any(
-        marker in lower_goal for marker in bridge_markers
+    bridge_markers = _runtime_source_to_bridge_available_bridge_markers()
+    has_usable_bridge_hypothesis = _runtime_text_has_any_policy_marker(
+        lower_goal,
+        bridge_markers,
     )
     attempt_text = "\n".join(
         str(value)
@@ -52490,28 +52480,24 @@ def _source_theorem_proof_body_adapter_required_reasons(
                 or "unknown identifier" in attempt_text
                 or "unknown constant" in attempt_text
             )
-            and any(marker in attempt_text for marker in bridge_markers)
+            and _runtime_text_has_any_policy_marker(attempt_text, bridge_markers)
         )
     )
 
-    constraints = [
-        str(value)
-        for value in (
-            repair.get("semantic_alignment_constraints", [])
-            or repair.get("semantic_alignment_blockers", [])
-            or []
-        )
-        if str(value).strip()
-    ]
+    constraints = _runtime_string_items(
+        repair.get("semantic_alignment_constraints", []),
+        input_summary.get("semantic_alignment_constraints", []),
+        repair.get("semantic_alignment_blockers", []),
+        input_summary.get("semantic_alignment_blockers", []),
+    )
     constraints_text = "\n".join(constraints).lower()
     source_theorem_kernel_evidence_eligible = bool(
         repair.get("source_theorem_kernel_evidence_eligible", True)
     )
-    semantic_alignment_blockers = [
-        str(value)
-        for value in repair.get("semantic_alignment_blockers", []) or []
-        if str(value).strip()
-    ]
+    semantic_alignment_blockers = _runtime_string_items(
+        repair.get("semantic_alignment_blockers", []),
+        input_summary.get("semantic_alignment_blockers", []),
+    )
     semantic_or_review_gate_open = (
         not source_theorem_kernel_evidence_eligible
         or bool(semantic_alignment_blockers)
@@ -52527,18 +52513,9 @@ def _source_theorem_proof_body_adapter_required_reasons(
     alignment_constraints_indicate_adapter_shape = (
         source_theorem_kernel_evidence_eligible
         and not semantic_alignment_blockers
-        and any(
-            marker in constraints_text
-            for marker in (
-                "tie",
-                "indexing convention",
-                "exchangeab",
-                "order-statistic",
-                "order statistic",
-                "rank",
-                "quantile",
-                "bridge",
-            )
+        and _runtime_text_has_any_policy_marker(
+            constraints_text,
+            _runtime_source_to_bridge_adapter_shape_markers(),
         )
     )
 
@@ -52564,7 +52541,7 @@ def _source_theorem_proof_body_adapter_required_reasons(
         )
     elif alignment_constraints_indicate_adapter_shape:
         reasons.append(
-            "reviewed semantic-alignment constraints identify exchangeability/rank/quantile bridge structure needed by an adapter"
+            "reviewed semantic-alignment constraints identify policy-described source-to-bridge structure needed by an adapter"
         )
     if attempted_missing_bridge_dependency:
         return reasons
@@ -52581,6 +52558,127 @@ def _runtime_source_to_bridge_premise_binder_alias_hint() -> str:
     if len(aliases) > 6:
         shown += "/..."
     return shown
+
+
+def _runtime_text_has_any_policy_marker(text: str, markers: Iterable[str]) -> bool:
+    haystack = str(text or "").lower()
+    for marker in markers:
+        value = str(marker or "").strip().lower()
+        if len(value) < 2:
+            continue
+        if re.search(
+            rf"(?<![A-Za-z0-9_]){re.escape(value)}(?![A-Za-z0-9_])",
+            haystack,
+        ):
+            return True
+    return False
+
+
+def _runtime_proof_body_goal_lines_for_adapter_detection(
+    row: Mapping[str, Any],
+    *,
+    input_summary: Mapping[str, Any],
+) -> list[str]:
+    live_request_raw = input_summary.get("candidate_live_proof_state_request", {})
+    live_request = (
+        live_request_raw if isinstance(live_request_raw, Mapping) else {}
+    )
+    return _runtime_string_items(
+        row.get("proof_body_goal_excerpt", []),
+        input_summary.get("proof_body_goal_excerpt", []),
+        live_request.get("proof_body_goal_excerpt", []),
+        row.get("diagnostics", []),
+        input_summary.get("diagnostics", []),
+    )
+
+
+def _runtime_string_items(*values: Any) -> list[str]:
+    items: list[str] = []
+    for value in values:
+        if isinstance(value, str):
+            if value.strip():
+                items.append(value)
+            continue
+        if isinstance(value, Mapping):
+            continue
+        try:
+            iterator = iter(value or [])
+        except TypeError:
+            text = str(value or "").strip()
+            if text:
+                items.append(text)
+            continue
+        for item in iterator:
+            text = str(item or "").strip()
+            if text:
+                items.append(text)
+    return items
+
+
+def _runtime_source_to_bridge_source_level_goal_markers() -> tuple[str, ...]:
+    return _runtime_policy_text_markers(
+        (
+            "source theorem",
+            "source-level",
+            "source hypothesis",
+            "source hypotheses",
+            *exact_semantic_definition_source_to_bridge_source_anchor_terms(),
+        )
+    )
+
+
+def _runtime_source_to_bridge_available_bridge_markers() -> tuple[str, ...]:
+    source_anchor_keys = {
+        _runtime_policy_marker_key(marker)
+        for marker in exact_semantic_definition_source_to_bridge_source_anchor_terms()
+    }
+    premise_bridge_aliases = tuple(
+        alias
+        for alias in exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+        if _runtime_policy_marker_key(alias)
+        and _runtime_policy_marker_key(alias) not in source_anchor_keys
+    )
+    return _runtime_policy_text_markers(
+        (
+            "bridge",
+            "reduction",
+            "closure",
+            "adapter",
+            *premise_bridge_aliases,
+        )
+    )
+
+
+def _runtime_source_to_bridge_adapter_shape_markers() -> tuple[str, ...]:
+    return _runtime_policy_text_markers(
+        (
+            "bridge",
+            "source-to-bridge",
+            "source to bridge",
+            "adapter",
+            "reduction",
+            "closure",
+            *exact_semantic_definition_source_to_bridge_semantic_terms(),
+        )
+    )
+
+
+def _runtime_policy_text_markers(values: Iterable[str]) -> tuple[str, ...]:
+    markers: list[str] = []
+    for value in values:
+        raw = str(value or "").strip().lower()
+        if len(raw) >= 2:
+            markers.append(raw)
+        markers.extend(
+            token
+            for token in re.split(r"[^0-9A-Za-z_]+", raw)
+            if len(token) >= 2
+        )
+    return tuple(dict.fromkeys(markers))
+
+
+def _runtime_policy_marker_key(value: str) -> str:
+    return re.sub(r"[^0-9A-Za-z]+", "", str(value or "").lower())
 
 
 def _runtime_source_to_bridge_adapter_blocker_symbols() -> set[str]:

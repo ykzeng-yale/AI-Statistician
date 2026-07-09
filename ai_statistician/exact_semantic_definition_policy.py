@@ -523,6 +523,54 @@ def exact_semantic_definition_source_to_bridge_premise_binder_aliases() -> tuple
     return tuple(dict.fromkeys(aliases))
 
 
+def exact_semantic_definition_source_to_bridge_source_anchor_terms() -> tuple[
+    str,
+    ...,
+]:
+    terms: list[str] = []
+    seen_policy_ids: set[str] = set()
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        if policy.policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy.policy_id)
+        terms.extend(policy.required_anchor_names)
+        terms.extend(policy.source_to_bridge_required_anchor_names)
+        terms.extend(policy.source_anchor_roles.keys())
+    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES:
+        terms.extend(rule.name_keys)
+        terms.extend(rule.name_prefixes)
+        terms.extend(rule.binder_type_contains)
+    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_FALLBACK_RULES:
+        terms.extend(str(value or "") for value in rule.get("text_contains_any", ()))
+        terms.extend(str(value or "") for value in rule.get("anchor_names", ()))
+    return tuple(dict.fromkeys(term for term in terms if term))
+
+
+def exact_semantic_definition_source_to_bridge_semantic_terms() -> tuple[str, ...]:
+    terms: list[str] = [
+        *EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES,
+    ]
+    seen_policy_ids: set[str] = set()
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        if policy.policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy.policy_id)
+        terms.extend(
+            (
+                policy.placeholder_key,
+                policy.semantic_goal,
+                *policy.placeholder_aliases,
+                *policy.required_adapter_object_names,
+                *policy.semantic_import_required_signal_terms,
+                *policy.source_lookup_search_terms,
+                *policy.source_lookup_aliases,
+                *policy.source_to_bridge_premise_aliases,
+                *policy.source_to_bridge_dependency_requirements,
+            )
+        )
+    return tuple(dict.fromkeys(term for term in terms if term))
+
+
 def exact_semantic_definition_source_to_bridge_anchor_fallback_names(
     *,
     premise_name: str,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import copy
+import inspect
 import json
 import shlex
 import shutil
@@ -62104,7 +62105,7 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
     assert diagnostic["proof_body_attempt_count"] == 5
     assert diagnostic["proof_body_adapter_required_reasons"] == [
         "proof body goal exposes source-level hypotheses but no reusable bridge/reduction hypothesis",
-        "reviewed semantic-alignment constraints identify exchangeability/rank/quantile bridge structure needed by an adapter",
+        "reviewed semantic-alignment constraints identify policy-described source-to-bridge structure needed by an adapter",
     ]
     assert all(
         "semantic alignment or evidence-eligibility gate is still open" not in reason
@@ -68912,12 +68913,26 @@ def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_b
 
 def test_runtime_adapter_repair_guidance_uses_policy_for_bridge_premises() -> None:
     module_source = Path(runtime_module.__file__).read_text(encoding="utf-8")
+    detector_source = inspect.getsource(
+        runtime_module._source_theorem_proof_body_adapter_required_reasons
+    )
 
     assert "hGoodCovered/hRank/hTotal-style" not in module_source
+    assert "source_hypothesis_markers" not in detector_source
+    assert "split_conformal_finite_sample_coverage_reduction_closure" not in (
+        detector_source
+    )
+    assert "good_rank" not in detector_source
+    assert "bad_rank" not in detector_source
     assert (
         "exact_semantic_definition_source_to_bridge_premise_binder_aliases"
         in module_source
     )
+    assert (
+        "exact_semantic_definition_source_to_bridge_source_anchor_terms"
+        in module_source
+    )
+    assert "exact_semantic_definition_source_to_bridge_semantic_terms" in module_source
     assert (
         "exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation"
         in module_source

@@ -20,6 +20,8 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
     exact_semantic_definition_source_to_bridge_premise_aliases,
     exact_semantic_definition_source_to_bridge_premise_binder_aliases,
+    exact_semantic_definition_source_to_bridge_semantic_terms,
+    exact_semantic_definition_source_to_bridge_source_anchor_terms,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
@@ -160,6 +162,15 @@ def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:
         "hCoverage",
     }.issubset(binder_aliases)
     assert "BadRanks" not in binder_aliases
+    source_anchor_terms = set(
+        exact_semantic_definition_source_to_bridge_source_anchor_terms()
+    )
+    assert {"hexch", "hq", "hC", "q_hat", "exchangeable"}.issubset(
+        source_anchor_terms
+    )
+    semantic_terms = set(exact_semantic_definition_source_to_bridge_semantic_terms())
+    assert {"rank", "BadRanks", "hGoodCovered"}.issubset(semantic_terms)
+    assert any("rank-uniformity" in term for term in semantic_terms)
 
 
 def test_placeholder_policy_keeps_alpha_aliases_and_generic_fallback() -> None:
