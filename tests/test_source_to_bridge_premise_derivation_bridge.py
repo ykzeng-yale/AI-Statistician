@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+import ai_statistician.source_to_bridge_premise_derivation_proofengineer_bridge as premise_bridge_module
 from ai_statistician.research_architect import KERNEL_PROOF_BOUNDARY
 from ai_statistician.source_to_bridge_premise_derivation_proofengineer_bridge import (
     resolve_source_to_bridge_premise_derivation_queue_path,
@@ -38,6 +39,16 @@ PROOF_BODY_GOAL_CONTEXT = {
     "conclusion": PROOF_BODY_GOAL_CONCLUSION,
     "proof_evidence_status": "PROOF_BODY_GOAL_CONTEXT_NOT_PROOF_EVIDENCE",
 }
+
+
+def test_source_to_bridge_premise_bridge_uses_policy_for_domain_fallbacks() -> None:
+    module_source = Path(premise_bridge_module.__file__).read_text(encoding="utf-8")
+
+    assert "DEFAULT_ADAPTER_OBJECT_NAMES_REQUIRING_SOURCE_INSTANTIATION" not in module_source
+    assert "source_to_bridge_adapter_object_names_requiring_source_instantiation" in (
+        module_source
+    )
+    assert "source_to_bridge_anchor_fallback_names" in module_source
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

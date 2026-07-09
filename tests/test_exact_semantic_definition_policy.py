@@ -16,6 +16,8 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
     exact_semantic_definition_signature_probe_prelude,
+    exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
+    exact_semantic_definition_source_to_bridge_anchor_fallback_names,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
@@ -275,6 +277,34 @@ def test_policy_owns_formal_environment_symbols_and_repairs() -> None:
     generic_contract = exact_semantic_definition_contract("newDomainObject")
     assert "newDomainObject" in generic_contract["semantic_intent"]
     assert "do not assume the target theorem" in generic_contract["forbidden_shortcuts"]
+
+
+def test_policy_owns_source_to_bridge_anchor_and_adapter_object_fallbacks() -> None:
+    assert exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation() == (
+        "covered",
+        "rank",
+        "BadRanks",
+        "\u03b1",
+        "\u03b1_total",
+    )
+    assert exact_semantic_definition_source_to_bridge_anchor_fallback_names(
+        premise_name="hGoodCovered",
+        premise_target_type="covered \u2286 covered",
+        semantic_requirements=("define covered from the exact source event",),
+    ) == ("hC", "C", "q_hat", "s")
+    assert exact_semantic_definition_source_to_bridge_anchor_fallback_names(
+        premise_name="hRank",
+        premise_target_type="\u2200 r \u2208 BadRanks, P {\u03c9 | rank \u03c9 = r} \u2264 \u03b1 r",
+        semantic_requirements=("derive the rank point-mass bound",),
+    ) == (
+        "hq",
+        "q_hat",
+        "s",
+        "n2",
+        "hn2",
+        "alpha",
+        "halpha",
+    )
 
 
 def test_placeholder_policy_owns_candidate_semantic_risk_rules() -> None:

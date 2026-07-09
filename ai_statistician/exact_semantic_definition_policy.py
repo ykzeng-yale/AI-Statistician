@@ -109,15 +109,19 @@ def _load_policy_pack_policies() -> tuple[
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
     tuple[dict[str, Any], ...],
+    tuple[str, ...],
+    tuple[dict[str, Any], ...],
     str,
 ]:
     policy_dir = Path(__file__).resolve().parent / "policies"
     if not policy_dir.exists():
-        return (), (), (), (), "source_parameter"
+        return (), (), (), (), (), (), "source_parameter"
     policies: list[ExactSemanticDefinitionPlaceholderPolicy] = []
     policy_pack_ids: list[str] = []
     source_anchor_role_rules: list[ExactSemanticDefinitionSourceAnchorRoleRule] = []
     statement_repair_rules: list[dict[str, Any]] = []
+    adapter_object_names: list[str] = []
+    semantic_anchor_fallback_rules: list[dict[str, Any]] = []
     default_source_anchor_role = "source_parameter"
     for path in sorted(policy_dir.glob(_POLICY_PACK_GLOB)):
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -136,6 +140,21 @@ def _load_policy_pack_policies() -> tuple[
         ).strip()
         if default_role:
             default_source_anchor_role = default_role
+        adapter_object_names.extend(
+            _string_tuple(
+                payload.get(
+                    "source_to_bridge_adapter_object_names_requiring_source_instantiation"
+                )
+            )
+        )
+        semantic_anchor_fallback_rules.extend(
+            _source_to_bridge_semantic_anchor_fallback_rule_from_mapping(row)
+            for row in payload.get(
+                "source_to_bridge_semantic_anchor_fallback_rules",
+                [],
+            )
+            if isinstance(row, Mapping)
+        )
         statement_repair_rules.extend(
             _formal_environment_statement_repair_rule_from_mapping(row)
             for row in payload.get("formal_environment_statement_repair_rules", [])
@@ -157,6 +176,8 @@ def _load_policy_pack_policies() -> tuple[
         tuple(dict.fromkeys(policy_pack_ids)),
         tuple(source_anchor_role_rules),
         tuple(statement_repair_rules),
+        tuple(dict.fromkeys(adapter_object_names)),
+        tuple(semantic_anchor_fallback_rules),
         default_source_anchor_role,
     )
 
@@ -297,6 +318,20 @@ def _formal_environment_statement_repair_rule_from_mapping(
     }
 
 
+def _source_to_bridge_semantic_anchor_fallback_rule_from_mapping(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "rule_id": str(row.get("rule_id", "") or "").strip(),
+        "text_contains_any": _string_tuple(row.get("text_contains_any")),
+        "anchor_names": _string_tuple(row.get("anchor_names")),
+        "case_sensitive": _bool_like(
+            row.get("case_sensitive", False),
+            default=False,
+        ),
+    }
+
+
 def _risk_rule_from_mapping(
     row: Mapping[str, Any],
 ) -> ExactSemanticDefinitionCandidateRiskRule:
@@ -381,6 +416,8 @@ def _build_policy_registry() -> tuple[
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
     tuple[dict[str, Any], ...],
+    tuple[str, ...],
+    tuple[dict[str, Any], ...],
     str,
 ]:
     registry: dict[str, ExactSemanticDefinitionPlaceholderPolicy] = {}
@@ -389,6 +426,8 @@ def _build_policy_registry() -> tuple[
         policy_pack_ids,
         source_anchor_role_rules,
         formal_environment_statement_repair_rules,
+        source_to_bridge_adapter_object_names,
+        source_to_bridge_semantic_anchor_fallback_rules,
         default_source_anchor_role,
     ) = _load_policy_pack_policies()
     if policy_pack_policies:
@@ -398,6 +437,8 @@ def _build_policy_registry() -> tuple[
         policy_pack_ids,
         source_anchor_role_rules,
         formal_environment_statement_repair_rules,
+        source_to_bridge_adapter_object_names,
+        source_to_bridge_semantic_anchor_fallback_rules,
         default_source_anchor_role,
     )
 
@@ -407,6 +448,8 @@ def _build_policy_registry() -> tuple[
     EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS,
     EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES,
     EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES,
+    EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES,
+    EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_FALLBACK_RULES,
     EXACT_SEMANTIC_DEFINITION_DEFAULT_SOURCE_ANCHOR_ROLE,
 ) = _build_policy_registry()
 
@@ -427,6 +470,42 @@ def exact_semantic_definition_formal_environment_statement_repair_rules() -> tup
     ...,
 ]:
     return EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES
+
+
+def exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation() -> tuple[
+    str,
+    ...,
+]:
+    return EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES
+
+
+def exact_semantic_definition_source_to_bridge_anchor_fallback_names(
+    *,
+    premise_name: str,
+    premise_target_type: str,
+    semantic_requirements: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    text = " ".join(
+        [
+            str(premise_name or ""),
+            str(premise_target_type or ""),
+            *(str(value or "") for value in semantic_requirements),
+        ]
+    )
+    names: list[str] = []
+    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_FALLBACK_RULES:
+        case_sensitive = _bool_like(rule.get("case_sensitive", False), default=False)
+        haystack = text if case_sensitive else text.lower()
+        terms = tuple(str(value or "") for value in rule.get("text_contains_any", ()))
+        if not case_sensitive:
+            terms = tuple(value.lower() for value in terms)
+        if terms and not any(term and term in haystack for term in terms):
+            continue
+        for anchor_name in rule.get("anchor_names", ()) or ():
+            value = str(anchor_name or "").strip()
+            if value and value not in names:
+                names.append(value)
+    return tuple(names)
 
 
 def exact_semantic_definition_formal_environment_symbol_names() -> tuple[str, ...]:

@@ -13,6 +13,8 @@ from .exact_semantic_definition_policy import (
     ExactSemanticDefinitionPlaceholderPolicy,
     compact_exact_semantic_placeholder_key,
     exact_semantic_definition_policy_pack_ids,
+    exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation as _policy_source_to_bridge_adapter_object_names,
+    exact_semantic_definition_source_to_bridge_anchor_fallback_names,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
@@ -38,13 +40,6 @@ ADAPTER_OBJECT_SEMANTIC_DEFINITION_LEARNING_TASK = (
 )
 ADAPTER_OBJECT_SEMANTIC_DEFINITION_PROOF_EVIDENCE_STATUS = (
     "ADAPTER_OBJECT_SEMANTIC_DEFINITION_WORK_ORDER_NOT_PROOF_EVIDENCE"
-)
-DEFAULT_ADAPTER_OBJECT_NAMES_REQUIRING_SOURCE_INSTANTIATION = (
-    "covered",
-    "rank",
-    "BadRanks",
-    "α",
-    "α_total",
 )
 PROOF_BODY_SIGNATURE_PROBE_ARTIFACT_PATH_KEYS = (
     "proof_body_signature_probe_artifact_path",
@@ -4399,13 +4394,6 @@ def _premise_semantic_anchor_binder_summaries(
     semantic_requirements: tuple[str, ...],
     source_binders: tuple[dict[str, str], ...],
 ) -> tuple[dict[str, str], ...]:
-    text = " ".join(
-        [
-            premise_name,
-            premise_target_type,
-            *semantic_requirements,
-        ]
-    ).lower()
     policy_anchor_names = _source_to_bridge_policy_required_anchor_names(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
@@ -4422,21 +4410,18 @@ def _premise_semantic_anchor_binder_summaries(
         ]
         if selected_from_policy:
             return tuple(selected_from_policy[:12])
-    wanted: set[str] = set()
-    if any(token in text for token in ("covered", "coverage event", "hc")):
-        wanted.update({"hC", "C", "q_hat", "s"})
-    if any(token in text for token in ("exchangeability", "exchangeable", "hexch")):
-        wanted.update({"hexch", "s", "P"})
-    if any(
-        token in text
-        for token in ("rank", "badranks", "quantile", "order-statistic", "orderstat", "hq")
-    ):
-        wanted.update({"hq", "q_hat", "s", "n2", "hn2", "alpha", "halpha"})
-    if any(token in text for token in ("alpha", "α", "budget", "total")):
-        wanted.update({"alpha", "halpha", "n2", "hn2"})
-    if not wanted:
+    fallback_anchor_names = (
+        exact_semantic_definition_source_to_bridge_anchor_fallback_names(
+            premise_name=premise_name,
+            premise_target_type=premise_target_type,
+            semantic_requirements=semantic_requirements,
+        )
+    )
+    if not fallback_anchor_names:
         return source_binders[:8]
-    normalized_wanted = {_normalize_premise_identifier(name) for name in wanted}
+    normalized_wanted = {
+        _normalize_premise_identifier(name) for name in fallback_anchor_names
+    }
     selected = [
         binder
         for binder in source_binders
@@ -4807,13 +4792,14 @@ def _adapter_object_names_requiring_source_instantiation(
     if explicit:
         return explicit
     target = str(premise_target_type or "")
+    default_adapter_object_names = _policy_source_to_bridge_adapter_object_names()
     names = [
         name
-        for name in DEFAULT_ADAPTER_OBJECT_NAMES_REQUIRING_SOURCE_INSTANTIATION
+        for name in default_adapter_object_names
         if name in target
     ]
     if candidate_request.get("bridge_object_instantiation_policy"):
-        names.extend(DEFAULT_ADAPTER_OBJECT_NAMES_REQUIRING_SOURCE_INSTANTIATION)
+        names.extend(default_adapter_object_names)
     return tuple(dict.fromkeys(name for name in names if name))
 
 

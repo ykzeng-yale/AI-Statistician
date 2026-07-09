@@ -40,6 +40,42 @@
       "name_prefixes": ["h"]
     }
   ],
+  "source_to_bridge_adapter_object_names_requiring_source_instantiation": [
+    "covered",
+    "rank",
+    "BadRanks",
+    "\u03b1",
+    "\u03b1_total"
+  ],
+  "source_to_bridge_semantic_anchor_fallback_rules": [
+    {
+      "rule_id": "split_conformal_coverage_event_anchor_fallback",
+      "text_contains_any": ["covered", "coverage event", "hc"],
+      "anchor_names": ["hC", "C", "q_hat", "s"]
+    },
+    {
+      "rule_id": "split_conformal_exchangeability_anchor_fallback",
+      "text_contains_any": ["exchangeability", "exchangeable", "hexch"],
+      "anchor_names": ["hexch", "s", "P"]
+    },
+    {
+      "rule_id": "split_conformal_rank_quantile_anchor_fallback",
+      "text_contains_any": [
+        "rank",
+        "badranks",
+        "quantile",
+        "order-statistic",
+        "orderstat",
+        "hq"
+      ],
+      "anchor_names": ["hq", "q_hat", "s", "n2", "hn2", "alpha", "halpha"]
+    },
+    {
+      "rule_id": "split_conformal_alpha_budget_anchor_fallback",
+      "text_contains_any": ["alpha", "\u03b1", "budget", "total"],
+      "anchor_names": ["alpha", "halpha", "n2", "hn2"]
+    }
+  ],
   "formal_environment_statement_repair_rules": [
     {
       "rule_id": "split_conformal_ennreal_lower_bound_from_real_alpha",
