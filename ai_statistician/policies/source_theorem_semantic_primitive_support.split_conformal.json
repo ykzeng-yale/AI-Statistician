@@ -20,6 +20,35 @@
       "split_conformal_good_rank_set_inclusion_bridge"
     ]
   },
+  "semantic_primitive_text_to_registered_support": [
+    {
+      "work_order_text_contains_any": [
+        "probability",
+        "measure"
+      ],
+      "registered_support_ids": [
+        "prob_measure_univ"
+      ]
+    },
+    {
+      "work_order_text_contains_any": [
+        "order"
+      ],
+      "registered_support_ids": [
+        "split_conformal_good_rank_set_inclusion_bridge"
+      ]
+    },
+    {
+      "work_order_text_contains_any": [
+        "exchange",
+        "uniform",
+        "rank"
+      ],
+      "registered_support_ids": [
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+      ]
+    }
+  ],
   "semantic_primitive_id_text_rules": [
     {
       "semantic_primitive_id": "probability_measure_semantics",

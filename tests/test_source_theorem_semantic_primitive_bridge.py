@@ -8,6 +8,7 @@ from ai_statistician.source_theorem_semantic_primitive_proofengineer_bridge impo
     inferred_exact_goal_shape_obligation_ids_from_feedback,
     placeholder_symbols_from_semantic_alignment_feedback,
     placeholder_symbols_for_registered_support_ids,
+    registered_support_for_semantic_primitive_text,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
     semantic_gap_for_exact_goal_shape_obligation,
     semantic_gap_for_placeholder_symbol,
@@ -78,6 +79,10 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
         "task_family:split_conformal_finite_sample_coverage"
     )
     assert manifest["semantic_support_policy"]["n_primitive_support_routes"] >= 1
+    assert (
+        manifest["semantic_support_policy"]["n_semantic_primitive_text_support_routes"]
+        >= 1
+    )
     assert (
         manifest["semantic_support_policy"]["n_placeholder_symbol_support_routes"]
         >= 1
@@ -218,6 +223,24 @@ def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
         "formalize exchangeability rank uniformity semantics",
         "source_theorem_semantic_primitives",
     ) == "exchangeability_to_uniform_rank_semantics"
+
+
+def test_semantic_primitive_registered_support_text_fallback_is_policy_driven() -> None:
+    assert registered_support_for_semantic_primitive_text(
+        primitive_id="source_theorem_semantic_primitive:unknown",
+        semantic_primitive_gap="formalize probability measure semantics",
+        semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+    ) == ("prob_measure_univ",)
+    assert registered_support_for_semantic_primitive_text(
+        primitive_id="source_theorem_semantic_primitive:unknown",
+        semantic_primitive_gap="formalize order statistic quantile semantics",
+        semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+    ) == ("split_conformal_good_rank_set_inclusion_bridge",)
+    assert registered_support_for_semantic_primitive_text(
+        primitive_id="source_theorem_semantic_primitive:unknown",
+        semantic_primitive_gap="formalize exchangeability rank bridge",
+        semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+    ) == ("split_conformal_bad_rank_budget_from_uniform_rank_bound",)
 
 
 def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
@@ -837,6 +860,46 @@ def test_source_semantic_bridge_reports_only_relevant_verified_support(
     assert manifest["checks"][0]["kernel_verified_registered_obligation_ids"] == [
         "prob_measure_univ"
     ]
+
+
+def test_source_semantic_bridge_uses_policy_text_fallback_for_registered_support(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
+    _write_jsonl(
+        queue,
+        [
+            {
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "source_theorem_semantic_primitive_work_order:prob-text",
+                "question_id": "conformal_prediction_coverage",
+                "semantic_primitive_id": (
+                    "source_theorem_semantic_primitive:unknown_probability"
+                ),
+                "semantic_primitive_gap": (
+                    "formalize probability measure semantics from source anchors"
+                ),
+                "semantic_primitive_gap_kind": (
+                    "source_theorem_semantic_primitives"
+                ),
+                "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+            }
+        ],
+    )
+
+    manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue,
+        question_id="conformal_prediction_coverage",
+    )
+
+    assert manifest["registered_candidate_obligation_ids"] == ["prob_measure_univ"]
+    assert manifest["checks"][0]["registered_candidate_obligation_ids"] == [
+        "prob_measure_univ"
+    ]
+    assert manifest["checks"][0]["proof_evidence_status"] == (
+        "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
+    )
 
 
 def test_source_semantic_bridge_exports_learning_from_kernel_proof_audit(

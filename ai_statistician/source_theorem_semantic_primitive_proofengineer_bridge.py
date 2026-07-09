@@ -81,6 +81,9 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     primitive_support = _normalize_policy_support_map(
         payload.get("primitive_to_registered_support", {})
     )
+    primitive_text_support = _normalize_semantic_primitive_text_support_rules(
+        payload.get("semantic_primitive_text_to_registered_support", [])
+    )
     exact_goal_shape_support = _normalize_policy_support_map(
         payload.get("exact_goal_shape_to_registered_support", {})
     )
@@ -121,6 +124,7 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
         "scope": str(payload.get("scope", "") or ""),
         "path": str(path),
         "primitive_to_registered_support": primitive_support,
+        "semantic_primitive_text_to_registered_support": primitive_text_support,
         "placeholder_symbol_to_registered_support": placeholder_support,
         "placeholder_symbol_to_semantic_primitive_id": placeholder_primitive_ids,
         "placeholder_symbol_to_semantic_gap": placeholder_semantic_gaps,
@@ -154,6 +158,70 @@ def _normalize_policy_support_map(value: Any) -> dict[str, tuple[str, ...]]:
             )
         )
     return rows
+
+
+def _normalize_semantic_primitive_text_support_rules(
+    value: Any,
+) -> tuple[dict[str, tuple[str, ...]], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    normalized: list[dict[str, tuple[str, ...]]] = []
+    for raw_rule in value:
+        if not isinstance(raw_rule, Mapping):
+            continue
+        registered_support_ids = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_rule.get("registered_support_ids", []) or []
+                if str(item).strip()
+            )
+        )
+        text_contains_any = tuple(
+            dict.fromkeys(
+                str(item).strip().lower()
+                for item in raw_rule.get("work_order_text_contains_any", []) or []
+                if str(item).strip()
+            )
+        )
+        text_contains_all = tuple(
+            dict.fromkeys(
+                str(item).strip().lower()
+                for item in raw_rule.get("work_order_text_contains_all", []) or []
+                if str(item).strip()
+            )
+        )
+        primitive_id_contains_any = tuple(
+            dict.fromkeys(
+                str(item).strip().lower()
+                for item in raw_rule.get("semantic_primitive_id_contains_any", [])
+                or []
+                if str(item).strip()
+            )
+        )
+        primitive_id_contains_all = tuple(
+            dict.fromkeys(
+                str(item).strip().lower()
+                for item in raw_rule.get("semantic_primitive_id_contains_all", [])
+                or []
+                if str(item).strip()
+            )
+        )
+        if registered_support_ids and (
+            text_contains_any
+            or text_contains_all
+            or primitive_id_contains_any
+            or primitive_id_contains_all
+        ):
+            normalized.append(
+                {
+                    "registered_support_ids": registered_support_ids,
+                    "work_order_text_contains_any": text_contains_any,
+                    "work_order_text_contains_all": text_contains_all,
+                    "semantic_primitive_id_contains_any": primitive_id_contains_any,
+                    "semantic_primitive_id_contains_all": primitive_id_contains_all,
+                }
+            )
+    return tuple(normalized)
 
 
 def _normalize_policy_string_map(value: Any) -> dict[str, str]:
@@ -385,6 +453,7 @@ def _normalize_theorem_closure_reduction_strategies(
 def _semantic_support_policy_summary() -> dict[str, Any]:
     policy = _semantic_support_policy()
     primitive_support = policy["primitive_to_registered_support"]
+    primitive_text_support = policy["semantic_primitive_text_to_registered_support"]
     semantic_primitive_id_text_rules = policy["semantic_primitive_id_text_rules"]
     placeholder_support = policy["placeholder_symbol_to_registered_support"]
     placeholder_primitive_ids = policy[
@@ -407,6 +476,7 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "scope": policy["scope"],
         "path": policy["path"],
         "n_primitive_support_routes": len(primitive_support),
+        "n_semantic_primitive_text_support_routes": len(primitive_text_support),
         "n_semantic_primitive_id_text_rules": len(semantic_primitive_id_text_rules),
         "n_placeholder_symbol_support_routes": len(placeholder_support),
         "n_placeholder_symbol_primitive_id_routes": len(placeholder_primitive_ids),
@@ -438,6 +508,72 @@ def registered_support_for_semantic_primitive(
 ) -> tuple[str, ...]:
     policy = _semantic_support_policy()
     return policy["primitive_to_registered_support"].get(primitive_id, ())
+
+
+def registered_support_for_semantic_primitive_text(
+    *,
+    primitive_id: str = "",
+    semantic_primitive_gap: str = "",
+    semantic_primitive_gap_kind: str = "",
+) -> tuple[str, ...]:
+    policy = _semantic_support_policy()
+    primitive_text = str(primitive_id or "").lower()
+    work_order_text = " ".join(
+        [
+            str(primitive_id or ""),
+            str(semantic_primitive_gap or ""),
+            str(semantic_primitive_gap_kind or ""),
+        ]
+    ).lower()
+    registered_support_ids: list[str] = []
+    for rule in policy["semantic_primitive_text_to_registered_support"]:
+        if _semantic_primitive_text_support_rule_matches(
+            rule,
+            primitive_text=primitive_text,
+            work_order_text=work_order_text,
+        ):
+            registered_support_ids.extend(rule.get("registered_support_ids", ()))
+    return tuple(dict.fromkeys(registered_support_ids))
+
+
+def _semantic_primitive_text_support_rule_matches(
+    rule: Mapping[str, Any],
+    *,
+    primitive_text: str,
+    work_order_text: str,
+) -> bool:
+    text_contains_any = tuple(
+        str(item) for item in rule.get("work_order_text_contains_any", ()) or ()
+    )
+    text_contains_all = tuple(
+        str(item) for item in rule.get("work_order_text_contains_all", ()) or ()
+    )
+    primitive_id_contains_any = tuple(
+        str(item)
+        for item in rule.get("semantic_primitive_id_contains_any", ()) or ()
+    )
+    primitive_id_contains_all = tuple(
+        str(item)
+        for item in rule.get("semantic_primitive_id_contains_all", ()) or ()
+    )
+    return bool(
+        (
+            text_contains_any
+            and any(item in work_order_text for item in text_contains_any)
+        )
+        or (
+            text_contains_all
+            and all(item in work_order_text for item in text_contains_all)
+        )
+        or (
+            primitive_id_contains_any
+            and any(item in primitive_text for item in primitive_id_contains_any)
+        )
+        or (
+            primitive_id_contains_all
+            and all(item in primitive_text for item in primitive_id_contains_all)
+        )
+    )
 
 
 def registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
@@ -2068,6 +2204,11 @@ def _candidate_registered_obligation_ids(row: Mapping[str, Any]) -> tuple[str, .
             exact_goal_shape_obligation_id
         )
         or registered_support_for_semantic_primitive(primitive_id)
+        or registered_support_for_semantic_primitive_text(
+            primitive_id=primitive_id,
+            semantic_primitive_gap=str(row.get("semantic_primitive_gap", "") or ""),
+            semantic_primitive_gap_kind=gap_kind,
+        )
     )
     if candidates:
         return tuple(
@@ -2086,30 +2227,7 @@ def _candidate_registered_obligation_ids(row: Mapping[str, Any]) -> tuple[str, .
                 )
             )
         )
-    text = " ".join(
-        [
-            primitive_id,
-            str(row.get("semantic_primitive_gap", "") or ""),
-            str(row.get("semantic_primitive_gap_kind", "") or ""),
-        ]
-    ).lower()
-    inferred: list[str] = []
-    for obligation_id, obligation in FORMAL_OBLIGATIONS.items():
-        if "source_theorem_semantic_primitive" not in obligation.tags:
-            continue
-        tag_text = " ".join(obligation.tags).lower()
-        if ("probability" in text or "measure" in text) and (
-            "probability_measure_semantics" in tag_text
-            or ("probability" in tag_text and "measure" in tag_text)
-        ):
-            inferred.append(obligation_id)
-        elif "order" in text and "order_statistic_quantile_rule" in tag_text:
-            inferred.append(obligation_id)
-        elif ("exchange" in text or "uniform" in text or "rank" in text) and (
-            "rank_uniformity" in tag_text or "uniform_rank" in tag_text
-        ):
-            inferred.append(obligation_id)
-    return tuple(dict.fromkeys(inferred))
+    return ()
 
 
 def _kernel_verified_ids_from_audit_payload(
