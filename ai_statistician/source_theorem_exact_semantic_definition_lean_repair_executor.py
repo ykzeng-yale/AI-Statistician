@@ -673,17 +673,12 @@ def _execution_result(
         for row in task.get("candidate_import_declarations", []) or []
         if isinstance(row, Mapping)
     ]
-    candidate_definition_request = dict(
-        task.get("candidate_definition_request", {}) or {}
+    candidate_definition_request = _candidate_definition_request_from_context(
+        task,
+        placeholder_symbol=placeholder_symbol,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
     )
-    if candidate_definition_request:
-        candidate_definition_request.setdefault("target_theorem_name", target_theorem_name)
-        if placeholder_symbol and not candidate_definition_request.get(
-            "placeholder_symbol"
-        ):
-            candidate_definition_request["placeholder_symbol"] = placeholder_symbol
-        if target_ids and not candidate_definition_request.get("target_ids"):
-            candidate_definition_request["target_ids"] = list(target_ids)
     candidate_path = Path()
     candidate_raw_path = ""
     if candidate_declarations:
@@ -1298,22 +1293,12 @@ def _environment_repair_task(row: Mapping[str, Any]) -> dict[str, Any]:
         fallback_target=target_theorem_name,
     )
     placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
-    candidate_definition_request = dict(
-        row.get("candidate_definition_request", {}) or {}
+    candidate_definition_request = _candidate_definition_request_from_context(
+        row,
+        placeholder_symbol=placeholder_symbol,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
     )
-    if not candidate_definition_request:
-        candidate_definition_request = _candidate_definition_request(
-            row,
-            placeholder_symbol=placeholder_symbol,
-        )
-    else:
-        candidate_definition_request.setdefault("target_theorem_name", target_theorem_name)
-        if target_ids and not candidate_definition_request.get("target_ids"):
-            candidate_definition_request["target_ids"] = list(target_ids)
-        if placeholder_symbol and not candidate_definition_request.get(
-            "placeholder_symbol"
-        ):
-            candidate_definition_request["placeholder_symbol"] = placeholder_symbol
     task_id = (
         "source_theorem_exact_semantic_definition_lean_environment_repair_task:"
         + stable_hash(
@@ -1630,23 +1615,12 @@ def _typechecked_candidate_review_packet(row: Mapping[str, Any]) -> dict[str, An
         )[:24]
     )
     placeholder = str(row.get("placeholder_symbol", "") or "")
-    candidate_definition_request = dict(
-        row.get("candidate_definition_request", {}) or {}
+    candidate_definition_request = _candidate_definition_request_from_context(
+        row,
+        placeholder_symbol=placeholder,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
     )
-    if not candidate_definition_request:
-        candidate_definition_request = _candidate_definition_request(
-            row,
-            placeholder_symbol=placeholder,
-        )
-    else:
-        candidate_definition_request.setdefault(
-            "target_theorem_name",
-            target_theorem_name,
-        )
-        if placeholder and not candidate_definition_request.get("placeholder_symbol"):
-            candidate_definition_request["placeholder_symbol"] = placeholder
-        if target_ids and not candidate_definition_request.get("target_ids"):
-            candidate_definition_request["target_ids"] = list(target_ids)
     return {
         "schema_version": 1,
         "artifact_kind": TYPECHECKED_CANDIDATE_REVIEW_PACKET_ARTIFACT_KIND,
@@ -2107,20 +2081,13 @@ def _semantic_import_candidate_blocker(
 
 def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]:
     context: dict[str, Any] = {}
-    input_summary = (
-        row.get("input_summary", {})
-        if isinstance(row.get("input_summary", {}), Mapping)
-        else {}
-    )
+    sources = _exact_semantic_context_sources(row)
     placeholder_symbol = str(
-        row.get("placeholder_symbol", "")
-        or input_summary.get("placeholder_symbol", "")
+        _first_context_value(sources, "placeholder_symbol")
         or ""
     ).strip()
     for key in EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS:
-        value = row.get(key, None)
-        if value in (None, "", [], {}):
-            value = input_summary.get(key, None)
+        value = _first_context_value(sources, key)
         if value in (None, "", [], {}):
             continue
         if isinstance(value, Mapping):
@@ -2137,7 +2104,9 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         context.setdefault("placeholder_policy_scope", placeholder_policy.policy_scope)
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
-        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        target_theorem_name = str(
+            _first_context_value(sources, "target_theorem_name") or ""
+        )
         target_ids = _exact_semantic_definition_target_ids(
             row,
             fallback_target=target_theorem_name,
@@ -2161,8 +2130,88 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
         context["candidate_definition_request"] = normalized_request
-    normalize_exact_semantic_definition_signature_probe_context(context, row)
+    normalize_exact_semantic_definition_signature_probe_context(context, *sources)
     return context
+
+
+def _exact_semantic_context_sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = [row]
+    input_summary = (
+        row.get("input_summary", {})
+        if isinstance(row.get("input_summary", {}), Mapping)
+        else {}
+    )
+    if input_summary:
+        sources.append(input_summary)
+    typechecked_candidate = row.get(
+        "source_theorem_exact_semantic_definition_typechecked_candidate",
+        {},
+    )
+    if isinstance(typechecked_candidate, Mapping) and typechecked_candidate:
+        sources.append(typechecked_candidate)
+    for source in list(sources):
+        nested = source.get("exact_semantic_definition_context", {})
+        if isinstance(nested, Mapping) and nested:
+            sources.append(nested)
+    return sources
+
+
+def _first_context_value(sources: Sequence[Mapping[str, Any]], key: str) -> Any:
+    for source in sources:
+        value = source.get(key, None)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _candidate_definition_request_from_context(
+    row: Mapping[str, Any],
+    *,
+    placeholder_symbol: str,
+    target_theorem_name: str = "",
+    target_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    sources = _exact_semantic_context_sources(row)
+    raw_request = _first_context_value(sources, "candidate_definition_request")
+    request = dict(raw_request) if isinstance(raw_request, Mapping) else {}
+    placeholder = str(
+        placeholder_symbol
+        or _first_context_value(sources, "placeholder_symbol")
+        or ""
+    ).strip()
+    if not request and placeholder:
+        context_row = {**dict(row), **_exact_semantic_definition_context(row)}
+        request = _candidate_definition_request(
+            context_row,
+            placeholder_symbol=placeholder,
+        )
+    target = str(
+        target_theorem_name
+        or _first_context_value(sources, "target_theorem_name")
+        or ""
+    ).strip()
+    normalized_target_ids = [
+        str(value).strip()
+        for value in (target_ids or [])
+        if str(value).strip()
+    ]
+    if not normalized_target_ids:
+        normalized_target_ids = _exact_semantic_definition_target_ids(
+            row,
+            fallback_target=target,
+        )
+    if target:
+        request.setdefault("target_theorem_name", target)
+    if placeholder and not request.get("placeholder_symbol"):
+        request["placeholder_symbol"] = placeholder
+    if placeholder:
+        placeholder_policy = exact_semantic_definition_placeholder_policy(placeholder)
+        request.setdefault("placeholder_policy_id", placeholder_policy.policy_id)
+        request.setdefault("placeholder_policy_scope", placeholder_policy.policy_scope)
+    if normalized_target_ids and not request.get("target_ids"):
+        request["target_ids"] = list(dict.fromkeys(normalized_target_ids))
+    normalize_exact_semantic_definition_signature_probe_context(request, *sources)
+    return request
 
 
 def _exact_semantic_definition_target_ids(
@@ -2220,22 +2269,12 @@ def _environment_repair_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         fallback_target=target_theorem_name,
     )
     placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
-    candidate_definition_request = dict(
-        row.get("candidate_definition_request", {}) or {}
+    candidate_definition_request = _candidate_definition_request_from_context(
+        row,
+        placeholder_symbol=placeholder_symbol,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
     )
-    if not candidate_definition_request:
-        candidate_definition_request = _candidate_definition_request(
-            row,
-            placeholder_symbol=placeholder_symbol,
-        )
-    else:
-        candidate_definition_request.setdefault("target_theorem_name", target_theorem_name)
-        if target_ids and not candidate_definition_request.get("target_ids"):
-            candidate_definition_request["target_ids"] = list(target_ids)
-        if placeholder_symbol and not candidate_definition_request.get(
-            "placeholder_symbol"
-        ):
-            candidate_definition_request["placeholder_symbol"] = placeholder_symbol
     return {
         "schema_version": 1,
         "artifact_kind": ENVIRONMENT_REPAIR_TASK_ARTIFACT_KIND,
@@ -2284,6 +2323,13 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         row,
         fallback_target=target_theorem_name,
     )
+    placeholder_symbol = str(row.get("placeholder_symbol", "") or "")
+    candidate_definition_request = _candidate_definition_request_from_context(
+        row,
+        placeholder_symbol=placeholder_symbol,
+        target_theorem_name=target_theorem_name,
+        target_ids=target_ids,
+    )
     return {
         "schema_version": 1,
         "artifact_kind": AUTHOR_DEFINITION_TASK_ARTIFACT_KIND,
@@ -2292,7 +2338,7 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "question_title": str(row.get("question_title", "") or ""),
         "target_theorem_name": target_theorem_name,
         "target_ids": target_ids,
-        "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
+        "placeholder_symbol": placeholder_symbol,
         "authoring_task_id": str(row.get("authoring_task_id", "") or ""),
         "authoring_trigger": str(row.get("authoring_trigger", "") or ""),
         "authoring_mode": str(row.get("authoring_mode", "") or ""),
@@ -2314,9 +2360,7 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("candidate_repair_feedback", {}) or {}
         ),
         **_exact_semantic_definition_context(row),
-        "candidate_definition_request": dict(
-            row.get("candidate_definition_request", {}) or {}
-        ),
+        "candidate_definition_request": candidate_definition_request,
         "input_summary": {
             "trigger": str(row.get("authoring_trigger", "") or "")
             or "EXACT_SEMANTIC_DEFINITION_AUTHORING_REQUIRED",
@@ -2324,7 +2368,7 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
             "target_ids": target_ids,
             "authoring_mode": str(row.get("authoring_mode", "") or ""),
             "source_execution_status": str(row.get("source_execution_status", "") or ""),
-            "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
+            "placeholder_symbol": placeholder_symbol,
             "source_reference_hint_count": len(
                 row.get("source_reference_hints", []) or []
             ),
@@ -2335,9 +2379,7 @@ def _author_definition_learning_row(row: Mapping[str, Any]) -> dict[str, Any]:
                 row.get("semantic_alignment_blockers", []) or []
             ),
             **_exact_semantic_definition_context(row),
-            "candidate_definition_request": dict(
-                row.get("candidate_definition_request", {}) or {}
-            ),
+            "candidate_definition_request": candidate_definition_request,
             "required_output_artifacts": list(
                 row.get("required_output_artifacts", []) or []
             ),

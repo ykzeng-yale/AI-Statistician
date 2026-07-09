@@ -267,6 +267,137 @@ def test_exact_semantic_definition_lean_repair_executor_checks_import_candidate(
     )
 
 
+def test_lean_repair_executor_preserves_nested_required_anchor_bindings(
+    tmp_path: Path,
+) -> None:
+    tasks_path = tmp_path / "lean_repair_tasks.jsonl"
+    nested_context = {
+        "semantic_primitive": "good_rank_event",
+        "source_anchor_context": [
+            {
+                "source": "candidate_definition_request.required_anchor_bindings",
+                "kind": "required_anchor_binding",
+                "required_anchor_name": "q_hat",
+                "actual_anchor_name": "q",
+                "semantic_anchor_name": "q_hat",
+                "name": "q",
+                "type": "Real",
+                "role": "threshold_function_anchor",
+                "binder": {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                },
+            }
+        ],
+        "source_anchor_context_rows": 1,
+        "candidate_definition_request": {
+            "request_kind": "source_theorem_exact_semantic_definition_candidate",
+            "placeholder_symbol": "good_rank_event",
+            "required_anchor_names": ["q_hat"],
+            "available_anchor_names": ["q", "q_hat"],
+            "missing_required_anchor_names": [],
+            "required_anchor_bindings": [
+                {
+                    "required_anchor_name": "q_hat",
+                    "actual_anchor_name": "q",
+                    "match_kind": "source_anchor_role",
+                    "role": "threshold_function_anchor",
+                    "binder": {
+                        "name": "q",
+                        "type": "Real",
+                        "role": "threshold_function_anchor",
+                    },
+                }
+            ],
+            "required_binders": [
+                {
+                    "name": "q",
+                    "type": "Real",
+                    "role": "threshold_function_anchor",
+                }
+            ],
+        },
+    }
+    row = {
+        "schema_version": 1,
+        "artifact_kind": "SourceTheoremExactSemanticDefinitionLeanRepairTask",
+        "lean_repair_task_id": "lean-repair:good-rank",
+        "source_repair_packet_id": "repair:good-rank",
+        "source_review_packet_id": "review:good-rank",
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+        "target_ids": ["split_conformal_coverage"],
+        "placeholder_symbol": "good_rank_event",
+        "lean_repair_action": "author_exact_definition",
+        "repair_strategy": "author_reviewed_definition_from_contract",
+        "candidate_definition_request": {},
+        "input_summary": {
+            "exact_semantic_definition_context": nested_context,
+        },
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_TASK_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    tasks_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = run_source_theorem_exact_semantic_definition_lean_repair_executor(
+        out_dir=tmp_path / "executor",
+        tasks_jsonl=tasks_path,
+        local_lean=False,
+    )
+
+    results = [
+        json.loads(line)
+        for line in Path(manifest["execution_results_jsonl"]).read_text().splitlines()
+    ]
+    result = results[0]
+    assert result["execution_status"] == (
+        "EXACT_DEFINITION_AUTHORING_REQUIRED_BEFORE_LOCAL_LEAN"
+    )
+    assert result["source_anchor_context"][0]["actual_anchor_name"] == "q"
+    assert result["candidate_definition_request"]["required_anchor_bindings"][0][
+        "actual_anchor_name"
+    ] == "q"
+
+    authoring_tasks = [
+        json.loads(line)
+        for line in Path(
+            manifest["exact_semantic_definition_authoring_tasks_jsonl"]
+        ).read_text().splitlines()
+    ]
+    assert authoring_tasks[0]["source_anchor_context"][0]["name"] == "q"
+    assert authoring_tasks[0]["candidate_definition_request"]["required_binders"][0][
+        "name"
+    ] == "q"
+
+    learning_rows = [
+        json.loads(line)
+        for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
+    ]
+    repair_learning = next(
+        row
+        for row in learning_rows
+        if row["learning_task"]
+        == "source_theorem_exact_semantic_definition_lean_repair_execution"
+    )
+    assert repair_learning["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+    authoring_learning = next(
+        row
+        for row in learning_rows
+        if row["learning_task"]
+        == "source_theorem_exact_semantic_definition_author_definition"
+    )
+    assert authoring_learning["candidate_definition_request"][
+        "required_anchor_bindings"
+    ][0]["actual_anchor_name"] == "q"
+    assert authoring_learning["input_summary"]["candidate_definition_request"][
+        "required_binders"
+    ][0]["name"] == "q"
+
+
 def test_lean_repair_executor_authoring_task_recovers_binders_from_signature_probe(
     tmp_path: Path,
 ) -> None:
