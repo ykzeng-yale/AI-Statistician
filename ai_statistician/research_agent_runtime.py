@@ -4513,6 +4513,158 @@ def _runtime_formalizer_pf_component_gate_copy_ready_retry_task_row(
     }
 
 
+def _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows(
+    learning_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            str(row.get("learning_task", "") or "")
+            != "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+        ):
+            continue
+        if (
+            str(row.get("source_component_gate", "") or "")
+            != "formalizer_pseudo_formal_packet_component_gate"
+        ):
+            continue
+        runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
+        if (
+            runtime_queue_status
+            != "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+        ):
+            continue
+        repair_seed_raw = row.get(
+            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+            {},
+        )
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        repair_seed = (
+            repair_seed_raw
+            if isinstance(repair_seed_raw, Mapping)
+            else input_summary.get(
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
+                {},
+            )
+        )
+        if not isinstance(repair_seed, Mapping):
+            repair_seed = {}
+        packet_id = str(repair_seed.get("packet_id", "") or "").strip()
+        theorem_id = str(repair_seed.get("theorem_id", "") or "").strip()
+        work_order_id = str(row.get("work_order_id", "") or "").strip()
+        if not work_order_id:
+            work_order_id = (
+                "formalizer_pf_component_gate_copy_ready_retry:"
+                + stable_hash([packet_id, theorem_id, row])[:20]
+            )
+        target_ids = [
+            value
+            for value in (theorem_id, packet_id, work_order_id)
+            if str(value).strip()
+        ][:1]
+        component_eval_manifest_path = str(
+            row.get("component_eval_manifest_path", "")
+            or input_summary.get("component_eval_manifest_path", "")
+            or ""
+        ).strip()
+        boundary = (
+            "This agenda row asks Formalizer/ProofEngineer to rerun a failed "
+            "PF/BV packet gate from a validator-ready copy fragment. It is not "
+            "theorem proof evidence, not source theorem kernel verification, "
+            "and not a Lean proof claim."
+        )
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeNextActionAgendaRow",
+                "id": (
+                    "formalizer_pf_bv_copy_ready_retry:"
+                    + stable_hash([work_order_id, component_eval_manifest_path])[:12]
+                ),
+                "question_id": str(row.get("question_id", "") or ""),
+                "owner_subsystem": "Formalizer/ProofEngineer",
+                "trigger": "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
+                "action": str(row.get("target_behavior", "") or "").strip()
+                or (
+                    "Rerun Formalizer/ProofEngineer from the validator-ready "
+                    "PF/BV copy fragment and emit a valid lane-routable "
+                    "pseudo-formal packet."
+                ),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or "").strip()
+                or (
+                    "The retry produces a validator-accepted PF/BV packet with "
+                    "required target lanes, source anchors, conclusions, semantic "
+                    "primitive requirements, complete lineage, and no theorem "
+                    "proof claim."
+                ),
+                "work_order_id": work_order_id,
+                "target_ids": target_ids,
+                "target_theorem_name": theorem_id,
+                "target_packet_id": packet_id,
+                "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
+                "source_learning_task": str(row.get("learning_task", "") or ""),
+                "component_eval_manifest_path": component_eval_manifest_path,
+                "pseudo_formal_failure_required_target_lanes": list(
+                    row.get(
+                        "pseudo_formal_failure_required_target_lanes",
+                        input_summary.get(
+                            "pseudo_formal_failure_required_target_lanes",
+                            [],
+                        ),
+                    )
+                    or []
+                ),
+                "pseudo_formal_failure_concrete_lane_routable_repair_seed": dict(
+                    repair_seed
+                ),
+                "pseudo_formal_failure_validator_ready_copy_contract": (
+                    dict(
+                        row.get(
+                            "pseudo_formal_failure_validator_ready_copy_contract",
+                            {},
+                        )
+                    )
+                    if isinstance(
+                        row.get(
+                            "pseudo_formal_failure_validator_ready_copy_contract",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "pseudo_formal_failure_copy_contract_summary": (
+                    dict(row.get("pseudo_formal_failure_copy_contract_summary", {}))
+                    if isinstance(
+                        row.get("pseudo_formal_failure_copy_contract_summary", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                "runtime_queue_status": runtime_queue_status,
+                "runtime_generated_queue_name": "formalizer_pf_bv_copy_ready_retries",
+                "recommended_next_action": str(
+                    row.get("target_behavior", "") or ""
+                ).strip(),
+                "recommended_commands": [],
+                "priority": "high",
+                "proof_evidence_status": (
+                    "FORMALIZER_PF_BV_COPY_READY_RETRY_AGENDA_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": boundary,
+                "proof_boundary": boundary,
+                "boundary": boundary,
+            }
+        )
+    return _dedupe_runtime_next_action_agenda_rows(rows)
+
+
 def _runtime_formalizer_pf_component_gate_exact_rows_handoff_diagnostic_row(
     exact_rows_jsonl: str,
     *,
@@ -24457,6 +24609,18 @@ def run_research_agent_runtime(
         agenda_rows.extend(pseudo_formal_next_action_rows)
     if pseudo_formal_learning_rows:
         learning_rows.extend(pseudo_formal_learning_rows)
+    formalizer_pf_copy_ready_retry_next_action_rows = (
+        _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows(
+            learning_rows
+        )
+    )
+    if formalizer_pf_copy_ready_retry_next_action_rows:
+        agenda_rows.extend(formalizer_pf_copy_ready_retry_next_action_rows)
+        learning_rows.extend(
+            _runtime_generated_next_action_learning_rows(
+                formalizer_pf_copy_ready_retry_next_action_rows
+            )
+        )
     source_theorem_formal_environment_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows(results)
     )

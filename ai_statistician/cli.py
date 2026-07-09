@@ -462,10 +462,15 @@ from .research_agent_runtime import (
     _runtime_coding_agent_capability_table,
     _runtime_component_gate_summary,
     _runtime_formalizer_component_gate_learning_rows,
+    _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows,
     _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows,
+    _runtime_generated_next_action_learning_rows,
     _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
+    _dedupe_runtime_next_action_agenda_rows,
     _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
+    _write_runtime_learning_rows_jsonl,
+    _write_runtime_next_action_agenda_jsonl,
     run_research_agent_runtime,
 )
 from .research_agent_runtime_audit import audit_research_agent_runtime
@@ -13025,6 +13030,16 @@ def _refresh_runtime_coding_agent_capability_manifest(
             manifest
         )
     )
+    formalizer_pf_copy_ready_retry_next_action_rows = (
+        _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows(
+            formalizer_pseudo_formal_packet_learning_rows
+        )
+    )
+    formalizer_pf_copy_ready_retry_next_action_learning_rows = (
+        _runtime_generated_next_action_learning_rows(
+            formalizer_pf_copy_ready_retry_next_action_rows
+        )
+    )
     pseudo_formal_component_gate_learning_rows = (
         _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(manifest)
     )
@@ -13055,8 +13070,19 @@ def _refresh_runtime_coding_agent_capability_manifest(
             "coding_agent_generated_code_component_gate_feedback",
             "formalizer_lean_candidate_component_gate_feedback",
             "formalizer_pseudo_formal_packet_component_gate_feedback",
+            "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task",
             "pseudo_formal_block_verifier_component_gate_feedback",
         }
+        and not (
+            row.get("learning_task") == "generated_next_action_routing"
+            and isinstance(row.get("input_summary", {}), Mapping)
+            and (
+                row.get("input_summary", {}).get("source_learning_task")
+                == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+                or row.get("input_summary", {}).get("trigger")
+                == "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+            )
+        )
         and row.get("source_component_gate")
         not in {
             "formalizer_pseudo_formal_packet_component_gate",
@@ -13069,13 +13095,42 @@ def _refresh_runtime_coding_agent_capability_manifest(
         *coding_component_gate_learning_rows,
         *component_gate_learning_rows,
         *formalizer_pseudo_formal_packet_learning_rows,
+        *formalizer_pf_copy_ready_retry_next_action_learning_rows,
         *pseudo_formal_component_gate_learning_rows,
     ]
     learning_path.parent.mkdir(parents=True, exist_ok=True)
-    learning_path.write_text(
-        "".join(json.dumps(row, default=str) + "\n" for row in refreshed_rows),
-        encoding="utf-8",
+    _write_runtime_learning_rows_jsonl(learning_path, refreshed_rows)
+    agenda_path_raw = str(artifacts.get("runtime_next_action_agenda_jsonl", "") or "")
+    if agenda_path_raw:
+        agenda_path = Path(agenda_path_raw)
+    else:
+        agenda_path = runtime_out_dir / "runtime_next_action_agenda.jsonl"
+        artifacts["runtime_next_action_agenda_jsonl"] = str(agenda_path)
+    existing_agenda_rows: list[dict[str, Any]] = []
+    if agenda_path.exists():
+        for line in agenda_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                existing_agenda_rows.append(row)
+    retained_agenda_rows = [
+        row
+        for row in existing_agenda_rows
+        if row.get("trigger") != "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+        and row.get("runtime_generated_queue_name")
+        != "formalizer_pf_bv_copy_ready_retries"
+    ]
+    refreshed_agenda_rows = _dedupe_runtime_next_action_agenda_rows(
+        [
+            *retained_agenda_rows,
+            *formalizer_pf_copy_ready_retry_next_action_rows,
+        ]
     )
+    _write_runtime_next_action_agenda_jsonl(agenda_path, refreshed_agenda_rows)
     manifest["n_runtime_coding_agent_capability_learning_rows"] = len(
         capability_learning_rows
     )
@@ -13088,10 +13143,14 @@ def _refresh_runtime_coding_agent_capability_manifest(
     manifest["n_runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows"] = len(
         formalizer_pseudo_formal_packet_learning_rows
     )
+    manifest[
+        "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
+    ] = len(formalizer_pf_copy_ready_retry_next_action_rows)
     manifest["n_runtime_pseudo_formal_block_verifier_component_gate_learning_rows"] = len(
         pseudo_formal_component_gate_learning_rows
     )
     manifest["n_runtime_learning_rows"] = len(refreshed_rows)
+    manifest["n_runtime_next_action_items"] = len(refreshed_agenda_rows)
 
 
 def _apply_research_agent_runtime_capability_eval_preset(

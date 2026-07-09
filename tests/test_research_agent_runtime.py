@@ -271,6 +271,7 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_gap_routing_rows,
     _runtime_capability_gaps_from_scorecard,
     _runtime_learning_rows_contract_audit_summary,
+    _runtime_next_action_agenda_contract_audit_summary,
     _runtime_pseudo_formal_exact_semantic_definition_work_order_recompute_summary,
     _runtime_pseudo_formal_block_routing_contract_audit_summary,
     _architect_initial_routing_record_errors,
@@ -93876,6 +93877,61 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
         "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
     )
     assert "not theorem proof evidence" in retry_row["boundary"].lower()
+    retry_generated_learning_rows = [
+        row
+        for row in learning_rows
+        if row.get("learning_task") == "generated_next_action_routing"
+        and row.get("input_summary", {}).get("source_learning_task")
+        == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
+    ]
+    assert len(retry_generated_learning_rows) == 1
+    assert retry_generated_learning_rows[0]["input_summary"][
+        "runtime_queue_status"
+    ] == "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    agenda_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_next_action_agenda_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    retry_agenda_rows = [
+        row
+        for row in agenda_rows
+        if row.get("trigger") == "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
+    ]
+    assert len(retry_agenda_rows) == 1
+    retry_agenda = retry_agenda_rows[0]
+    assert retry_agenda["owner_subsystem"] == "Formalizer/ProofEngineer"
+    assert retry_agenda["runtime_queue_status"] == (
+        "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
+    )
+    assert retry_agenda["work_order_id"] == retry_row["work_order_id"]
+    assert retry_agenda["runtime_generated_queue_name"] == (
+        "formalizer_pf_bv_copy_ready_retries"
+    )
+    assert retry_agenda["target_ids"]
+    assert retry_agenda["proof_evidence_status"] == (
+        "FORMALIZER_PF_BV_COPY_READY_RETRY_AGENDA_NOT_PROOF_EVIDENCE"
+    )
+    assert "not theorem proof evidence" in retry_agenda["boundary"].lower()
+    agenda_contract = _runtime_next_action_agenda_contract_audit_summary(
+        agenda_rows=agenda_rows
+    )
+    assert agenda_contract["runtime_next_action_agenda_contract_complete"] is True
+    assert (
+        agenda_contract[
+            "n_runtime_next_action_agenda_route_critical_rows_missing_target"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
+        ]
+        == 1
+    )
+    assert manifest["n_runtime_next_action_items"] == len(agenda_rows)
 
     proof_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
         context={
