@@ -30886,6 +30886,7 @@ def test_runtime_learning_memory_rejects_unbound_formalizer_proof_state_prompt_m
     unbound_memory = summary[
         "formalizer_lean_candidate_unbound_proof_state_feedback_memory"
     ]
+    assert unbound_memory[0]["question_id"] == question.id
     assert unbound_memory[0]["source_materialization_manifest_id"] == (
         "formalizer_lean_candidate_materialization:not-loaded"
     )
@@ -30894,6 +30895,49 @@ def test_runtime_learning_memory_rejects_unbound_formalizer_proof_state_prompt_m
         unbound_memory[0]["proof_evidence_status"]
         == "FORMALIZER_LEAN_CANDIDATE_PROOF_STATE_UNBOUND_NOT_PROOF_EVIDENCE"
     )
+    runtime_contract = runtime_module._runtime_formalizer_capability_memory_contract(
+        {"runtime_learning_memory": memory},
+        question.id,
+    )
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_lean_candidate"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_local_lean_check"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_proof_state_request"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_proof_state_feedback"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
+    ] is True
+    assert runtime_contract[
+        "capability_eval_formalizer_unbound_proof_state_feedback_rows"
+    ] == 1
+    assert runtime_contract[
+        "capability_eval_unbound_proof_state_materialization_ids"
+    ] == ["formalizer_lean_candidate_materialization:not-loaded"]
+    assert (
+        runtime_module._runtime_formalizer_capability_memory_contract(
+            {"runtime_learning_memory": memory},
+            "other_question",
+        )
+        == {}
+    )
+    contract_context = (
+        runtime_module._runtime_context_with_formalizer_capability_memory_contract(
+            {"runtime_learning_memory": memory},
+            question.id,
+            subsystem="FormalizationEvaluator",
+        )
+    )
+    requested_contract = contract_context["runtime_requested_evidence_contract"]
+    assert requested_contract[
+        "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
+    ] is True
 
     prompt = build_formalizer_prompt(
         question=question,

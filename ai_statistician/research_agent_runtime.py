@@ -46388,6 +46388,11 @@ def _runtime_formalizer_capability_memory_contract(
     rows = _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
         context
     )
+    unbound_proof_state_rows = (
+        _runtime_learning_memory_unbound_formalizer_lean_candidate_proof_state_feedback(
+            context
+        )
+    )
     contract_feedback_rows = (
         _runtime_learning_memory_formalizer_runtime_capability_contract_feedback(
             context
@@ -46405,7 +46410,17 @@ def _runtime_formalizer_capability_memory_contract(
         if not str(row.get("question_id", "") or "").strip()
         or str(row.get("question_id", "") or "").strip() == question_id
     ]
-    if not matching_rows and not matching_contract_feedback_rows:
+    matching_unbound_proof_state_rows = [
+        row
+        for row in unbound_proof_state_rows
+        if not str(row.get("question_id", "") or "").strip()
+        or str(row.get("question_id", "") or "").strip() == question_id
+    ]
+    if (
+        not matching_rows
+        and not matching_contract_feedback_rows
+        and not matching_unbound_proof_state_rows
+    ):
         return {}
     capability_ids = sorted(
         {
@@ -46419,6 +46434,29 @@ def _runtime_formalizer_capability_memory_contract(
         "capability_eval_formalizer_capability_memory_ids": capability_ids,
         "capability_eval_formalizer_capability_memory_rows": len(matching_rows),
     }
+    if matching_unbound_proof_state_rows:
+        contract[
+            "capability_eval_formalizer_unbound_proof_state_feedback_rows"
+        ] = len(matching_unbound_proof_state_rows)
+        contract[
+            "capability_eval_requires_formalizer_local_lean_check"
+        ] = True
+        contract[
+            "capability_eval_requires_formalizer_proof_state_request"
+        ] = True
+        contract[
+            "capability_eval_requires_formalizer_proof_state_feedback"
+        ] = True
+        contract[
+            "capability_eval_requires_formalizer_materialization_bound_proof_state_feedback"
+        ] = True
+        contract[
+            "capability_eval_unbound_proof_state_materialization_ids"
+        ] = [
+            str(row.get("source_materialization_manifest_id", "") or "")
+            for row in matching_unbound_proof_state_rows[:8]
+            if str(row.get("source_materialization_manifest_id", "") or "")
+        ]
     if matching_contract_feedback_rows:
         contract[
             "capability_eval_formalizer_runtime_contract_failure_rows"
@@ -53384,6 +53422,11 @@ def _runtime_learning_memory_unbound_formalizer_lean_candidate_proof_state_feedb
                 "learning_task": (
                     "formalizer_lean_candidate_proof_state_feedback_unbound"
                 ),
+                "question_id": str(
+                    row.get("question_id", "")
+                    or input_summary.get("question_id", "")
+                    or ""
+                ),
                 "source_manifest_id": source_manifest_id,
                 "source_materialization_manifest_id": (
                     source_materialization_manifest_id
@@ -59177,6 +59220,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_proof_state_feedback_memory": [
             {
                 "learning_task": str(row.get("learning_task", "") or ""),
+                "question_id": str(row.get("question_id", "") or ""),
                 "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
                 "source_materialization_manifest_id": str(
                     row.get("source_materialization_manifest_id", "") or ""
@@ -59213,6 +59257,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_lean_candidate_unbound_proof_state_feedback_memory": [
             {
                 "learning_task": str(row.get("learning_task", "") or ""),
+                "question_id": str(row.get("question_id", "") or ""),
                 "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
                 "source_materialization_manifest_id": str(
                     row.get("source_materialization_manifest_id", "") or ""

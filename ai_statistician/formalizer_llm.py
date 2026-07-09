@@ -10122,6 +10122,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
             row.get("formalizer_lean_candidate_proof_state_feedback_memory", []),
             keys=(
                 "learning_task",
+                "question_id",
                 "source_manifest_id",
                 "source_materialization_manifest_id",
                 "provider_name",
@@ -10152,6 +10153,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
             ),
             keys=(
                 "learning_task",
+                "question_id",
                 "source_manifest_id",
                 "source_materialization_manifest_id",
                 "provider_name",
