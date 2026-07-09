@@ -243,6 +243,8 @@ def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> No
         "validator_ready_copy_contract"
     )
     assert "pseudo_formalization_required_packet_seed" in prompt
+    assert "\"id\":\"source_step\"" in prompt
+    assert "coverage_threshold" not in prompt
 
 
 def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
