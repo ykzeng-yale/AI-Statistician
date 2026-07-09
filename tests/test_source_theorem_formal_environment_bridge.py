@@ -655,12 +655,21 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert any("search Mathlib/StatInference" in row for row in repair_packet["proofengineer_action_plan"])
     declaration_hints = repair_packet["formal_environment_declaration_hints"]
     assert {hint["symbol"] for hint in declaration_hints} == {"Exchangeable", "orderStat"}
+    assert {
+        hint["placeholder_policy_id"] for hint in declaration_hints
+    } == {
+        "split_conformal_coverage.exchangeable",
+        "split_conformal_coverage.order_statistic_threshold",
+    }
     assert any(
         "semantic primitive" in hint["signature_probe_fallback"]
         for hint in declaration_hints
     )
     statement_hints = repair_packet["statement_repair_hints"]
     assert statement_hints[0]["blocker"] == "HSub ℕ ℝ ENNReal"
+    assert statement_hints[0]["policy_rule_id"] == (
+        "split_conformal_ennreal_lower_bound_from_real_alpha"
+    )
     assert "ENNReal.ofReal (1 - alpha)" in statement_hints[0]["repair_hint"]
     signature_probe_plan = repair_packet["lean_signature_probe_plan"]
     assert signature_probe_plan["probe_kind"] == "statement_typecheck_not_proof"

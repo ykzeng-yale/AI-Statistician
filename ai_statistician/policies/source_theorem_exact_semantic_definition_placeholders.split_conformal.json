@@ -40,12 +40,68 @@
       "name_prefixes": ["h"]
     }
   ],
+  "formal_environment_statement_repair_rules": [
+    {
+      "rule_id": "split_conformal_ennreal_lower_bound_from_real_alpha",
+      "typeclass_blocker_contains_any": ["HSub \u2115 \u211d ENNReal"],
+      "diagnosis": "the exact candidate compares a `Measure` value in `ENNReal` with `1 - alpha : \u211d`; Lean is trying to subtract a real from a natural or coerce the wrong side of the inequality",
+      "repair_hint": "probe a typed statement whose probability lower bound is `ENNReal.ofReal (1 - alpha)` while keeping the source theorem marked as a semantic repair draft, not a proved exact theorem",
+      "example_target_shape": "P {\u03c9 | s (Fin.last m) \u03c9 \u2264 q_hat \u03c9} \u2265 ENNReal.ofReal (1 - alpha)",
+      "honesty_boundary": "changing the codomain/coercion shape can make the Lean statement typecheck, but it is not source-theorem evidence until semantic review and local Lean/AXLE verification succeed",
+      "regex_replacements": [
+        {
+          "pattern": "\u2265\\s*1\\s*-\\s*alpha\\b",
+          "replacement": "\u2265 ENNReal.ofReal (1 - alpha)"
+        },
+        {
+          "pattern": "\u2265\\s*1\\s*-\\s*\u03b1\\b",
+          "replacement": "\u2265 ENNReal.ofReal (1 - \u03b1)"
+        }
+      ]
+    },
+    {
+      "rule_id": "split_conformal_probability_measure_to_ennreal_lower_bound",
+      "missing_symbol_keys_any": ["MeasureProbability"],
+      "literal_replacements": [
+        {
+          "old": "1 - \u03b1 \u2264 P.toMeasure",
+          "new": "ENNReal.ofReal (1 - \u03b1) \u2264 P.toMeasure"
+        },
+        {
+          "old": "1 - alpha \u2264 P.toMeasure",
+          "new": "ENNReal.ofReal (1 - alpha) \u2264 P.toMeasure"
+        }
+      ]
+    },
+    {
+      "rule_id": "split_conformal_order_statistic_fin_castsucc_probe",
+      "missing_symbol_keys_any": ["orderStatistic"],
+      "regex_replacements": [
+        {
+          "pattern": "fun\\s+i\\s*:\\s*Fin\\s*\\(\\s*n\\s*\\+\\s*1\\s*\\)\\s*=>\\s*s\\s+i\\s+\u03c9",
+          "replacement": "fun i : Fin (n+1) => s i.castSucc \u03c9"
+        }
+      ]
+    }
+  ],
   "placeholder_policies": [
     {
       "policy_id": "split_conformal_coverage.exchangeable",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "exchangeable",
       "semantic_goal": "Define finite exchangeability as permutation-invariant joint law of the score process, not only pairwise score-order symmetry.",
+      "formal_environment_symbol_names": ["Exchangeable"],
+      "formal_environment_search_queries": [
+        "Exchangeable probability measure indexed random variables",
+        "exchangeable Fin family MeasureTheory probability",
+        "List.Perm distribution invariant MeasureTheory"
+      ],
+      "formal_environment_preferred_resolution": "reuse an existing Mathlib/StatInference exchangeability declaration if one exists",
+      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local predicate `Exchangeable (P : Measure \u03a9) (s : Fin (m + 1) \u2192 \u03a9 \u2192 \u211d) : Prop` only as an unproved semantic primitive; do not count it as proof or source-theorem evidence",
+      "formal_environment_promotion_blocker": "the source theorem is not semantically promoted until this predicate is mapped to a reviewed library definition or kernel-proved primitive",
+      "formal_environment_signature_probe_preludes": {
+        "Exchangeable": "def Exchangeable {\u03a9 : Type _} [MeasurableSpace \u03a9] {\u03b9 : Type _} {PType : Sort _}\n    (P : PType) (s : \u03b9 \u2192 \u03a9 \u2192 \u211d) : Prop := True"
+      },
       "required_anchor_names": ["P", "s"],
       "source_to_bridge_premise_aliases": ["hexch", "hExchangeability"],
       "source_to_bridge_dependency_requirements": [
@@ -96,6 +152,18 @@
       "placeholder_key": "MeasureProbability",
       "placeholder_aliases": ["ProbabilityMeasure", "IsProbabilityMeasure", "probability_measure"],
       "semantic_goal": "Replace generated probability-measure placeholders with the exact source theorem probability measure binder P and its Mathlib probability-measure instance, rather than inventing a local wrapper.",
+      "formal_environment_symbol_names": ["MeasureProbability"],
+      "formal_environment_search_queries": [
+        "Mathlib ProbabilityMeasure MeasureTheory IsProbabilityMeasure",
+        "MeasureTheory.Measure IsProbabilityMeasure probability measure",
+        "StatInference probability measure wrapper"
+      ],
+      "formal_environment_preferred_resolution": "prefer `MeasureTheory.Measure \u03a9` with `[MeasureTheory.IsProbabilityMeasure P]` over a custom wrapper",
+      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local wrapper with `toMeasure : MeasureTheory.Measure \u03a9` and `MeasureTheory.IsProbabilityMeasure toMeasure`; this remains a semantic placeholder and must block source-theorem promotion",
+      "formal_environment_promotion_blocker": "`MeasureProbability` is not a reviewed source theorem primitive; map it to Mathlib probability-measure semantics before source theorem promotion",
+      "formal_environment_signature_probe_preludes": {
+        "MeasureProbability": "structure MeasureProbability (\u03a9 : Type _) [MeasurableSpace \u03a9] where\n  toMeasure : MeasureTheory.Measure \u03a9\n  isProbabilityMeasure : MeasureTheory.IsProbabilityMeasure toMeasure"
+      },
       "required_anchor_names": ["P"],
       "source_to_bridge_premise_aliases": ["hProb", "hP", "prob_measure_univ"],
       "source_to_bridge_dependency_requirements": [
@@ -274,6 +342,19 @@
       "placeholder_key": "orderstat",
       "placeholder_aliases": ["orderStat", "orderStatistic"],
       "semantic_goal": "Define the finite-sample conformal order-statistic threshold from the exact score process s and the order-statistic threshold equation hq. The definition must preserve the requested rank, duplicate score multiplicities, and the reviewed tie policy instead of collapsing scores through a set/image shortcut.",
+      "formal_environment_symbol_names": ["orderStat", "orderStatistic"],
+      "formal_environment_search_queries": [
+        "order statistic finite family real Lean",
+        "Finset sort nth order statistic",
+        "quantile order statistic conformal Lean"
+      ],
+      "formal_environment_preferred_resolution": "reuse or formalize a finite-sample order statistic over `Fin (m + 1)` before proving coverage",
+      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local function `orderStat (s : Fin (m + 1) \u2192 \u03a9 \u2192 \u211d) (k : \u2115) (\u03c9 : \u03a9) : \u211d` as a semantic placeholder; it must remain outside proof evidence",
+      "formal_environment_promotion_blocker": "theorem closure still requires the rank/order-statistic semantics bridge, not just the symbol declaration",
+      "formal_environment_signature_probe_preludes": {
+        "orderStat": "def orderStat {\u03a9 : Type _} {m : \u2115}\n    (s : Fin (m + 1) \u2192 \u03a9 \u2192 \u211d) (k : \u2115) (\u03c9 : \u03a9) : \u211d := 0",
+        "orderStatistic": "noncomputable def orderStatistic {\u03b9 : Type _} (scores : \u03b9 \u2192 \u211d) (k : \u2115) : \u211d := 0"
+      },
       "required_anchor_names": ["n2", "s", "q_hat", "hq"],
       "source_to_bridge_premise_aliases": ["hQuantileThreshold", "good_rank_event"],
       "source_to_bridge_dependency_requirements": [

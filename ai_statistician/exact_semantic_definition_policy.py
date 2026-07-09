@@ -46,6 +46,14 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     semantic_import_missing_required_signal_reason: str = ""
     draft_definition: str = ""
     draft_definition_semantic_risk: str = "draft definition requires semantic review"
+    formal_environment_symbol_names: tuple[str, ...] = ()
+    formal_environment_search_queries: tuple[str, ...] = ()
+    formal_environment_preferred_resolution: str = ""
+    formal_environment_signature_probe_fallback: str = ""
+    formal_environment_promotion_blocker: str = ""
+    formal_environment_signature_probe_preludes: Mapping[str, str] = field(
+        default_factory=dict
+    )
     source_lookup_search_terms: tuple[str, ...] = ()
     source_lookup_aliases: tuple[str, ...] = ()
     definition_contract: Mapping[str, Any] = field(default_factory=dict)
@@ -100,14 +108,16 @@ def _load_policy_pack_policies() -> tuple[
     tuple[ExactSemanticDefinitionPlaceholderPolicy, ...],
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
+    tuple[dict[str, Any], ...],
     str,
 ]:
     policy_dir = Path(__file__).resolve().parent / "policies"
     if not policy_dir.exists():
-        return (), (), (), "source_parameter"
+        return (), (), (), (), "source_parameter"
     policies: list[ExactSemanticDefinitionPlaceholderPolicy] = []
     policy_pack_ids: list[str] = []
     source_anchor_role_rules: list[ExactSemanticDefinitionSourceAnchorRoleRule] = []
+    statement_repair_rules: list[dict[str, Any]] = []
     default_source_anchor_role = "source_parameter"
     for path in sorted(policy_dir.glob(_POLICY_PACK_GLOB)):
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -126,6 +136,11 @@ def _load_policy_pack_policies() -> tuple[
         ).strip()
         if default_role:
             default_source_anchor_role = default_role
+        statement_repair_rules.extend(
+            _formal_environment_statement_repair_rule_from_mapping(row)
+            for row in payload.get("formal_environment_statement_repair_rules", [])
+            if isinstance(row, Mapping)
+        )
         raw_policies = payload.get("placeholder_policies", [])
         if not isinstance(raw_policies, list):
             raise ValueError(
@@ -141,6 +156,7 @@ def _load_policy_pack_policies() -> tuple[
         tuple(policies),
         tuple(dict.fromkeys(policy_pack_ids)),
         tuple(source_anchor_role_rules),
+        tuple(statement_repair_rules),
         default_source_anchor_role,
     )
 
@@ -206,6 +222,24 @@ def _policy_from_mapping(
             )
             or "draft definition requires semantic review"
         ),
+        formal_environment_symbol_names=_string_tuple(
+            row.get("formal_environment_symbol_names")
+        ),
+        formal_environment_search_queries=_string_tuple(
+            row.get("formal_environment_search_queries")
+        ),
+        formal_environment_preferred_resolution=str(
+            row.get("formal_environment_preferred_resolution", "") or ""
+        ),
+        formal_environment_signature_probe_fallback=str(
+            row.get("formal_environment_signature_probe_fallback", "") or ""
+        ),
+        formal_environment_promotion_blocker=str(
+            row.get("formal_environment_promotion_blocker", "") or ""
+        ),
+        formal_environment_signature_probe_preludes=_string_mapping(
+            row.get("formal_environment_signature_probe_preludes")
+        ),
         source_lookup_search_terms=_string_tuple(
             row.get("source_lookup_search_terms")
         ),
@@ -227,6 +261,40 @@ def _policy_from_mapping(
             if isinstance(rule, Mapping)
         ),
     )
+
+
+def _formal_environment_statement_repair_rule_from_mapping(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "rule_id": str(row.get("rule_id", "") or "").strip(),
+        "typeclass_blocker_contains_any": _string_tuple(
+            row.get("typeclass_blocker_contains_any")
+        ),
+        "missing_symbol_keys_any": _string_tuple(row.get("missing_symbol_keys_any")),
+        "diagnosis": str(row.get("diagnosis", "") or ""),
+        "repair_hint": str(row.get("repair_hint", "") or ""),
+        "example_target_shape": str(row.get("example_target_shape", "") or ""),
+        "honesty_boundary": str(row.get("honesty_boundary", "") or ""),
+        "literal_replacements": tuple(
+            {
+                "old": str(item.get("old", "") or ""),
+                "new": str(item.get("new", "") or ""),
+            }
+            for item in row.get("literal_replacements", [])
+            if isinstance(item, Mapping)
+            and str(item.get("old", "") or "")
+        ),
+        "regex_replacements": tuple(
+            {
+                "pattern": str(item.get("pattern", "") or ""),
+                "replacement": str(item.get("replacement", "") or ""),
+            }
+            for item in row.get("regex_replacements", [])
+            if isinstance(item, Mapping)
+            and str(item.get("pattern", "") or "")
+        ),
+    }
 
 
 def _risk_rule_from_mapping(
@@ -312,6 +380,7 @@ def _build_policy_registry() -> tuple[
     Mapping[str, ExactSemanticDefinitionPlaceholderPolicy],
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
+    tuple[dict[str, Any], ...],
     str,
 ]:
     registry: dict[str, ExactSemanticDefinitionPlaceholderPolicy] = {}
@@ -319,6 +388,7 @@ def _build_policy_registry() -> tuple[
         policy_pack_policies,
         policy_pack_ids,
         source_anchor_role_rules,
+        formal_environment_statement_repair_rules,
         default_source_anchor_role,
     ) = _load_policy_pack_policies()
     if policy_pack_policies:
@@ -327,6 +397,7 @@ def _build_policy_registry() -> tuple[
         registry,
         policy_pack_ids,
         source_anchor_role_rules,
+        formal_environment_statement_repair_rules,
         default_source_anchor_role,
     )
 
@@ -335,6 +406,7 @@ def _build_policy_registry() -> tuple[
     EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
     EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS,
     EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES,
+    EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES,
     EXACT_SEMANTIC_DEFINITION_DEFAULT_SOURCE_ANCHOR_ROLE,
 ) = _build_policy_registry()
 
@@ -348,6 +420,78 @@ def exact_semantic_definition_source_anchor_role_rules() -> tuple[
     ...,
 ]:
     return EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES
+
+
+def exact_semantic_definition_formal_environment_statement_repair_rules() -> tuple[
+    dict[str, Any],
+    ...,
+]:
+    return EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES
+
+
+def exact_semantic_definition_formal_environment_symbol_names() -> tuple[str, ...]:
+    names: list[str] = []
+    seen_policy_ids: set[str] = set()
+    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+        if policy.policy_id in seen_policy_ids:
+            continue
+        seen_policy_ids.add(policy.policy_id)
+        names.extend(policy.formal_environment_symbol_names)
+    return tuple(dict.fromkeys(name for name in names if name))
+
+
+def exact_semantic_definition_formal_environment_declaration_hint(
+    placeholder_symbol: str,
+) -> dict[str, Any]:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    symbol = str(placeholder_symbol or "").strip()
+    search_queries = (
+        policy.formal_environment_search_queries
+        or policy.source_lookup_search_terms
+        or policy.source_lookup_aliases
+    )
+    preferred_resolution = (
+        policy.formal_environment_preferred_resolution
+        or f"search existing Lean sources before drafting `{symbol}`"
+    )
+    signature_probe_fallback = (
+        policy.formal_environment_signature_probe_fallback
+        or (
+            "if no declaration exists, draft the narrowest local declaration "
+            "needed to typecheck the source theorem and mark it as unproved"
+        )
+    )
+    promotion_blocker = (
+        policy.formal_environment_promotion_blocker
+        or (
+            "local declaration drafts are routing evidence only until reviewed "
+            "and kernel verified in the target library"
+        )
+    )
+    return {
+        "symbol": symbol,
+        "placeholder_policy_id": policy.policy_id,
+        "placeholder_policy_scope": policy.policy_scope,
+        "search_queries": list(search_queries),
+        "preferred_resolution": preferred_resolution,
+        "signature_probe_fallback": signature_probe_fallback,
+        "promotion_blocker": promotion_blocker,
+    }
+
+
+def exact_semantic_definition_signature_probe_prelude(
+    placeholder_symbol: str,
+) -> str:
+    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    symbol = str(placeholder_symbol or "").strip()
+    prelude = policy.formal_environment_signature_probe_preludes.get(symbol, "")
+    if prelude:
+        return prelude
+    compact_symbol = compact_exact_semantic_placeholder_key(symbol)
+    for key, value in policy.formal_environment_signature_probe_preludes.items():
+        if compact_exact_semantic_placeholder_key(key) == compact_symbol:
+            return value
+    return ""
 
 
 def exact_semantic_definition_fallback_source_anchor_role(

@@ -9,9 +9,13 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_contract,
     exact_semantic_definition_draft_definition,
     exact_semantic_definition_draft_semantic_risk,
+    exact_semantic_definition_formal_environment_declaration_hint,
+    exact_semantic_definition_formal_environment_statement_repair_rules,
+    exact_semantic_definition_formal_environment_symbol_names,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_signature_probe_prelude,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
@@ -218,6 +222,48 @@ def test_placeholder_policy_owns_draft_definitions_and_search_aliases() -> None:
         "quantile",
     )
     assert "alpha" in exact_semantic_definition_source_lookup_terms("\u03b1_total")
+
+
+def test_policy_owns_formal_environment_symbols_and_repairs() -> None:
+    assert {
+        "MeasureProbability",
+        "Exchangeable",
+        "orderStat",
+        "orderStatistic",
+    }.issubset(set(exact_semantic_definition_formal_environment_symbol_names()))
+
+    exchangeable_hint = exact_semantic_definition_formal_environment_declaration_hint(
+        "Exchangeable"
+    )
+    assert exchangeable_hint["placeholder_policy_id"] == (
+        "split_conformal_coverage.exchangeable"
+    )
+    assert "exchangeability declaration" in exchangeable_hint[
+        "preferred_resolution"
+    ]
+    assert "semantic primitive" in exchangeable_hint["signature_probe_fallback"]
+
+    assert "def Exchangeable" in exact_semantic_definition_signature_probe_prelude(
+        "Exchangeable"
+    )
+    assert "def orderStat" in exact_semantic_definition_signature_probe_prelude(
+        "orderStat"
+    )
+    assert "noncomputable def orderStatistic" in (
+        exact_semantic_definition_signature_probe_prelude("orderStatistic")
+    )
+
+    rules = {
+        rule["rule_id"]: rule
+        for rule in exact_semantic_definition_formal_environment_statement_repair_rules()
+    }
+    assert "split_conformal_ennreal_lower_bound_from_real_alpha" in rules
+    assert rules["split_conformal_ennreal_lower_bound_from_real_alpha"][
+        "typeclass_blocker_contains_any"
+    ] == ("HSub \u2115 \u211d ENNReal",)
+    assert rules["split_conformal_order_statistic_fin_castsucc_probe"][
+        "missing_symbol_keys_any"
+    ] == ("orderStatistic",)
     assert "alpha" in exact_semantic_definition_source_lookup_aliases("\u03b1_total")
     assert "alphatotal" in exact_semantic_definition_source_lookup_aliases(
         "\u03b1_total"

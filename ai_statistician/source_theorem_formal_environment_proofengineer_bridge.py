@@ -14,6 +14,13 @@ from .formal_verifier_agentic_proof_execution_materializer import (
     _normalize_lean_statement_syntax,
 )
 from .research_architect import KERNEL_PROOF_BOUNDARY
+from .exact_semantic_definition_policy import (
+    compact_exact_semantic_placeholder_key,
+    exact_semantic_definition_formal_environment_declaration_hint,
+    exact_semantic_definition_formal_environment_statement_repair_rules,
+    exact_semantic_definition_formal_environment_symbol_names,
+    exact_semantic_definition_signature_probe_prelude,
+)
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
 )
@@ -451,7 +458,10 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         source_target_provenance.get("semantic_alignment_constraints", []) or []
     )
     declaration_hints = _formal_environment_declaration_hints(missing_symbols)
-    statement_hints = _statement_repair_hints(typeclass_blockers)
+    statement_hints = _statement_repair_hints(
+        typeclass_blockers,
+        missing_symbols=missing_symbols,
+    )
     signature_probe_plan = _lean_signature_probe_plan(
         missing_symbols=missing_symbols,
         typeclass_blockers=typeclass_blockers,
@@ -619,150 +629,85 @@ def _read_candidate_source(candidate_artifact_path: str) -> str:
 def _source_candidate_environment_symbols(source: str) -> list[str]:
     if not source:
         return []
-    symbols: list[str] = []
-    for symbol in (
-        "MeasureProbability",
-        "Exchangeable",
-        "orderStatistic",
-        "orderStat",
-    ):
-        if re.search(rf"\b{re.escape(symbol)}\b", source):
-            symbols.append(symbol)
-    return symbols
+    symbol_positions: list[tuple[int, str]] = []
+    for symbol in exact_semantic_definition_formal_environment_symbol_names():
+        match = re.search(rf"\b{re.escape(symbol)}\b", source)
+        if match:
+            symbol_positions.append((match.start(), symbol))
+    return [
+        symbol
+        for _, symbol in sorted(
+            symbol_positions,
+            key=lambda item: (item[0], item[1]),
+        )
+    ]
 
 
 def _formal_environment_declaration_hints(missing_symbols: list[str]) -> list[dict[str, Any]]:
-    hints: list[dict[str, Any]] = []
-    for symbol in missing_symbols:
-        normalized = symbol.strip()
-        if normalized == "MeasureProbability":
-            hints.append(
-                {
-                    "symbol": normalized,
-                    "search_queries": [
-                        "Mathlib ProbabilityMeasure MeasureTheory IsProbabilityMeasure",
-                        "MeasureTheory.Measure IsProbabilityMeasure probability measure",
-                        "StatInference probability measure wrapper",
-                    ],
-                    "preferred_resolution": (
-                        "prefer `MeasureTheory.Measure Ω` with "
-                        "`[MeasureTheory.IsProbabilityMeasure P]` over a custom wrapper"
-                    ),
-                    "signature_probe_fallback": (
-                        "for a typecheck-only repair artifact, introduce a local wrapper "
-                        "with `toMeasure : MeasureTheory.Measure Ω` and "
-                        "`MeasureTheory.IsProbabilityMeasure toMeasure`; this remains a "
-                        "semantic placeholder and must block source-theorem promotion"
-                    ),
-                    "promotion_blocker": (
-                        "`MeasureProbability` is not a reviewed source theorem primitive; "
-                        "map it to Mathlib probability-measure semantics before source theorem "
-                        "promotion"
-                    ),
-                }
-            )
-        elif normalized == "Exchangeable":
-            hints.append(
-                {
-                    "symbol": normalized,
-                    "search_queries": [
-                        "Exchangeable probability measure indexed random variables",
-                        "exchangeable Fin family MeasureTheory probability",
-                        "List.Perm distribution invariant MeasureTheory",
-                    ],
-                    "preferred_resolution": (
-                        "reuse an existing Mathlib/StatInference exchangeability declaration "
-                        "if one exists"
-                    ),
-                    "signature_probe_fallback": (
-                        "for a typecheck-only repair artifact, introduce a local predicate "
-                        "`Exchangeable (P : Measure Ω) (s : Fin (m + 1) → Ω → ℝ) : Prop` "
-                        "only as an unproved semantic primitive; do not count it as proof "
-                        "or source-theorem evidence"
-                    ),
-                    "promotion_blocker": (
-                        "the source theorem is not semantically promoted until this predicate "
-                        "is mapped to a reviewed library definition or kernel-proved primitive"
-                    ),
-                }
-            )
-        elif normalized in {"orderStat", "orderStatistic"}:
-            hints.append(
-                {
-                    "symbol": normalized,
-                    "search_queries": [
-                        "order statistic finite family real Lean",
-                        "Finset sort nth order statistic",
-                        "quantile order statistic conformal Lean",
-                    ],
-                    "preferred_resolution": (
-                        "reuse or formalize a finite-sample order statistic over "
-                        "`Fin (m + 1)` before proving coverage"
-                    ),
-                    "signature_probe_fallback": (
-                        "for a typecheck-only repair artifact, introduce a local function "
-                        "`orderStat (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ` "
-                        "as a semantic placeholder; it must remain outside proof evidence"
-                    ),
-                    "promotion_blocker": (
-                        "theorem closure still requires the rank/order-statistic semantics "
-                        "bridge, not just the symbol declaration"
-                    ),
-                }
-            )
-        else:
-            hints.append(
-                {
-                    "symbol": normalized,
-                    "search_queries": [
-                        f"{normalized} Mathlib",
-                        f"{normalized} StatInference",
-                        f"{normalized} local Lean source",
-                    ],
-                    "preferred_resolution": (
-                        "search existing Lean sources before drafting a new primitive"
-                    ),
-                    "signature_probe_fallback": (
-                        "if no declaration exists, draft the narrowest local declaration "
-                        "needed to typecheck the source theorem and mark it as unproved"
-                    ),
-                    "promotion_blocker": (
-                        "local declaration drafts are routing evidence only until reviewed "
-                        "and kernel verified in the target library"
-                    ),
-                }
-            )
-    return hints
+    return [
+        exact_semantic_definition_formal_environment_declaration_hint(symbol)
+        for symbol in missing_symbols
+    ]
 
 
-def _statement_repair_hints(typeclass_blockers: list[str]) -> list[dict[str, str]]:
+def _statement_repair_hints(
+    typeclass_blockers: list[str],
+    *,
+    missing_symbols: list[str] | None = None,
+) -> list[dict[str, str]]:
     hints: list[dict[str, str]] = []
-    for blocker in typeclass_blockers:
-        if "HSub ℕ ℝ ENNReal" in blocker:
-            hints.append(
-                {
-                    "blocker": blocker,
-                    "diagnosis": (
-                        "the exact candidate compares a `Measure` value in `ENNReal` with "
-                        "`1 - alpha : ℝ`; Lean is trying to subtract a real from a natural "
-                        "or coerce the wrong side of the inequality"
-                    ),
-                    "repair_hint": (
-                        "probe a typed statement whose probability lower bound is "
-                        "`ENNReal.ofReal (1 - alpha)` while keeping the source theorem "
-                        "marked as a semantic repair draft, not a proved exact theorem"
-                    ),
-                    "example_target_shape": (
-                        "P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)"
-                    ),
-                    "honesty_boundary": (
-                        "changing the codomain/coercion shape can make the Lean statement "
-                        "typecheck, but it is not source-theorem evidence until semantic "
-                        "review and local Lean/AXLE verification succeed"
-                    ),
-                }
+    matched_blockers: set[str] = set()
+    symbols = missing_symbols or []
+    for rule in exact_semantic_definition_formal_environment_statement_repair_rules():
+        matched_for_blockers = [
+            blocker
+            for blocker in typeclass_blockers
+            if _formal_environment_statement_repair_rule_matches(
+                rule,
+                blocker=blocker,
+                missing_symbols=symbols,
             )
-        else:
+        ]
+        if matched_for_blockers:
+            matched_blockers.update(matched_for_blockers)
+            for blocker in matched_for_blockers:
+                if rule.get("diagnosis") or rule.get("repair_hint"):
+                    hints.append(
+                        {
+                            "blocker": blocker,
+                            "diagnosis": str(rule.get("diagnosis", "") or ""),
+                            "repair_hint": str(rule.get("repair_hint", "") or ""),
+                            "example_target_shape": str(
+                                rule.get("example_target_shape", "") or ""
+                            ),
+                            "honesty_boundary": str(
+                                rule.get("honesty_boundary", "") or ""
+                            ),
+                            "policy_rule_id": str(rule.get("rule_id", "") or ""),
+                        }
+                    )
+        elif not typeclass_blockers and _formal_environment_statement_repair_rule_matches(
+            rule,
+            blocker="",
+            missing_symbols=symbols,
+        ):
+            if rule.get("diagnosis") or rule.get("repair_hint"):
+                hints.append(
+                    {
+                        "blocker": "",
+                        "diagnosis": str(rule.get("diagnosis", "") or ""),
+                        "repair_hint": str(rule.get("repair_hint", "") or ""),
+                        "example_target_shape": str(
+                            rule.get("example_target_shape", "") or ""
+                        ),
+                        "honesty_boundary": str(
+                            rule.get("honesty_boundary", "") or ""
+                        ),
+                        "policy_rule_id": str(rule.get("rule_id", "") or ""),
+                    }
+                )
+    for blocker in typeclass_blockers:
+        if blocker not in matched_blockers:
             hints.append(
                 {
                     "blocker": blocker,
@@ -778,6 +723,31 @@ def _statement_repair_hints(typeclass_blockers: list[str]) -> list[dict[str, str
                 }
             )
     return hints
+
+
+def _formal_environment_statement_repair_rule_matches(
+    rule: Mapping[str, Any],
+    *,
+    blocker: str,
+    missing_symbols: list[str],
+) -> bool:
+    blocker_terms = tuple(rule.get("typeclass_blocker_contains_any", ()) or ())
+    if blocker_terms and not any(term in blocker for term in blocker_terms):
+        return False
+    symbol_keys = tuple(
+        compact_exact_semantic_placeholder_key(value)
+        for value in rule.get("missing_symbol_keys_any", ()) or ()
+        if compact_exact_semantic_placeholder_key(value)
+    )
+    if symbol_keys:
+        missing_keys = {
+            compact_exact_semantic_placeholder_key(symbol)
+            for symbol in missing_symbols
+            if compact_exact_semantic_placeholder_key(symbol)
+        }
+        if not missing_keys.intersection(symbol_keys):
+            return False
+    return bool(blocker_terms or symbol_keys)
 
 
 def _lean_signature_probe_plan(
@@ -1153,52 +1123,36 @@ def _split_import_lines(source: str) -> tuple[list[str], list[str]]:
 
 def _signature_probe_declaration_prelude(missing_symbols: list[str]) -> str:
     declarations: list[str] = []
-    if "MeasureProbability" in missing_symbols:
-        declarations.append(
-            "structure MeasureProbability (Ω : Type _) [MeasurableSpace Ω] where\n"
-            "  toMeasure : MeasureTheory.Measure Ω\n"
-            "  isProbabilityMeasure : MeasureTheory.IsProbabilityMeasure toMeasure"
-        )
-    if "Exchangeable" in missing_symbols:
-        declarations.append(
-            "def Exchangeable {Ω : Type _} [MeasurableSpace Ω] {ι : Type _} "
-            "{PType : Sort _}\n"
-            "    (P : PType) (s : ι → Ω → ℝ) : Prop := True"
-        )
-    if "orderStat" in missing_symbols:
-        declarations.append(
-            "def orderStat {Ω : Type _} {m : ℕ}\n"
-            "    (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ := 0"
-        )
-    if "orderStatistic" in missing_symbols:
-        declarations.append(
-            "noncomputable def orderStatistic {ι : Type _} "
-            "(scores : ι → ℝ) (k : ℕ) : ℝ := 0"
-        )
+    for symbol in missing_symbols:
+        declaration = exact_semantic_definition_signature_probe_prelude(symbol)
+        if declaration:
+            declarations.append(declaration)
     return "\n\n".join(declarations)
 
 
 def _apply_statement_repair_hints(source: str, packet: Mapping[str, Any]) -> str:
     blockers = _str_list(packet.get("typeclass_blockers", []) or [])
     missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
-    if any("HSub ℕ ℝ ENNReal" in blocker for blocker in blockers):
-        source = re.sub(r"≥\s*1\s*-\s*alpha\b", "≥ ENNReal.ofReal (1 - alpha)", source)
-        source = re.sub(r"≥\s*1\s*-\s*α\b", "≥ ENNReal.ofReal (1 - α)", source)
-    if "MeasureProbability" in missing_symbols:
-        source = source.replace(
-            "1 - α ≤ P.toMeasure",
-            "ENNReal.ofReal (1 - α) ≤ P.toMeasure",
-        )
-        source = source.replace(
-            "1 - alpha ≤ P.toMeasure",
-            "ENNReal.ofReal (1 - alpha) ≤ P.toMeasure",
-        )
-    if "orderStatistic" in missing_symbols:
-        source = re.sub(
-            r"fun\s+i\s*:\s*Fin\s*\(\s*n\s*\+\s*1\s*\)\s*=>\s*s\s+i\s+ω",
-            "fun i : Fin (n+1) => s i.castSucc ω",
-            source,
-        )
+    for rule in exact_semantic_definition_formal_environment_statement_repair_rules():
+        if not any(
+            _formal_environment_statement_repair_rule_matches(
+                rule,
+                blocker=blocker,
+                missing_symbols=missing_symbols,
+            )
+            for blocker in [*blockers, ""]
+        ):
+            continue
+        for replacement in rule.get("literal_replacements", ()) or ():
+            old = str(replacement.get("old", "") or "")
+            new = str(replacement.get("new", "") or "")
+            if old:
+                source = source.replace(old, new)
+        for replacement in rule.get("regex_replacements", ()) or ():
+            pattern = str(replacement.get("pattern", "") or "")
+            new = str(replacement.get("replacement", "") or "")
+            if pattern:
+                source = re.sub(pattern, new, source)
     return source
 
 
