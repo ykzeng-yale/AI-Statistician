@@ -25,9 +25,8 @@ from .agent_runtime import (
     ToolCallRecord,
 )
 from .algorithm_template_registry import (
-    CROSSFIT_AIPW_TEMPLATE_ID,
-    SPLIT_CONFORMAL_INTERVAL_TEMPLATE_ID,
     registered_algorithm_template_hint_from_context,
+    registered_algorithm_template_row,
 )
 from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
@@ -10836,8 +10835,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                         proposal_packet=proposal_packet,
                     )
                 )
-            elif template_hint == CROSSFIT_AIPW_TEMPLATE_ID:
-                prototype, tool_call = _run_crossfit_aipw_prototype(
+            elif template_hint:
+                template_result = _run_registered_algorithm_template_prototype(
+                    template_hint=template_hint,
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
                     spec=spec,
@@ -10845,21 +10845,26 @@ class AlgorithmEngineerRuntimeSubsystem:
                     seed=int(task.inputs.get("seed", self.seed) or self.seed),
                     timeout_s=self.timeout_s,
                 )
-                prototype["llm_algorithm_engineer_target"] = proposal_target
-                prototype_rows.append(prototype)
-                tool_calls.append(tool_call)
-            elif template_hint == SPLIT_CONFORMAL_INTERVAL_TEMPLATE_ID:
-                prototype, tool_call = _run_split_conformal_interval_prototype(
-                    sandbox_dir=sandbox_dir,
-                    estimator_id=estimator_id,
-                    spec=spec,
-                    n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
-                    seed=int(task.inputs.get("seed", self.seed) or self.seed),
-                    timeout_s=self.timeout_s,
-                )
-                prototype["llm_algorithm_engineer_target"] = proposal_target
-                prototype_rows.append(prototype)
-                tool_calls.append(tool_call)
+                if template_result is not None:
+                    prototype, tool_call = template_result
+                    prototype["llm_algorithm_engineer_target"] = proposal_target
+                    prototype_rows.append(prototype)
+                    tool_calls.append(tool_call)
+                else:
+                    prototype_rows.append(
+                        {
+                            "estimator_id": estimator_id,
+                            "prototype_status": "UNSUPPORTED_SANDBOX_TEMPLATE",
+                            "spec": dict(spec),
+                            "registered_template_hint": template_hint,
+                            "reason": (
+                                "Registered algorithm template has no AgentRuntime "
+                                "sandbox executor binding."
+                            ),
+                            "promotion_ready": False,
+                            "llm_algorithm_engineer_target": proposal_target,
+                        }
+                    )
             else:
                 prototype_rows.append(
                     {
@@ -46926,6 +46931,47 @@ def _registered_algorithm_template_hint(
             " ".join(question.tags),
         ),
     )
+
+
+def _registered_algorithm_template_runner_by_executor(
+    executor: str,
+) -> Callable[..., tuple[dict[str, Any], ToolCallRecord]] | None:
+    runners: dict[str, Callable[..., tuple[dict[str, Any], ToolCallRecord]]] = {
+        "registered_crossfit_aipw_template": _run_crossfit_aipw_prototype,
+        "registered_split_conformal_interval_template": (
+            _run_split_conformal_interval_prototype
+        ),
+    }
+    return runners.get(str(executor or "").strip())
+
+
+def _run_registered_algorithm_template_prototype(
+    *,
+    template_hint: str,
+    sandbox_dir: Path,
+    estimator_id: str,
+    spec: Mapping[str, Any],
+    n_runs: int,
+    seed: int,
+    timeout_s: int,
+) -> tuple[dict[str, Any], ToolCallRecord] | None:
+    template_row = registered_algorithm_template_row(template_hint)
+    executor = str(template_row.get("executor", "") or "").strip()
+    runner = _registered_algorithm_template_runner_by_executor(executor)
+    if runner is None:
+        return None
+    prototype, tool_call = runner(
+        sandbox_dir=sandbox_dir,
+        estimator_id=estimator_id,
+        spec=spec,
+        n_runs=n_runs,
+        seed=seed,
+        timeout_s=timeout_s,
+    )
+    prototype.setdefault("registered_template_hint", template_hint)
+    prototype.setdefault("registered_template_executor", executor)
+    prototype.setdefault("executor", executor)
+    return prototype, tool_call
 
 
 def _formalization_manifest_source_to_bridge_metadata_blocker(

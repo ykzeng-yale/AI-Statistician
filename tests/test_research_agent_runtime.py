@@ -35539,6 +35539,69 @@ def test_split_conformal_registered_template_hint_and_execution(tmp_path: Path) 
     assert tool_call.exit_status == "0"
 
 
+def test_registered_algorithm_template_dispatch_uses_registry_executor(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = (
+        runtime_module._run_registered_algorithm_template_prototype(
+            template_hint="split_conformal_interval",
+            sandbox_dir=tmp_path,
+            estimator_id="E1",
+            spec={"id": "E1", "name": "Split conformal interval"},
+            n_runs=12,
+            seed=20260607,
+            timeout_s=20,
+        )
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["executor"] == "registered_split_conformal_interval_template"
+    assert prototype["registered_template_hint"] == "split_conformal_interval"
+    assert prototype["registered_template_executor"] == (
+        "registered_split_conformal_interval_template"
+    )
+    assert tool_call.tool_name == "python.split_conformal_interval_sandbox"
+
+    aipw_prototype, aipw_tool_call = (
+        runtime_module._run_registered_algorithm_template_prototype(
+            template_hint="crossfit_aipw",
+            sandbox_dir=tmp_path,
+            estimator_id="aipw_crossfit",
+            spec={"id": "aipw_crossfit", "name": "Crossfit AIPW"},
+            n_runs=12,
+            seed=20260607,
+            timeout_s=20,
+        )
+    )
+    assert aipw_prototype["prototype_status"] == "EXECUTED"
+    assert aipw_prototype["executor"] == "registered_crossfit_aipw_template"
+    assert aipw_prototype["registered_template_hint"] == "crossfit_aipw"
+    assert aipw_tool_call.tool_name == "python.crossfit_aipw_sandbox"
+
+    assert (
+        runtime_module._run_registered_algorithm_template_prototype(
+            template_hint="not_registered",
+            sandbox_dir=tmp_path,
+            estimator_id="E1",
+            spec={"id": "E1"},
+            n_runs=12,
+            seed=20260607,
+            timeout_s=20,
+        )
+        is None
+    )
+
+
+def test_algorithm_runtime_template_dispatch_has_no_template_id_branches() -> None:
+    source = inspect.getsource(AlgorithmEngineerRuntimeSubsystem.run)
+
+    assert "_run_registered_algorithm_template_prototype" in source
+    assert "CROSSFIT_AIPW_TEMPLATE_ID" not in source
+    assert "SPLIT_CONFORMAL_INTERVAL_TEMPLATE_ID" not in source
+    assert "template_hint == \"split_conformal_interval\"" not in source
+    assert "template_hint == \"crossfit_aipw\"" not in source
+
+
 def test_algorithm_engineer_runtime_executes_registered_split_conformal_template(tmp_path: Path) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     theory_packet_id = "theory:conformal"
@@ -35614,6 +35677,7 @@ def test_algorithm_engineer_runtime_executes_registered_split_conformal_template
     assert manifest["n_generated_code_executed"] == 0
     assert manifest["n_unsafe_generated_code_rejected"] == 0
     assert prototype["executor"] == "registered_split_conformal_interval_template"
+    assert prototype["registered_template_hint"] == "split_conformal_interval"
     assert prototype["llm_algorithm_engineer_target"]["registered_template_hint"] == "split_conformal_interval"
     assert prototype["metrics"]["status"] == "ok"
     assert any(row.tool_name == "python.split_conformal_interval_sandbox" for row in result.tool_calls)
