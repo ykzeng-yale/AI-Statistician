@@ -10841,6 +10841,7 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         "accepted": 0,
         "failed": 0,
         "blocked": 0,
+        "formal_required_blocked": 0,
         "max_iterations_reached": 0,
         "budget_exhausted_with_pending_next_task": 0,
         "budget_exhausted_after_revision_request": 0,
@@ -10893,12 +10894,20 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 or last_task_id.startswith("theory-critic-revise:")
             )
         )
+        formal_required_policy_block = bool(
+            status == "BLOCKED"
+            and final_acceptance_status == "FORMAL_REQUIRED_BLOCKED"
+        )
         if status == "ACCEPTED":
             terminal_kind = "accepted"
             counts["accepted"] += 1
         elif status == "FAILED":
             terminal_kind = "failed"
             counts["failed"] += 1
+        elif formal_required_policy_block:
+            terminal_kind = "formal_required_blocked"
+            counts["blocked"] += 1
+            counts["formal_required_blocked"] += 1
         elif status == "BLOCKED":
             terminal_kind = "blocked"
             counts["blocked"] += 1
@@ -10965,6 +10974,11 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
     rows = completion_summary.get("rows", [])
     if not isinstance(rows, list):
         rows = []
+    policy_block_rows = [
+        row for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("terminal_kind", "") or "") == "formal_required_blocked"
+    ]
     failure_rows = [
         row for row in rows
         if isinstance(row, Mapping)
@@ -10982,13 +10996,20 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         }
     ]
     first_failure = failure_rows[0] if failure_rows else {}
-    first_terminal = first_failure or (incomplete_rows[0] if incomplete_rows else {})
+    first_policy_block = policy_block_rows[0] if policy_block_rows else {}
+    first_terminal = (
+        first_failure
+        or first_policy_block
+        or (incomplete_rows[0] if incomplete_rows else {})
+    )
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFailureSummary",
         "n_failure_rows": len(failure_rows),
+        "n_policy_block_rows": len(policy_block_rows),
         "n_incomplete_rows": len(incomplete_rows),
         "has_failure": bool(failure_rows),
+        "has_policy_block": bool(policy_block_rows),
         "has_incomplete_pending_work": bool(incomplete_rows),
         "terminal_question_id": str(first_terminal.get("question_id", "") or ""),
         "terminal_subsystem": str(first_terminal.get("last_completed_subsystem", "") or ""),
@@ -11010,12 +11031,30 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         "failure_status": str(first_failure.get("status", "") or ""),
         "failure_terminal_kind": str(first_failure.get("terminal_kind", "") or ""),
         "failure_classification": str(first_failure.get("last_failure_classification", "") or ""),
+        "policy_block_question_id": str(first_policy_block.get("question_id", "") or ""),
+        "policy_block_subsystem": str(
+            first_policy_block.get("last_completed_subsystem", "") or ""
+        ),
+        "policy_block_task_id": str(
+            first_policy_block.get("last_completed_task_id", "")
+            or first_policy_block.get("final_task_id", "")
+            or ""
+        ),
+        "policy_block_status": str(first_policy_block.get("status", "") or ""),
+        "policy_block_terminal_kind": str(
+            first_policy_block.get("terminal_kind", "") or ""
+        ),
+        "policy_block_classification": str(
+            first_policy_block.get("last_failure_classification", "") or ""
+        ),
         "pending_next_task_id": str(first_terminal.get("pending_next_task_id", "") or ""),
         "boundary": (
             "Runtime terminal status is an orchestration diagnostic. Budget exhaustion "
-            "with a pending next task is incomplete work, not a subsystem failure. This "
-            "summary does not downgrade kernel-verified subclaims or promote partial "
-            "runtime progress to theorem proof evidence."
+            "with a pending next task is incomplete work, not a subsystem failure. A "
+            "formal-required policy block means the evidence contract correctly refused "
+            "final acceptance without required kernel proof; it is not theorem success. "
+            "This summary does not downgrade kernel-verified subclaims or promote "
+            "partial runtime progress to theorem proof evidence."
         ),
     }
 

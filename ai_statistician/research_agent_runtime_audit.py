@@ -472,8 +472,6 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     expected_sequence = REQUIRED_ARCHITECT_SUBSYSTEMS if architect_enabled else REQUIRED_SUBSYSTEMS
     if tuple(subsystem_sequence[: len(expected_sequence)]) != expected_sequence:
         errors.append("runtime trace subsystem order is incomplete or misordered")
-    if data.get("status") != "ACCEPTED":
-        errors.append("runtime result status is not ACCEPTED")
 
     retrieval = _artifacts_with_prefix(artifacts, "retrieval_memory_manifest:")
     theory = _artifacts_with_prefix(artifacts, "theory_derivation:")
@@ -482,6 +480,16 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     formalization = _artifacts_with_prefix(artifacts, "formalization_manifest:")
     proof_state_feedback = _artifacts_with_prefix(artifacts, "proof_state_feedback_manifest:")
     critic = _artifacts_with_prefix(artifacts, "critic_evaluator_manifest:")
+    final_critic_decision = _latest_critic_evidence_contract_decision(critic)
+    final_acceptance_status = str(
+        final_critic_decision.get("final_acceptance_status", "") or ""
+    )
+    formal_required_policy_block = bool(
+        data.get("status") == "BLOCKED"
+        and final_acceptance_status == "FORMAL_REQUIRED_BLOCKED"
+    )
+    if data.get("status") != "ACCEPTED" and not formal_required_policy_block:
+        errors.append("runtime result status is not ACCEPTED")
     required_counts = {
         "retrieval manifest": retrieval,
         "theory packet": theory,
@@ -703,6 +711,16 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         has_literature_fair_comparison_plan=has_literature_fair_comparison_plan,
         errors=tuple(errors),
     )
+
+
+def _latest_critic_evidence_contract_decision(
+    critic_manifests: list[dict[str, Any]],
+) -> dict[str, Any]:
+    for manifest in reversed(critic_manifests):
+        decision = manifest.get("evidence_contract_decision", {})
+        if isinstance(decision, Mapping):
+            return dict(decision)
+    return {}
 
 
 def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
