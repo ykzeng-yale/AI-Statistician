@@ -15,6 +15,7 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_proof_body_adapter_synthesis_instruction,
     exact_semantic_definition_signature_probe_prelude,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
@@ -162,6 +163,13 @@ def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:
         "hCoverage",
     }.issubset(binder_aliases)
     assert "BadRanks" not in binder_aliases
+    instruction = exact_semantic_definition_proof_body_adapter_synthesis_instruction()
+    assert "adapter synthesis" in instruction
+    assert "policy-listed source instantiations" in instruction
+    for name in (
+        exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation()
+    ):
+        assert name in instruction
     source_anchor_terms = set(
         exact_semantic_definition_source_to_bridge_source_anchor_terms()
     )

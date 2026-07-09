@@ -23,6 +23,9 @@ from .source_theorem_semantic_primitive_proofengineer_bridge import (
     inferred_exact_goal_shape_obligation_ids_from_feedback as _policy_goal_obligations_from_feedback,
     semantic_gap_for_exact_goal_shape_obligation as _policy_goal_obligation_gap,
 )
+from .exact_semantic_definition_policy import (
+    exact_semantic_definition_proof_body_adapter_synthesis_instruction,
+)
 
 
 SCHEMA_VERSION = 1
@@ -2391,13 +2394,7 @@ def _runtime_learning_recommended_next_action(
         row.failure_classification
         == "proof_body_reduction_closure_adapter_instantiation_missing"
     ):
-        return (
-            "Route to ProofEngineer adapter synthesis: the verified theorem-reduction "
-            "closure declaration is available, but direct exact/simpa attempts do not "
-            "instantiate it against the exact source theorem. Build a source-to-closure "
-            "adapter that supplies covered/BadRanks/rank/alpha_total assumptions and "
-            "bridges ENNReal/real-valued coverage before retrying the exact theorem."
-        )
+        return exact_semantic_definition_proof_body_adapter_synthesis_instruction()
     if row.failure_classification == "proof_body_verified_adapter_context_insufficient":
         return (
             "Route to ProofEngineer with the verified adapter materialized: the "

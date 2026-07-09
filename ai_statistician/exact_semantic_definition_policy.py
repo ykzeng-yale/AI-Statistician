@@ -479,6 +479,20 @@ def exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_so
     return EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES
 
 
+def exact_semantic_definition_proof_body_adapter_synthesis_instruction() -> str:
+    adapter_names = (
+        exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation()
+    )
+    adapter_text = ", ".join(adapter_names) if adapter_names else "the policy-listed"
+    return (
+        "Route to ProofEngineer adapter synthesis: the verified theorem-reduction "
+        "closure declaration is available, but direct exact/simpa attempts do not "
+        "instantiate it against the exact source theorem. Build a source-to-closure "
+        f"adapter that supplies policy-listed source instantiations for {adapter_text} "
+        "and bridges ENNReal/real-valued coverage before retrying the exact theorem."
+    )
+
+
 def exact_semantic_definition_source_to_bridge_premise_aliases() -> tuple[str, ...]:
     aliases: list[str] = []
     seen_policy_ids: set[str] = set()

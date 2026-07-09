@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import ai_statistician.exact_source_theorem_proof_body_executor as executor_module
 from ai_statistician.exact_source_theorem_proof_body_executor import (
     export_exact_source_theorem_proof_body_execution_results,
 )
@@ -1876,8 +1877,17 @@ def test_exact_source_executor_routes_closure_type_mismatch_to_adapter(
         "EXACT_SOURCE_PROOF_BODY_REDUCTION_CLOSURE_ADAPTER_REQUIRED"
     )
     assert "adapter synthesis" in learning_row["recommended_next_action"]
+    assert "policy-listed source instantiations" in learning_row[
+        "recommended_next_action"
+    ]
     assert "adapter feedback" in learning_row["target_behavior"]
     assert learning_row["source_theorem_kernel_verified"] is False
+    executor_source = Path(executor_module.__file__).read_text(encoding="utf-8")
+    assert "covered/BadRanks/rank/alpha_total" not in executor_source
+    assert (
+        "exact_semantic_definition_proof_body_adapter_synthesis_instruction()"
+        in executor_source
+    )
 
 
 def test_exact_source_executor_reuses_same_source_candidate_when_overwrite_requested(
