@@ -68910,6 +68910,20 @@ def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_b
     } == {PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE}
 
 
+def test_runtime_adapter_repair_guidance_uses_policy_for_bridge_premises() -> None:
+    module_source = Path(runtime_module.__file__).read_text(encoding="utf-8")
+
+    assert "hGoodCovered/hRank/hTotal-style" not in module_source
+    assert (
+        "exact_semantic_definition_source_to_bridge_premise_binder_aliases"
+        in module_source
+    )
+    assert (
+        "exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation"
+        in module_source
+    )
+
+
 def test_formalizer_memory_surfaces_unproven_bridge_premise_adapter_failure(
     tmp_path: Path,
 ) -> None:
@@ -68961,7 +68975,7 @@ def test_formalizer_memory_surfaces_unproven_bridge_premise_adapter_failure(
                 ],
                 "recommended_repair_tasks": [
                     "replace bridge-premise assumptions with derivations from exact source hypotheses: hGoodCovered, hRank, hTotal",
-                    "do not promote adapters that take hGoodCovered/hRank/hTotal-style bridge premises as inputs",
+                    "do not promote adapters that take policy-listed bridge premises as inputs: hGoodCovered/hGoodRankCovered/hGoodRankImpliesCovered/hGoodImpliesCovered/hCoverage/hRank/...",
                 ],
                 "proof_evidence_status": (
                     "SOURCE_THEOREM_PROOF_BODY_ADAPTER_BRIDGE_NOT_PROOF_EVIDENCE"

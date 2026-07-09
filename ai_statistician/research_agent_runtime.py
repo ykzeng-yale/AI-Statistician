@@ -242,6 +242,8 @@ from .source_theorem_exact_semantic_definition_source_lookup import (
 from .exact_semantic_definition_policy import (
     exact_semantic_definition_contract,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
+    exact_semantic_definition_source_to_bridge_premise_binder_aliases,
     exact_semantic_definition_source_lookup_aliases,
 )
 from .source_theorem_exact_semantic_definition_verifier_gate_executor import (
@@ -51711,7 +51713,11 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     recommended_repair_tasks = [
                         "replace bridge-premise assumptions with derivations from exact source hypotheses: "
                         + premise_text,
-                        "do not promote adapters that take hGoodCovered/hRank/hTotal-style bridge premises as inputs",
+                        (
+                            "do not promote adapters that take policy-listed bridge "
+                            "premises as inputs: "
+                            + _runtime_source_to_bridge_premise_binder_alias_hint()
+                        ),
                         "run local Lean/AXLE on the repaired adapter, then rerun the exact source theorem proof body",
                     ]
                 else:
@@ -52565,6 +52571,23 @@ def _source_theorem_proof_body_adapter_required_reasons(
     if len(reasons) < 2:
         return []
     return reasons
+
+
+def _runtime_source_to_bridge_premise_binder_alias_hint() -> str:
+    aliases = exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+    if not aliases:
+        return "policy-listed bridge premises"
+    shown = "/".join(aliases[:6])
+    if len(aliases) > 6:
+        shown += "/..."
+    return shown
+
+
+def _runtime_source_to_bridge_adapter_blocker_symbols() -> set[str]:
+    return {
+        "source_to_bridge_adapter_goal_shape_mismatch",
+        *exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(),
+    }
 
 
 def _source_theorem_exact_proof_body_gate_open_for_kernel_repair(
@@ -55319,12 +55342,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
         adapter_group = str(
             row.get("source_to_bridge_adapter_instantiation_group_id", "") or ""
         ).strip()
+        adapter_blocker_symbols = _runtime_source_to_bridge_adapter_blocker_symbols()
         return bool(
             symbol
-            in {
-                "source_to_bridge_adapter_goal_shape_mismatch",
-                "covered",
-            }
+            in adapter_blocker_symbols
             or "source_to_bridge_adapter" in symbol
             or adapter_group
         )
@@ -55467,10 +55488,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 in adapter_verified_targets
                 and (
                     str(row.get("placeholder_symbol", "") or "").strip()
-                    in {
-                        "source_to_bridge_adapter_goal_shape_mismatch",
-                        "covered",
-                    }
+                    in _runtime_source_to_bridge_adapter_blocker_symbols()
                     or "source_to_bridge_adapter"
                     in str(row.get("placeholder_symbol", "") or "").strip()
                     or str(
