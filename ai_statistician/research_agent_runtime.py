@@ -1707,6 +1707,11 @@ class CriticEvaluatorRuntimeSubsystem:
             formalization_manifest=formalization_manifest,
             agenda=agenda,
         )
+        evidence_contract_decision = _critic_evidence_contract_decision(
+            critic_control=critic_control,
+            formalization_manifest=formalization_manifest,
+            should_repair=should_repair,
+        )
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         produced_artifacts: dict[str, Any] = {}
@@ -1777,6 +1782,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 ),
                 "environment_feedback": repair_feedback if should_repair else {},
             },
+            "evidence_contract_decision": evidence_contract_decision,
             "counts": {
                 "agenda_items": len(agenda),
                 "learning_rows": len(learning_rows),
@@ -1809,6 +1815,7 @@ class CriticEvaluatorRuntimeSubsystem:
             payload={
                 **manifest["counts"],
                 "architect_acceptance_gate": critic_control.get("acceptance_gate", ""),
+                "evidence_contract_decision": evidence_contract_decision,
             },
         )
         observations.append(
@@ -1824,6 +1831,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     "critic_repair_round": critic_round,
                     "max_critic_repair_rounds": max_critic_repair_rounds,
                     "reroute_to_theory_developer": should_repair,
+                    "final_acceptance_status": evidence_contract_decision[
+                        "final_acceptance_status"
+                    ],
                 },
             )
         )
@@ -1867,12 +1877,20 @@ class CriticEvaluatorRuntimeSubsystem:
                 ),
                 failure_classification="critic_requested_theory_revision",
             )
+        final_runtime_status = evidence_contract_decision["runtime_status"]
+        final_acceptance_status = evidence_contract_decision["final_acceptance_status"]
         return AgentStepResult(
-            status="ACCEPTED",
-            rationale="CriticEvaluator recorded next-action agenda and learning rows from the runtime trace.",
+            status=final_runtime_status,
+            rationale=(
+                "CriticEvaluator recorded next-action agenda and learning rows "
+                f"from the runtime trace; evidence_contract_status={final_acceptance_status}."
+            ),
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
             evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
+            failure_classification=str(
+                evidence_contract_decision.get("failure_classification", "") or ""
+            ),
         )
 
 
@@ -4463,6 +4481,85 @@ def _critic_should_reroute_to_theory(
         if agenda_id.startswith(("formal_gap:", "proof_feedback:", "simulation:theory_revision")):
             return True
     return False
+
+
+def _critic_evidence_contract_decision(
+    *,
+    critic_control: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    should_repair: bool,
+) -> dict[str, Any]:
+    """Classify the critic terminal state under the Architect evidence contract."""
+
+    contract = (
+        critic_control.get("evidence_contract", {})
+        if isinstance(critic_control, Mapping)
+        else {}
+    )
+    if not isinstance(contract, Mapping):
+        contract = {}
+    policy = str(contract.get("formal_verification_policy", "") or "optional")
+    if policy not in {"required", "optional", "advisory"}:
+        policy = "optional"
+    counts = (
+        formalization_manifest.get("counts", {})
+        if isinstance(formalization_manifest, Mapping)
+        else {}
+    )
+    formal_gaps = int(counts.get("formal_gap", 0) or 0)
+    kernel_verified = int(counts.get("kernel_verified", 0) or 0)
+    full_theorem_proved = bool(
+        formalization_manifest.get("full_frontier_theorem_proved", False)
+    )
+    formal_satisfied = bool(formal_gaps <= 0 and (full_theorem_proved or kernel_verified > 0))
+    if should_repair:
+        final_status = "REROUTE_REQUIRED_BEFORE_FINAL"
+        runtime_status = "REVISE"
+        failure_classification = ""
+    elif policy == "required" and not formal_satisfied:
+        final_status = "FORMAL_REQUIRED_BLOCKED"
+        runtime_status = "BLOCKED"
+        failure_classification = "formal_required_unverified"
+    elif policy == "advisory":
+        final_status = "RESEARCH_CANDIDATE_ACCEPTED_FORMAL_ADVISORY"
+        runtime_status = "ACCEPTED"
+        failure_classification = ""
+    elif policy == "optional" and not formal_satisfied:
+        final_status = "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+        runtime_status = "ACCEPTED"
+        failure_classification = ""
+    else:
+        final_status = "FORMAL_CONTRACT_SATISFIED"
+        runtime_status = "ACCEPTED"
+        failure_classification = ""
+    return {
+        "formal_verification_policy": policy,
+        "recommended_research_path": str(
+            contract.get("recommended_research_path", "") or ""
+        ),
+        "formal_required_for_final": bool(
+            contract.get("formal_required_for_final", policy == "required")
+        ),
+        "simulation_required_for_final": bool(
+            contract.get("simulation_required_for_final", False)
+        ),
+        "must_disclose_formal_gaps": bool(
+            contract.get("must_disclose_formal_gaps", policy != "required")
+        ),
+        "formal_satisfied": formal_satisfied,
+        "full_frontier_theorem_proved": full_theorem_proved,
+        "kernel_verified_subclaims": kernel_verified,
+        "formal_gaps": formal_gaps,
+        "should_repair_before_final": should_repair,
+        "final_acceptance_status": final_status,
+        "runtime_status": runtime_status,
+        "failure_classification": failure_classification,
+        "boundary": (
+            "This policy decision controls runtime acceptance labels only. It "
+            "does not promote LLM proposals, simulations, sandbox execution, or "
+            "non-kernel rows into theorem proof."
+        ),
+    }
 
 
 def _critic_repair_feedback(
