@@ -22787,6 +22787,12 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
     assert feedback["target_shape_contract"]["required_conclusion_family"] == (
         "probability_or_measure_coverage_claim"
     )
+    assert "event_predicate" in feedback["target_shape_contract"][
+        "required_conclusion_shape"
+    ]
+    assert "coverage_event" not in feedback["target_shape_contract"][
+        "required_conclusion_shape"
+    ]
     assert feedback["target_shape_contract"]["fail_closed_source_theorem_formal_target"][
         "expected_status"
     ] == "FORMAL_GAP"
@@ -25423,6 +25429,10 @@ def test_formalizer_candidate_materialization_rejects_source_theorem_target_drif
         "formal_targets"
     )
     assert "probability coverage statement" in target_shape_contract[
+        "required_conclusion_shape"
+    ]
+    assert "event_predicate" in target_shape_contract["required_conclusion_shape"]
+    assert "coverage_event" not in target_shape_contract[
         "required_conclusion_shape"
     ]
     assert "support lemma" in feedback["candidate_reroute_options"][0]

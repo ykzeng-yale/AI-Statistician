@@ -18096,7 +18096,7 @@ def _formalizer_target_shape_contract_from_diagnostics(
         contract["required_conclusion_family"] = "probability_or_measure_coverage_claim"
         contract["required_conclusion_shape"] = (
             "The Lean target should conclude a measure/probability coverage statement, "
-            "for example a proposition of the form `P {ω | coverage_event ω} >= ...`, "
+            "for example a proposition of the form `P {ω | event_predicate ω} >= ...`, "
             "`Measure.real ... >= ...`, or another explicit probability/measure lower "
             "bound tied to the prediction set coverage event."
         )
@@ -18163,7 +18163,7 @@ def _formalizer_target_shape_contract_from_validation_errors(
         "required_conclusion_family": "probability_or_measure_coverage_claim",
         "required_conclusion_shape": (
             "The Lean target should conclude a measure/probability coverage statement, "
-            "for example a proposition of the form `P {omega | coverage_event omega} >= ...`, "
+            "for example a proposition of the form `P {omega | event_predicate omega} >= ...`, "
             "`Measure.real ... >= ...`, or another explicit probability/measure lower "
             "bound tied to the prediction set coverage event."
         ),
