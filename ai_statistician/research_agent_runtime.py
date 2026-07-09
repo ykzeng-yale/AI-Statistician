@@ -10845,6 +10845,7 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         "budget_exhausted_with_pending_next_task": 0,
         "budget_exhausted_after_revision_request": 0,
     }
+    final_acceptance_status_counts: dict[str, int] = {}
     for result in results:
         traces = result.get("traces", []) if isinstance(result.get("traces"), list) else []
         final_trace = traces[-1] if traces and isinstance(traces[-1], Mapping) else {}
@@ -10852,6 +10853,31 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         first_task = first_trace.get("task", {}) if isinstance(first_trace.get("task"), Mapping) else {}
         first_inputs = first_task.get("inputs", {}) if isinstance(first_task.get("inputs"), Mapping) else {}
         question = first_inputs.get("question", {}) if isinstance(first_inputs.get("question"), Mapping) else {}
+        artifacts = (
+            result.get("blackboard", {}).get("artifacts", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            and isinstance(result.get("blackboard", {}).get("artifacts", {}), Mapping)
+            else {}
+        )
+        critic_decision: dict[str, Any] = {}
+        for key in reversed(list(artifacts.keys())):
+            artifact = artifacts.get(key, {})
+            if not (
+                str(key).startswith("critic_evaluator_manifest:")
+                and isinstance(artifact, Mapping)
+            ):
+                continue
+            decision = artifact.get("evidence_contract_decision", {})
+            if isinstance(decision, Mapping):
+                critic_decision = dict(decision)
+            break
+        final_acceptance_status = str(
+            critic_decision.get("final_acceptance_status", "") or ""
+        )
+        if final_acceptance_status:
+            final_acceptance_status_counts[final_acceptance_status] = (
+                final_acceptance_status_counts.get(final_acceptance_status, 0) + 1
+            )
         status = str(result.get("status", "") or "")
         pending_next_task_id = str(final_trace.get("next_task_id", "") or "")
         failure_classification = str(final_trace.get("failure_classification", "") or "")
@@ -10899,6 +10925,18 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 "last_completed_subsystem": str(final_trace.get("subsystem", "") or ""),
                 "last_completed_status": str(final_trace.get("status", "") or ""),
                 "last_failure_classification": failure_classification,
+                "final_acceptance_status": final_acceptance_status,
+                "formal_verification_policy": str(
+                    critic_decision.get("formal_verification_policy", "") or ""
+                ),
+                "recommended_research_path": str(
+                    critic_decision.get("recommended_research_path", "") or ""
+                ),
+                "formal_satisfied": bool(critic_decision.get("formal_satisfied", False)),
+                "full_frontier_theorem_proved": bool(
+                    critic_decision.get("full_frontier_theorem_proved", False)
+                ),
+                "formal_gaps": int(critic_decision.get("formal_gaps", 0) or 0),
                 "pending_next_task_id": pending_next_task_id,
                 "max_iterations_reached": max_iterations_reached,
                 "budget_exhausted_with_pending_next_task": budget_exhausted_with_pending,
@@ -10910,10 +10948,15 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         "artifact_kind": "RuntimeCompletionSummary",
         "n_questions": len(results),
         **counts,
+        "final_acceptance_status_counts": dict(
+            sorted(final_acceptance_status_counts.items())
+        ),
         "rows": rows,
         "boundary": (
             "Runtime completion status describes orchestration progress and budget exhaustion only. "
-            "It is not theorem proof evidence, simulation evidence, or a claim that remaining formal gaps are closed."
+            "final_acceptance_status records the Architect evidence-contract decision, "
+            "not theorem proof evidence. Completion status is not simulation evidence "
+            "or a claim that remaining formal gaps are closed."
         ),
     }
 

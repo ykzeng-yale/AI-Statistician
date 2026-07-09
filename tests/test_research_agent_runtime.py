@@ -428,6 +428,60 @@ def test_runtime_failure_summary_does_not_label_budget_pending_as_failure() -> N
     assert summary["pending_next_task_id"] == "theory-critic-revise:q1:abc"
 
 
+def test_runtime_completion_summary_surfaces_evidence_contract_status() -> None:
+    completion = _runtime_completion_summary(
+        [
+            {
+                "status": "ACCEPTED",
+                "final_task_id": "critic:q1:abc",
+                "blackboard": {
+                    "artifacts": {
+                        "critic_evaluator_manifest:test": {
+                            "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                            "evidence_contract_decision": {
+                                "formal_verification_policy": "optional",
+                                "recommended_research_path": "dual_track",
+                                "formal_satisfied": False,
+                                "full_frontier_theorem_proved": False,
+                                "formal_gaps": 2,
+                                "final_acceptance_status": (
+                                    "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+                                ),
+                            },
+                        }
+                    }
+                },
+                "traces": [
+                    {
+                        "task": {
+                            "task_id": "critic:q1:abc",
+                            "inputs": {
+                                "question": {"id": "q1", "title": "Question 1"},
+                            },
+                        },
+                        "subsystem": "CriticEvaluator",
+                        "status": "ACCEPTED",
+                        "failure_classification": "",
+                        "next_task_id": "",
+                    }
+                ],
+            }
+        ]
+    )
+    row = completion["rows"][0]
+
+    assert row["status"] == "ACCEPTED"
+    assert row["final_acceptance_status"] == (
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+    )
+    assert row["formal_verification_policy"] == "optional"
+    assert row["formal_satisfied"] is False
+    assert row["formal_gaps"] == 2
+    assert completion["final_acceptance_status_counts"] == {
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS": 1
+    }
+
+
 def test_critic_evidence_contract_blocks_required_formal_verification_with_gaps() -> None:
     decision = _critic_evidence_contract_decision(
         critic_control={
