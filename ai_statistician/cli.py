@@ -6622,6 +6622,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
+            max_formalizer_repair_rounds=args.max_formalizer_repair_rounds,
             proof_obligation_ids=tuple(args.proof_obligation_id or ()),
             max_proof_obligations=args.max_proof_obligations,
             llm_timeout_seconds=args.llm_timeout_seconds,
@@ -12272,6 +12273,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="bounded CriticEvaluator -> TheoryDeveloper repair loops before accepting remaining gaps",
+    )
+    research_agent_runtime.add_argument(
+        "--max-formalizer-repair-rounds",
+        type=int,
+        default=0,
+        help=(
+            "bounded FormalizationEvaluator -> Formalizer/ProofEngineer repair "
+            "turns using local Lean/proof-state diagnostics before routing to Critic; "
+            "0 preserves legacy behavior"
+        ),
     )
     research_agent_runtime.add_argument(
         "--capability-eval",

@@ -43,6 +43,7 @@ from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
 from ai_statistician.proof_state_feedback import (
     PROOF_STATE_FEEDBACK_STATUS,
     LocalLeanProofStateFeedbackProvider,
+    ProofStateFeedbackRow,
 )
 from ai_statistician.research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
@@ -4886,6 +4887,163 @@ def test_formalization_selects_rank_budget_after_good_rank_inclusion_memory() ->
         "split_conformal_bad_rank_budget_from_uniform_rank_bound"
     ]
     assert manifest["counts"]["kernel_verified"] == 0
+
+
+def test_formalization_routes_proof_state_feedback_to_formalizer_repair() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class RecordingFormalizer:
+        def __init__(self) -> None:
+            self.environment_feedback_seen: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            self.environment_feedback_seen.append(
+                dict(feedback) if isinstance(feedback, dict) else {}
+            )
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": (
+                        "formalizer_proposal:repair_round_"
+                        f"{len(self.environment_feedback_seen)}"
+                    ),
+                    "source_agent": "RecordingFormalizer",
+                    "proof_evidence_status": (
+                        "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                    ),
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                }
+            )
+            return packet
+
+    class RouteRevisionProofStateProvider:
+        name = "route_revision_proof_state_provider"
+
+        def inspect(self, _subclaims: object) -> list[ProofStateFeedbackRow]:
+            return [
+                ProofStateFeedbackRow(
+                    schema_version=1,
+                    feedback_id="proof_state_feedback:route_revision",
+                    subclaim_id="formal_gap:aipw",
+                    proof_obligation_id="variance_nonneg",
+                    claim_type="formal_gap",
+                    provider_name=self.name,
+                    provider_preferences=("lean_lsp_mcp", "local_lean"),
+                    requested_tools=("lean_goal", "lean_diagnostic_messages"),
+                    attempt_status="local_lean_failed",
+                    diagnostics=("unknown identifier `foo`",),
+                    residual_goals=("repair Lean identifier/import context",),
+                    route_revision_recommended=True,
+                    subclaim_status="FORMAL_GAP",
+                    subclaim_kernel_verified=False,
+                    local_lean_checked=True,
+                    local_lean_returncode=1,
+                    proof_evidence_status=PROOF_STATE_FEEDBACK_STATUS,
+                    proof_evidence_boundary="diagnostic only",
+                    created_at="2026-07-09T00:00:00+00:00",
+                )
+            ]
+
+    formalizer = RecordingFormalizer()
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=formalizer,
+        proof_verifier=MockProofVerifier(),
+        proof_state_provider=RouteRevisionProofStateProvider(),
+        runtime_config=ResearchAgentRuntimeConfig(max_formalizer_repair_rounds=1),
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_with_proof_state_feedback",
+        owner_subsystem="FormalizationEvaluator",
+        objective="test direct formalizer proof-state repair routing",
+        inputs={
+            "question": question_payload,
+            "architect_context": {},
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    first = subsystem.run(task, blackboard)
+    blackboard.artifacts.update(first.produced_artifacts)
+    second = subsystem.run(first.next_task, blackboard)
+
+    assert first.status == "REVISE"
+    assert first.next_task is not None
+    assert first.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert first.failure_classification == "formalizer_proof_state_repair_requested"
+    feedback = first.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == "formalizer_proof_state_feedback"
+    assert feedback["next_formalizer_repair_round"] == 1
+    assert feedback["proof_state_feedback_rows"][0]["attempt_status"] == (
+        "local_lean_failed"
+    )
+    assert feedback["proof_state_feedback_rows"][0]["diagnostics"] == [
+        "unknown identifier `foo`"
+    ]
+    assert formalizer.environment_feedback_seen[0] == {}
+    assert formalizer.environment_feedback_seen[1]["feedback_type"] == (
+        "formalizer_proof_state_feedback"
+    )
+    assert second.status == "REROUTE"
+
+
+def test_formalizer_prompt_includes_runtime_proof_state_repair_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"problem_class": "semiparametric"},
+        theorem_goals=[
+            {
+                "id": "aipw_asymptotic_normality",
+                "claim": "AIPW estimator is asymptotically normal.",
+                "proof_obligations": ["variance_nonneg"],
+            }
+        ],
+        environment_feedback={
+            "feedback_source": "FormalizationEvaluator",
+            "feedback_type": "formalizer_proof_state_feedback",
+            "formalizer_repair_round": 0,
+            "next_formalizer_repair_round": 1,
+            "max_formalizer_repair_rounds": 1,
+            "proof_state_feedback_rows": [
+                {
+                    "attempt_status": "local_lean_failed",
+                    "diagnostics": ["unknown identifier `foo`"],
+                    "residual_goals": ["repair Lean identifier/import context"],
+                }
+            ],
+            "required_revision": "repair the Lean candidate from diagnostics",
+        },
+    )
+
+    assert "runtime_environment_feedback" in prompt
+    assert "formalizer_proof_state_feedback" in prompt
+    assert "unknown identifier `foo`" in prompt
+    assert "address its proof_state_feedback_rows" in prompt
 
 
 def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_in_memory() -> None:

@@ -141,6 +141,7 @@ class ResearchAgentRuntimeConfig:
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
+    max_formalizer_repair_rounds: int = 0
     proof_obligation_ids: tuple[str, ...] = ()
     max_proof_obligations: int = 0
     llm_timeout_seconds: float = DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
@@ -996,9 +997,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
         formal_source_retriever: Any | None = None,
         proof_obligation_ids: tuple[str, ...] = (),
         max_proof_obligations: int = 0,
+        runtime_config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
     ) -> None:
         self.proposal_agent = proposal_agent
         self.proof_state_provider = proof_state_provider
+        self.runtime_config = runtime_config
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
             formal_source_retriever=formal_source_retriever,
@@ -1009,6 +1012,18 @@ class FormalizationEvaluatorRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        environment_feedback = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        formalizer_repair_round = int(
+            environment_feedback.get(
+                "next_formalizer_repair_round",
+                environment_feedback.get("formalizer_repair_round", 0),
+            )
+            or 0
+        )
         formalization_control = _architect_control_payload(context, "FormalizationEvaluator")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
@@ -1077,6 +1092,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 theorem_goals=[_theorem_goal_to_json(row) for row in theorem_goals],
                 proof_bank_obligation_catalog=proof_bank_obligation_catalog,
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+                environment_feedback=environment_feedback,
             )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
@@ -1605,6 +1621,69 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     safety_boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
                 )
             )
+        formalizer_repair_feedback = _formalizer_proof_state_repair_feedback(
+            question=question,
+            formalizer_repair_round=formalizer_repair_round,
+            max_formalizer_repair_rounds=self.runtime_config.max_formalizer_repair_rounds,
+            theory_packet_id=packet_id,
+            simulation_manifest_id=simulation_manifest_id,
+            algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+            formalization_manifest=manifest,
+            proposal_packet=proposal_packet if isinstance(proposal_packet, Mapping) else {},
+            proof_state_rows=proof_state_row_dicts,
+        )
+        if formalizer_repair_feedback:
+            next_inputs = {
+                "question": _question_to_payload(question),
+                "theory_packet_id": packet_id,
+                "simulation_manifest_id": simulation_manifest_id,
+                "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+                "architect_context": context,
+                "environment_feedback": formalizer_repair_feedback,
+            }
+            return AgentStepResult(
+                status="REVISE",
+                rationale=(
+                    "FormalizationEvaluator routed local Lean/proof-state diagnostics "
+                    "back to the LLM Formalizer/ProofEngineer for a bounded repair turn."
+                ),
+                produced_artifacts=produced_artifacts,
+                observations=tuple(observations),
+                tool_calls=tuple(tool_calls),
+                evidence_entries=tuple(
+                    row
+                    for row in (
+                        proposal_evidence,
+                        evidence,
+                        proof_state_evidence,
+                        gap_planner_evidence,
+                    )
+                    if row is not None
+                ),
+                next_task=AgentTask(
+                    task_id=(
+                        f"formalize-proofstate-repair:{question.id}:"
+                        f"{stable_hash([manifest_id, formalizer_repair_feedback])[:8]}"
+                    ),
+                    owner_subsystem="FormalizationEvaluator",
+                    objective=(
+                        "Repair the Formalizer/ProofEngineer packet using local Lean "
+                        "and proof-state diagnostics recorded by AgentRuntime."
+                    ),
+                    inputs=next_inputs,
+                    allowed_tools=("model_backend", "proof_state_feedback", "evidence_ledger"),
+                    expected_artifacts=(
+                        "formalizer_proofengineer_repair_packet",
+                        "formalization_manifest",
+                    ),
+                    acceptance_gate=(
+                        "repaired packet addresses proof-state diagnostics without "
+                        "claiming proof evidence before AXLE/local Lean"
+                    ),
+                    stop_condition="repaired formalization rerouted to critic or kernel gate",
+                ),
+                failure_classification="formalizer_proof_state_repair_requested",
+            )
         return AgentStepResult(
             status="REROUTE",
             rationale=(
@@ -1958,6 +2037,7 @@ def run_research_agent_runtime(
                 formal_source_retriever=shared_formal_source_retriever,
                 proof_obligation_ids=config.proof_obligation_ids,
                 max_proof_obligations=config.max_proof_obligations,
+                runtime_config=config,
             ),
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(
                 proposal_agent=critic_evaluator,
@@ -4606,6 +4686,85 @@ def _critic_repair_feedback(
             "unless AXLE/local Lean kernel verification closes the intended claim."
         ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _formalizer_proof_state_repair_feedback(
+    *,
+    question: OpenResearchQuestion,
+    formalizer_repair_round: int,
+    max_formalizer_repair_rounds: int,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    formalization_manifest: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any],
+    proof_state_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    max_rounds = max(0, int(max_formalizer_repair_rounds))
+    current_round = max(0, int(formalizer_repair_round))
+    repair_rows = [
+        row for row in proof_state_rows
+        if isinstance(row, Mapping)
+        and row.get("route_revision_recommended") is True
+    ]
+    if not repair_rows or current_round >= max_rounds:
+        return {}
+    counts = (
+        formalization_manifest.get("counts", {})
+        if isinstance(formalization_manifest.get("counts"), Mapping)
+        else {}
+    )
+    return {
+        "feedback_source": "FormalizationEvaluator",
+        "feedback_type": "formalizer_proof_state_feedback",
+        "question_id": question.id,
+        "formalizer_repair_round": current_round,
+        "next_formalizer_repair_round": current_round + 1,
+        "max_formalizer_repair_rounds": max_rounds,
+        "theory_packet_id": theory_packet_id,
+        "simulation_manifest_id": simulation_manifest_id,
+        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+        "formalization_manifest_id": str(
+            formalization_manifest.get("manifest_id", "") or ""
+        ),
+        "previous_formalizer_proposal_id": str(
+            proposal_packet.get("packet_id", "") or ""
+        ),
+        "formalization_counts": dict(counts),
+        "proof_state_feedback_manifest_id": str(
+            formalization_manifest.get("proof_state_feedback_manifest_id", "") or ""
+        ),
+        "proof_state_feedback_rows": [
+            _compact_proof_state_feedback_row(row)
+            for row in repair_rows[:6]
+        ],
+        "required_revision": (
+            "Repair the formal target, proof-search plan, or Lean/prover sketch using "
+            "these proof-state diagnostics. Do not weaken a source theorem into an "
+            "unrelated helper while claiming source-theorem progress. Do not claim "
+            "proof evidence unless a later AXLE/local Lean kernel check accepts the "
+            "intended formal claim."
+        ),
+        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+    }
+
+
+def _compact_proof_state_feedback_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "feedback_id": str(row.get("feedback_id", "") or ""),
+        "subclaim_id": str(row.get("subclaim_id", "") or ""),
+        "proof_obligation_id": str(row.get("proof_obligation_id", "") or ""),
+        "claim_type": str(row.get("claim_type", "") or ""),
+        "attempt_status": str(row.get("attempt_status", "") or ""),
+        "diagnostics": [str(item) for item in row.get("diagnostics", [])[:4]],
+        "residual_goals": [
+            str(item) for item in row.get("residual_goals", [])[:4]
+        ],
+        "local_lean_checked": bool(row.get("local_lean_checked", False)),
+        "local_lean_returncode": row.get("local_lean_returncode"),
+        "requested_tools": [str(item) for item in row.get("requested_tools", [])[:4]],
+        "proof_evidence_status": str(row.get("proof_evidence_status", "") or ""),
     }
 
 

@@ -63,6 +63,7 @@ class LLMFormalizerProofEngineerAgent:
         theorem_goals: list[Mapping[str, Any]],
         proof_bank_obligation_catalog: list[Mapping[str, Any]] | None = None,
         proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+        environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         user_prompt = build_formalizer_prompt(
             question=question,
@@ -73,6 +74,7 @@ class LLMFormalizerProofEngineerAgent:
             theorem_goals=theorem_goals,
             proof_bank_obligation_catalog=proof_bank_obligation_catalog,
             proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+            environment_feedback=environment_feedback,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -130,6 +132,7 @@ def build_formalizer_prompt(
     theorem_goals: list[Mapping[str, Any]],
     proof_bank_obligation_catalog: list[Mapping[str, Any]] | None = None,
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
+    environment_feedback: Mapping[str, Any] | None = None,
 ) -> str:
     catalog_rows = [
         _compact_mapping(
@@ -158,6 +161,9 @@ def build_formalizer_prompt(
         theorem_goals,
         keys=("id", "title", "claim", "claim_type", "statement", "proof_obligations"),
         limit=FORMALIZER_MAX_THEOREM_GOALS,
+    )
+    compact_environment_feedback = _compact_formalizer_environment_feedback(
+        environment_feedback or {}
     )
     payload = {
         "question": {
@@ -207,6 +213,22 @@ def build_formalizer_prompt(
         "proof_bank_runtime_memory_summary": _compact_proof_bank_runtime_memory_summary(
             proof_bank_runtime_memory_summary or {}
         ),
+        "runtime_environment_feedback": compact_environment_feedback,
+        "runtime_environment_feedback_policy": {
+            "repair_context_is_authoritative_for_next_packet": bool(
+                compact_environment_feedback
+            ),
+            "purpose": (
+                "When present, use these AgentRuntime proof-state diagnostics to "
+                "repair the next Formalizer/ProofEngineer packet. They are not "
+                "proof evidence."
+            ),
+            "not_evidence": (
+                "Diagnostics, residual goals, local Lean failures, and proof-state "
+                "requests are repair context only until AXLE/local Lean verifies "
+                "the intended claim."
+            ),
+        },
         "proof_bank_obligation_request_policy": {
             "use_only_registered_catalog_ids_when_possible": True,
             "request_effect": "priority_only_for_kernel_smoke_selection",
@@ -251,7 +273,10 @@ def build_formalizer_prompt(
         "AgentRuntime kernel-smoke work and may be filtered or rejected by the runtime. "
         "If proof_bank_runtime_memory_summary says proof_bank_bridge_catalog_exhausted_by_memory=true, "
         "do not spend the packet on more bridge-obligation requests; make the main formal target "
-        "the theorem-level reduction closure for the listed remaining_theorem_goal_ids.\n\n"
+        "the theorem-level reduction closure for the listed remaining_theorem_goal_ids. "
+        "If runtime_environment_feedback is non-empty, treat it as the current repair task: "
+        "address its proof_state_feedback_rows, diagnostics, residual_goals, and required_revision "
+        "before proposing unrelated new targets.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -606,6 +631,32 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         values = compact["memory_kernel_verified_proof_obligation_ids"]
         if isinstance(values, list):
             compact["memory_kernel_verified_proof_obligation_ids"] = values[:12]
+    return compact
+
+
+def _compact_formalizer_environment_feedback(row: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(row, Mapping) or not row:
+        return {}
+    keys = (
+        "feedback_source",
+        "feedback_type",
+        "formalizer_repair_round",
+        "next_formalizer_repair_round",
+        "max_formalizer_repair_rounds",
+        "formalization_manifest_id",
+        "previous_formalizer_proposal_id",
+        "formalization_counts",
+        "proof_state_feedback_manifest_id",
+        "proof_state_feedback_rows",
+        "required_revision",
+        "proof_evidence_boundary",
+    )
+    compact = _compact_mapping(row, keys=keys)
+    if "proof_state_feedback_rows" in compact and isinstance(
+        compact["proof_state_feedback_rows"],
+        list,
+    ):
+        compact["proof_state_feedback_rows"] = compact["proof_state_feedback_rows"][:6]
     return compact
 
 
