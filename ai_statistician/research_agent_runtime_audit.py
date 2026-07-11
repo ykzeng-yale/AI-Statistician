@@ -12104,6 +12104,16 @@ def _runtime_handoff_transition_summary_from_results(
     }
 
 
+def _latest_critic_evidence_contract_decision(
+    critic_manifests: list[dict[str, Any]],
+) -> dict[str, Any]:
+    for manifest in reversed(critic_manifests):
+        decision = manifest.get("evidence_contract_decision", {})
+        if isinstance(decision, Mapping):
+            return dict(decision)
+    return {}
+
+
 def _audit_result_path(path: Path) -> RuntimeAuditRow:
     errors: list[str] = []
     data = _load_json(path, errors)
@@ -12149,8 +12159,17 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             errors.append(
                 "architect resume review did not route to the original pending subsystem"
             )
+    critic = _artifacts_with_prefix(artifacts, "critic_evaluator_manifest:")
+    final_critic_decision = _latest_critic_evidence_contract_decision(critic)
+    final_acceptance_status = str(
+        final_critic_decision.get("final_acceptance_status", "") or ""
+    )
+    formal_required_policy_block = bool(
+        data.get("status") == "BLOCKED"
+        and final_acceptance_status == "FORMAL_REQUIRED_BLOCKED"
+    )
     if data.get("status") != "ACCEPTED":
-        if budgeted_continuation_contract_ok:
+        if budgeted_continuation_contract_ok or formal_required_policy_block:
             pass
         else:
             errors.append("runtime result status is not ACCEPTED")
@@ -12162,7 +12181,6 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     algorithm = _artifacts_with_prefix(artifacts, "algorithm_sandbox_manifest:")
     formalization = _artifacts_with_prefix(artifacts, "formalization_manifest:")
     proof_state_feedback = _proof_state_feedback_artifacts(artifacts)
-    critic = _artifacts_with_prefix(artifacts, "critic_evaluator_manifest:")
     required_counts = {
         "retrieval manifest": retrieval,
         "theory packet": theory,

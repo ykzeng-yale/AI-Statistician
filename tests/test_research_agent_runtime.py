@@ -142,6 +142,7 @@ from ai_statistician.proof_state_feedback import (
 )
 from ai_statistician.research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
+    CriticEvaluatorRuntimeSubsystem,
     ArchitectCoordinatorRuntimeSubsystem,
     FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS,
     FULL_FRONTIER_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS,
@@ -156,6 +157,7 @@ from ai_statistician.research_agent_runtime import (
     SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS,
     SimulationEvaluatorRuntimeSubsystem,
     TheoryDeveloperRuntimeSubsystem,
+    _critic_evidence_contract_decision,
     _critic_learning_rows,
     _critic_formal_blocker_resource_requests,
     _critic_next_action_agenda,
@@ -21252,6 +21254,294 @@ def test_runtime_failure_summary_does_not_label_budget_pending_as_failure() -> N
         ]
         == "address formal gap"
     )
+
+
+def test_critic_evidence_contract_blocks_required_formal_verification_with_gaps() -> None:
+    decision = _critic_evidence_contract_decision(
+        critic_control={
+            "evidence_contract": {
+                "formal_verification_policy": "required",
+                "recommended_research_path": "proof_first",
+                "formal_required_for_final": True,
+                "simulation_required_for_final": False,
+                "must_disclose_formal_gaps": True,
+            }
+        },
+        formalization_manifest={
+            "counts": {"formal_gap": 2, "kernel_verified": 0},
+            "full_frontier_theorem_proved": False,
+        },
+        should_repair=False,
+    )
+
+    assert decision["runtime_status"] == "BLOCKED"
+    assert decision["final_acceptance_status"] == "FORMAL_REQUIRED_BLOCKED"
+    assert decision["failure_classification"] == "formal_required_unverified"
+    assert decision["formal_satisfied"] is False
+
+
+def test_critic_subsystem_blocks_required_formal_policy_without_kernel_evidence() -> None:
+    context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "formal_verification_policy": "required",
+                "recommended_research_path": "proof_first",
+                "formal_required_for_final": True,
+                "simulation_required_for_final": False,
+                "must_disclose_formal_gaps": True,
+            },
+            "subsystem_execution_plan": [
+                {
+                    "subsystem": "CriticEvaluator",
+                    "acceptance_gate": "formal proof required for final acceptance",
+                    "expected_artifacts": ["critic_evaluator_manifest"],
+                }
+            ],
+        }
+    }
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"formal_gap": 0, "kernel_verified": 0, "proved": 0},
+                "full_frontier_theorem_proved": False,
+                "deterministic_theorem_goals": [],
+                "proof_bank_runtime_memory_summary": {},
+            }
+        },
+    )
+
+    result = CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=0)
+    ).run(
+        AgentTask(
+            task_id="critic:q_required_formal",
+            owner_subsystem="CriticEvaluator",
+            objective="enforce required formal proof gate",
+            inputs={
+                "question": {
+                    "id": "q_required_formal",
+                    "title": "Required formal proof task",
+                    "description": "Prove a finite-sample statistical guarantee.",
+                    "tags": ["formal_required"],
+                },
+                "architect_context": context,
+            },
+        ),
+        blackboard,
+    )
+
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact["artifact_kind"] == "RuntimeCriticEvaluatorManifest"
+    )
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == "formal_required_unverified"
+    assert manifest["evidence_contract_decision"]["final_acceptance_status"] == (
+        "FORMAL_REQUIRED_BLOCKED"
+    )
+
+
+def test_runtime_completion_summary_surfaces_evidence_contract_status() -> None:
+    completion = _runtime_completion_summary(
+        [
+            {
+                "status": "ACCEPTED",
+                "final_task_id": "critic:q1:abc",
+                "blackboard": {
+                    "artifacts": {
+                        "critic_evaluator_manifest:test": {
+                            "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                            "evidence_contract_decision": {
+                                "formal_verification_policy": "optional",
+                                "recommended_research_path": "dual_track",
+                                "formal_satisfied": False,
+                                "full_frontier_theorem_proved": False,
+                                "formal_gaps": 2,
+                                "final_acceptance_status": (
+                                    "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+                                ),
+                            },
+                        }
+                    }
+                },
+                "traces": [
+                    {
+                        "task": {
+                            "task_id": "critic:q1:abc",
+                            "inputs": {
+                                "question": {"id": "q1", "title": "Question 1"},
+                            },
+                        },
+                        "subsystem": "CriticEvaluator",
+                        "status": "ACCEPTED",
+                        "failure_classification": "",
+                        "next_task_id": "",
+                    }
+                ],
+            }
+        ]
+    )
+    row = completion["rows"][0]
+
+    assert row["status"] == "ACCEPTED"
+    assert row["final_acceptance_status"] == (
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+    )
+    assert row["formal_verification_policy"] == "optional"
+    assert row["formal_satisfied"] is False
+    assert row["formal_gaps"] == 2
+    assert completion["final_acceptance_status_counts"] == {
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS": 1
+    }
+
+
+def test_runtime_completion_summary_classifies_formal_required_block_as_policy_block() -> None:
+    completion = _runtime_completion_summary(
+        [
+            {
+                "status": "BLOCKED",
+                "final_task_id": "critic:q1:abc",
+                "blackboard": {
+                    "artifacts": {
+                        "critic_evaluator_manifest:test": {
+                            "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                            "evidence_contract_decision": {
+                                "formal_verification_policy": "required",
+                                "recommended_research_path": "proof_first",
+                                "formal_satisfied": False,
+                                "full_frontier_theorem_proved": False,
+                                "formal_gaps": 1,
+                                "final_acceptance_status": "FORMAL_REQUIRED_BLOCKED",
+                            },
+                        }
+                    }
+                },
+                "traces": [
+                    {
+                        "task": {
+                            "task_id": "critic:q1:abc",
+                            "inputs": {
+                                "question": {"id": "q1", "title": "Question 1"},
+                            },
+                        },
+                        "subsystem": "CriticEvaluator",
+                        "status": "BLOCKED",
+                        "failure_classification": "formal_required_unverified",
+                        "next_task_id": "",
+                    }
+                ],
+            }
+        ]
+    )
+    row = completion["rows"][0]
+    summary = _runtime_failure_summary(completion)
+
+    assert row["terminal_kind"] == "formal_required_blocked"
+    assert completion["blocked"] == 1
+    assert completion["formal_required_blocked"] == 1
+    assert completion["final_acceptance_status_counts"] == {
+        "FORMAL_REQUIRED_BLOCKED": 1
+    }
+    assert summary["has_failure"] is False
+    assert summary["has_policy_block"] is True
+    assert summary["n_policy_block_rows"] == 1
+    assert summary["terminal_kind"] == "formal_required_blocked"
+    assert summary["terminal_classification"] == "formal_required_unverified"
+    assert summary["policy_block_subsystem"] == "CriticEvaluator"
+
+
+def test_runtime_audit_allows_formal_required_policy_block_status(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "formal_required_blocked_result.json"
+    result = {
+        "status": "BLOCKED",
+        "final_task_id": "critic:q1:abc",
+        "blackboard": {
+            "project_id": "runtime:q1",
+            "artifacts": {
+                "retrieval_memory_manifest:test": {"artifact_kind": "RetrievalMemory"},
+                "theory_derivation:test": {"artifact_kind": "TheoryDerivation"},
+                "simulation_manifest:test": {"artifact_kind": "SimulationManifest"},
+                "algorithm_sandbox_manifest:test": {
+                    "artifact_kind": "AlgorithmSandboxManifest",
+                    "n_executed": 0,
+                    "n_generated_code_executed": 0,
+                    "n_unsafe_generated_code_rejected": 0,
+                },
+                "formalization_manifest:test": {
+                    "artifact_kind": "FormalizationManifest",
+                    "counts": {"kernel_verified": 0, "formal_gap": 1},
+                    "formal_subclaims": [],
+                    "full_frontier_theorem_proved": False,
+                },
+                "critic_evaluator_manifest:test": {
+                    "artifact_kind": "RuntimeCriticEvaluatorManifest",
+                    "runtime_reroute_decision": {"reroute_to_theory_developer": False},
+                    "next_action_agenda": [
+                        {"action_id": "prove_required_gap", "priority": "high"}
+                    ],
+                    "learning_rows": [
+                        {"learning_id": "formal_required_gap", "kind": "formal_gap"}
+                    ],
+                    "evidence_contract_decision": {
+                        "formal_verification_policy": "required",
+                        "recommended_research_path": "proof_first",
+                        "formal_satisfied": False,
+                        "full_frontier_theorem_proved": False,
+                        "formal_gaps": 1,
+                        "final_acceptance_status": "FORMAL_REQUIRED_BLOCKED",
+                    },
+                },
+            },
+        },
+        "traces": [
+            {
+                "task": {
+                    "task_id": "retrieval:q1",
+                    "inputs": {"question": {"id": "q1", "title": "Question 1"}},
+                },
+                "subsystem": "RetrievalMemory",
+                "status": "ACCEPTED",
+            },
+            {
+                "task": {"task_id": "theory:q1"},
+                "subsystem": "TheoryDeveloper",
+                "status": "ACCEPTED",
+            },
+            {
+                "task": {"task_id": "simulation:q1"},
+                "subsystem": "SimulationEvaluator",
+                "status": "ACCEPTED",
+            },
+            {
+                "task": {"task_id": "algorithm:q1"},
+                "subsystem": "AlgorithmEngineer",
+                "status": "ACCEPTED",
+            },
+            {
+                "task": {"task_id": "formalization:q1"},
+                "subsystem": "FormalizationEvaluator",
+                "status": "ACCEPTED",
+            },
+            {
+                "task": {"task_id": "critic:q1:abc"},
+                "subsystem": "CriticEvaluator",
+                "status": "BLOCKED",
+                "failure_classification": "formal_required_unverified",
+            },
+        ],
+    }
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    row = audit_module._audit_result_path(result_path)
+
+    assert row.status == "BLOCKED"
+    assert "runtime result status is not ACCEPTED" not in row.errors
 
 
 def test_formalization_validator_failure_exports_learning_row() -> None:

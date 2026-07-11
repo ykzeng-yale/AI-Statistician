@@ -23880,6 +23880,16 @@ class CriticEvaluatorRuntimeSubsystem:
                         "full_frontier_theorem_proved": False,
                     },
                 )
+        evidence_contract_decision = _critic_evidence_contract_decision(
+            critic_control=critic_control,
+            formalization_manifest=formalization_manifest,
+            should_repair=bool(
+                should_repair
+                or should_route_to_gap_planner
+                or should_route_to_formalizer
+                or proposal_validation_failure_feedback is not None
+            ),
+        )
         manifest_id = "critic_evaluator_manifest:" + stable_hash([task.task_id, agenda, learning_rows])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -23941,6 +23951,7 @@ class CriticEvaluatorRuntimeSubsystem:
                     else {}
                 ),
             },
+            "evidence_contract_decision": evidence_contract_decision,
             "counts": {
                 "agenda_items": len(agenda),
                 "learning_rows": len(learning_rows),
@@ -23973,6 +23984,7 @@ class CriticEvaluatorRuntimeSubsystem:
             payload={
                 **manifest["counts"],
                 "architect_acceptance_gate": critic_control.get("acceptance_gate", ""),
+                "evidence_contract_decision": evidence_contract_decision,
             },
         )
         observations.append(
@@ -23997,6 +24009,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     "formalizer_packet_validation_escalation_active": (
                         formalizer_packet_validation_escalation_active
                     ),
+                    "final_acceptance_status": evidence_contract_decision[
+                        "final_acceptance_status"
+                    ],
                 },
             )
         )
@@ -24283,9 +24298,16 @@ class CriticEvaluatorRuntimeSubsystem:
                 ),
                 failure_classification="critic_packet_validation_failed",
             )
+        final_runtime_status = str(evidence_contract_decision["runtime_status"])
+        final_acceptance_status = str(
+            evidence_contract_decision["final_acceptance_status"]
+        )
         return AgentStepResult(
-            status="ACCEPTED",
-            rationale="CriticEvaluator recorded next-action agenda and learning rows from the runtime trace.",
+            status=final_runtime_status,
+            rationale=(
+                "CriticEvaluator recorded next-action agenda and learning rows "
+                f"from the runtime trace; evidence_contract_status={final_acceptance_status}."
+            ),
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
             evidence_entries=tuple(
@@ -24296,6 +24318,9 @@ class CriticEvaluatorRuntimeSubsystem:
                     evidence,
                 )
                 if row is not None
+            ),
+            failure_classification=str(
+                evidence_contract_decision.get("failure_classification", "") or ""
             ),
         )
 
@@ -44036,6 +44061,89 @@ def _critic_should_reroute_to_theory(
         if agenda_id.startswith(("formal_gap:", "proof_feedback:", "simulation:theory_revision")):
             return True
     return False
+
+
+def _critic_evidence_contract_decision(
+    *,
+    critic_control: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    should_repair: bool,
+) -> dict[str, Any]:
+    """Classify terminal critic status under the Architect evidence contract."""
+
+    contract = (
+        critic_control.get("evidence_contract", {})
+        if isinstance(critic_control, Mapping)
+        else {}
+    )
+    if not isinstance(contract, Mapping):
+        contract = {}
+    policy = (
+        str(contract.get("formal_verification_policy", "") or "optional")
+        .strip()
+        .lower()
+    )
+    if policy not in {"required", "optional", "advisory"}:
+        policy = "optional"
+    counts = (
+        formalization_manifest.get("counts", {})
+        if isinstance(formalization_manifest, Mapping)
+        and isinstance(formalization_manifest.get("counts", {}), Mapping)
+        else {}
+    )
+    formal_gaps = _int_like(counts.get("formal_gap", 0))
+    kernel_verified = _int_like(counts.get("kernel_verified", 0))
+    full_theorem_proved = _bool_like(
+        formalization_manifest.get("full_frontier_theorem_proved", False)
+        if isinstance(formalization_manifest, Mapping)
+        else False
+    )
+    formal_satisfied = bool(
+        formal_gaps <= 0 and (full_theorem_proved or kernel_verified > 0)
+    )
+    if should_repair:
+        final_status = "REROUTE_REQUIRED_BEFORE_FINAL"
+        runtime_status = "REVISE"
+        failure_classification = ""
+    elif policy == "required" and not formal_satisfied:
+        final_status = "FORMAL_REQUIRED_BLOCKED"
+        runtime_status = "BLOCKED"
+        failure_classification = "formal_required_unverified"
+    elif policy == "advisory":
+        final_status = "RESEARCH_CANDIDATE_ACCEPTED_FORMAL_ADVISORY"
+        runtime_status = "ACCEPTED"
+        failure_classification = ""
+    elif policy == "optional" and not formal_satisfied:
+        final_status = "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+        runtime_status = "ACCEPTED"
+        failure_classification = ""
+    else:
+        final_status = "FORMAL_CONTRACT_SATISFIED"
+        runtime_status = "ACCEPTED"
+        failure_classification = ""
+    return {
+        "formal_verification_policy": policy,
+        "recommended_research_path": str(
+            contract.get("recommended_research_path", "") or ""
+        ),
+        "formal_required_for_final": _bool_like(
+            contract.get("formal_required_for_final", policy == "required")
+        ),
+        "simulation_required_for_final": _bool_like(
+            contract.get("simulation_required_for_final", False)
+        ),
+        "must_disclose_formal_gaps": _bool_like(
+            contract.get("must_disclose_formal_gaps", True)
+        ),
+        "formal_gaps": formal_gaps,
+        "kernel_verified": kernel_verified,
+        "full_frontier_theorem_proved": full_theorem_proved,
+        "formal_satisfied": formal_satisfied,
+        "runtime_status": runtime_status,
+        "final_acceptance_status": final_status,
+        "failure_classification": failure_classification,
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
 
 
 def _critic_should_route_to_formalizer_proofengineer(
@@ -81542,10 +81650,12 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         "accepted": 0,
         "failed": 0,
         "blocked": 0,
+        "formal_required_blocked": 0,
         "max_iterations_reached": 0,
         "budget_exhausted_with_pending_next_task": 0,
         "budget_exhausted_after_revision_request": 0,
     }
+    final_acceptance_status_counts: dict[str, int] = {}
     for result in results:
         traces = result.get("traces", []) if isinstance(result.get("traces"), list) else []
         final_trace = traces[-1] if traces and isinstance(traces[-1], Mapping) else {}
@@ -81553,6 +81663,31 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         first_task = first_trace.get("task", {}) if isinstance(first_trace.get("task"), Mapping) else {}
         first_inputs = first_task.get("inputs", {}) if isinstance(first_task.get("inputs"), Mapping) else {}
         question = first_inputs.get("question", {}) if isinstance(first_inputs.get("question"), Mapping) else {}
+        artifacts = (
+            result.get("blackboard", {}).get("artifacts", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            and isinstance(result.get("blackboard", {}).get("artifacts", {}), Mapping)
+            else {}
+        )
+        critic_decision: dict[str, Any] = {}
+        for key in reversed(list(artifacts.keys())):
+            artifact = artifacts.get(key, {})
+            if not (
+                str(key).startswith("critic_evaluator_manifest:")
+                and isinstance(artifact, Mapping)
+            ):
+                continue
+            decision = artifact.get("evidence_contract_decision", {})
+            if isinstance(decision, Mapping):
+                critic_decision = dict(decision)
+            break
+        final_acceptance_status = str(
+            critic_decision.get("final_acceptance_status", "") or ""
+        )
+        if final_acceptance_status:
+            final_acceptance_status_counts[final_acceptance_status] = (
+                final_acceptance_status_counts.get(final_acceptance_status, 0) + 1
+            )
         status = str(result.get("status", "") or "")
         pending_next_task_id = str(final_trace.get("next_task_id", "") or "")
         pending_next_task = (
@@ -81573,12 +81708,20 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 or last_task_id.startswith("theory-critic-revise:")
             )
         )
+        formal_required_policy_block = bool(
+            status == "BLOCKED"
+            and final_acceptance_status == "FORMAL_REQUIRED_BLOCKED"
+        )
         if status == "ACCEPTED":
             terminal_kind = "accepted"
             counts["accepted"] += 1
         elif status == "FAILED":
             terminal_kind = "failed"
             counts["failed"] += 1
+        elif formal_required_policy_block:
+            terminal_kind = "formal_required_blocked"
+            counts["blocked"] += 1
+            counts["formal_required_blocked"] += 1
         elif status == "BLOCKED":
             terminal_kind = "blocked"
             counts["blocked"] += 1
@@ -81605,6 +81748,18 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
                 "last_completed_subsystem": str(final_trace.get("subsystem", "") or ""),
                 "last_completed_status": str(final_trace.get("status", "") or ""),
                 "last_failure_classification": failure_classification,
+                "final_acceptance_status": final_acceptance_status,
+                "formal_verification_policy": str(
+                    critic_decision.get("formal_verification_policy", "") or ""
+                ),
+                "recommended_research_path": str(
+                    critic_decision.get("recommended_research_path", "") or ""
+                ),
+                "formal_satisfied": bool(critic_decision.get("formal_satisfied", False)),
+                "full_frontier_theorem_proved": bool(
+                    critic_decision.get("full_frontier_theorem_proved", False)
+                ),
+                "formal_gaps": _int_like(critic_decision.get("formal_gaps", 0)),
                 "pending_next_task_id": pending_next_task_id,
                 "pending_next_task": pending_next_task,
                 "max_iterations_reached": max_iterations_reached,
@@ -81617,10 +81772,15 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         "artifact_kind": "RuntimeCompletionSummary",
         "n_questions": len(results),
         **counts,
+        "final_acceptance_status_counts": dict(
+            sorted(final_acceptance_status_counts.items())
+        ),
         "rows": rows,
         "boundary": (
             "Runtime completion status describes orchestration progress and budget exhaustion only. "
-            "It is not theorem proof evidence, simulation evidence, or a claim that remaining formal gaps are closed."
+            "final_acceptance_status records the Architect evidence-contract decision, "
+            "not theorem proof evidence. Completion status is not simulation evidence "
+            "or a claim that remaining formal gaps are closed."
         ),
     }
 
@@ -81629,6 +81789,11 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
     rows = completion_summary.get("rows", [])
     if not isinstance(rows, list):
         rows = []
+    policy_block_rows = [
+        row for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("terminal_kind", "") or "") == "formal_required_blocked"
+    ]
     failure_rows = [
         row for row in rows
         if isinstance(row, Mapping)
@@ -81646,13 +81811,20 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         }
     ]
     first_failure = failure_rows[0] if failure_rows else {}
-    first_terminal = first_failure or (incomplete_rows[0] if incomplete_rows else {})
+    first_policy_block = policy_block_rows[0] if policy_block_rows else {}
+    first_terminal = (
+        first_failure
+        or first_policy_block
+        or (incomplete_rows[0] if incomplete_rows else {})
+    )
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFailureSummary",
         "n_failure_rows": len(failure_rows),
+        "n_policy_block_rows": len(policy_block_rows),
         "n_incomplete_rows": len(incomplete_rows),
         "has_failure": bool(failure_rows),
+        "has_policy_block": bool(policy_block_rows),
         "has_incomplete_pending_work": bool(incomplete_rows),
         "terminal_question_id": str(first_terminal.get("question_id", "") or ""),
         "terminal_subsystem": str(first_terminal.get("last_completed_subsystem", "") or ""),
@@ -81674,6 +81846,22 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         "failure_status": str(first_failure.get("status", "") or ""),
         "failure_terminal_kind": str(first_failure.get("terminal_kind", "") or ""),
         "failure_classification": str(first_failure.get("last_failure_classification", "") or ""),
+        "policy_block_question_id": str(first_policy_block.get("question_id", "") or ""),
+        "policy_block_subsystem": str(
+            first_policy_block.get("last_completed_subsystem", "") or ""
+        ),
+        "policy_block_task_id": str(
+            first_policy_block.get("last_completed_task_id", "")
+            or first_policy_block.get("final_task_id", "")
+            or ""
+        ),
+        "policy_block_status": str(first_policy_block.get("status", "") or ""),
+        "policy_block_terminal_kind": str(
+            first_policy_block.get("terminal_kind", "") or ""
+        ),
+        "policy_block_classification": str(
+            first_policy_block.get("last_failure_classification", "") or ""
+        ),
         "pending_next_task_id": str(first_terminal.get("pending_next_task_id", "") or ""),
         "pending_next_task": (
             dict(first_terminal.get("pending_next_task", {}))
@@ -81682,9 +81870,11 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         ),
         "boundary": (
             "Runtime terminal status is an orchestration diagnostic. Budget exhaustion "
-            "with a pending next task is incomplete work, not a subsystem failure. This "
-            "summary does not downgrade kernel-verified subclaims or promote partial "
-            "runtime progress to theorem proof evidence."
+            "with a pending next task is incomplete work, not a subsystem failure. A "
+            "formal-required policy block means the evidence contract correctly refused "
+            "final acceptance without required kernel proof; it is not theorem success. "
+            "This summary does not downgrade kernel-verified subclaims or promote "
+            "partial runtime progress to theorem proof evidence."
         ),
     }
 
