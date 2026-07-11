@@ -280,10 +280,17 @@ from .formal_verifier_agentic_proof_source_theorem_target_resolution import (
 from .formal_verifier_replay_repair import export_formal_verifier_replay_repair_packets
 from .formal_source_graph import audit_formal_source_graph
 from .formal_source_index import (
+    FormalSourceRetriever,
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     audit_formal_source_index,
     build_formal_source_search_backend,
+)
+from .lean_agent_providers import (
+    CompositeFormalSourceRetriever,
+    EmpericalProcessLeanRetrievalProvider,
+    OpenProverHLMConfig,
+    OpenProverHLMProofSearchProvider,
 )
 from .formal_source_hybrid import FormalSourceHybridRetriever
 from .formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
@@ -4277,6 +4284,8 @@ def _compact_proofengineer_repair_context(value: object) -> object:
         "failed_proof_body_attempts",
         "semantic_alignment_constraints",
         "semantic_alignment_blockers",
+        "external_proof_search_result",
+        "proof_search_result_use",
         "required_behavior",
         "acceptance_gate",
         "proof_evidence_status",
@@ -4835,6 +4844,115 @@ def _proof_state_provider_from_args(args: argparse.Namespace):
     return provider_cls(
         project_root=lean_project,
         timeout_s=lean_timeout,
+    )
+
+
+def _formal_source_retriever_from_runtime_args(
+    args: argparse.Namespace,
+):
+    root_value = str(
+        getattr(args, "emperical_process_lean_rag_root", "") or ""
+    ).strip()
+    if not root_value:
+        return None
+    root = Path(root_value).expanduser().resolve()
+    script = root / "lean_rag" / "scripts" / "shared_proof_retrieval.py"
+    if not script.is_file():
+        raise ValueError(
+            "--emperical-process-lean-rag-root must point to a checkout containing "
+            f"lean_rag/scripts/shared_proof_retrieval.py; missing at {script}"
+        )
+    external = EmpericalProcessLeanRetrievalProvider(
+        root=root,
+        db_dir=str(
+            getattr(
+                args,
+                "emperical_process_lean_rag_db_dir",
+                "build/lean_graph",
+            )
+            or "build/lean_graph"
+        ),
+        source=str(
+            getattr(args, "emperical_process_lean_rag_source", "all") or "all"
+        ),
+        checkouts=tuple(
+            getattr(args, "emperical_process_lean_rag_checkout", []) or []
+        ),
+        no_sorry=True,
+        with_graph_context=True,
+    )
+    return CompositeFormalSourceRetriever((FormalSourceRetriever(), external))
+
+
+def _proof_search_provider_from_runtime_args(
+    args: argparse.Namespace,
+    *,
+    generator_backend: Any,
+    model: str,
+    out_dir: Path,
+):
+    if not bool(getattr(args, "openprover_hlm", False)):
+        return None
+    root_value = str(getattr(args, "openprover_root", "") or "").strip()
+    if not root_value:
+        raise ValueError("--openprover-hlm requires --openprover-root")
+    root = Path(root_value).expanduser().resolve()
+    controller = root / "src" / "openprover" / "controller.py"
+    if not controller.is_file():
+        raise ValueError(
+            "--openprover-root must contain src/openprover/controller.py; "
+            f"missing at {controller}"
+        )
+    lean_project_value = str(
+        getattr(args, "formalizer_candidate_lean_project", "")
+        or getattr(args, "lean_project", "")
+        or getattr(args, "local_lean_project", "")
+        or ""
+    ).strip()
+    if not lean_project_value:
+        raise ValueError(
+            "--openprover-hlm requires --formalizer-candidate-lean-project or "
+            "--lean-project so its candidates are checked in the intended Lake workspace"
+        )
+    lean_project = Path(lean_project_value).expanduser().resolve()
+    if not lean_project.exists():
+        raise ValueError(f"OpenProver Lake project does not exist: {lean_project}")
+    return OpenProverHLMProofSearchProvider(
+        generator_backend=generator_backend,
+        config=OpenProverHLMConfig(
+            root=root,
+            out_dir=out_dir / "openprover_hlm",
+            lean_project=lean_project,
+            model=str(
+                getattr(args, "openprover_hlm_model", "") or model
+            ),
+            max_tokens=int(
+                getattr(args, "openprover_hlm_max_tokens", 1600) or 1600
+            ),
+            temperature=float(
+                getattr(args, "openprover_hlm_temperature", 0.1) or 0.0
+            ),
+            max_rounds=int(
+                getattr(args, "openprover_hlm_rounds", 2) or 2
+            ),
+            branches_per_round=int(
+                getattr(args, "openprover_hlm_branches_per_round", 4) or 4
+            ),
+            feedback_top_k=int(
+                getattr(args, "openprover_hlm_feedback_top_k", 4) or 4
+            ),
+            max_attempts=int(
+                getattr(args, "openprover_hlm_max_attempts", 120) or 120
+            ),
+            route_strategy=str(
+                getattr(args, "openprover_hlm_route_strategy", "hybrid")
+                or "hybrid"
+            ),
+            verifier_timeout_s=int(
+                getattr(args, "openprover_hlm_verifier_timeout", 120) or 120
+            ),
+            require_lake_project=True,
+        ),
     )
 
 
@@ -11163,6 +11281,25 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     simulation_engineer = _build_simulation_engineer_agent_from_args(args, default_model=model)
     formalizer = _build_formalizer_agent_from_args(args, default_model=model)
     critic_evaluator = _build_critic_evaluator_agent_from_args(args, default_model=model)
+    try:
+        formal_source_retriever = _formal_source_retriever_from_runtime_args(args)
+        proof_search_provider = _proof_search_provider_from_runtime_args(
+            args,
+            generator_backend=(
+                formalizer.provider if formalizer is not None else provider
+            ),
+            model=(
+                str(formalizer.config.model or model)
+                if formalizer is not None
+                else model
+            ),
+            out_dir=Path(args.out),
+        )
+    except ValueError as exc:
+        print("\nAI Statistician Agent Runtime rejected Lean provider config")
+        print("=" * 72)
+        print(f"- {exc}")
+        return 2
     resume_through_architect = _effective_resume_through_architect(
         args,
         architect_coordinator_configured=architect_coordinator is not None,
@@ -11189,6 +11326,8 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         critic_evaluator=critic_evaluator,
         proof_verifier=verifier,
         proof_state_provider=proof_state_provider,
+        formal_source_retriever=formal_source_retriever,
+        proof_search_provider=proof_search_provider,
         architect_context=context,
         initial_task_overrides=resume_initial_tasks,
         initial_blackboard_artifacts=resume_blackboard_artifacts,
@@ -20566,6 +20705,104 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=30,
         help="timeout seconds for each materialized Formalizer candidate local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--emperical-process-lean-rag-root",
+        default=os.environ.get("EMPERICAL_PROCESS_LEAN_ROOT", ""),
+        help=(
+            "trusted local EmpericalProcessLEAN checkout whose mature "
+            "lean_rag/scripts/shared_proof_retrieval.py provider is added to runtime "
+            "formal-source retrieval"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--emperical-process-lean-rag-db-dir",
+        default="build/lean_graph",
+        help=(
+            "EmpericalProcessLEAN shared declaration-graph database directory; "
+            "relative paths are resolved under --emperical-process-lean-rag-root"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--emperical-process-lean-rag-source",
+        choices=("all", "main", "worktrees"),
+        default="all",
+        help="which indexed EmpericalProcessLEAN checkouts participate in retrieval",
+    )
+    research_agent_runtime.add_argument(
+        "--emperical-process-lean-rag-checkout",
+        action="append",
+        default=[],
+        help="optional indexed checkout name filter; repeatable",
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm",
+        action="store_true",
+        help=(
+            "run the configured OpenProver verifier-backed HLM controller on "
+            "lineage-bound whole-theorem ProofEngineer repair tasks"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-root",
+        default=os.environ.get("OPENPROVER_ROOT", ""),
+        help="trusted local ykzeng-yale/OpenProver checkout used by --openprover-hlm",
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-model",
+        default="",
+        help=(
+            "model for OpenProver branch generation; defaults to the configured "
+            "Formalizer/ProofEngineer model and reuses AI-Statistician's generator backend"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-max-tokens",
+        type=int,
+        default=1600,
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-temperature",
+        type=float,
+        default=0.1,
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-rounds",
+        type=int,
+        default=2,
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-branches-per-round",
+        type=int,
+        default=4,
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-feedback-top-k",
+        type=int,
+        default=4,
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-max-attempts",
+        type=int,
+        default=120,
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-route-strategy",
+        choices=(
+            "hybrid",
+            "whole_proof",
+            "tactic_repair",
+            "lemma_goal",
+            "retrieval_feedback",
+            "dependency_goal",
+        ),
+        default="hybrid",
+    )
+    research_agent_runtime.add_argument(
+        "--openprover-hlm-verifier-timeout",
+        type=int,
+        default=120,
+        help="timeout seconds for each OpenProver Lake-backed Lean check",
     )
     research_agent_runtime.add_argument(
         "--critic-evaluator-provider",

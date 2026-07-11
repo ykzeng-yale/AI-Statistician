@@ -15,6 +15,7 @@ verifiable evidence:
 Architect policy
   -> LLM TheoryDeveloper proposal
   -> generated simulation / algorithm code execution
+  -> branch-provenanced formal retrieval / verifier-backed proof search
   -> Formalizer / ProofEngineer Lean candidate materialization
   -> local Lean / AXLE diagnostics and repair
   -> CriticEvaluator agenda and runtime learning rows
@@ -94,9 +95,11 @@ Two current audit gates are especially important for parallel workers:
 
 ## Collaboration Protocol
 
-- Push focused child branches with the `codex/` prefix.
-- Prefer PRs or branch updates back to `codex/ai-stat-lab-sync-20260625` until
-  the merge target is explicit.
+- Push focused child branches with the `codex/` prefix when parallel workers
+  need isolated ownership.
+- Under the current user instruction, the main worker commits and updates
+  `codex/runtime-eval-alignment-20260625` directly through the GitHub App and
+  does not open a PR.
 - Keep one branch focused on one capability seam.
 - Cite exact manifest paths and counts when reporting Lean/AXLE evidence.
 - Never commit `.env`, raw API keys, or unredacted provider responses.
@@ -148,6 +151,19 @@ theorem `formal_targets` must preserve a probability/measure coverage
 conclusion instead of replacing the theorem with a rank-arithmetic helper.
 The runtime audit also now carries Formalizer local-Lean/proof-state counters
 from the manifest into the capability scorecard.
+
+Sixth concrete change in this lane: external Lean capability is now a typed
+AgentRuntime provider boundary. `EmpericalProcessLeanRetrievalProvider` calls
+the mature structured declaration-graph API and preserves branch/commit/index
+provenance; `OpenProverHLMProofSearchProvider` drives OpenProver's HLM
+controller with the existing negotiated generator backend. ProofEngineer
+retains candidates and failure feedback across packet-validation retries,
+deduplicates unchanged semantic search states, and filters invalid candidates
+without discarding valid siblings. Provider output is never promoted to proof
+until AI-Statistician reruns the exact declaration under local Lean/AXLE. The
+plumbing has full local regression coverage, but no production external call is
+claimed because current trusted provider checkouts/indexes are not available on
+this machine.
 
 Live evidence collected on 2026-06-25:
 

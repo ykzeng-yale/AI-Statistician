@@ -128,6 +128,7 @@ from ai_statistician.pseudo_formalization import (
     pseudo_formal_routable_work_order_rows,
 )
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
+from ai_statistician.lean_agent_providers import ExternalFormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
     validate_standalone_input_payload,
 )
@@ -98105,4 +98106,415 @@ def test_research_agent_runtime_cli_imports_truth_table_memory_into_semantic_que
         == "PENDING_SOURCE_TO_BRIDGE_PREMISE_SEMANTIC_REPAIR"
         and row.get("proof_evidence_status") == "WORK_ORDER_NOT_PROOF_EVIDENCE"
         for row in queue_rows
+    )
+
+
+def test_retrieval_memory_returns_branch_provenanced_hits_to_proofengineer() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    declaration = FormalDeclaration(
+        source_id="emperical_process_lean:main",
+        source_type="lean_shared_declaration_graph",
+        path="/tmp/StatInference/Conformal.lean",
+        line=42,
+        kind="theorem",
+        name="StatInference.exchangeable_coverage",
+        namespace="StatInference",
+        signature="theorem exchangeable_coverage : True",
+    )
+
+    class Retriever:
+        name = "fixture_composite_retriever"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def reset_runtime_diagnostics(self) -> None:
+            self.calls = 0
+
+        def search(self, _query: str, *, k: int = 10):
+            self.calls += 1
+            return [
+                ExternalFormalSourceHit(
+                    declaration=declaration,
+                    score=1.0,
+                    matched_terms=("coverage",),
+                    provenance={
+                        "provider": "emperical_process_lean_shared_proof_retrieval",
+                        "branch": "codex/lean-reuse-source-integration",
+                        "commit": "e8d5513d",
+                    },
+                )
+            ][:k]
+
+        def runtime_diagnostics(self):
+            return [
+                {
+                    "provider": self.name,
+                    "status": "ok",
+                    "n_hits": 1,
+                }
+                for _ in range(self.calls)
+            ]
+
+        def descriptor(self):
+            return {
+                "name": self.name,
+                "providers": [
+                    "emperical_process_lean_shared_proof_retrieval"
+                ],
+            }
+
+    subsystem = runtime_module.RetrievalMemoryRuntimeSubsystem(
+        formal_source_retriever=Retriever()
+    )
+    task = AgentTask(
+        task_id="retrieve:exact-source",
+        owner_subsystem="RetrievalMemory",
+        objective="retrieve dependencies for exact source theorem repair",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "retrieval_return_to_subsystem": "ProofEngineer",
+            "environment_feedback": {
+                "proofengineer_repair_context": {
+                    "target_lean_declaration": "exact_source",
+                }
+            },
+        },
+        allowed_tools=("formal_source_retriever",),
+        expected_artifacts=("formalizer_proposal_packet",),
+    )
+
+    result = subsystem.run(task, BlackboardState(project_id="test"))
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.inputs["retrieval_memory_manifest_id"]
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["retrieval_return_to_subsystem"] == "ProofEngineer"
+    assert manifest["counts"]["formal_source_hits_with_provider_provenance"] > 0
+    hit = manifest["formal_source_hits"][0]["hits"][0]
+    assert hit["provenance"]["branch"] == (
+        "codex/lean-reuse-source-integration"
+    )
+    assert any(
+        call.tool_name == "FormalSourceSearchProvider.search"
+        for call in result.tool_calls
+    )
+
+
+def test_proofengineer_consumes_external_proof_search_before_llm_proposal(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "import Mathlib\n\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    class ProofSearchProvider:
+        name = "fixture_openprover_hlm"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def descriptor(self):
+            return {"name": self.name, "repository": "ykzeng-yale/OpenProver"}
+
+        def run(self, request):
+            self.requests.append(dict(request))
+            return {
+                "artifact_kind": "RuntimeOpenProverHLMProofSearchResult",
+                "result_id": "openprover_hlm_result:test",
+                "provider": self.name,
+                "request_fingerprint": request["request_fingerprint"],
+                "target_lean_declaration": request["target_lean_declaration"],
+                "status": "DIRECT_CANDIDATE_AVAILABLE",
+                "openprover_summary": {
+                    "direct_target_solved": 1,
+                    "total_verified_assets": 1,
+                },
+                "source_theorem_candidate_proof_bodies": ["exact hp"],
+                "verified_support_assets": [
+                    {
+                        "name": "checked_support",
+                        "statement": "p",
+                        "proof": "exact hp",
+                    }
+                ],
+                "failure_feedback": [],
+                "proof_evidence_status": (
+                    "OPENPROVER_HLM_RESULT_REQUIRES_EXACT_AI_STATISTICIAN_KERNEL_RERUN"
+                ),
+                "proof_evidence_boundary": "exact kernel rerun required",
+            }
+
+    class RecordingFormalizer:
+        def __init__(self) -> None:
+            self.feedback = []
+
+        def propose(self, **kwargs):
+            self.feedback.append(dict(kwargs["environment_feedback"]))
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:external_proof_search",
+                    "source_agent": "RecordingFormalizer",
+                    "provider": "anthropic",
+                    "backend_provider": "anthropic",
+                    "model": "claude-opus-4-8",
+                    "model_tier": "opus",
+                    "proof_evidence_status": (
+                        "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                    ),
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                }
+            )
+            packet["formal_targets"] = []
+            packet["proof_bank_obligation_requests"] = []
+            return packet
+
+    proof_search = ProofSearchProvider()
+    formalizer = RecordingFormalizer()
+    subsystem = ProofEngineerRuntimeSubsystem(
+        proposal_agent=formalizer,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_search_provider=proof_search,  # type: ignore[arg-type]
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="proofengineer-whole-proof:test",
+        owner_subsystem="ProofEngineer",
+        objective="repair exact source theorem through external proof search",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "feedback_type": "formalizer_packet_validation_feedback",
+                "repair_owner_agent": "ProofEngineer",
+                "proofengineer_repair_context": {
+                    "context_kind": "exact_source_theorem_whole_proof_repair",
+                    "repair_scope": "replace_entire_exact_declaration_proof_body",
+                    "target_lean_declaration": "exact_source",
+                    "target_ids": ["exact_source_goal"],
+                    "target_theorem_statement": (
+                        "theorem exact_source (p : Prop) (hp : p) : p"
+                    ),
+                    "target_declaration_source_excerpt": candidate.read_text(),
+                    "current_proof_body_excerpt": "exact missing",
+                    "candidate_artifact_path": str(candidate),
+                    "candidate_imports": ["import Mathlib"],
+                    "residual_goal_excerpt": ["p : Prop", "hp : p", "|- p"],
+                    "failed_proof_body_attempts": ["unknown identifier missing"],
+                },
+            },
+        },
+        allowed_tools=("proof_search", "local_lean"),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert len(proof_search.requests) == 1
+    assert proof_search.requests[0]["target_lean_declaration"] == "exact_source"
+    assert "import Mathlib" in proof_search.requests[0]["lean_header"]
+    feedback = formalizer.feedback[0]
+    external = feedback["proofengineer_repair_context"][
+        "external_proof_search_result"
+    ]
+    assert external["source_theorem_candidate_proof_bodies"] == ["exact hp"]
+    assert external["openprover_summary"]["direct_target_solved"] == 1
+    assert not feedback.get("source_theorem_kernel_verified", False)
+    assert any(
+        artifact.get("artifact_kind")
+        == "RuntimeOpenProverHLMProofSearchResult"
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+    )
+    assert any(
+        entry.evidence_type == "external_proof_search_feedback"
+        for entry in result.evidence_entries
+    )
+    assert any(
+        call.tool_name == "LeanProofSearchProvider.run" for call in result.tool_calls
+    )
+
+
+def test_whole_proof_validation_failure_stays_with_proofengineer() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    context = {
+        "context_kind": "exact_source_theorem_whole_proof_repair",
+        "repair_scope": "replace_entire_exact_declaration_proof_body",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+        "target_theorem_statement": (
+            "theorem exact_source (p : Prop) (hp : p) : p"
+        ),
+        "current_proof_body_excerpt": "exact missing",
+    }
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=AgentTask(
+            task_id="formalize-repair:exact-source:test",
+            owner_subsystem="FormalizationEvaluator",
+            objective="repair exact source theorem",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "environment_feedback": {
+                    "repair_owner_agent": "ProofEngineer",
+                    "proofengineer_repair_context": context,
+                },
+            },
+        ),
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary={},
+        exc=PacketValidationError(
+            validation_label="exact source theorem whole-proof repair",
+            attempts=2,
+            errors=[
+                "exact source theorem whole-proof repair must preserve target_theorem_statement exactly"
+            ],
+            history=[],
+        ),
+    )
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.task_id.startswith("proofengineer-whole-proof:")
+    assert "proof_search" in result.next_task.allowed_tools
+    assert result.next_task.inputs["environment_feedback"][
+        "proofengineer_repair_context"
+    ]["target_theorem_statement"] == context["target_theorem_statement"]
+    assert "whole-proof ProofEngineer loop" in result.rationale
+
+
+def test_external_proof_search_artifact_survives_followup_packet_validation_failure(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+
+    class ProofSearchProvider:
+        name = "fixture_openprover_hlm"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, request):
+            self.calls += 1
+            return {
+                "artifact_kind": "RuntimeOpenProverHLMProofSearchResult",
+                "result_id": "openprover_hlm_result:before_validation_failure",
+                "provider": self.name,
+                "request_fingerprint": request["request_fingerprint"],
+                "target_lean_declaration": "exact_source",
+                "status": "NO_CANDIDATE_FOUND",
+                "source_theorem_candidate_proof_bodies": [],
+                "verified_support_assets": [],
+                "failure_feedback": [{"error_tail": "no proof found"}],
+                "proof_evidence_status": "OPENPROVER_RESULT_NOT_PROOF_EVIDENCE",
+            }
+
+    class InvalidFormalizer:
+        def propose(self, **_kwargs):
+            raise PacketValidationError(
+                validation_label="exact source theorem whole-proof repair",
+                attempts=1,
+                errors=[
+                    "exact source theorem whole-proof repair must preserve target_theorem_statement exactly"
+                ],
+                history=[],
+            )
+
+    proof_search = ProofSearchProvider()
+    subsystem = ProofEngineerRuntimeSubsystem(
+        proposal_agent=InvalidFormalizer(),  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_search_provider=proof_search,  # type: ignore[arg-type]
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="proofengineer-whole-proof:validation-failure",
+        owner_subsystem="ProofEngineer",
+        objective="repair exact source theorem",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "repair_owner_agent": "ProofEngineer",
+                "proofengineer_repair_context": {
+                    "context_kind": "exact_source_theorem_whole_proof_repair",
+                    "repair_scope": "replace_entire_exact_declaration_proof_body",
+                    "target_lean_declaration": "exact_source",
+                    "target_theorem_statement": (
+                        "theorem exact_source (p : Prop) (hp : p) : p"
+                    ),
+                    "current_proof_body_excerpt": "exact missing",
+                    "candidate_imports": [],
+                    "residual_goal_excerpt": ["p : Prop", "hp : p", "|- p"],
+                },
+            },
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    kinds = {
+        str(artifact.get("artifact_kind", "") or "")
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+    }
+    assert "RuntimeOpenProverHLMProofSearchResult" in kinds
+    assert "RuntimeFormalizerValidationFailure" in kinds
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.inputs["environment_feedback"][
+        "proofengineer_repair_context"
+    ]["external_proof_search_result"]["status"] == "NO_CANDIDATE_FOUND"
+    assert any(
+        entry.evidence_type == "external_proof_search_feedback"
+        for entry in result.evidence_entries
+    )
+
+    second_result = subsystem.run(result.next_task, blackboard)
+
+    assert proof_search.calls == 1
+    assert second_result.next_task is not None
+    assert second_result.next_task.inputs["environment_feedback"][
+        "proofengineer_repair_context"
+    ]["external_proof_search_result"]["request_fingerprint"] == (
+        result.next_task.inputs["environment_feedback"][
+            "proofengineer_repair_context"
+        ]["external_proof_search_result"]["request_fingerprint"]
     )

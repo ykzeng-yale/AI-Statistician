@@ -139,6 +139,13 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
+from .lean_agent_providers import (
+    LEAN_PROVIDER_BOUNDARY,
+    LeanProofSearchProvider,
+    provider_descriptor,
+    provider_runtime_diagnostics,
+    reset_provider_runtime_diagnostics,
+)
 from .proof_bank import get_obligation
 from .proof_state_feedback import (
     PROOF_STATE_FEEDBACK_BOUNDARY,
@@ -9781,6 +9788,23 @@ def _architect_resume_theory_refresh_task_if_needed(
     )
 
 
+RUNTIME_RETRIEVAL_RETURN_OWNERS = {
+    "TheoryDeveloper",
+    "FormalizationEvaluator",
+    "ProofEngineer",
+    "FormalizationGapPlanner",
+}
+
+
+def _runtime_retrieval_return_owner(task: AgentTask) -> str:
+    requested = str(
+        task.inputs.get("retrieval_return_to_subsystem", "")
+        or task.inputs.get("return_to_subsystem", "")
+        or ""
+    ).strip()
+    return requested if requested in RUNTIME_RETRIEVAL_RETURN_OWNERS else "TheoryDeveloper"
+
+
 class RetrievalMemoryRuntimeSubsystem:
     name = "RetrievalMemory"
 
@@ -9797,12 +9821,20 @@ class RetrievalMemoryRuntimeSubsystem:
         )
         knowledge = retrieve_problem_knowledge(question, problem, theorem_goals, k=8)
         paper_sources = retrieve_paper_sources(question, problem, theorem_goals, k=5)
+        reset_provider_runtime_diagnostics(self.formal_source_retriever)
         formal_hits = _runtime_formal_source_hits(
             self.formal_source_retriever,
             problem=problem,
             theorem_goals=theorem_goals,
             k=4,
         )
+        formal_source_provider_diagnostics = provider_runtime_diagnostics(
+            self.formal_source_retriever
+        )
+        formal_source_provider_topology = provider_descriptor(
+            self.formal_source_retriever
+        )
+        return_owner = _runtime_retrieval_return_owner(task)
         manifest_id = "retrieval_memory_manifest:" + stable_hash([task.task_id, question.id, formal_hits])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -9816,11 +9848,28 @@ class RetrievalMemoryRuntimeSubsystem:
             "knowledge_cards": [_knowledge_card_to_json(row) for row in knowledge],
             "paper_sources": [_paper_source_to_json(row) for row in paper_sources],
             "formal_source_hits": formal_hits,
+            "formal_source_provider_topology": formal_source_provider_topology,
+            "formal_source_provider_diagnostics": formal_source_provider_diagnostics,
+            "retrieval_return_to_subsystem": return_owner,
             "counts": {
                 "knowledge_cards": len(knowledge),
                 "paper_sources": len(paper_sources),
                 "formal_source_hit_groups": len(formal_hits),
                 "formal_source_hits": sum(len(row.get("hits", [])) for row in formal_hits),
+                "formal_source_provider_calls": len(
+                    formal_source_provider_diagnostics
+                ),
+                "formal_source_provider_failures": sum(
+                    1
+                    for row in formal_source_provider_diagnostics
+                    if str(row.get("status", "") or "") != "ok"
+                ),
+                "formal_source_hits_with_provider_provenance": sum(
+                    1
+                    for group in formal_hits
+                    for hit in group.get("hits", []) or []
+                    if isinstance(hit, Mapping) and hit.get("provenance")
+                ),
             },
             "boundary": (
                 "Retrieval memory supplies source, analogy, and Lean declaration context. "
@@ -9844,24 +9893,12 @@ class RetrievalMemoryRuntimeSubsystem:
             "knowledge_cards": manifest["knowledge_cards"],
             "paper_sources": manifest["paper_sources"],
             "formal_source_hits": manifest["formal_source_hits"],
+            "formal_source_provider_topology": formal_source_provider_topology,
+            "formal_source_provider_diagnostics": formal_source_provider_diagnostics,
             "boundary": manifest["boundary"],
         }
-        return AgentStepResult(
-            status="REROUTE",
-            rationale="Runtime retrieval memory recorded paper, knowledge, and formal-source context for TheoryDeveloper.",
-            produced_artifacts={manifest_id: manifest},
-            observations=(
-                EnvironmentObservation(
-                    observation_type="retrieval_memory",
-                    summary=(
-                        f"knowledge={len(knowledge)} papers={len(paper_sources)} "
-                        f"formal_hit_groups={len(formal_hits)}"
-                    ),
-                    payload=manifest["counts"],
-                ),
-            ),
-            evidence_entries=(evidence,),
-            next_task=AgentTask(
+        if return_owner == "TheoryDeveloper":
+            next_task = AgentTask(
                 task_id=f"theory:{question.id}:{stable_hash(manifest_id)[:8]}",
                 owner_subsystem="TheoryDeveloper",
                 objective="Derive a statistical theory proposal using retrieval memory context.",
@@ -9881,7 +9918,84 @@ class RetrievalMemoryRuntimeSubsystem:
                     "validated theory packet with proof boundary and retrieval context",
                 ),
                 stop_condition="theory packet routed to simulation feedback",
+            )
+        else:
+            next_inputs = dict(task.inputs)
+            next_inputs.pop("retrieval_return_to_subsystem", None)
+            next_inputs.pop("return_to_subsystem", None)
+            next_inputs["question"] = _question_to_payload(question)
+            next_inputs["architect_context"] = context
+            next_inputs["retrieval_memory_manifest_id"] = manifest_id
+            next_task = AgentTask(
+                task_id=(
+                    f"retrieval-return:{return_owner}:{question.id}:"
+                    f"{stable_hash(manifest_id)[:8]}"
+                ),
+                owner_subsystem=return_owner,
+                objective=(
+                    "Resume the pending formal task with branch-provenanced Lean "
+                    "retrieval context and preserve the exact theorem lineage."
+                ),
+                inputs=next_inputs,
+                allowed_tools=tuple(
+                    dict.fromkeys(
+                        (
+                            *task.allowed_tools,
+                            "model_backend",
+                            "formal_source_retriever",
+                            "proof_search",
+                            "local_lean",
+                        )
+                    )
+                ),
+                expected_artifacts=task.expected_artifacts,
+                acceptance_gate=(
+                    task.acceptance_gate
+                    or "retrieved declarations are consumed by the target owner and "
+                    "any candidate is rerun under local Lean/AXLE"
+                ),
+                stop_condition=task.stop_condition,
+            )
+        return AgentStepResult(
+            status="REROUTE",
+            rationale=(
+                "Runtime retrieval memory recorded paper, knowledge, and "
+                f"formal-source context for {return_owner}."
             ),
+            produced_artifacts={manifest_id: manifest},
+            observations=(
+                EnvironmentObservation(
+                    observation_type="retrieval_memory",
+                    summary=(
+                        f"knowledge={len(knowledge)} papers={len(paper_sources)} "
+                        f"formal_hit_groups={len(formal_hits)}"
+                    ),
+                    payload=manifest["counts"],
+                ),
+            ),
+            tool_calls=(
+                ToolCallRecord(
+                    tool_name="FormalSourceSearchProvider.search",
+                    inputs={
+                        "provider_topology": formal_source_provider_topology,
+                        "theorem_goal_count": len(theorem_goals),
+                    },
+                    exit_status=(
+                        "provider_failures_present"
+                        if manifest["counts"]["formal_source_provider_failures"]
+                        else "0"
+                    ),
+                    stdout_summary=(
+                        "hits="
+                        f"{manifest['counts']['formal_source_hits']} "
+                        "provider_calls="
+                        f"{manifest['counts']['formal_source_provider_calls']}"
+                    ),
+                    safety_boundary=LEAN_PROVIDER_BOUNDARY,
+                ),
+            ),
+            evidence_entries=(evidence,),
+            next_task=next_task,
         )
 
 
@@ -12249,6 +12363,247 @@ def _algorithm_engineer_packet_validation_failure_result(
     )
 
 
+def _runtime_external_proof_search_request(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    environment_feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    if task.owner_subsystem != "ProofEngineer":
+        return {}
+    repair_context = (
+        environment_feedback.get("proofengineer_repair_context", {})
+        if isinstance(
+            environment_feedback.get("proofengineer_repair_context", {}),
+            Mapping,
+        )
+        else {}
+    )
+    target_statement = str(
+        repair_context.get("target_theorem_statement", "") or ""
+    ).strip()
+    target_declaration = str(
+        repair_context.get("target_lean_declaration", "")
+        or repair_context.get("target_theorem_name", "")
+        or ""
+    ).strip()
+    if not target_statement or not target_declaration:
+        return {}
+    request = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "request_kind": "exact_source_theorem_whole_proof_search",
+        "question_id": question.id,
+        "question_title": question.title,
+        "source_task_id": task.task_id,
+        "target_ids": [
+            str(value)
+            for value in repair_context.get("target_ids", []) or []
+            if str(value)
+        ],
+        "target_lean_declaration": target_declaration,
+        "target_theorem_statement": target_statement,
+        "target_declaration_source_excerpt": str(
+            repair_context.get("target_declaration_source_excerpt", "") or ""
+        )[:12000],
+        "current_proof_body_excerpt": str(
+            repair_context.get("current_proof_body_excerpt", "") or ""
+        )[:6000],
+        "candidate_imports": [
+            str(value)
+            for value in repair_context.get("candidate_imports", []) or []
+            if str(value).strip()
+        ][:24],
+        "residual_goal_excerpt": [
+            str(value)
+            for value in repair_context.get("residual_goal_excerpt", []) or []
+            if str(value).strip()
+        ][:12],
+        "failed_proof_body_attempts": [
+            str(value)
+            for value in repair_context.get("failed_proof_body_attempts", []) or []
+            if str(value).strip()
+        ][:12],
+        "semantic_alignment_constraints": [
+            str(value)
+            for value in repair_context.get("semantic_alignment_constraints", []) or []
+            if str(value).strip()
+        ][:12],
+        "semantic_alignment_blockers": [
+            str(value)
+            for value in repair_context.get("semantic_alignment_blockers", []) or []
+            if str(value).strip()
+        ][:12],
+        "lean_header": _runtime_external_proof_search_lean_header(repair_context),
+        "proof_evidence_status": "PROOF_SEARCH_REQUEST_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
+    }
+    request_fingerprint = stable_hash(
+        {
+            key: value
+            for key, value in request.items()
+            if key != "source_task_id"
+        }
+    )
+    existing = (
+        repair_context.get("external_proof_search_result", {})
+        if isinstance(
+            repair_context.get("external_proof_search_result", {}), Mapping
+        )
+        else {}
+    )
+    if str(existing.get("request_fingerprint", "") or "") == request_fingerprint:
+        return {}
+    request["request_fingerprint"] = request_fingerprint
+    return request
+
+
+def _runtime_external_proof_search_lean_header(
+    repair_context: Mapping[str, Any],
+) -> str:
+    candidate_path = str(
+        repair_context.get("candidate_artifact_path", "")
+        or repair_context.get("source_candidate_artifact_path", "")
+        or ""
+    ).strip()
+    target_declaration = str(
+        repair_context.get("target_lean_declaration", "")
+        or repair_context.get("target_theorem_name", "")
+        or ""
+    ).strip()
+    if candidate_path and target_declaration:
+        path = Path(candidate_path).expanduser()
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError:
+            source = ""
+        if source:
+            match = re.search(
+                rf"(?m)^\s*(?:theorem|lemma)\s+{re.escape(target_declaration)}\b",
+                source,
+            )
+            if match is not None:
+                return source[: match.start()][-120000:].strip()
+    return "\n".join(
+        str(value)
+        for value in repair_context.get("candidate_imports", []) or []
+        if str(value).strip()
+    )[:120000]
+
+
+def _runtime_external_proof_search_error_result(
+    *,
+    request: Mapping[str, Any],
+    provider: LeanProofSearchProvider,
+    exc: Exception,
+) -> dict[str, Any]:
+    request_fingerprint = str(request.get("request_fingerprint", "") or "")
+    result_id = "external_proof_search_error:" + stable_hash(
+        [request_fingerprint, type(exc).__name__, str(exc)[:300]]
+    )[:20]
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeExternalProofSearchResult",
+        "result_id": result_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "provider": str(getattr(provider, "name", type(provider).__name__)),
+        "provider_descriptor": provider_descriptor(provider),
+        "request_fingerprint": request_fingerprint,
+        "target_lean_declaration": str(
+            request.get("target_lean_declaration", "") or ""
+        ),
+        "status": "PROVIDER_ERROR",
+        "error": f"{type(exc).__name__}: {str(exc)[:500]}",
+        "source_theorem_candidate_proof_bodies": [],
+        "verified_support_assets": [],
+        "failure_feedback": [],
+        "proof_evidence_status": "PROOF_SEARCH_PROVIDER_ERROR_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
+    }
+
+
+def _runtime_environment_feedback_with_external_proof_search_result(
+    feedback: Mapping[str, Any],
+    result: Mapping[str, Any],
+) -> dict[str, Any]:
+    payload = dict(feedback)
+    compact = {
+        key: result.get(key)
+        for key in (
+            "result_id",
+            "provider",
+            "request_fingerprint",
+            "target_lean_declaration",
+            "status",
+            "openprover_summary",
+            "source_theorem_candidate_proof_bodies",
+            "verified_support_assets",
+            "failure_feedback",
+            "report_path",
+            "checkpoint_path",
+            "blocker",
+            "error",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        )
+        if result.get(key) not in (None, "", [], {})
+    }
+    payload["external_proof_search_result"] = compact
+    repair_context = (
+        dict(payload.get("proofengineer_repair_context", {}) or {})
+        if isinstance(payload.get("proofengineer_repair_context", {}), Mapping)
+        else {}
+    )
+    repair_context["external_proof_search_result"] = compact
+    repair_context["proof_search_result_use"] = (
+        "Treat source_theorem_candidate_proof_bodies as whole-proof proposals and "
+        "verified_support_assets as candidate dependencies. Preserve the exact theorem "
+        "statement and rerun the resulting exact declaration under local Lean/AXLE."
+    )
+    payload["proofengineer_repair_context"] = repair_context
+    payload["repair_owner_agent"] = "ProofEngineer"
+    return payload
+
+
+def _agent_step_result_with_external_proof_search(
+    result: AgentStepResult,
+    *,
+    external_result: Mapping[str, Any] | None,
+    artifacts: Mapping[str, Any],
+    observations: Sequence[EnvironmentObservation],
+    evidence: EvidenceLedgerEntry | None,
+    tool_call: ToolCallRecord | None,
+) -> AgentStepResult:
+    if not artifacts and not observations and evidence is None and tool_call is None:
+        return result
+    next_task = result.next_task
+    if next_task is not None and external_result:
+        next_inputs = dict(next_task.inputs)
+        next_environment_feedback = (
+            next_inputs.get("environment_feedback", {})
+            if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        next_inputs["environment_feedback"] = (
+            _runtime_environment_feedback_with_external_proof_search_result(
+                next_environment_feedback,
+                external_result,
+            )
+        )
+        next_task = replace(next_task, inputs=next_inputs)
+    return replace(
+        result,
+        produced_artifacts={**dict(artifacts), **result.produced_artifacts},
+        observations=tuple(observations) + result.observations,
+        tool_calls=tuple(
+            row for row in (tool_call, *result.tool_calls) if row is not None
+        ),
+        evidence_entries=tuple(
+            row for row in (evidence, *result.evidence_entries) if row is not None
+        ),
+        next_task=next_task,
+    )
+
+
 class FormalizationEvaluatorRuntimeSubsystem:
     name = "FormalizationEvaluator"
 
@@ -12259,6 +12614,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         proof_verifier: ProofVerifier | None = None,
         proof_state_provider: ProofStateFeedbackProvider | None = None,
         formal_source_retriever: Any | None = None,
+        proof_search_provider: LeanProofSearchProvider | None = None,
         proof_obligation_ids: tuple[str, ...] = (),
         max_proof_obligations: int = 0,
         lean_candidate_root: Path = Path("runs") / "formalizer_lean_candidates",
@@ -12277,6 +12633,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.architect_coordinator_available = architect_coordinator_available
         self.runtime_config = runtime_config
         self.formal_source_retriever = formal_source_retriever
+        self.proof_search_provider = proof_search_provider
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
             formal_source_retriever=formal_source_retriever,
@@ -12415,6 +12772,196 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
+        external_proof_search_artifacts: dict[str, Any] = {}
+        external_proof_search_observations: list[EnvironmentObservation] = []
+        external_proof_search_evidence: EvidenceLedgerEntry | None = None
+        external_proof_search_tool_call: ToolCallRecord | None = None
+        external_proof_search_result: dict[str, Any] | None = None
+        if self.proof_search_provider is not None:
+            external_proof_search_request = _runtime_external_proof_search_request(
+                task=task,
+                question=question,
+                environment_feedback=environment_feedback,
+            )
+            if external_proof_search_request:
+                try:
+                    raw_external_proof_search_result = self.proof_search_provider.run(
+                        external_proof_search_request
+                    )
+                    if not isinstance(raw_external_proof_search_result, Mapping):
+                        raise TypeError(
+                            "proof search provider must return a mapping result"
+                        )
+                    external_proof_search_result = dict(
+                        raw_external_proof_search_result
+                    )
+                except Exception as exc:
+                    external_proof_search_result = (
+                        _runtime_external_proof_search_error_result(
+                            request=external_proof_search_request,
+                            provider=self.proof_search_provider,
+                            exc=exc,
+                        )
+                    )
+                external_result_id = str(
+                    external_proof_search_result.get("result_id", "")
+                    or "external_proof_search_result:"
+                    + stable_hash(external_proof_search_result)[:20]
+                )
+                external_proof_search_result["result_id"] = external_result_id
+                external_proof_search_result.setdefault(
+                    "proof_evidence_status",
+                    "EXTERNAL_PROOF_SEARCH_RESULT_NOT_PROOF_EVIDENCE",
+                )
+                external_proof_search_result.setdefault(
+                    "proof_evidence_boundary",
+                    LEAN_PROVIDER_BOUNDARY,
+                )
+                external_proof_search_result = (
+                    _runtime_artifact_with_architect_control(
+                        external_result_id,
+                        external_proof_search_result,
+                        formalization_control_seed,
+                        subsystem_override=subsystem_name,
+                    )
+                )
+                produced_artifacts[external_result_id] = (
+                    external_proof_search_result
+                )
+                external_proof_search_artifacts[external_result_id] = (
+                    external_proof_search_result
+                )
+                environment_feedback = (
+                    _runtime_environment_feedback_with_external_proof_search_result(
+                        environment_feedback,
+                        external_proof_search_result,
+                    )
+                )
+                context["environment_feedback"] = environment_feedback
+                external_status = str(
+                    external_proof_search_result.get("status", "") or ""
+                )
+                external_proof_search_observations.append(
+                    EnvironmentObservation(
+                        observation_type="external_proof_search",
+                        summary=(
+                            "provider="
+                            f"{getattr(self.proof_search_provider, 'name', type(self.proof_search_provider).__name__)} "
+                            f"status={external_status}"
+                        ),
+                        payload={
+                            "result_id": external_result_id,
+                            "status": external_status,
+                            "request_fingerprint": str(
+                                external_proof_search_result.get(
+                                    "request_fingerprint",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "n_source_theorem_candidate_proof_bodies": len(
+                                external_proof_search_result.get(
+                                    "source_theorem_candidate_proof_bodies",
+                                    [],
+                                )
+                                or []
+                            ),
+                            "n_verified_support_assets": len(
+                                external_proof_search_result.get(
+                                    "verified_support_assets",
+                                    [],
+                                )
+                                or []
+                            ),
+                            "proof_evidence_status": str(
+                                external_proof_search_result.get(
+                                    "proof_evidence_status",
+                                    "",
+                                )
+                                or ""
+                            ),
+                        },
+                    )
+                )
+                observations.extend(external_proof_search_observations)
+                external_proof_search_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash([task.task_id, external_result_id])[:20],
+                    task_id=task.task_id,
+                    artifact_id=external_result_id,
+                    evidence_type="external_proof_search_feedback",
+                    status=(
+                        "EXTERNAL_PROOF_SEARCH_RECORDED_NOT_PROOF_EVIDENCE"
+                    ),
+                    boundary=LEAN_PROVIDER_BOUNDARY,
+                    payload={
+                        "provider": str(
+                            getattr(
+                                self.proof_search_provider,
+                                "name",
+                                type(self.proof_search_provider).__name__,
+                            )
+                        ),
+                        "status": external_status,
+                        "exact_kernel_rerun_required": True,
+                    },
+                )
+                external_proof_search_tool_call = ToolCallRecord(
+                    tool_name="LeanProofSearchProvider.run",
+                    inputs={
+                        "provider": str(
+                            getattr(
+                                self.proof_search_provider,
+                                "name",
+                                type(self.proof_search_provider).__name__,
+                            )
+                        ),
+                        "request_fingerprint": str(
+                            external_proof_search_request.get(
+                                "request_fingerprint",
+                                "",
+                            )
+                            or ""
+                        ),
+                        "target_lean_declaration": str(
+                            external_proof_search_request.get(
+                                "target_lean_declaration",
+                                "",
+                            )
+                            or ""
+                        ),
+                    },
+                    output_paths=tuple(
+                        str(external_proof_search_result.get(key, "") or "")
+                        for key in ("report_path", "checkpoint_path")
+                        if str(external_proof_search_result.get(key, "") or "")
+                    ),
+                    exit_status=(
+                        "provider_error"
+                        if external_status == "PROVIDER_ERROR"
+                        else "0"
+                    ),
+                    stdout_summary=(
+                        f"status={external_status} candidates="
+                        f"{len(external_proof_search_result.get('source_theorem_candidate_proof_bodies', []) or [])} "
+                        "support_assets="
+                        f"{len(external_proof_search_result.get('verified_support_assets', []) or [])}"
+                    ),
+                    safety_boundary=LEAN_PROVIDER_BOUNDARY,
+                )
+
+        def preserve_external_proof_search(
+            result: AgentStepResult,
+        ) -> AgentStepResult:
+            return _agent_step_result_with_external_proof_search(
+                result,
+                external_result=external_proof_search_result,
+                artifacts=external_proof_search_artifacts,
+                observations=external_proof_search_observations,
+                evidence=external_proof_search_evidence,
+                tool_call=external_proof_search_tool_call,
+            )
+
         proposal_source = ""
         formalizer_theory_trace_contract: dict[str, Any] = {}
         formalizer_theory_trace_alignment_contract: dict[str, Any] = {}
@@ -12612,26 +13159,34 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     environment_feedback=environment_feedback,
                 )
             except PacketValidationError as exc:
-                return _formalizer_packet_validation_failure_result(
-                    task=task,
-                    question=question,
-                    theory_packet_id=packet_id,
-                    simulation_manifest_id=simulation_manifest_id,
-                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-                    exc=exc,
-                    formal_source_retriever=self.formal_source_retriever,
+                return preserve_external_proof_search(
+                    _formalizer_packet_validation_failure_result(
+                        task=task,
+                        question=question,
+                        theory_packet_id=packet_id,
+                        simulation_manifest_id=simulation_manifest_id,
+                        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                        proof_bank_runtime_memory_summary=(
+                            proof_bank_runtime_memory_summary
+                        ),
+                        exc=exc,
+                        formal_source_retriever=self.formal_source_retriever,
+                    )
                 )
             except Exception as exc:
-                return _formalizer_provider_failure_result(
-                    task=task,
-                    question=question,
-                    theory_packet_id=packet_id,
-                    simulation_manifest_id=simulation_manifest_id,
-                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-                    environment_feedback=environment_feedback,
-                    exc=exc,
+                return preserve_external_proof_search(
+                    _formalizer_provider_failure_result(
+                        task=task,
+                        question=question,
+                        theory_packet_id=packet_id,
+                        simulation_manifest_id=simulation_manifest_id,
+                        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                        proof_bank_runtime_memory_summary=(
+                            proof_bank_runtime_memory_summary
+                        ),
+                        environment_feedback=environment_feedback,
+                        exc=exc,
+                    )
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
@@ -12745,45 +13300,49 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     acceptance_gate=task.acceptance_gate,
                     stop_condition=task.stop_condition,
                 )
-                return _formalizer_packet_validation_failure_result(
-                    task=validation_task,
-                    question=question,
-                    theory_packet_id=packet_id,
-                    simulation_manifest_id=simulation_manifest_id,
-                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-                    exc=PacketValidationError(
-                        validation_label=(
-                            "Formalizer capability-eval Lean candidate"
+                return preserve_external_proof_search(
+                    _formalizer_packet_validation_failure_result(
+                        task=validation_task,
+                        question=question,
+                        theory_packet_id=packet_id,
+                        simulation_manifest_id=simulation_manifest_id,
+                        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                        proof_bank_runtime_memory_summary=(
+                            proof_bank_runtime_memory_summary
                         ),
-                        attempts=1,
-                        errors=[
-                            "capability_eval requires at least one Claude/OpenAI-generated "
-                            "Lean statement sketch in formal_targets or "
-                            "source_to_bridge_premise_derivation_candidates"
-                        ],
-                        history=[
-                            {
-                                "packet_id": proposal_id,
-                                "n_candidate_sources": 0,
-                                "runtime_requested_evidence_contract": dict(
-                                    context.get(
-                                        "runtime_requested_evidence_contract",
-                                        {},
-                                    )
-                                    if isinstance(
+                        exc=PacketValidationError(
+                            validation_label=(
+                                "Formalizer capability-eval Lean candidate"
+                            ),
+                            attempts=1,
+                            errors=[
+                                "capability_eval requires at least one Claude/OpenAI-generated "
+                                "Lean statement sketch in formal_targets or "
+                                "source_to_bridge_premise_derivation_candidates"
+                            ],
+                            history=[
+                                {
+                                    "packet_id": proposal_id,
+                                    "n_candidate_sources": 0,
+                                    "runtime_requested_evidence_contract": dict(
                                         context.get(
                                             "runtime_requested_evidence_contract",
                                             {},
-                                        ),
-                                        Mapping,
-                                    )
-                                    else {}
-                                ),
-                            }
-                        ],
-                    ),
-                    formal_source_retriever=self.formal_source_retriever,
+                                        )
+                                        if isinstance(
+                                            context.get(
+                                                "runtime_requested_evidence_contract",
+                                                {},
+                                            ),
+                                            Mapping,
+                                        )
+                                        else {}
+                                    ),
+                                }
+                            ],
+                        ),
+                        formal_source_retriever=self.formal_source_retriever,
+                    )
                 )
             if lean_candidate_materialization["n_candidate_sources"] > 0:
                 produced_artifacts[
@@ -13954,6 +14513,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 safety_boundary=KERNEL_PROOF_BOUNDARY,
             )
         ]
+        if external_proof_search_tool_call is not None:
+            tool_calls.insert(0, external_proof_search_tool_call)
         if proof_state_manifest is not None:
             tool_calls.append(
                 ToolCallRecord(
@@ -14250,6 +14811,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             evidence_entries=tuple(
                 row
                 for row in (
+                    external_proof_search_evidence,
                     proposal_evidence,
                     evidence,
                     proof_state_evidence,
@@ -15400,6 +15962,21 @@ def _formalizer_packet_validation_failure_result(
             )
         )
         next_inputs["environment_feedback"] = repair_feedback
+    whole_proof_agent_repair = bool(
+        str(
+            active_proofengineer_repair_context.get("repair_scope", "") or ""
+        )
+        == "replace_entire_exact_declaration_proof_body"
+        and str(
+            active_proofengineer_repair_context.get(
+                "target_theorem_statement",
+                "",
+            )
+            or ""
+        ).strip()
+        and not repeated_syntax_packet_repair
+        and not packet_validation_escalation
+    )
     if pseudo_formalization_required_missing_work_order_rows:
         next_task_objective = (
             "Repair the Formalizer/ProofEngineer packet by emitting routed PF/BV "
@@ -15409,6 +15986,18 @@ def _formalizer_packet_validation_failure_result(
             pseudo_formalization_repair_contract.get("acceptance_gate")
             or "valid PF/BV packet must produce lane-routable pseudo-formal "
             "work-order rows; not proof evidence"
+        )
+    elif whole_proof_agent_repair:
+        next_task_objective = (
+            "Run the lineage-bound whole-theorem ProofEngineer loop: consume "
+            "formal-source retrieval and proof-search results, preserve the exact "
+            "declaration signature, replace the complete proof body, and rerun the "
+            "candidate under local Lean/AXLE."
+        )
+        next_task_acceptance_gate = (
+            "an exact-signature whole-proof candidate is materialized and checked by "
+            "local Lean/AXLE, or a typed dependency blocker is returned without "
+            "claiming source-theorem proof"
         )
     elif source_theorem_candidate_materialization_contract:
         next_task_objective = (
@@ -15447,11 +16036,18 @@ def _formalizer_packet_validation_failure_result(
             f"formalizer-packet-blocker:{question.id}:"
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
             if packet_validation_escalation
+            else f"proofengineer-whole-proof:{question.id}:"
+            f"{stable_hash([failure_id, repair_feedback])[:8]}"
+            if whole_proof_agent_repair
             else f"formalize-repair:{question.id}:"
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
         ),
         owner_subsystem=(
-            "CriticEvaluator" if packet_validation_escalation else "FormalizationEvaluator"
+            "CriticEvaluator"
+            if packet_validation_escalation
+            else "ProofEngineer"
+            if whole_proof_agent_repair
+            else "FormalizationEvaluator"
         ),
         objective=next_task_objective,
         inputs=next_inputs,
@@ -15467,6 +16063,19 @@ def _formalizer_packet_validation_failure_result(
                 )
             )
             if packet_validation_escalation
+            else tuple(
+                dict.fromkeys(
+                    (
+                        *task.allowed_tools,
+                        "model_backend",
+                        "formal_source_retriever",
+                        "proof_search",
+                        "local_lean",
+                        "lean_lsp_mcp",
+                    )
+                )
+            )
+            if whole_proof_agent_repair
             else task.allowed_tools
         ),
         expected_artifacts=(
@@ -15478,6 +16087,8 @@ def _formalizer_packet_validation_failure_result(
         stop_condition=(
             "deterministic blocker agenda or gap-planner handoff recorded"
             if packet_validation_escalation
+            else "exact whole-proof candidate rerun or typed dependency blocker recorded"
+            if whole_proof_agent_repair
             else "repaired formalizer packet or explicit formal blocker recorded"
         ),
     )
@@ -15506,8 +16117,14 @@ def _formalizer_packet_validation_failure_result(
     return AgentStepResult(
         status="REVISE",
         rationale=(
-            "LLM Formalizer/ProofEngineer packet failed local validation; "
-            "structured feedback was recorded and routed back to Formalizer."
+            "LLM Formalizer/ProofEngineer packet failed local validation; structured "
+            "feedback was recorded and routed to the lineage-bound whole-proof "
+            "ProofEngineer loop."
+            if whole_proof_agent_repair
+            else (
+                "LLM Formalizer/ProofEngineer packet failed local validation; "
+                "structured feedback was recorded and routed back to Formalizer."
+            )
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -25140,6 +25757,7 @@ def run_research_agent_runtime(
     proof_verifier: ProofVerifier | None = None,
     proof_state_provider: ProofStateFeedbackProvider | None = None,
     formal_source_retriever: Any | None = None,
+    proof_search_provider: LeanProofSearchProvider | None = None,
     config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
     architect_context: Mapping[str, Any] | None = None,
     initial_task_overrides: Mapping[str, AgentTask] | None = None,
@@ -25183,6 +25801,29 @@ def run_research_agent_runtime(
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
     shared_formal_source_retriever = formal_source_retriever or FormalSourceRetriever()
+    lean_provider_topology = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLeanProviderTopology",
+        "manifest_id": "runtime_lean_provider_topology:"
+        + stable_hash(
+            [
+                provider_descriptor(shared_formal_source_retriever),
+                provider_descriptor(proof_search_provider)
+                if proof_search_provider is not None
+                else {},
+            ]
+        )[:20],
+        "formal_source_retriever": provider_descriptor(
+            shared_formal_source_retriever
+        ),
+        "proof_search_provider": (
+            provider_descriptor(proof_search_provider)
+            if proof_search_provider is not None
+            else {"configured": False}
+        ),
+        "proof_evidence_status": "LEAN_PROVIDER_TOPOLOGY_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
+    }
     llm_topology = _runtime_llm_topology(
         architect_coordinator=architect_coordinator,
         theory_developer=theory_developer,
@@ -25236,6 +25877,9 @@ def run_research_agent_runtime(
             question_metadata
         )
         blackboard.artifacts[llm_topology["manifest_id"]] = llm_topology
+        blackboard.artifacts[lean_provider_topology["manifest_id"]] = (
+            lean_provider_topology
+        )
         formalization_subsystem = FormalizationEvaluatorRuntimeSubsystem(
             proposal_agent=formalizer,
             proof_verifier=proof_verifier,
@@ -25259,6 +25903,7 @@ def run_research_agent_runtime(
             proof_verifier=proof_verifier,
             proof_state_provider=proof_state_provider,
             formal_source_retriever=shared_formal_source_retriever,
+            proof_search_provider=proof_search_provider,
             proof_obligation_ids=config.proof_obligation_ids,
             max_proof_obligations=config.max_proof_obligations,
             lean_candidate_root=out_dir / "formalizer_lean_candidates",
@@ -86037,7 +86682,7 @@ def _paper_source_to_json(source: PaperSourceHit) -> dict[str, Any]:
 
 def _formal_source_hit_to_json(hit: FormalSourceHit) -> dict[str, Any]:
     declaration = hit.declaration
-    return {
+    row = {
         "source_id": declaration.source_id,
         "source_type": declaration.source_type,
         "path": declaration.path,
@@ -86048,6 +86693,10 @@ def _formal_source_hit_to_json(hit: FormalSourceHit) -> dict[str, Any]:
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }
+    provenance = getattr(hit, "provenance", {})
+    if isinstance(provenance, Mapping) and provenance:
+        row["provenance"] = dict(provenance)
+    return row
 
 
 def _formalization_task(

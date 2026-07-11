@@ -6837,6 +6837,20 @@ def _formalizer_mode_specific_instructions(
                 "or otherwise verified local declaration, derive the fact from known "
                 "primitives, or emit a FORMAL_GAP naming the missing API/dependency."
             )
+        if (
+            isinstance(proofengineer_repair_context, Mapping)
+            and proofengineer_repair_context.get("external_proof_search_result")
+        ):
+            instructions.append(
+                "External proof-search feedback is available in "
+                "proofengineer_repair_context.external_proof_search_result. Treat "
+                "source_theorem_candidate_proof_bodies as whole-body proposals for "
+                "the exact target declaration and verified_support_assets as candidate "
+                "dependencies. Do not copy a nested residual goal into a weaker theorem, "
+                "and do not treat the provider report as final proof evidence. Preserve "
+                "target_theorem_statement exactly, emit the complete declaration, and "
+                "let the AI Statistician local Lean/AXLE gate rerun it."
+            )
     if formal_blocker_resource_requests:
         instructions.append(
             "Formal blocker resource requests are active: consume "
@@ -11025,6 +11039,32 @@ def _compact_value_for_key(key: Any, value: Any) -> Any:
             "current_proof_body_excerpt": 6000,
         }
         return value[: limits[str(key)]]
+    if str(key) == "source_theorem_candidate_proof_bodies" and isinstance(
+        value,
+        list | tuple,
+    ):
+        return [str(child)[:6000] for child in list(value)[:4] if str(child)]
+    if str(key) == "external_proof_search_result" and isinstance(value, Mapping):
+        return _compact_mapping(
+            value,
+            keys=(
+                "result_id",
+                "provider",
+                "request_fingerprint",
+                "target_lean_declaration",
+                "status",
+                "openprover_summary",
+                "source_theorem_candidate_proof_bodies",
+                "verified_support_assets",
+                "failure_feedback",
+                "report_path",
+                "checkpoint_path",
+                "blocker",
+                "error",
+                "proof_evidence_status",
+                "proof_evidence_boundary",
+            ),
+        )
     if str(key) in {"semantic_alignment_blockers", "semantic_alignment_constraints"}:
         if isinstance(value, str):
             return value[:280]
@@ -11099,6 +11139,11 @@ def _compact_value(value: Any) -> Any:
             "diagnostic_classes",
             "required_behavior",
             "acceptance_gate",
+            "external_proof_search_result",
+            "proof_search_result_use",
+            "source_theorem_candidate_proof_bodies",
+            "verified_support_assets",
+            "failure_feedback",
             "proof_evidence_status",
             "blocked_import_prefixes",
             "mathlib_import_unavailable",
