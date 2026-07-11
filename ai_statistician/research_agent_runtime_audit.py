@@ -3079,6 +3079,14 @@ FORMALIZER_INTEGRATED_PROOF_COUNT_KEYS = (
     "n_formalizer_lean_candidate_materialization_bound_local_lean_tool_calls",
     "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
     "n_formalizer_lean_candidate_materialization_bound_lean_lsp_mcp_live_calls",
+    "n_formalizer_proof_state_routing_manifests",
+    "n_formalizer_proof_state_route_revision_rows",
+    "n_formalizer_proof_state_repair_requests",
+    "n_formalizer_proof_state_repair_tasks_executed",
+    "n_formalizer_proof_state_repair_request_execution_pairs",
+    "n_formalizer_proof_state_gap_planner_requests",
+    "n_formalizer_proof_state_gap_planner_tasks_executed",
+    "n_formalizer_proof_state_gap_planner_request_execution_pairs",
 )
 
 
@@ -6987,6 +6995,62 @@ def audit_research_agent_runtime(
         "n_deterministic_formalizer_work_order_seed_proposals": int(
             manifest.get("n_deterministic_formalizer_work_order_seed_proposals", 0)
             or 0
+        ),
+        "n_formalizer_proof_state_routing_manifests": _proof_summary_count(
+            derived_runtime_proof_summary,
+            "n_formalizer_proof_state_routing_manifests",
+        ),
+        "n_formalizer_proof_state_route_revision_rows": _proof_summary_count(
+            derived_runtime_proof_summary,
+            "n_formalizer_proof_state_route_revision_rows",
+        ),
+        "n_formalizer_proof_state_repair_requests": _proof_summary_count(
+            derived_runtime_proof_summary,
+            "n_formalizer_proof_state_repair_requests",
+        ),
+        "n_formalizer_proof_state_repair_tasks_executed": _proof_summary_count(
+            derived_runtime_proof_summary,
+            "n_formalizer_proof_state_repair_tasks_executed",
+        ),
+        "n_formalizer_proof_state_repair_request_execution_pairs": (
+            _proof_summary_count(
+                derived_runtime_proof_summary,
+                "n_formalizer_proof_state_repair_request_execution_pairs",
+            )
+        ),
+        "n_formalizer_proof_state_gap_planner_requests": _proof_summary_count(
+            derived_runtime_proof_summary,
+            "n_formalizer_proof_state_gap_planner_requests",
+        ),
+        "n_formalizer_proof_state_gap_planner_tasks_executed": (
+            _proof_summary_count(
+                derived_runtime_proof_summary,
+                "n_formalizer_proof_state_gap_planner_tasks_executed",
+            )
+        ),
+        "n_formalizer_proof_state_gap_planner_request_execution_pairs": (
+            _proof_summary_count(
+                derived_runtime_proof_summary,
+                "n_formalizer_proof_state_gap_planner_request_execution_pairs",
+            )
+        ),
+        "formalizer_proof_state_repair_loop_observed": bool(
+            derived_runtime_proof_summary.get(
+                "has_formalizer_proof_state_repair_loop",
+                manifest.get(
+                    "formalizer_proof_state_repair_loop_observed",
+                    False,
+                ),
+            )
+        ),
+        "formalizer_proof_state_structural_replan_loop_observed": bool(
+            derived_runtime_proof_summary.get(
+                "has_formalizer_proof_state_structural_replan_loop",
+                manifest.get(
+                    "formalizer_proof_state_structural_replan_loop_observed",
+                    False,
+                ),
+            )
         ),
         "n_formalizer_lean_candidate_local_lean_checked": int(
             _proof_summary_count(
@@ -24001,6 +24065,49 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "n_live_llm_formalizer_proof_engineer_proposals>0 in the "
                     "integrated runtime manifest"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formalizer_proof_state_repair_loop_executed",
+            (
+                int(
+                    payload.get(
+                        "n_formalizer_proof_state_repair_request_execution_pairs",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+            ),
+            (
+                "n_formalizer_proof_state_repair_requests="
+                f"{payload.get('n_formalizer_proof_state_repair_requests')} "
+                "n_formalizer_proof_state_repair_tasks_executed="
+                f"{payload.get('n_formalizer_proof_state_repair_tasks_executed')} "
+                "n_formalizer_proof_state_repair_request_execution_pairs="
+                f"{payload.get('n_formalizer_proof_state_repair_request_execution_pairs')} "
+                "n_formalizer_proof_state_gap_planner_requests="
+                f"{payload.get('n_formalizer_proof_state_gap_planner_requests')} "
+                "n_formalizer_proof_state_gap_planner_tasks_executed="
+                f"{payload.get('n_formalizer_proof_state_gap_planner_tasks_executed')}"
+            ),
+            (
+                "proof-state diagnostics were not both routed to and consumed by "
+                "an explicit ProofEngineer task in AgentRuntime; a request-only "
+                "trace or offline debugging does not demonstrate the repair loop"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ProofEngineer",
+                target_behavior=(
+                    "Resume the pending formalize-proofstate-repair task, consume "
+                    "its exact candidate/subclaim diagnostics, and record the "
+                    "ProofEngineer execution trace before yielding unresolved "
+                    "structural rows to FormalizationGapPlanner."
+                ),
+                success_metric=(
+                    "n_formalizer_proof_state_repair_request_execution_pairs>0"
                 ),
             ),
         ),

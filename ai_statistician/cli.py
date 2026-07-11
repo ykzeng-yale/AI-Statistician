@@ -11149,6 +11149,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
+            max_formalizer_proof_state_repair_rounds=int(
+                getattr(
+                    args,
+                    "max_formalizer_proof_state_repair_rounds",
+                    1,
+                )
+                or 0
+            ),
             algorithm_engineer_generated_code_repair_yield_after_attempts=int(
                 getattr(
                     args,
@@ -13352,6 +13360,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             int(
                 getattr(
                     args,
+                    "max_formalizer_proof_state_repair_rounds",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.max_formalizer_proof_state_repair_rounds = 1
+        if (
+            int(
+                getattr(
+                    args,
                     "formalization_gap_planner_live_max_handoffs",
                     1,
                 )
@@ -13878,6 +13898,22 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires bounded "
                 "Formalizer/ProofEngineer Lean-candidate repair scheduling; set "
                 "--formalizer-lean-candidate-repair-yield-to-gap-planner-after-attempts > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "max_formalizer_proof_state_repair_rounds",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires at least one bounded "
+                "Formalizer proof-state repair turn; set "
+                "--max-formalizer-proof-state-repair-rounds > 0"
             )
         if (
             int(
@@ -20971,6 +21007,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="bounded CriticEvaluator -> TheoryDeveloper repair loops before accepting remaining gaps",
+    )
+    research_agent_runtime.add_argument(
+        "--max-formalizer-proof-state-repair-rounds",
+        type=int,
+        default=1,
+        help=(
+            "bounded proof-state -> ProofEngineer repair turns before unresolved "
+            "Lean diagnostics yield to FormalizationGapPlanner; 0 skips "
+            "ProofEngineer-eligible repair turns while structural theory gaps "
+            "remain under Critic/Architect prioritization"
+        ),
     )
     research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-route-planner",

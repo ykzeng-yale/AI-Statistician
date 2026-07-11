@@ -248,6 +248,7 @@ from ai_statistician.research_agent_runtime import (
     _generated_sandbox_repair_sequence_counts,
     _generated_sandbox_metric_gate_errors,
     _generated_simulation_revision_feedback,
+    _formalizer_proof_state_routing_manifest,
     _formalizer_lean_candidate_repair_feedback,
     _enrich_repeated_formalizer_lean_candidate_feedback,
     _llm_agent_topology_row,
@@ -34066,6 +34067,352 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     assert formalizer.seen_environment_feedback[-1]["repair_owner_agent"] == (
         "ProofEngineer"
     )
+
+
+def test_formalization_routes_subclaim_proof_state_through_proofengineer_then_gap_planner(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class RecordingFormalizer:
+        def __init__(self) -> None:
+            self.environment_feedback_seen: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            feedback = kwargs.get("environment_feedback", {})
+            self.environment_feedback_seen.append(
+                dict(feedback) if isinstance(feedback, dict) else {}
+            )
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": (
+                        "formalizer_proposal:proof_state_round_"
+                        f"{len(self.environment_feedback_seen)}"
+                    ),
+                    "source_agent": "RecordingFormalizer",
+                    "provider": "anthropic",
+                    "backend_provider": "anthropic",
+                    "model": "claude-sonnet-test",
+                    "model_tier": "sonnet",
+                    "proof_evidence_status": (
+                        "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                    ),
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                }
+            )
+            packet["formal_targets"] = []
+            return packet
+
+    class RouteRevisionProvider:
+        name = "route_revision_provider"
+
+        def inspect(
+            self,
+            subclaims: list[FormalSubclaim],
+        ) -> list[ProofStateFeedbackRow]:
+            subclaim = next(
+                (row for row in subclaims if row.claim_type == "lean_obligation"),
+                None,
+            )
+            if subclaim is None:
+                return []
+            return [
+                ProofStateFeedbackRow(
+                    schema_version=1,
+                    feedback_id=f"proof_state_feedback:{subclaim.id}",
+                    subclaim_id=subclaim.id,
+                    proof_obligation_id=subclaim.proof_obligation_id or "",
+                    claim_type=subclaim.claim_type,
+                    provider_name=self.name,
+                    provider_preferences=("lean_lsp_mcp", "local_lean"),
+                    requested_tools=(
+                        "lean_goal",
+                        "lean_state_search",
+                        "proof_search",
+                    ),
+                    attempt_status="local_lean_failed",
+                    diagnostics=("unknown declaration in registered obligation",),
+                    residual_goals=("repair the exact registered obligation",),
+                    route_revision_recommended=True,
+                    subclaim_status=subclaim.status,
+                    subclaim_kernel_verified=False,
+                    local_lean_checked=True,
+                    local_lean_returncode=1,
+                    proof_evidence_status=PROOF_STATE_FEEDBACK_STATUS,
+                    proof_evidence_boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
+                    created_at="2026-07-11T00:00:00+00:00",
+                )
+            ]
+
+    runtime_config = ResearchAgentRuntimeConfig(
+        max_formalizer_proof_state_repair_rounds=1
+    )
+    formalizer = RecordingFormalizer()
+    common_kwargs = {
+        "proposal_agent": formalizer,
+        "proof_verifier": MockProofVerifier(),
+        "proof_state_provider": RouteRevisionProvider(),
+        "max_proof_obligations": 1,
+        "lean_candidate_root": tmp_path / "formalizer_lean_candidates",
+        "runtime_config": runtime_config,
+    }
+    formalization = FormalizationEvaluatorRuntimeSubsystem(**common_kwargs)
+    proofengineer = ProofEngineerRuntimeSubsystem(**common_kwargs)
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_subclaim_proof_state",
+        owner_subsystem="FormalizationEvaluator",
+        objective="route registered subclaim proof state to the correct owner",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    first = formalization.run(task, blackboard)
+
+    assert first.status == "REVISE"
+    assert first.failure_classification == "formalizer_proof_state_repair_requested"
+    assert first.next_task is not None
+    assert first.next_task.owner_subsystem == "ProofEngineer"
+    assert first.next_task.task_id.startswith("formalize-proofstate-repair:")
+    feedback = first.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == "formalizer_proof_state_feedback"
+    assert feedback["repair_owner_agent"] == "ProofEngineer"
+    assert feedback["next_formalizer_proof_state_repair_round"] == 1
+    assert feedback["proof_state_feedback_rows"][0]["claim_type"] == (
+        "lean_obligation"
+    )
+    assert feedback["proofengineer_repair_context"]["proof_state_feedback_rows"]
+    routing_manifests = [
+        artifact
+        for artifact in first.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeFormalizerProofStateRoutingManifest"
+    ]
+    assert len(routing_manifests) == 1
+    assert routing_manifests[0]["counts"]["proofengineer_rows"] == 1
+    assert routing_manifests[0]["proof_evidence_status"] == (
+        "FORMALIZER_PROOF_STATE_ROUTING_NOT_PROOF_EVIDENCE"
+    )
+    assert any(
+        entry.evidence_type == "formalizer_proof_state_routing"
+        for entry in first.evidence_entries
+    )
+
+    blackboard.artifacts.update(first.produced_artifacts)
+    second = proofengineer.run(first.next_task, blackboard)
+
+    assert second.status == "REROUTE"
+    assert second.failure_classification == (
+        "formalizer_proof_state_repair_budget_exhausted"
+    )
+    assert second.next_task is not None
+    assert second.next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert second.next_task.task_id.startswith("gap-planner-proofstate-replan:")
+    assert formalizer.environment_feedback_seen[1]["feedback_type"] == (
+        "formalizer_proof_state_feedback"
+    )
+    assert formalizer.environment_feedback_seen[1]["runtime_task"][
+        "owner_subsystem"
+    ] == "ProofEngineer"
+
+
+def test_formalizer_proof_state_routing_rejects_unbound_candidate_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    manifest = _formalizer_proof_state_routing_manifest(
+        question=question,
+        task_id="task:unbound_candidate_feedback",
+        source_subsystem="FormalizationEvaluator",
+        environment_feedback={},
+        max_repair_rounds=1,
+        proofengineer_available=True,
+        formalization_manifest_id="formalization_manifest:test",
+        proof_state_feedback_manifest_id="",
+        formalization_gap_planner_bridge_id="gap_planner_bridge:test",
+        proposal_packet={"packet_id": "formalizer_proposal:test"},
+        subclaims=[],
+        proof_state_rows=[],
+        candidate_proof_state_manifest={
+            "manifest_id": "candidate_proof_state:test",
+            "source_materialization_manifest_id": "materialization:other",
+            "rows": [
+                {
+                    "feedback_id": "proof_state_feedback:unbound",
+                    "subclaim_id": "candidate:test",
+                    "claim_type": "lean_obligation",
+                    "attempt_status": "local_lean_failed",
+                    "diagnostics": ["unbound diagnostic"],
+                    "residual_goals": ["do not consume without lineage"],
+                    "route_revision_recommended": True,
+                    "subclaim_kernel_verified": False,
+                    "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+                }
+            ],
+        },
+        lean_candidate_materialization={
+            "manifest_id": "materialization:current",
+        },
+    )
+
+    assert manifest is not None
+    assert manifest["candidate_materialization_lineage_bound"] is False
+    assert manifest["counts"]["proofengineer_rows"] == 0
+    assert manifest["counts"]["lineage_blocked_rows"] == 1
+    assert manifest["decision"]["next_owner_subsystem"] == (
+        "FormalizationGapPlanner"
+    )
+    feedback = manifest["environment_feedback"]
+    assert feedback["lineage_blocked_candidate_rows"][0]["feedback_id"] == (
+        "proof_state_feedback:unbound"
+    )
+
+
+def test_formalizer_proof_state_routing_does_not_invoke_static_proofengineer() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    subclaim = FormalSubclaim(
+        id="question:variance_nonneg",
+        title="variance nonnegative",
+        status="PROVED",
+        claim="variance is nonnegative",
+        claim_type="lean_obligation",
+        proof_obligation_id="variance_nonneg",
+        lean_statement="theorem variance_nonneg : True := by sorry",
+        kernel_verified=False,
+    )
+    manifest = _formalizer_proof_state_routing_manifest(
+        question=question,
+        task_id="task:static_proofengineer",
+        source_subsystem="FormalizationEvaluator",
+        environment_feedback={},
+        max_repair_rounds=1,
+        proofengineer_available=False,
+        formalization_manifest_id="formalization_manifest:test",
+        proof_state_feedback_manifest_id="proof_state_feedback_manifest:test",
+        formalization_gap_planner_bridge_id="gap_planner_bridge:test",
+        proposal_packet={
+            "packet_id": "formalizer_proposal:static",
+            "provider": "static",
+            "backend_provider": "static",
+        },
+        subclaims=[subclaim],
+        proof_state_rows=[
+            {
+                "feedback_id": "proof_state_feedback:placeholder",
+                "subclaim_id": subclaim.id,
+                "proof_obligation_id": "variance_nonneg",
+                "claim_type": "lean_obligation",
+                "attempt_status": "placeholder_blocked",
+                "diagnostics": ["contains sorry"],
+                "residual_goals": ["author a complete proof"],
+                "route_revision_recommended": True,
+                "subclaim_kernel_verified": False,
+                "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+            }
+        ],
+    )
+
+    assert manifest is not None
+    assert manifest["counts"]["proofengineer_rows"] == 1
+    assert manifest["decision"]["next_owner_subsystem"] == "CriticEvaluator"
+    assert manifest["decision"]["failure_classification"] == (
+        "formalizer_proof_state_routing_blocked"
+    )
+
+
+def test_runtime_evidence_summary_requires_executed_proof_state_repair_task() -> None:
+    request_trace = {
+        "task": {
+            "task_id": "formalize:question:initial",
+            "owner_subsystem": "FormalizationEvaluator",
+        },
+        "next_task_id": "formalize-proofstate-repair:question:repair",
+        "next_task": {
+            "task_id": "formalize-proofstate-repair:question:repair",
+            "owner_subsystem": "ProofEngineer",
+        },
+        "failure_classification": "formalizer_proof_state_repair_requested",
+    }
+    request_only = _runtime_evidence_summary(
+        [{"traces": [request_trace], "blackboard": {"artifacts": {}}}]
+    )["proof"]
+
+    assert request_only["n_formalizer_proof_state_repair_requests"] == 1
+    assert request_only["n_formalizer_proof_state_repair_tasks_executed"] == 0
+    assert request_only[
+        "n_formalizer_proof_state_repair_request_execution_pairs"
+    ] == 0
+    assert request_only["has_formalizer_proof_state_repair_loop"] is False
+
+    executed_trace = {
+        "task": {
+            "task_id": "formalize-proofstate-repair:question:repair",
+            "owner_subsystem": "ProofEngineer",
+        },
+        "subsystem": "ProofEngineer",
+        "next_task_id": "critic:question:done",
+        "failure_classification": "",
+    }
+    completed = _runtime_evidence_summary(
+        [
+            {
+                "traces": [request_trace, executed_trace],
+                "blackboard": {"artifacts": {}},
+            }
+        ]
+    )["proof"]
+
+    assert completed["n_formalizer_proof_state_repair_requests"] == 1
+    assert completed["n_formalizer_proof_state_repair_tasks_executed"] == 1
+    assert completed[
+        "n_formalizer_proof_state_repair_request_execution_pairs"
+    ] == 1
+    assert completed["has_formalizer_proof_state_repair_loop"] is True
+
+    rows = {
+        row["requirement_id"]: row
+        for row in audit_module._runtime_capability_scorecard(
+            {
+                "n_formalizer_proof_state_repair_requests": 1,
+                "n_formalizer_proof_state_repair_tasks_executed": 0,
+                "n_formalizer_proof_state_repair_request_execution_pairs": 0,
+            }
+        )["rows"]
+    }
+    assert rows["formalizer_proof_state_repair_loop_executed"]["passed"] is False
+    rows = {
+        row["requirement_id"]: row
+        for row in audit_module._runtime_capability_scorecard(
+            {
+                "n_formalizer_proof_state_repair_requests": 1,
+                "n_formalizer_proof_state_repair_tasks_executed": 1,
+                "n_formalizer_proof_state_repair_request_execution_pairs": 1,
+            }
+        )["rows"]
+    }
+    assert rows["formalizer_proof_state_repair_loop_executed"]["passed"] is True
 
 
 def test_agent_runtime_yields_formalizer_lean_repair_budget_to_gap_planner(
@@ -94006,6 +94353,7 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
         == 1
     )
+    assert args.max_formalizer_proof_state_repair_rounds == 1
     assert args.run_coding_agent_generated_code_repair_eval is True
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.run_formalizer_pseudo_formal_packet_eval is True
@@ -94067,6 +94415,14 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         "capability eval preset full-live requires bounded "
         "Formalizer/ProofEngineer Lean-candidate repair scheduling; set "
         "--formalizer-lean-candidate-repair-yield-to-gap-planner-after-attempts > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = 1
+    args.max_formalizer_proof_state_repair_rounds = 0
+    assert (
+        "capability eval preset full-live requires at least one bounded "
+        "Formalizer proof-state repair turn; set "
+        "--max-formalizer-proof-state-repair-rounds > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
 

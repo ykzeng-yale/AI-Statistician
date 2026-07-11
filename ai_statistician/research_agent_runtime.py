@@ -142,6 +142,7 @@ from .formal_source_index import FormalSourceHit, FormalSourceRetriever
 from .proof_bank import get_obligation
 from .proof_state_feedback import (
     PROOF_STATE_FEEDBACK_BOUNDARY,
+    PROOF_STATE_FEEDBACK_STATUS,
     ProofStateFeedbackProvider,
     proof_state_feedback_row_to_json,
 )
@@ -7115,6 +7116,7 @@ class ResearchAgentRuntimeConfig:
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
+    max_formalizer_proof_state_repair_rounds: int = 1
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
@@ -12264,6 +12266,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         lean_candidate_lean_project: Path | None = None,
         lean_candidate_lean_timeout: int = 30,
         architect_coordinator_available: bool = False,
+        runtime_config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
     ) -> None:
         self.proposal_agent = proposal_agent
         self.proof_state_provider = proof_state_provider
@@ -12272,6 +12275,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.lean_candidate_lean_project = lean_candidate_lean_project
         self.lean_candidate_lean_timeout = lean_candidate_lean_timeout
         self.architect_coordinator_available = architect_coordinator_available
+        self.runtime_config = runtime_config
         self.formal_source_retriever = formal_source_retriever
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
@@ -13690,6 +13694,94 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ],
             },
         )
+        proof_state_routing_manifest: dict[str, Any] | None = None
+        proof_state_routing_evidence: EvidenceLedgerEntry | None = None
+        proof_state_routing_task: AgentTask | None = None
+        if lean_candidate_repair_feedback is None:
+            proof_state_routing_manifest = (
+                _formalizer_proof_state_routing_manifest(
+                    question=question,
+                    task_id=task.task_id,
+                    source_subsystem=subsystem_name,
+                    environment_feedback=environment_feedback,
+                    max_repair_rounds=(
+                        self.runtime_config.max_formalizer_proof_state_repair_rounds
+                    ),
+                    proofengineer_available=bool(
+                        self.proposal_agent is not None
+                        and live_llm_formalizer_proof_engineer_proposal_observed
+                    ),
+                    formalization_manifest_id=manifest_id,
+                    proof_state_feedback_manifest_id=proof_state_manifest_id,
+                    formalization_gap_planner_bridge_id=str(
+                        gap_planner_bridge.get("bridge_id", "") or ""
+                    ),
+                    proposal_packet=(
+                        proposal_packet
+                        if isinstance(proposal_packet, Mapping)
+                        else {}
+                    ),
+                    subclaims=subclaims,
+                    proof_state_rows=proof_state_row_dicts,
+                    candidate_proof_state_manifest=(
+                        candidate_proof_state_manifest
+                        if isinstance(candidate_proof_state_manifest, Mapping)
+                        else {}
+                    ),
+                    lean_candidate_materialization=(
+                        lean_candidate_materialization
+                        if isinstance(lean_candidate_materialization, Mapping)
+                        else {}
+                    ),
+                )
+            )
+        if proof_state_routing_manifest is not None:
+            routing_manifest_id = str(
+                proof_state_routing_manifest.get("manifest_id", "") or ""
+            )
+            proof_state_routing_manifest = _runtime_artifact_with_architect_control(
+                routing_manifest_id,
+                proof_state_routing_manifest,
+                formalization_control_seed,
+                subsystem_override=subsystem_name,
+            )
+            produced_artifacts[routing_manifest_id] = proof_state_routing_manifest
+            proof_state_routing_task = _formalizer_proof_state_routing_task(
+                question=question,
+                source_task=task,
+                architect_context=context,
+                routing_manifest=proof_state_routing_manifest,
+            )
+            routing_decision = (
+                proof_state_routing_manifest.get("decision", {})
+                if isinstance(
+                    proof_state_routing_manifest.get("decision", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            proof_state_routing_evidence = EvidenceLedgerEntry(
+                evidence_id="evidence:"
+                + stable_hash([task.task_id, routing_manifest_id])[:20],
+                task_id=task.task_id,
+                artifact_id=routing_manifest_id,
+                evidence_type="formalizer_proof_state_routing",
+                status=(
+                    "FORMALIZER_PROOF_STATE_ROUTING_RECORDED_NOT_PROOF_EVIDENCE"
+                ),
+                boundary=PROOF_STATE_FEEDBACK_BOUNDARY,
+                payload={
+                    "counts": dict(
+                        proof_state_routing_manifest.get("counts", {}) or {}
+                    ),
+                    "next_owner_subsystem": str(
+                        routing_decision.get("next_owner_subsystem", "") or ""
+                    ),
+                    "failure_classification": str(
+                        routing_decision.get("failure_classification", "") or ""
+                    ),
+                },
+            )
         observations.append(
             EnvironmentObservation(
                 observation_type="formalization_proof_feedback",
@@ -13791,6 +13883,43 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             "proof_evidence_status"
                         ],
                         "lean_lsp_mcp_live_called": candidate_live_mcp_called,
+                    },
+                )
+            )
+        if proof_state_routing_manifest is not None:
+            routing_decision = (
+                proof_state_routing_manifest.get("decision", {})
+                if isinstance(
+                    proof_state_routing_manifest.get("decision", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            observations.append(
+                EnvironmentObservation(
+                    observation_type="formalizer_proof_state_routing",
+                    summary=(
+                        "next_owner="
+                        f"{routing_decision.get('next_owner_subsystem', '')} "
+                        "failure_classification="
+                        f"{routing_decision.get('failure_classification', '')}"
+                    ),
+                    payload={
+                        "manifest_id": str(
+                            proof_state_routing_manifest.get("manifest_id", "")
+                            or ""
+                        ),
+                        "decision": dict(routing_decision),
+                        "counts": dict(
+                            proof_state_routing_manifest.get("counts", {}) or {}
+                        ),
+                        "proof_evidence_status": str(
+                            proof_state_routing_manifest.get(
+                                "proof_evidence_status",
+                                "",
+                            )
+                            or ""
+                        ),
                     },
                 )
             )
@@ -14045,6 +14174,37 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     )
                     or "formalizer_lean_candidate_local_lean_failed"
                 )
+        elif proof_state_routing_task is not None:
+            routing_decision = (
+                proof_state_routing_manifest.get("decision", {})
+                if isinstance(proof_state_routing_manifest, Mapping)
+                and isinstance(
+                    proof_state_routing_manifest.get("decision", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            next_task = proof_state_routing_task
+            next_owner = str(
+                routing_decision.get("next_owner_subsystem", "") or ""
+            )
+            result_status = "REVISE" if next_owner == "ProofEngineer" else "REROUTE"
+            result_rationale = (
+                "Runtime routed exact Formalizer proof-state diagnostics to the "
+                "explicit ProofEngineer repair worker."
+                if next_owner == "ProofEngineer"
+                else (
+                    "Runtime routed structural, lineage-blocked, or exhausted "
+                    "Formalizer proof-state diagnostics to FormalizationGapPlanner."
+                )
+            )
+            failure_classification = str(
+                routing_decision.get(
+                    "failure_classification",
+                    "formalizer_proof_state_routing_requested",
+                )
+                or "formalizer_proof_state_routing_requested"
+            )
         else:
             next_task = AgentTask(
                 task_id=f"critic:{question.id}:{stable_hash(manifest_id)[:8]}",
@@ -14094,6 +14254,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     evidence,
                     proof_state_evidence,
                     candidate_proof_state_evidence,
+                    proof_state_routing_evidence,
                     gap_planner_evidence,
                 )
                 if row is not None
@@ -17972,6 +18133,636 @@ def _formalizer_lean_candidate_live_proof_state_request(
     }
 
 
+def _formalizer_proof_state_repair_round(
+    environment_feedback: Mapping[str, Any],
+) -> int:
+    feedback = (
+        environment_feedback
+        if isinstance(environment_feedback, Mapping)
+        else {}
+    )
+    parent = feedback.get("parent_formalizer_proof_state_feedback", {})
+    parent = parent if isinstance(parent, Mapping) else {}
+    raw = (
+        feedback.get("next_formalizer_proof_state_repair_round")
+        if feedback.get("next_formalizer_proof_state_repair_round") is not None
+        else feedback.get("formalizer_proof_state_repair_round")
+    )
+    if raw is None:
+        raw = (
+            parent.get("next_formalizer_proof_state_repair_round")
+            if parent.get("next_formalizer_proof_state_repair_round") is not None
+            else parent.get("formalizer_proof_state_repair_round", 0)
+        )
+    try:
+        return max(0, int(raw or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _compact_formalizer_proof_state_routing_row(
+    row: Mapping[str, Any],
+    *,
+    feedback_scope: str,
+    subclaim: FormalSubclaim | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "feedback_scope": feedback_scope,
+        "feedback_id": str(row.get("feedback_id", "") or ""),
+        "subclaim_id": str(row.get("subclaim_id", "") or ""),
+        "proof_obligation_id": str(
+            row.get("proof_obligation_id", "") or ""
+        ),
+        "claim_type": str(row.get("claim_type", "") or ""),
+        "attempt_status": str(row.get("attempt_status", "") or ""),
+        "diagnostics": [
+            str(value)[:500]
+            for value in row.get("diagnostics", []) or []
+            if str(value).strip()
+        ][:6],
+        "residual_goals": [
+            str(value)[:500]
+            for value in row.get("residual_goals", []) or []
+            if str(value).strip()
+        ][:6],
+        "route_revision_recommended": _bool_like(
+            row.get("route_revision_recommended", False)
+        ),
+        "subclaim_status": str(row.get("subclaim_status", "") or ""),
+        "subclaim_kernel_verified": _bool_like(
+            row.get("subclaim_kernel_verified", False)
+        ),
+        "local_lean_checked": _bool_like(
+            row.get("local_lean_checked", False)
+        ),
+        "local_lean_returncode": row.get("local_lean_returncode"),
+        "requested_tools": [
+            str(value)
+            for value in row.get("requested_tools", []) or []
+            if str(value).strip()
+        ][:8],
+        "executed_tools": [
+            str(value)
+            for value in row.get("executed_tools", []) or []
+            if str(value).strip()
+        ][:8],
+        "tool_call_trace": [
+            dict(value)
+            for value in row.get("tool_call_trace", []) or []
+            if isinstance(value, Mapping)
+        ][:4],
+        "artifact_path": str(row.get("artifact_path", "") or ""),
+        "proof_evidence_status": str(
+            row.get("proof_evidence_status", PROOF_STATE_FEEDBACK_STATUS) or ""
+        ),
+    }
+    if subclaim is not None:
+        payload.update(
+            {
+                "title": str(subclaim.title or "")[:500],
+                "claim": str(subclaim.claim or "")[:1200],
+                "lean_statement": str(subclaim.lean_statement or "")[:2400],
+                "formalization_status": str(
+                    subclaim.formalization_status or ""
+                ),
+                "gap_reason": str(subclaim.gap_reason or "")[:1200],
+                "errors": [str(value)[:500] for value in subclaim.errors[:6]],
+                "proof_dependencies": [
+                    str(value) for value in subclaim.proof_dependencies[:8]
+                ],
+                "formal_source_hit_ids": [
+                    str(hit.get("id", "") or "")
+                    for hit in subclaim.formal_source_hits[:6]
+                    if isinstance(hit, Mapping)
+                    and str(hit.get("id", "") or "").strip()
+                ],
+            }
+        )
+    return payload
+
+
+def _formalizer_proof_state_routing_manifest(
+    *,
+    question: OpenResearchQuestion,
+    task_id: str,
+    source_subsystem: str,
+    environment_feedback: Mapping[str, Any],
+    max_repair_rounds: int,
+    proofengineer_available: bool,
+    formalization_manifest_id: str,
+    proof_state_feedback_manifest_id: str,
+    formalization_gap_planner_bridge_id: str,
+    proposal_packet: Mapping[str, Any],
+    subclaims: Sequence[FormalSubclaim],
+    proof_state_rows: Sequence[Mapping[str, Any]],
+    candidate_proof_state_manifest: Mapping[str, Any] | None = None,
+    lean_candidate_materialization: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    subclaims_by_id = {str(row.id): row for row in subclaims}
+    general_rows = [
+        _compact_formalizer_proof_state_routing_row(
+            row,
+            feedback_scope="formal_subclaim",
+            subclaim=subclaims_by_id.get(str(row.get("subclaim_id", "") or "")),
+        )
+        for row in proof_state_rows
+        if isinstance(row, Mapping)
+        and _bool_like(row.get("route_revision_recommended", False))
+        and not _bool_like(row.get("subclaim_kernel_verified", False))
+    ]
+    candidate_manifest = (
+        candidate_proof_state_manifest
+        if isinstance(candidate_proof_state_manifest, Mapping)
+        else {}
+    )
+    candidate_materialization = (
+        lean_candidate_materialization
+        if isinstance(lean_candidate_materialization, Mapping)
+        else {}
+    )
+    candidate_source_manifest_id = str(
+        candidate_manifest.get("source_materialization_manifest_id", "") or ""
+    )
+    materialization_manifest_id = str(
+        candidate_materialization.get("manifest_id", "") or ""
+    )
+    candidate_rows_bound = bool(
+        candidate_source_manifest_id
+        and materialization_manifest_id
+        and candidate_source_manifest_id == materialization_manifest_id
+    )
+    candidate_rows = [
+        _compact_formalizer_proof_state_routing_row(
+            row,
+            feedback_scope="formalizer_lean_candidate",
+        )
+        for row in candidate_manifest.get("rows", []) or []
+        if isinstance(row, Mapping)
+        and _bool_like(row.get("route_revision_recommended", False))
+        and not _bool_like(row.get("subclaim_kernel_verified", False))
+    ]
+    if not general_rows and not candidate_rows:
+        return None
+
+    proofengineer_rows = [
+        *(
+            candidate_rows
+            if candidate_rows_bound
+            else []
+        ),
+        *[
+            row
+            for row in general_rows
+            if str(row.get("claim_type", "") or "") == "lean_obligation"
+        ],
+    ]
+    structural_rows = [
+        row
+        for row in general_rows
+        if str(row.get("claim_type", "") or "") != "lean_obligation"
+    ]
+    lineage_blocked_rows = [] if candidate_rows_bound else candidate_rows
+    current_round = _formalizer_proof_state_repair_round(environment_feedback)
+    max_rounds = max(0, int(max_repair_rounds))
+    proofengineer_budget_available = bool(
+        proofengineer_rows
+        and proofengineer_available
+        and current_round < max_rounds
+    )
+    if proofengineer_budget_available:
+        next_owner = "ProofEngineer"
+        next_round = current_round + 1
+        failure_classification = "formalizer_proof_state_repair_requested"
+        routing_reason = (
+            "route-revision diagnostics are tied to a materialized Lean candidate "
+            "or registered Lean obligation and the bounded ProofEngineer budget "
+            "remains available"
+        )
+        target_behavior = (
+            "Consume the exact proof-state rows, formal-subclaim statement or "
+            "materialized candidate lineage, diagnostics, residual goals, and "
+            "requested prover tools. Return a bounded repaired candidate, smaller "
+            "lemma split, or explicit formal blocker, then rerun local Lean/AXLE."
+        )
+        acceptance_gate = (
+            "ProofEngineer emits a non-vacuous, lineage-preserving repair that is "
+            "rerun through local Lean/AXLE, or records a precise unresolved formal "
+            "blocker without promoting diagnostic feedback to proof evidence."
+        )
+    elif formalization_gap_planner_bridge_id and (
+        (
+            proofengineer_rows
+            and current_round >= max_rounds
+        )
+        or lineage_blocked_rows
+        or source_subsystem == "ProofEngineer"
+    ):
+        next_owner = "FormalizationGapPlanner"
+        next_round = current_round
+        failure_classification = (
+            "formalizer_proof_state_repair_budget_exhausted"
+            if proofengineer_rows and current_round >= max_rounds
+            else "formalizer_proof_state_structural_replan_requested"
+        )
+        routing_reason = (
+            "proof-state feedback requires structural replanning, has unbound "
+            "candidate lineage, lacks a live ProofEngineer, or exhausted the "
+            "bounded ProofEngineer repair budget"
+        )
+        target_behavior = (
+            "Execute the formalization-gap bridge and optional live route planner "
+            "for unresolved structural, semantic, lineage, or exhausted repair "
+            "rows. Preserve each diagnostic and residual goal as non-proof routing "
+            "evidence."
+        )
+        acceptance_gate = (
+            "FormalizationGapPlanner records an executable handoff or typed blocker "
+            "for every routed proof-state row without treating a route plan, Lean "
+            "diagnostic, or residual goal as theorem proof evidence."
+        )
+    else:
+        next_owner = "CriticEvaluator"
+        next_round = current_round
+        failure_classification = (
+            "formalizer_proof_state_structural_review_requested"
+            if structural_rows
+            else "formalizer_proof_state_routing_blocked"
+        )
+        routing_reason = (
+            "structural theory-gap proof-state rows remain under Critic/Architect "
+            "prioritization, or no executable repair resource is available"
+        )
+        target_behavior = (
+            "Keep unresolved structural proof-state rows visible to "
+            "CriticEvaluator, preserve the current gap-planner bridge, and request "
+            "a concrete downstream resource without bypassing research-path "
+            "prioritization."
+        )
+        acceptance_gate = (
+            "CriticEvaluator reports the missing repair resource and keeps all "
+            "formal gaps open."
+        )
+
+    proofengineer_context = {
+        "repair_scope": "formalizer_proof_state_feedback",
+        "source_formalization_manifest_id": formalization_manifest_id,
+        "source_proof_state_feedback_manifest_id": (
+            proof_state_feedback_manifest_id
+        ),
+        "source_candidate_proof_state_feedback_manifest_id": str(
+            candidate_manifest.get("manifest_id", "") or ""
+        ),
+        "source_candidate_materialization_manifest_id": (
+            materialization_manifest_id
+        ),
+        "candidate_materialization_lineage_bound": candidate_rows_bound,
+        "proof_state_feedback_rows": proofengineer_rows[:8],
+        "deferred_structural_route_revision_rows": structural_rows[:8],
+        "lineage_blocked_candidate_rows": lineage_blocked_rows[:8],
+        "available_runtime_tools": [
+            "lean_diagnostic_messages",
+            "lean_goal",
+            "lean_state_search",
+            "proof_search",
+            "lean_multi_attempt",
+            "formal_source_retrieval",
+            "proof_bank_memory",
+            "local_lean_or_axle_rerun",
+        ],
+        "repair_round": current_round,
+        "next_repair_round": next_round,
+        "max_repair_rounds": max_rounds,
+        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+    }
+    feedback = {
+        "feedback_type": "formalizer_proof_state_feedback",
+        "failure_classification": failure_classification,
+        "repair_owner_agent": next_owner,
+        "source_subsystem": source_subsystem,
+        "formalizer_proof_state_repair_round": current_round,
+        "next_formalizer_proof_state_repair_round": next_round,
+        "max_formalizer_proof_state_repair_rounds": max_rounds,
+        "formalization_manifest_id": formalization_manifest_id,
+        "proof_state_feedback_manifest_id": proof_state_feedback_manifest_id,
+        "candidate_proof_state_feedback_manifest_id": str(
+            candidate_manifest.get("manifest_id", "") or ""
+        ),
+        "candidate_materialization_manifest_id": materialization_manifest_id,
+        "candidate_materialization_lineage_bound": candidate_rows_bound,
+        "previous_formalizer_proposal_id": str(
+            proposal_packet.get("packet_id", "") or ""
+        ),
+        "formalization_gap_planner_bridge_ids": (
+            [formalization_gap_planner_bridge_id]
+            if formalization_gap_planner_bridge_id
+            else []
+        ),
+        "proof_state_feedback_rows": proofengineer_rows[:8],
+        "structural_route_revision_rows": structural_rows[:8],
+        "lineage_blocked_candidate_rows": lineage_blocked_rows[:8],
+        "proofengineer_repair_context": proofengineer_context,
+        "routing_reason": routing_reason,
+        "target_behavior": target_behavior,
+        "required_repair": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "proof_evidence_status": (
+            "FORMALIZER_PROOF_STATE_ROUTING_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+    }
+    manifest_id = "formalizer_proof_state_routing_manifest:" + stable_hash(
+        [task_id, feedback]
+    )[:20]
+    learning_row = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningRow",
+        "learning_task": "formalizer_proof_state_routing",
+        "question_id": question.id,
+        "question_title": question.title,
+        "source_manifest_id": manifest_id,
+        "source_formalization_manifest_id": formalization_manifest_id,
+        "source_proof_state_feedback_manifest_id": (
+            proof_state_feedback_manifest_id
+        ),
+        "next_owner_subsystem": next_owner,
+        "input_summary": {
+            "trigger": "FORMALIZER_PROOF_STATE_ROUTE_REVISION",
+            "failure_classification": failure_classification,
+            "n_proofengineer_rows": len(proofengineer_rows),
+            "n_structural_rows": len(structural_rows),
+            "n_lineage_blocked_rows": len(lineage_blocked_rows),
+            "formalizer_proof_state_repair_round": current_round,
+            "max_formalizer_proof_state_repair_rounds": max_rounds,
+            "subclaim_ids": sorted(
+                {
+                    str(row.get("subclaim_id", "") or "")
+                    for row in [
+                        *proofengineer_rows,
+                        *structural_rows,
+                        *lineage_blocked_rows,
+                    ]
+                    if str(row.get("subclaim_id", "") or "").strip()
+                }
+            ),
+            "attempt_statuses": sorted(
+                {
+                    str(row.get("attempt_status", "") or "")
+                    for row in [
+                        *proofengineer_rows,
+                        *structural_rows,
+                        *lineage_blocked_rows,
+                    ]
+                    if str(row.get("attempt_status", "") or "").strip()
+                }
+            ),
+        },
+        "target_behavior": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "proof_evidence_status": (
+            "FORMALIZER_PROOF_STATE_ROUTING_LEARNING_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+    }
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizerProofStateRoutingManifest",
+        "manifest_id": manifest_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task_id,
+        "source_subsystem": source_subsystem,
+        "source_formalization_manifest_id": formalization_manifest_id,
+        "source_proof_state_feedback_manifest_id": proof_state_feedback_manifest_id,
+        "source_candidate_proof_state_feedback_manifest_id": str(
+            candidate_manifest.get("manifest_id", "") or ""
+        ),
+        "source_candidate_materialization_manifest_id": materialization_manifest_id,
+        "candidate_materialization_lineage_bound": candidate_rows_bound,
+        "decision": {
+            "next_owner_subsystem": next_owner,
+            "failure_classification": failure_classification,
+            "routing_reason": routing_reason,
+            "formalizer_proof_state_repair_round": current_round,
+            "next_formalizer_proof_state_repair_round": next_round,
+            "max_formalizer_proof_state_repair_rounds": max_rounds,
+        },
+        "counts": {
+            "route_revision_rows": (
+                len(proofengineer_rows)
+                + len(structural_rows)
+                + len(lineage_blocked_rows)
+            ),
+            "proofengineer_rows": len(proofengineer_rows),
+            "structural_rows": len(structural_rows),
+            "lineage_blocked_rows": len(lineage_blocked_rows),
+        },
+        "environment_feedback": feedback,
+        "learning_rows": [learning_row],
+        "proof_evidence_status": (
+            "FORMALIZER_PROOF_STATE_ROUTING_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
+    }
+
+
+def _formalizer_proof_state_routing_task(
+    *,
+    question: OpenResearchQuestion,
+    source_task: AgentTask,
+    architect_context: Mapping[str, Any],
+    routing_manifest: Mapping[str, Any],
+) -> AgentTask | None:
+    decision = (
+        routing_manifest.get("decision", {})
+        if isinstance(routing_manifest.get("decision", {}), Mapping)
+        else {}
+    )
+    feedback = (
+        routing_manifest.get("environment_feedback", {})
+        if isinstance(
+            routing_manifest.get("environment_feedback", {}),
+            Mapping,
+        )
+        else {}
+    )
+    next_owner = str(decision.get("next_owner_subsystem", "") or "")
+    if next_owner not in {"ProofEngineer", "FormalizationGapPlanner"}:
+        return None
+    context = dict(architect_context)
+    context["environment_feedback"] = dict(feedback)
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": str(
+            routing_manifest.get("source_subsystem", "") or ""
+        ),
+        "handoff": str(feedback.get("failure_classification", "") or ""),
+        "formalizer_proof_state_routing_manifest_id": str(
+            routing_manifest.get("manifest_id", "") or ""
+        ),
+        "formalization_manifest_id": str(
+            routing_manifest.get("source_formalization_manifest_id", "") or ""
+        ),
+    }
+    context = _runtime_context_with_environment_feedback_contract(
+        context,
+        feedback,
+        subsystem=next_owner,
+    )
+    if next_owner == "ProofEngineer":
+        inputs = dict(source_task.inputs)
+        inputs["architect_context"] = context
+        inputs["environment_feedback"] = dict(feedback)
+        inputs["formalization_manifest_id"] = str(
+            routing_manifest.get("source_formalization_manifest_id", "") or ""
+        )
+        return AgentTask(
+            task_id=(
+                f"formalize-proofstate-repair:{question.id}:"
+                f"{stable_hash([routing_manifest.get('manifest_id', ''), feedback])[:8]}"
+            ),
+            owner_subsystem="ProofEngineer",
+            objective=(
+                "Repair Formalizer proof-state route revisions using the explicit "
+                "ProofEngineer prover loop and rerun the exact candidate or subclaim."
+            ),
+            inputs=inputs,
+            allowed_tools=tuple(
+                dict.fromkeys(
+                    (
+                        *source_task.allowed_tools,
+                        "model_backend",
+                        "local_lean",
+                        "lean_lsp_mcp",
+                        "formal_source_retrieval",
+                        "proof_search",
+                        "proof_bank_memory",
+                        "evidence_ledger",
+                    )
+                )
+            ),
+            expected_artifacts=(
+                "formalizer_proofengineer_repair_packet",
+                "formalization_manifest",
+                "formalizer_proof_state_routing_manifest",
+            ),
+            acceptance_gate=str(feedback.get("acceptance_gate", "") or ""),
+            stop_condition=(
+                "repaired candidate rerun through local Lean/AXLE, explicit formal "
+                "blocker recorded, or bounded repair budget yielded to gap planner"
+            ),
+        )
+    return AgentTask(
+        task_id=(
+            f"gap-planner-proofstate-replan:{question.id}:"
+            f"{stable_hash([routing_manifest.get('manifest_id', ''), feedback])[:8]}"
+        ),
+        owner_subsystem="FormalizationGapPlanner",
+        objective=(
+            "Replan structural, semantic, lineage-blocked, or exhausted "
+            "Formalizer proof-state route revisions."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": context,
+            "environment_feedback": dict(feedback),
+            "formalization_manifest_id": str(
+                routing_manifest.get("source_formalization_manifest_id", "") or ""
+            ),
+            "theory_packet_id": str(
+                source_task.inputs.get("theory_packet_id", "") or ""
+            ),
+            "formalization_gap_planner_bridge_ids": list(
+                feedback.get("formalization_gap_planner_bridge_ids", []) or []
+            ),
+        },
+        allowed_tools=(
+            "formalization_gap_planner",
+            "formal_source_retriever",
+            "model_backend",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "runtime_formalization_gap_planner_execution_manifest",
+            "runtime_formalization_gap_planner_handoffs",
+        ),
+        acceptance_gate=str(feedback.get("acceptance_gate", "") or ""),
+        stop_condition=(
+            "gap-planner handoff, optional live route-planner feedback, or typed "
+            "formal blocker recorded with proof boundary preserved"
+        ),
+    )
+
+
+def _compact_parent_formalizer_proof_state_feedback(
+    feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    source = feedback if isinstance(feedback, Mapping) else {}
+    if str(source.get("feedback_type", "") or "") != (
+        "formalizer_proof_state_feedback"
+    ):
+        nested = source.get("parent_formalizer_proof_state_feedback", {})
+        source = nested if isinstance(nested, Mapping) else {}
+    if not source:
+        return {}
+    return {
+        "feedback_type": "formalizer_proof_state_feedback",
+        "failure_classification": str(
+            source.get("failure_classification", "") or ""
+        ),
+        "repair_owner_agent": str(source.get("repair_owner_agent", "") or ""),
+        "formalizer_proof_state_repair_round": _formalizer_proof_state_repair_round(
+            source
+        ),
+        "next_formalizer_proof_state_repair_round": _formalizer_proof_state_repair_round(
+            source
+        ),
+        "max_formalizer_proof_state_repair_rounds": max(
+            0,
+            _runtime_safe_int(
+                source.get("max_formalizer_proof_state_repair_rounds", 0)
+            ),
+        ),
+        "formalization_manifest_id": str(
+            source.get("formalization_manifest_id", "") or ""
+        ),
+        "proof_state_feedback_manifest_id": str(
+            source.get("proof_state_feedback_manifest_id", "") or ""
+        ),
+        "candidate_proof_state_feedback_manifest_id": str(
+            source.get("candidate_proof_state_feedback_manifest_id", "") or ""
+        ),
+        "candidate_materialization_manifest_id": str(
+            source.get("candidate_materialization_manifest_id", "") or ""
+        ),
+        "formalization_gap_planner_bridge_ids": [
+            str(value)
+            for value in source.get("formalization_gap_planner_bridge_ids", []) or []
+            if str(value).strip()
+        ][:4],
+        "proof_state_feedback_rows": [
+            dict(row)
+            for row in source.get("proof_state_feedback_rows", []) or []
+            if isinstance(row, Mapping)
+        ][:6],
+        "structural_route_revision_rows": [
+            dict(row)
+            for row in source.get("structural_route_revision_rows", []) or []
+            if isinstance(row, Mapping)
+        ][:6],
+        "proof_evidence_status": str(
+            source.get("proof_evidence_status", "") or ""
+        ),
+        "proof_evidence_boundary": str(
+            source.get("proof_evidence_boundary", PROOF_STATE_FEEDBACK_BOUNDARY)
+            or PROOF_STATE_FEEDBACK_BOUNDARY
+        ),
+    }
+
+
 def _formalizer_lean_candidate_repair_feedback(
     manifest: Mapping[str, Any],
     *,
@@ -18126,6 +18917,9 @@ def _formalizer_lean_candidate_repair_feedback(
     prior_feedback = (
         prior_environment_feedback if isinstance(prior_environment_feedback, Mapping) else {}
     )
+    parent_formalizer_proof_state_feedback = (
+        _compact_parent_formalizer_proof_state_feedback(prior_feedback)
+    )
     prior_source_theorem_proof_body_adapter_feedback = (
         prior_feedback.get("source_theorem_proof_body_adapter_feedback", {})
         if isinstance(
@@ -18143,6 +18937,10 @@ def _formalizer_lean_candidate_repair_feedback(
             ),
         )
     )
+    if parent_formalizer_proof_state_feedback:
+        proofengineer_repair_context[
+            "parent_formalizer_proof_state_feedback"
+        ] = parent_formalizer_proof_state_feedback
     feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
         "failure_classification": failure_classification,
@@ -18196,6 +18994,10 @@ def _formalizer_lean_candidate_repair_feedback(
     if prior_source_theorem_proof_body_adapter_feedback:
         feedback["source_theorem_proof_body_adapter_feedback"] = (
             prior_source_theorem_proof_body_adapter_feedback
+        )
+    if parent_formalizer_proof_state_feedback:
+        feedback["parent_formalizer_proof_state_feedback"] = (
+            parent_formalizer_proof_state_feedback
         )
     return feedback
 
@@ -24450,6 +25252,7 @@ def run_research_agent_runtime(
             ),
             lean_candidate_lean_timeout=config.formalizer_candidate_lean_timeout,
             architect_coordinator_available=architect_coordinator is not None,
+            runtime_config=config,
         )
         proofengineer_subsystem = ProofEngineerRuntimeSubsystem(
             proposal_agent=formalizer,
@@ -24467,6 +25270,7 @@ def run_research_agent_runtime(
             ),
             lean_candidate_lean_timeout=config.formalizer_candidate_lean_timeout,
             architect_coordinator_available=architect_coordinator is not None,
+            runtime_config=config,
         )
         subsystems: dict[str, Any] = {
             "RetrievalMemory": RetrievalMemoryRuntimeSubsystem(
@@ -24989,6 +25793,42 @@ def run_research_agent_runtime(
         "n_deterministic_formalizer_work_order_seed_proposals": evidence_summary[
             "proof"
         ]["n_deterministic_formalizer_work_order_seed_proposals"],
+        "n_formalizer_proof_state_routing_manifests": evidence_summary["proof"][
+            "n_formalizer_proof_state_routing_manifests"
+        ],
+        "n_formalizer_proof_state_route_revision_rows": evidence_summary["proof"][
+            "n_formalizer_proof_state_route_revision_rows"
+        ],
+        "n_formalizer_proof_state_repair_requests": evidence_summary["proof"][
+            "n_formalizer_proof_state_repair_requests"
+        ],
+        "n_formalizer_proof_state_repair_tasks_executed": evidence_summary[
+            "proof"
+        ]["n_formalizer_proof_state_repair_tasks_executed"],
+        "n_formalizer_proof_state_repair_request_execution_pairs": (
+            evidence_summary["proof"][
+                "n_formalizer_proof_state_repair_request_execution_pairs"
+            ]
+        ),
+        "n_formalizer_proof_state_gap_planner_requests": evidence_summary[
+            "proof"
+        ]["n_formalizer_proof_state_gap_planner_requests"],
+        "n_formalizer_proof_state_gap_planner_tasks_executed": evidence_summary[
+            "proof"
+        ]["n_formalizer_proof_state_gap_planner_tasks_executed"],
+        "n_formalizer_proof_state_gap_planner_request_execution_pairs": (
+            evidence_summary["proof"][
+                "n_formalizer_proof_state_gap_planner_request_execution_pairs"
+            ]
+        ),
+        "formalizer_proof_state_repair_loop_observed": evidence_summary["proof"][
+            "has_formalizer_proof_state_repair_loop"
+        ],
+        "formalizer_proof_state_structural_replan_loop_observed": (
+            evidence_summary["proof"][
+                "has_formalizer_proof_state_structural_replan_loop"
+            ]
+        ),
         "formalizer_lean_candidate_local_check_attempted": bool(
             evidence_summary["proof"][
                 "n_formalizer_lean_candidate_local_lean_checked"
@@ -69086,6 +69926,7 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 "RuntimeFormalizerCapabilityContractFailure",
                 "RuntimeFormalizerLeanCandidateMaterialization",
                 "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest",
+                "RuntimeFormalizerProofStateRoutingManifest",
                 "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
                 "RuntimeAlgorithmSandboxManifest",
                 "RuntimeSimulationManifest",
@@ -82639,6 +83480,16 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_llm_formalizer_proof_engineer_proposals": 0,
         "n_live_llm_formalizer_proof_engineer_proposals": 0,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "n_formalizer_proof_state_routing_manifests": 0,
+        "n_formalizer_proof_state_route_revision_rows": 0,
+        "n_formalizer_proof_state_repair_requests": 0,
+        "n_formalizer_proof_state_repair_tasks_executed": 0,
+        "n_formalizer_proof_state_repair_request_execution_pairs": 0,
+        "n_formalizer_proof_state_gap_planner_requests": 0,
+        "n_formalizer_proof_state_gap_planner_tasks_executed": 0,
+        "n_formalizer_proof_state_gap_planner_request_execution_pairs": 0,
+        "has_formalizer_proof_state_repair_loop": False,
+        "has_formalizer_proof_state_structural_replan_loop": False,
         "formalizer_lean_candidate_materialization_manifest_paths": [],
         "n_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_raw_theorem_proved_claims": 0,
@@ -82764,7 +83615,84 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     live_formalizer_proposal_artifact_ids: set[str] = set()
     formalizer_manifest_proposal_ids: set[str] = set()
     live_formalizer_manifest_proposal_ids: set[str] = set()
+    formalizer_proof_state_repair_requested_task_ids: set[str] = set()
+    formalizer_proof_state_repair_executed_task_ids: set[str] = set()
+    formalizer_proof_state_gap_planner_requested_task_ids: set[str] = set()
+    formalizer_proof_state_gap_planner_executed_task_ids: set[str] = set()
     for result in results:
+        traces = result.get("traces", [])
+        if isinstance(traces, Sequence) and not isinstance(
+            traces,
+            (str, bytes, bytearray),
+        ):
+            for trace in traces:
+                if not isinstance(trace, Mapping):
+                    continue
+                task = (
+                    trace.get("task", {})
+                    if isinstance(trace.get("task", {}), Mapping)
+                    else {}
+                )
+                next_task = (
+                    trace.get("next_task", {})
+                    if isinstance(trace.get("next_task", {}), Mapping)
+                    else {}
+                )
+                task_id = str(task.get("task_id", "") or "")
+                task_owner = str(task.get("owner_subsystem", "") or "")
+                next_task_id = str(
+                    trace.get("next_task_id", "")
+                    or next_task.get("task_id", "")
+                    or ""
+                )
+                next_task_owner = str(
+                    next_task.get("owner_subsystem", "") or ""
+                )
+                failure_classification = str(
+                    trace.get("failure_classification", "") or ""
+                )
+                repair_requested = bool(
+                    next_task_id.startswith("formalize-proofstate-repair:")
+                    and next_task_owner in {"", "ProofEngineer"}
+                    and failure_classification
+                    == "formalizer_proof_state_repair_requested"
+                )
+                if repair_requested:
+                    proof["n_formalizer_proof_state_repair_requests"] += 1
+                    formalizer_proof_state_repair_requested_task_ids.add(
+                        next_task_id
+                    )
+                if task_id.startswith("formalize-proofstate-repair:") and (
+                    task_owner in {"", "ProofEngineer"}
+                    or str(trace.get("subsystem", "") or "") == "ProofEngineer"
+                ):
+                    proof["n_formalizer_proof_state_repair_tasks_executed"] += 1
+                    formalizer_proof_state_repair_executed_task_ids.add(task_id)
+                gap_requested = bool(
+                    next_task_id.startswith("gap-planner-proofstate-replan:")
+                    and next_task_owner in {"", "FormalizationGapPlanner"}
+                    and failure_classification
+                    in {
+                        "formalizer_proof_state_repair_budget_exhausted",
+                        "formalizer_proof_state_structural_replan_requested",
+                    }
+                )
+                if gap_requested:
+                    proof["n_formalizer_proof_state_gap_planner_requests"] += 1
+                    formalizer_proof_state_gap_planner_requested_task_ids.add(
+                        next_task_id
+                    )
+                if task_id.startswith("gap-planner-proofstate-replan:") and (
+                    task_owner in {"", "FormalizationGapPlanner"}
+                    or str(trace.get("subsystem", "") or "")
+                    == "FormalizationGapPlanner"
+                ):
+                    proof[
+                        "n_formalizer_proof_state_gap_planner_tasks_executed"
+                    ] += 1
+                    formalizer_proof_state_gap_planner_executed_task_ids.add(
+                        task_id
+                    )
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
@@ -83497,6 +84425,16 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                             )
                             or 0
                         ) + 1
+            elif kind == "RuntimeFormalizerProofStateRoutingManifest":
+                proof["n_formalizer_proof_state_routing_manifests"] += 1
+                counts = (
+                    artifact.get("counts", {})
+                    if isinstance(artifact.get("counts", {}), Mapping)
+                    else {}
+                )
+                proof["n_formalizer_proof_state_route_revision_rows"] += int(
+                    counts.get("route_revision_rows", 0) or 0
+                )
             elif kind == "SourceTheoremExactSemanticDefinitionLeanRepairExecutorManifest":
                 _add_exact_semantic_definition_lean_repair_counts_to_proof_summary(
                     proof,
@@ -83607,6 +84545,27 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     )
     proof["has_theorem_reduction_closure_work_orders"] = (
         int(proof["n_theorem_reduction_closure_work_orders"]) > 0
+    )
+    proof["n_formalizer_proof_state_repair_request_execution_pairs"] = len(
+        formalizer_proof_state_repair_requested_task_ids
+        & formalizer_proof_state_repair_executed_task_ids
+    )
+    proof[
+        "n_formalizer_proof_state_gap_planner_request_execution_pairs"
+    ] = len(
+        formalizer_proof_state_gap_planner_requested_task_ids
+        & formalizer_proof_state_gap_planner_executed_task_ids
+    )
+    proof["has_formalizer_proof_state_repair_loop"] = bool(
+        int(proof["n_formalizer_proof_state_repair_request_execution_pairs"]) > 0
+    )
+    proof["has_formalizer_proof_state_structural_replan_loop"] = bool(
+        int(
+            proof[
+                "n_formalizer_proof_state_gap_planner_request_execution_pairs"
+            ]
+        )
+        > 0
     )
     proof["verifiers"] = sorted(verifier_names)
     proof["verification_strengths"] = sorted(strengths)

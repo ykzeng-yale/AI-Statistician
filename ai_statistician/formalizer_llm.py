@@ -6553,8 +6553,10 @@ def _formalizer_mode_specific_instructions(
         instructions.append(
             "ProofEngineer repair loop is active: consume "
             "runtime_environment_feedback.proofengineer_repair_context, including "
-            "the exact materialized Lean artifact paths, local Lean diagnostics, "
-            "and available prover/search tools. Do not treat this as a fresh "
+            "the exact materialized Lean artifact paths when available, registered "
+            "formal-subclaim statements and lineage, local Lean/proof-state "
+            "diagnostics, residual goals, and available prover/search tools. Do not "
+            "treat this as a fresh "
             "Formalizer proposal or a human-debugged patch; return a bounded "
             "ProofEngineer repair candidate, a smaller lemma split, or an explicit "
             "formal blocker that can be rerun by local Lean/AXLE. Prefer the "
@@ -8884,6 +8886,47 @@ def _compact_formalizer_environment_feedback(
             or input_summary.get(
                 "repeated_formalizer_lean_candidate_failure", False
             )
+        ),
+        "formalizer_proof_state_repair_round": _compact_value(
+            feedback.get("formalizer_proof_state_repair_round", "")
+            or input_summary.get("formalizer_proof_state_repair_round", "")
+        ),
+        "next_formalizer_proof_state_repair_round": _compact_value(
+            feedback.get("next_formalizer_proof_state_repair_round", "")
+            or input_summary.get(
+                "next_formalizer_proof_state_repair_round",
+                "",
+            )
+        ),
+        "max_formalizer_proof_state_repair_rounds": _compact_value(
+            feedback.get("max_formalizer_proof_state_repair_rounds", "")
+            or input_summary.get(
+                "max_formalizer_proof_state_repair_rounds",
+                "",
+            )
+        ),
+        "formalization_manifest_id": _compact_value(
+            feedback.get("formalization_manifest_id", "")
+            or input_summary.get("formalization_manifest_id", "")
+        ),
+        "proof_state_feedback_manifest_id": _compact_value(
+            feedback.get("proof_state_feedback_manifest_id", "")
+            or input_summary.get("proof_state_feedback_manifest_id", "")
+        ),
+        "candidate_proof_state_feedback_manifest_id": _compact_value(
+            feedback.get("candidate_proof_state_feedback_manifest_id", "")
+            or input_summary.get(
+                "candidate_proof_state_feedback_manifest_id",
+                "",
+            )
+        ),
+        "candidate_materialization_manifest_id": _compact_value(
+            feedback.get("candidate_materialization_manifest_id", "")
+            or input_summary.get("candidate_materialization_manifest_id", "")
+        ),
+        "parent_formalizer_proof_state_feedback": _compact_value(
+            feedback.get("parent_formalizer_proof_state_feedback", {})
+            or input_summary.get("parent_formalizer_proof_state_feedback", {})
         ),
         "candidate_diagnostics": _compact_value(
             feedback.get("candidate_diagnostics", [])
