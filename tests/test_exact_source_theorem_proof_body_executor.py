@@ -1181,6 +1181,22 @@ def test_exact_source_executor_does_not_treat_review_notes_as_semantic_blockers(
     assert learning_row["proof_body_attempt_summaries"]
     assert "ProofEngineer runtime feedback" in learning_row["target_behavior"]
     assert "Route to ProofEngineer" in learning_row["recommended_next_action"]
+    assert learning_row["next_owner_subsystem"] == "ProofEngineer"
+    repair_context = learning_row["proofengineer_repair_context"]
+    assert repair_context["owner_subsystem"] == "ProofEngineer"
+    assert repair_context["repair_scope"] == (
+        "replace_entire_exact_declaration_proof_body"
+    )
+    assert "theorem split_conformal_coverage : True" in repair_context[
+        "target_theorem_statement"
+    ]
+    assert repair_context["current_proof_body_excerpt"] == "trivial"
+    assert "not an authoritative replacement" in repair_context[
+        "residual_goal_role"
+    ]
+    assert learning_row["input_summary"]["proofengineer_repair_context"] == (
+        repair_context
+    )
     assert learning_row["source_theorem_kernel_verified"] is False
     assert learning_row["artifact_kernel_verified"] is False
     assert learning_row["source_theorem_exact_proof_body_reached"] is True

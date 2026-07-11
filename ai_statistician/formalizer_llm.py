@@ -185,6 +185,14 @@ class LLMFormalizerProofEngineerAgent:
                     ),
                 )
             )
+            errors.extend(
+                _validate_exact_source_theorem_whole_proof_repair_packet(
+                    packet,
+                    proof_bank_runtime_memory_summary=(
+                        proof_bank_runtime_memory_summary or {}
+                    ),
+                )
+            )
             if requires_lean_candidate or requires_repeated_syntax_contract:
                 errors.extend(
                     _validate_capability_eval_formalizer_lean_candidate_packet(
@@ -253,6 +261,43 @@ def _formalizer_repair_context(
             "block_verification",
         )
     )
+    whole_proof_repair_error = any(
+        marker in error_text
+        for marker in (
+            "exact source theorem whole-proof repair",
+            "target_theorem_statement exactly",
+            "provenance must keep target_lean_declaration",
+        )
+    )
+    if whole_proof_repair_error:
+        diagnostics = [
+            row
+            for row in (proof_bank_runtime_memory_summary or {}).get(
+                "source_theorem_exact_proof_body_repair_diagnostics", []
+            )
+            or []
+            if isinstance(row, Mapping)
+        ]
+        diagnostic = diagnostics[0] if diagnostics else {}
+        return {
+            "repair_mode": "exact_source_theorem_whole_proof_repair",
+            "target_lean_declaration": str(
+                diagnostic.get("target_theorem_name", "") or ""
+            ),
+            "target_theorem_statement": str(
+                diagnostic.get("target_theorem_statement", "") or ""
+            ),
+            "required_outcomes": [
+                "preserve target_theorem_statement exactly modulo whitespace and replace only the proof after `:= by`",
+                "or remove the invalid source candidate and emit a typed FORMAL_GAP with a concrete retrieval/dependency work order",
+            ],
+            "forbidden_repairs": [
+                "renaming the target declaration",
+                "changing binders or conclusion",
+                "sorry/admit/axiom/unsafe placeholders",
+                "inventing an unverified helper while presenting the source theorem as executable",
+            ],
+        }
     if not pseudo_formal_required and not pseudo_formal_error:
         return {}
 
@@ -3629,6 +3674,221 @@ def _formal_target_materialization_identity_tokens(
             else:
                 tokens.append(str(value or "").strip())
     return {token for token in tokens if token}
+
+
+def _validate_exact_source_theorem_whole_proof_repair_packet(
+    packet: Mapping[str, Any],
+    *,
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> list[str]:
+    if str(
+        proof_bank_runtime_memory_summary.get(
+            "recommended_formalizer_target_mode", ""
+        )
+        or ""
+    ) != "source_theorem_exact_proof_body_repair":
+        return []
+    diagnostics = [
+        row
+        for row in proof_bank_runtime_memory_summary.get(
+            "source_theorem_exact_proof_body_repair_diagnostics", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    repair_context = next(
+        (
+            row
+            for row in diagnostics
+            if str(row.get("proof_body_repair_scope", "") or "")
+            == "replace_entire_exact_declaration_proof_body"
+            and str(row.get("target_theorem_statement", "") or "").strip()
+        ),
+        None,
+    )
+    if repair_context is None:
+        return []
+    expected_statement = str(
+        repair_context.get("target_theorem_statement", "") or ""
+    ).strip()
+    expected_declaration = str(
+        repair_context.get("target_theorem_name", "")
+        or repair_context.get("target_lean_declaration", "")
+        or ""
+    ).strip()
+    if not expected_declaration:
+        expected_declaration = _formalizer_lean_declaration_name(expected_statement)
+    expected_signature = _normalized_lean_declaration_signature(expected_statement)
+    lean_targets = [
+        row
+        for row in packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("lean_statement_sketch", "") or "").strip()
+    ]
+    source_targets: list[Mapping[str, Any]] = []
+    for row in lean_targets:
+        source = str(row.get("lean_statement_sketch", "") or "").strip()
+        provenance = (
+            row.get("source_theorem_target_provenance", {})
+            if isinstance(
+                row.get("source_theorem_target_provenance", {}), Mapping
+            )
+            else {}
+        )
+        provenance_declaration = str(
+            provenance.get("target_lean_declaration", "") or ""
+        ).strip()
+        source_target_known = _source_theorem_target_known(provenance)
+        if (
+            source_target_known is True
+            or _formalizer_lean_declaration_name(source) == expected_declaration
+            or (
+                source_target_known is not False
+                and provenance_declaration == expected_declaration
+            )
+        ):
+            source_targets.append(row)
+    if not source_targets:
+        if _exact_source_theorem_whole_proof_typed_blocker_present(
+            packet,
+            expected_declaration=expected_declaration,
+        ):
+            return []
+        return [
+            "exact source theorem whole-proof repair requires either a complete "
+            "Lean source-theorem candidate preserving target_theorem_statement "
+            "or a typed FORMAL_GAP with a concrete retrieval/dependency work order"
+        ]
+
+    observed_declarations: list[str] = []
+    exact_signature_candidate_found = False
+    provenance_mismatches: list[str] = []
+    missing_complete_proof_body = False
+    for target in source_targets:
+        source = str(target.get("lean_statement_sketch", "") or "").strip()
+        declaration = _formalizer_lean_declaration_name(source)
+        if declaration:
+            observed_declarations.append(declaration)
+        provenance = (
+            target.get("source_theorem_target_provenance", {})
+            if isinstance(
+                target.get("source_theorem_target_provenance", {}), Mapping
+            )
+            else {}
+        )
+        provenance_declaration = str(
+            provenance.get("target_lean_declaration", "") or ""
+        ).strip()
+        if (
+            expected_declaration
+            and provenance_declaration
+            and provenance_declaration != expected_declaration
+        ):
+            provenance_mismatches.append(provenance_declaration)
+        proof_match = re.search(r":=\s*by\b", source)
+        if not proof_match:
+            missing_complete_proof_body = True
+            continue
+        candidate_signature = _normalized_lean_declaration_signature(
+            source[: proof_match.start()]
+        )
+        if (
+            (not expected_declaration or declaration == expected_declaration)
+            and candidate_signature == expected_signature
+            and source[proof_match.end() :].strip()
+        ):
+            exact_signature_candidate_found = True
+
+    errors: list[str] = []
+    if not exact_signature_candidate_found:
+        if expected_declaration and expected_declaration not in observed_declarations:
+            errors.append(
+                "exact source theorem whole-proof repair must preserve declaration "
+                f"name {expected_declaration!r}; observed: "
+                + ", ".join(observed_declarations or ["<none>"])
+            )
+        errors.append(
+            "exact source theorem whole-proof repair must preserve "
+            "target_theorem_statement exactly modulo whitespace and replace only "
+            "the complete proof after `:= by`"
+        )
+    if provenance_mismatches:
+        errors.append(
+            "exact source theorem whole-proof repair provenance must keep "
+            f"target_lean_declaration={expected_declaration!r}; observed: "
+            + ", ".join(dict.fromkeys(provenance_mismatches))
+        )
+    if missing_complete_proof_body and not exact_signature_candidate_found:
+        errors.append(
+            "exact source theorem whole-proof repair candidate must include a "
+            "nonempty complete proof after `:= by`"
+        )
+    return sorted(set(errors))
+
+
+def _formalizer_lean_declaration_name(source: str) -> str:
+    match = re.search(
+        r"\b(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
+        str(source or ""),
+    )
+    return match.group(1) if match else ""
+
+
+def _exact_source_theorem_whole_proof_typed_blocker_present(
+    packet: Mapping[str, Any],
+    *,
+    expected_declaration: str,
+) -> bool:
+    formal_gap_targets = [
+        row
+        for row in packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("expected_status", "") or "") == "FORMAL_GAP"
+    ]
+    matching_gap_target = any(
+        expected_declaration
+        in {
+            str(row.get("id", "") or "").strip(),
+            str(
+                (
+                    row.get("source_theorem_target_provenance", {})
+                    if isinstance(
+                        row.get("source_theorem_target_provenance", {}), Mapping
+                    )
+                    else {}
+                ).get("target_lean_declaration", "")
+                or ""
+            ).strip(),
+        }
+        for row in formal_gap_targets
+    )
+    typed_gaps = [
+        row
+        for row in packet.get("gap_taxonomy", []) or []
+        if isinstance(row, Mapping)
+        and str(
+            row.get("gap", "")
+            or row.get("description", "")
+            or row.get("blocker", "")
+            or ""
+        ).strip()
+        and str(
+            row.get("kind", "")
+            or row.get("gap_type", "")
+            or row.get("category", "")
+            or ""
+        ).strip()
+    ]
+    dependency_work_available = bool(
+        packet.get("retrieval_queries", [])
+        or packet.get("source_to_bridge_premise_derivation_candidate_requests", [])
+        or packet.get("proof_bank_obligation_requests", [])
+    )
+    return bool(matching_gap_target and typed_gaps and dependency_work_available)
+
+
+def _normalized_lean_declaration_signature(source: str) -> str:
+    return re.sub(r"\s+", " ", str(source or "").strip())
 
 
 def _validate_source_theorem_candidate_materialization_packet(
@@ -8625,8 +8885,17 @@ def _formalizer_mode_specific_instructions(
     ):
         instructions.append(
             "For source_theorem_exact_proof_body_repair, keep the exact source theorem "
-            "target fixed and propose a narrow proof-body repair plan using the reported "
-            "Lean goal, failed tactic attempts, diagnostics, and helper lemmas. If "
+            "target fixed and consume source_theorem_exact_proof_body_repair_diagnostics "
+            "as a lineage-bound ProofEngineer task. When proof_body_repair_scope is "
+            "replace_entire_exact_declaration_proof_body, preserve target_theorem_statement "
+            "exactly and replace the complete proof after `:= by`; use "
+            "target_declaration_source_excerpt and current_proof_body_excerpt as the code "
+            "to repair. proof_body_goal_excerpt is a residual subgoal produced while "
+            "elaborating the current proof and may be nested inside a bad tactic term; do "
+            "not silently change the theorem statement to that residual goal. Emit a "
+            "complete exact-declaration formal_targets candidate for local Lean/AXLE, a "
+            "smaller lineage-bound lemma/dependency request, or a typed mathematical/"
+            "formal-library blocker. If "
             "source_theorem_exact_proof_body_verified_adapter_context_insufficient=true, "
             "preserve the kernel-verified adapter artifact/declaration as context and "
             "repair the exact source theorem proof body against the true Lean goal shape."
@@ -9912,6 +10181,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_body_attempt_count",
                 "proof_body_attempt_summaries",
                 "proof_body_goal_excerpt",
+                "next_owner_subsystem",
+                "proof_body_repair_scope",
+                "target_declaration_source_excerpt",
+                "target_theorem_statement",
+                "current_proof_body_excerpt",
+                "residual_goal_role",
                 "semantic_alignment_blockers",
                 "source_theorem_kernel_evidence_eligible",
                 "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
@@ -9947,6 +10222,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_body_goal_reached",
                 "proof_body_goal_excerpt",
                 "proof_body_attempt_summaries",
+                "next_owner_subsystem",
+                "proof_body_repair_scope",
+                "target_declaration_source_excerpt",
+                "target_theorem_statement",
+                "current_proof_body_excerpt",
+                "residual_goal_role",
                 "exact_goal_shape_obligation_ids",
                 "exact_goal_shape_obligations",
                 "semantic_alignment_constraints",
@@ -10733,6 +11014,17 @@ def _source_theorem_candidate_materialization_contract(
 
 
 def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if str(key) in {
+        "target_declaration_source_excerpt",
+        "target_theorem_statement",
+        "current_proof_body_excerpt",
+    } and isinstance(value, str):
+        limits = {
+            "target_declaration_source_excerpt": 12000,
+            "target_theorem_statement": 9000,
+            "current_proof_body_excerpt": 6000,
+        }
+        return value[: limits[str(key)]]
     if str(key) in {"semantic_alignment_blockers", "semantic_alignment_constraints"}:
         if isinstance(value, str):
             return value[:280]

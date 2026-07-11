@@ -96,6 +96,7 @@ from ai_statistician.formalizer_llm import (
     LLMFormalizerProofEngineerAgent,
     _normalize_formalizer_packet,
     _validate_capability_eval_formalizer_lean_candidate_packet,
+    _validate_exact_source_theorem_whole_proof_repair_packet,
     _validate_required_pseudo_formalization_packet,
     _validate_source_theorem_candidate_materialization_packet,
     build_formalizer_prompt,
@@ -20050,6 +20051,111 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
     )
 
     assert errors == []
+
+
+def test_formalizer_whole_proof_repair_validator_preserves_exact_signature() -> None:
+    summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_proof_body_repair"
+        ),
+        "source_theorem_exact_proof_body_repair_diagnostics": [
+            {
+                "target_theorem_name": "exact_source_target",
+                "proof_body_repair_scope": (
+                    "replace_entire_exact_declaration_proof_body"
+                ),
+                "target_theorem_statement": (
+                    "theorem exact_source_target (p : Prop) (hp : p) : p"
+                ),
+            }
+        ],
+    }
+    renamed_packet = {
+        "formal_targets": [
+            {
+                "lean_statement_sketch": (
+                    "theorem exact_source_target_v2 (p : Prop) (hp : p) : p := by\n"
+                    "  exact hp"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "exact_source_target_v2",
+                },
+            }
+        ]
+    }
+
+    errors = _validate_exact_source_theorem_whole_proof_repair_packet(
+        renamed_packet,
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert any("must preserve declaration name 'exact_source_target'" in row for row in errors)
+    assert any("must preserve target_theorem_statement exactly" in row for row in errors)
+    assert any("provenance must keep target_lean_declaration" in row for row in errors)
+
+    exact_packet = copy.deepcopy(renamed_packet)
+    exact_packet["formal_targets"][0]["lean_statement_sketch"] = (
+        "theorem exact_source_target\n"
+        "    (p : Prop) (hp : p) : p := by\n"
+        "  exact hp"
+    )
+    exact_packet["formal_targets"][0]["source_theorem_target_provenance"][
+        "target_lean_declaration"
+    ] = "exact_source_target"
+
+    assert (
+        _validate_exact_source_theorem_whole_proof_repair_packet(
+            exact_packet,
+            proof_bank_runtime_memory_summary=summary,
+        )
+        == []
+    )
+
+    typed_blocker_packet = {
+        "formal_targets": [
+            {
+                "id": "exact_source_target",
+                "expected_status": "FORMAL_GAP",
+                "lean_statement_sketch": "",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "exact_source_target",
+                },
+            },
+            {
+                "id": "dependency_helper",
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "lean_statement_sketch": (
+                    "theorem dependency_helper (q : Prop) (hq : q) : q := by\n"
+                    "  exact hq"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": False,
+                    "target_lean_declaration": "exact_source_target",
+                },
+            },
+        ],
+        "gap_taxonomy": [
+            {
+                "gap": "missing reusable probability lemma",
+                "kind": "formal_library_dependency",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "probability lower bound from exchangeability",
+                "target_library": "local Lean corpus",
+            }
+        ],
+    }
+    assert (
+        _validate_exact_source_theorem_whole_proof_repair_packet(
+            typed_blocker_packet,
+            proof_bank_runtime_memory_summary=summary,
+        )
+        == []
+    )
 
 
 def test_formalizer_materialization_validator_rejects_formal_gap_only_packet() -> None:
@@ -61000,7 +61106,7 @@ def test_runtime_goal_excerpt_diagnostic_fallback_is_not_conformal_binder_tuple(
         assert marker not in source
 
 
-def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter() -> None:
+def test_source_theorem_proof_body_incomplete_without_concrete_bridge_routes_to_whole_proof_repair() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
@@ -61097,6 +61203,14 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
                             "split_conformal_good_rank_set_inclusion_bridge",
                         ],
                     },
+                    {
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "unrelated_density_estimation_theorem"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_declarations": [
+                            "unrelated_density_estimation_reduction_closure"
+                        ],
+                    },
                     learning_row,
                 ],
             }
@@ -61107,24 +61221,18 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
         memory_prioritized_proof_obligation_ids=(),
     )
 
-    assert summary["source_theorem_exact_proof_body_repair_required"] is False
-    assert summary["source_theorem_proof_body_adapter_required"] is True
+    assert summary["source_theorem_exact_proof_body_repair_required"] is True
+    assert summary["source_theorem_proof_body_adapter_required"] is False
     assert summary["recommended_source_theorem_integration_action"] == (
-        "derive_source_theorem_proof_body_adapter"
+        "repair_exact_source_theorem_candidate_proof_body"
     )
     assert summary["recommended_formalizer_target_mode"] == (
-        "source_theorem_proof_body_adapter_required"
+        "source_theorem_exact_proof_body_repair"
     )
-    adapter_diag = summary["source_theorem_proof_body_adapter_diagnostics"][0]
-    assert adapter_diag["target_theorem_name"] == "split_conformal_coverage"
-    assert any(
-        "source-level hypotheses" in reason
-        for reason in adapter_diag["proof_body_adapter_required_reasons"]
-    )
-    assert any(
-        "source-to-bridge theorem adapter" in task
-        for task in adapter_diag["recommended_repair_tasks"]
-    )
+    assert summary["source_theorem_proof_body_adapter_diagnostics"] == []
+    repair_diag = summary["source_theorem_exact_proof_body_repair_diagnostics"][0]
+    assert repair_diag["target_theorem_name"] == "split_conformal_coverage"
+    assert repair_diag["next_owner_subsystem"] == "ProofEngineer"
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -61143,9 +61251,9 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
         proof_bank_obligation_catalog=catalog,
         proof_bank_runtime_memory_summary=summary,
     )
-    assert "source_theorem_proof_body_adapter_required" in prompt
-    assert "derive_source_theorem_proof_body_adapter" in prompt
-    assert "source-to-bridge theorem adapter" in prompt
+    assert "source_theorem_exact_proof_body_repair" in prompt
+    assert "replace the complete proof after `:= by`" in prompt
+    assert "residual subgoal" in prompt
 
     proposal = {
         "packet_id": "formalizer:source-adapter",
@@ -61168,13 +61276,11 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
         theorem_goals=theorem_goals,
     )
     assert len(work_orders) == 1
-    assert work_orders[0]["proof_mode"] == (
-        "source_theorem_proof_body_adapter_required"
-    )
+    assert work_orders[0]["proof_mode"] == "source_theorem_exact_proof_body_repair"
     assert work_orders[0]["action_type"] == (
-        "derive_source_theorem_proof_body_adapter"
+        "repair_exact_source_theorem_candidate_proof_body"
     )
-    assert work_orders[0]["proof_body_adapter_required"] is True
+    assert work_orders[0]["proof_body_adapter_required"] is False
     assert work_orders[0]["proof_body_candidate_artifact_path"] == (
         "runs/split_conformal_coverage_attempt.lean"
     )
@@ -61209,22 +61315,21 @@ def test_source_theorem_proof_body_incomplete_with_source_goal_routes_to_adapter
         ]
     )
     assert runtime_queue_rows[0]["runtime_queue_status"] == (
-        "PENDING_SOURCE_THEOREM_PROOF_BODY_ADAPTER"
+        "PENDING_EXACT_SOURCE_THEOREM_PROOF_BODY_REPAIR"
     )
     assert runtime_queue_rows[0]["proof_mode"] == (
-        "source_theorem_proof_body_adapter_required"
+        "source_theorem_exact_proof_body_repair"
     )
     handoff_rows = _runtime_source_theorem_promotion_handoff_rows(
         runtime_queue_rows
     )
-    assert handoff_rows == []
-    assert (
+    assert len(handoff_rows) == 1
+    assert len(
         _runtime_source_theorem_promotion_materialization_seed_rows(
             handoff_rows,
-            runtime_out_dir=Path("runs/test_source_theorem_adapter"),
+            runtime_out_dir=Path("runs/test_source_theorem_whole_proof_repair"),
         )
-        == []
-    )
+    ) == 1
 
 
 def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
@@ -63776,22 +63881,22 @@ def test_runtime_learning_memory_loader_routes_proof_body_incomplete_feedback(
         "proof_body_incomplete"
     ]
     assert summary["recommended_source_theorem_integration_action"] == (
-        "derive_source_theorem_proof_body_adapter"
+        "repair_exact_source_theorem_candidate_proof_body"
     )
     assert summary["recommended_formalizer_target_mode"] == (
-        "source_theorem_proof_body_adapter_required"
+        "source_theorem_exact_proof_body_repair"
     )
-    assert summary["source_theorem_proof_body_adapter_required"] is True
-    assert summary["source_theorem_exact_proof_body_repair_required"] is False
-    assert summary["source_theorem_proof_body_adapter_target_names"] == [
+    assert summary["source_theorem_proof_body_adapter_required"] is False
+    assert summary["source_theorem_exact_proof_body_repair_required"] is True
+    assert summary["source_theorem_exact_proof_body_repair_target_names"] == [
         "split_conformal_coverage"
     ]
-    assert summary["source_theorem_proof_body_adapter_diagnostics"][0][
+    assert summary["source_theorem_exact_proof_body_repair_diagnostics"][0][
         "candidate_artifact_path"
     ] == long_candidate_path
 
 
-def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapter_shape(
+def test_runtime_proof_body_incomplete_reviewed_constraints_need_concrete_adapter_target(
     tmp_path: Path,
 ) -> None:
     learning_path = tmp_path / "proof_body_incomplete_reviewed_runtime_learning_rows.jsonl"
@@ -63827,6 +63932,34 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
             "hq : ∀ᵐ ω ∂P, ↑{i | score i.castSucc ω ≤ q}.card / ↑n ≥ 1 - alpha",
             "⊢ ENNReal.ofReal (1 - alpha) = P {ω | score (Fin.last n) ω ≤ q}",
         ],
+        "next_owner_subsystem": "ProofEngineer",
+        "proofengineer_repair_context": {
+            "context_kind": "exact_source_theorem_whole_proof_repair",
+            "owner_subsystem": "ProofEngineer",
+            "repair_scope": "replace_entire_exact_declaration_proof_body",
+            "target_lean_declaration": (
+                "split_conformal_finite_sample_coverage_repair_v3"
+            ),
+            "target_ids": ["split_conformal_finite_sample_coverage"],
+            "target_declaration_source_excerpt": (
+                "theorem split_conformal_finite_sample_coverage_repair_v3 "
+                "(hExch : ExchangeableScores) : CoverageLowerBound := by\n"
+                "  exact stale_candidate_proof"
+            ),
+            "target_theorem_statement": (
+                "theorem split_conformal_finite_sample_coverage_repair_v3 "
+                "(hExch : ExchangeableScores) : CoverageLowerBound"
+            ),
+            "current_proof_body_excerpt": "exact stale_candidate_proof",
+            "residual_goal_excerpt": [
+                "⊢ ENNReal.ofReal (1 - alpha) = P covered"
+            ],
+            "residual_goal_role": (
+                "Diagnostic subgoal produced after elaborating the current candidate "
+                "proof. It is not an authoritative replacement for "
+                "target_theorem_statement."
+            ),
+        },
         "semantic_alignment_constraints": [
             "Exchangeability hypothesis must range over all permutations of Fin (n+1)",
             "Quantile threshold q is supplied as a hypothesis",
@@ -63870,19 +64003,19 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
     )
 
     assert summary["recommended_source_theorem_integration_action"] == (
-        "derive_source_theorem_proof_body_adapter"
+        "repair_exact_source_theorem_candidate_proof_body"
     )
     assert summary["recommended_formalizer_target_mode"] == (
-        "source_theorem_proof_body_adapter_required"
+        "source_theorem_exact_proof_body_repair"
     )
-    assert summary["source_theorem_proof_body_adapter_required"] is True
+    assert summary["source_theorem_proof_body_adapter_required"] is False
     assert summary[
         "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
     ] is True
     assert summary["source_theorem_exact_proof_body_gate_open_target_names"] == [
         "split_conformal_finite_sample_coverage_repair_v3"
     ]
-    diagnostic = summary["source_theorem_proof_body_adapter_diagnostics"][0]
+    diagnostic = summary["source_theorem_exact_proof_body_repair_diagnostics"][0]
     assert diagnostic["source_theorem_kernel_evidence_eligible"] is True
     assert diagnostic[
         "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
@@ -63894,13 +64027,13 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         signature_probe_path
     )
     assert diagnostic["proof_body_attempt_count"] == 5
-    assert diagnostic["proof_body_adapter_required_reasons"] == [
-        "proof body goal exposes source-level hypotheses but no reusable bridge/reduction hypothesis",
-        "reviewed semantic-alignment constraints identify policy-described source-to-bridge structure needed by an adapter",
-    ]
-    assert all(
-        "semantic alignment or evidence-eligibility gate is still open" not in reason
-        for reason in diagnostic["proof_body_adapter_required_reasons"]
+    assert diagnostic["next_owner_subsystem"] == "ProofEngineer"
+    assert diagnostic["proof_body_repair_scope"] == (
+        "replace_entire_exact_declaration_proof_body"
+    )
+    assert "CoverageLowerBound" in diagnostic["target_theorem_statement"]
+    assert diagnostic["current_proof_body_excerpt"] == (
+        "exact stale_candidate_proof"
     )
     prompt = build_formalizer_prompt(
         question=question,
@@ -63923,6 +64056,8 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
     assert "exact source proof-body gate is open for kernel-eligible repair" in prompt
     assert "Do not route this target back to exact semantic-definition review" in prompt
     assert "source_theorem_kernel_verified is still false" in prompt
+    assert "split_conformal_finite_sample_coverage_repair_v3" in prompt
+    assert "exact stale_candidate_proof" in prompt
 
     proposal = {
         "packet_id": "formalizer:proof-body-adapter-reviewed-constraints",
@@ -63954,7 +64089,7 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
 
     assert len(work_orders) == 1
     work_order = work_orders[0]
-    assert work_order["proof_mode"] == "source_theorem_proof_body_adapter_required"
+    assert work_order["proof_mode"] == "source_theorem_exact_proof_body_repair"
     assert (
         work_order["source_theorem_exact_proof_body_gate_open_for_kernel_repair"]
         is True
@@ -63966,6 +64101,10 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
     assert work_order["proof_body_attempt_count"] == 5
+    assert work_order["proof_body_repair_scope"] == (
+        "replace_entire_exact_declaration_proof_body"
+    )
+    assert "CoverageLowerBound" in work_order["target_theorem_statement"]
     assert work_order["proof_body_candidate_artifact_path"] == candidate_path
     assert work_order["proof_body_signature_probe_artifact_path"] == (
         signature_probe_path
@@ -63974,7 +64113,7 @@ def test_runtime_proof_body_incomplete_eligible_reviewed_constraints_route_adapt
         signature_probe_path
     )
     assert any(
-        "do not reroute to exact semantic-definition review" in required_input
+        "failed proof-body attempt summaries" in required_input
         for required_input in work_order["required_inputs"]
     )
     assert any(
@@ -69285,6 +69424,9 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
             "Exchangeable predicate must permute all n2+1 indices jointly under P",
             "orderStat must match the split conformal quantile rank",
         ],
+        "exact_goal_shape_obligations": [
+            "instantiate split_conformal_finite_sample_coverage_reduction_closure from the exact source hypotheses"
+        ],
         "execution_queue_id": "exact_source_queue:split",
         "execution_result_id": "exact_source_result:split",
         "trigger": "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
@@ -74547,6 +74689,9 @@ def test_runtime_verified_adapter_feedback_triggers_same_run_exact_proof_body_re
             "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
         },
         "source_theorem_kernel_evidence_eligible": False,
+        "exact_goal_shape_obligations": [
+            "instantiate split_conformal_finite_sample_coverage_reduction_closure from the exact source hypotheses"
+        ],
         "execution_queue_id": "exact_source_queue:split",
         "execution_result_id": "exact_source_result:split",
         "failure_classification": "proof_body_incomplete",

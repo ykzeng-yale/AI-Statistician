@@ -123,6 +123,64 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     }
 
 
+def test_anthropic_generator_backend_negotiates_rejected_optional_parameter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class BadRequestError(Exception):
+        pass
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls.append(dict(kwargs))
+            if len(calls) == 1:
+                raise BadRequestError("`temperature` is deprecated for this model.")
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')],
+                model="claude-opus-4-8",
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "model": "claude-opus-4-8",
+            "metadata": {"model_tier": "opus"},
+        }
+    )
+
+    backend = AnthropicGeneratorBackend(api_key="test-anthropic-key")
+    response = backend.generate(request)
+
+    assert len(calls) == 2
+    assert calls[0]["temperature"] == 0.0
+    assert "temperature" not in calls[1]
+    assert response.text == '{"ok": true}'
+    assert response.metadata["provider_capability_fallback_count"] == 1
+    assert response.metadata["omitted_unsupported_request_parameters"] == [
+        "temperature"
+    ]
+    assert response.metadata["retry_count"] == 0
+
+    cached_response = backend.generate(request)
+
+    assert len(calls) == 3
+    assert "temperature" not in calls[2]
+    assert cached_response.metadata["provider_capability_fallback_count"] == 0
+    assert cached_response.metadata["cached_unsupported_request_parameters"] == [
+        "temperature"
+    ]
+
+
 def test_anthropic_generator_backend_surfaces_provider_reported_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

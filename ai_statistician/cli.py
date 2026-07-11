@@ -3281,6 +3281,7 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "runtime_requested_evidence_contract",
         "formalizer_candidate_local_lean",
         "proof_state_provider",
+        "proofengineer_repair_context",
         "n_candidate_sources",
         "n_local_lean_checked",
         "n_live_proof_state_requests",
@@ -4050,6 +4051,7 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
         "source_to_bridge_grouped_premise_derivation_source_candidate_request",
         "proof_body_goal_context",
         "source_to_bridge_premise_goal_context",
+        "proofengineer_repair_context",
         "source_theorem_exact_semantic_definition_typechecked_candidate",
         "contract_counts",
         "provider_token_counts",
@@ -4076,6 +4078,8 @@ def _compact_runtime_learning_input_summary(value: object) -> dict[str, object]:
                 compact[key] = _compact_source_to_bridge_premise_request(child)
             elif key == "candidate_definition_request":
                 compact[key] = _compact_candidate_definition_request(child)
+            elif key == "proofengineer_repair_context":
+                compact[key] = _compact_proofengineer_repair_context(child)
             else:
                 compact[key] = {
                     str(child_key): _compact_runtime_learning_value(child_value)
@@ -4248,6 +4252,49 @@ def _compact_runtime_learning_value(value: object) -> object:
     return str(value)[:320]
 
 
+def _compact_proofengineer_repair_context(value: object) -> object:
+    if not isinstance(value, Mapping):
+        return _compact_runtime_learning_value(value)
+    code_limits = {
+        "target_declaration_source_excerpt": 12000,
+        "target_theorem_statement": 9000,
+        "current_proof_body_excerpt": 6000,
+    }
+    keys = (
+        "context_kind",
+        "owner_subsystem",
+        "repair_scope",
+        "target_lean_declaration",
+        "target_ids",
+        "candidate_artifact_path",
+        "source_candidate_artifact_path",
+        "target_declaration_source_excerpt",
+        "target_theorem_statement",
+        "current_proof_body_excerpt",
+        "candidate_imports",
+        "residual_goal_excerpt",
+        "residual_goal_role",
+        "failed_proof_body_attempts",
+        "semantic_alignment_constraints",
+        "semantic_alignment_blockers",
+        "required_behavior",
+        "acceptance_gate",
+        "proof_evidence_status",
+    )
+    compact: dict[str, object] = {}
+    for key in keys:
+        child = value.get(key)
+        if child in (None, "", [], {}):
+            continue
+        if key in code_limits and isinstance(child, str):
+            compact[key] = child[: code_limits[key]]
+        elif isinstance(child, str) and _runtime_learning_key_is_path_like(key):
+            compact[key] = child
+        else:
+            compact[key] = _compact_runtime_learning_value(child)
+    return compact
+
+
 def _compact_formalization_gap_planner_execution_context(value: object) -> object:
     context_keys = (
         "bridge_id",
@@ -4300,6 +4347,8 @@ def _compact_formalization_gap_planner_execution_context(value: object) -> objec
 def _compact_runtime_learning_field_value(key: str, value: object) -> object:
     if key == "formalization_gap_planner_execution_contexts":
         return _compact_formalization_gap_planner_execution_context(value)
+    if key == "proofengineer_repair_context":
+        return _compact_proofengineer_repair_context(value)
     if isinstance(value, str) and _runtime_learning_key_is_path_like(key):
         return value
     return _compact_runtime_learning_value(value)

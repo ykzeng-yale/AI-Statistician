@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-07-03
+Updated: 2026-07-11
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -977,6 +977,28 @@ declaration module is source context, not an instance proof. A later `Nat.ceil`
 replacement was again rejected by Lean and routed back through identifier lookup,
 which is the intended behavior until a locally checked definition or a
 fail-closed/parameterized semantic object exists.
+
+## Whole-Proof Agent Correction
+
+Generated Lean failures are system feedback, not files for the main worker to
+repair by hand. An exact source-theorem failure must preserve the theorem/task
+lineage and route the full declaration, exact statement, current proof body,
+imports, verifier diagnostics, failed attempts, and semantic blockers to
+ProofEngineer. The residual Lean goal is a nested diagnostic and must not
+replace or weaken the authoritative theorem statement.
+
+The accepted next outcomes are deliberately narrow:
+
+1. A complete candidate preserving the exact declaration name and signature,
+   followed by local Lean/AXLE verification of that declaration.
+2. A typed blocker or smaller dependency request routed to retrieval/proof
+   search and then back through ProofEngineer.
+
+Renamed theorems, signature drift, `sorry`, `admit`, axioms, retrieval hits,
+helper compilation, and prover proposals are not source-theorem proof evidence.
+The mature EmpericalProcessLEAN retrieval and OpenProver HLM controller should
+be integrated as typed providers under this contract rather than reimplemented
+as theorem-specific runtime rules.
 
 ## Delegation To Other Codex Workers
 

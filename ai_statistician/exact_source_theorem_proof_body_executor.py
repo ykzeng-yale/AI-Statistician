@@ -115,6 +115,8 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     execution_transcript_path: str
     live_goal_location_ready: bool
     candidate_live_proof_state_request: dict[str, object]
+    next_owner_subsystem: str
+    proofengineer_repair_context: dict[str, object]
     execution_status: str
     exact_declaration_present: bool
     forbidden_tokens_found: tuple[str, ...]
@@ -854,6 +856,37 @@ def _execution_result_row(
         candidate_live_request=candidate_live_request,
         proof_body_attempt_summaries=proof_body_attempt_summaries,
     )
+    proofengineer_repair_context = _proofengineer_whole_proof_repair_context(
+        source=source,
+        target_declaration=target_lean_declaration,
+        target_ids=target_ids,
+        candidate_artifact_path=candidate_artifact_path,
+        source_candidate_artifact_path=source_candidate_artifact_path,
+        proof_body_goal_excerpt=proof_body_goal_excerpt,
+        proof_body_attempt_summaries=proof_body_attempt_summaries,
+        semantic_alignment_constraints=semantic_alignment_constraints,
+        semantic_alignment_blockers=semantic_alignment_blockers,
+    )
+    if candidate_live_request and proofengineer_repair_context:
+        candidate_live_request["proofengineer_repair_context"] = (
+            proofengineer_repair_context
+        )
+        candidate_live_request["proof_body_repair_scope"] = (
+            proofengineer_repair_context["repair_scope"]
+        )
+    next_owner_subsystem = _proof_body_next_owner_subsystem(
+        source_theorem_kernel_verified=source_theorem_kernel_verified,
+        proof_body_goal_reached=proof_body_goal_reached,
+        semantic_alignment_blockers=semantic_alignment_blockers,
+        candidate_materialization_required=bool(
+            failure_classification
+            in {
+                SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE,
+                "source_theorem_candidate_artifact_missing",
+            }
+            or _source_candidate_materialization_required_errors(errors)
+        ),
+    )
     proof_status = (
         SOURCE_KERNEL_STATUS
         if source_theorem_kernel_verified
@@ -1019,6 +1052,8 @@ def _execution_result_row(
         execution_transcript_path=str(execution_transcript_path),
         live_goal_location_ready=live_goal_ready,
         candidate_live_proof_state_request=candidate_live_request,
+        next_owner_subsystem=next_owner_subsystem,
+        proofengineer_repair_context=proofengineer_repair_context,
         execution_status=status,
         exact_declaration_present=exact_declaration_present,
         forbidden_tokens_found=forbidden_tokens_found,
@@ -1603,6 +1638,77 @@ def _extract_lean_declaration_block(source: str, declaration_name: str) -> str:
     return source[match.start() : end].strip()
 
 
+def _proofengineer_whole_proof_repair_context(
+    *,
+    source: str,
+    target_declaration: str,
+    target_ids: tuple[str, ...],
+    candidate_artifact_path: Path,
+    source_candidate_artifact_path: str,
+    proof_body_goal_excerpt: tuple[str, ...],
+    proof_body_attempt_summaries: tuple[str, ...],
+    semantic_alignment_constraints: tuple[str, ...],
+    semantic_alignment_blockers: tuple[str, ...],
+) -> dict[str, object]:
+    declaration_source = _extract_lean_declaration_block(source, target_declaration)
+    if not declaration_source:
+        return {}
+    proof_marker = re.search(r":=\s*by\b", declaration_source)
+    if proof_marker is None:
+        target_statement = declaration_source
+        current_proof_body = ""
+    else:
+        target_statement = declaration_source[: proof_marker.start()].rstrip()
+        current_proof_body = declaration_source[proof_marker.end() :].strip()
+    return {
+        "context_kind": "exact_source_theorem_whole_proof_repair",
+        "owner_subsystem": "ProofEngineer",
+        "repair_scope": "replace_entire_exact_declaration_proof_body",
+        "target_lean_declaration": target_declaration,
+        "target_ids": list(target_ids),
+        "candidate_artifact_path": str(candidate_artifact_path),
+        "source_candidate_artifact_path": source_candidate_artifact_path,
+        "target_declaration_source_excerpt": declaration_source[:12000],
+        "target_theorem_statement": target_statement[:9000],
+        "current_proof_body_excerpt": current_proof_body[:6000],
+        "candidate_imports": _lean_import_lines(source)[:16],
+        "residual_goal_excerpt": list(proof_body_goal_excerpt)[:12],
+        "residual_goal_role": (
+            "Diagnostic subgoal produced after elaborating the current candidate proof. "
+            "It is not an authoritative replacement for target_theorem_statement."
+        ),
+        "failed_proof_body_attempts": list(proof_body_attempt_summaries)[:8],
+        "semantic_alignment_constraints": list(semantic_alignment_constraints)[:8],
+        "semantic_alignment_blockers": list(semantic_alignment_blockers)[:8],
+        "required_behavior": (
+            "Preserve target_theorem_statement exactly, replace the entire proof body, "
+            "and return a complete Lean declaration or a typed mathematical/formal-library "
+            "blocker. Do not patch only a nested residual goal."
+        ),
+        "acceptance_gate": (
+            "The exact declaration compiles under local Lean/AXLE with no forbidden "
+            "placeholders and source_theorem_kernel_verified=true."
+        ),
+        "proof_evidence_status": "PROOFENGINEER_REPAIR_CONTEXT_NOT_PROOF_EVIDENCE",
+    }
+
+
+def _proof_body_next_owner_subsystem(
+    *,
+    source_theorem_kernel_verified: bool,
+    proof_body_goal_reached: bool,
+    semantic_alignment_blockers: tuple[str, ...],
+    candidate_materialization_required: bool,
+) -> str:
+    if source_theorem_kernel_verified:
+        return ""
+    if semantic_alignment_blockers or candidate_materialization_required:
+        return "Formalizer/ProofEngineer"
+    if proof_body_goal_reached:
+        return "ProofEngineer"
+    return "Formalizer/ProofEngineer"
+
+
 def _insert_before_lean_declaration(
     source: str,
     *,
@@ -1983,6 +2089,7 @@ def _export_runtime_learning_rows(
                 "question_id": row.question_id,
                 "question_title": row.question_title,
                 "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "next_owner_subsystem": row.next_owner_subsystem,
                 **exact_semantic_context,
                 "target_theorem_name": row.target_theorem_name,
                 "target_ids": list(row.target_ids),
@@ -2053,6 +2160,7 @@ def _export_runtime_learning_rows(
                 ),
                 "candidate_artifact_path": row.candidate_artifact_path,
                 "execution_transcript_path": row.execution_transcript_path,
+                "proofengineer_repair_context": row.proofengineer_repair_context,
                 "runtime_queue_status": _runtime_learning_queue_status(row),
                 "candidate_materialization_required": (
                     _row_requires_source_candidate_materialization(row)
@@ -2405,9 +2513,10 @@ def _runtime_learning_recommended_next_action(
         )
     if row.failure_classification == "proof_body_incomplete":
         return (
-            "Route to ProofEngineer with the reached Lean goal, failed tactic "
-            "attempts, and diagnostics; the formal environment is closed enough "
-            "for proof-body repair, but the source theorem is still unproved."
+            "Route to ProofEngineer with the lineage-bound whole-declaration repair context. "
+            "Preserve the exact theorem statement, replace the entire candidate proof "
+            "body, and use the reached residual goal, failed attempts, and diagnostics "
+            "as observations rather than treating a nested residual goal as the theorem."
         )
     if row.artifact_kernel_verified:
         return (
@@ -2502,8 +2611,12 @@ def _runtime_learning_target_behavior(
             "toward the exact theorem shape."
         )
     return (
-        "Use this as ProofEngineer runtime feedback. Do not count it "
-        "as source-theorem proof unless source_theorem_kernel_verified=true."
+        "Use this as ProofEngineer runtime feedback and treat "
+        "proofengineer_repair_context as the authoritative lineage-bound repair task. "
+        "Preserve target_theorem_statement and replace the whole proof body; "
+        "proof_body_goal_excerpt is a diagnostic residual subgoal, not a replacement "
+        "theorem target. Do not count the candidate as source-theorem proof unless "
+        "source_theorem_kernel_verified=true."
     )
 
 

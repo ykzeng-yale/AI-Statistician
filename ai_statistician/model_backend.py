@@ -611,6 +611,48 @@ class StaticJSONGeneratorBackend:
         )
 
 
+_ANTHROPIC_NEGOTIABLE_OPTIONAL_PARAMETERS = frozenset({"temperature"})
+
+
+def _anthropic_create_with_capability_fallback(
+    messages_api: Any,
+    *,
+    request_kwargs: dict[str, Any],
+    omitted_unsupported_parameters: list[str],
+) -> Any:
+    """Retry once per rejected optional parameter using provider feedback."""
+
+    while True:
+        try:
+            return messages_api.create(**request_kwargs)
+        except Exception as exc:
+            parameter = _anthropic_rejected_optional_parameter(exc)
+            if not parameter or parameter not in request_kwargs:
+                raise
+            request_kwargs.pop(parameter, None)
+            if parameter not in omitted_unsupported_parameters:
+                omitted_unsupported_parameters.append(parameter)
+
+
+def _anthropic_rejected_optional_parameter(exc: Exception) -> str:
+    error_text = str(exc).lower()
+    rejection_markers = (
+        "deprecated for this model",
+        "not supported for this model",
+        "unsupported parameter",
+    )
+    if not any(marker in error_text for marker in rejection_markers):
+        return ""
+    for parameter in _ANTHROPIC_NEGOTIABLE_OPTIONAL_PARAMETERS:
+        if (
+            f"`{parameter}`" in error_text
+            or f"'{parameter}'" in error_text
+            or f'"{parameter}"' in error_text
+        ):
+            return parameter
+    return ""
+
+
 class AnthropicGeneratorBackend:
     """Anthropic Messages API backend with no tool exposure."""
 
@@ -619,6 +661,8 @@ class AnthropicGeneratorBackend:
     def __init__(self, *, api_key: str | None = None, timeout_s: float | None = None) -> None:
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.timeout_s = timeout_s
+        self._capability_lock = threading.Lock()
+        self._unsupported_optional_parameters_by_model: dict[str, set[str]] = {}
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         if not self.api_key:
@@ -642,19 +686,44 @@ class AnthropicGeneratorBackend:
                 "Do not include commentary outside JSON."
             )
         messages = [{"role": "user", "content": user_prompt}]
+        request_kwargs: dict[str, Any] = {
+            "model": request.model,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "system": request.system_prompt,
+            "messages": messages,
+        }
+        with self._capability_lock:
+            cached_unsupported_parameters = set(
+                self._unsupported_optional_parameters_by_model.get(
+                    request.model,
+                    set(),
+                )
+            )
+        for parameter in cached_unsupported_parameters:
+            request_kwargs.pop(parameter, None)
+        omitted_unsupported_parameters = sorted(cached_unsupported_parameters)
         response, retry_count = _call_with_generator_retries(
             lambda: _call_with_wall_clock_timeout(
-                lambda: client.messages.create(
-                    model=request.model,
-                    max_tokens=request.max_tokens,
-                    temperature=request.temperature,
-                    system=request.system_prompt,
-                    messages=messages,
+                lambda: _anthropic_create_with_capability_fallback(
+                    client.messages,
+                    request_kwargs=request_kwargs,
+                    omitted_unsupported_parameters=(
+                        omitted_unsupported_parameters
+                    ),
                 ),
                 timeout_s=timeout_s,
                 provider_name=self.provider_name,
                 model=request.model,
             )
+        )
+        with self._capability_lock:
+            self._unsupported_optional_parameters_by_model.setdefault(
+                request.model,
+                set(),
+            ).update(omitted_unsupported_parameters)
+        capability_fallback_count = len(
+            set(omitted_unsupported_parameters) - cached_unsupported_parameters
         )
         text = _anthropic_text(response)
         response_model = _response_model(response, fallback=request.model)
@@ -670,6 +739,13 @@ class AnthropicGeneratorBackend:
                 "json_prompt_hint_used": json_mode_hint,
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,
+                "provider_capability_fallback_count": capability_fallback_count,
+                "omitted_unsupported_request_parameters": list(
+                    omitted_unsupported_parameters
+                ),
+                "cached_unsupported_request_parameters": sorted(
+                    cached_unsupported_parameters
+                ),
                 "requested_model": request.model,
                 "provider_reported_model": response_model,
                 **_provider_response_diagnostics(response),

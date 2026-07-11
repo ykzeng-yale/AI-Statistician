@@ -50281,6 +50281,8 @@ def _formalization_manifest_has_kernel_verified_source_semantic_support(
 
 def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
     architect_context: Mapping[str, Any],
+    *,
+    target_goal_ids: Iterable[str] = (),
 ) -> dict[str, tuple[str, ...]]:
     memory = (
         architect_context.get("runtime_learning_memory", {})
@@ -50306,8 +50308,29 @@ def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
     artifact_paths: list[str] = []
     signature_excerpts: list[str] = []
     goal_ids: list[str] = []
+    target_goal_id_set = {
+        str(value).strip() for value in target_goal_ids if str(value).strip()
+    }
     for row in rows:
         if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        input_summary = (
+            input_summary if isinstance(input_summary, Mapping) else {}
+        )
+        row_goal_ids = set(
+            [
+                *_runtime_row_string_values(
+                    row,
+                    "kernel_verified_theorem_reduction_closure_goal_ids",
+                ),
+                *_runtime_row_string_values(
+                    input_summary,
+                    "kernel_verified_theorem_reduction_closure_goal_ids",
+                ),
+            ]
+        )
+        if target_goal_id_set and not target_goal_id_set.intersection(row_goal_ids):
             continue
         for key, bucket in (
             ("kernel_verified_theorem_reduction_closure_work_order_ids", work_order_ids),
@@ -50324,8 +50347,7 @@ def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
                 text = str(value).strip()
                 if text:
                     bucket.append(text)
-        input_summary = row.get("input_summary", {})
-        if isinstance(input_summary, Mapping):
+        if input_summary:
             for key, bucket in (
                 ("kernel_verified_theorem_reduction_closure_work_order_ids", work_order_ids),
                 ("kernel_verified_theorem_reduction_closure_target_ids", target_ids),
@@ -50355,6 +50377,107 @@ def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
         "artifact_paths": tuple(dict.fromkeys(artifact_paths)),
         "signature_excerpts": tuple(dict.fromkeys(signature_excerpts)),
         "goal_ids": tuple(dict.fromkeys(goal_ids)),
+    }
+
+
+def _runtime_learning_memory_kernel_verified_source_to_bridge_premise_context(
+    architect_context: Mapping[str, Any],
+    *,
+    target_ids: Iterable[str],
+) -> dict[str, tuple[str, ...]]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    empty = {
+        "ids": (),
+        "premise_names": (),
+        "artifact_paths": (),
+        "declarations": (),
+        "signature_excerpts": (),
+    }
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return empty
+    target_id_set = {
+        str(value).strip() for value in target_ids if str(value).strip()
+    }
+    ids: list[str] = []
+    premise_names: list[str] = []
+    artifact_paths: list[str] = []
+    declarations: list[str] = []
+    signature_excerpts: list[str] = []
+    for row in memory.get("rows", []) or []:
+        if (
+            not isinstance(row, Mapping)
+            or not _runtime_source_to_bridge_premise_derivation_kernel_verified(
+                row
+            )
+        ):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        row_target = str(
+            row.get("target_theorem_name", "")
+            or input_summary.get("target_theorem_name", "")
+            or ""
+        ).strip()
+        row_lineage = set(
+            [
+                row_target,
+                str(row.get("target_lean_declaration", "") or "").strip(),
+                str(input_summary.get("target_lean_declaration", "") or "").strip(),
+                *_runtime_exact_semantic_definition_target_ids(
+                    row,
+                    target_theorem_name=row_target,
+                ),
+            ]
+        )
+        row_lineage.discard("")
+        if target_id_set and (
+            not row_lineage or not target_id_set.intersection(row_lineage)
+        ):
+            continue
+        ids.extend(
+            _runtime_row_string_values(
+                row,
+                "kernel_verified_source_to_bridge_premise_derivation_ids",
+                "source_to_bridge_premise_derivation_check_id",
+                "premise_derivation_check_id",
+            )
+        )
+        premise_names.extend(_runtime_source_to_bridge_premise_names(row))
+        artifact_paths.extend(
+            _runtime_row_string_values(
+                row,
+                "source_to_bridge_premise_candidate_artifact_path",
+                "premise_candidate_artifact_path",
+                "verified_source_to_bridge_premise_derivation_artifact_paths",
+            )
+        )
+        declarations.extend(
+            _runtime_row_string_values(
+                row,
+                "source_to_bridge_premise_candidate_declaration_name",
+                "premise_candidate_declaration_name",
+                "verified_source_to_bridge_premise_derivation_declarations",
+            )
+        )
+        signature_excerpts.extend(
+            _runtime_verified_source_to_bridge_premise_signature_excerpts(row)
+        )
+    return {
+        "ids": tuple(dict.fromkeys(ids)),
+        "premise_names": tuple(dict.fromkeys(premise_names)),
+        "artifact_paths": tuple(dict.fromkeys(artifact_paths)),
+        "declarations": tuple(dict.fromkeys(declarations)),
+        "signature_excerpts": tuple(dict.fromkeys(signature_excerpts)),
     }
 
 
@@ -52156,6 +52279,61 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 or target_ids
             )
         )
+        source_target_provenance_raw = (
+            row.get("source_theorem_target_provenance", {})
+            or (
+                input_summary.get("source_theorem_target_provenance", {})
+                if isinstance(input_summary, Mapping)
+                else {}
+            )
+            or {}
+        )
+        source_target_provenance = (
+            source_target_provenance_raw
+            if isinstance(source_target_provenance_raw, Mapping)
+            else {}
+        )
+        provenance_goal_ids = list(
+            _str_tuple(source_target_provenance.get("source_theorem_goal_id", ""))
+        )
+        if not target_theorem_goal_ids and provenance_goal_ids:
+            target_theorem_goal_ids = provenance_goal_ids
+        task_scoped_closure_context = (
+            _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
+                architect_context,
+                target_goal_ids=[
+                    *target_ids,
+                    *target_theorem_goal_ids,
+                    *provenance_goal_ids,
+                ],
+            )
+        )
+        task_scoped_closure_work_order_ids = list(
+            task_scoped_closure_context["work_order_ids"]
+        )
+        task_scoped_closure_target_ids = list(
+            task_scoped_closure_context["target_ids"]
+        )
+        task_scoped_closure_declarations = list(
+            task_scoped_closure_context["declarations"]
+        )
+        task_scoped_closure_signature_excerpts = list(
+            task_scoped_closure_context["signature_excerpts"]
+        )
+        task_scoped_closure_artifact_paths = list(
+            task_scoped_closure_context["artifact_paths"]
+        )
+        task_scoped_verified_premise_context = (
+            _runtime_learning_memory_kernel_verified_source_to_bridge_premise_context(
+                architect_context,
+                target_ids=[
+                    target,
+                    *target_ids,
+                    *target_theorem_goal_ids,
+                    *provenance_goal_ids,
+                ],
+            )
+        )
         diagnostics: list[str] = []
         failure_classification = ""
         lookup_status = ""
@@ -53372,6 +53550,58 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     limit=12,
                 )
             )
+        live_proof_state_request = (
+            input_summary.get("candidate_live_proof_state_request", {})
+            if isinstance(input_summary, Mapping)
+            and isinstance(
+                input_summary.get("candidate_live_proof_state_request", {}),
+                Mapping,
+            )
+            else {}
+        )
+        proofengineer_repair_context_raw = (
+            row.get("proofengineer_repair_context", {})
+            or (
+                input_summary.get("proofengineer_repair_context", {})
+                if isinstance(input_summary, Mapping)
+                else {}
+            )
+            or live_proof_state_request.get("proofengineer_repair_context", {})
+            or {}
+        )
+        proofengineer_repair_context = (
+            dict(proofengineer_repair_context_raw)
+            if isinstance(proofengineer_repair_context_raw, Mapping)
+            else {}
+        )
+        proof_body_repair_scope = str(
+            proofengineer_repair_context.get("repair_scope", "")
+            or row.get("proof_body_repair_scope", "")
+            or (
+                input_summary.get("proof_body_repair_scope", "")
+                if isinstance(input_summary, Mapping)
+                else ""
+            )
+            or ""
+        ).strip()
+        target_declaration_source_excerpt = str(
+            proofengineer_repair_context.get(
+                "target_declaration_source_excerpt", ""
+            )
+            or ""
+        )
+        target_theorem_statement = str(
+            proofengineer_repair_context.get("target_theorem_statement", "")
+            or ""
+        )
+        current_proof_body_excerpt = str(
+            proofengineer_repair_context.get("current_proof_body_excerpt", "")
+            or ""
+        )
+        residual_goal_role = str(
+            proofengineer_repair_context.get("residual_goal_role", "")
+            or ""
+        )
         exact_goal_shape_obligation_ids = _runtime_row_string_values(
             row,
             "exact_goal_shape_obligation_ids",
@@ -54007,36 +54237,80 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 recommended_repair_tasks.append(
                     "run local Lean/AXLE on the premise derivation, then rerun the adapter and exact source theorem proof body"
                 )
-        closure_declarations = list(
-            row.get("kernel_verified_theorem_reduction_closure_declarations", [])
-            or (
-                input_summary.get(
-                    "kernel_verified_theorem_reduction_closure_declarations", []
-                )
-                if isinstance(input_summary, Mapping)
-                else []
+        closure_work_order_ids = list(
+            dict.fromkeys(
+                [
+                    *task_scoped_closure_work_order_ids,
+                    *_runtime_row_string_values(
+                        row,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids",
+                    ),
+                    *_runtime_row_string_values(
+                        input_summary,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids",
+                    ),
+                ]
             )
-            or []
+        )
+        closure_declarations = list(
+            dict.fromkeys(
+                [
+                    *task_scoped_closure_declarations,
+                    *_runtime_row_string_values(
+                        row,
+                        "kernel_verified_theorem_reduction_closure_declarations",
+                    ),
+                    *_runtime_row_string_values(
+                        input_summary,
+                        "kernel_verified_theorem_reduction_closure_declarations",
+                    ),
+                ]
+            )
+        )
+        closure_signature_excerpts = list(
+            dict.fromkeys(
+                [
+                    *task_scoped_closure_signature_excerpts,
+                    *_runtime_row_string_values(
+                        row,
+                        "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                    ),
+                    *_runtime_row_string_values(
+                        input_summary,
+                        "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                    ),
+                ]
+            )
         )
         closure_artifact_paths = list(
-            row.get("verified_theorem_reduction_closure_artifact_paths", [])
-            or (
-                input_summary.get("verified_theorem_reduction_closure_artifact_paths", [])
-                if isinstance(input_summary, Mapping)
-                else []
+            dict.fromkeys(
+                [
+                    *task_scoped_closure_artifact_paths,
+                    *_runtime_row_string_values(
+                        row,
+                        "verified_theorem_reduction_closure_artifact_paths",
+                    ),
+                    *_runtime_row_string_values(
+                        input_summary,
+                        "verified_theorem_reduction_closure_artifact_paths",
+                    ),
+                ]
             )
-            or []
         )
         closure_target_ids = list(
-            row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
-            or (
-                input_summary.get(
-                    "kernel_verified_theorem_reduction_closure_target_ids", []
-                )
-                if isinstance(input_summary, Mapping)
-                else []
+            dict.fromkeys(
+                [
+                    *task_scoped_closure_target_ids,
+                    *_runtime_row_string_values(
+                        row,
+                        "kernel_verified_theorem_reduction_closure_target_ids",
+                    ),
+                    *_runtime_row_string_values(
+                        input_summary,
+                        "kernel_verified_theorem_reduction_closure_target_ids",
+                    ),
+                ]
             )
-            or []
         )
         if is_source_theorem_proof_body_adapter_feedback:
             if adapter_kernel_verified:
@@ -54151,6 +54425,42 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "semantic_alignment_blockers": semantic_alignment_blockers,
                 "source_theorem_kernel_evidence_eligible": (
                     source_theorem_kernel_evidence_eligible
+                ),
+                "input_summary": input_summary,
+                "proofengineer_repair_context": proofengineer_repair_context,
+                "exact_goal_shape_obligation_ids": list(
+                    exact_goal_shape_obligation_ids
+                ),
+                "exact_goal_shape_obligations": list(exact_goal_shape_obligations),
+                "kernel_verified_theorem_reduction_closure_work_order_ids": list(
+                    task_scoped_closure_work_order_ids
+                ),
+                "kernel_verified_theorem_reduction_closure_target_ids": list(
+                    task_scoped_closure_target_ids
+                ),
+                "kernel_verified_theorem_reduction_closure_declarations": list(
+                    task_scoped_closure_declarations
+                ),
+                "kernel_verified_theorem_reduction_closure_signature_excerpts": list(
+                    task_scoped_closure_signature_excerpts
+                ),
+                "verified_theorem_reduction_closure_artifact_paths": list(
+                    task_scoped_closure_artifact_paths
+                ),
+                "kernel_verified_source_to_bridge_premise_derivation_ids": list(
+                    task_scoped_verified_premise_context["ids"]
+                ),
+                "source_to_bridge_premise_derivation_verified_premise_names": list(
+                    task_scoped_verified_premise_context["premise_names"]
+                ),
+                "verified_source_to_bridge_premise_derivation_artifact_paths": list(
+                    task_scoped_verified_premise_context["artifact_paths"]
+                ),
+                "verified_source_to_bridge_premise_derivation_declarations": list(
+                    task_scoped_verified_premise_context["declarations"]
+                ),
+                "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                    task_scoped_verified_premise_context["signature_excerpts"]
                 ),
             }
             proof_body_adapter_required_reasons = (
@@ -54504,6 +54814,28 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "proof_body_attempt_count": proof_body_attempt_count,
                 "proof_body_attempt_summaries": proof_body_attempt_summaries,
                 "proof_body_goal_excerpt": proof_body_goal_excerpt,
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "")
+                    or (
+                        input_summary.get("next_owner_subsystem", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or proofengineer_repair_context.get("owner_subsystem", "")
+                    or (
+                        "ProofEngineer"
+                        if is_exact_source_proof_body_execution_feedback
+                        else ""
+                    )
+                ),
+                "proofengineer_repair_context": proofengineer_repair_context,
+                "proof_body_repair_scope": proof_body_repair_scope,
+                "target_declaration_source_excerpt": (
+                    target_declaration_source_excerpt
+                ),
+                "target_theorem_statement": target_theorem_statement,
+                "current_proof_body_excerpt": current_proof_body_excerpt,
+                "residual_goal_role": residual_goal_role,
                 "exact_goal_shape_obligation_ids": list(
                     exact_goal_shape_obligation_ids
                 ),
@@ -54539,22 +54871,35 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                     premise_derivation_kernel_verified
                 ),
                 "kernel_verified_source_to_bridge_premise_derivation_ids": list(
-                    _runtime_row_string_values(
-                        row,
-                        "kernel_verified_source_to_bridge_premise_derivation_ids",
-                        "source_to_bridge_premise_derivation_check_id",
-                        "premise_derivation_check_id",
+                    dict.fromkeys(
+                        [
+                            *task_scoped_verified_premise_context["ids"],
+                            *_runtime_row_string_values(
+                                row,
+                                "kernel_verified_source_to_bridge_premise_derivation_ids",
+                                "source_to_bridge_premise_derivation_check_id",
+                                "premise_derivation_check_id",
+                            ),
+                            *_runtime_row_string_values(
+                                input_summary,
+                                "kernel_verified_source_to_bridge_premise_derivation_ids",
+                                "source_to_bridge_premise_derivation_check_id",
+                                "premise_derivation_check_id",
+                            ),
+                        ]
                     )
-                    or (
-                        _runtime_row_string_values(
-                            input_summary,
-                            "kernel_verified_source_to_bridge_premise_derivation_ids",
-                            "source_to_bridge_premise_derivation_check_id",
-                            "premise_derivation_check_id",
-                        )
-                        if isinstance(input_summary, Mapping)
-                        else ()
-                    )
+                ),
+                "verified_source_to_bridge_premise_derivation_artifact_paths": list(
+                    task_scoped_verified_premise_context["artifact_paths"]
+                ),
+                "verified_source_to_bridge_premise_derivation_declarations": list(
+                    task_scoped_verified_premise_context["declarations"]
+                ),
+                "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                    task_scoped_verified_premise_context["signature_excerpts"]
+                ),
+                "source_to_bridge_premise_derivation_verified_premise_names": list(
+                    task_scoped_verified_premise_context["premise_names"]
                 ),
                 "source_to_bridge_premise_candidate_artifact_path": (
                     premise_candidate_artifact_path
@@ -54681,6 +55026,12 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 ),
                 "kernel_verified_theorem_reduction_closure_declarations": (
                     closure_declarations
+                ),
+                "kernel_verified_theorem_reduction_closure_work_order_ids": (
+                    closure_work_order_ids
+                ),
+                "kernel_verified_theorem_reduction_closure_signature_excerpts": (
+                    closure_signature_excerpts
                 ),
                 "verified_theorem_reduction_closure_artifact_paths": (
                     closure_artifact_paths
@@ -54862,6 +55213,16 @@ def _source_theorem_proof_body_adapter_required_reasons(
             and _runtime_text_has_any_policy_marker(attempt_text, bridge_markers)
         )
     )
+    concrete_adapter_context = _runtime_has_concrete_source_to_bridge_adapter_context(
+        repair,
+        input_summary=input_summary,
+    )
+    if not (
+        reduction_closure_adapter_instantiation_missing
+        or attempted_missing_bridge_dependency
+        or concrete_adapter_context
+    ):
+        return []
 
     constraints = _runtime_string_items(
         repair.get("semantic_alignment_constraints", []),
@@ -54927,6 +55288,54 @@ def _source_theorem_proof_body_adapter_required_reasons(
     if len(reasons) < 2:
         return []
     return reasons
+
+
+def _runtime_has_concrete_source_to_bridge_adapter_context(
+    repair: Mapping[str, Any],
+    *,
+    input_summary: Mapping[str, Any],
+) -> bool:
+    """Require an executable bridge target before selecting adapter mode."""
+
+    sources: list[Mapping[str, Any]] = [repair, input_summary]
+    for source in tuple(sources):
+        for key in (
+            "proofengineer_repair_context",
+            "source_to_bridge_premise_derivation_candidate_request",
+            "source_to_bridge_grouped_premise_derivation_candidate_request",
+        ):
+            nested = source.get(key, {})
+            if isinstance(nested, Mapping) and nested:
+                sources.append(nested)
+    list_keys = (
+        "kernel_verified_theorem_reduction_closure_declarations",
+        "memory_kernel_verified_theorem_reduction_closure_declarations",
+        "kernel_verified_theorem_reduction_closure_signature_excerpts",
+        "memory_kernel_verified_theorem_reduction_closure_signature_excerpts",
+        "verified_theorem_reduction_closure_artifact_paths",
+        "memory_verified_theorem_reduction_closure_artifact_paths",
+        "kernel_verified_source_to_bridge_premise_derivation_ids",
+        "verified_source_to_bridge_premise_derivation_declarations",
+        "verified_source_to_bridge_premise_derivation_signature_excerpts",
+        "verified_source_to_bridge_premise_derivation_artifact_paths",
+        "source_to_bridge_premise_derivation_work_items",
+        "source_theorem_proof_body_adapter_unproven_bridge_premise_names",
+        "unproven_bridge_premise_names",
+        "exact_goal_shape_obligation_ids",
+        "exact_goal_shape_obligations",
+    )
+    scalar_keys = (
+        "premise_target_type",
+        "source_to_bridge_premise_target_type",
+        "adapter_declaration_name",
+        "adapter_candidate_artifact_path",
+    )
+    for source in sources:
+        if any(source.get(key) not in (None, "", [], {}) for key in list_keys):
+            return True
+        if any(str(source.get(key, "") or "").strip() for key in scalar_keys):
+            return True
+    return False
 
 
 def _runtime_source_to_bridge_premise_binder_alias_hint() -> str:
@@ -60895,6 +61304,24 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     "proof_body_goal_excerpt": list(
                         row.get("proof_body_goal_excerpt", []) or []
                     )[:8],
+                    "next_owner_subsystem": str(
+                        row.get("next_owner_subsystem", "") or "ProofEngineer"
+                    ),
+                    "proof_body_repair_scope": str(
+                        row.get("proof_body_repair_scope", "") or ""
+                    ),
+                    "target_declaration_source_excerpt": str(
+                        row.get("target_declaration_source_excerpt", "") or ""
+                    ),
+                    "target_theorem_statement": str(
+                        row.get("target_theorem_statement", "") or ""
+                    ),
+                    "current_proof_body_excerpt": str(
+                        row.get("current_proof_body_excerpt", "") or ""
+                    ),
+                    "residual_goal_role": str(
+                        row.get("residual_goal_role", "") or ""
+                    ),
                     "proof_body_attempt_summaries": list(
                         row.get("proof_body_attempt_summaries", []) or []
                     )[:5],
@@ -61049,6 +61476,24 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "proof_body_goal_excerpt": list(
                     row.get("proof_body_goal_excerpt", []) or []
                 )[:8],
+                "next_owner_subsystem": str(
+                    row.get("next_owner_subsystem", "") or "ProofEngineer"
+                ),
+                "proof_body_repair_scope": str(
+                    row.get("proof_body_repair_scope", "") or ""
+                ),
+                "target_declaration_source_excerpt": str(
+                    row.get("target_declaration_source_excerpt", "") or ""
+                ),
+                "target_theorem_statement": str(
+                    row.get("target_theorem_statement", "") or ""
+                ),
+                "current_proof_body_excerpt": str(
+                    row.get("current_proof_body_excerpt", "") or ""
+                ),
+                "residual_goal_role": str(
+                    row.get("residual_goal_role", "") or ""
+                ),
                 "semantic_alignment_blockers": list(
                     row.get("semantic_alignment_blockers", []) or []
                 )[:5],
@@ -65639,6 +66084,24 @@ def _formalizer_source_theorem_promotion_work_orders(
         or active_proof_body_diagnostic.get("signature_probe_artifact_path", "")
         or ""
     ).strip()
+    proof_body_repair_scope = str(
+        active_proof_body_diagnostic.get("proof_body_repair_scope", "") or ""
+    ).strip()
+    target_declaration_source_excerpt = str(
+        active_proof_body_diagnostic.get(
+            "target_declaration_source_excerpt", ""
+        )
+        or ""
+    )
+    target_theorem_statement = str(
+        active_proof_body_diagnostic.get("target_theorem_statement", "") or ""
+    )
+    current_proof_body_excerpt = str(
+        active_proof_body_diagnostic.get("current_proof_body_excerpt", "") or ""
+    )
+    residual_goal_role = str(
+        active_proof_body_diagnostic.get("residual_goal_role", "") or ""
+    )
     if active_proof_body_diagnostic:
         if not source_proof_body_adapter_unproven_bridge_premise_names:
             source_proof_body_adapter_unproven_bridge_premise_names = [
@@ -66099,6 +66562,31 @@ def _formalizer_source_theorem_promotion_work_orders(
                     if (proof_body_repair_mode or proof_body_adapter_mode)
                     else []
                 ),
+                "proof_body_repair_scope": (
+                    proof_body_repair_scope
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
+                "target_declaration_source_excerpt": (
+                    target_declaration_source_excerpt
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
+                "target_theorem_statement": (
+                    target_theorem_statement
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
+                "current_proof_body_excerpt": (
+                    current_proof_body_excerpt
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
+                "residual_goal_role": (
+                    residual_goal_role
+                    if (proof_body_repair_mode or proof_body_adapter_mode)
+                    else ""
+                ),
                 "proof_body_attempt_summaries": (
                     list(
                         active_proof_body_diagnostic.get(
@@ -66243,6 +66731,22 @@ def _formalizer_source_theorem_promotion_work_orders(
                         else [
                             "exact source theorem Lean candidate that reaches the proof body",
                             "failed proof-body attempt summaries and Lean diagnostics",
+                            *(
+                                [
+                                    "replace the entire exact declaration proof body while preserving target_theorem_statement; treat the reported residual goal as diagnostic only"
+                                ]
+                                if proof_body_repair_scope
+                                == "replace_entire_exact_declaration_proof_body"
+                                else []
+                            ),
+                            *(
+                                [
+                                    "exact source theorem signature probe artifact for target identity/proof-state replay: "
+                                    + proof_body_signature_probe_artifact_path
+                                ]
+                                if proof_body_signature_probe_artifact_path
+                                else []
+                            ),
                             *(
                                 [
                                     "kernel-verified source-to-bridge adapter ids/artifacts available as proof-body routing context",
