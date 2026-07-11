@@ -85,6 +85,10 @@ Recommended lanes:
 
 Before changing code, inspect current git status and the latest runtime manifest.
 After changing code, run focused tests and push a branch or update the active PR.
+For RAG and Lean source-control scope, use
+`docs/rag_lean_source_control_inventory.md`; it distinguishes committed source
+from intentionally untracked generated indexes, run artifacts, and Lean build
+outputs.
 
 ## Current Architectural Priority
 
