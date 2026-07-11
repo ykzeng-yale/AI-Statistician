@@ -1131,9 +1131,13 @@ def _authoring_structured_context(
     )
     if source_anchor_context:
         context["source_anchor_context"] = source_anchor_context[:16]
-        context["source_anchor_context_rows"] = max(
-            _safe_int(context.get("source_anchor_context_rows", 0)),
-            len(source_anchor_context),
+        explicit_source_anchor_context_rows = _safe_int(
+            context.get("source_anchor_context_rows", 0)
+        )
+        context["source_anchor_context_rows"] = (
+            explicit_source_anchor_context_rows
+            if explicit_source_anchor_context_rows > 0
+            else len(source_anchor_context)
         )
     return context
 

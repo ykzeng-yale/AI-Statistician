@@ -32965,6 +32965,104 @@ def test_exact_semantic_authoring_contract_status_gates_source_grounded_capabili
     )
 
 
+def test_exact_semantic_candidate_verifier_contract_status_gates_feedback_rows() -> None:
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_exact_semantic_definition_candidate_materializer": True,
+            "capability_eval_requires_exact_semantic_definition_materialized_lean_repair": True,
+            "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows": True,
+        }
+    }
+    missing_payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "source_theorem_exact_semantic_definition_authoring_worker_required": True,
+        "source_theorem_exact_semantic_definition_authoring_worker_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_backend_provider_name": (
+            "anthropic"
+        ),
+        "source_theorem_exact_semantic_definition_authoring_worker_n_live_llm_attempted": 1,
+        "source_theorem_exact_semantic_definition_authoring_worker_n_candidate_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_candidate_packets": 1,
+        "source_theorem_exact_semantic_definition_authoring_candidate_materializer_n_materialized_lean_repair_tasks": 1,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_local_lean_checked": 1,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows": 0,
+    }
+
+    missing_status = (
+        runtime_module._runtime_exact_semantic_definition_candidate_verifier_contract_status(
+            missing_payload,
+            context,
+        )
+    )
+
+    assert missing_status["contract_required"] is True
+    assert missing_status["contract_satisfied"] is False
+    assert missing_status["candidate_materializer_contract_satisfied"] is True
+    assert missing_status["materialized_lean_repair_contract_satisfied"] is True
+    assert missing_status["materialized_feedback_rows_contract_satisfied"] is False
+    assert missing_status["status"] == (
+        "EXACT_SEMANTIC_MATERIALIZED_FEEDBACK_ROWS_REQUIRED_BUT_MISSING"
+    )
+
+    capability_payload = {
+        **missing_payload,
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_status": (
+            missing_status
+        ),
+        "source_theorem_exact_semantic_definition_candidate_materializer_contract_required": True,
+        "source_theorem_exact_semantic_definition_candidate_materializer_contract_satisfied": True,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_contract_required": True,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_contract_satisfied": True,
+        "source_theorem_exact_semantic_definition_materialized_feedback_rows_contract_required": True,
+        "source_theorem_exact_semantic_definition_materialized_feedback_rows_contract_satisfied": False,
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_required": True,
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_satisfied": False,
+    }
+    capability_rows = {
+        row["capability_id"]: row
+        for row in _runtime_coding_agent_capability_table(capability_payload)["rows"]
+    }
+    row = capability_rows["exact_semantic_definition_authoring_candidate_verifier_checked"]
+
+    assert row["passed"] is False
+    assert "candidate_verifier_contract_required=True" in row["evidence"]
+    assert "candidate_verifier_contract_satisfied=False" in row["evidence"]
+    assert "materialized_feedback_rows_contract_satisfied=False" in row["evidence"]
+    assert (
+        "contract_status=EXACT_SEMANTIC_MATERIALIZED_FEEDBACK_ROWS_REQUIRED_BUT_MISSING"
+        in row["evidence"]
+    )
+    truth_rows = {
+        row["evidence_id"]: row
+        for row in _runtime_evidence_truth_table_from_manifest(capability_payload)["rows"]
+    }
+    truth_row = truth_rows[
+        "exact_semantic_definition_candidate_materialization_feedback"
+    ]
+    assert truth_row["status"] == (
+        "EXACT_SEMANTIC_MATERIALIZED_FEEDBACK_ROWS_REQUIRED_BUT_MISSING"
+    )
+    assert truth_row["contract_required"] is True
+    assert truth_row["contract_satisfied"] is False
+
+    satisfied_payload = {
+        **missing_payload,
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_executor_n_runtime_learning_rows": 1,
+    }
+    satisfied_status = (
+        runtime_module._runtime_exact_semantic_definition_candidate_verifier_contract_status(
+            satisfied_payload,
+            context,
+        )
+    )
+    assert satisfied_status["contract_satisfied"] is True
+    assert satisfied_status["status"] == (
+        "EXACT_SEMANTIC_CANDIDATE_VERIFIER_CONTRACT_SATISFIED"
+    )
+
+
 def test_formalizer_prompt_explains_source_grounded_authoring_handoff_contract() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
@@ -32989,6 +33087,36 @@ def test_formalizer_prompt_explains_source_grounded_authoring_handoff_contract()
     )
     assert "source theorem binders" in prompt
     assert "required anchor bindings" in prompt
+    assert "not theorem proof evidence" in prompt
+
+
+def test_formalizer_prompt_explains_exact_semantic_candidate_materialization_contract() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_exact_semantic_definition_candidate_materializer": True,
+                "capability_eval_requires_exact_semantic_definition_materialized_lean_repair": True,
+                "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows": True,
+            }
+        },
+    )
+
+    assert (
+        "Exact semantic-definition candidate materialization feedback contract is required"
+        in prompt
+    )
+    assert "definition-only candidate packets" in prompt
+    assert "materialized Lean repair tasks" in prompt
+    assert "runtime learning feedback rows" in prompt
     assert "not theorem proof evidence" in prompt
 
 

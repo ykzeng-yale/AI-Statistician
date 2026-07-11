@@ -65,7 +65,7 @@ FORMALIZER_BOUNDARY = (
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
-FORMALIZER_MAX_TEXT_CHARS = 240
+FORMALIZER_MAX_TEXT_CHARS = 200
 
 
 def _is_compaction_path_key(key: Any) -> bool:
@@ -1528,6 +1528,19 @@ def _feedback_requires_source_grounded_exact_semantic_authoring_handoff(
     return _feedback_contract_flag(
         feedback,
         "capability_eval_requires_exact_semantic_definition_source_grounded_authoring_handoff",
+    )
+
+
+def _feedback_requires_exact_semantic_candidate_materialization_contract(
+    feedback: Mapping[str, Any] | None,
+) -> bool:
+    return any(
+        _feedback_contract_flag(feedback, flag)
+        for flag in (
+            "capability_eval_requires_exact_semantic_definition_candidate_materializer",
+            "capability_eval_requires_exact_semantic_definition_materialized_lean_repair",
+            "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows",
+        )
     )
 
 
@@ -6447,6 +6460,22 @@ def _formalizer_mode_specific_instructions(
             "This handoff is runtime capability evidence for downstream Lean/RAG/"
             "ProofEngineer workers, not theorem proof evidence."
         )
+    if _feedback_requires_exact_semantic_candidate_materialization_contract(
+        runtime_environment_feedback
+    ):
+        instructions.append(
+            "Exact semantic-definition candidate materialization feedback contract is "
+            "required: when exact semantic-definition authoring is used, emit "
+            "definition-only candidate packets with stable candidate ids, Lean "
+            "declaration names, source-anchor provenance, and enough binder context "
+            "for the candidate materializer to create materialized Lean repair tasks. "
+            "Route those tasks through local Lean/AXLE diagnostics and persist "
+            "runtime learning feedback rows back to Formalizer/ProofEngineer. If the "
+            "packet cannot be materialized, emit a machine-routable formal-gap or "
+            "source-lookup work order naming the missing API, import, binder, anchor, "
+            "or semantic definition. This is runtime repair-loop evidence, not "
+            "theorem proof evidence."
+        )
     materialization_agenda_rows = [
         row
         for row in high_priority_agenda
@@ -10661,6 +10690,14 @@ def _source_theorem_candidate_materialization_contract(
 
 
 def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if str(key) in {"semantic_alignment_blockers", "semantic_alignment_constraints"}:
+        if isinstance(value, str):
+            return value[:280]
+        if isinstance(value, list | tuple):
+            return [
+                child[:280] if isinstance(child, str) else _compact_value(child)
+                for child in list(value)[:5]
+            ]
     if key in (
         "validator_ready_copy_contract_summary",
         "pseudo_formal_failure_copy_contract_summary",

@@ -1966,6 +1966,243 @@ def _runtime_exact_semantic_definition_authoring_contract_fields(
     }
 
 
+def _runtime_exact_semantic_definition_candidate_verifier_contract_status(
+    payload: Mapping[str, Any],
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare exact semantic-definition materialization contracts with evidence."""
+
+    candidate_materializer_required = (
+        _runtime_requires_exact_semantic_definition_candidate_materializer(
+            context,
+            environment_feedback,
+        )
+    )
+    materialized_lean_repair_required = (
+        _runtime_requires_exact_semantic_definition_materialized_lean_repair(
+            context,
+            environment_feedback,
+        )
+    )
+    materialized_feedback_rows_required = (
+        _runtime_requires_exact_semantic_definition_materialized_feedback_rows(
+            context,
+            environment_feedback,
+        )
+    )
+    provenance = _runtime_exact_semantic_definition_authoring_provenance(payload)
+    n_materializer_candidate_packets = int(
+        provenance.get("n_materializer_candidate_packets", 0) or 0
+    )
+    n_materialized_lean_repair_tasks = int(
+        provenance.get("n_materialized_lean_repair_tasks", 0) or 0
+    )
+    n_materialized_local_lean_checked = int(
+        provenance.get("n_materialized_local_lean_checked", 0) or 0
+    )
+    n_materialized_feedback_rows = int(
+        provenance.get("n_materialized_feedback_rows", 0) or 0
+    )
+    candidate_materializer_satisfied = (
+        not candidate_materializer_required
+        or n_materializer_candidate_packets > 0
+        or n_materialized_lean_repair_tasks > 0
+    )
+    materialized_lean_repair_satisfied = (
+        not materialized_lean_repair_required
+        or (
+            n_materialized_lean_repair_tasks > 0
+            and n_materialized_local_lean_checked > 0
+        )
+    )
+    materialized_feedback_rows_satisfied = (
+        not materialized_feedback_rows_required
+        or n_materialized_feedback_rows > 0
+    )
+    contract_required = bool(
+        candidate_materializer_required
+        or materialized_lean_repair_required
+        or materialized_feedback_rows_required
+    )
+    contract_satisfied = bool(
+        candidate_materializer_satisfied
+        and materialized_lean_repair_satisfied
+        and materialized_feedback_rows_satisfied
+    )
+    if candidate_materializer_required and not candidate_materializer_satisfied:
+        status = "EXACT_SEMANTIC_CANDIDATE_MATERIALIZER_REQUIRED_BUT_MISSING"
+        blocker = (
+            "runtime_requested_evidence_contract requires exact semantic-definition "
+            "candidate materializer output, but no candidate-materializer packets or "
+            "materialized Lean repair tasks were recorded"
+        )
+    elif materialized_lean_repair_required and not materialized_lean_repair_satisfied:
+        status = "EXACT_SEMANTIC_MATERIALIZED_LEAN_REPAIR_REQUIRED_BUT_MISSING"
+        blocker = (
+            "runtime_requested_evidence_contract requires materialized exact "
+            "semantic-definition Lean repair, but the runtime did not record both "
+            "materialized Lean repair tasks and local Lean/AXLE diagnostics"
+        )
+    elif materialized_feedback_rows_required and not materialized_feedback_rows_satisfied:
+        status = "EXACT_SEMANTIC_MATERIALIZED_FEEDBACK_ROWS_REQUIRED_BUT_MISSING"
+        blocker = (
+            "runtime_requested_evidence_contract requires persisted feedback rows "
+            "from the materialized exact semantic-definition Lean repair executor, "
+            "but no runtime learning feedback rows were recorded"
+        )
+    elif contract_required:
+        status = "EXACT_SEMANTIC_CANDIDATE_VERIFIER_CONTRACT_SATISFIED"
+        blocker = ""
+    else:
+        status = "NO_EXACT_SEMANTIC_CANDIDATE_VERIFIER_CONTRACT_REQUIRED"
+        blocker = ""
+    return {
+        "candidate_materializer_contract_required": bool(
+            candidate_materializer_required
+        ),
+        "materialized_lean_repair_contract_required": bool(
+            materialized_lean_repair_required
+        ),
+        "materialized_feedback_rows_contract_required": bool(
+            materialized_feedback_rows_required
+        ),
+        "candidate_materializer_contract_satisfied": bool(
+            candidate_materializer_satisfied
+        ),
+        "materialized_lean_repair_contract_satisfied": bool(
+            materialized_lean_repair_satisfied
+        ),
+        "materialized_feedback_rows_contract_satisfied": bool(
+            materialized_feedback_rows_satisfied
+        ),
+        "contract_required": contract_required,
+        "contract_satisfied": contract_satisfied,
+        "status": status,
+        "blocker": blocker,
+        "n_candidate_packets": int(provenance.get("n_candidate_packets", 0) or 0),
+        "n_materializer_candidate_packets": n_materializer_candidate_packets,
+        "n_materialized_lean_repair_tasks": n_materialized_lean_repair_tasks,
+        "n_materialized_local_lean_checked": n_materialized_local_lean_checked,
+        "n_materialized_feedback_rows": n_materialized_feedback_rows,
+        "required_channels": list(provenance.get("required_channels", []) or []),
+        "candidate_verifier_ready_channels": list(
+            provenance.get("candidate_verifier_ready_channels", []) or []
+        ),
+        "missing_candidate_verifier_channels": list(
+            provenance.get("missing_candidate_verifier_channels", []) or []
+        ),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_CANDIDATE_VERIFIER_CONTRACT_STATUS_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "Exact semantic-definition candidate materialization and local Lean "
+            "feedback are runtime repair-loop evidence only. They can unblock "
+            "Formalizer/ProofEngineer work, but they are not Lean proof evidence "
+            "and do not certify a source theorem."
+        ),
+    }
+
+
+def _runtime_exact_semantic_definition_candidate_verifier_contract_fields(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    status = (
+        payload.get(
+            "source_theorem_exact_semantic_definition_candidate_verifier_contract_status",
+            {},
+        )
+        if isinstance(
+            payload.get(
+                "source_theorem_exact_semantic_definition_candidate_verifier_contract_status",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
+    candidate_materializer_required = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_candidate_materializer_contract_required",
+            False,
+        )
+        or status.get("candidate_materializer_contract_required", False)
+    )
+    materialized_lean_repair_required = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_contract_required",
+            False,
+        )
+        or status.get("materialized_lean_repair_contract_required", False)
+    )
+    materialized_feedback_rows_required = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_feedback_rows_contract_required",
+            False,
+        )
+        or status.get("materialized_feedback_rows_contract_required", False)
+    )
+    candidate_materializer_satisfied = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_candidate_materializer_contract_satisfied",
+            False,
+        )
+        or status.get("candidate_materializer_contract_satisfied", False)
+    )
+    materialized_lean_repair_satisfied = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_lean_repair_contract_satisfied",
+            False,
+        )
+        or status.get("materialized_lean_repair_contract_satisfied", False)
+    )
+    materialized_feedback_rows_satisfied = bool(
+        payload.get(
+            "source_theorem_exact_semantic_definition_materialized_feedback_rows_contract_satisfied",
+            False,
+        )
+        or status.get("materialized_feedback_rows_contract_satisfied", False)
+    )
+    contract_required = bool(
+        candidate_materializer_required
+        or materialized_lean_repair_required
+        or materialized_feedback_rows_required
+        or status.get("contract_required", False)
+    )
+    component_contract_required = bool(
+        candidate_materializer_required
+        or materialized_lean_repair_required
+        or materialized_feedback_rows_required
+    )
+    if status.get("contract_satisfied", False) is True:
+        contract_satisfied = True
+    elif contract_required and not component_contract_required:
+        contract_satisfied = False
+    else:
+        contract_satisfied = bool(
+            (not candidate_materializer_required or candidate_materializer_satisfied)
+            and (
+                not materialized_lean_repair_required
+                or materialized_lean_repair_satisfied
+            )
+            and (
+                not materialized_feedback_rows_required
+                or materialized_feedback_rows_satisfied
+            )
+        )
+    return {
+        "status": status,
+        "candidate_materializer_required": candidate_materializer_required,
+        "materialized_lean_repair_required": materialized_lean_repair_required,
+        "materialized_feedback_rows_required": materialized_feedback_rows_required,
+        "candidate_materializer_satisfied": candidate_materializer_satisfied,
+        "materialized_lean_repair_satisfied": materialized_lean_repair_satisfied,
+        "materialized_feedback_rows_satisfied": materialized_feedback_rows_satisfied,
+        "contract_required": contract_required,
+        "contract_satisfied": contract_satisfied,
+    }
+
+
 def _runtime_architect_control_truth(payload: Mapping[str, Any]) -> dict[str, Any]:
     n_architect_traces = _runtime_manifest_int(
         payload,
@@ -2147,6 +2384,9 @@ def _runtime_evidence_truth_table_from_manifest(
     exact_semantic_authoring_contract = (
         _runtime_exact_semantic_definition_authoring_contract_fields(payload)
     )
+    exact_semantic_candidate_verifier_contract = (
+        _runtime_exact_semantic_definition_candidate_verifier_contract_fields(payload)
+    )
     exact_semantic_authoring_contract_required = bool(
         exact_semantic_authoring_contract["authoring_required"]
     )
@@ -2204,6 +2444,41 @@ def _runtime_evidence_truth_table_from_manifest(
             "post_runtime_live_ready="
             f"{exact_semantic_authoring['post_runtime_live_ready']}"
         )
+    exact_semantic_candidate_verifier_contract_required = bool(
+        exact_semantic_candidate_verifier_contract["contract_required"]
+    )
+    exact_semantic_candidate_verifier_contract_satisfied = bool(
+        exact_semantic_candidate_verifier_contract["contract_satisfied"]
+    )
+    exact_semantic_candidate_verifier_contract_status = (
+        exact_semantic_candidate_verifier_contract["status"]
+    )
+    if not exact_semantic_candidate_verifier_contract_required:
+        exact_semantic_candidate_verifier_status = "NOT_REQUIRED"
+    elif exact_semantic_candidate_verifier_contract_satisfied:
+        exact_semantic_candidate_verifier_status = str(
+            exact_semantic_candidate_verifier_contract_status.get(
+                "status",
+                "EXACT_SEMANTIC_CANDIDATE_VERIFIER_CONTRACT_SATISFIED",
+            )
+        )
+    else:
+        exact_semantic_candidate_verifier_status = str(
+            exact_semantic_candidate_verifier_contract_status.get(
+                "status",
+                "EXACT_SEMANTIC_CANDIDATE_VERIFIER_CONTRACT_UNSATISFIED",
+            )
+        )
+    exact_semantic_candidate_verifier_blocker = str(
+        exact_semantic_candidate_verifier_contract_status.get("blocker", "") or ""
+    )
+    exact_semantic_candidate_verifier_count = (
+        int(exact_semantic_authoring["n_materialized_feedback_rows"])
+        or int(exact_semantic_authoring["n_materialized_local_lean_checked"])
+        or int(exact_semantic_authoring["n_materialized_lean_repair_tasks"])
+        or int(exact_semantic_authoring["n_materializer_candidate_packets"])
+        or int(exact_semantic_authoring["n_candidate_packets"])
+    )
     architect_truth = _runtime_architect_control_truth(payload)
     rows = [
         _runtime_manifest_truth_row(
@@ -2269,6 +2544,20 @@ def _runtime_evidence_truth_table_from_manifest(
             ),
             proof_evidence=False,
             blocker=exact_semantic_authoring_blocker,
+        ),
+        _runtime_manifest_truth_row(
+            "exact_semantic_definition_candidate_materialization_feedback",
+            exact_semantic_candidate_verifier_status,
+            exact_semantic_candidate_verifier_count,
+            (
+                "Exact semantic-definition candidate materialization, local "
+                "Lean/AXLE diagnostics, and persisted feedback rows are repair-loop "
+                "evidence only; they are not theorem proof evidence."
+            ),
+            proof_evidence=False,
+            blocker=exact_semantic_candidate_verifier_blocker,
+            contract_required=exact_semantic_candidate_verifier_contract_required,
+            contract_satisfied=exact_semantic_candidate_verifier_contract_satisfied,
         ),
         _runtime_manifest_truth_row(
             "exact_source_proof_body_attempt",
@@ -2764,9 +3053,15 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     exact_semantic_authoring_contract = (
         _runtime_exact_semantic_definition_authoring_contract_fields(payload)
     )
+    exact_semantic_candidate_verifier_contract = (
+        _runtime_exact_semantic_definition_candidate_verifier_contract_fields(payload)
+    )
     exact_semantic_authoring_contract_status = exact_semantic_authoring_contract[
         "status"
     ]
+    exact_semantic_candidate_verifier_contract_status = (
+        exact_semantic_candidate_verifier_contract["status"]
+    )
     exact_semantic_authoring_contract_required = bool(
         exact_semantic_authoring_contract["authoring_required"]
     )
@@ -2778,6 +3073,30 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     )
     exact_semantic_authoring_source_grounded_contract_satisfied = bool(
         exact_semantic_authoring_contract["source_grounded_satisfied"]
+    )
+    exact_semantic_candidate_verifier_contract_required = bool(
+        exact_semantic_candidate_verifier_contract["contract_required"]
+    )
+    exact_semantic_candidate_verifier_contract_satisfied = bool(
+        exact_semantic_candidate_verifier_contract["contract_satisfied"]
+    )
+    exact_semantic_candidate_materializer_contract_required = bool(
+        exact_semantic_candidate_verifier_contract["candidate_materializer_required"]
+    )
+    exact_semantic_candidate_materializer_contract_satisfied = bool(
+        exact_semantic_candidate_verifier_contract["candidate_materializer_satisfied"]
+    )
+    exact_semantic_materialized_lean_repair_contract_required = bool(
+        exact_semantic_candidate_verifier_contract["materialized_lean_repair_required"]
+    )
+    exact_semantic_materialized_lean_repair_contract_satisfied = bool(
+        exact_semantic_candidate_verifier_contract["materialized_lean_repair_satisfied"]
+    )
+    exact_semantic_materialized_feedback_rows_contract_required = bool(
+        exact_semantic_candidate_verifier_contract["materialized_feedback_rows_required"]
+    )
+    exact_semantic_materialized_feedback_rows_contract_satisfied = bool(
+        exact_semantic_candidate_verifier_contract["materialized_feedback_rows_satisfied"]
     )
     exact_semantic_authoring_required = bool(
         exact_semantic_authoring["required"]
@@ -2794,11 +3113,19 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             or exact_semantic_authoring_contract_satisfied
         )
     )
+    exact_semantic_authoring_source_grounded_check_required = bool(
+        exact_semantic_authoring_source_grounded_contract_required
+        or int(exact_semantic_authoring["n_prompt_packets"]) > 0
+        or int(exact_semantic_authoring["n_source_grounded_prompt_packets"]) > 0
+    )
     exact_semantic_authoring_source_grounded_ready = bool(
-        exact_semantic_authoring["source_grounded_handoff_ready"]
-        and (
-            not exact_semantic_authoring_source_grounded_contract_required
-            or exact_semantic_authoring_source_grounded_contract_satisfied
+        not exact_semantic_authoring_source_grounded_check_required
+        or (
+            exact_semantic_authoring["source_grounded_handoff_ready"]
+            and (
+                not exact_semantic_authoring_source_grounded_contract_required
+                or exact_semantic_authoring_source_grounded_contract_satisfied
+            )
         )
     )
     exact_semantic_authoring_generic_attempts = int(
@@ -2806,6 +3133,10 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     )
     exact_semantic_authoring_candidate_verifier_ready = bool(
         exact_semantic_authoring["candidate_verifier_ready"]
+        and (
+            not exact_semantic_candidate_verifier_contract_required
+            or exact_semantic_candidate_verifier_contract_satisfied
+        )
     )
     llm_formalizer_proposals = _runtime_manifest_int(
         payload,
@@ -3321,6 +3652,8 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             "evidence": (
                 "required="
                 f"{exact_semantic_authoring_required}; "
+                "source_grounded_check_required="
+                f"{exact_semantic_authoring_source_grounded_check_required}; "
                 "required_channels="
                 f"{exact_semantic_authoring['required_channels']}; "
                 "prompt_ready_channels="
@@ -3453,6 +3786,24 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
                 f"{exact_semantic_authoring['n_materialized_local_lean_checked']}; "
                 "materialized_feedback_rows="
                 f"{exact_semantic_authoring['n_materialized_feedback_rows']}; "
+                "candidate_verifier_contract_required="
+                f"{exact_semantic_candidate_verifier_contract_required}; "
+                "candidate_verifier_contract_satisfied="
+                f"{exact_semantic_candidate_verifier_contract_satisfied}; "
+                "candidate_materializer_contract_required="
+                f"{exact_semantic_candidate_materializer_contract_required}; "
+                "candidate_materializer_contract_satisfied="
+                f"{exact_semantic_candidate_materializer_contract_satisfied}; "
+                "materialized_lean_repair_contract_required="
+                f"{exact_semantic_materialized_lean_repair_contract_required}; "
+                "materialized_lean_repair_contract_satisfied="
+                f"{exact_semantic_materialized_lean_repair_contract_satisfied}; "
+                "materialized_feedback_rows_contract_required="
+                f"{exact_semantic_materialized_feedback_rows_contract_required}; "
+                "materialized_feedback_rows_contract_satisfied="
+                f"{exact_semantic_materialized_feedback_rows_contract_satisfied}; "
+                "contract_status="
+                f"{exact_semantic_candidate_verifier_contract_status.get('status', '')}; "
                 "post_runtime_attached="
                 f"{exact_semantic_authoring['post_runtime_attached']}; "
                 "post_runtime_lineage_ok="
@@ -3465,7 +3816,11 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             "blocker": (
                 ""
                 if exact_semantic_authoring_candidate_verifier_ready
-                else (
+                else str(
+                    exact_semantic_candidate_verifier_contract_status.get("blocker", "")
+                    or ""
+                )
+                or (
                     "live exact semantic-definition authoring produced or should "
                     "have produced definition candidates, but one or more "
                     "required primary/retry/late lanes did not route their own "
@@ -40225,6 +40580,72 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_authoring_contract_boundary"
     ] = str(exact_semantic_authoring_contract_status["boundary"])
+    exact_semantic_candidate_verifier_contract_status = (
+        _runtime_exact_semantic_definition_candidate_verifier_contract_status(
+            manifest,
+            runtime_formalizer_contract_context,
+        )
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_status"
+    ] = exact_semantic_candidate_verifier_contract_status
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_materializer_contract_required"
+    ] = bool(
+        exact_semantic_candidate_verifier_contract_status[
+            "candidate_materializer_contract_required"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_materializer_contract_satisfied"
+    ] = bool(
+        exact_semantic_candidate_verifier_contract_status[
+            "candidate_materializer_contract_satisfied"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_contract_required"
+    ] = bool(
+        exact_semantic_candidate_verifier_contract_status[
+            "materialized_lean_repair_contract_required"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_lean_repair_contract_satisfied"
+    ] = bool(
+        exact_semantic_candidate_verifier_contract_status[
+            "materialized_lean_repair_contract_satisfied"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_feedback_rows_contract_required"
+    ] = bool(
+        exact_semantic_candidate_verifier_contract_status[
+            "materialized_feedback_rows_contract_required"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_materialized_feedback_rows_contract_satisfied"
+    ] = bool(
+        exact_semantic_candidate_verifier_contract_status[
+            "materialized_feedback_rows_contract_satisfied"
+        ]
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_required"
+    ] = bool(exact_semantic_candidate_verifier_contract_status["contract_required"])
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_satisfied"
+    ] = bool(exact_semantic_candidate_verifier_contract_status["contract_satisfied"])
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_status_label"
+    ] = str(exact_semantic_candidate_verifier_contract_status["status"])
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_blocker"
+    ] = str(exact_semantic_candidate_verifier_contract_status["blocker"])
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_verifier_contract_boundary"
+    ] = str(exact_semantic_candidate_verifier_contract_status["boundary"])
     manifest["runtime_evidence_truth_table"] = _runtime_evidence_truth_table_from_manifest(
         manifest
     )
@@ -47381,6 +47802,48 @@ def _runtime_requires_exact_semantic_definition_source_grounded_authoring_handof
         flag=(
             "capability_eval_requires_exact_semantic_definition_"
             "source_grounded_authoring_handoff"
+        ),
+        subsystems=("FormalizationEvaluator", "ProofEngineer"),
+    )
+
+
+def _runtime_requires_exact_semantic_definition_candidate_materializer(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> bool:
+    return _runtime_contract_flag_for_subsystems(
+        context,
+        environment_feedback,
+        flag="capability_eval_requires_exact_semantic_definition_candidate_materializer",
+        subsystems=("FormalizationEvaluator", "ProofEngineer"),
+    )
+
+
+def _runtime_requires_exact_semantic_definition_materialized_lean_repair(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> bool:
+    return _runtime_contract_flag_for_subsystems(
+        context,
+        environment_feedback,
+        flag=(
+            "capability_eval_requires_exact_semantic_definition_"
+            "materialized_lean_repair"
+        ),
+        subsystems=("FormalizationEvaluator", "ProofEngineer"),
+    )
+
+
+def _runtime_requires_exact_semantic_definition_materialized_feedback_rows(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+) -> bool:
+    return _runtime_contract_flag_for_subsystems(
+        context,
+        environment_feedback,
+        flag=(
+            "capability_eval_requires_exact_semantic_definition_"
+            "materialized_feedback_rows"
         ),
         subsystems=("FormalizationEvaluator", "ProofEngineer"),
     )
@@ -77493,6 +77956,32 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
             "not proof evidence; the next worker must review/import exact "
             "semantics and pass local Lean/AXLE before proof-body search resumes."
         )
+        anchor_search_targets = [
+            str(value).strip()
+            for value in (
+                [
+                    *(row.get("search_targets", []) or []),
+                    *_runtime_row_nested_string_values(
+                        row,
+                        "premise_semantic_anchor_binder_names",
+                        "required_semantic_anchor_reference_names",
+                        "missing_premise_semantic_anchor_binder_names",
+                    ),
+                    *_runtime_row_nested_string_values(
+                        source_seed,
+                        "premise_semantic_anchor_binder_names",
+                        "required_semantic_anchor_reference_names",
+                        "missing_premise_semantic_anchor_binder_names",
+                        "source_to_bridge_premise_semantic_anchor_binder_names",
+                        "source_to_bridge_required_semantic_anchor_reference_names",
+                        "source_to_bridge_missing_premise_semantic_anchor_binder_names",
+                    ),
+                ]
+            )
+            if str(value).strip()
+        ]
+        if anchor_search_targets:
+            row["search_targets"] = list(dict.fromkeys(anchor_search_targets))
         _normalize_exact_semantic_work_order_status_from_local_definition(row)
         _normalize_runtime_exact_semantic_candidate_request_fields(row)
     return rows
