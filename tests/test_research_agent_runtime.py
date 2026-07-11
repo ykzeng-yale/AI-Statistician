@@ -7463,6 +7463,26 @@ def test_runtime_evidence_summary_counts_live_formalizer_vs_deterministic_seed()
     summary = _runtime_evidence_summary(
         [
             {
+                "traces": [
+                    {
+                        "task": {"task_id": "formalize:question:abc123"},
+                        "next_task_id": (
+                            "formalize-proofstate-repair:question:def456"
+                        ),
+                        "failure_classification": (
+                            "formalizer_proof_state_repair_requested"
+                        ),
+                    },
+                    {
+                        "task": {
+                            "task_id": (
+                                "formalize-proofstate-repair:question:def456"
+                            )
+                        },
+                        "next_task_id": "critic:question:ghi789",
+                        "failure_classification": "",
+                    },
+                ],
                 "blackboard": {
                     "artifacts": {
                         "live": live_manifest,
@@ -7477,6 +7497,9 @@ def test_runtime_evidence_summary_counts_live_formalizer_vs_deterministic_seed()
     assert proof["n_llm_formalizer_proof_engineer_proposals"] == 1
     assert proof["n_deterministic_formalizer_work_order_seed_proposals"] == 1
     assert proof["n_theorem_reduction_closure_work_orders"] == 1
+    assert proof["n_formalizer_proof_state_repair_requests"] == 1
+    assert proof["n_formalizer_proof_state_repair_tasks_executed"] == 1
+    assert proof["has_formalizer_proof_state_repair_loop"] is True
 
 
 def test_runtime_capability_scorecard_rejects_deterministic_formalizer_seed_only() -> None:
@@ -7500,14 +7523,20 @@ def test_runtime_capability_scorecard_rejects_deterministic_formalizer_seed_only
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert rows["llm_formalizer_proofengineer_proposal_observed"]["passed"] is False
+    assert rows["formalizer_proof_state_repair_loop_observed"]["passed"] is False
     assert "deterministic theorem-closure seeds" in rows[
         "llm_formalizer_proofengineer_proposal_observed"
     ]["blocker"]
+    assert "debugged outside the product" in rows[
+        "formalizer_proof_state_repair_loop_observed"
+    ]["blocker"]
 
     payload["n_llm_formalizer_proof_engineer_proposals"] = 1
+    payload["n_formalizer_proof_state_repair_requests"] = 1
     scorecard = _runtime_capability_scorecard(payload)
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert rows["llm_formalizer_proofengineer_proposal_observed"]["passed"] is True
+    assert rows["formalizer_proof_state_repair_loop_observed"]["passed"] is True
 
 
 def test_runtime_audit_resolves_workspace_relative_run_paths(tmp_path: Path) -> None:

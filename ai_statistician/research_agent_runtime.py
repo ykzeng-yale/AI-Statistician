@@ -2164,6 +2164,15 @@ def run_research_agent_runtime(
         "n_deterministic_formalizer_work_order_seed_proposals": evidence_summary[
             "proof"
         ]["n_deterministic_formalizer_work_order_seed_proposals"],
+        "n_formalizer_proof_state_repair_requests": evidence_summary["proof"][
+            "n_formalizer_proof_state_repair_requests"
+        ],
+        "n_formalizer_proof_state_repair_tasks_executed": evidence_summary["proof"][
+            "n_formalizer_proof_state_repair_tasks_executed"
+        ],
+        "formalizer_proof_state_repair_loop_observed": evidence_summary["proof"][
+            "has_formalizer_proof_state_repair_loop"
+        ],
         "n_registered_proof_bank_obligation_candidates": proof_control_summary[
             "n_registered_proof_bank_obligation_candidates"
         ],
@@ -11233,6 +11242,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_full_frontier_theorem_proved": 0,
         "n_llm_formalizer_proof_engineer_proposals": 0,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
+        "n_formalizer_proof_state_repair_requests": 0,
+        "n_formalizer_proof_state_repair_tasks_executed": 0,
+        "has_formalizer_proof_state_repair_loop": False,
         "has_kernel_evidence": False,
         "has_formal_gaps": False,
         "has_formalization_gap_planner_bridge": False,
@@ -11302,6 +11314,27 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     verifier_names: set[str] = set()
     strengths: set[str] = set()
     for result in results:
+        traces = result.get("traces", [])
+        if isinstance(traces, list):
+            for trace in traces:
+                if not isinstance(trace, Mapping):
+                    continue
+                task = (
+                    trace.get("task", {})
+                    if isinstance(trace.get("task"), Mapping)
+                    else {}
+                )
+                task_id = str(task.get("task_id", "") or "")
+                next_task_id = str(trace.get("next_task_id", "") or "")
+                repair_requested = (
+                    str(trace.get("failure_classification", "") or "")
+                    == "formalizer_proof_state_repair_requested"
+                    or next_task_id.startswith("formalize-proofstate-repair:")
+                )
+                if repair_requested:
+                    proof["n_formalizer_proof_state_repair_requests"] += 1
+                if task_id.startswith("formalize-proofstate-repair:"):
+                    proof["n_formalizer_proof_state_repair_tasks_executed"] += 1
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
             continue
@@ -11535,6 +11568,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     )
     proof["has_theorem_reduction_closure_work_orders"] = (
         int(proof["n_theorem_reduction_closure_work_orders"]) > 0
+    )
+    proof["has_formalizer_proof_state_repair_loop"] = (
+        int(proof["n_formalizer_proof_state_repair_requests"]) > 0
+        or int(proof["n_formalizer_proof_state_repair_tasks_executed"]) > 0
     )
     proof["verifiers"] = sorted(verifier_names)
     proof["verification_strengths"] = sorted(strengths)

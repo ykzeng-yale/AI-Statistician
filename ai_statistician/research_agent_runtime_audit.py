@@ -1334,6 +1334,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "formalizer_proof_state_repair_loop_observed",
+            (
+                int(payload.get("n_formalizer_proof_state_repair_requests", 0) or 0)
+                > 0
+                or int(
+                    payload.get(
+                        "n_formalizer_proof_state_repair_tasks_executed",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+            ),
+            (
+                "n_formalizer_proof_state_repair_requests="
+                f"{payload.get('n_formalizer_proof_state_repair_requests')} "
+                "n_formalizer_proof_state_repair_tasks_executed="
+                f"{payload.get('n_formalizer_proof_state_repair_tasks_executed')}"
+            ),
+            (
+                "no Formalizer/ProofEngineer proof-state repair loop was observed; "
+                "local Lean/proof-state diagnostics must route back into a live "
+                "Formalizer repair turn rather than being debugged outside the product"
+            ),
+        ),
+        _scorecard_row(
             "source_theorem_promotion_proofengineer_bridge_ran",
             payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
             (
