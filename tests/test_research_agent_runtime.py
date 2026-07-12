@@ -57988,7 +57988,10 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
         )
         synthesized_path = out_dir / "candidate_artifacts" / "candidate_attempt.lean"
         synthesized_path.parent.mkdir(parents=True, exist_ok=True)
-        synthesized_path.write_text("def orderStat := 1\n", encoding="utf-8")
+        synthesized_path.write_text(
+            candidate_artifact_path.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
         repair_queue_manifest_path = (
             out_dir / "semantic_definition_repair_queue" / "manifest.json"
         )
@@ -58036,9 +58039,12 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
             ),
             "placeholder_symbol": "orderStat",
             "candidate_synthesis_status": (
-                "DEFINITION_SYNTHESIS_SEMANTIC_REVIEW_REQUIRED"
+                "DEFINITION_CANDIDATE_GENERATION_REQUIRED"
             ),
-            "replacement_applied": True,
+            "definition_candidate_review_mode": (
+                "llm_definition_candidate_generation_required"
+            ),
+            "replacement_applied": False,
             "synthesized_candidate_artifact_path": str(synthesized_path),
             "proof_evidence_status": (
                 "DEFINITION_CANDIDATE_SYNTHESIS_NOT_PROOF_EVIDENCE"
@@ -58053,8 +58059,10 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
             "runtime_learning_rows_jsonl": str(learning_path),
             "synthesized_candidate_artifact_path": str(synthesized_path),
             "n_synthesis_results": 1,
-            "n_replacements_applied": 1,
-            "n_forbidden_placeholder_definitions_after": 0,
+            "n_replacements_applied": 0,
+            "runtime_generated_lean_replacements_enabled": False,
+            "candidate_bytes_preserved": True,
+            "n_forbidden_placeholder_definitions_after": 1,
             "local_lean_requested": True,
             "local_lean_compiled": False,
             "local_definition_lean_checked": True,
@@ -58063,7 +58071,7 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
                 "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECKED_NOT_PROOF"
             ),
             "synthesis_status_counts": {
-                "DEFINITION_SYNTHESIS_LOCAL_LEAN_REACHED_PROOF_BODY": 1
+                "DEFINITION_CANDIDATE_GENERATION_REQUIRED": 1
             },
             "n_proof_body_recheck_queue_rows": 0,
             "semantic_definition_repair_queue_manifest": str(
@@ -58378,8 +58386,14 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
         manifest[
             "source_theorem_exact_semantic_definition_candidate_synthesis_n_replacements_applied"
         ]
-        == 1
+        == 0
     )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_runtime_generated_lean_replacements_enabled"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_candidate_bytes_preserved"
+    ] is True
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_candidate_synthesis_proof_evidence_status"
@@ -58408,7 +58422,7 @@ def test_runtime_internal_exact_semantic_definition_review_and_synthesis_append_
         manifest[
             "source_theorem_exact_semantic_definition_candidate_synthesis_status_counts"
         ]
-        == {"DEFINITION_SYNTHESIS_LOCAL_LEAN_REACHED_PROOF_BODY": 1}
+        == {"DEFINITION_CANDIDATE_GENERATION_REQUIRED": 1}
     )
     assert (
         manifest[
@@ -60863,7 +60877,7 @@ def test_source_theorem_integrator_blocker_memory_repairs_exact_target() -> None
     )
 
 
-def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
+def test_exact_source_theorem_materializer_preserves_invalid_candidate_for_repair(
     tmp_path: Path,
 ) -> None:
     queue_dir = tmp_path / "exact_source_queue"
@@ -60930,9 +60944,9 @@ def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
 
     assert payload["n_exact_source_theorem_candidate_artifacts"] == 1
     assert payload["n_route_probe_artifacts"] == 0
-    assert payload["n_live_goal_location_ready"] == 1
+    assert payload["n_live_goal_location_ready"] == 0
     row = payload["rows"][0]
-    assert row["ok"] is True
+    assert row["ok"] is False
     assert row["materialization_mode"] == "exact_source_theorem_candidate"
     assert row["target_lean_declaration"] == "exact_source_claim"
     source = artifact_path.read_text(encoding="utf-8")
@@ -60940,20 +60954,24 @@ def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
     assert "import StatInference.Conformal" in source
     assert "Bad;import Unsafe" not in source
     assert "theorem exact_source_claim" in source
-    assert "theorem exact_source_claim {Omega : Type _} {claim : Prop}" in source
-    assert "theorem exact_source_claim\n    {Omega : Type*} {claim : Prop}" not in source
-    assert "Type*" not in source
-    assert "sorry" not in source
+    assert "theorem exact_source_claim\n    {Omega : Type*} {claim : Prop}" in source
+    assert "Type*" in source
+    assert "sorry" in source
     assert "_route_probe" not in source
     assert "route probe" not in source.lower()
-    assert "ProofEngineer must fill the exact source-theorem proof body" in source
-    assert "fail_if_success trivial" in source
-    assert row["live_proof_state_request"]["target_lean_declaration"] == (
-        "exact_source_claim"
+    assert "ProofEngineer must fill the exact source-theorem proof body" not in source
+    assert "fail_if_success trivial" not in source
+    assert "candidate artifact contains forbidden tokens: sorry" in row["errors"]
+    assert row["live_proof_state_request"] == {}
+    assert row["candidate_statement_bytes_preserved"] is True
+    assert row["runtime_generated_lean_tactics_enabled"] is False
+    assert row["llm_candidate_generation_required"] is True
+    assert row["candidate_generation_request"]["request_kind"] == (
+        "exact_source_theorem_lean_candidate_generation"
     )
 
 
-def test_exact_source_theorem_materializer_infers_mathlib_for_stale_seed_queue(
+def test_exact_source_theorem_materializer_requires_explicit_imports(
     tmp_path: Path,
 ) -> None:
     queue_dir = tmp_path / "exact_source_queue"
@@ -61010,10 +61028,16 @@ def test_exact_source_theorem_materializer_infers_mathlib_for_stale_seed_queue(
     assert payload["n_exact_source_theorem_candidate_artifacts"] == 1
     assert payload["rows"][0]["ok"] is True
     source = artifact_path.read_text(encoding="utf-8")
-    assert source.startswith("import Mathlib\n\n/-!")
+    assert not source.startswith("import Mathlib")
+    assert "import Mathlib" not in source
     assert "theorem exact_source_claim" in source
     assert "Type*" not in source
     assert "sorry" not in source
+    assert "exact True.intro" in source
+    assert "AI_STAT_EVOLVE_BLOCK" not in source
+    assert payload["rows"][0]["candidate_statement_bytes_preserved"] is True
+    assert payload["rows"][0]["runtime_generated_lean_tactics_enabled"] is False
+    assert payload["rows"][0]["llm_candidate_generation_required"] is False
 
 
 def test_source_theorem_exact_candidate_lean_failure_enters_runtime_memory(

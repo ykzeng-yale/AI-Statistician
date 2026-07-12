@@ -11,8 +11,6 @@ from typing import Any, Mapping, Sequence
 from .exact_semantic_definition_policy import (
     exact_semantic_definition_candidate_risks,
     exact_semantic_definition_contract,
-    exact_semantic_definition_draft_definition,
-    exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_placeholder_policy,
@@ -20,9 +18,6 @@ from .exact_semantic_definition_policy import (
     exact_semantic_definition_source_lookup_terms,
 )
 from .fingerprint import stable_hash
-from .formal_verifier_agentic_proof_execution_materializer import (
-    _normalize_lean_statement_syntax,
-)
 
 
 ARTIFACT_KIND = "RuntimeSourceTheoremExactSemanticDefinitionSourceLookupManifest"
@@ -1072,10 +1067,6 @@ def run_source_theorem_exact_semantic_definition_candidate_synthesis(
         encoding="utf-8",
         errors="ignore",
     )
-    normalized_source_text = _normalize_lean_statement_syntax(source_text)
-    if source_text.endswith("\n") and not normalized_source_text.endswith("\n"):
-        normalized_source_text += "\n"
-    source_text = normalized_source_text
     synthesized_text = source_text
     synthesis_rows: list[dict[str, Any]] = []
     for row in review_results:
@@ -1088,47 +1079,31 @@ def run_source_theorem_exact_semantic_definition_candidate_synthesis(
         semantic_definition_risk_detected = bool(
             row.get("semantic_definition_risk_detected", False)
         ) or bool(row.get("semantic_definition_risks", []) or [])
-        draft_semantic_repair = bool(
-            allow_draft_semantic_repair and semantic_definition_risk_detected
-        )
         ready_for_definition_lean_check = (
             ready_for_definition_lean_check and not semantic_definition_risk_detected
         )
         replacement = ""
-        if (
-            not ready_for_definition_lean_check
-            and (not semantic_definition_risk_detected or draft_semantic_repair)
-        ):
-            replacement = _draft_definition_for_placeholder(placeholder)
         replacement_applied = False
         replacement_error = ""
         if ready_for_definition_lean_check:
             review_mode = "lean_review_existing_candidate"
-        elif draft_semantic_repair:
-            review_mode = "synthesize_draft_definition_from_semantic_risk_repair"
         elif semantic_definition_risk_detected:
             review_mode = "semantic_review_blocked_existing_candidate"
         else:
-            review_mode = "synthesize_draft_definition"
+            review_mode = "llm_definition_candidate_generation_required"
         if ready_for_definition_lean_check:
             replacement_error = ""
-        elif semantic_definition_risk_detected and not draft_semantic_repair:
+        elif semantic_definition_risk_detected:
             replacement_error = (
                 "candidate definition failed semantic review; requires reviewed "
                 "definition/import before proof-body search"
             )
-        elif replacement:
-            try:
-                synthesized_text = _replace_lean_definition_block(
-                    candidate_text=synthesized_text,
-                    symbol=placeholder,
-                    replacement=replacement,
-                )
-                replacement_applied = True
-            except ValueError as exc:
-                replacement_error = str(exc)
         else:
-            replacement_error = f"no draft definition available for {placeholder}"
+            replacement_error = (
+                "LLM/ProofEngineer must generate or retrieve a reviewed exact "
+                f"semantic definition for {placeholder}; runtime candidate "
+                "synthesis is disabled"
+            )
         synthesis_rows.append(
             _definition_candidate_synthesis_row(
                 row,
@@ -1285,6 +1260,11 @@ def run_source_theorem_exact_semantic_definition_candidate_synthesis(
         "n_replacements_applied": sum(
             1 for row in synthesis_rows if row.get("replacement_applied")
         ),
+        "runtime_generated_lean_replacements_enabled": False,
+        "legacy_draft_semantic_repair_requested": bool(allow_draft_semantic_repair),
+        "source_candidate_fingerprint": stable_hash(source_text),
+        "synthesized_candidate_fingerprint": stable_hash(synthesized_text),
+        "candidate_bytes_preserved": synthesized_text == source_text,
         "n_forbidden_placeholder_definitions_after": sum(
             1 for row in synthesis_rows if row.get("forbidden_placeholder_detected_after")
         ),
@@ -1623,7 +1603,10 @@ def _export_candidate_synthesis_semantic_definition_repair_queue(
 def _semantic_definition_repair_queue_needed(row: Mapping[str, Any]) -> bool:
     return (
         str(row.get("definition_candidate_review_mode", "") or "")
-        == "semantic_review_blocked_existing_candidate"
+        in {
+            "semantic_review_blocked_existing_candidate",
+            "llm_definition_candidate_generation_required",
+        }
         or bool(row.get("semantic_definition_risk_detected", False))
         or bool(row.get("semantic_definition_risks", []) or [])
         or bool(row.get("semantic_alignment_blockers", []) or [])
@@ -4299,11 +4282,7 @@ def _definition_candidate_synthesis_row(
             ]
         )[:20]
     )
-    semantic_review_note = (
-        _draft_definition_semantic_risk(placeholder)
-        if replacement_applied or review_mode == "synthesize_draft_definition"
-        else ""
-    )
+    semantic_review_note = ""
     replacement_semantic_risks = (
         _semantic_definition_risks(
             placeholder=placeholder,
@@ -4364,6 +4343,12 @@ def _definition_candidate_synthesis_row(
         recommended_next_action = (
             "replace or import reviewed exact semantic definitions before local "
             "proof-body search; do not repair this by tactic search"
+        )
+    elif review_mode == "llm_definition_candidate_generation_required":
+        recommended_next_action = (
+            "route the exact candidate, source anchors, semantic contract, and "
+            "compiler feedback to Formalizer/ProofEngineer for LLM or retrieval-"
+            "grounded definition generation, then rerun local Lean unchanged"
         )
     elif replacement_applied:
         recommended_next_action = (
@@ -4707,14 +4692,6 @@ def _learning_row_from_semantic_definition_repair_queue(
     }
 
 
-def _draft_definition_for_placeholder(placeholder: str) -> str:
-    return exact_semantic_definition_draft_definition(placeholder)
-
-
-def _draft_definition_semantic_risk(placeholder: str) -> str:
-    return exact_semantic_definition_draft_semantic_risk(placeholder)
-
-
 def _definition_only_candidate_text(candidate_text: str) -> str:
     lines = candidate_text.splitlines()
     first_theorem_index = next(
@@ -4756,25 +4733,6 @@ def _definition_only_candidate_text(candidate_text: str) -> str:
     return "\n".join(definition_only_lines) + "\n"
 
 
-def _replace_lean_definition_block(
-    *,
-    candidate_text: str,
-    symbol: str,
-    replacement: str,
-) -> str:
-    block = _lean_definition_block(candidate_text=candidate_text, symbol=symbol)
-    if block is None:
-        raise ValueError(f"definition block not found for {symbol}")
-    start_line, block_text = block
-    lines = candidate_text.splitlines()
-    start_index = start_line - 1
-    block_line_count = len(block_text.splitlines())
-    end_index = start_index + block_line_count
-    replacement_lines = replacement.splitlines()
-    new_lines = [*lines[:start_index], *replacement_lines, *lines[end_index:]]
-    return "\n".join(new_lines) + ("\n" if candidate_text.endswith("\n") else "")
-
-
 def _candidate_synthesis_status(
     row: Mapping[str, Any],
     *,
@@ -4796,6 +4754,8 @@ def _candidate_synthesis_status(
         return "DEFINITION_REVIEW_CANDIDATE_WRITTEN"
     if review_mode == "semantic_review_blocked_existing_candidate":
         return "DEFINITION_REVIEW_SEMANTIC_RISK_BLOCKED"
+    if review_mode == "llm_definition_candidate_generation_required":
+        return "DEFINITION_CANDIDATE_GENERATION_REQUIRED"
     if row.get("replacement_error"):
         return "DEFINITION_SYNTHESIS_REPLACEMENT_FAILED"
     if forbidden_after:

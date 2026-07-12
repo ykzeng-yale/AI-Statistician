@@ -200,6 +200,27 @@ checks the selected Lake project for `Mathlib.olean` before any model call.
 No Lean grammar, tactic sequence, theorem-specific proof, or generated-output
 patch was encoded in this change.
 
+Ninth concrete change in this lane: live Lean diagnostics are becoming
+candidate-preserving. Formal-environment signature probes now copy the exact
+upstream candidate bytes and record source/probe fingerprints instead of
+rewriting imports, namespaces, statements, or missing primitives. Exact
+semantic-definition routing no longer normalizes `Type*`, declaration layout,
+or `orderStat` witnesses; guesses `import Mathlib`; injects local signature
+preludes; applies literal/regex statement replacements; or installs policy-pack
+draft definitions. The historical draft-repair flags remain accepted only for
+manifest compatibility and always export typed Formalizer/ProofEngineer work.
+Policy packs retain semantic contracts, source anchors, retrieval aliases,
+risk rules, and forbidden shortcuts, but no executable Lean answer templates.
+Local Lean/LSP/OpenProver now see the candidate that the coding agent actually
+emitted, so failure and success attribution remains honest.
+The exact-source materializer also preserves the emitted declaration and proof
+body instead of replacing `sorry` or inserting an evolve-block tactic. A
+forbidden placeholder now makes the row fail closed and emits a hash-bound
+LLM/ProofEngineer generation request. Imports are accepted only when supplied
+explicitly by the upstream agent. Generic route probes in the materializer and
+the source-to-bridge/adapter lanes remain legacy static scaffolds; they are
+tracked as the next migration target and are not being mislabeled as repaired.
+
 Live evidence collected during this lane:
 
 - `runs/main_worker_s14_two_family_fresh_live_20260712_v1/research_agent_runtime_manifest.json`:

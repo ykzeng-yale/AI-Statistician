@@ -15844,15 +15844,18 @@ def build_parser() -> argparse.ArgumentParser:
     source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
         "--candidate-artifact",
         required=True,
-        help="exact source theorem Lean candidate artifact to repair",
+        help=(
+            "exact source theorem Lean candidate artifact to preserve, inspect, "
+            "and route for LLM/ProofEngineer repair"
+        ),
     )
     source_theorem_exact_semantic_definition_candidate_synthesis.add_argument(
         "--allow-draft-semantic-repair",
         action="store_true",
         help=(
-            "opt in to replacing semantically risky known placeholders with "
-            "non-proof draft definitions; default remains to block and export a "
-            "review queue"
+            "deprecated compatibility flag: record that legacy draft repair was "
+            "requested, but never rewrite Lean; export an LLM/ProofEngineer "
+            "semantic-definition repair queue"
         ),
     )
     exact_definition_synthesis_recheck_source = (
@@ -21520,25 +21523,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--source-theorem-exact-semantic-definition-candidate-synthesis",
         action="store_true",
         help=(
-            "after closure review finds placeholder definitions, synthesize a "
-            "draft non-vacuous candidate artifact and append non-proof learning rows"
+            "after closure review, preserve the exact candidate, append non-proof "
+            "learning rows, and route unresolved definitions to the LLM/ProofEngineer"
         ),
     )
     research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-candidate-synthesis-allow-draft-semantic-repair",
         action="store_true",
         help=(
-            "opt in to replacing semantically risky known exact-definition "
-            "placeholders with non-proof draft definitions; default remains to "
-            "block and export a semantic-definition repair queue"
+            "deprecated compatibility flag: record the request but never replace "
+            "Lean definitions; block proof-body search and export a typed repair queue"
         ),
     )
     research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-candidate-synthesis-local-lean",
         action="store_true",
         help=(
-            "when exact semantic-definition candidate synthesis is enabled, run "
-            "local Lean on the synthesized candidate as diagnostics only"
+            "when exact semantic-definition candidate routing is enabled, run local "
+            "Lean on the byte-preserved candidate as diagnostics only"
         ),
     )
     research_agent_runtime.add_argument(

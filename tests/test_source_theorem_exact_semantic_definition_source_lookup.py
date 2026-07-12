@@ -2071,7 +2071,7 @@ def test_exact_semantic_definition_closure_review_flags_semantic_risk(
     )
 
 
-def test_exact_semantic_definition_candidate_synthesis_can_opt_into_draft_semantic_repair(
+def test_exact_semantic_definition_candidate_synthesis_ignores_legacy_draft_repair(
     tmp_path: Path,
 ) -> None:
     review_results = tmp_path / "review_results.jsonl"
@@ -2197,24 +2197,27 @@ def test_exact_semantic_definition_candidate_synthesis_can_opt_into_draft_semant
         allow_draft_semantic_repair=True,
     )
 
-    assert synthesis_manifest["n_replacements_applied"] == 2
-    assert synthesis_manifest["n_semantic_definition_repair_queue_rows"] == 0
-    assert synthesis_manifest["n_proof_body_recheck_queue_rows"] == 1
+    assert synthesis_manifest["n_replacements_applied"] == 0
+    assert synthesis_manifest["runtime_generated_lean_replacements_enabled"] is False
+    assert synthesis_manifest["legacy_draft_semantic_repair_requested"] is True
+    assert synthesis_manifest["candidate_bytes_preserved"] is True
+    assert synthesis_manifest["source_candidate_fingerprint"] == synthesis_manifest[
+        "synthesized_candidate_fingerprint"
+    ]
+    assert synthesis_manifest["n_semantic_definition_repair_queue_rows"] == 2
+    assert synthesis_manifest["n_proof_body_recheck_queue_rows"] == 0
     assert synthesis_manifest["semantic_definition_typecheck_evidence_status"] == (
         "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
     )
     assert synthesis_manifest["synthesis_status_counts"] == {
-        "DEFINITION_SYNTHESIS_CANDIDATE_WRITTEN": 2
+        "DEFINITION_REVIEW_SEMANTIC_RISK_BLOCKED": 2
     }
     synthesized_text = Path(
         synthesis_manifest["synthesized_candidate_artifact_path"]
     ).read_text(encoding="utf-8")
-    assert "P.real {ω | s i ω ≤ s j ω}" not in synthesized_text
-    assert "Finset.univ.image" not in synthesized_text
-    assert "Equiv.Perm" in synthesized_text
-    assert "MeasureTheory.Measure.map" in synthesized_text
-    assert "List.ofFn" in synthesized_text
-    assert "mergeSort" in synthesized_text
+    assert synthesized_text == candidate.read_text(encoding="utf-8")
+    assert "P.real {ω | s i ω ≤ s j ω}" in synthesized_text
+    assert "Finset.univ.image" in synthesized_text
     rows = [
         json.loads(line)
         for line in Path(
@@ -2223,11 +2226,11 @@ def test_exact_semantic_definition_candidate_synthesis_can_opt_into_draft_semant
     ]
     assert all(
         row["definition_candidate_review_mode"]
-        == "synthesize_draft_definition_from_semantic_risk_repair"
+        == "semantic_review_blocked_existing_candidate"
         for row in rows
     )
-    assert all(row["semantic_definition_risk_detected"] is False for row in rows)
-    assert all(row["semantic_alignment_blockers"] == [] for row in rows)
+    assert all(row["semantic_definition_risk_detected"] is True for row in rows)
+    assert all(row["semantic_alignment_blockers"] for row in rows)
     assert all(
         row["proof_evidence_status"]
         == "DEFINITION_CANDIDATE_SYNTHESIS_NOT_PROOF_EVIDENCE"
@@ -2238,20 +2241,9 @@ def test_exact_semantic_definition_candidate_synthesis_can_opt_into_draft_semant
             encoding="utf-8"
         )
     )
-    recheck_row = recheck_manifest["rows"][0]
-    assert "Coverage event must be marginal over the joint draw" in recheck_row[
-        "semantic_alignment_constraints"
-    ]
-    assert "Coverage event must be marginal over the joint draw" in recheck_row[
-        "semantic_alignment_blockers"
-    ]
-    assert not any(
-        "stale" in value
-        for value in [
-            *recheck_row["semantic_alignment_constraints"],
-            *recheck_row["semantic_alignment_blockers"],
-        ]
-    )
+    assert recheck_manifest["rows"] == []
+    assert recheck_manifest["proof_body_recheck_blocked"] is True
+    assert recheck_manifest["n_semantic_definition_review_blocked_rows"] == 2
 
 
 def test_exact_semantic_definition_closure_review_accepts_permutation_exchangeable_for_lean_review(
@@ -2304,7 +2296,7 @@ def test_exact_semantic_definition_closure_review_accepts_permutation_exchangeab
     )
 
 
-def test_exact_semantic_definition_candidate_synthesis_replaces_forbidden_placeholders(
+def test_exact_semantic_definition_candidate_synthesis_routes_forbidden_placeholders(
     tmp_path: Path,
 ) -> None:
     queue = tmp_path / "work_orders.jsonl"
@@ -2410,21 +2402,22 @@ def test_exact_semantic_definition_candidate_synthesis_replaces_forbidden_placeh
     )
 
     assert synthesis_manifest["n_synthesis_results"] == 2
-    assert synthesis_manifest["n_replacements_applied"] == 2
-    assert synthesis_manifest["n_forbidden_placeholder_definitions_after"] == 0
+    assert synthesis_manifest["n_replacements_applied"] == 0
+    assert synthesis_manifest["runtime_generated_lean_replacements_enabled"] is False
+    assert synthesis_manifest["candidate_bytes_preserved"] is True
+    assert synthesis_manifest["source_candidate_fingerprint"] == synthesis_manifest[
+        "synthesized_candidate_fingerprint"
+    ]
+    assert synthesis_manifest["n_forbidden_placeholder_definitions_after"] == 2
     assert synthesis_manifest["proof_evidence_status"] == (
         "DEFINITION_CANDIDATE_SYNTHESIS_NOT_PROOF_EVIDENCE"
     )
     synthesized_text = Path(
         synthesis_manifest["synthesized_candidate_artifact_path"]
     ).read_text(encoding="utf-8")
-    assert "Prop := True" not in synthesized_text
-    assert "(ω : Ω) : ℝ := 0" not in synthesized_text
-    assert "Equiv.Perm" in synthesized_text
-    assert "MeasureTheory.Measure.map" in synthesized_text
-    assert "List.ofFn" in synthesized_text
-    assert "mergeSort" in synthesized_text
-    assert "Finset.univ.image" not in synthesized_text
+    assert synthesized_text == candidate.read_text(encoding="utf-8")
+    assert "Prop := True" in synthesized_text
+    assert "(ω : Ω) : ℝ := 0" in synthesized_text
     rows = [
         json.loads(line)
         for line in Path(
@@ -2438,10 +2431,15 @@ def test_exact_semantic_definition_candidate_synthesis_replaces_forbidden_placeh
     )
     assert all(row["source_theorem_kernel_evidence_eligible"] is False for row in rows)
     assert all(row["semantic_alignment_constraints"] for row in rows)
-    assert all(row["semantic_alignment_blockers"] == [] for row in rows)
+    assert all(row["semantic_alignment_blockers"] for row in rows)
+    assert all(
+        row["definition_candidate_review_mode"]
+        == "llm_definition_candidate_generation_required"
+        for row in rows
+    )
     assert all(row["semantic_definition_risk_detected"] is False for row in rows)
     assert all(row["semantic_definition_risks"] == [] for row in rows)
-    assert all(row["semantic_review_note"] for row in rows)
+    assert all(row["semantic_review_note"] == "" for row in rows)
     assert all(
         row["source_theorem_target_identity_status"]
         == "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED"
@@ -2452,37 +2450,29 @@ def test_exact_semantic_definition_candidate_synthesis_replaces_forbidden_placeh
         row["candidate_lean_project_hint"] == str(tmp_path / "lean_project")
         for row in rows
     )
-    assert synthesis_manifest["n_semantic_definition_repair_queue_rows"] == 0
+    assert synthesis_manifest["n_semantic_definition_repair_queue_rows"] == 2
     repair_manifest = json.loads(
         Path(str(synthesis_manifest["semantic_definition_repair_queue_manifest"])).read_text(
             encoding="utf-8"
         )
     )
-    assert repair_manifest["n_repair_queue_rows"] == 0
-    assert repair_manifest["n_ready"] == 0
+    assert repair_manifest["n_repair_queue_rows"] == 2
+    assert repair_manifest["n_ready"] == 2
     assert repair_manifest["semantic_definition_risks"] == []
-    assert synthesis_manifest["n_proof_body_recheck_queue_rows"] == 1
+    assert synthesis_manifest["n_proof_body_recheck_queue_rows"] == 0
     recheck_manifest = json.loads(
         Path(str(synthesis_manifest["proof_body_recheck_queue_manifest"])).read_text(
             encoding="utf-8"
         )
     )
-    assert recheck_manifest["proof_body_recheck_blocked"] is False
-    assert recheck_manifest["proof_body_recheck_blocker"] == ""
-    assert recheck_manifest["n_execution_queue_rows"] == 1
-    assert recheck_manifest["n_semantic_definition_review_blocked_rows"] == 0
+    assert recheck_manifest["proof_body_recheck_blocked"] is True
+    assert recheck_manifest["proof_body_recheck_blocker"]
+    assert recheck_manifest["n_execution_queue_rows"] == 0
+    assert recheck_manifest["n_semantic_definition_review_blocked_rows"] == 2
     assert recheck_manifest["proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_RECHECK_QUEUE_NOT_PROOF_EVIDENCE"
     )
-    assert recheck_manifest["rows"][0]["source_theorem_kernel_evidence_eligible"] is False
-    assert recheck_manifest["rows"][0]["proof_body_attempt_source"] == (
-        "synthesized_exact_semantic_definition_recheck_queue"
-    )
-    assert recheck_manifest["rows"][0]["semantic_alignment_blockers"] == []
-    assert any(
-        "unreviewed synthesized definition review note" in value
-        for value in recheck_manifest["rows"][0]["semantic_alignment_constraints"]
-    )
+    assert recheck_manifest["rows"] == []
     memory = _load_runtime_learning_memory(
         [Path(synthesis_manifest["runtime_learning_rows_jsonl"])]
     )
@@ -2490,12 +2480,9 @@ def test_exact_semantic_definition_candidate_synthesis_replaces_forbidden_placeh
         {"runtime_learning_memory": memory}
     )
     assert any(
-        repair["trigger"] == "EXACT_SOURCE_SEMANTIC_DEFINITION_CANDIDATE_SYNTHESIS"
-        and repair["candidate_artifact_path"]
-        == synthesis_manifest["synthesized_candidate_artifact_path"]
+        repair["trigger"] == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
         and repair["source_theorem_kernel_evidence_eligible"] is False
-        and repair["semantic_alignment_constraints"]
-        and repair["semantic_alignment_blockers"] == []
+        and repair["semantic_alignment_blockers"]
         and repair["source_theorem_target_identity_status"]
         == "DECLARATION_MATCHED_SOURCE_THEOREM_TARGET_UNPROMOTED"
         for repair in repairs
@@ -2890,7 +2877,7 @@ def test_exact_semantic_definition_candidate_synthesis_recheck_queue_uses_synthe
     )
 
 
-def test_exact_semantic_definition_candidate_synthesis_normalizes_orderstat_fin_witness(
+def test_exact_semantic_definition_candidate_synthesis_preserves_orderstat_fin_witness(
     tmp_path: Path,
 ) -> None:
     review_results = tmp_path / "review_results.jsonl"
@@ -2953,13 +2940,25 @@ def test_exact_semantic_definition_candidate_synthesis_normalizes_orderstat_fin_
     synthesized = Path(
         synthesis_manifest["synthesized_candidate_artifact_path"]
     ).read_text(encoding="utf-8")
-    assert "orderStat s ⟨" not in synthesized
-    assert (
-        "orderStat s (Nat.ceil ((↑(n2 + 1)) * (1 - alpha)) - 1) ω"
-        in synthesized
-    )
+    assert synthesized == candidate.read_text(encoding="utf-8")
+    assert "orderStat s ⟨" in synthesized
+    assert "by omega⟩ ω" in synthesized
     assert "(k : ℕ)" in synthesized
-    assert ".getD k 0" in synthesized
+    assert ".getD k 0" not in synthesized
+    assert synthesis_manifest["candidate_bytes_preserved"] is True
+    assert synthesis_manifest["n_replacements_applied"] == 0
+    rows = [
+        json.loads(line)
+        for line in Path(
+            synthesis_manifest["candidate_synthesis_results_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows[0]["definition_candidate_review_mode"] == (
+        "llm_definition_candidate_generation_required"
+    )
+    assert rows[0]["candidate_synthesis_status"] == (
+        "DEFINITION_CANDIDATE_GENERATION_REQUIRED"
+    )
 
 
 def test_typechecked_review_recheck_queue_blocks_unreviewed_candidate(

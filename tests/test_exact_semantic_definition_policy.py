@@ -7,8 +7,6 @@ from ai_statistician.exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
     exact_semantic_definition_candidate_risks,
     exact_semantic_definition_contract,
-    exact_semantic_definition_draft_definition,
-    exact_semantic_definition_draft_semantic_risk,
     exact_semantic_definition_formal_environment_declaration_hint,
     exact_semantic_definition_formal_environment_statement_repair_rules,
     exact_semantic_definition_formal_environment_symbol_names,
@@ -16,7 +14,6 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
     exact_semantic_definition_proof_body_adapter_synthesis_instruction,
-    exact_semantic_definition_signature_probe_prelude,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
     exact_semantic_definition_source_to_bridge_premise_aliases,
@@ -234,17 +231,13 @@ def test_placeholder_policy_reviews_semantic_import_candidates() -> None:
     assert accepted == {}
 
 
-def test_placeholder_policy_owns_draft_definitions_and_search_aliases() -> None:
+def test_placeholder_policy_owns_semantic_contracts_and_search_aliases() -> None:
     exchangeable = exact_semantic_definition_placeholder_policy("Exchangeable")
     assert exchangeable.policy_id == "split_conformal_coverage.exchangeable"
     assert exchangeable.required_anchor_names == ("P", "s")
 
-    exchangeable_draft = exact_semantic_definition_draft_definition("Exchangeable")
-    assert "Equiv.Perm" in exchangeable_draft
-    assert "MeasureTheory.Measure.map" in exchangeable_draft
-    assert "joint-law exchangeability" in exact_semantic_definition_draft_semantic_risk(
-        "Exchangeable"
-    )
+    assert not hasattr(exchangeable, "draft_definition")
+    assert not hasattr(exchangeable, "formal_environment_signature_probe_preludes")
     assert exact_semantic_definition_source_lookup_terms("Exchangeable") == (
         "exchangeability",
         "exchangeab",
@@ -261,9 +254,6 @@ def test_placeholder_policy_owns_draft_definitions_and_search_aliases() -> None:
         "ProbabilityMeasure",
     )
 
-    order_stat_draft = exact_semantic_definition_draft_definition("orderStat")
-    assert "mergeSort" in order_stat_draft
-    assert "getD k" in order_stat_draft
     assert exact_semantic_definition_source_lookup_terms("orderStat") == (
         "orderStatistic",
         "order statistic",
@@ -291,16 +281,6 @@ def test_policy_owns_formal_environment_symbols_and_repairs() -> None:
     ]
     assert "semantic primitive" in exchangeable_hint["signature_probe_fallback"]
 
-    assert "def Exchangeable" in exact_semantic_definition_signature_probe_prelude(
-        "Exchangeable"
-    )
-    assert "def orderStat" in exact_semantic_definition_signature_probe_prelude(
-        "orderStat"
-    )
-    assert "noncomputable def orderStatistic" in (
-        exact_semantic_definition_signature_probe_prelude("orderStatistic")
-    )
-
     rules = {
         rule["rule_id"]: rule
         for rule in exact_semantic_definition_formal_environment_statement_repair_rules()
@@ -309,9 +289,8 @@ def test_policy_owns_formal_environment_symbols_and_repairs() -> None:
     assert rules["split_conformal_ennreal_lower_bound_from_real_alpha"][
         "typeclass_blocker_contains_any"
     ] == ("HSub \u2115 \u211d ENNReal",)
-    assert rules["split_conformal_order_statistic_fin_castsucc_probe"][
-        "missing_symbol_keys_any"
-    ] == ("orderStatistic",)
+    assert all("literal_replacements" not in rule for rule in rules.values())
+    assert all("regex_replacements" not in rule for rule in rules.values())
     assert "alpha" in exact_semantic_definition_source_lookup_aliases("\u03b1_total")
     assert "alphatotal" in exact_semantic_definition_source_lookup_aliases(
         "\u03b1_total"

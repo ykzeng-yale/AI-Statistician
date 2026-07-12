@@ -42334,6 +42334,22 @@ def run_research_agent_runtime(
         or 0
     )
     manifest[
+        "source_theorem_exact_semantic_definition_runtime_generated_lean_replacements_enabled"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_candidate_synthesis_manifest
+            or {}
+        ).get("runtime_generated_lean_replacements_enabled", False)
+    )
+    manifest[
+        "source_theorem_exact_semantic_definition_candidate_bytes_preserved"
+    ] = bool(
+        (
+            source_theorem_exact_semantic_definition_candidate_synthesis_manifest
+            or {}
+        ).get("candidate_bytes_preserved", False)
+    )
+    manifest[
         "source_theorem_exact_semantic_definition_repair_queue_proof_evidence_status"
     ] = str(
         (
@@ -42345,11 +42361,11 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_exact_semantic_definition_candidate_synthesis_boundary"
     ] = (
-        "Runtime exact-semantic definition candidate synthesis replaces forbidden "
-        "placeholder definitions with draft non-vacuous candidates and may run "
-        "local Lean diagnostics. It is not proof evidence; source-theorem proof "
-        "evidence still requires a later local Lean/AXLE kernel verification of "
-        "the repaired exact theorem."
+        "Runtime exact-semantic candidate routing preserves upstream Lean bytes, "
+        "records semantic/compiler blockers, and exports typed Formalizer/"
+        "ProofEngineer generation work. Runtime code does not synthesize or replace "
+        "Lean definitions. These rows are not proof evidence; source-theorem proof "
+        "still requires local Lean/AXLE kernel verification of the exact theorem."
     )
     manifest[
         "source_theorem_exact_semantic_definition_proof_body_recheck_executor_ran"

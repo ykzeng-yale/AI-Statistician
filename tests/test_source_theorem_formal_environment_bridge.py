@@ -9,7 +9,8 @@ from ai_statistician.exact_source_theorem_proof_body_executor import (
     export_exact_source_theorem_proof_body_execution_results,
 )
 from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
-    _normalize_lean_statement_syntax,
+    _lean_statement_with_evolve_block,
+    _target_imports,
 )
 from ai_statistician.lean_proof_agent_contract import (
     LLM_PROOF_BODY_GENERATION_CONTRACT,
@@ -537,7 +538,7 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     )
 
 
-def test_materializer_normalizes_order_stat_nat_placeholder_application() -> None:
+def test_materializer_preserves_upstream_lean_syntax_for_compiler_feedback() -> None:
     statement = (
         "theorem split_conformal_coverage\n"
         "    {Ω : Type*} [MeasurableSpace Ω]\n"
@@ -549,14 +550,30 @@ def test_materializer_normalizes_order_stat_nat_placeholder_application() -> Non
         "  trivial"
     )
 
-    normalized = _normalize_lean_statement_syntax(statement)
+    materialized = _lean_statement_with_evolve_block(statement)
 
-    assert "Type*" not in normalized
-    assert "orderStat s ⟨" not in normalized
-    assert (
-        "orderStat s (Nat.ceil ((↑(n2 + 1)) * (1 - alpha)) - 1) ω"
-        in normalized
-    )
+    assert materialized == statement
+    assert "Type*" in materialized
+    assert "orderStat s ⟨" in materialized
+    assert "by omega⟩ ω" in materialized
+
+
+def test_materializer_does_not_infer_mathlib_imports_from_candidate_tokens() -> None:
+    assert _target_imports(
+        {
+            "lean_statement_sketch": (
+                "theorem coverage {Ω : Type*} [MeasurableSpace Ω] "
+                "(P : MeasureTheory.Measure Ω) : True := by trivial"
+            ),
+            "informal_source": "probability coverage over a finite sample",
+        }
+    ) == ()
+    assert _target_imports(
+        {
+            "lean_imports": ["Mathlib.Data.Real.Basic"],
+            "lean_statement_sketch": "theorem explicit : True := by trivial",
+        }
+    ) == ("Mathlib.Data.Real.Basic",)
 
 
 def test_source_theorem_formal_environment_bridge_exports_repair_packets(
@@ -770,16 +787,18 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     probe_source = Path(probe_row["signature_probe_artifact_path"]).read_text(
         encoding="utf-8"
     )
-    assert "def Exchangeable" in probe_source
-    assert "def orderStat" in probe_source
-    assert "import Mathlib.MeasureTheory.Measure.ProbabilityMeasure\n" in probe_source
-    assert "import Mathlib.Data.Real.Basic\n" in probe_source
-    assert "import Mathlib.Data.Fin.Basic\n" in probe_source
-    assert "import Mathlib.Data.ENNReal.Basic\n" in probe_source
-    assert "import Mathlib\n" not in probe_source
-    assert "import Mathlib.Probability.ProbabilityMeasure" not in probe_source
-    assert "import Mathlib.Order.LocallyFiniteOrder" not in probe_source
-    assert "ENNReal.ofReal (1 - alpha)" in probe_source
+    assert probe_source == candidate_artifact.read_text(encoding="utf-8")
+    assert "def Exchangeable" not in probe_source
+    assert "def orderStat" not in probe_source
+    assert "import Mathlib.Probability.ProbabilityMeasure" in probe_source
+    assert "import Mathlib.Order.LocallyFiniteOrder" in probe_source
+    assert "ENNReal.ofReal (1 - alpha)" not in probe_source
+    assert probe_row["candidate_bytes_preserved"] is True
+    assert probe_row["source_candidate_fingerprint"] == probe_row[
+        "signature_probe_source_fingerprint"
+    ]
+    assert probe_manifest["n_candidate_bytes_preserved"] == 1
+    assert probe_manifest["all_materialized_candidate_bytes_preserved"] is True
     assert probe_manifest["proof_evidence_status"] == "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
     proof_body_rows_path = Path(str(manifest["proof_body_work_orders_jsonl"]))
     proof_body_work_order = json.loads(proof_body_rows_path.read_text(encoding="utf-8"))
@@ -1056,7 +1075,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     candidate_source = Path(execution_result["candidate_artifact_path"]).read_text(
         encoding="utf-8"
     )
-    assert "def Exchangeable" in candidate_source
+    assert candidate_source == candidate_artifact.read_text(encoding="utf-8")
+    assert "def Exchangeable" not in candidate_source
+    assert "def orderStat" not in candidate_source
     transcript_event = json.loads(
         Path(execution_result["execution_transcript_path"]).read_text(
             encoding="utf-8"
@@ -1508,7 +1529,7 @@ def test_exact_source_theorem_proof_body_executor_strips_attempts_for_open_envir
     }
 
 
-def test_signature_probe_repairs_greek_alpha_ennreal_lower_bound(
+def test_signature_probe_preserves_greek_alpha_lean_candidate(
     tmp_path: Path,
 ) -> None:
     candidate_artifact = tmp_path / "split_conformal_coverage_greek.lean"
@@ -1566,7 +1587,10 @@ def test_signature_probe_repairs_greek_alpha_ennreal_lower_bound(
     probe_source = Path(
         str(probe_manifest["rows"][0]["signature_probe_artifact_path"])
     ).read_text(encoding="utf-8")
-    assert "ENNReal.ofReal (1 - α)" in probe_source
+    assert probe_source == candidate_artifact.read_text(encoding="utf-8")
+    assert "ENNReal.ofReal (1 - α)" not in probe_source
+    assert "1 - α" in probe_source
+    assert probe_manifest["rows"][0]["candidate_bytes_preserved"] is True
     assert manifest["n_signature_probes_reached_proof_body"] == 1
     assert manifest["n_proof_body_execution_queue_rows"] == 1
 
@@ -1874,13 +1898,19 @@ def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
     probe_source = Path(
         str(probe_manifest["rows"][0]["signature_probe_artifact_path"])
     ).read_text(encoding="utf-8")
-    assert "structure MeasureProbability" in probe_source
-    assert "def Exchangeable" in probe_source
-    assert "noncomputable def orderStatistic" in probe_source
-    assert "import Mathlib\n" not in probe_source
-    assert "s i.castSucc ω" in probe_source
+    probe_row = probe_manifest["rows"][0]
+    assert probe_source == candidate_artifact.read_text(encoding="utf-8")
+    assert "structure MeasureProbability" not in probe_source
+    assert "def Exchangeable" not in probe_source
+    assert "noncomputable def orderStatistic" not in probe_source
+    assert "s i.castSucc ω" not in probe_source
+    assert "fun i : Fin (n+1) => s i ω" in probe_source
     assert "qHat n α s ω" in probe_source
-    assert "ENNReal.ofReal (1 - α) ≤ P.toMeasure" in probe_source
+    assert "1 - α ≤ P.toMeasure" in probe_source
+    assert probe_row["candidate_bytes_preserved"] is True
+    assert probe_row["source_candidate_fingerprint"] == probe_row[
+        "signature_probe_source_fingerprint"
+    ]
     execution_queue_manifest = json.loads(
         Path(str(manifest["proof_body_execution_queue_manifest"])).read_text(
             encoding="utf-8"

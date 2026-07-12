@@ -21,12 +21,6 @@ PROOF_EVIDENCE_BOUNDARY = (
     "validation."
 )
 FORBIDDEN_ARTIFACT_TOKENS = ("sorry", "admit", "axiom", "unsafe")
-INTENTIONAL_UNPROVED_PLACEHOLDER_BODY = (
-    "  -- ProofEngineer must fill the exact source-theorem proof body here.\n"
-    "  fail_if_success trivial"
-)
-
-
 @dataclass(frozen=True)
 class FormalVerifierAgenticProofExecutionMaterializerRow:
     schema_version: int
@@ -56,6 +50,11 @@ class FormalVerifierAgenticProofExecutionMaterializerRow:
     forbidden_tokens_found: tuple[str, ...]
     live_goal_location_ready: bool
     live_proof_state_request: dict[str, object]
+    candidate_statement_fingerprint: str
+    candidate_statement_bytes_preserved: bool
+    runtime_generated_lean_tactics_enabled: bool
+    llm_candidate_generation_required: bool
+    candidate_generation_request: dict[str, object]
     kernel_verified: bool
     proof_evidence_status: str
     proof_evidence_boundary: str
@@ -111,6 +110,17 @@ def export_formal_verifier_agentic_proof_execution_materializer(
         ),
         "n_live_proof_state_requests": sum(
             1 for row in rows if row.live_proof_state_request
+        ),
+        "n_candidate_statement_bytes_preserved": sum(
+            1 for row in rows if row.candidate_statement_bytes_preserved
+        ),
+        "n_llm_candidate_generation_required": sum(
+            1 for row in rows if row.llm_candidate_generation_required
+        ),
+        "runtime_generated_lean_tactics_enabled_for_exact_candidates": any(
+            row.runtime_generated_lean_tactics_enabled
+            for row in rows
+            if row.materialization_mode == "exact_source_theorem_candidate"
         ),
         "n_lean_lsp_mcp_ready_requests": sum(
             1
@@ -292,6 +302,7 @@ def _materializer_row(
     status = "MATERIALIZATION_BLOCKED"
     forbidden_tokens_found: tuple[str, ...] = ()
     live_proof_state_request: dict[str, object] = {}
+    source = ""
     if population_bucket == "source_discovery_attempt":
         status = "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
     elif not errors:
@@ -363,6 +374,41 @@ def _materializer_row(
         else "STATIC_CONTRACT_NOT_READY_FOR_LIVE_GOAL"
     )
     ok = not errors
+    candidate_statement = str(row.get("lean_statement_sketch", "") or "")
+    candidate_statement_fingerprint = (
+        stable_hash(candidate_statement) if candidate_statement else ""
+    )
+    candidate_statement_bytes_preserved = bool(
+        materialization_mode == "exact_source_theorem_candidate"
+        and candidate_statement
+        and candidate_statement in source
+    )
+    llm_candidate_generation_required = bool(
+        materialization_mode == "exact_source_theorem_candidate"
+        and (not candidate_statement or forbidden_tokens_found)
+    )
+    candidate_generation_request = (
+        {
+            "schema_version": 1,
+            "request_kind": "exact_source_theorem_lean_candidate_generation",
+            "target_theorem_name": target_theorem_name,
+            "target_lean_declaration": target_lean_declaration,
+            "upstream_candidate_path": str(candidate_artifact_path),
+            "upstream_candidate_fingerprint": stable_hash(source) if source else "",
+            "candidate_statement_fingerprint": candidate_statement_fingerprint,
+            "diagnostics": list(errors),
+            "required_feedback_loop": [
+                "LLM/ProofEngineer generates a complete candidate without forbidden placeholders",
+                "runtime writes the candidate without grammar or tactic rewriting",
+                "local Lean/LSP returns exact diagnostics and proof state",
+                "LLM/ProofEngineer revises the hash-bound candidate",
+                "local Lean/AXLE exact checker alone may promote proof evidence",
+            ],
+            "proof_evidence_status": "LEAN_CANDIDATE_GENERATION_REQUEST_NOT_PROOF_EVIDENCE",
+        }
+        if llm_candidate_generation_required
+        else {}
+    )
     return FormalVerifierAgenticProofExecutionMaterializerRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_EXECUTION_MATERIALIZER_SCHEMA_VERSION,
         materialization_id=materialization_id,
@@ -395,6 +441,11 @@ def _materializer_row(
         live_proof_state_request=live_proof_state_request
         if ok and target_lean_line > 0 and status != "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
         else {},
+        candidate_statement_fingerprint=candidate_statement_fingerprint,
+        candidate_statement_bytes_preserved=candidate_statement_bytes_preserved,
+        runtime_generated_lean_tactics_enabled=(materialization_mode == "route_probe"),
+        llm_candidate_generation_required=llm_candidate_generation_required,
+        candidate_generation_request=candidate_generation_request,
         kernel_verified=False,
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
@@ -469,7 +520,7 @@ def _exact_source_theorem_candidate_source(
     row: dict[str, Any],
     reused_subclaims: tuple[str, ...],
 ) -> str:
-    sketch = str(row.get("lean_statement_sketch", "") or "").strip()
+    sketch = str(row.get("lean_statement_sketch", "") or "")
     metadata = {
         "execution_queue_id": row.get("execution_queue_id", ""),
         "target_theorem_name": row.get("target_theorem_name", ""),
@@ -499,59 +550,9 @@ def _exact_source_theorem_candidate_source(
 
 
 def _lean_statement_with_evolve_block(statement: str) -> str:
-    statement = _normalize_lean_statement_syntax(statement)
-    if "AI_STAT_EVOLVE_BLOCK_START" in statement:
-        return statement.rstrip() + "\n"
-    match = re.search(r":=\s*by\b", statement)
-    if match is None:
-        return (
-            statement.rstrip()
-            + " := by\n"
-            + "  -- AI_STAT_EVOLVE_BLOCK_START\n"
-            + INTENTIONAL_UNPROVED_PLACEHOLDER_BODY
-            + "\n"
-            + "  -- AI_STAT_EVOLVE_BLOCK_END\n"
-        )
-    prefix = statement[: match.end()].rstrip()
-    proof_body = statement[match.end() :].strip("\n")
-    proof_lines = _indent_lean_proof_body(proof_body)
-    return (
-        prefix
-        + "\n"
-        + "  -- AI_STAT_EVOLVE_BLOCK_START\n"
-        + proof_lines
-        + "\n"
-        + "  -- AI_STAT_EVOLVE_BLOCK_END\n"
-    )
+    """Compatibility hook that preserves the upstream Lean candidate verbatim."""
 
-
-def _indent_lean_proof_body(proof_body: str) -> str:
-    stripped = proof_body.strip()
-    if not stripped:
-        return INTENTIONAL_UNPROVED_PLACEHOLDER_BODY
-    if any(token in stripped for token in FORBIDDEN_ARTIFACT_TOKENS):
-        return INTENTIONAL_UNPROVED_PLACEHOLDER_BODY
-    lines = stripped.splitlines()
-    return "\n".join(
-        line if line.startswith((" ", "\t")) else "  " + line
-        for line in lines
-    )
-
-
-def _normalize_lean_statement_syntax(statement: str) -> str:
-    statement = _normalize_lean_declaration_header(statement)
-    statement = _normalize_order_stat_nat_placeholder_syntax(statement)
-    return statement.replace("Type*", "Type _")
-
-
-def _normalize_order_stat_nat_placeholder_syntax(statement: str) -> str:
-    """Repair a common LLM Nat/Fin mismatch for diagnostic source candidates."""
-
-    return re.sub(
-        r"(orderStat\s+[A-Za-z0-9_'.]+\s+)⟨([^,\n]+),\s*by\s+[^⟩\n]+⟩(\s+\S+)",
-        r"\1(\2)\3",
-        statement,
-    )
+    return statement
 
 
 def _target_imports(row: dict[str, Any]) -> tuple[str, ...]:
@@ -568,55 +569,12 @@ def _target_imports(row: dict[str, Any]) -> tuple[str, ...]:
             module = str(value).strip()
             if module and _safe_lean_import(module) and module not in imports:
                 imports.append(module)
-    if not imports:
-        imports.extend(_inferred_target_imports(row))
     return tuple(imports)
-
-
-def _inferred_target_imports(row: dict[str, Any]) -> tuple[str, ...]:
-    statement = str(row.get("lean_statement_sketch", "") or "")
-    text = f"{statement}\n{row.get('informal_source', '') or ''}"
-    mathlib_markers = (
-        "MeasureTheory.",
-        "MeasurableSpace",
-        "IsProbabilityMeasure",
-        "Nat.ceil",
-        "Fin ",
-        "Fin.",
-        "ENNReal",
-        "Set ",
-        "{ω |",
-        "{omega |",
-    )
-    if any(marker in text for marker in mathlib_markers):
-        return ("Mathlib",)
-    return ()
 
 
 def _safe_lean_import(module: str) -> bool:
     part = r"[A-Za-z_][A-Za-z0-9_']*"
     return re.fullmatch(rf"{part}(?:\.{part})*", module) is not None
-
-
-def _normalize_lean_declaration_header(statement: str) -> str:
-    lines = statement.splitlines()
-    normalized: list[str] = []
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        stripped = line.strip()
-        next_line = lines[index + 1] if index + 1 < len(lines) else ""
-        next_stripped = next_line.lstrip()
-        if (
-            re.match(r"^(theorem|lemma)\s+[A-Za-z0-9_'.]+$", stripped)
-            and next_stripped.startswith(("{", "(", "[", ":"))
-        ):
-            normalized.append(line.rstrip() + " " + next_stripped)
-            index += 2
-            continue
-        normalized.append(line)
-        index += 1
-    return "\n".join(normalized)
 
 
 def _artifact_location(source: str, declaration_name: str) -> dict[str, object]:
@@ -631,6 +589,27 @@ def _artifact_location(source: str, declaration_name: str) -> dict[str, object]:
             target_line = index + 1 if index < len(lines) else index
         if stripped == "-- AI_STAT_EVOLVE_BLOCK_END":
             end_line = index
+    if target_line <= 0 and declaration_name:
+        declaration_pattern = re.compile(
+            rf"\b(?:theorem|lemma|example)\s+{re.escape(declaration_name)}\b"
+        )
+        declaration_line = next(
+            (
+                index
+                for index, line in enumerate(lines, start=1)
+                if declaration_pattern.search(line)
+            ),
+            0,
+        )
+        if declaration_line > 0:
+            target_line = next(
+                (
+                    index
+                    for index in range(declaration_line, len(lines) + 1)
+                    if ":= by" in lines[index - 1]
+                ),
+                declaration_line,
+            )
     return {
         "target_lean_line": target_line,
         "target_lean_column": 3 if target_line > 0 else 0,

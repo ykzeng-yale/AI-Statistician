@@ -11,16 +11,12 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .lean_proof_agent_contract import llm_proof_body_generation_contract
-from .formal_verifier_agentic_proof_execution_materializer import (
-    _normalize_lean_statement_syntax,
-)
 from .research_architect import KERNEL_PROOF_BOUNDARY
 from .exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
     exact_semantic_definition_formal_environment_declaration_hint,
     exact_semantic_definition_formal_environment_statement_repair_rules,
     exact_semantic_definition_formal_environment_symbol_names,
-    exact_semantic_definition_signature_probe_prelude,
 )
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
@@ -63,16 +59,10 @@ CANDIDATE_MATERIALIZATION_CONTRACT = (
 )
 SIGNATURE_PROBE_BOUNDARY = (
     "Source-theorem formal-environment signature probes are local Lean typecheck "
-    "diagnostics for repaired candidate environments. They may show that missing "
-    "symbols or typeclass blockers were cleared far enough to reach the proof body, "
-    "but they are not artifact proof, source-theorem proof, or semantic promotion "
-    "evidence."
-)
-SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS = (
-    "import Mathlib.MeasureTheory.Measure.ProbabilityMeasure",
-    "import Mathlib.Data.Real.Basic",
-    "import Mathlib.Data.Fin.Basic",
-    "import Mathlib.Data.ENNReal.Basic",
+    "diagnostics over a byte-preserved upstream candidate. Runtime code must not "
+    "rewrite imports, statements, namespaces, or semantic primitives before Lean "
+    "adjudication. A probe may expose compiler feedback, but it is not artifact "
+    "proof, source-theorem proof, or semantic promotion evidence."
 )
 PROOF_BODY_WORK_ORDER_BOUNDARY = (
     "Exact source-theorem proof-body work orders are ProofEngineer tasks emitted "
@@ -157,6 +147,9 @@ class SourceTheoremFormalEnvironmentSignatureProbeRow:
     errors: tuple[str, ...] = ()
     candidate_materialization_required: bool = False
     candidate_materialization_contract: str = ""
+    source_candidate_fingerprint: str = ""
+    signature_probe_source_fingerprint: str = ""
+    candidate_bytes_preserved: bool = False
 
 
 def resolve_source_theorem_formal_environment_queue_path(
@@ -853,6 +846,9 @@ def _export_signature_probes(
         )
         for packet in repair_packets
     ]
+    materialized_rows = [
+        row for row in rows if not row.candidate_materialization_required
+    ]
     rows_path = out_dir / "source_theorem_formal_environment_signature_probe_rows.jsonl"
     _write_jsonl(rows_path, [asdict(row) for row in rows])
     manifest_path = out_dir / "source_theorem_formal_environment_signature_probe_manifest.json"
@@ -871,9 +867,14 @@ def _export_signature_probes(
         "n_signature_probes_reached_proof_body": sum(
             1 for row in rows if row.signature_typecheck_reached_proof_body
         ),
+        "n_candidate_bytes_preserved": sum(
+            1 for row in rows if row.candidate_bytes_preserved
+        ),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_signature_probes_reached_proof_body": bool(rows)
         and all(row.signature_typecheck_reached_proof_body for row in rows),
+        "all_materialized_candidate_bytes_preserved": bool(materialized_rows)
+        and all(row.candidate_bytes_preserved for row in materialized_rows),
         "rows": [asdict(row) for row in rows],
         "proof_evidence_status": SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
         "boundary": SIGNATURE_PROBE_BOUNDARY,
@@ -888,6 +889,9 @@ def _export_signature_probes(
         "n_signature_probe_rows": len(rows),
         "n_signature_probes_reached_proof_body": sum(
             1 for row in rows if row.signature_typecheck_reached_proof_body
+        ),
+        "n_candidate_bytes_preserved": sum(
+            1 for row in rows if row.candidate_bytes_preserved
         ),
         "rows": [asdict(row) for row in rows],
         "proof_evidence_status": SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
@@ -977,6 +981,7 @@ def _signature_probe_row(
             source = candidate_path.read_text(encoding="utf-8")
         except Exception as exc:
             errors.append(f"failed to read candidate artifact: {type(exc).__name__}: {exc}")
+    probe_source = ""
     if not errors:
         probe_source = _signature_probe_source(source, packet)
         probe_artifact_path.write_text(probe_source, encoding="utf-8")
@@ -1054,6 +1059,11 @@ def _signature_probe_row(
         errors=tuple(errors),
         candidate_materialization_required=candidate_materialization_required,
         candidate_materialization_contract=candidate_materialization_contract,
+        source_candidate_fingerprint=stable_hash(source) if source else "",
+        signature_probe_source_fingerprint=(
+            stable_hash(probe_source) if probe_source else ""
+        ),
+        candidate_bytes_preserved=bool(not errors and probe_source == source),
     )
 
 
@@ -1099,102 +1109,7 @@ def _candidate_materialization_diagnostics(
 
 
 def _signature_probe_source(source: str, packet: Mapping[str, Any]) -> str:
-    import_lines, body_lines = _split_import_lines(source)
-    if not import_lines:
-        import_lines = list(SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS)
-    body = "\n".join(body_lines).strip()
-    body = _apply_statement_repair_hints(body, packet)
-    body = _normalize_lean_statement_syntax(body)
-    declaration_prelude = _signature_probe_declaration_prelude(
-        _str_list(packet.get("missing_formal_symbols", []) or [])
-    )
-    metadata = {
-        "repair_packet_id": packet.get("repair_packet_id", ""),
-        "target_theorem_name": packet.get("target_theorem_name", ""),
-        "proof_evidence_status": SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
-    }
-    metadata_lines = "\n".join(
-        f"-- {key}: {value}" for key, value in metadata.items() if value
-    )
-    return (
-        "\n".join(import_lines)
-        + "\n\n"
-        + "/-!\n"
-        + "Source-theorem formal-environment signature probe.\n"
-        + "This file is a typecheck diagnostic artifact, not proof evidence.\n"
-        + "Local placeholder declarations below are semantic repair drafts only.\n"
-        + "-/\n\n"
-        + "namespace AIStatisticianSourceTheoremSignatureProbe\n\n"
-        + "noncomputable section\n\n"
-        + f"{metadata_lines}\n\n"
-        + declaration_prelude
-        + ("\n\n" if declaration_prelude else "")
-        + body
-        + "\n\nend\n\n"
-        + "end AIStatisticianSourceTheoremSignatureProbe\n"
-    )
-
-
-def _split_import_lines(source: str) -> tuple[list[str], list[str]]:
-    imports: list[str] = []
-    body: list[str] = []
-    for line in source.splitlines():
-        if line.strip().startswith("import "):
-            if line.strip() not in imports:
-                imports.append(line.strip())
-        else:
-            body.append(line)
-    if imports:
-        non_mathlib_imports = [
-            row
-            for row in imports
-            if row != "import Mathlib" and not row.startswith("import Mathlib.")
-        ]
-        if any(row == "import Mathlib" or row.startswith("import Mathlib.") for row in imports):
-            imports = [
-                *SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS,
-                *non_mathlib_imports,
-            ]
-        elif not any(row.startswith("import Mathlib.") for row in imports):
-            imports = [
-                *SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS,
-                *imports,
-            ]
-    return imports, body
-
-
-def _signature_probe_declaration_prelude(missing_symbols: list[str]) -> str:
-    declarations: list[str] = []
-    for symbol in missing_symbols:
-        declaration = exact_semantic_definition_signature_probe_prelude(symbol)
-        if declaration:
-            declarations.append(declaration)
-    return "\n\n".join(declarations)
-
-
-def _apply_statement_repair_hints(source: str, packet: Mapping[str, Any]) -> str:
-    blockers = _str_list(packet.get("typeclass_blockers", []) or [])
-    missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
-    for rule in exact_semantic_definition_formal_environment_statement_repair_rules():
-        if not any(
-            _formal_environment_statement_repair_rule_matches(
-                rule,
-                blocker=blocker,
-                missing_symbols=missing_symbols,
-            )
-            for blocker in [*blockers, ""]
-        ):
-            continue
-        for replacement in rule.get("literal_replacements", ()) or ():
-            old = str(replacement.get("old", "") or "")
-            new = str(replacement.get("new", "") or "")
-            if old:
-                source = source.replace(old, new)
-        for replacement in rule.get("regex_replacements", ()) or ():
-            pattern = str(replacement.get("pattern", "") or "")
-            new = str(replacement.get("replacement", "") or "")
-            if pattern:
-                source = re.sub(pattern, new, source)
+    del packet
     return source
 
 

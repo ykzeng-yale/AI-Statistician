@@ -44,16 +44,11 @@ class ExactSemanticDefinitionPlaceholderPolicy:
         "SEMANTIC_REVIEW_REQUIRED_EXACT_SEMANTIC_SIGNAL_NOT_EXPOSED"
     )
     semantic_import_missing_required_signal_reason: str = ""
-    draft_definition: str = ""
-    draft_definition_semantic_risk: str = "draft definition requires semantic review"
     formal_environment_symbol_names: tuple[str, ...] = ()
     formal_environment_search_queries: tuple[str, ...] = ()
     formal_environment_preferred_resolution: str = ""
     formal_environment_signature_probe_fallback: str = ""
     formal_environment_promotion_blocker: str = ""
-    formal_environment_signature_probe_preludes: Mapping[str, str] = field(
-        default_factory=dict
-    )
     source_lookup_search_terms: tuple[str, ...] = ()
     source_lookup_aliases: tuple[str, ...] = ()
     definition_contract: Mapping[str, Any] = field(default_factory=dict)
@@ -235,14 +230,6 @@ def _policy_from_mapping(
         semantic_import_missing_required_signal_reason=str(
             row.get("semantic_import_missing_required_signal_reason", "") or ""
         ),
-        draft_definition=str(row.get("draft_definition", "") or ""),
-        draft_definition_semantic_risk=str(
-            row.get(
-                "draft_definition_semantic_risk",
-                "draft definition requires semantic review",
-            )
-            or "draft definition requires semantic review"
-        ),
         formal_environment_symbol_names=_string_tuple(
             row.get("formal_environment_symbol_names")
         ),
@@ -257,9 +244,6 @@ def _policy_from_mapping(
         ),
         formal_environment_promotion_blocker=str(
             row.get("formal_environment_promotion_blocker", "") or ""
-        ),
-        formal_environment_signature_probe_preludes=_string_mapping(
-            row.get("formal_environment_signature_probe_preludes")
         ),
         source_lookup_search_terms=_string_tuple(
             row.get("source_lookup_search_terms")
@@ -297,24 +281,6 @@ def _formal_environment_statement_repair_rule_from_mapping(
         "repair_hint": str(row.get("repair_hint", "") or ""),
         "example_target_shape": str(row.get("example_target_shape", "") or ""),
         "honesty_boundary": str(row.get("honesty_boundary", "") or ""),
-        "literal_replacements": tuple(
-            {
-                "old": str(item.get("old", "") or ""),
-                "new": str(item.get("new", "") or ""),
-            }
-            for item in row.get("literal_replacements", [])
-            if isinstance(item, Mapping)
-            and str(item.get("old", "") or "")
-        ),
-        "regex_replacements": tuple(
-            {
-                "pattern": str(item.get("pattern", "") or ""),
-                "replacement": str(item.get("replacement", "") or ""),
-            }
-            for item in row.get("regex_replacements", [])
-            if isinstance(item, Mapping)
-            and str(item.get("pattern", "") or "")
-        ),
     }
 
 
@@ -664,21 +630,6 @@ def exact_semantic_definition_formal_environment_declaration_hint(
     }
 
 
-def exact_semantic_definition_signature_probe_prelude(
-    placeholder_symbol: str,
-) -> str:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
-    symbol = str(placeholder_symbol or "").strip()
-    prelude = policy.formal_environment_signature_probe_preludes.get(symbol, "")
-    if prelude:
-        return prelude
-    compact_symbol = compact_exact_semantic_placeholder_key(symbol)
-    for key, value in policy.formal_environment_signature_probe_preludes.items():
-        if compact_exact_semantic_placeholder_key(key) == compact_symbol:
-            return value
-    return ""
-
-
 def exact_semantic_definition_fallback_source_anchor_role(
     *,
     name: str,
@@ -789,16 +740,6 @@ def exact_semantic_definition_import_policy_blocker(
             ),
         }
     return {}
-
-
-def exact_semantic_definition_draft_definition(placeholder_symbol: str) -> str:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
-    return policy.draft_definition
-
-
-def exact_semantic_definition_draft_semantic_risk(placeholder_symbol: str) -> str:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
-    return policy.draft_definition_semantic_risk
 
 
 def exact_semantic_definition_source_lookup_terms(
