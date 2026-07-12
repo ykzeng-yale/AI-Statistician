@@ -14,6 +14,7 @@ from .formalizer_repair_policy import (
     render_formalizer_validation_repair_policy_instructions,
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .lean_proof_agent_contract import without_legacy_python_lean_strategy_fields
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
@@ -3327,16 +3328,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             ),
         ):
             return []
-        if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
-            if _has_explicit_source_theorem_formal_gap_target(formal_targets):
-                return []
-            return [
-                "capability_eval repeated parser/syntax contract requires either "
-                "an explicit source-theorem FORMAL_GAP formal_targets row with "
-                "an empty Lean sketch, or one parser-simple support candidate in "
-                "source_to_bridge_premise_derivation_candidates with copied "
-                "source-binding metadata; packet has neither"
-            ]
         if (
             pending_source_to_bridge_premise_names
             and _packet_has_source_to_bridge_semantic_anchor_blocker(
@@ -3385,36 +3376,12 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "channels and emit the source theorem as FORMAL_GAP when faithful "
                 "repair is not feasible"
             )
-        if not re.search(r"\b(theorem|lemma)\b", source):
-            errors.append(
-                "capability_eval formal target "
-                f"{target_id} must contain a Lean theorem or lemma declaration"
-            )
         placeholder_error = _lean_statement_placeholder_syntax_error(source)
         if placeholder_error:
             errors.append(
                 "capability_eval formal target "
                 f"{target_id} Lean sketch {placeholder_error}"
             )
-        if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
-            if expected_status == "NEEDS_KERNEL_CHECK":
-                errors.append(
-                    "capability_eval formal target "
-                    f"{target_id} violates repeated parser/syntax repair "
-                    "contract: executable formal_targets are gated after a "
-                    "repeated parser failure; keep the source theorem as "
-                    "FORMAL_GAP and route executable helper/support work "
-                    "through source_to_bridge_premise_derivation_candidates "
-                    "or another support channel with copied source-binding "
-                    "metadata"
-                )
-            for contract_error in _lean_statement_repeated_syntax_contract_errors(
-                source
-            ):
-                errors.append(
-                    "capability_eval formal target "
-                    f"{target_id} Lean sketch {contract_error}"
-                )
     if pending_source_to_bridge_premise_names:
         candidate_premise_names = {
             name
@@ -3451,25 +3418,12 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "capability_eval source-to-bridge candidate "
                 f"{premise_id} must set expected_status=NEEDS_KERNEL_CHECK"
             )
-        if not re.search(r"\b(theorem|lemma)\b", source):
-            errors.append(
-                "capability_eval source-to-bridge candidate "
-                f"{premise_id} must contain a Lean theorem or lemma declaration"
-            )
         placeholder_error = _lean_statement_placeholder_syntax_error(source)
         if placeholder_error:
             errors.append(
                 "capability_eval source-to-bridge candidate "
                 f"{premise_id} Lean sketch {placeholder_error}"
             )
-        if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
-            for contract_error in _lean_statement_repeated_syntax_contract_errors(
-                source
-            ):
-                errors.append(
-                    "capability_eval source-to-bridge candidate "
-                    f"{premise_id} Lean sketch {contract_error}"
-                )
     return errors
 
 
@@ -6779,21 +6733,15 @@ def _formalizer_mode_specific_instructions(
             "candidate requests, or other support channels with copied provenance. "
             "Do not broaden this into theory revision and do not claim proof evidence."
         )
-    if (
-        source_theorem_candidate_materialization_required
-        and repeated_syntax_fail_closed_active
-    ):
-        source_theorem_candidate_materialization_required = False
+    if source_theorem_candidate_materialization_required and repeated_syntax_fail_closed_active:
         instructions.append(
-            "Repeated parser/syntax fail-closed override: suspend exact "
-            "source-theorem candidate materialization for this packet. Do not emit "
-            "another broad formal_targets NEEDS_KERNEL_CHECK source theorem. Emit "
-            "the source theorem as expected_status=FORMAL_GAP with an empty "
-            "lean_statement_sketch, and route only parser-simple executable support "
-            "work through source_to_bridge_premise_derivation_candidates or another "
-            "support channel with copied source-binding metadata. Record missing "
-            "semantic definitions/imports/API as structured blockers; this is not "
-            "proof evidence."
+            "Repeated Lean compiler feedback is active: keep exact source-theorem "
+            "candidate materialization enabled, consume the verbatim parser/LSP "
+            "diagnostics, generate a revised candidate, and rerun Lean. Do not replay "
+            "an identical failed artifact. Valid Lean syntax, including Unicode and "
+            "pipeline notation, is allowed when the configured Lean environment "
+            "accepts it. Emit FORMAL_GAP only when the dependency or semantics truly "
+            "cannot be supplied; compiler feedback is not proof evidence."
         )
     source_theorem_proof_body_adapter_feedback = (
         runtime_environment_feedback.get(
@@ -6822,7 +6770,9 @@ def _formalizer_mode_specific_instructions(
             "formal blocker that can be rerun by local Lean/AXLE. Prefer the "
             "prover loop lean_diagnostic_messages -> lean_goal -> "
             "lean_state_search/proof_search -> lean_multi_attempt -> "
-            "local_lean_or_axle_rerun when those tools are available."
+            "local_lean_or_axle_rerun when those tools are available. Generate the "
+            "Lean repair with model reasoning over that context; there is no "
+            "runtime-authored assumption/simp tactic fallback."
         )
         if (
             isinstance(proofengineer_repair_context, Mapping)
@@ -7869,10 +7819,28 @@ def _formalizer_mode_specific_instructions(
                 "suggested_import_replacement. If the source theorem still needs "
                 "missing measure/probability APIs, keep it as "
                 "expected_status=FORMAL_GAP and name the exact missing import/API. "
-                "If capability-eval still needs one materialized helper, emit at "
-                "most one no-import core Lean diagnostic helper over Prop variables "
-                "tied to the semantic bridge; this helper is diagnostic only and "
-                "not source-theorem proof evidence."
+                "Any revised executable candidate must preserve its typed target "
+                "lineage and return through the configured Lean compiler."
+            )
+        carried_diagnostic_classes = {
+            str(value).strip()
+            for value in carried_local_lean_repair_contract.get(
+                "diagnostic_classes",
+                [],
+            )
+            or []
+            if str(value).strip()
+        }
+        if carried_diagnostic_classes & {
+            "lean_unknown_tactic",
+            "lean_typeclass_synthesis_failed",
+        }:
+            instructions.append(
+                "Mandatory compiler-diagnostic repair: consume the exact "
+                "unknown-tactic/typeclass diagnostics, available imports, retrieved "
+                "local declarations/instances, and Lean proof state. Generate a "
+                "revised proof and rerun Lean; do not substitute a runtime-authored "
+                "tactic or typeclass recipe."
             )
         verified_narrow_imports = [
             str(value).strip()
@@ -7891,25 +7859,6 @@ def _formalizer_mode_specific_instructions(
                 + ". If the repaired candidate needs those APIs, import one of these "
                 "modules exactly; otherwise use no import or emit a FORMAL_GAP. Do not "
                 "retry `import Mathlib`."
-            )
-        if carried_local_lean_repair_contract.get("declaration_required"):
-            instructions.append(
-                "Mandatory declaration repair: the previous Lean source had no "
-                "declaration. The next executable candidate must include one concrete "
-                "`theorem` or `lemma` tied to the theorem/subclaim. "
-                "Do not return only imports, comments, open commands, prose, or an "
-                "empty Lean sketch."
-            )
-        if carried_local_lean_repair_contract.get("core_lean_only_helper_rule"):
-            instructions.append(
-                "Mandatory core-Lean helper repair: the active import/local Lean "
-                "contract restricts no-import diagnostic helpers to Prop-level core "
-                "Lean using Prop, Not, arrows, lambda/fun, and `exact`; do not use "
-                "Real, <=, Nat.ceil, Finset, MeasureTheory, ENNReal, `linarith`, "
-                "`ring`, or `norm_num` unless a narrow import providing those APIs "
-                "has already been verified in this project. The source theorem itself "
-                "must remain expected_status=FORMAL_GAP unless the real probability/"
-                "measure statement can be checked."
             )
     prior_lean_candidate_repair_memory = [
         row
@@ -8280,15 +8229,6 @@ def _formalizer_mode_specific_instructions(
                 )
             )
         )
-        has_forbidden_shortcut_validation = any(
-            marker in validation_text
-            for marker in (
-                "unsupported contradiction proof shortcut",
-                "absurd",
-                "false.elim",
-                "contradiction proof shortcut",
-            )
-        )
         has_expected_status_validation = (
             "must set expected_status=needs_kernel_check" in validation_text
         )
@@ -8397,14 +8337,6 @@ def _formalizer_mode_specific_instructions(
                     "source_to_bridge_premise_derivation_candidates object just to "
                     "satisfy next_actions."
                 )
-        if has_forbidden_shortcut_validation:
-            instructions.append(
-                "Mandatory forbidden-shortcut repair: do not use `absurd`, "
-                "`False.elim`, fake contradictions, or fabricated impossible facts "
-                "in any Lean source. If the claim cannot be derived from real source "
-                "assumptions and verified helper lemmas, emit expected_status=FORMAL_GAP "
-                "outside Lean source and explain the exact missing premise."
-            )
         if has_expected_status_validation:
             instructions.append(
                 "Mandatory expected-status repair: every generated Lean candidate in "
@@ -8583,11 +8515,6 @@ def _formalizer_mode_specific_instructions(
         )
         has_timeout = "timeout" in local_lean_text
         has_proof_hole = "exact?" in precheck_text or "by?" in precheck_text
-        has_contradiction_shortcut = (
-            "false.elim" in precheck_text
-            or "absurd" in precheck_text
-            or "contradiction proof shortcut" in precheck_text
-        )
         has_formal_gap_placeholder = (
             "formal_gap" in precheck_text or "formal_gap" in candidate_source_text
         )
@@ -8663,10 +8590,28 @@ def _formalizer_mode_specific_instructions(
                         "a listed suggested_import_replacement. If the source theorem "
                         "still needs missing measure/probability APIs, keep it as "
                         "expected_status=FORMAL_GAP and name the exact missing import/"
-                        "API. If capability-eval still needs one materialized helper, "
-                        "emit at most one no-import core Lean diagnostic helper over "
-                        "Prop variables tied to the semantic bridge; this helper is "
-                        "diagnostic only and not source-theorem proof evidence."
+                        "API. Any revised executable candidate must preserve its typed "
+                        "target lineage and return through the configured Lean compiler."
+                    )
+                diagnostic_classes = {
+                    str(value).strip()
+                    for value in local_lean_repair_contract.get(
+                        "diagnostic_classes",
+                        [],
+                    )
+                    or []
+                    if str(value).strip()
+                }
+                if diagnostic_classes & {
+                    "lean_unknown_tactic",
+                    "lean_typeclass_synthesis_failed",
+                }:
+                    instructions.append(
+                        "Mandatory compiler-diagnostic repair: consume the exact "
+                        "unknown-tactic/typeclass diagnostics, available imports, "
+                        "retrieved local declarations/instances, and Lean proof state. "
+                        "Generate a revised proof and rerun Lean; do not substitute a "
+                        "runtime-authored tactic or typeclass recipe."
                     )
                 verified_narrow_imports = [
                     str(value).strip()
@@ -8689,37 +8634,13 @@ def _formalizer_mode_specific_instructions(
                         "these modules exactly; otherwise use no import or emit a "
                         "FORMAL_GAP. Do not retry `import Mathlib`."
                     )
-                if local_lean_repair_contract.get("declaration_required"):
-                    instructions.append(
-                        "Mandatory declaration repair: the previous Lean source had no "
-                        "declaration. The next executable candidate must include one "
-                        "concrete `theorem` or `lemma` tied to the "
-                        "theorem/subclaim. Do not return only imports, comments, open "
-                        "commands, prose, or an empty Lean sketch."
-                    )
-                if local_lean_repair_contract.get("core_lean_only_helper_rule"):
-                    instructions.append(
-                        "Mandatory core-Lean helper repair: the active import/local "
-                        "Lean contract restricts no-import diagnostic helpers to "
-                        "Prop-level core Lean using Prop, Not, arrows, lambda/fun, "
-                        "and `exact`; do not use Real, <=, Nat.ceil, Finset, "
-                        "MeasureTheory, ENNReal, `linarith`, `ring`, or `norm_num` "
-                        "unless a narrow import providing those APIs has already been "
-                        "verified in this project. The source theorem itself must "
-                        "remain expected_status=FORMAL_GAP unless the real probability/"
-                        "measure statement can be checked."
-                    )
                 if local_lean_repair_contract.get("repeated_syntax_failure"):
                     instructions.append(
-                        "Mandatory repeated parser/syntax repair: the previous repair "
-                        "retry still failed the Lean parser. Do not emit another broad "
-                        "formal_targets NEEDS_KERNEL_CHECK theorem with Greek or other "
-                        "Unicode binders, `Type*` universe shorthand, pipeline syntax, "
-                        "unsupported notation, or a large dependent statement. Emit "
-                        "expected_status=FORMAL_GAP for the source theorem, or emit at "
-                        "most one minimal ASCII/core Lean support lemma through a support "
-                        "channel with exact source-binding metadata and rerun local Lean "
-                        "before treating it as executable."
+                        "Mandatory compiler-feedback repair: consume the previous "
+                        "Lean parser/LSP diagnostics verbatim, revise the candidate, "
+                        "and rerun the configured Lean environment. Do not replay the "
+                        "identical failed artifact and do not impose a Python-side "
+                        "ASCII, Unicode, notation, API, or tactic whitelist."
                     )
         if has_target_drift:
             instructions.append(
@@ -8800,15 +8721,6 @@ def _formalizer_mode_specific_instructions(
                 "`admit`, or exploratory tactic holes in Lean statement sketches. "
                 "Return a complete candidate or an explicit FORMAL_GAP."
             )
-        if has_contradiction_shortcut:
-            instructions.append(
-                "Mandatory contradiction-shortcut repair: do not use `False.elim`, "
-                "`absurd`, fake contradictory hypotheses, or fabricated impossible "
-                "facts to close coverage/probability goals. Either derive the goal "
-                "from real source assumptions and named bridge lemmas, or emit "
-                "expected_status=FORMAL_GAP with the exact missing lemma/import in "
-                "gap_taxonomy and next_actions."
-            )
         if has_formal_gap_placeholder:
             instructions.append(
                 "Mandatory FORMAL_GAP placeholder repair: never place identifiers such "
@@ -8819,16 +8731,14 @@ def _formalizer_mode_specific_instructions(
             )
         if repeated_lean_candidate_failure:
             instructions.append(
-                "Repeated invalid Lean-candidate escalation: a prior Formalizer repair "
-                "attempt already returned a Lean candidate that failed runtime precheck "
-                "or local Lean. Do not emit another NEEDS_KERNEL_CHECK candidate unless "
-                "it removes every reported proof hole, contradiction shortcut, fake "
-                "FORMAL_GAP constant, guessed import, target drift, and unknown identifier "
-                "while preserving the source theorem target. If that faithful candidate "
-                "cannot be written from real source assumptions, named bridge lemmas, and "
-                "available imports, emit expected_status=FORMAL_GAP and list the missing "
-                "lemma/import/semantic premise in gap_taxonomy and next_actions instead "
-                "of retrying invalid Lean."
+                "Repeated Lean-candidate compiler repair: a prior generated candidate "
+                "failed runtime evidence checks or the configured Lean environment. "
+                "Consume the exact diagnostics and proof state, preserve the target and "
+                "lineage, generate a revised candidate, and rerun Lean. Do not replay an "
+                "identical artifact or replace compiler feedback with a Python-authored "
+                "tactic/grammar policy. Emit expected_status=FORMAL_GAP only for a real "
+                "semantic or dependency blocker, and never treat compiler feedback as "
+                "proof evidence."
             )
     if proof_memory_summary.get("proof_bank_bridge_catalog_exhausted_by_memory"):
         instructions.append(
@@ -9601,7 +9511,9 @@ def _feedback_local_lean_repair_contract(
         "local_lean_repair_contract",
         {},
     )
-    explicit_contract = dict(explicit) if isinstance(explicit, Mapping) else {}
+    explicit_contract = without_legacy_python_lean_strategy_fields(
+        explicit if isinstance(explicit, Mapping) else {}
+    )
     candidate_diagnostics = (
         feedback.get("candidate_diagnostics", [])
         or input_summary.get("candidate_diagnostics", [])
@@ -9647,33 +9559,13 @@ def _feedback_local_lean_repair_contract(
         classes.append("lean_unknown_identifier")
     if "unknown tactic" in local_lean_text:
         classes.append("lean_unknown_tactic")
+    if (
+        "lean.synthinstancefailed" in local_lean_text
+        or "failed to synthesize instance" in local_lean_text
+    ):
+        classes.append("lean_typeclass_synthesis_failed")
     if "type mismatch" in local_lean_text or "application type mismatch" in local_lean_text:
         classes.append("lean_type_mismatch")
-    if "source must contain a declaration" in local_lean_text:
-        classes.append("lean_candidate_missing_declaration")
-    candidate_source_text = " ".join(
-        str(row.get("lean_source_excerpt", "") or "")
-        for row in candidate_diagnostics
-        if isinstance(row, Mapping)
-    ).lower()
-    if (
-        "core-lean-only helper contract violation" in local_lean_text
-        or "no-import helper uses non-core" in local_lean_text
-        or "no-import diagnostic helper uses non-core" in local_lean_text
-        or "do not use real" in local_lean_text
-        or "do not use `real`" in local_lean_text
-        or "le real" in local_lean_text
-        or "lt real" in local_lean_text
-        or "ofnat real" in local_lean_text
-        or (
-            "unknown tactic" in local_lean_text
-            and any(
-                marker in candidate_source_text
-                for marker in ("real", "linarith", "norm_num", "ring")
-            )
-        )
-    ):
-        classes.append("lean_no_import_noncore_arithmetic")
     if not classes:
         classes.append("lean_local_check_failed")
     contract: dict[str, Any] = {
@@ -9713,25 +9605,6 @@ def _feedback_local_lean_repair_contract(
             "narrow `Mathlib.*` module imports that are verified in the configured "
             "Lake project or listed as suggested_import_replacements."
         )
-        contract["core_lean_diagnostic_helper_shape"] = (
-            "At most one no-import core Lean Prop helper may be emitted as diagnostic "
-            "tooling evidence; it is not source-theorem proof evidence."
-        )
-        contract["core_lean_only_helper_rule"] = (
-            "When the Mathlib root import is unavailable, any no-import diagnostic "
-            "helper must use only core Lean propositions and functions: Prop, Not, "
-            "->, lambda/fun, and `exact`. Do not use Real, <=, Nat.ceil, Finset, "
-            "MeasureTheory, ENNReal, linarith, ring, or norm_num unless a narrow "
-            "import providing those APIs has already been verified in the configured "
-            "Lean project."
-        )
-        contract["core_lean_only_helper_example"] = (
-            "theorem core_prop_bridge "
-            "(target support : Prop) "
-            "(h : support -> target) "
-            "(hs : support) : target := by\n"
-            "  exact h hs"
-        )
     verified_narrow_imports = _feedback_verified_narrow_imports(candidate_diagnostics)
     if verified_narrow_imports:
         contract["verified_narrow_imports"] = verified_narrow_imports
@@ -9750,37 +9623,16 @@ def _feedback_local_lean_repair_contract(
         )
     if "lean_unknown_tactic" in classes:
         contract["unknown_tactic_repair_rule"] = (
-            "Do not retry tactics unavailable without imports; use direct core Lean "
-            "`exact`/lambda proofs or emit a FORMAL_GAP/dependency blocker."
+            "Use the exact unknown-tactic diagnostic, available imports, retrieved "
+            "local declarations, and Lean proof state to generate a revised proof. "
+            "Do not substitute a hardcoded tactic list."
         )
-    if "lean_no_import_noncore_arithmetic" in classes:
-        contract["core_lean_only_helper_rule"] = (
-            "If Mathlib remains unavailable, no-import helpers must use only core Lean "
-            "Prop/Not/arrows/lambda/fun/exact. Do not use Real, <=, Nat.ceil, Finset, "
-            "MeasureTheory, ENNReal, linarith, ring, or norm_num."
+    if "lean_typeclass_synthesis_failed" in classes:
+        contract["typeclass_repair_rule"] = (
+            "Use the exact typeclass-synthesis diagnostic, configured imports, "
+            "retrieved local instances/declarations, and Lean proof state to revise "
+            "the candidate. Do not infer a replacement type or instance in Python."
         )
-        contract["core_lean_only_helper_example"] = (
-            "theorem core_prop_bridge "
-            "(target support : Prop) "
-            "(h : support -> target) "
-            "(hs : support) : target := by\n"
-            "  exact h hs"
-        )
-    if "lean_candidate_missing_declaration" in classes:
-        contract["declaration_required"] = True
-        contract["declaration_repair_rule"] = (
-            "The next executable Lean candidate must contain a concrete declaration "
-            "introduced by `theorem` or `lemma`; auxiliary `def`/`example` "
-            "declarations alone do not satisfy a Formalizer capability candidate. "
-            "Do not return only imports, prose, comments, open commands, or an empty "
-            "formal target. If a real theorem/lemma tied to the theorem/subclaim "
-            "cannot be written, emit expected_status=FORMAL_GAP outside Lean source "
-            "and name the blocker."
-        )
-        contract["declaration_required_keywords"] = [
-            "theorem",
-            "lemma",
-        ]
     return _merge_feedback_local_lean_repair_contracts(
         explicit_contract,
         contract,
@@ -9791,6 +9643,7 @@ def _merge_feedback_local_lean_repair_contracts(
     explicit_contract: Mapping[str, Any],
     derived_contract: Mapping[str, Any],
 ) -> Mapping[str, Any]:
+    explicit_contract = without_legacy_python_lean_strategy_fields(explicit_contract)
     if not explicit_contract:
         return dict(derived_contract)
     if not derived_contract:
@@ -9827,7 +9680,6 @@ def _merge_feedback_local_lean_repair_contracts(
             "blocked_import_prefixes",
             "unknown_identifiers",
             "verified_narrow_imports",
-            "declaration_required_keywords",
         }:
             existing_values = [
                 str(item).strip()
@@ -11307,6 +11159,9 @@ def _compact_value(value: Any) -> Any:
             "proof_body_signature_probe_artifact_hash",
             "target_theorem_statement",
             "current_proof_body_excerpt",
+            "compiler_feedback",
+            "prior_exact_candidate_feedback",
+            "proof_body_generation_contract",
             "formal_environment_placeholder_symbols",
             "formal_environment_typeclass_blockers",
             "semantic_alignment_constraints",
@@ -11345,16 +11200,12 @@ def _compact_value(value: Any) -> Any:
             "blocked_import_prefixes",
             "mathlib_import_unavailable",
             "mathlib_root_import_unavailable",
-            "core_lean_only_helper_rule",
-            "core_lean_only_helper_example",
-            "core_lean_diagnostic_helper_shape",
             "mathlib_repair_rule",
             "import_repair_rule",
             "suggested_import_replacements",
             "unknown_identifiers",
             "unknown_identifier_repair_rule",
             "repeated_syntax_failure",
-            "repeated_syntax_failure_rule",
         )
         ordered_keys: list[Any] = [
             key
@@ -11430,44 +11281,11 @@ def _lean_statement_placeholder_syntax_error(source: str) -> str:
         (r"\bunsafe\b", "contains unsafe Lean declaration"),
         (r"\bby\?", "contains interactive proof-hole marker by?"),
         (r"\bexact\?", "contains interactive proof-hole marker exact?"),
-        (
-            r"\bFalse\.elim\b",
-            "contains unsupported contradiction-elimination proof shortcut False.elim",
-        ),
-        (
-            r"\babsurd\b",
-            "contains unsupported contradiction proof shortcut absurd",
-        ),
     )
     for pattern, message in patterns:
         if re.search(pattern, source, flags=re.IGNORECASE):
             return message
     return ""
-
-
-def _lean_statement_repeated_syntax_contract_errors(source: str) -> list[str]:
-    text = str(source or "")
-    if not text:
-        return []
-    errors: list[str] = []
-    if re.search(r"\bType\s*\*", text):
-        errors.append(
-            "violates repeated parser/syntax repair contract: `Type*` universe "
-            "shorthand is forbidden after a repeated parser failure; use `Type`, "
-            "an explicit universe, FORMAL_GAP, or a minimal ASCII/core support lemma"
-        )
-    if "|>" in text:
-        errors.append(
-            "violates repeated parser/syntax repair contract: pipeline syntax `|>` "
-            "is forbidden after a repeated parser failure"
-        )
-    if any(ord(ch) > 127 for ch in text):
-        errors.append(
-            "violates repeated parser/syntax repair contract: non-ASCII Lean syntax "
-            "or binders are forbidden after a repeated parser failure; use ASCII "
-            "identifiers and parser-simple core Lean"
-        )
-    return errors
 
 
 def _source_to_bridge_candidate_vacuous_truth_error(source: str) -> str:

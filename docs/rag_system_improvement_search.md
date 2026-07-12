@@ -65,12 +65,17 @@ stale. The next-capacity target is therefore not "make these eight
 retrievable"; it is to keep this recall stable while adding source-aware
 reranking, proof-state feedback, and harder semantic/paraphrase queries.
 
-The shared `EmpericalProcessLEAN/lean_rag` package was rechecked against branch
-`codex/rag-infra-package` at commit `9f0e0ad1277a`. Its useful new surface is
-package-level refresh discipline, not a generated index to vendor:
+The shared `EmpericalProcessLEAN/lean_rag` package was rechecked on 2026-07-12.
+The current direct-reuse head is `codex/lean-reuse-source-integration` at
+`2ade029e`; the older `codex/rag-infra-package` line is more than 1,500 commits
+behind current `main`. Its useful surface is package-level refresh discipline
+and source-provenance APIs, not a generated index to vendor:
 
 - `shared_proof_retrieval.py status` records saved checkout state and live drift
   signals, including dirty checkouts and upstream ahead/behind state.
+- `index_signature_state()` compares the indexed Lean-source signature with the
+  live checkout. AI-Statistician rejects explicitly changed-index hits and
+  globally fuses ranks across checkouts before applying the result limit.
 - `refresh_lean_reuse_sources.py --rebuild-index` refuses to rebuild
   `statinference-local` records from dirty `StatInference` paths unless the
   explicit dirty override is used.

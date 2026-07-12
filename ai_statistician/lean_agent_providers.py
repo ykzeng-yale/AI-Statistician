@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
 from .formal_source_index import FormalDeclaration, FormalSourceHit
+from .lean_proof_agent_contract import llm_proof_body_generation_contract
 from .model_backend import GeneratorBackend, GeneratorRequest
 
 
@@ -22,6 +24,43 @@ LEAN_PROVIDER_BOUNDARY = (
     "Statistician source theorem until its exact declaration passes the configured "
     "local Lean/AXLE gate."
 )
+
+OPENPROVER_TASK_NORMALIZATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["context", "target"],
+    "properties": {
+        "context": {
+            "type": "array",
+            "maxItems": 80,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["name", "typ", "kind"],
+                "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "typ": {"type": "string", "minLength": 1},
+                    "kind": {"type": "string", "enum": ["explicit", "instance"]},
+                },
+            },
+        },
+        "target": {"type": "string", "minLength": 1},
+    },
+}
+
+OPENPROVER_PROOF_CANDIDATE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["candidates"],
+    "properties": {
+        "candidates": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {"type": "string", "minLength": 1},
+        }
+    },
+}
 
 
 class LeanProviderUnavailable(RuntimeError):
@@ -192,6 +231,7 @@ class EmpericalProcessLeanRetrievalProvider:
         checkouts: Sequence[str] = (),
         no_sorry: bool = True,
         with_graph_context: bool = True,
+        reject_changed_index_signature: bool = True,
         module_loader: Callable[[], ModuleType] | None = None,
     ) -> None:
         self.root = Path(root).expanduser().resolve()
@@ -205,8 +245,10 @@ class EmpericalProcessLeanRetrievalProvider:
         self.checkouts = tuple(str(value) for value in checkouts if str(value))
         self.no_sorry = bool(no_sorry)
         self.with_graph_context = bool(with_graph_context)
+        self.reject_changed_index_signature = bool(reject_changed_index_signature)
         self._module_loader = module_loader
         self._module: ModuleType | None = None
+        self._runtime_diagnostics: list[dict[str, Any]] = []
 
     @property
     def script_path(self) -> Path:
@@ -221,12 +263,20 @@ class EmpericalProcessLeanRetrievalProvider:
             "db_dir": str(self.db_dir),
             "source": self.source,
             "checkouts": list(self.checkouts),
+            "reject_changed_index_signature": self.reject_changed_index_signature,
             "available": self.script_path.is_file(),
             "repository_provenance": _git_provenance(self.root),
             "boundary": LEAN_PROVIDER_BOUNDARY,
         }
 
+    def reset_runtime_diagnostics(self) -> None:
+        self._runtime_diagnostics.clear()
+
+    def runtime_diagnostics(self) -> list[dict[str, Any]]:
+        return [dict(row) for row in self._runtime_diagnostics]
+
     def search(self, query: str, *, k: int = 10) -> list[ExternalFormalSourceHit]:
+        self._runtime_diagnostics.clear()
         limit = max(int(k), 0)
         if limit == 0:
             return []
@@ -246,22 +296,47 @@ class EmpericalProcessLeanRetrievalProvider:
                 self.checkouts or None,
             )
         )
-        per_checkout = max(limit, 4)
-        hits: list[ExternalFormalSourceHit] = []
-        for entry in entries:
+        per_checkout = max(limit * 2, 8)
+        ranked_hits: list[tuple[float, int, int, ExternalFormalSourceHit]] = []
+        for entry_index, entry in enumerate(entries):
             db = Path(str(entry.get("db", "") or ""))
             if not db.exists():
+                self._runtime_diagnostics.append(
+                    {
+                        "status": "missing_index",
+                        "checkout_name": str(entry.get("name", "") or ""),
+                        "db": str(db),
+                    }
+                )
+                continue
+            checkout_path = Path(str(entry.get("path", "") or self.root))
+            index_signature_state = self._index_signature_state(
+                module,
+                entry=entry,
+                checkout_path=checkout_path,
+            )
+            if (
+                self.reject_changed_index_signature
+                and index_signature_state == "changed"
+            ):
+                self._runtime_diagnostics.append(
+                    {
+                        "status": "stale_index_rejected",
+                        "checkout_name": str(entry.get("name", "") or ""),
+                        "db": str(db),
+                        "index_signature_state": index_signature_state,
+                    }
+                )
                 continue
             rows = module.search_db(db, query, per_checkout, self.no_sorry)
             for rank, row in enumerate(rows, start=1):
-                if len(hits) >= limit:
-                    break
                 provenance = self._hit_provenance(
                     module,
                     entry=entry,
                     db=db,
                     row=row,
                     rank=rank,
+                    index_signature_state=index_signature_state,
                 )
                 row_path = str(_row_value(row, "path", "") or "")
                 source_path = module.source_path(entry, row_path)
@@ -280,21 +355,57 @@ class EmpericalProcessLeanRetrievalProvider:
                 )
                 raw_score = _row_value(row, "match_score", None)
                 score = float(raw_score) if raw_score is not None else 1.0 / rank
-                hits.append(
-                    ExternalFormalSourceHit(
-                        declaration=declaration,
-                        score=score,
-                        matched_terms=tuple(
-                            str(value)
-                            for value in module.query_tokens(query)[:16]
-                            if str(value)
+                ranked_hits.append(
+                    (
+                        score,
+                        entry_index,
+                        rank,
+                        ExternalFormalSourceHit(
+                            declaration=declaration,
+                            score=score,
+                            matched_terms=tuple(
+                                str(value)
+                                for value in module.query_tokens(query)[:16]
+                                if str(value)
+                            ),
+                            provenance=provenance,
                         ),
-                        provenance=provenance,
                     )
                 )
-            if len(hits) >= limit:
-                break
-        return hits[:limit]
+        ranked_hits.sort(
+            key=lambda item: (
+                -item[0],
+                item[1],
+                item[2],
+                item[3].declaration.name,
+            )
+        )
+        selected = [item[3] for item in ranked_hits[:limit]]
+        self._runtime_diagnostics.append(
+            {
+                "status": "ok",
+                "query_fingerprint": stable_hash(query),
+                "n_checkouts": len(entries),
+                "n_ranked_hits": len(ranked_hits),
+                "n_returned_hits": len(selected),
+                "ranking": "global_score_across_checkouts",
+            }
+        )
+        return selected
+
+    @staticmethod
+    def _index_signature_state(
+        module: ModuleType,
+        *,
+        entry: Mapping[str, Any],
+        checkout_path: Path,
+    ) -> str:
+        if not hasattr(module, "index_signature_state"):
+            return "unknown"
+        try:
+            return str(module.index_signature_state(dict(entry), checkout_path))
+        except Exception:
+            return "unknown"
 
     def _load_module(self) -> ModuleType:
         if self._module is not None:
@@ -333,19 +444,12 @@ class EmpericalProcessLeanRetrievalProvider:
         db: Path,
         row: Any,
         rank: int,
+        index_signature_state: str = "unknown",
     ) -> dict[str, Any]:
         checkout_path = Path(str(entry.get("path", "") or self.root))
         branch = str(entry.get("branch", "") or "")
         commit = str(entry.get("commit", "") or "")
         dirty = bool(entry.get("dirty", False))
-        index_signature_state = "unknown"
-        if hasattr(module, "index_signature_state"):
-            try:
-                index_signature_state = str(
-                    module.index_signature_state(dict(entry), checkout_path)
-                )
-            except Exception:
-                index_signature_state = "unknown"
         graph: dict[str, Any] = {}
         decl_id = _row_value(row, "id", None)
         if self.with_graph_context and decl_id is not None:
@@ -394,8 +498,13 @@ class OpenProverHLMConfig:
     feedback_top_k: int = 4
     max_attempts: int = 120
     route_strategy: str = "hybrid"
+    final_feedback_retry: bool = True
+    final_feedback_retry_budget: int = 4
+    final_feedback_retry_strategy: str = "retrieval_feedback"
+    skip_initial_search: bool = True
     verifier_timeout_s: int = 120
     require_lake_project: bool = True
+    task_normalization_max_tokens: int = 1800
 
 
 class GeneratorBackendCandidatePolicy:
@@ -409,37 +518,42 @@ class GeneratorBackendCandidatePolicy:
         max_tokens: int,
         temperature: float,
         proof_generation_prompt: Callable[[Any, int], str],
-        extract_proof_candidates: Callable[[str], Sequence[str]],
-        candidate_contract_violations: Callable[[Sequence[str]], Sequence[Any]],
     ) -> None:
         self.provider = provider
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
         self._proof_generation_prompt = proof_generation_prompt
-        self._extract_proof_candidates = extract_proof_candidates
-        self._candidate_contract_violations = candidate_contract_violations
         provider_name = str(getattr(provider, "provider_name", type(provider).__name__))
         self.name = f"ai-statistician-generator:{provider_name}"
         self.last_diagnostics: dict[str, Any] = {}
 
     def propose(self, task: Any, n: int) -> list[str]:
-        prompt = self._proof_generation_prompt(task, n)
+        prompt = self._proof_generation_prompt(task, n) + (
+            "\n\nOUTPUT CONTRACT: Return one JSON object with exactly one key, "
+            "`candidates`. Its value must be an array of Lean proof-body strings. "
+            "Do not return markdown fences, prose, declarations, imports, or a "
+            "replacement theorem statement."
+        )
         request = GeneratorRequest(
             system_prompt=(
-                "You generate only Lean proof bodies for OpenProver. Return the "
-                "requested fenced Lean candidates; OpenProver owns route allocation, "
-                "verification, failed-branch mining, and search."
+                "You are the Lean coding agent inside OpenProver. Generate proof "
+                "bodies from the exact target, retrieved context, proof state, and "
+                "verbatim verifier diagnostics in the prompt. Return the requested "
+                "structured candidate payload; OpenProver owns route allocation, Lean "
+                "verification, failed-branch mining, and iterative feedback. Do not "
+                "assume a runtime-authored static tactic fallback exists."
             ),
             user_prompt=prompt,
             model=self.model,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
-            schema=None,
+            schema=OPENPROVER_PROOF_CANDIDATE_SCHEMA,
             metadata={
                 "subsystem": "OpenProverHLM",
                 "agent": "GeneratorBackendCandidatePolicy",
                 "requested_candidates": n,
+                "generation_contract": llm_proof_body_generation_contract(),
             },
         )
         try:
@@ -452,34 +566,43 @@ class GeneratorBackendCandidatePolicy:
                 "extracted_candidates": 0,
             }
             return []
-        candidates = [
-            str(value).strip()
-            for value in self._extract_proof_candidates(response.text)
-            if str(value).strip()
-        ][:n]
-        accepted_candidates: list[str] = []
-        violations: list[dict[str, Any]] = []
-        for candidate_index, candidate in enumerate(candidates):
-            candidate_violations = list(
-                self._candidate_contract_violations([candidate])
+        try:
+            payload = _strict_json_object(response.text)
+        except ValueError as exc:
+            self.last_diagnostics = {
+                "status": "response_contract_rejected",
+                "error": str(exc),
+                "provider": response.provider,
+                "model": response.model,
+                "requested_candidates": n,
+                "extracted_candidates": 0,
+                "response_metadata": (
+                    dict(response.metadata)
+                    if isinstance(response.metadata, Mapping)
+                    else {}
+                ),
+            }
+            return []
+        raw_candidates = payload.get("candidates", [])
+        if not isinstance(raw_candidates, list):
+            raw_candidates = []
+        candidates = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in raw_candidates
+                if str(value).strip()
             )
-            if not candidate_violations:
-                accepted_candidates.append(candidate)
-                continue
-            for violation in candidate_violations:
-                if isinstance(violation, Mapping):
-                    row = dict(violation)
-                    row["candidate_index"] = candidate_index
-                else:
-                    row = {
-                        "candidate_index": candidate_index,
-                        "violations": [str(violation)],
-                    }
-                violations.append(row)
+        )[:n]
+        accepted_candidates = [
+            candidate for candidate in candidates if not _forbidden_proof_body(candidate)
+        ]
+        rejected_candidates = [
+            candidate for candidate in candidates if _forbidden_proof_body(candidate)
+        ]
         self.last_diagnostics = {
             "status": (
                 "ok"
-                if not violations
+                if not rejected_candidates
                 else "partial_contract_rejection"
                 if accepted_candidates
                 else "contract_rejected"
@@ -490,7 +613,14 @@ class GeneratorBackendCandidatePolicy:
             "extracted_candidates": len(candidates),
             "accepted_candidates": len(accepted_candidates),
             "rejected_candidates": len(candidates) - len(accepted_candidates),
-            "candidate_contract_violations": violations[:12],
+            "candidate_contract_violations": [
+                {
+                    "candidate_hash": stable_hash(candidate),
+                    "violations": ["forbidden proof-evidence token"],
+                }
+                for candidate in rejected_candidates[:12]
+            ],
+            "response_contract": "json_schema",
             "response_metadata": (
                 dict(response.metadata) if isinstance(response.metadata, Mapping) else {}
             ),
@@ -529,7 +659,17 @@ class OpenProverHLMProofSearchProvider:
             "feedback_top_k": self.config.feedback_top_k,
             "max_attempts": self.config.max_attempts,
             "route_strategy": self.config.route_strategy,
+            "final_feedback_retry": self.config.final_feedback_retry,
+            "final_feedback_retry_budget": self.config.final_feedback_retry_budget,
+            "final_feedback_retry_strategy": (
+                self.config.final_feedback_retry_strategy
+            ),
+            "skip_initial_search": self.config.skip_initial_search,
             "lean_project": str(self.config.lean_project or ""),
+            "generation_mode": "llm_zero_shot_with_lean_compile_feedback",
+            "task_normalization": "llm_structured_json",
+            "candidate_response_contract": "json_schema",
+            "static_tactic_fallback": False,
             "boundary": LEAN_PROVIDER_BOUNDARY,
         }
 
@@ -560,12 +700,21 @@ class OpenProverHLMProofSearchProvider:
                 reason="configured OpenProver Lake project is missing",
             )
         runtime = self._load_runtime()
-        parser_statement = target_statement
-        if ":=" not in parser_statement:
-            parser_statement += " := by"
-        theorem_name, context, target = runtime["parse_theorem_signature"](
-            parser_statement
-        )
+        try:
+            context, target, task_normalization = self._normalize_openprover_task(
+                request_payload,
+                runtime=runtime,
+                target_statement=target_statement,
+                target_declaration=target_declaration,
+            )
+        except (LeanProviderUnavailable, ValueError) as exc:
+            return self._blocked_result(
+                request_fingerprint,
+                target_declaration=target_declaration,
+                reason=f"structured OpenProver task normalization failed: {exc}",
+                status="BLOCKED_TASK_NORMALIZATION",
+            )
+        theorem_name = target_declaration
         header = str(request_payload.get("lean_header", "") or "").strip()
         if not header:
             header = "\n".join(
@@ -579,10 +728,6 @@ class OpenProverHLMProofSearchProvider:
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             proof_generation_prompt=runtime["proof_generation_prompt"],
-            extract_proof_candidates=runtime["extract_proof_candidates"],
-            candidate_contract_violations=runtime[
-                "candidate_contract_violations"
-            ],
         )
         backend = (
             runtime["LakeLeanBackend"](
@@ -594,31 +739,73 @@ class OpenProverHLMProofSearchProvider:
                 timeout_s=self.config.verifier_timeout_s
             )
         )
-        feedback_text = "\n".join(
-            str(value)
-            for value in (
-                request_payload.get("failed_proof_body_attempts", []) or []
-            )
-            if str(value)
+        compiler_feedback = (
+            request_payload.get("compiler_feedback", {})
+            if isinstance(request_payload.get("compiler_feedback", {}), Mapping)
+            else {}
         )
+        compiler_diagnostics = [
+            str(value)
+            for value in compiler_feedback.get("diagnostics", []) or []
+            if str(value).strip()
+        ]
+        failed_attempts = [
+            str(value)
+            for value in request_payload.get("failed_proof_body_attempts", []) or []
+            if str(value).strip()
+        ]
+        prior_exact_feedback = [
+            dict(value)
+            for value in request_payload.get("prior_exact_candidate_feedback", [])
+            or []
+            if isinstance(value, Mapping)
+        ][: self.config.feedback_top_k]
+        feedback_text = "\n".join([*compiler_diagnostics, *failed_attempts])
         residual_goals = tuple(
             str(value)
             for value in request_payload.get("residual_goal_excerpt", []) or []
             if str(value)
         )
-        initial_failure_feedback = [
-            runtime["FailureFeedback"](
-                branch="ai_statistician_current_candidate",
-                route="whole_proof",
-                round=0,
-                proof_excerpt=str(
-                    request_payload.get("current_proof_body_excerpt", "") or ""
-                )[:1200],
-                error_tail=feedback_text[:1800],
-                error_kind="ai_statistician_exact_whole_proof_failure",
-                goal_snapshots=residual_goals[:4],
+        initial_failure_feedback = []
+        if feedback_text or residual_goals:
+            initial_failure_feedback.append(
+                runtime["FailureFeedback"](
+                    branch="ai_statistician_current_candidate",
+                    route="whole_proof",
+                    round=0,
+                    proof_excerpt=str(
+                        request_payload.get("current_proof_body_excerpt", "") or ""
+                    )[:1200],
+                    error_tail=feedback_text[:4000],
+                    error_kind="ai_statistician_lean_compiler_feedback",
+                    goal_snapshots=residual_goals[:4],
+                )
             )
-        ]
+        for index, prior in enumerate(prior_exact_feedback, start=1):
+            prior_diagnostics = [
+                str(value)
+                for value in (
+                    prior.get("runtime_owned_local_lean_diagnostics", [])
+                    or prior.get("diagnostics", [])
+                    or []
+                )
+                if str(value).strip()
+            ]
+            if not prior_diagnostics:
+                continue
+            initial_failure_feedback.append(
+                runtime["FailureFeedback"](
+                    branch=f"ai_statistician_exact_kernel_rerun_{index}",
+                    route="whole_proof",
+                    round=0,
+                    proof_excerpt=str(
+                        prior.get("candidate_proof_body", "") or ""
+                    )[:1200],
+                    error_tail="\n".join(prior_diagnostics)[:4000],
+                    error_kind="ai_statistician_exact_kernel_rerun_feedback",
+                    goal_snapshots=residual_goals[:4],
+                )
+            )
         run_dir = self.config.out_dir / request_fingerprint[:20]
         report_path = run_dir / "openprover_hlm_report.json"
         checkpoint_path = run_dir / "openprover_hlm_checkpoint.json"
@@ -637,6 +824,10 @@ class OpenProverHLMProofSearchProvider:
             stop_on_success=True,
             adaptive_route_allocation=True,
             route_strategy=self.config.route_strategy,
+            final_feedback_retry=self.config.final_feedback_retry,
+            final_feedback_retry_budget=self.config.final_feedback_retry_budget,
+            final_feedback_retry_strategy=self.config.final_feedback_retry_strategy,
+            skip_initial_search=self.config.skip_initial_search,
             initial_failure_feedback=initial_failure_feedback,
             checkpoint_path=checkpoint_path,
         )
@@ -647,7 +838,109 @@ class OpenProverHLMProofSearchProvider:
             report_path=report_path,
             checkpoint_path=checkpoint_path,
             policy=policy,
+            compiler_feedback_consumed=bool(
+                compiler_diagnostics or residual_goals or failed_attempts
+            ),
+            prior_exact_candidate_feedback_items=len(prior_exact_feedback),
+            initial_failure_feedback_items=len(initial_failure_feedback),
+            task_normalization=task_normalization,
         )
+
+    def _normalize_openprover_task(
+        self,
+        request_payload: Mapping[str, Any],
+        *,
+        runtime: Mapping[str, Any],
+        target_statement: str,
+        target_declaration: str,
+    ) -> tuple[list[Any], str, dict[str, Any]]:
+        supplied = request_payload.get("openprover_task", {})
+        if isinstance(supplied, Mapping) and supplied:
+            payload = dict(supplied)
+            source = "upstream_structured_task"
+            response_metadata: dict[str, Any] = {}
+        else:
+            compiler_feedback = (
+                request_payload.get("compiler_feedback", {})
+                if isinstance(request_payload.get("compiler_feedback", {}), Mapping)
+                else {}
+            )
+            prompt_payload = {
+                "target_lean_declaration": target_declaration,
+                "exact_target_theorem_statement": target_statement,
+                "residual_goal_excerpt": [
+                    str(value)
+                    for value in request_payload.get("residual_goal_excerpt", []) or []
+                    if str(value).strip()
+                ][:16],
+                "compiler_diagnostics": [
+                    str(value)
+                    for value in compiler_feedback.get("diagnostics", []) or []
+                    if str(value).strip()
+                ][:16],
+            }
+            normalization_request = GeneratorRequest(
+                system_prompt=(
+                    "Normalize an exact Lean theorem goal for OpenProver. Use the "
+                    "exact theorem statement and elaborated goal excerpt as the "
+                    "authority. Return each local binding as name, Lean type text, "
+                    "and kind (`explicit` or `instance`), plus the exact target type. "
+                    "Do not propose a proof, change assumptions, simplify the target, "
+                    "or invent declarations. This normalization is search context "
+                    "only; the generated proof is later rerun against the exact source."
+                ),
+                user_prompt=json.dumps(prompt_payload, ensure_ascii=False, indent=2),
+                model=self.config.model,
+                max_tokens=self.config.task_normalization_max_tokens,
+                temperature=0.0,
+                schema=OPENPROVER_TASK_NORMALIZATION_SCHEMA,
+                metadata={
+                    "subsystem": "OpenProverHLM",
+                    "agent": "StructuredLeanTaskNormalizer",
+                    "target_statement_hash": stable_hash(target_statement),
+                    "generation_contract": llm_proof_body_generation_contract(),
+                },
+            )
+            try:
+                response = self.generator_backend.generate(normalization_request)
+            except Exception as exc:
+                raise LeanProviderUnavailable(
+                    f"LLM task normalizer failed: {type(exc).__name__}: {exc}"
+                ) from exc
+            payload = _strict_json_object(response.text)
+            source = "llm_structured_json"
+            response_metadata = {
+                "provider": response.provider,
+                "model": response.model,
+                "metadata": (
+                    dict(response.metadata)
+                    if isinstance(response.metadata, Mapping)
+                    else {}
+                ),
+            }
+        raw_context = payload.get("context", [])
+        target = str(payload.get("target", "") or "").strip()
+        if not isinstance(raw_context, list) or not target:
+            raise ValueError("normalizer response requires context[] and target")
+        context = []
+        for index, row in enumerate(raw_context):
+            if not isinstance(row, Mapping):
+                raise ValueError(f"context[{index}] must be an object")
+            name = str(row.get("name", "") or "").strip()
+            typ = str(row.get("typ", "") or "").strip()
+            kind = str(row.get("kind", "explicit") or "explicit").strip()
+            if not name or not typ or kind not in {"explicit", "instance"}:
+                raise ValueError(
+                    f"context[{index}] requires name, typ, and explicit/instance kind"
+                )
+            context.append(runtime["Binding"](name=name, typ=typ, kind=kind))
+        return context, target, {
+            "source": source,
+            "target_hash": stable_hash(target),
+            "context_binding_count": len(context),
+            "response": response_metadata,
+            "proof_evidence_status": "TASK_NORMALIZATION_NOT_PROOF_EVIDENCE",
+        }
 
     def _load_runtime(self) -> Mapping[str, Any]:
         if self._runtime is not None:
@@ -667,7 +960,7 @@ class OpenProverHLMProofSearchProvider:
             sys.path.insert(0, src_text)
         controller = importlib.import_module("openprover.controller")
         policies = importlib.import_module("openprover.policies")
-        public_hlm = importlib.import_module("openprover.benchmarks.public_hlm")
+        types = importlib.import_module("openprover.types")
         verifier = importlib.import_module("openprover.verifier")
         loaded_controller = Path(str(controller.__file__ or "")).resolve()
         if src not in loaded_controller.parents:
@@ -678,12 +971,8 @@ class OpenProverHLMProofSearchProvider:
         self._runtime = {
             "run_policy_hlm_controller": controller.run_policy_hlm_controller,
             "FailureFeedback": controller.FailureFeedback,
-            "parse_theorem_signature": public_hlm.parse_theorem_signature,
+            "Binding": types.Binding,
             "proof_generation_prompt": policies.proof_generation_prompt,
-            "extract_proof_candidates": policies.extract_proof_candidates,
-            "candidate_contract_violations": (
-                policies.candidate_contract_violations
-            ),
             "LakeLeanBackend": verifier.LakeLeanBackend,
             "LocalLeanBackend": verifier.LocalLeanBackend,
         }
@@ -698,6 +987,10 @@ class OpenProverHLMProofSearchProvider:
         report_path: Path,
         checkpoint_path: Path,
         policy: GeneratorBackendCandidatePolicy,
+        compiler_feedback_consumed: bool,
+        prior_exact_candidate_feedback_items: int,
+        initial_failure_feedback_items: int,
+        task_normalization: Mapping[str, Any],
     ) -> dict[str, Any]:
         summary = (
             dict(report.get("summary", {}))
@@ -734,6 +1027,14 @@ class OpenProverHLMProofSearchProvider:
                 if assets
                 else "NO_CANDIDATE_FOUND"
             ),
+            "generation_mode": "llm_zero_shot_with_lean_compile_feedback",
+            "static_tactic_fallback": False,
+            "compiler_feedback_consumed": compiler_feedback_consumed,
+            "prior_exact_candidate_feedback_items": (
+                prior_exact_candidate_feedback_items
+            ),
+            "initial_failure_feedback_items": initial_failure_feedback_items,
+            "task_normalization": dict(task_normalization),
             "openprover_summary": {
                 key: summary.get(key)
                 for key in (
@@ -748,6 +1049,13 @@ class OpenProverHLMProofSearchProvider:
                     "total_valid_prefix_steps",
                     "total_failure_feedback_items",
                     "route_strategy",
+                    "final_feedback_retry_enabled",
+                    "final_feedback_retry_run",
+                    "final_feedback_retry_strategy",
+                    "final_feedback_retry_budget",
+                    "final_feedback_retry_branches",
+                    "final_feedback_retry_direct_solved",
+                    "final_feedback_retry_success_delta",
                 )
                 if key in summary
             },
@@ -769,6 +1077,7 @@ class OpenProverHLMProofSearchProvider:
         *,
         target_declaration: str,
         reason: str,
+        status: str = "BLOCKED_PROVIDER_ENVIRONMENT",
     ) -> dict[str, Any]:
         result_id = "openprover_hlm_result:" + stable_hash(
             [request_fingerprint, target_declaration, reason]
@@ -782,7 +1091,9 @@ class OpenProverHLMProofSearchProvider:
             "provider_descriptor": self.descriptor(),
             "request_fingerprint": request_fingerprint,
             "target_lean_declaration": target_declaration,
-            "status": "BLOCKED_PROVIDER_ENVIRONMENT",
+            "status": status,
+            "generation_mode": "llm_zero_shot_with_lean_compile_feedback",
+            "static_tactic_fallback": False,
             "blocker": reason,
             "source_theorem_candidate_proof_bodies": [],
             "verified_support_assets": [],
@@ -842,6 +1153,16 @@ def _row_value(row: Any, key: str, default: Any) -> Any:
     return row[key] if key in keys else default
 
 
+def _strict_json_object(raw_text: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(str(raw_text or ""))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"provider response is not a JSON object: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("provider response must be one JSON object")
+    return payload
+
+
 def _graph_row_json(row: Any) -> dict[str, Any]:
     try:
         keys = row.keys()
@@ -875,7 +1196,6 @@ def _openprover_direct_proof_bodies(report: Mapping[str, Any]) -> list[str]:
     candidates: list[str] = []
     sources: list[Any] = [
         report.get("direct_solution"),
-        report.get("final_search"),
         *(report.get("direct_successes", []) or []),
     ]
     for source in sources:

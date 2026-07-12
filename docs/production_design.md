@@ -1644,9 +1644,21 @@ The package integrates existing systems where appropriate:
 
 - `Preliminary Attempt/` remains archived as the research prototype and eval
   history.
-- `OpenProver` is used opportunistically for Lean-style tokenization in
-  retrieval if `/Users/yukang/Documents/OpenProver/src` or `OPENPROVER_SRC`
-  exists.
+- `AI Statistician before 0710 on main MacPro/` is treated as a local migration
+  source, not a vendored runtime dependency. A tracked-file and commit-lineage
+  audit found no missing production Lean/RAG tree to copy into the current
+  branch; its two old-only planner taxonomy modules are already represented by
+  the current typed planner. Runs, virtual environments, caches, copied mode-bit
+  changes, and credentials stay excluded. Future reuse must identify a missing
+  API or artifact contract and add a focused regression test before migration.
+- `OpenProver` main at `533b40d0` is the external Lean proof-search control
+  plane. AI-Statistician calls its verifier-backed HLM controller, Lake backend,
+  failure-feedback loop, final-feedback retry, and Lean LSP MCP transcript
+  collector. Claude normalizes the exact target into OpenProver's structured
+  task schema and emits proof candidates through JSON schema; no handwritten
+  tactic fallback or regex theorem parser is used in the production adapter.
+  Only direct policy successes are returned as LLM candidates, and every one is
+  rerun against the lineage-bound exact source theorem by local Lean or AXLE.
 - Loogle integration is exposed as a small optional retriever class. It is not
   required for the default offline run.
 - AXLE is the remote proof-verification backend for `--real-lean`; local
@@ -1680,6 +1692,16 @@ The package integrates existing systems where appropriate:
   statement/proof/mixed references, fan-in/fan-out, `has_sorry`, and FTS over
   signatures/proofs. It treats every hit as a premise suggestion that must be
   checked by the local Lean kernel.
+- The direct shared-retrieval adapter targets
+  `codex/lean-reuse-source-integration` at `2ade029e`. It globally ranks hits
+  across all selected checkouts instead of allowing manifest order to dominate,
+  and rejects hits whose tracked Lean-source signature is explicitly `changed`.
+  Unknown legacy signature state remains visible in provenance but never turns a
+  retrieval hit into proof evidence.
+- `CodexProver` branch `codex/evaluator-shard-no-workflow-push` at `730f8f29`
+  is a reference contract for exact-candidate hashes, repair trajectories, MCP
+  guidance, and checker authority. Its heuristic declaration-span and source
+  rewrite helpers are deliberately not used as Lean editing authority.
 - The system audit also records the shared `lean_rag` package contract through
   `ai-statistician lean-rag-package-audit` and the
   `--lean-rag-package-root` option. This reads the package knowledgebase rather

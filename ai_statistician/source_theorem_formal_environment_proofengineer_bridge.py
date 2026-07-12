@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .lean_proof_agent_contract import llm_proof_body_generation_contract
 from .formal_verifier_agentic_proof_execution_materializer import (
     _normalize_lean_statement_syntax,
 )
@@ -510,6 +511,47 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "verified_source_to_bridge_premise_derivation_declarations": _str_list(
             row.get("verified_source_to_bridge_premise_derivation_declarations", [])
             or []
+        ),
+        "verified_source_to_bridge_premise_derivation_signature_excerpts": _str_list(
+            row.get(
+                "verified_source_to_bridge_premise_derivation_signature_excerpts",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_work_order_ids": _str_list(
+            row.get(
+                "kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_declarations": _str_list(
+            row.get(
+                "kernel_verified_theorem_reduction_closure_declarations",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": _str_list(
+            row.get(
+                "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                [],
+            )
+            or []
+        ),
+        "verified_theorem_reduction_closure_artifact_paths": _str_list(
+            row.get("verified_theorem_reduction_closure_artifact_paths", []) or []
+        ),
+        "kernel_verified_theorem_reduction_closure_target_ids": _str_list(
+            row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
+            or []
+        ),
+        "proof_body_attempts": _str_list(row.get("proof_body_attempts", []) or [])[
+            :8
+        ],
+        "proof_body_attempt_source": str(
+            row.get("proof_body_attempt_source", "") or ""
         ),
         "artifact_verification_id": str(row.get("artifact_verification_id", "") or ""),
         "artifact_verifier_manifest": str(row.get("artifact_verifier_manifest", "") or ""),
@@ -1381,13 +1423,24 @@ def _proof_body_work_order(
     proof_body_attempts = (
         []
         if open_environment_symbols or open_environment_typeclass_blockers
-        else _bounded_proof_body_attempts(proof_body_goal_excerpt)
+        else _proof_body_repair_attempts(
+            row=repair_packet,
+            primary_diagnostic=probe_row,
+        )
     )
-    proof_body_attempt_source = (
-        "formal_environment_open_skip_tactic_attempts"
-        if open_environment_symbols or open_environment_typeclass_blockers
-        else "signature_probe_goal_excerpt_static_heuristics"
+    proof_body_attempt_source = str(
+        repair_packet.get("proof_body_attempt_source", "")
+        or probe_row.get("proof_body_attempt_source", "")
+        or ""
     )
+    if proof_body_attempts and not proof_body_attempt_source:
+        proof_body_attempt_source = "upstream_llm_or_prover_proposal"
+    elif not proof_body_attempts:
+        proof_body_attempt_source = (
+            "formal_environment_open_skip_tactic_attempts"
+            if open_environment_symbols or open_environment_typeclass_blockers
+            else "llm_prover_generation_required"
+        )
     target_ids = _target_ids_from_work_order(
         repair_packet or probe_row,
         fallback_target=target_theorem_name,
@@ -1447,6 +1500,48 @@ def _proof_body_work_order(
             repair_packet.get("verified_source_to_bridge_premise_derivation_declarations", [])
             or []
         ),
+        "verified_source_to_bridge_premise_derivation_signature_excerpts": _str_list(
+            repair_packet.get(
+                "verified_source_to_bridge_premise_derivation_signature_excerpts",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_work_order_ids": _str_list(
+            repair_packet.get(
+                "kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_declarations": _str_list(
+            repair_packet.get(
+                "kernel_verified_theorem_reduction_closure_declarations",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": _str_list(
+            repair_packet.get(
+                "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                [],
+            )
+            or []
+        ),
+        "verified_theorem_reduction_closure_artifact_paths": _str_list(
+            repair_packet.get(
+                "verified_theorem_reduction_closure_artifact_paths",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_target_ids": _str_list(
+            repair_packet.get(
+                "kernel_verified_theorem_reduction_closure_target_ids",
+                [],
+            )
+            or []
+        ),
         "source_candidate_artifact_path": str(
             probe_row.get("source_candidate_artifact_path", "")
             or repair_packet.get("candidate_artifact_path", "")
@@ -1460,14 +1555,26 @@ def _proof_body_work_order(
         ),
         "proof_body_goal_diagnostics": diagnostics[:24],
         "proof_body_goal_excerpt": proof_body_goal_excerpt,
+        "compiler_feedback": {
+            "provider": "local.source_theorem_signature_probe",
+            "checked": bool(probe_row.get("local_lean_checked", False)),
+            "returncode": int(probe_row.get("returncode", -1) or 0),
+            "diagnostics": diagnostics[:24],
+            "role": (
+                "Lean compiler diagnostics are context for the next LLM/OpenProver "
+                "candidate-generation turn, not static proof-strategy rules or proof "
+                "evidence."
+            ),
+        },
         "proof_body_attempts": proof_body_attempts,
         "proof_body_attempt_source": proof_body_attempt_source,
+        "proof_body_generation_contract": llm_proof_body_generation_contract(),
         "proof_body_attempt_boundary": (
-            "Proof-body attempts are bounded executor suggestions only. They are "
-            "not proof evidence unless the exact source theorem artifact passes "
-            "local Lean/AXLE. When the formal environment still has placeholder "
-            "symbols or typeclass blockers, tactic attempts are skipped and the "
-            "task must first close those semantic primitives."
+            "Proof-body attempts may only be explicit upstream agent/provider "
+            "proposals. When none are supplied, proof_body_attempts stays empty "
+            "and the LLM/OpenProver compiler-feedback contract must generate "
+            "candidates. Candidates are not proof evidence unless the exact source "
+            "theorem passes local Lean/AXLE."
         ),
         "already_repaired_environment": {
             "missing_formal_symbols": open_environment_symbols,
@@ -1505,14 +1612,6 @@ def _goal_excerpt(diagnostics: list[str]) -> list[str]:
         if "unsolved goals" in line.lower():
             return diagnostics[index : index + 18]
     return diagnostics[:18]
-
-
-def _bounded_proof_body_attempts(goal_excerpt: list[str]) -> list[str]:
-    text = "\n".join(goal_excerpt).lower()
-    attempts: list[str] = []
-    if "unsolved goals" in text:
-        attempts.extend(["assumption", "simpa", "simp"])
-    return list(dict.fromkeys(attempts))
 
 
 def _export_proof_body_execution_queue(
@@ -1823,6 +1922,13 @@ def _proof_body_repair_execution_work_order(
         or primary.get("proof_body_goal_excerpt", [])
         or []
     )[:18]
+    proof_body_goal_diagnostics = _str_list(
+        row.get("proof_body_goal_diagnostics", [])
+        or primary.get("proof_body_goal_diagnostics", [])
+        or row.get("diagnostics", [])
+        or primary.get("diagnostics", [])
+        or proof_body_goal_excerpt
+    )[:24]
     proof_body_attempt_summaries = _str_list(
         row.get("proof_body_attempt_summaries", [])
         or primary.get("proof_body_attempt_summaries", [])
@@ -1891,6 +1997,19 @@ def _proof_body_repair_execution_work_order(
         or primary.get("adapter_kernel_verified", False)
         or kernel_verified_adapter_ids
     )
+    proof_body_attempts = _proof_body_repair_attempts(
+        row=row,
+        primary_diagnostic=primary,
+    )
+    proof_body_attempt_source = str(
+        row.get("proof_body_attempt_source", "")
+        or primary.get("proof_body_attempt_source", "")
+        or ""
+    )
+    if proof_body_attempts and not proof_body_attempt_source:
+        proof_body_attempt_source = "upstream_llm_or_prover_proposal"
+    elif not proof_body_attempts:
+        proof_body_attempt_source = "llm_prover_generation_required"
     source_target_provenance.setdefault("target_lean_declaration", target_declaration)
     source_target_provenance.setdefault("source_theorem_target_known", True)
     target_ids = _target_ids_from_work_order(row, fallback_target=target)
@@ -1936,13 +2055,34 @@ def _proof_body_repair_execution_work_order(
                 == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
             ),
         },
+        "proof_body_goal_diagnostics": proof_body_goal_diagnostics,
         "proof_body_goal_excerpt": proof_body_goal_excerpt,
         "previous_proof_body_attempt_summaries": proof_body_attempt_summaries,
         "previous_proof_body_attempt_count": previous_proof_body_attempt_count,
+        "kernel_verified_theorem_reduction_closure_work_order_ids": _str_list(
+            row.get(
+                "kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+            or primary.get(
+                "kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+        ),
         "kernel_verified_theorem_reduction_closure_declarations": _str_list(
             row.get("kernel_verified_theorem_reduction_closure_declarations", [])
             or primary.get(
                 "kernel_verified_theorem_reduction_closure_declarations", []
+            )
+        ),
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": _str_list(
+            row.get(
+                "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                [],
+            )
+            or primary.get(
+                "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                [],
             )
         ),
         "verified_theorem_reduction_closure_artifact_paths": _str_list(
@@ -1966,6 +2106,16 @@ def _proof_body_repair_execution_work_order(
         "verified_source_to_bridge_premise_derivation_declarations": _str_list(
             row.get("verified_source_to_bridge_premise_derivation_declarations", [])
             or primary.get("verified_source_to_bridge_premise_derivation_declarations", [])
+        ),
+        "verified_source_to_bridge_premise_derivation_signature_excerpts": _str_list(
+            row.get(
+                "verified_source_to_bridge_premise_derivation_signature_excerpts",
+                [],
+            )
+            or primary.get(
+                "verified_source_to_bridge_premise_derivation_signature_excerpts",
+                [],
+            )
         ),
         "source_theorem_proof_body_adapter_feedback_available": bool(
             row.get("source_theorem_proof_body_adapter_feedback_available", False)
@@ -1995,18 +2145,35 @@ def _proof_body_repair_execution_work_order(
             )
         ),
         "exact_semantic_definition_context": exact_semantic_context,
-        "proof_body_attempts": _proof_body_repair_attempts(
-            row=row,
-            primary_diagnostic=primary,
-        ),
-        "proof_body_attempt_source": "runtime_exact_source_proof_body_repair_work_order",
+        "compiler_feedback": {
+            "provider": "local.exact_source_theorem_proof_body_repair",
+            "checked": bool(
+                row.get("local_lean_checked", False)
+                or primary.get("local_lean_checked", False)
+            ),
+            "returncode": int(
+                row.get("returncode", primary.get("returncode", -1)) or 0
+            ),
+            "diagnostics": proof_body_goal_diagnostics,
+            "role": (
+                "Lean compiler diagnostics are context for the next LLM/OpenProver "
+                "candidate-generation turn, not static proof-strategy rules or proof "
+                "evidence."
+            ),
+        },
+        "proof_body_attempts": proof_body_attempts,
+        "proof_body_attempt_source": proof_body_attempt_source,
+        "proof_body_generation_contract": llm_proof_body_generation_contract(),
         "proof_body_attempt_boundary": (
-            "These attempts repair only the exact source theorem proof body. "
-            "They must not change the theorem statement or count as proof until "
-            "local Lean/AXLE verifies the exact declaration."
+            "Proof-body attempts may only be explicit upstream agent/provider "
+            "proposals. When none are supplied, proof_body_attempts stays empty "
+            "and the LLM/OpenProver compiler-feedback contract must generate "
+            "candidates. No candidate counts as proof until local Lean/AXLE "
+            "verifies the exact declaration."
         ),
         "proofengineer_next_actions": [
             "inspect the reached Lean proof goal",
+            "request LLM/OpenProver proof candidates using compiler feedback when no upstream candidates were supplied",
             "reuse verified bridge/helper lemmas without changing the exact theorem statement",
             *(
                 [
@@ -2041,23 +2208,7 @@ def _proof_body_repair_attempts(
     )
     if diagnostic_attempts:
         return diagnostic_attempts[:8]
-    closure_declarations = _str_list(
-        row.get("kernel_verified_theorem_reduction_closure_declarations", [])
-        or primary_diagnostic.get(
-            "kernel_verified_theorem_reduction_closure_declarations", []
-        )
-    )
-    if closure_declarations:
-        attempts: list[str] = []
-        for declaration in closure_declarations[:4]:
-            attempts.append(f"simpa using {declaration}")
-            attempts.append(f"exact {declaration}")
-        attempts.extend(["assumption", "simp"])
-        return attempts[:8]
-    return [
-        "assumption",
-        "simp",
-    ]
+    return []
 
 
 def _proof_body_execution_queue_row(
@@ -2124,12 +2275,33 @@ def _proof_body_execution_queue_row(
         work_order.get("verified_source_to_bridge_premise_derivation_declarations", [])
         or []
     )
+    verified_premise_derivation_signature_excerpts = _str_list(
+        work_order.get(
+            "verified_source_to_bridge_premise_derivation_signature_excerpts",
+            [],
+        )
+        or []
+    )
     adapter_context_boundary = str(
         work_order.get("source_theorem_proof_body_adapter_context_boundary", "")
         or ""
     )
     closure_declarations = _str_list(
         work_order.get("kernel_verified_theorem_reduction_closure_declarations", [])
+        or []
+    )
+    closure_work_order_ids = _str_list(
+        work_order.get(
+            "kernel_verified_theorem_reduction_closure_work_order_ids",
+            [],
+        )
+        or []
+    )
+    closure_signature_excerpts = _str_list(
+        work_order.get(
+            "kernel_verified_theorem_reduction_closure_signature_excerpts",
+            [],
+        )
         or []
     )
     closure_artifact_paths = _str_list(
@@ -2140,6 +2312,15 @@ def _proof_body_execution_queue_row(
         work_order.get("kernel_verified_theorem_reduction_closure_target_ids", [])
         or []
     )
+    compiler_feedback = work_order.get("compiler_feedback", {})
+    if not isinstance(compiler_feedback, Mapping):
+        compiler_feedback = {}
+    proof_body_generation_contract = work_order.get(
+        "proof_body_generation_contract",
+        llm_proof_body_generation_contract(),
+    )
+    if not isinstance(proof_body_generation_contract, Mapping):
+        proof_body_generation_contract = llm_proof_body_generation_contract()
     target_ids = _target_ids_from_work_order(work_order, fallback_target=target)
     source_theorem_target_known = bool(
         work_order.get("source_theorem_target_known", False)
@@ -2229,8 +2410,14 @@ def _proof_body_execution_queue_row(
         "already_repaired_environment": dict(
             work_order.get("already_repaired_environment", {}) or {}
         ),
+        "kernel_verified_theorem_reduction_closure_work_order_ids": (
+            closure_work_order_ids
+        ),
         "kernel_verified_theorem_reduction_closure_declarations": (
             closure_declarations
+        ),
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": (
+            closure_signature_excerpts
         ),
         "verified_theorem_reduction_closure_artifact_paths": closure_artifact_paths,
         "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
@@ -2261,10 +2448,16 @@ def _proof_body_execution_queue_row(
         "verified_source_to_bridge_premise_derivation_declarations": (
             verified_premise_derivation_declarations
         ),
+        "verified_source_to_bridge_premise_derivation_signature_excerpts": (
+            verified_premise_derivation_signature_excerpts
+        ),
         "source_theorem_proof_body_adapter_context_boundary": (
             adapter_context_boundary
         ),
         "exact_semantic_definition_context": exact_semantic_context,
+        "proof_body_goal_diagnostics": list(
+            work_order.get("proof_body_goal_diagnostics", []) or []
+        ),
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
         "previous_proof_body_attempt_count": int(
             work_order.get("previous_proof_body_attempt_count", 0) or 0
@@ -2279,11 +2472,16 @@ def _proof_body_execution_queue_row(
         "proof_body_attempt_boundary": str(
             work_order.get("proof_body_attempt_boundary", "") or ""
         ),
+        "compiler_feedback": dict(compiler_feedback),
+        "proof_body_generation_contract": dict(
+            proof_body_generation_contract
+        ),
         "proofengineer_next_actions": list(
             work_order.get("proofengineer_next_actions", []) or []
         ),
         "command_plan": [
-            "inspect live_proof_state_request before editing",
+            "inspect live_proof_state_request and compiler_feedback before editing",
+            "when proof_body_attempts is empty, request candidates through proof_body_generation_contract",
             "copy signature_probe_artifact_path to candidate_artifact_path",
             "replace only the AI_STAT_EVOLVE_BLOCK proof body",
             "run local Lean/AXLE on candidate_artifact_path",
@@ -2304,6 +2502,7 @@ def _proof_body_execution_queue_row(
         "output_contract": [
             "candidate artifact at candidate_artifact_path",
             "JSONL transcript at execution_transcript_path",
+            "agent/provider lineage for every generated proof-body candidate",
             "verifier manifest proving whether source_theorem_kernel_verified=true",
             "no proof claim unless local Lean/AXLE accepts the exact theorem",
         ],
@@ -2443,6 +2642,22 @@ def _proof_body_live_proof_state_request(
         target_lean_declaration=str(location.get("target_lean_declaration", "")),
     )
     proof_body_attempts = _str_list(work_order.get("proof_body_attempts", []) or [])
+    proof_body_attempt_source = str(
+        work_order.get("proof_body_attempt_source", "") or ""
+    )
+    if proof_body_attempts and not proof_body_attempt_source:
+        proof_body_attempt_source = "upstream_llm_or_prover_proposal"
+    elif not proof_body_attempts and not proof_body_attempt_source:
+        proof_body_attempt_source = "llm_prover_generation_required"
+    compiler_feedback = work_order.get("compiler_feedback", {})
+    if not isinstance(compiler_feedback, Mapping):
+        compiler_feedback = {}
+    proof_body_generation_contract = work_order.get(
+        "proof_body_generation_contract",
+        llm_proof_body_generation_contract(),
+    )
+    if not isinstance(proof_body_generation_contract, Mapping):
+        proof_body_generation_contract = llm_proof_body_generation_contract()
     request_id = "exact_source_theorem_proof_body_live_goal:" + stable_hash(
         [
             queue_id,
@@ -2542,11 +2757,56 @@ def _proof_body_live_proof_state_request(
             work_order.get("verified_source_to_bridge_premise_derivation_declarations", [])
             or []
         ),
+        "verified_source_to_bridge_premise_derivation_signature_excerpts": _str_list(
+            work_order.get(
+                "verified_source_to_bridge_premise_derivation_signature_excerpts",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_work_order_ids": _str_list(
+            work_order.get(
+                "kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_declarations": _str_list(
+            work_order.get(
+                "kernel_verified_theorem_reduction_closure_declarations",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_signature_excerpts": _str_list(
+            work_order.get(
+                "kernel_verified_theorem_reduction_closure_signature_excerpts",
+                [],
+            )
+            or []
+        ),
+        "verified_theorem_reduction_closure_artifact_paths": _str_list(
+            work_order.get(
+                "verified_theorem_reduction_closure_artifact_paths",
+                [],
+            )
+            or []
+        ),
+        "kernel_verified_theorem_reduction_closure_target_ids": _str_list(
+            work_order.get(
+                "kernel_verified_theorem_reduction_closure_target_ids",
+                [],
+            )
+            or []
+        ),
         "source_theorem_proof_body_adapter_context_boundary": str(
             work_order.get("source_theorem_proof_body_adapter_context_boundary", "")
             or ""
         ),
         "exact_semantic_definition_context": exact_semantic_context,
+        "proof_body_goal_diagnostics": list(
+            work_order.get("proof_body_goal_diagnostics", []) or []
+        ),
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
         "previous_proof_body_attempt_count": int(
             work_order.get("previous_proof_body_attempt_count", 0) or 0
@@ -2555,8 +2815,10 @@ def _proof_body_live_proof_state_request(
             work_order.get("previous_proof_body_attempt_summaries", []) or []
         ),
         "proof_body_attempts": proof_body_attempts,
-        "proof_body_attempt_source": str(
-            work_order.get("proof_body_attempt_source", "") or ""
+        "proof_body_attempt_source": proof_body_attempt_source,
+        "compiler_feedback": dict(compiler_feedback),
+        "proof_body_generation_contract": dict(
+            proof_body_generation_contract
         ),
         "proof_evidence_status": "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": (

@@ -13,6 +13,23 @@ from ai_statistician.exact_source_theorem_proof_body_executor import (
 from ai_statistician.fingerprint import stable_hash
 
 
+def test_executor_only_runs_upstream_agent_proof_body_candidates() -> None:
+    assert executor_module._proof_body_attempts({}) == ()
+    assert executor_module._proof_body_attempts(
+        {
+            "kernel_verified_theorem_reduction_closure_declarations": [
+                "someVerifiedClosure"
+            ]
+        }
+    ) == ()
+    assert executor_module._proof_body_attempts(
+        {
+            "proof_body_attempts": ["exact h_from_agent"],
+            "proof_body_attempt_source": "openprover_hlm_controller",
+        }
+    ) == ("exact h_from_agent",)
+
+
 def _external_candidate_request(candidate: Path) -> dict[str, object]:
     source = candidate.read_text(encoding="utf-8")
     target_statement = executor_module._external_exact_target_statement(
@@ -120,6 +137,8 @@ def test_external_candidate_rerun_rejects_bad_sibling_and_verifies_exact_source(
     )
 
     assert manifest["n_candidate_proof_bodies"] == 2
+    assert manifest["n_runtime_generated_proof_bodies"] == 0
+    assert manifest["proof_body_generation_contract"]["static_tactic_fallback"] is False
     assert manifest["n_precheck_rejected"] == 1
     assert manifest["n_local_lean_checked"] == 1
     assert manifest["n_local_lean_compiled"] == 1
@@ -138,6 +157,10 @@ def test_external_candidate_rerun_rejects_bad_sibling_and_verifies_exact_source(
     assert manifest["rows"][1]["status"] == (
         "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
     )
+    assert manifest["rows"][1]["candidate_origin"] == (
+        "external_llm_or_prover_provider"
+    )
+    assert manifest["rows"][1]["runtime_generated_proof_body"] is False
     assert manifest["rows"][1][
         "materialized_verified_support_asset_names"
     ] == ["checked_support"]

@@ -11,6 +11,9 @@ from ai_statistician.exact_source_theorem_proof_body_executor import (
 from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
     _normalize_lean_statement_syntax,
 )
+from ai_statistician.lean_proof_agent_contract import (
+    LLM_PROOF_BODY_GENERATION_CONTRACT,
+)
 from ai_statistician.source_theorem_formal_environment_proofengineer_bridge import (
     export_exact_source_theorem_proof_body_repair_execution_queue,
     _proof_body_repair_attempts,
@@ -74,7 +77,7 @@ def test_formal_environment_bridge_resolves_queue_from_promotion_bridge_manifest
     assert resolved == queue_jsonl
 
 
-def test_proof_body_repair_attempts_use_actual_closure_declaration() -> None:
+def test_proof_body_repair_attempts_do_not_synthesize_from_closure_declaration() -> None:
     attempts = _proof_body_repair_attempts(
         row={
             "kernel_verified_theorem_reduction_closure_declarations": [
@@ -84,14 +87,27 @@ def test_proof_body_repair_attempts_use_actual_closure_declaration() -> None:
         primary_diagnostic={},
     )
 
-    assert attempts[:2] == [
-        "simpa using splitConformalFiniteSampleCoverage_reductionClosure",
-        "exact splitConformalFiniteSampleCoverage_reductionClosure",
-    ]
-    assert all(
-        "split_conformal_finite_sample_coverage_reduction_closure" not in attempt
-        for attempt in attempts
+    assert attempts == []
+
+
+def test_proof_body_repair_attempts_preserve_explicit_upstream_candidates() -> None:
+    attempts = _proof_body_repair_attempts(
+        row={
+            "proof_body_attempts": [
+                "exact upstreamAgentCandidate",
+                "simpa using upstreamProviderCandidate",
+            ],
+            "kernel_verified_theorem_reduction_closure_declarations": [
+                "availableOnlyAsContext"
+            ],
+        },
+        primary_diagnostic={},
     )
+
+    assert attempts == [
+        "exact upstreamAgentCandidate",
+        "simpa using upstreamProviderCandidate",
+    ]
 
 
 def test_proof_body_repair_work_order_exports_direct_execution_queue(
@@ -169,6 +185,11 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                     "source_theorem_target_known": True,
                 },
                 "proof_body_candidate_artifact_path": str(candidate),
+                "proof_body_goal_diagnostics": [
+                    "error: unsolved goals",
+                    "claim : Prop",
+                    "⊢ claim",
+                ],
                 "proof_body_goal_excerpt": ["claim : Prop", "⊢ claim"],
                 "proof_body_attempt_summaries": [
                     "1:simp:returncode=1:compiled=False"
@@ -181,6 +202,12 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                 "source_theorem_kernel_evidence_eligible": True,
                 "kernel_verified_theorem_reduction_closure_declarations": [
                     "splitConformalFiniteSampleCoverage_reductionClosure"
+                ],
+                "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                    "theorem_reduction_closure_work_order:split"
+                ],
+                "kernel_verified_theorem_reduction_closure_signature_excerpts": [
+                    "theorem splitConformalFiniteSampleCoverage_reductionClosure : claim"
                 ],
                 "verified_theorem_reduction_closure_artifact_paths": [
                     "runs/theorem_reduction_closure/closure.lean"
@@ -207,6 +234,9 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
                 ],
                 "verified_source_to_bridge_premise_derivation_declarations": [
                     "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+                ],
+                "verified_source_to_bridge_premise_derivation_signature_excerpts": [
+                    "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation : claim"
                 ],
                 "source_theorem_proof_body_adapter_context_boundary": (
                     "adapter guides proof-body retry but is not source theorem proof"
@@ -294,6 +324,11 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["already_repaired_environment"][
         "signature_typecheck_reached_proof_body"
     ] is True
+    assert execution_row["proof_body_goal_diagnostics"] == [
+        "error: unsolved goals",
+        "claim : Prop",
+        "⊢ claim",
+    ]
     assert execution_row["proof_body_goal_excerpt"] == ["claim : Prop", "⊢ claim"]
     assert execution_row["previous_proof_body_attempt_count"] == 7
     assert execution_row["previous_proof_body_attempt_summaries"] == [
@@ -318,8 +353,21 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["verified_source_to_bridge_premise_derivation_declarations"] == [
         "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
     ]
+    assert execution_row[
+        "verified_source_to_bridge_premise_derivation_signature_excerpts"
+    ] == [
+        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation : claim"
+    ]
     assert execution_row["kernel_verified_theorem_reduction_closure_declarations"] == [
         "splitConformalFiniteSampleCoverage_reductionClosure"
+    ]
+    assert execution_row[
+        "kernel_verified_theorem_reduction_closure_work_order_ids"
+    ] == ["theorem_reduction_closure_work_order:split"]
+    assert execution_row[
+        "kernel_verified_theorem_reduction_closure_signature_excerpts"
+    ] == [
+        "theorem splitConformalFiniteSampleCoverage_reductionClosure : claim"
     ]
     assert execution_row["verified_theorem_reduction_closure_artifact_paths"] == [
         "runs/theorem_reduction_closure/closure.lean"
@@ -351,10 +399,16 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
     assert execution_row["exact_semantic_definition_context"][
         "candidate_definition_request"
     ]["required_binders"][0]["name"] == "q"
-    assert execution_row["proof_body_attempts"][:2] == [
-        "simpa using splitConformalFiniteSampleCoverage_reductionClosure",
-        "exact splitConformalFiniteSampleCoverage_reductionClosure",
-    ]
+    assert execution_row["proof_body_attempts"] == []
+    assert execution_row["proof_body_attempt_source"] == (
+        "llm_prover_generation_required"
+    )
+    assert execution_row["proof_body_generation_contract"] == (
+        LLM_PROOF_BODY_GENERATION_CONTRACT
+    )
+    assert execution_row["proof_body_generation_contract"][
+        "static_tactic_fallback"
+    ] is False
     assert (
         execution_row["live_proof_state_request"][
         "source_theorem_proof_body_adapter_kernel_verified"
@@ -368,12 +422,21 @@ def test_proof_body_repair_work_order_exports_direct_execution_queue(
         "previous_proof_body_attempt_count"
     ] == 7
     assert execution_row["live_proof_state_request"][
+        "proof_body_goal_diagnostics"
+    ] == ["error: unsolved goals", "claim : Prop", "⊢ claim"]
+    assert execution_row["live_proof_state_request"][
+        "kernel_verified_theorem_reduction_closure_declarations"
+    ] == ["splitConformalFiniteSampleCoverage_reductionClosure"]
+    assert execution_row["live_proof_state_request"][
+        "proof_body_generation_contract"
+    ] == LLM_PROOF_BODY_GENERATION_CONTRACT
+    assert execution_row["live_proof_state_request"][
         "kernel_verified_source_to_bridge_premise_derivation_ids"
     ] == ["source_to_bridge_premise_derivation_check:hGoodCovered"]
     assert execution_row["live_proof_state_request"][
         "source_pseudo_formal_packet_id"
     ] == "pf-packet:split"
-    assert "lean_multi_attempt" in execution_row["required_dynamic_checks"]
+    assert "lean_multi_attempt" not in execution_row["required_dynamic_checks"]
 
     executor_manifest = export_exact_source_theorem_proof_body_execution_results(
         Path(str(queue_result["proof_body_execution_queue_manifest"])).parent,
@@ -750,6 +813,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert proof_body_work_order["proof_body_failure_classification"] == (
         "proof_body_incomplete"
     )
+    assert proof_body_work_order["proof_body_goal_diagnostics"] == ["unsolved goals"]
     assert proof_body_work_order["proof_body_goal_excerpt"] == ["unsolved goals"]
     assert proof_body_work_order["proof_body_attempts"] == []
     assert proof_body_work_order["proof_body_attempt_source"] == (
@@ -758,9 +822,15 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert "not proof evidence" in proof_body_work_order[
         "proof_body_attempt_boundary"
     ].lower()
-    assert "semantic primitives" in proof_body_work_order[
+    assert "llm/openprover compiler-feedback contract" in proof_body_work_order[
         "proof_body_attempt_boundary"
     ].lower()
+    assert proof_body_work_order["proof_body_generation_contract"] == (
+        LLM_PROOF_BODY_GENERATION_CONTRACT
+    )
+    assert proof_body_work_order["compiler_feedback"]["diagnostics"] == [
+        "unsolved goals"
+    ]
     assert proof_body_work_order["already_repaired_environment"][
         "signature_typecheck_reached_proof_body"
     ] is True
@@ -811,12 +881,16 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     ] == "formalizer_pseudo_formal_packet_component_gate"
     assert execution_row["live_goal_location_ready"] is True
     assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
+    assert execution_row["proof_body_goal_diagnostics"] == ["unsolved goals"]
     assert execution_row["proof_body_goal_excerpt"] == ["unsolved goals"]
     assert execution_row["proof_body_attempts"] == []
     assert execution_row["proof_body_attempt_source"] == (
         "formal_environment_open_skip_tactic_attempts"
     )
     assert "local lean/axle" in execution_row["proof_body_attempt_boundary"].lower()
+    assert execution_row["proof_body_generation_contract"] == (
+        LLM_PROOF_BODY_GENERATION_CONTRACT
+    )
     assert execution_row["already_repaired_environment"]["missing_formal_symbols"] == [
         "Exchangeable",
         "orderStat",
@@ -853,6 +927,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         call["tool"] for call in execution_row["live_proof_state_request"]["mcp_tool_calls"]
     }
     assert execution_row["live_proof_state_request"]["proof_body_attempts"] == []
+    assert execution_row["live_proof_state_request"][
+        "proof_body_generation_contract"
+    ] == LLM_PROOF_BODY_GENERATION_CONTRACT
     assert "copy signature_probe_artifact_path" in " ".join(execution_row["command_plan"])
     assert "no sorry/admit/axiom/unsafe tokens" in execution_row["required_static_checks"]
     assert execution_row["proof_evidence_status"] == (
@@ -1046,7 +1123,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert cli_manifest["runtime_learning_ready"] is True
 
 
-def test_exact_source_theorem_proof_body_executor_attempts_bounded_tactics(
+def test_exact_source_theorem_proof_body_executor_attempts_explicit_provider_candidate(
     tmp_path: Path,
 ) -> None:
     queue_dir = tmp_path / "proof_body_queue"
@@ -1086,6 +1163,13 @@ def test_exact_source_theorem_proof_body_executor_attempts_bounded_tactics(
                         "candidate_artifact_path": str(candidate_artifact),
                         "execution_transcript_path": str(transcript_path),
                         "live_goal_location_ready": True,
+                        "proof_body_attempts": ["assumption"],
+                        "proof_body_attempt_source": (
+                            "upstream_llm_or_prover_proposal"
+                        ),
+                        "proof_body_generation_contract": (
+                            LLM_PROOF_BODY_GENERATION_CONTRACT
+                        ),
                         "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
                     }
                 ],
@@ -1689,6 +1773,19 @@ def test_signature_probe_materializes_work_order_lean_statement_sketch(
     assert manifest["n_signature_probes_reached_proof_body"] == 1
     assert manifest["n_proof_body_work_orders"] == 1
     assert manifest["n_proof_body_execution_queue_rows"] == 1
+    proof_body_work_order = json.loads(
+        Path(str(manifest["proof_body_work_orders_jsonl"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert proof_body_work_order["proof_body_goal_excerpt"] == ["unsolved goals"]
+    assert proof_body_work_order["proof_body_attempts"] == []
+    assert proof_body_work_order["proof_body_attempt_source"] == (
+        "llm_prover_generation_required"
+    )
+    assert proof_body_work_order["proof_body_generation_contract"] == (
+        LLM_PROOF_BODY_GENERATION_CONTRACT
+    )
     probe_manifest = json.loads(
         Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
     )

@@ -172,30 +172,6 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
         ),
     ),
     FormalizerValidationRepairRule(
-        rule_id="forbidden_contradiction_shortcut",
-        violation_family="proof_shortcut_guardrail",
-        trigger_markers=(
-            "unsupported contradiction proof shortcut",
-            "absurd",
-            "false.elim",
-            "contradiction proof shortcut",
-        ),
-        prompt_directive=(
-            "Remove unsupported contradiction shortcuts (`absurd`, `False.elim`, "
-            "fabricated contradictory hypotheses, or fake impossible facts); derive "
-            "the claim from real source assumptions/verified lemmas or emit an "
-            "explicit FORMAL_GAP without Lean source."
-        ),
-        allowed_resolution=(
-            "Use real source assumptions, retrieved/verified lemmas, or an explicit "
-            "FORMAL_GAP that names the missing premise."
-        ),
-        forbidden_resolution=(
-            "Do not prove a statement by inventing contradictory hypotheses or "
-            "using impossible facts that are not present in the source context."
-        ),
-    ),
-    FormalizerValidationRepairRule(
         rule_id="executable_candidate_expected_status",
         violation_family="kernel_queue_contract",
         trigger_markers=("must set expected_status=needs_kernel_check",),
@@ -211,28 +187,6 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
         forbidden_resolution=(
             "Do not leave executable Lean source with OPEN/FORMAL_GAP status or "
             "use FORMAL_GAP to smuggle unchecked Lean code past the verifier queue."
-        ),
-    ),
-    FormalizerValidationRepairRule(
-        rule_id="lean_declaration_required",
-        violation_family="lean_materialization_contract",
-        trigger_markers=("must contain a lean theorem or lemma declaration",),
-        prompt_directive=(
-            "Do not put prose, dependency notes, or informal blockers in "
-            "lean_statement_sketch. If a formal target is executable, its Lean "
-            "sketch must contain a concrete theorem or lemma declaration and use "
-            "expected_status=NEEDS_KERNEL_CHECK; if the source theorem is blocked, "
-            "set expected_status=FORMAL_GAP with an empty lean_statement_sketch and "
-            "record the blocker in gap_taxonomy, lemma_dependency_plan, or "
-            "formal_blocker_resource_requests."
-        ),
-        allowed_resolution=(
-            "Emit a real Lean theorem/lemma declaration for executable work, or "
-            "clear the Lean sketch and record a non-executable blocker."
-        ),
-        forbidden_resolution=(
-            "Do not place prose-only blockers or dependency notes in a field that "
-            "the runtime treats as Lean source."
         ),
     ),
     FormalizerValidationRepairRule(

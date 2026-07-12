@@ -5092,10 +5092,15 @@ def _proof_state_provider_from_args(args: argparse.Namespace):
         if formalizer_candidate_lean_lsp_mcp_enabled
         else LocalLeanProofStateFeedbackProvider
     )
-    return provider_cls(
-        project_root=lean_project,
-        timeout_s=lean_timeout,
-    )
+    provider_kwargs: dict[str, Any] = {
+        "project_root": lean_project,
+        "timeout_s": lean_timeout,
+    }
+    if formalizer_candidate_lean_lsp_mcp_enabled:
+        provider_kwargs["openprover_root"] = (
+            str(getattr(args, "openprover_root", "") or "").strip() or None
+        )
+    return provider_cls(**provider_kwargs)
 
 
 def _formal_source_retriever_from_runtime_args(

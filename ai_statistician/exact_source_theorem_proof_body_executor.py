@@ -12,6 +12,7 @@ from typing import Any, Callable, Mapping
 from uuid import uuid4
 
 from .fingerprint import stable_hash
+from .lean_proof_agent_contract import llm_proof_body_generation_contract
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
     _lean_command,
@@ -63,14 +64,6 @@ PROOF_EVIDENCE_BOUNDARY = (
     "Lean/AXLE and the prefix environment has no placeholder primitives or "
     "unresolved semantic repairs."
 )
-DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS = (
-    "assumption",
-    "trivial",
-    "simp",
-    "exact True.intro",
-)
-
-
 def execute_external_exact_source_theorem_proof_candidates(
     *,
     request: Mapping[str, Any],
@@ -372,6 +365,8 @@ def execute_external_exact_source_theorem_proof_candidates(
                 "candidate_index": index,
                 "candidate_proof_body": body,
                 "candidate_proof_body_hash": stable_hash(body),
+                "candidate_origin": "external_llm_or_prover_provider",
+                "runtime_generated_proof_body": False,
                 "request_fingerprint": request_fingerprint,
                 "input_fingerprint": input_fingerprint,
                 "execution_id": execution_id,
@@ -509,6 +504,8 @@ def execute_external_exact_source_theorem_proof_candidates(
         "rows_path": str(rows_path),
         "rows": rows,
         "n_candidate_proof_bodies": len(proof_bodies),
+        "n_runtime_generated_proof_bodies": 0,
+        "proof_body_generation_contract": llm_proof_body_generation_contract(),
         "n_result_rows": len(rows),
         "n_precheck_rejected": sum(
             1 for row in rows if row["status"] == "CANDIDATE_PRECHECK_REJECTED"
@@ -714,6 +711,8 @@ def export_exact_source_theorem_proof_body_execution_results(
         "n_proof_body_attempt_success": sum(
             1 for row in rows if row.proof_body_attempt_success
         ),
+        "n_runtime_generated_proof_bodies": 0,
+        "proof_body_generation_contract": llm_proof_body_generation_contract(),
         "n_artifact_kernel_verified": sum(1 for row in rows if row.artifact_kernel_verified),
         "n_source_theorem_kernel_verified": sum(
             1 for row in rows if row.source_theorem_kernel_verified
@@ -1240,11 +1239,15 @@ def _execution_result_row(
             timeout_s=lean_timeout,
         )
         verification_strength = "local_lean_exact_source_proof_body_kernel"
-        if not compiled and _proof_body_attempts_should_run(
-            diagnostics,
-            placeholder_symbols=placeholder_symbols,
-            typeclass_blockers=typeclass_blockers,
-            semantic_alignment_blockers=semantic_alignment_blockers,
+        if (
+            not compiled
+            and _proof_body_attempts(row)
+            and _proof_body_attempts_should_run(
+                diagnostics,
+                placeholder_symbols=placeholder_symbols,
+                typeclass_blockers=typeclass_blockers,
+                semantic_alignment_blockers=semantic_alignment_blockers,
+            )
         ):
             (
                 proof_body_attempted,
@@ -1377,6 +1380,9 @@ def _execution_result_row(
         ),
         formal_environment_placeholder_symbols=placeholder_symbols,
         formal_environment_typeclass_blockers=typeclass_blockers,
+        compiler_diagnostics=diagnostics,
+        compiler_returncode=returncode,
+        compiler_checked=checked,
     )
     if candidate_live_request and proofengineer_repair_context:
         candidate_live_request["proofengineer_repair_context"] = (
@@ -1786,11 +1792,16 @@ def _proof_body_attempts_should_run(
 
 def _proof_body_attempts(row: Mapping[str, Any]) -> tuple[str, ...]:
     attempts: list[str] = []
-    for value in row.get("proof_body_attempts", []) or []:
-        text = str(value).strip()
-        if text:
-            attempts.append(text)
-    attempts.extend(DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS)
+    live_request = (
+        row.get("live_proof_state_request", {})
+        if isinstance(row.get("live_proof_state_request", {}), Mapping)
+        else {}
+    )
+    for source in (row, live_request):
+        for value in source.get("proof_body_attempts", []) or []:
+            text = str(value).strip()
+            if text:
+                attempts.append(text)
     cleaned: list[str] = []
     for tactic in attempts:
         if any(token in tactic for token in FORBIDDEN_ARTIFACT_TOKENS):
@@ -3029,6 +3040,9 @@ def _proofengineer_whole_proof_repair_context(
     source_theorem_kernel_evidence_eligible: bool = False,
     formal_environment_placeholder_symbols: tuple[str, ...] = (),
     formal_environment_typeclass_blockers: tuple[str, ...] = (),
+    compiler_diagnostics: tuple[str, ...] = (),
+    compiler_returncode: int = -1,
+    compiler_checked: bool = False,
 ) -> dict[str, object]:
     declaration_source = _extract_lean_declaration_block(source, target_declaration)
     if not declaration_source:
@@ -3119,6 +3133,20 @@ def _proofengineer_whole_proof_repair_context(
             "It is not an authoritative replacement for target_theorem_statement."
         ),
         "failed_proof_body_attempts": list(proof_body_attempt_summaries)[:8],
+        "compiler_feedback": {
+            "provider": "local.exact_source_theorem_proof_body_executor",
+            "checked": bool(compiler_checked),
+            "returncode": int(compiler_returncode),
+            "diagnostics": list(compiler_diagnostics)[:24],
+            "diagnostics_hash": stable_hash(list(compiler_diagnostics)),
+            "candidate_artifact_hash": stable_hash(source),
+            "role": (
+                "Lean compiler diagnostics are repair observations for the next "
+                "LLM/OpenProver turn, not handwritten proof-strategy rules and not "
+                "proof evidence."
+            ),
+        },
+        "proof_body_generation_contract": llm_proof_body_generation_contract(),
         "semantic_alignment_constraints": list(semantic_alignment_constraints)[:8],
         "semantic_alignment_blockers": list(semantic_alignment_blockers)[:8],
         "formal_environment_placeholder_symbols": list(
@@ -3235,7 +3263,10 @@ def _candidate_live_proof_state_request(
         if not isinstance(call, Mapping):
             continue
         cloned = dict(call)
-        if formal_environment_open and cloned.get("tool") == "lean_multi_attempt":
+        if (
+            cloned.get("tool") == "lean_multi_attempt"
+            and (formal_environment_open or not proof_body_attempts)
+        ):
             continue
         args = dict(cloned.get("arguments", {}) or {})
         args["file"] = str(candidate_artifact_path)
@@ -3260,8 +3291,15 @@ def _candidate_live_proof_state_request(
         candidate_request["proof_body_attempt_source"] = str(
             row.get("proof_body_attempt_source", "")
             or candidate_request.get("proof_body_attempt_source", "")
-            or "runtime_exact_source_proof_body_repair_work_order"
+            or (
+                "upstream_llm_or_prover_proposal"
+                if proof_body_attempts
+                else "llm_prover_generation_required"
+            )
         )
+    candidate_request["proof_body_generation_contract"] = (
+        llm_proof_body_generation_contract()
+    )
     candidate_request["proof_evidence_status"] = "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE"
     return candidate_request
 

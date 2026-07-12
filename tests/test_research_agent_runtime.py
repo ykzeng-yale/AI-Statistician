@@ -20232,6 +20232,7 @@ def test_formalizer_materialization_validator_suspends_on_repeated_parser_failur
             "local_lean_repair_contract": {
                 "contract_kind": "formalizer_local_lean_repair",
                 "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
             },
         },
         proof_bank_runtime_memory_summary={
@@ -20393,7 +20394,7 @@ def test_formalizer_materialization_prompt_shows_exact_candidate_schema() -> Non
     assert "FORMAL_GAP-only formal_targets row" in prompt
 
 
-def test_formalizer_materialization_prompt_suspends_after_repeated_parser_failure() -> None:
+def test_formalizer_materialization_prompt_uses_compiler_feedback_after_parser_failure() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -20416,6 +20417,7 @@ def test_formalizer_materialization_prompt_suspends_after_repeated_parser_failur
             "local_lean_repair_contract": {
                 "contract_kind": "formalizer_local_lean_repair",
                 "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
             },
             "validation_errors": [
                 "capability_eval formal target split_conformal_finite_sample_coverage "
@@ -20424,9 +20426,12 @@ def test_formalizer_materialization_prompt_suspends_after_repeated_parser_failur
         },
     )
 
-    assert "Repeated parser/syntax fail-closed override" in prompt
-    assert "suspend exact source-theorem candidate materialization" in prompt
-    assert "Mandatory source-theorem candidate-materialization repair" not in prompt
+    assert "Repeated parser/syntax fail-closed override" not in prompt
+    assert "suspend exact source-theorem candidate materialization" not in prompt
+    assert "source_theorem_exact_candidate_materialization_required" in prompt
+    assert "Repeated Lean compiler feedback is active" in prompt
+    assert "Valid Lean syntax, including Unicode and pipeline notation" in prompt
+    assert "configured Lean environment accepts it" in prompt
 
 
 def test_formalizer_materialization_prompt_suspends_on_exact_semantic_definition_gate() -> None:
@@ -20883,7 +20888,7 @@ def test_formalizer_unsupported_pseudo_formal_block_type_gets_directive() -> Non
     assert any("derivation_block" in row for row in directives)
 
 
-def test_formalizer_feedback_refreshes_missing_theorem_declaration_directive() -> None:
+def test_formalizer_feedback_does_not_infer_lean_grammar_directive() -> None:
     existing_directive = "Preserve existing validator guidance."
     feedback = {
         "feedback_type": "formalizer_packet_validation_feedback",
@@ -20902,15 +20907,8 @@ def test_formalizer_feedback_refreshes_missing_theorem_declaration_directive() -
         )
     )
 
-    assert any(
-        "Do not put prose" in directive
-        and "empty lean_statement_sketch" in directive
-        for directive in refreshed["validation_repair_directives"]
-    )
-    assert refreshed["validation_repair_directives"][0] == existing_directive
-    assert refreshed["validation_repair_policy"]["rules"][0]["rule_id"] == (
-        "lean_declaration_required"
-    )
+    assert refreshed["validation_repair_directives"] == existing_directive
+    assert "validation_repair_policy" not in refreshed
 
 
 def test_formalizer_repair_policy_covers_scaffolding_and_adapter_binders() -> None:
@@ -21776,22 +21774,21 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert feedback["validation_repair_policy"]["policy_kind"] == (
         "formalizer_validation_repair_policy"
     )
-    assert any(
+    assert not any(
         row["rule_id"] == "forbidden_contradiction_shortcut"
         for row in feedback["validation_repair_policy"]["rules"]
     )
     assert "guardrails" in feedback["validation_repair_policy_boundary"]
-    assert any(
-        "Remove unsupported contradiction shortcuts" in directive
+    assert not any(
+        "contradiction shortcuts" in directive
         for directive in feedback["validation_repair_directives"]
     )
     assert any(
         "Set expected_status=NEEDS_KERNEL_CHECK" in directive
         for directive in feedback["validation_repair_directives"]
     )
-    assert any(
-        "Do not put prose" in directive
-        and "empty lean_statement_sketch" in directive
+    assert not any(
+        "theorem or lemma declaration" in directive
         for directive in feedback["validation_repair_directives"]
     )
     assert feedback["target_shape_contract"]["required_conclusion_family"] == (
@@ -21806,7 +21803,7 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert feedback["candidate_reroute_options"] == [
         "emit FORMAL_GAP for the source theorem if proof hole remains"
     ]
-    assert "absurd" in feedback["required_repair"]
+    assert "absurd" not in feedback["required_repair"]
     assert "expected_status=NEEDS_KERNEL_CHECK" in feedback["required_repair"]
     artifact = next(iter(result.produced_artifacts.values()))
     assert artifact["artifact_kind"] == "RuntimeFormalizerValidationFailure"
@@ -21820,13 +21817,13 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
         "conformal_bad_ranks",
     ]
     assert artifact["missing_source_binding_contract_metadata"] is True
-    assert artifact["validation_repair_policy"]["n_rules"] >= 3
-    assert any(
+    assert artifact["validation_repair_policy"]["n_rules"] >= 1
+    assert not any(
         row["rule_id"] == "lean_declaration_required"
         for row in artifact["validation_repair_policy"]["rules"]
     )
-    assert any(
-        "Remove unsupported contradiction shortcuts" in directive
+    assert not any(
+        "contradiction shortcuts" in directive
         for directive in artifact["validation_repair_directives"]
     )
     assert artifact["target_shape_contract"]["required_conclusion_family"] == (
@@ -21858,8 +21855,8 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
         learning_rows[0]["input_summary"]["missing_source_binding_contract_metadata"]
         is True
     )
-    assert any(
-        "Remove unsupported contradiction shortcuts" in directive
+    assert not any(
+        "contradiction shortcuts" in directive
         for directive in learning_rows[0]["input_summary"][
             "validation_repair_directives"
         ]
@@ -23755,8 +23752,11 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
         "Mathlib"
     ]
     assert feedback["local_lean_repair_contract"]["mathlib_import_unavailable"] is True
-    assert "Do not use Real" in feedback["local_lean_repair_contract"][
-        "core_lean_only_helper_rule"
+    assert "core_lean_diagnostic_helper_shape" not in feedback[
+        "local_lean_repair_contract"
+    ]
+    assert "core_lean_only_helper_rule" not in feedback[
+        "local_lean_repair_contract"
     ]
     assert feedback["candidate_diagnostics"][0]["candidate_id"] == (
         "split_conformal_marginal_coverage_sketch"
@@ -23779,7 +23779,8 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
     assert "Mandatory Mathlib-root repair" in prompt
     assert "Do not retry that umbrella import" in prompt
     assert "narrow module import already verified by runtime/precheck" in prompt
-    assert "Mandatory core-Lean helper repair" in prompt
+    assert "Mandatory core-Lean helper repair" not in prompt
+    assert "typed target lineage" in prompt
     assert "Mandatory next_action_reference_contract repair" in prompt
     assert "Mandatory target-shape packet repair" in prompt
 
@@ -23875,10 +23876,13 @@ def test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contrac
     repair_contract = feedback["local_lean_repair_contract"]
     assert "lean_local_check_failed" not in repair_contract["diagnostic_classes"]
     assert "lean_unknown_tactic" in repair_contract["diagnostic_classes"]
-    assert "lean_no_import_noncore_arithmetic" in repair_contract[
+    assert "lean_typeclass_synthesis_failed" in repair_contract[
         "diagnostic_classes"
     ]
-    assert "Do not use Real" in repair_contract["core_lean_only_helper_rule"]
+    assert "typeclass-synthesis diagnostic" in repair_contract[
+        "typeclass_repair_rule"
+    ]
+    assert "core_lean_only_helper_rule" not in repair_contract
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -23891,9 +23895,9 @@ def test_formalizer_packet_validation_feedback_enriches_stale_local_lean_contrac
         proof_bank_runtime_memory_summary={},
         environment_feedback=feedback,
     )
-    assert "Mandatory core-Lean helper repair" in prompt
-    assert "do not use Real, <=" in prompt
-    assert "core_prop_bridge" in prompt
+    assert "Mandatory compiler-diagnostic repair" in prompt
+    assert "runtime-authored tactic or typeclass recipe" in prompt
+    assert "Mandatory core-Lean helper repair" not in prompt
 
 
 def test_agent_runtime_retries_formalizer_after_validation_feedback(tmp_path: Path) -> None:
@@ -25057,14 +25061,14 @@ def test_formalizer_candidate_materialization_rejects_vacuous_true_candidate(
     assert "vacuous True target" in " ".join(row["precheck_errors"])
 
 
-def test_formalizer_candidate_materialization_rejects_false_elim_shortcut(
+def test_formalizer_candidate_materialization_sends_false_elim_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_false_elim",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject contradiction-elimination proof shortcuts",
+        objective="let Lean check contradiction elimination",
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -25091,22 +25095,23 @@ def test_formalizer_candidate_materialization_rejects_false_elim_shortcut(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    assert row["local_lean_attempted"] is False
-    assert "False.elim" in " ".join(row["precheck_errors"])
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["local_lean_attempted"] is True
+    assert row["local_lean_compiled"] is False
+    assert "False.elim" not in " ".join(row["precheck_errors"])
 
 
-def test_formalizer_candidate_materialization_rejects_absurd_shortcut(
+def test_formalizer_candidate_materialization_sends_absurd_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_absurd",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject absurd contradiction proof shortcuts",
+        objective="let Lean check absurd proof terms",
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -25133,12 +25138,13 @@ def test_formalizer_candidate_materialization_rejects_absurd_shortcut(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    assert row["local_lean_attempted"] is False
-    assert "absurd" in " ".join(row["precheck_errors"])
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["local_lean_attempted"] is True
+    assert row["local_lean_compiled"] is False
+    assert "absurd" not in " ".join(row["precheck_errors"])
 
 
 def test_formalizer_candidate_materialization_captures_malformed_formal_target(
@@ -25180,11 +25186,11 @@ def test_formalizer_candidate_materialization_captures_malformed_formal_target(
     assert row["candidate_kind"] == "formal_target_lean_statement_sketch"
     assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
     errors = " ".join(row["precheck_errors"])
-    assert "must contain a declaration" in errors
     assert "exact?" in errors
+    assert "must contain a declaration" not in errors
 
 
-def test_formalizer_candidate_materialization_materializes_type_star_diagnostic(
+def test_formalizer_candidate_materialization_routes_type_star_to_local_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -25225,18 +25231,16 @@ def test_formalizer_candidate_materialization_materializes_type_star_diagnostic(
     assert manifest["n_local_lean_compiled"] == 0
     assert manifest["n_live_proof_state_requests"] == 1
     assert manifest["n_lean_lsp_mcp_ready_requests"] == 1
-    assert row["precheck_status"] == (
-        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
-    )
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
     assert row["artifact_path"]
     assert row["target_lean_declaration"] == "type_star_candidate"
     assert row["local_lean_attempted"] is True
-    assert "Type*" in " ".join(row["precheck_errors"])
-    assert "parser/syntax" in " ".join(row["precheck_errors"])
+    assert row["precheck_errors"] == []
     assert row["blocking_precheck_errors"] == []
+    assert row["local_lean_exit_status"] != "0"
 
 
-def test_repeated_syntax_contract_precheck_rejects_source_theorem_retry(
+def test_repeated_syntax_contract_sends_revised_source_theorem_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -25291,17 +25295,16 @@ def test_repeated_syntax_contract_precheck_rejects_source_theorem_retry(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    errors = " ".join(row["precheck_errors"])
-    assert "repeated Lean parser/syntax contract violation" in errors
-    assert "expected_status=FORMAL_GAP" in errors
-    assert "source_to_bridge_premise_derivation_candidates" in errors
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 1
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["local_lean_attempted"] is True
 
 
-def test_repeated_syntax_contract_precheck_rejects_diagnostic_helper_type_star_retry(
+def test_repeated_syntax_contract_routes_type_star_helper_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -25358,17 +25361,17 @@ def test_repeated_syntax_contract_precheck_rejects_diagnostic_helper_type_star_r
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    errors = " ".join(row["precheck_errors"])
-    assert "repeated Lean parser/syntax contract violation" in errors
-    assert "Type*" in errors
-    assert row["blocking_precheck_errors"]
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 0
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["blocking_precheck_errors"] == []
+    assert row["local_lean_attempted"] is True
 
 
-def test_repeated_syntax_contract_precheck_rejects_helper_formal_target_retry(
+def test_repeated_syntax_contract_sends_helper_formal_target_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -25424,15 +25427,15 @@ def test_repeated_syntax_contract_precheck_rejects_helper_formal_target_retry(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    errors = " ".join(row["precheck_errors"])
-    assert "executable formal_targets are gated" in errors
-    assert "source_to_bridge_premise_derivation_candidates" in errors
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 1
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
 
 
-def test_capability_eval_allows_repeated_syntax_formal_gap_without_new_candidate() -> None:
+def test_capability_eval_requires_candidate_after_repeated_syntax_formal_gap() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
@@ -25462,10 +25465,11 @@ def test_capability_eval_allows_repeated_syntax_formal_gap_without_new_candidate
         },
     )
 
-    assert errors == []
+    assert len(errors) == 1
+    assert "requires at least one Claude/OpenAI-generated Lean statement" in errors[0]
 
 
-def test_capability_eval_repeated_syntax_without_gap_requires_explicit_route() -> None:
+def test_capability_eval_repeated_syntax_uses_generic_candidate_contract() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [],
@@ -25482,12 +25486,11 @@ def test_capability_eval_repeated_syntax_without_gap_requires_explicit_route() -
     )
 
     joined = " ".join(errors)
-    assert "repeated parser/syntax contract" in joined
-    assert "source-theorem FORMAL_GAP" in joined
-    assert "packet has neither" in joined
+    assert "requires at least one Claude/OpenAI-generated Lean statement" in joined
+    assert "parser-simple" not in joined
 
 
-def test_capability_eval_rejects_repeated_syntax_type_star_candidate() -> None:
+def test_capability_eval_allows_lean_to_check_repeated_syntax_candidate() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
@@ -25518,12 +25521,10 @@ def test_capability_eval_rejects_repeated_syntax_type_star_candidate() -> None:
         },
     )
 
-    joined = " ".join(errors)
-    assert "repeated parser/syntax repair contract" in joined
-    assert "Type*" in joined
+    assert errors == []
 
 
-def test_capability_eval_rejects_repeated_syntax_formal_targets_helper() -> None:
+def test_capability_eval_allows_revised_formal_target_after_syntax_failure() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
@@ -25553,12 +25554,10 @@ def test_capability_eval_rejects_repeated_syntax_formal_targets_helper() -> None
         },
     )
 
-    joined = " ".join(errors)
-    assert "executable formal_targets are gated" in joined
-    assert "source_to_bridge_premise_derivation_candidates" in joined
+    assert errors == []
 
 
-def test_formalizer_validator_rejects_repeated_syntax_helper_without_capability_flag() -> None:
+def test_formalizer_validator_accepts_revised_candidate_after_syntax_failure() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     formalizer = LLMFormalizerProofEngineerAgent(
         provider=StaticArchitectLLMProvider(
@@ -25613,38 +25612,33 @@ def test_formalizer_validator_rejects_repeated_syntax_helper_without_capability_
         ),
     )
 
-    with pytest.raises(PacketValidationError) as caught:
-        formalizer.propose(
-            question=question,
-            theory_packet={"packet_id": "theory:syntax-contract"},
-            simulation_manifest={
-                "manifest_id": "simulation:syntax-contract",
-                "simulation_passed": True,
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:syntax-contract"},
+        simulation_manifest={
+            "manifest_id": "simulation:syntax-contract",
+            "simulation_passed": True,
+        },
+        algorithm_manifest={"manifest_id": "algorithm:syntax-contract"},
+        registered_problem={"problem_class": "causal_inference"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+            "failure_classification": "formalizer_lean_candidate_local_lean_failed",
+            "local_lean_repair_contract": {
+                "contract_kind": "formalizer_local_lean_repair",
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "repeated_syntax_failure": True,
             },
-            algorithm_manifest={"manifest_id": "algorithm:syntax-contract"},
-            registered_problem={"problem_class": "causal_inference"},
-            theorem_goals=[],
-            proof_bank_obligation_catalog=[],
-            proof_bank_runtime_memory_summary={},
-            environment_feedback={
-                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
-                "failure_classification": (
-                    "formalizer_lean_candidate_precheck_rejected"
-                ),
-                "local_lean_repair_contract": {
-                    "contract_kind": "formalizer_local_lean_repair",
-                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
-                    "repeated_syntax_failure": True,
-                },
-            },
-        )
+        },
+    )
 
-    joined = " ".join(caught.value.errors)
-    assert "executable formal_targets are gated" in joined
-    assert "source_to_bridge_premise_derivation_candidates" in joined
+    assert packet["formal_targets"][0]["id"] == "aipw_helper_retry"
 
 
-def test_runtime_reroutes_repeated_syntax_formal_target_gate_to_formalizer(
+def test_runtime_materializes_revised_candidate_after_repeated_syntax_failure(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -25762,22 +25756,19 @@ def test_runtime_reroutes_repeated_syntax_formal_target_gate_to_formalizer(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REVISE"
-    assert result.failure_classification == (
-        "formalizer_lean_candidate_precheck_rejected"
-    )
+    assert result.status == "REROUTE"
+    assert result.failure_classification == ""
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert result.next_task.task_id.startswith("formalize-repair:")
-    assert "packet-construction" in result.rationale
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["candidate_diagnostics"][0]["precheck_status"] == (
-        "REJECTED_BY_RUNTIME_PRECHECK"
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    materialization = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizerLeanCandidateMaterialization"
     )
-    assert "executable formal_targets are gated" in " ".join(
-        feedback["candidate_diagnostics"][0]["precheck_errors"]
-    )
-    assert "helper formal_targets" in result.next_task.acceptance_gate
+    assert materialization["n_candidate_artifacts_written"] == 1
+    assert materialization["n_precheck_rejected"] == 0
+    assert materialization["candidate_rows"][0]["precheck_errors"] == []
 
 
 def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contract() -> None:
@@ -25828,27 +25819,22 @@ def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contra
     )
 
     feedback = result.next_task.inputs["environment_feedback"]  # type: ignore[union-attr]
-    assert "parser/syntax fail-closed mode" in feedback["required_repair"]
-    assert "expected_status=FORMAL_GAP" in feedback["required_repair"]
-    assert "source_to_bridge_premise_derivation_candidates" in feedback[
-        "required_repair"
+    assert "verbatim Lean compiler/LSP diagnostics" in feedback["required_repair"]
+    assert "ASCII, Unicode" in feedback["required_repair"]
+    assert "local Lean/AXLE" in feedback["required_repair"]
+    assert "FORMAL_GAP only when a real" in feedback["required_repair"]
+    assert "Python-side syntax or tactic whitelist" in feedback["target_behavior"]
+    assert "consumes repeated Lean compiler/LSP diagnostics" in feedback[
+        "acceptance_gate"
     ]
-    assert "helper formal_targets with NEEDS_KERNEL_CHECK" in feedback[
-        "required_repair"
-    ]
-    assert "at most one separate helper formal_targets entry" not in feedback[
-        "required_repair"
-    ]
-    assert "helper formal_targets as executable substitutes" in feedback[
-        "target_behavior"
-    ]
-    assert "source-theorem FORMAL_GAP row" in feedback["acceptance_gate"]
     assert result.next_task is not None
-    assert "repeated parser/syntax fail-closed rules" in result.next_task.objective
+    assert "verbatim repeated Lean parser/LSP diagnostics" in (
+        result.next_task.objective
+    )
     assert result.next_task.acceptance_gate == feedback["acceptance_gate"]
 
 
-def test_repeated_syntax_packet_validation_loop_escalates_to_critic() -> None:
+def test_repeated_syntax_packet_validation_stays_in_compiler_feedback_loop() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     exc = PacketValidationError(
         validation_label="LLM Formalizer/ProofEngineer packet",
@@ -25924,35 +25910,27 @@ def test_repeated_syntax_packet_validation_loop_escalates_to_critic() -> None:
     )
 
     assert result.status == "REVISE"
-    assert result.failure_classification == (
-        "formalizer_repeated_syntax_packet_validation_escalated"
-    )
+    assert result.failure_classification == "formalizer_packet_validation_failed"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "CriticEvaluator"
-    assert result.next_task.task_id.startswith("formalizer-packet-blocker:")
-    assert "deterministic formal blocker" in result.next_task.objective
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.next_task.task_id.startswith("formalize-repair:")
+    assert "verbatim repeated Lean parser/LSP diagnostics" in (
+        result.next_task.objective
+    )
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["failure_classification"] == (
-        "formalizer_repeated_syntax_packet_validation_escalated"
-    )
-    escalation = feedback["packet_validation_escalation"]
-    assert escalation["next_owner_subsystem"] == "CriticEvaluator"
-    assert escalation["formal_blocker_resource_requests"][0]["blocker_kind"] == (
-        "formalizer_repeated_syntax_packet_validation_loop"
-    )
-    assert "source-to-bridge binding metadata" in escalation["acceptance_gate"]
+    assert feedback["failure_classification"] == "formalizer_packet_validation_failed"
+    assert "packet_validation_escalation" not in feedback
+    assert "Python-side syntax or tactic whitelist" in feedback["target_behavior"]
     artifact = next(iter(result.produced_artifacts.values()))
-    assert artifact["packet_validation_escalation"]["escalation_kind"] == (
-        "formalizer_repeated_syntax_packet_validation_loop"
-    )
+    assert "packet_validation_escalation" not in artifact
     learning_tasks = {
         row["learning_task"] for row in artifact["learning_rows"]
     }
     assert "formalizer_packet_validation_feedback" in learning_tasks
-    assert "formalizer_repeated_syntax_packet_validation_escalation" in learning_tasks
+    assert "formalizer_repeated_syntax_packet_validation_escalation" not in learning_tasks
 
 
-def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
+def test_no_import_real_helper_is_diagnosed_by_local_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -26006,17 +25984,17 @@ def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    errors = " ".join(row["precheck_errors"])
-    assert "core-Lean-only helper contract violation" in errors
-    assert "Real" in errors
-    assert "<=" in errors
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 0
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["local_lean_attempted"] is True
+    assert row["local_lean_exit_status"] != "0"
 
 
-def test_core_lean_only_precheck_rejection_builds_repair_contract() -> None:
+def test_unknown_legacy_precheck_does_not_invent_lean_grammar_policy() -> None:
     contract = runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
         [
             {
@@ -26043,12 +26021,23 @@ def test_core_lean_only_precheck_rejection_builds_repair_contract() -> None:
         ]
     )
 
-    assert "lean_no_import_noncore_arithmetic" in contract["diagnostic_classes"]
-    assert "Do not use Real" in contract["core_lean_only_helper_rule"]
-    assert "core_prop_bridge" in contract["core_lean_only_helper_example"]
+    assert contract["diagnostic_classes"] == ["lean_local_check_failed"]
+    assert "core_lean_only_helper_rule" not in contract
+    assert "core_lean_only_helper_example" not in contract
+    cleaned = runtime_module.without_legacy_python_lean_strategy_fields(
+        {
+            "diagnostic_classes": [
+                "lean_no_import_noncore_arithmetic",
+                "lean_unknown_tactic",
+            ],
+            "core_lean_only_helper_rule": "legacy runtime strategy",
+        }
+    )
+    assert cleaned["diagnostic_classes"] == ["lean_unknown_tactic"]
+    assert "core_lean_only_helper_rule" not in cleaned
 
 
-def test_mathlib_root_unavailable_contract_precheck_rejects_no_import_real_helper(
+def test_mathlib_root_failure_does_not_precheck_reject_no_import_candidate(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -26118,14 +26107,13 @@ def test_mathlib_root_unavailable_contract_precheck_rejects_no_import_real_helpe
     )
 
     row = manifest["candidate_rows"][0]
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert row["local_lean_attempted"] is False
-    errors = " ".join(row["precheck_errors"])
-    assert "core-Lean-only helper contract violation" in errors
-    assert "Real" in errors
-    assert "<=" in errors
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 0
+    assert row["local_lean_attempted"] is True
+    assert row["precheck_errors"] == []
+    assert row["local_lean_exit_status"] != "0"
 
 
 def test_formalizer_candidate_materialization_rejects_source_theorem_target_drift(
@@ -26544,10 +26532,10 @@ def test_formalizer_candidate_materialization_diagnoses_mathlib_umbrella_import(
     assert "verified narrow modules" in contract["verified_narrow_import_rule"]
     assert "blocked_import_prefixes" not in contract
     assert "narrow `Mathlib.*` module imports" in contract["mathlib_repair_rule"]
-    assert "Do not use Real" in contract["core_lean_only_helper_rule"]
+    assert "core_lean_only_helper_rule" not in contract
 
 
-def test_formalizer_candidate_materialization_repair_contract_requires_declaration(
+def test_formalizer_candidate_materialization_sends_import_only_source_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -26571,7 +26559,7 @@ def test_formalizer_candidate_materialization_repair_contract_requires_declarati
     task = AgentTask(
         task_id="task:formalizer_candidate_missing_declaration",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject Lean candidate with imports but no declaration",
+        objective="let the configured Lean environment inspect import-only source",
     )
 
     manifest = _materialize_formalizer_lean_candidate_artifacts(
@@ -26598,14 +26586,18 @@ def test_formalizer_candidate_materialization_repair_contract_requires_declarati
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert "must contain a declaration" in " ".join(row["precheck_errors"])
-    contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
-    assert "lean_candidate_missing_declaration" in contract["diagnostic_classes"]
-    assert contract["declaration_required"] is True
-    assert contract["declaration_required_keywords"] == ["theorem", "lemma"]
-    assert "imports, prose, comments" in contract["declaration_repair_rule"]
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert row["artifact_path"]
+    assert row["local_lean_attempted"] is True
+    assert "must contain a declaration" not in " ".join(row["precheck_errors"])
+    if manifest["learning_rows"]:
+        contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
+        assert "lean_candidate_missing_declaration" not in contract[
+            "diagnostic_classes"
+        ]
+        assert "declaration_required" not in contract
 
 
 def test_formalizer_candidate_materialization_rejects_import_without_lean_project(
@@ -26793,7 +26785,7 @@ def test_formalizer_prompt_repair_instructions_handle_import_precheck_failure() 
     assert "Do not import guessed Mathlib module paths" in prompt
 
 
-def test_formalizer_prompt_repair_instructions_use_verified_imports_and_declaration_contract() -> None:
+def test_formalizer_prompt_uses_verified_imports_without_grammar_contract() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -26837,10 +26829,9 @@ def test_formalizer_prompt_repair_instructions_use_verified_imports_and_declarat
     assert "Mandatory verified-narrow-import repair" in prompt
     assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in prompt
     assert "Do not retry `import Mathlib`" in prompt
-    assert "Mandatory declaration repair" in prompt
-    assert "`theorem` or `lemma`" in prompt
+    assert "Mandatory declaration repair" not in prompt
     assert "verified_narrow_imports" in prompt
-    assert "declaration_required" in prompt
+    assert "declaration_required" not in prompt
 
 
 def test_formalizer_prompt_repair_instructions_handle_contradiction_shortcuts() -> None:
@@ -26879,10 +26870,8 @@ def test_formalizer_prompt_repair_instructions_handle_contradiction_shortcuts() 
         },
     )
 
-    assert "Mandatory contradiction-shortcut repair" in prompt
-    assert "`False.elim`" in prompt
-    assert "`absurd`" in prompt
-    assert "expected_status=FORMAL_GAP" in prompt
+    assert "Mandatory contradiction-shortcut repair" not in prompt
+    assert "Mandatory forbidden-shortcut repair" not in prompt
 
 
 def test_formalizer_prompt_escalates_repeated_invalid_lean_candidates() -> None:
@@ -26920,13 +26909,13 @@ def test_formalizer_prompt_escalates_repeated_invalid_lean_candidates() -> None:
         },
     )
 
-    assert "Repeated invalid Lean-candidate escalation" in prompt
-    assert "Do not emit another NEEDS_KERNEL_CHECK candidate" in prompt
-    assert "emit expected_status=FORMAL_GAP" in prompt
-    assert "retrying invalid Lean" in prompt
+    assert "Repeated Lean-candidate compiler repair" in prompt
+    assert "Consume the exact diagnostics and proof state" in prompt
+    assert "Python-authored tactic/grammar policy" in prompt
+    assert "FORMAL_GAP only for a real semantic or dependency blocker" in prompt
 
 
-def test_repeated_lean_parser_failure_feedback_adds_fail_closed_blocker() -> None:
+def test_repeated_lean_parser_failure_feedback_adds_compiler_grounded_blocker() -> None:
     manifest = {
         "manifest_id": "formalizer_lean_candidate_materialization_manifest:syntax",
         "n_candidate_sources": 1,
@@ -26977,15 +26966,15 @@ def test_repeated_lean_parser_failure_feedback_adds_fail_closed_blocker() -> Non
 
     contract = feedback["local_lean_repair_contract"]
     assert contract["repeated_syntax_failure"] is True
-    assert "minimal ASCII/core Lean support lemma" in contract[
+    assert "verbatim compiler/LSP diagnostics" in contract[
         "repeated_syntax_failure_rule"
     ]
-    assert "Greek" in contract["ascii_identifier_rule"]
+    assert "ascii_identifier_rule" not in contract
     assert "Repeated parser/syntax failure escalation" in feedback[
         "required_repair"
     ]
     assert any(
-        "source_to_bridge_premise_derivation_candidates" in option
+        "exact compiler/LSP diagnostics" in option
         for option in feedback["candidate_reroute_options"]
     )
     blocker_requests = feedback["formal_blocker_resource_requests"]
@@ -27010,8 +26999,8 @@ def test_repeated_lean_parser_failure_feedback_adds_fail_closed_blocker() -> Non
         environment_feedback=feedback,
     )
 
-    assert "Mandatory repeated parser/syntax repair" in prompt
-    assert "minimal ASCII/core Lean support lemma" in prompt
+    assert "Mandatory compiler-feedback repair" in prompt
+    assert "Python-side ASCII, Unicode" in prompt
     assert "lean_repeated_parser_or_syntax_failure" in prompt
     assert "Type*" in prompt
 
@@ -27141,11 +27130,11 @@ def test_formalizer_prompt_blocks_mathlib_root_after_unknown_module_prefix() -> 
     assert "Mandatory Mathlib-root repair" in prompt
     assert "Do not retry that umbrella import" in prompt
     assert "narrow module import already verified by runtime/precheck" in prompt
-    assert "no-import core Lean diagnostic helper over Prop variables" in prompt
+    assert "typed target lineage" in prompt
     assert "expected_status=FORMAL_GAP" in prompt
 
 
-def test_formalizer_prompt_repairs_no_import_helper_noncore_arithmetic() -> None:
+def test_formalizer_prompt_repairs_unknown_tactic_and_typeclass_diagnostics() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -27188,14 +27177,14 @@ def test_formalizer_prompt_repairs_no_import_helper_noncore_arithmetic() -> None
         },
     )
 
-    assert "Mandatory core-Lean helper repair" in prompt
-    assert "Prop-level core Lean" in prompt
-    assert "do not use Real" in prompt
-    assert "`linarith`" in prompt
+    assert "Mandatory compiler-diagnostic repair" in prompt
+    assert "unknown-tactic/typeclass diagnostics" in prompt
+    assert "runtime-authored tactic or typeclass recipe" in prompt
+    assert "linarith" in prompt
     assert "expected_status=FORMAL_GAP" in prompt
 
 
-def test_formalizer_prompt_derives_core_helper_contract_from_precheck_feedback() -> None:
+def test_formalizer_prompt_does_not_promote_legacy_core_helper_precheck() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -27243,10 +27232,10 @@ def test_formalizer_prompt_derives_core_helper_contract_from_precheck_feedback()
         },
     )
 
-    assert "Mandatory core-Lean helper repair" in prompt
-    assert "do not use Real, <=" in prompt
-    assert "core_prop_bridge" in prompt
-    assert "lean_no_import_noncore_arithmetic" in prompt
+    assert "Local-Lean repair contract is mandatory" in prompt
+    assert "Mandatory core-Lean helper repair" not in prompt
+    assert "core_prop_bridge" not in prompt
+    assert "lean_no_import_noncore_arithmetic" not in prompt
 
 
 def test_formalizer_prompt_repair_instructions_handle_local_lean_timeout_without_weakening() -> None:
@@ -27671,7 +27660,10 @@ def test_formalizer_expected_token_local_lean_feedback_is_parser_contract() -> N
     assert repair_contract["diagnostic_classes"] == [
         "lean_parser_or_syntax_error"
     ]
-    assert "pipeline/list syntax" in repair_contract["syntax_repair_rule"]
+    assert "verbatim Lean parser/LSP diagnostics" in repair_contract[
+        "syntax_repair_rule"
+    ]
+    assert "Python-side ASCII, Unicode" in repair_contract["syntax_repair_rule"]
 
     feedback["formalizer_lean_repair_retry_depth"] = 1
     feedback["repeated_formalizer_lean_candidate_failure"] = True
@@ -27681,8 +27673,13 @@ def test_formalizer_expected_token_local_lean_feedback_is_parser_contract() -> N
 
     enriched_contract = enriched["local_lean_repair_contract"]
     assert enriched_contract["repeated_syntax_failure"] is True
-    assert "pipeline syntax" in enriched_contract["repeated_syntax_failure_rule"]
-    assert "FORMAL_GAP" in enriched["required_repair"]
+    assert "verbatim compiler/LSP diagnostics" in enriched_contract[
+        "repeated_syntax_failure_rule"
+    ]
+    assert "Python-side syntax" in enriched_contract[
+        "repeated_syntax_failure_rule"
+    ]
+    assert "rerun Lean" in enriched["required_repair"]
 
 
 def test_formalizer_repair_feedback_ignores_failed_diagnostic_helper_when_support_candidate_compiles() -> None:
@@ -27938,12 +27935,8 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
         "Do not retry the umbrella import `import Mathlib`"
         in live_mathlib_root_contract["mathlib_repair_rule"]
     )
-    assert "no-import core Lean theorem over Prop variables" in (
-        live_mathlib_root_contract["core_lean_diagnostic_helper_shape"]
-    )
-    assert "Do not use Real" in live_mathlib_root_contract[
-        "core_lean_only_helper_rule"
-    ]
+    assert "core_lean_diagnostic_helper_shape" not in live_mathlib_root_contract
+    assert "core_lean_only_helper_rule" not in live_mathlib_root_contract
     live_mathlib_olean_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
             [
@@ -27976,9 +27969,7 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
         in live_mathlib_olean_contract["mathlib_repair_rule"]
     )
     assert "blocked_import_prefixes" not in live_mathlib_olean_contract
-    assert "Do not use Real" in live_mathlib_olean_contract[
-        "core_lean_only_helper_rule"
-    ]
+    assert "core_lean_only_helper_rule" not in live_mathlib_olean_contract
     live_no_import_arithmetic_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
             [
@@ -28007,17 +27998,14 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     assert "lean_unknown_tactic" in live_no_import_arithmetic_contract[
         "diagnostic_classes"
     ]
-    assert "lean_no_import_noncore_arithmetic" in live_no_import_arithmetic_contract[
+    assert "lean_typeclass_synthesis_failed" in live_no_import_arithmetic_contract[
         "diagnostic_classes"
     ]
-    assert "Do not retry tactics" in live_no_import_arithmetic_contract[
+    assert "hardcoded tactic list" in live_no_import_arithmetic_contract[
         "unknown_tactic_repair_rule"
     ]
-    assert "Do not use Real" in live_no_import_arithmetic_contract[
-        "core_lean_only_helper_rule"
-    ]
-    assert "core_prop_bridge" in live_no_import_arithmetic_contract[
-        "core_lean_only_helper_example"
+    assert "typeclass-synthesis diagnostic" in live_no_import_arithmetic_contract[
+        "typeclass_repair_rule"
     ]
     live_lt_real_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
@@ -28041,11 +28029,11 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
             ]
         )
     )
-    assert "lean_no_import_noncore_arithmetic" in live_lt_real_contract[
+    assert "lean_typeclass_synthesis_failed" in live_lt_real_contract[
         "diagnostic_classes"
     ]
-    assert "Do not use Real" in live_lt_real_contract[
-        "core_lean_only_helper_rule"
+    assert "typeclass-synthesis diagnostic" in live_lt_real_contract[
+        "typeclass_repair_rule"
     ]
     live_unknown_constant_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
@@ -28393,8 +28381,9 @@ def test_carried_proofengineer_feedback_refreshes_stale_repair_contract() -> Non
 
     contract = enriched["local_lean_repair_contract"]
     assert "lean_local_check_failed" not in contract["diagnostic_classes"]
-    assert "lean_no_import_noncore_arithmetic" in contract["diagnostic_classes"]
-    assert "Do not use Real" in contract["core_lean_only_helper_rule"]
+    assert "lean_typeclass_synthesis_failed" in contract["diagnostic_classes"]
+    assert "typeclass-synthesis diagnostic" in contract["typeclass_repair_rule"]
+    assert "core_lean_only_helper_rule" not in contract
     assert enriched["proofengineer_repair_context"]["diagnostic_classes"] == (
         contract["diagnostic_classes"]
     )
@@ -44464,9 +44453,7 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
     assert "Typed validation repair policy is active" in prompt
     assert "Mandatory packet-validator repair" in prompt
     assert "Mandatory validation repair directives" in prompt
-    assert "Mandatory forbidden-shortcut repair" in prompt
-    assert "do not use `absurd`" in prompt
-    assert "fake contradictions" in prompt
+    assert "Mandatory forbidden-shortcut repair" not in prompt
     assert "Mandatory expected-status repair" in prompt
     assert "expected_status=NEEDS_KERNEL_CHECK" in prompt
     assert "conformal_rank" in prompt
@@ -64782,7 +64769,7 @@ def test_formalizer_validator_rejects_adapter_placeholder_syntax_and_full_target
     assert any("contains C-style placeholder comment syntax" in error for error in errors)
 
 
-def test_formalizer_validator_rejects_contradiction_shortcut_in_formal_target() -> None:
+def test_formalizer_validator_leaves_contradiction_terms_to_lean() -> None:
     packet = {
         "formal_targets": [
             {
@@ -64843,7 +64830,7 @@ def test_formalizer_validator_rejects_contradiction_shortcut_in_formal_target() 
 
     errors = validate_formalizer_packet(packet)
 
-    assert any("absurd" in error for error in errors)
+    assert not any("absurd" in error for error in errors)
 
 
 def test_formalizer_validator_rejects_source_to_bridge_skeleton_marker() -> None:
@@ -65612,7 +65599,7 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request
                         "split_conformal_finite_sample_coverage"
                     ),
                 },
-            }
+            },
         ],
         "lemma_dependency_plan": [
             {
@@ -66706,7 +66693,23 @@ def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() ->
                         "split_conformal_finite_sample_coverage"
                     ),
                 },
-            }
+            },
+            {
+                "id": "split_conformal_syntax_feedback_probe",
+                "informal_source": "compiler-feedback probe for the same repair loop",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_syntax_feedback_probe "
+                    "(p : Prop) (hp : p) : p := by\n"
+                    "  exact hp\n"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": False,
+                    "target_lean_declaration": (
+                        "split_conformal_syntax_feedback_probe"
+                    ),
+                },
+            },
         ],
         "lemma_dependency_plan": [
             {
@@ -94027,6 +94030,52 @@ def test_local_lean_proof_state_provider_accepts_imported_lean_artifact() -> Non
     assert row.tool_call_trace[0]["tool"] == "local.lake_env_lean"
 
 
+def test_local_lean_proof_state_provider_delegates_syntax_to_lean(
+    tmp_path: Path,
+) -> None:
+    captured_source = tmp_path / "captured_syntax.lean"
+    fake_lean = tmp_path / "fake_syntax_lean.py"
+    fake_lean.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import sys",
+                f"Path({str(captured_source)!r}).write_text(",
+                "    Path(sys.argv[-1]).read_text(encoding='utf-8'),",
+                "    encoding='utf-8',",
+                ")",
+                "print('error: unexpected token from Lean parser')",
+                "raise SystemExit(1)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    provider = LocalLeanProofStateFeedbackProvider(
+        project_root=tmp_path,
+        lean_command=(sys.executable, str(fake_lean)),
+    )
+
+    row = provider.inspect(
+        [
+            FormalSubclaim(
+                id="syntax_candidate",
+                title="syntax candidate",
+                status="FAILED",
+                claim="let Lean classify this source",
+                lean_statement="custom_command_that_python_does_not_parse ???",
+            )
+        ]
+    )[0]
+
+    assert row.local_lean_checked is True
+    assert row.attempt_status == "local_lean_failed"
+    assert row.local_lean_returncode == 1
+    assert "custom_command_that_python_does_not_parse" in (
+        captured_source.read_text(encoding="utf-8")
+    )
+    assert any("unexpected token" in diagnostic for diagnostic in row.diagnostics)
+
+
 def test_local_lean_proof_state_provider_skips_implicit_mathlib_when_root_missing(
     tmp_path: Path,
 ) -> None:
@@ -94080,26 +94129,36 @@ def test_lean_lsp_mcp_proof_state_provider_records_live_tool_trace(tmp_path: Pat
     (tmp_path / "lean-toolchain").write_text("leanprover/lean4:v4.14.0\n", encoding="utf-8")
     artifact = tmp_path / "Candidate.lean"
     artifact.write_text("theorem candidate : True := by\n  trivial\n", encoding="utf-8")
-    fake_mcp = tmp_path / "fake_mcp.py"
-    fake_mcp.write_text(
-        "\n".join(
-            [
-                "import json, sys",
-                "for line in sys.stdin:",
-                "    msg = json.loads(line)",
-                "    if msg.get('method') == 'initialize':",
-                "        print(json.dumps({'jsonrpc':'2.0','id':msg['id'],'result':{'protocolVersion':'2025-03-26','capabilities':{},'serverInfo':{'name':'fake','version':'0'}}}), flush=True)",
-                "    elif msg.get('method') == 'tools/call':",
-                "        print(json.dumps({'jsonrpc':'2.0','id':msg['id'],'result':{'content':[{'type':'text','text':'fake Lean LSP diagnostics: no goals'}]}}), flush=True)",
-            ]
-        ),
-        encoding="utf-8",
-    )
+
+    def collect_openprover_transcript(**kwargs):
+        events = [
+            {
+                "tool_name": tool,
+                "arguments": {"file_path": str(artifact)},
+                "ok": True,
+                "result": {"text": "fake Lean LSP diagnostics: no goals"},
+            }
+            for tool in (
+                "lean_goal",
+                "lean_diagnostic_messages",
+                "lean_state_search",
+            )
+        ]
+        Path(kwargs["out"]).write_text(
+            json.dumps({"events": events}),
+            encoding="utf-8",
+        )
+        return {
+            "trace_collection_mode": "live",
+            "mcp_client_restarts": 0,
+            "honesty_boundary": "route_evidence_only_not_kernel_verified",
+        }
+
     provider = LeanLspMcpProofStateFeedbackProvider(
         project_root=tmp_path,
         lean_command=("false",),
-        mcp_command=(sys.executable, str(fake_mcp)),
         mcp_timeout_s=5,
+        mcp_transcript_collector=collect_openprover_transcript,
     )
 
     rows = provider.inspect(
@@ -98280,6 +98339,79 @@ def test_retrieval_memory_returns_branch_provenanced_hits_to_proofengineer() -> 
         call.tool_name == "FormalSourceSearchProvider.search"
         for call in result.tool_calls
     )
+
+
+def test_external_proof_search_request_carries_exact_kernel_failure_forward(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSourceFeedback.lean"
+    candidate.write_text(
+        "import Mathlib\n\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact stale_candidate\n",
+        encoding="utf-8",
+    )
+    task = AgentTask(
+        task_id="proofengineer-whole-proof:feedback",
+        owner_subsystem="ProofEngineer",
+        objective="repair with exact kernel diagnostics",
+        inputs={},
+    )
+    repair_context = {
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": (
+            "theorem exact_source (p : Prop) (hp : p) : p"
+        ),
+        "candidate_artifact_path": str(candidate),
+        "compiler_feedback": {
+            "checked": True,
+            "returncode": 1,
+            "diagnostics": ["unknown identifier stale_candidate"],
+        },
+        "external_proof_search_result": {
+            "request_fingerprint": "request:previous",
+            "exact_candidate_rerun": {
+                "candidate_feedback_rows": [
+                    {
+                        "candidate_index": 1,
+                        "candidate_proof_body": "exact stale_candidate",
+                        "candidate_proof_body_hash": "body:stale",
+                        "candidate_artifact_hash": "artifact:stale",
+                        "returncode": 1,
+                        "diagnostics": ["type mismatch from exact kernel rerun"],
+                        "status": "LOCAL_LEAN_FAILED",
+                    }
+                ]
+            },
+        },
+    }
+
+    request = runtime_module._runtime_external_proof_search_request(
+        task=task,
+        question=question,
+        environment_feedback={
+            "proofengineer_repair_context": repair_context,
+        },
+    )
+
+    assert request["compiler_feedback"]["diagnostics"] == [
+        "unknown identifier stale_candidate"
+    ]
+    assert request["prior_exact_candidate_feedback"] == [
+        {
+            "candidate_index": 1,
+            "candidate_proof_body": "exact stale_candidate",
+            "candidate_proof_body_hash": "body:stale",
+            "candidate_artifact_hash": "artifact:stale",
+            "returncode": 1,
+            "diagnostics": ["type mismatch from exact kernel rerun"],
+            "status": "LOCAL_LEAN_FAILED",
+        }
+    ]
+    assert request["request_fingerprint"] != "request:previous"
+    assert "import Mathlib" in request["lean_header"]
+    assert "theorem exact_source" not in request["lean_header"]
 
 
 def test_proofengineer_consumes_external_proof_search_before_llm_proposal(

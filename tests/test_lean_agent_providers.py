@@ -161,6 +161,90 @@ def test_emperical_process_lean_provider_calls_structured_graph_api(
     assert hit.provenance["no_sorry_filter"] is True
 
 
+def test_emperical_process_lean_provider_globally_ranks_and_rejects_stale_hits(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "EmpericalProcessLEAN"
+    entries = []
+    for name, state in (
+        ("first", "unchanged"),
+        ("stale", "changed"),
+        ("best", "unchanged"),
+    ):
+        checkout = root / name
+        checkout.mkdir(parents=True)
+        db = root / "build" / "lean_graph" / f"{name}.sqlite"
+        db.parent.mkdir(parents=True, exist_ok=True)
+        db.write_text("fixture", encoding="utf-8")
+        entries.append(
+            {
+                "name": name,
+                "role": "fixture",
+                "path": str(checkout),
+                "db": str(db),
+                "branch": name,
+                "commit": f"commit-{name}",
+                "dirty": False,
+                "indexed": True,
+                "fixture_signature_state": state,
+            }
+        )
+
+    class FakeSharedRetrievalModule:
+        @staticmethod
+        def load_manifest(_db_dir: Path):
+            return entries
+
+        @staticmethod
+        def iter_searchable_entries(manifest, _source, _checkouts):
+            return list(manifest)
+
+        @staticmethod
+        def search_db(db: Path, _query: str, _limit: int, _no_sorry: bool):
+            name = db.stem
+            score = {"first": 1, "stale": 100, "best": 9}[name]
+            return [
+                {
+                    "id": score,
+                    "name": f"Fixture.{name}",
+                    "kind": "theorem",
+                    "path": f"Fixture/{name}.lean",
+                    "line_start": score,
+                    "module": "Fixture",
+                    "signature": f"theorem {name} : True",
+                    "match_score": score,
+                }
+            ]
+
+        @staticmethod
+        def source_path(entry, path: str):
+            return Path(entry["path"]) / path
+
+        @staticmethod
+        def query_tokens(query: str):
+            return query.split()
+
+        @staticmethod
+        def graph_context(_db: Path, _decl_id: int, _limit: int):
+            return ([], [])
+
+        @staticmethod
+        def index_signature_state(entry, _root: Path):
+            return entry["fixture_signature_state"]
+
+    provider = EmpericalProcessLeanRetrievalProvider(
+        root=root,
+        module_loader=lambda: FakeSharedRetrievalModule(),  # type: ignore[arg-type]
+    )
+
+    hits = provider.search("target", k=1)
+
+    assert [hit.declaration.name for hit in hits] == ["Fixture.best"]
+    diagnostics = provider.runtime_diagnostics()
+    assert any(row["status"] == "stale_index_rejected" for row in diagnostics)
+    assert diagnostics[-1]["ranking"] == "global_score_across_checkouts"
+
+
 def test_emperical_process_lean_dynamic_loader_registers_dataclass_module(
     tmp_path: Path,
 ) -> None:
@@ -191,7 +275,7 @@ def test_generator_backend_candidate_policy_reuses_negotiated_backend() -> None:
         def generate(self, request):
             self.requests.append(request)
             return GeneratorResponse(
-                text="```lean\nexact hp\n```",
+                text='{"candidates":["exact hp"]}',
                 provider="anthropic",
                 model=request.model,
                 metadata={"capability_fallback_count": 1},
@@ -204,8 +288,6 @@ def test_generator_backend_candidate_policy_reuses_negotiated_backend() -> None:
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
-        extract_proof_candidates=lambda _text: ["exact hp"],
-        candidate_contract_violations=lambda _rows: [],
     )
 
     candidates = policy.propose(SimpleNamespace(), 1)
@@ -223,17 +305,10 @@ def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
 
         def generate(self, request):
             return GeneratorResponse(
-                text="fixture",
+                text='{"candidates":["exact hp","sorry"]}',
                 provider="anthropic",
                 model=request.model,
             )
-
-    def contract_violations(candidates):
-        return [
-            {"candidate_index": index, "violations": ["sorry"]}
-            for index, candidate in enumerate(candidates)
-            if "sorry" in candidate
-        ]
 
     policy = GeneratorBackendCandidatePolicy(
         provider=Backend(),  # type: ignore[arg-type]
@@ -241,8 +316,6 @@ def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
-        extract_proof_candidates=lambda _text: ["exact hp", "sorry"],
-        candidate_contract_violations=contract_violations,
     )
 
     candidates = policy.propose(SimpleNamespace(), 2)
@@ -251,9 +324,9 @@ def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
     assert policy.last_diagnostics["status"] == "partial_contract_rejection"
     assert policy.last_diagnostics["accepted_candidates"] == 1
     assert policy.last_diagnostics["rejected_candidates"] == 1
-    assert policy.last_diagnostics["candidate_contract_violations"] == [
-        {"candidate_index": 1, "violations": ["sorry"]}
-    ]
+    violations = policy.last_diagnostics["candidate_contract_violations"]
+    assert len(violations) == 1
+    assert violations[0]["violations"] == ["forbidden proof-evidence token"]
 
 
 def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
@@ -270,8 +343,17 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
         provider_name = "anthropic"
 
         def generate(self, request):
+            if request.metadata.get("agent") == "StructuredLeanTaskNormalizer":
+                text = (
+                    '{"context":['
+                    '{"name":"p","typ":"Prop","kind":"explicit"},'
+                    '{"name":"hp","typ":"p","kind":"explicit"}'
+                    '],"target":"p"}'
+                )
+            else:
+                text = '{"candidates":["exact hp"]}'
             return GeneratorResponse(
-                text="```lean\nexact hp\n```",
+                text=text,
                 provider="anthropic",
                 model=request.model,
             )
@@ -292,8 +374,31 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    @dataclass(frozen=True)
+    class Binding:
+        name: str
+        typ: str
+        kind: str = "explicit"
+
     def run_policy_hlm_controller(**kwargs):
         assert kwargs["policy"].propose(SimpleNamespace(), 1) == ["exact hp"]
+        feedback = kwargs["initial_failure_feedback"]
+        assert len(feedback) == 2
+        assert feedback[0].kwargs["error_kind"] == (
+            "ai_statistician_lean_compiler_feedback"
+        )
+        assert "unknown identifier missing" in feedback[0].kwargs["error_tail"]
+        assert "type mismatch from exact rerun" in feedback[1].kwargs["error_tail"]
+        assert feedback[1].kwargs["proof_excerpt"] == "exact stale_candidate"
+        assert kwargs["context"] == [
+            Binding("p", "Prop", "explicit"),
+            Binding("hp", "p", "explicit"),
+        ]
+        assert kwargs["target"] == "p"
+        assert kwargs["final_feedback_retry"] is True
+        assert kwargs["final_feedback_retry_budget"] == 4
+        assert kwargs["final_feedback_retry_strategy"] == "retrieval_feedback"
+        assert kwargs["skip_initial_search"] is True
         kwargs["out_path"].parent.mkdir(parents=True, exist_ok=True)
         kwargs["out_path"].write_text("{}\n", encoding="utf-8")
         return {
@@ -306,7 +411,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
             },
             "direct_solution": {"proof": "exact hp"},
             "direct_successes": [],
-            "final_search": {"proof": "exact hp"},
+            "final_search": {"proof": "assumption"},
             "assets": [
                 {
                     "name": "checked_support",
@@ -321,14 +426,8 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     runtime = {
         "run_policy_hlm_controller": run_policy_hlm_controller,
         "FailureFeedback": FailureFeedback,
-        "parse_theorem_signature": lambda _source: (
-            "exact_source",
-            [SimpleNamespace(name="p", typ="Prop")],
-            "p",
-        ),
+        "Binding": Binding,
         "proof_generation_prompt": lambda _task, n: f"return {n}",
-        "extract_proof_candidates": lambda _text: ["exact hp"],
-        "candidate_contract_violations": lambda _rows: [],
         "LakeLeanBackend": LakeLeanBackend,
         "LocalLeanBackend": LocalLeanBackend,
     }
@@ -355,6 +454,19 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
             "current_proof_body_excerpt": "exact missing",
             "residual_goal_excerpt": ["p : Prop", "hp : p", "|- p"],
             "failed_proof_body_attempts": ["unknown identifier missing"],
+            "compiler_feedback": {
+                "checked": True,
+                "returncode": 1,
+                "diagnostics": ["unsolved goals from local Lean"],
+            },
+            "prior_exact_candidate_feedback": [
+                {
+                    "candidate_proof_body": "exact stale_candidate",
+                    "returncode": 1,
+                    "diagnostics": ["type mismatch from exact rerun"],
+                    "status": "LOCAL_LEAN_FAILED",
+                }
+            ],
             "lean_header": "set_option autoImplicit false",
         }
     )
@@ -367,4 +479,13 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
         "OPENPROVER_HLM_RESULT_REQUIRES_EXACT_AI_STATISTICIAN_KERNEL_RERUN"
     )
     assert result["proof_evidence_boundary"] == LEAN_PROVIDER_BOUNDARY
+    assert result["generation_mode"] == (
+        "llm_zero_shot_with_lean_compile_feedback"
+    )
+    assert result["static_tactic_fallback"] is False
+    assert result["compiler_feedback_consumed"] is True
+    assert result["prior_exact_candidate_feedback_items"] == 1
+    assert result["initial_failure_feedback_items"] == 2
+    assert result["task_normalization"]["source"] == "llm_structured_json"
+    assert result["task_normalization"]["context_binding_count"] == 2
     assert Path(result["report_path"]).exists()

@@ -62,7 +62,7 @@ class ResearchLoopCoordinator:
         seed: int = 20260528,
         lab_factory: LabFactory | None = None,
         repair_handlers: dict[str, LiveRepairHandler] | None = None,
-        enable_default_proof_engineer: bool = True,
+        enable_default_proof_engineer: bool = False,
         enable_default_theory_developer: bool = True,
         enable_default_algorithm_engineer: bool = True,
     ) -> None:
@@ -555,6 +555,7 @@ async def run_research_loop_benchmark(
     formal_source_index_path: Path | None = None,
     lean_rag_db_path: Path | None = None,
     repair_handlers: dict[str, LiveRepairHandler] | None = None,
+    enable_default_proof_engineer: bool = False,
     enable_default_theory_developer: bool = True,
     config: LoopConfig = LoopConfig(),
 ) -> dict[str, Any]:
@@ -570,6 +571,7 @@ async def run_research_loop_benchmark(
         n_runs=config.n_runs,
         seed=config.seed,
         repair_handlers=repair_handlers,
+        enable_default_proof_engineer=enable_default_proof_engineer,
         enable_default_theory_developer=enable_default_theory_developer,
     )
     results = [

@@ -23350,6 +23350,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 n_runs=25,
                 seed=17,
                 lab_factory=lambda _n, _s: FakeLab(reports.pop(0)),
+                enable_default_proof_engineer=True,
             ).iterate(
                 question,
                 max_rounds=2,
@@ -23483,6 +23484,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 n_runs=10,
                 seed=20260601,
                 lab_factory=lambda _n, _s: FakeLab(reports.pop(0)),
+                enable_default_proof_engineer=True,
             ).iterate(
                 question,
                 max_rounds=2,
@@ -23551,6 +23553,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 questions,
                 Path("runs/test_research_loop_live_repair_artifacts"),
                 proof_verifier=MockProofVerifier(),
+                enable_default_proof_engineer=True,
                 config=LoopConfig(max_rounds=2, n_runs=25, seed=20260528),
             )
 
@@ -29184,6 +29187,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_validate_results"]).exists())
         self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance"]).exists())
         self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance_report"]).exists())
+
+
+def test_legacy_research_loop_does_not_enable_static_proof_engineer_by_default() -> None:
+    coordinator = ResearchLoopCoordinator()
+
+    assert coordinator.enable_default_proof_engineer is False
+    assert coordinator.default_proof_engineer is None
 
 
 if __name__ == "__main__":

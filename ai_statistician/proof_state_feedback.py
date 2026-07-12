@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import importlib
 import json
-import queue
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
-import threading
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
 from .research_schema import FormalSubclaim
@@ -66,8 +66,9 @@ class LocalLeanProofStateFeedbackProvider:
 
     This is not a Lean LSP MCP implementation. It is the local fallback side of
     the same proof-state provider contract: it classifies placeholder/formal-gap
-    skeletons without executing them, and runs `lake env lean` only on complete
-    non-placeholder Lean text.
+    skeletons without executing them, and delegates all other syntax and
+    elaboration decisions to `lake env lean`. Python does not maintain a shadow
+    grammar for deciding what counts as a Lean command.
     """
 
     name = "local_lean_proof_state_feedback"
@@ -120,12 +121,6 @@ class LocalLeanProofStateFeedbackProvider:
             )
             requested_tools = ("lean_diagnostic_messages", "formalizer_author_lean")
             residual_goals.extend(_residual_goals_for_subclaim(subclaim, "formal-gap scaffold"))
-        elif not _looks_like_lean_command(statement):
-            attempt_status = "non_lean_statement"
-            diagnostics.append("subclaim text is not a complete Lean command")
-            diagnostics.append(f"statement_excerpt={statement[:160]!r}")
-            requested_tools = ("lean_diagnostic_messages", "formalizer_author_lean")
-            residual_goals.extend(_residual_goals_for_subclaim(subclaim, "non-Lean statement"))
         elif not self.lean_command:
             attempt_status = "local_lean_unavailable"
             diagnostics.append("local Lean command unavailable; configure lake/lean before live proof-state diagnostics")
@@ -199,7 +194,6 @@ class LocalLeanProofStateFeedbackProvider:
                 "formal_gap_scaffold_blocked",
                 "local_lean_failed",
                 "missing_lean_statement",
-                "non_lean_statement",
                 "placeholder_blocked",
             },
             subclaim_status=str(subclaim.status),
@@ -282,6 +276,8 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         lean_command: Sequence[str] | None = None,
         mcp_command: Sequence[str] | None = None,
         mcp_timeout_s: int = 20,
+        openprover_root: str | Path | None = None,
+        mcp_transcript_collector: Callable[..., Mapping[str, Any]] | None = None,
     ) -> None:
         super().__init__(
             project_root=project_root,
@@ -294,6 +290,12 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             else ("uvx", "lean-lsp-mcp")
         )
         self.mcp_timeout_s = int(mcp_timeout_s)
+        self.openprover_root = (
+            Path(openprover_root).expanduser().resolve()
+            if openprover_root
+            else None
+        )
+        self._mcp_transcript_collector = mcp_transcript_collector
 
     def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
         base = super()._inspect_subclaim(subclaim)
@@ -318,7 +320,10 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 ),
                 tool_call_trace=tuple([*base.tool_call_trace, skipped_trace]),
             )
-        traces = self._run_mcp_feedback_tools(artifact_path)
+        traces = self._run_mcp_feedback_tools(
+            artifact_path,
+            compiler_diagnostics=base.diagnostics,
+        )
         diagnostics = tuple(
             item
             for item in (
@@ -375,7 +380,12 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             created_at=datetime.now(timezone.utc).isoformat(),
         )
 
-    def _run_mcp_feedback_tools(self, artifact_path: str) -> tuple[dict[str, Any], ...]:
+    def _run_mcp_feedback_tools(
+        self,
+        artifact_path: str,
+        *,
+        compiler_diagnostics: Sequence[str] = (),
+    ) -> tuple[dict[str, Any], ...]:
         requested_tool = "lean_lsp_mcp.lean_diagnostic_messages"
         if self.project_root is None:
             return ({
@@ -394,83 +404,40 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 ),
                 "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
             },)
-        command = (
-            *self.mcp_command,
-            "--transport",
-            "stdio",
-            "--lean-project-path",
-            str(self.project_root),
-        )
-        proc: subprocess.Popen[str] | None = None
         try:
-            proc = subprocess.Popen(
-                command,
-                cwd=str(self.project_root),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-            )
-            assert proc.stdin is not None
-            initialize = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-03-26",
-                    "capabilities": {},
-                    "clientInfo": {"name": "ai-statistician-runtime", "version": "0"},
-                },
-            }
-            initialized = {"jsonrpc": "2.0", "method": "notifications/initialized"}
-            for message in (initialize, initialized):
-                proc.stdin.write(json.dumps(message) + "\n")
-            proc.stdin.flush()
-            line_queue = _start_json_rpc_readers(proc)
-            traces: list[dict[str, Any]] = []
-            for call_id, (tool_name, arguments) in enumerate(
-                _mcp_tool_calls_for_artifact(artifact_path),
-                start=2,
-            ):
-                tool_call = {
-                    "jsonrpc": "2.0",
-                    "id": call_id,
-                    "method": "tools/call",
-                    "params": {
-                        "name": tool_name,
-                        "arguments": arguments,
-                    },
-                }
-                proc.stdin.write(json.dumps(tool_call) + "\n")
-                proc.stdin.flush()
-                response, stderr_excerpt, timed_out = _read_json_rpc_response_from_queue(
-                    proc,
-                    line_queue,
-                    target_id=call_id,
+            collector = self._load_openprover_mcp_collector()
+            position = _lean_compiler_diagnostic_position(compiler_diagnostics)
+            with tempfile.TemporaryDirectory(
+                prefix="ai_stat_openprover_mcp_"
+            ) as tmp:
+                transcript_path = Path(tmp) / "lean_lsp_mcp_transcript.json"
+                summary = collector(
+                    file_path=artifact_path,
+                    line=position["line"],
+                    column=position["column"],
+                    out=transcript_path,
+                    project=self.project_root,
+                    command=self.mcp_command,
                     timeout_s=self.mcp_timeout_s,
+                    include_goal=True,
+                    include_diagnostics=True,
+                    state_search_num_results=5,
+                    restart_on_tool_error=True,
+                    benchmark="ai-statistician-proof-state-feedback",
+                    split="runtime",
                 )
-                if timed_out:
-                    status = "mcp_tool_call_timeout"
-                elif response.get("error"):
-                    status = "mcp_tool_call_failed"
-                else:
-                    status = "mcp_tool_call_succeeded"
-                traces.append(
-                    {
-                        "tool": "lean_lsp_mcp." + tool_name,
-                        "status": status,
-                        "artifact_path": artifact_path,
-                        "project_root": str(self.project_root),
-                        "timeout_s": self.mcp_timeout_s,
-                        "arguments": arguments,
-                        "response_excerpt": _json_excerpt(response),
-                        "diagnostics_excerpt": _mcp_text_excerpt(response),
-                        "error_excerpt": stderr_excerpt,
-                        "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
-                    }
+                transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+            return tuple(
+                _openprover_mcp_event_trace(
+                    event,
+                    artifact_path=artifact_path,
+                    project_root=self.project_root,
+                    timeout_s=self.mcp_timeout_s,
+                    collector_summary=summary,
                 )
-            return tuple(traces)
+                for event in transcript.get("events", []) or []
+                if isinstance(event, Mapping)
+            )
         except Exception as exc:
             return ({
                 "tool": requested_tool,
@@ -480,21 +447,42 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 "error_excerpt": f"{type(exc).__name__}: {exc}",
                 "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
             },)
-        finally:
-            if proc is not None:
-                try:
-                    if proc.stdin is not None:
-                        proc.stdin.close()
-                except Exception:
-                    pass
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-                except Exception:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
+
+    def _load_openprover_mcp_collector(self) -> Callable[..., Mapping[str, Any]]:
+        if self._mcp_transcript_collector is not None:
+            return self._mcp_transcript_collector
+        if self.openprover_root is not None:
+            src = self.openprover_root / "src"
+            module_path = src / "openprover" / "lean_lsp_mcp.py"
+            if not module_path.is_file():
+                raise RuntimeError(
+                    f"OpenProver Lean LSP MCP adapter missing at {module_path}"
+                )
+            src_text = str(src)
+            if src_text not in sys.path:
+                sys.path.insert(0, src_text)
+        try:
+            module = importlib.import_module("openprover.lean_lsp_mcp")
+        except ImportError as exc:
+            raise RuntimeError(
+                "OpenProver Lean LSP MCP adapter is unavailable; configure "
+                "openprover_root or install the OpenProver package"
+            ) from exc
+        if self.openprover_root is not None:
+            loaded_path = Path(str(getattr(module, "__file__", "") or "")).resolve()
+            expected_src = (self.openprover_root / "src").resolve()
+            if expected_src not in loaded_path.parents:
+                raise RuntimeError(
+                    "an OpenProver package from a different checkout is already "
+                    f"loaded: {loaded_path}"
+                )
+        collector = getattr(module, "collect_lean_lsp_mcp_transcript", None)
+        if not callable(collector):
+            raise RuntimeError(
+                "OpenProver does not expose collect_lean_lsp_mcp_transcript"
+            )
+        self._mcp_transcript_collector = collector
+        return collector
 
 
 def proof_state_feedback_row_to_json(row: ProofStateFeedbackRow) -> dict[str, Any]:
@@ -516,18 +504,6 @@ def _residual_goals_for_subclaim(subclaim: FormalSubclaim, reason: str) -> list[
     if not rows:
         rows.append(reason)
     return rows
-
-
-def _looks_like_lean_command(statement: str) -> bool:
-    stripped = statement.lstrip()
-    if stripped.startswith(("theorem ", "lemma ", "example ", "def ", "abbrev ")):
-        return True
-    if stripped.startswith("import "):
-        return any(
-            line.lstrip().startswith(("theorem ", "lemma ", "example ", "def ", "abbrev "))
-            for line in stripped.splitlines()
-        )
-    return False
 
 
 def _lean_source(
@@ -593,133 +569,70 @@ def _diagnostic_lines(text: str, *, limit: int = 12) -> list[str]:
     return (interesting or lines)[:limit]
 
 
-def _mcp_tool_calls_for_artifact(
-    artifact_path: str,
-) -> tuple[tuple[str, dict[str, Any]], ...]:
-    position = _lean_lsp_probe_position(artifact_path)
-    return (
-        ("lean_diagnostic_messages", {"file_path": artifact_path}),
-        (
-            "lean_goal",
-            {
-                "file_path": artifact_path,
-                "line": position["line"],
-                "column": position["column"],
-            },
-        ),
-        (
-            "lean_state_search",
-            {
-                "file_path": artifact_path,
-                "line": position["line"],
-                "column": position["column"],
-                "num_results": 5,
-            },
-        ),
-    )
+_LEAN_DIAGNOSTIC_POSITION_RE = re.compile(
+    r"(?:^|\s|/)[^\s:]*:(?P<line>[1-9][0-9]*):(?P<column>[1-9][0-9]*):"
+)
 
 
-def _lean_lsp_probe_position(artifact_path: str) -> dict[str, int]:
-    """Return a conservative 1-indexed proof-state probe location."""
+def _lean_compiler_diagnostic_position(
+    diagnostics: Sequence[str],
+) -> dict[str, int]:
+    """Use Lean's own diagnostic location, never a Python Lean-source parser."""
 
-    try:
-        lines = Path(artifact_path).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {"line": 1, "column": 1}
-    declaration_line = 1
-    for index, line in enumerate(lines, start=1):
-        if line.lstrip().startswith(("theorem ", "lemma ", "example ")):
-            declaration_line = index
-            break
-    for index, line in enumerate(lines[declaration_line - 1 :], start=declaration_line):
-        stripped = line.strip()
-        if index > declaration_line and stripped and not stripped.startswith("--"):
+    for diagnostic in diagnostics:
+        match = _LEAN_DIAGNOSTIC_POSITION_RE.search(str(diagnostic))
+        if match:
             return {
-                "line": index,
-                "column": max(1, len(line) - len(line.lstrip()) + 1),
+                "line": int(match.group("line")),
+                "column": int(match.group("column")),
             }
-        if ":= by" in line or stripped == "by":
-            next_line = min(index + 1, max(index, len(lines)))
-            if next_line <= len(lines):
-                next_text = lines[next_line - 1]
-                return {
-                    "line": next_line,
-                    "column": max(1, len(next_text) - len(next_text.lstrip()) + 1),
-                }
-            return {"line": index, "column": max(1, line.find("by") + 1)}
-    return {"line": declaration_line, "column": 1}
+    return {"line": 1, "column": 1}
 
 
-def _read_json_rpc_response(
-    proc: subprocess.Popen[str],
+def _openprover_mcp_event_trace(
+    event: Mapping[str, Any],
     *,
-    target_id: int,
+    artifact_path: str,
+    project_root: Path,
     timeout_s: int,
-) -> tuple[dict[str, Any], str, bool]:
-    return _read_json_rpc_response_from_queue(
-        proc,
-        _start_json_rpc_readers(proc),
-        target_id=target_id,
-        timeout_s=timeout_s,
+    collector_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    timed_out = bool(event.get("timed_out", False))
+    ok = bool(event.get("ok", False))
+    status = (
+        "mcp_tool_call_timeout"
+        if timed_out
+        else "mcp_tool_call_succeeded"
+        if ok
+        else "mcp_tool_call_failed"
     )
-
-
-def _start_json_rpc_readers(
-    proc: subprocess.Popen[str],
-) -> queue.Queue[tuple[str, str]]:
-    line_queue: queue.Queue[tuple[str, str]] = queue.Queue()
-
-    def _reader(name: str, stream: Any) -> None:
-        for line in stream:
-            line_queue.put((name, str(line).strip()))
-
-    if proc.stdout is not None:
-        threading.Thread(
-            target=_reader,
-            args=("stdout", proc.stdout),
-            daemon=True,
-        ).start()
-    if proc.stderr is not None:
-        threading.Thread(
-            target=_reader,
-            args=("stderr", proc.stderr),
-            daemon=True,
-        ).start()
-    return line_queue
-
-
-def _read_json_rpc_response_from_queue(
-    proc: subprocess.Popen[str],
-    line_queue: queue.Queue[tuple[str, str]],
-    *,
-    target_id: int,
-    timeout_s: int,
-) -> tuple[dict[str, Any], str, bool]:
-    stdout_lines: list[str] = []
-    stderr_lines: list[str] = []
-    response: dict[str, Any] = {}
-    deadline = datetime.now(timezone.utc).timestamp() + max(1, int(timeout_s))
-    while datetime.now(timezone.utc).timestamp() < deadline:
-        try:
-            name, line = line_queue.get(timeout=0.2)
-        except queue.Empty:
-            if proc.poll() is not None and not response:
-                break
-            continue
-        if name == "stderr":
-            stderr_lines.append(line)
-            continue
-        stdout_lines.append(line)
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if payload.get("id") == target_id:
-            response = payload
-            return response, "\n".join(stderr_lines)[-800:], False
-    if not response:
-        response = {"stdout_excerpt": "\n".join(stdout_lines)[-1200:]}
-    return response, "\n".join(stderr_lines)[-800:], True
+    error = event.get("error", {})
+    result = event.get("result", {})
+    return {
+        "tool": "lean_lsp_mcp." + str(event.get("tool_name", "") or ""),
+        "status": status,
+        "artifact_path": artifact_path,
+        "project_root": str(project_root),
+        "timeout_s": timeout_s,
+        "arguments": dict(event.get("arguments", {}) or {})
+        if isinstance(event.get("arguments", {}), Mapping)
+        else {},
+        "response_excerpt": _json_excerpt(result),
+        "diagnostics_excerpt": _structured_mcp_text(result),
+        "error_excerpt": _json_excerpt(error) if error else "",
+        "openprover_adapter": {
+            "trace_collection_mode": str(
+                collector_summary.get("trace_collection_mode", "") or ""
+            ),
+            "mcp_client_restarts": int(
+                collector_summary.get("mcp_client_restarts", 0) or 0
+            ),
+            "honesty_boundary": str(
+                collector_summary.get("honesty_boundary", "") or ""
+            ),
+        },
+        "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+    }
 
 
 def _json_excerpt(payload: Mapping[str, Any] | dict[str, Any]) -> str:
@@ -729,16 +642,35 @@ def _json_excerpt(payload: Mapping[str, Any] | dict[str, Any]) -> str:
         return str(payload)[:1200]
 
 
-def _mcp_text_excerpt(payload: Mapping[str, Any] | dict[str, Any]) -> str:
-    result = payload.get("result") if isinstance(payload, Mapping) else None
-    if not isinstance(result, Mapping):
-        return ""
-    content = result.get("content")
-    if not isinstance(content, list):
-        return ""
-    texts = [
-        str(item.get("text", ""))
-        for item in content
-        if isinstance(item, Mapping) and str(item.get("text", "")).strip()
-    ]
-    return "\n".join(texts)[:1200]
+def _structured_mcp_text(value: Any) -> str:
+    texts: list[str] = []
+
+    def visit(item: Any, *, depth: int = 0) -> None:
+        if depth > 6 or len(texts) >= 24:
+            return
+        if isinstance(item, str):
+            if item.strip():
+                texts.append(item.strip())
+            return
+        if isinstance(item, Mapping):
+            for key in ("text", "message", "goal", "state", "proof_state"):
+                child = item.get(key)
+                if isinstance(child, str) and child.strip():
+                    texts.append(child.strip())
+            for key in (
+                "items",
+                "content",
+                "goals",
+                "structuredContent",
+                "raw_result",
+                "result",
+            ):
+                if key in item:
+                    visit(item.get(key), depth=depth + 1)
+            return
+        if isinstance(item, (list, tuple)):
+            for child in item:
+                visit(child, depth=depth + 1)
+
+    visit(value)
+    return "\n".join(dict.fromkeys(texts))[:1200]
