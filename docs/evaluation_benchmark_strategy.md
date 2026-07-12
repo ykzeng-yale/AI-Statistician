@@ -1120,6 +1120,12 @@ templates remain excluded from capability evidence. This suite is
 implementation/simulation capability evidence only; it is not theorem proof
 evidence and does not close any Lean/source-theorem gap.
 
+Repair counts must be artifact-bound. A later pass counts only when its runtime
+lineage names the failed parent prototype, parent script hash, concrete feedback
+id, repaired child prototype, and changed child script hash. A failure and an
+unrelated success sharing only a question id are diagnostic events, not an
+agent repair sequence.
+
 ### S11. Live Formalizer Lean-Candidate Repair Suite
 
 Question answered: can the system's own generator-backed Formalizer/ProofEngineer
@@ -1251,6 +1257,42 @@ learning rows, and source runtime-learning lineage checked to the current
 runtime output; standalone S11b evidence does not substitute for this in-loop
 calibration.
 
+### S14. Fresh-Start Cross-Task Source-Theorem Closure Suite
+
+Question answered: can the integrated system repeat a full autonomous research
+and proof loop on at least two unrelated statistical task families without
+resuming task-specific runtime memory?
+
+Sources:
+
+- `fresh_start_cross_task_e2e` inside `research-agent-runtime-audit`
+- at least two per-question AgentRuntime result artifacts from one fresh-start
+  capability evaluation
+- exact external ProofEngineer candidate rerun manifests attached to each
+  question's blackboard lineage
+
+Pass criteria are evaluated per task, not from aggregate counters:
+
+- fresh start with no pending-task resume or task-learning-memory input
+- live Architect plan and live structured TheoryDeveloper derivation
+- theory trace consumed by AlgorithmEngineer, SimulationEngineer, and
+  Formalizer/ProofEngineer
+- formal-source RAG hits bound to the task
+- live generated algorithm and simulation execution plus artifact-bound repair
+  feedback
+- linked formalization manifest and live Lean LSP/MCP feedback
+- exact target-preserving source theorem verification by local Lean/AXLE, zero
+  runtime-generated proof bodies, and no formal gaps
+- unique question, project, task-family, and source-proof lineage identities
+
+Only after every task graph is complete, at least two explicit task families
+are represented, and all lineages are independent may
+`fresh_start_cross_task_e2e_generalization_demonstrated=true`. Two kernel proof
+counts, two question ids in one family, component-gate results, resumed traces,
+fixture providers, or a proof target that does not match the current
+formalization target all fail closed. The S14 audit composes capability
+evidence; the underlying local Lean/AXLE rows remain the theorem-proof evidence.
+
 ## Recommended Near-Term Gate
 
 For the next development cycle, use this gate stack:
@@ -1278,6 +1320,9 @@ For the next development cycle, use this gate stack:
    Architect-driven runtime to combine generated-code repair, generated
    simulation repair, Formalizer local Lean feedback, PF/BV non-proof
    feedback, runtime learning, and ProofEngineer handoffs in one run.
+11. S14 fresh-start cross-task source-theorem closure, requiring at least two
+   unrelated task families whose independent per-task evidence graphs each end
+   in exact local Lean/AXLE source-theorem verification.
 
 Do not treat `60/60 frontier_supported` as enough. It is a routing milestone.
 The next real milestone is reducing the 97 missing primitives and raising

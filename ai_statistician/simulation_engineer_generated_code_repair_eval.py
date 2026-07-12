@@ -18,6 +18,8 @@ from .model_backend import (
 )
 from .research_agent_runtime import (
     SimulationEvaluatorRuntimeSubsystem,
+    _generated_sandbox_feedback_id,
+    _generated_sandbox_prototype_artifact_id,
     _generated_sandbox_repair_sequence_counts,
 )
 from .research_architect import AnthropicArchitectLLMProvider, StaticArchitectLLMProvider
@@ -533,6 +535,10 @@ def _prior_metric_gate_failure_manifest(
     if isinstance(question, Mapping) and str(question.get("id", "") or "").strip():
         payload["question"] = dict(question)
         payload["question_id"] = str(question.get("id", "") or "")
+    for row in payload["generated_simulation_sandbox_prototypes"]:
+        row["prototype_artifact_id"] = _generated_sandbox_prototype_artifact_id(
+            row
+        )
     return payload
 
 
@@ -541,18 +547,30 @@ def _prior_metric_gate_feedback(
     manifest: Mapping[str, Any],
     target_coverage: float,
 ) -> dict[str, Any]:
+    feedback_type = "generated_simulation_sandbox_execution_feedback"
+    source_manifest_id = str(manifest.get("manifest_id", ""))
+    failure_classification = "generated_simulation_sandbox_metric_gate_failed"
+    prototypes = [
+        row
+        for row in manifest.get("generated_simulation_sandbox_prototypes", []) or []
+        if isinstance(row, Mapping)
+    ]
     return {
-        "feedback_type": "generated_simulation_sandbox_execution_feedback",
-        "simulation_manifest_id": str(manifest.get("manifest_id", "")),
-        "failure_classification": "generated_simulation_sandbox_metric_gate_failed",
+        "feedback_id": _generated_sandbox_feedback_id(
+            feedback_type=feedback_type,
+            source_manifest_id=source_manifest_id,
+            failure_classification=failure_classification,
+            prototype_rows=prototypes,
+        ),
+        "feedback_type": feedback_type,
+        "simulation_manifest_id": source_manifest_id,
+        "failure_classification": failure_classification,
         "n_generated_simulation_sandbox_prototypes": 1,
         "n_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_passed": 0,
         "n_generated_simulation_sandbox_metric_gate_failed": 1,
         "n_unsafe_generated_simulation_code_rejected": 0,
-        "generated_simulation_prototypes": list(
-            manifest.get("generated_simulation_sandbox_prototypes", []) or []
-        ),
+        "generated_simulation_prototypes": prototypes,
         "required_repair": generated_coverage_metric_component_feedback(
             artifact_label="generated simulation sandbox",
             target_coverage=target_coverage,

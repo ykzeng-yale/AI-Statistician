@@ -18,6 +18,8 @@ from .model_backend import (
 )
 from .research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
+    _generated_sandbox_feedback_id,
+    _generated_sandbox_prototype_artifact_id,
     _generated_sandbox_repair_sequence_counts,
 )
 from .research_architect import AnthropicArchitectLLMProvider, StaticArchitectLLMProvider
@@ -547,6 +549,10 @@ def _prior_metric_gate_failure_manifest(
     if isinstance(question, Mapping) and str(question.get("id", "") or "").strip():
         payload["question"] = dict(question)
         payload["question_id"] = str(question.get("id", "") or "")
+    for row in payload["prototypes"]:
+        row["prototype_artifact_id"] = _generated_sandbox_prototype_artifact_id(
+            row
+        )
     return payload
 
 
@@ -555,17 +561,31 @@ def _prior_metric_gate_feedback(
     manifest: Mapping[str, Any],
     target_coverage: float,
 ) -> dict[str, Any]:
+    feedback_type = "algorithm_sandbox_execution_feedback"
+    source_manifest_id = str(manifest.get("manifest_id", ""))
+    failure_classification = "generated_algorithm_sandbox_metric_gate_failed"
+    prototypes = [
+        row
+        for row in manifest.get("prototypes", []) or []
+        if isinstance(row, Mapping)
+    ]
     return {
-        "feedback_type": "algorithm_sandbox_execution_feedback",
-        "algorithm_sandbox_manifest_id": str(manifest.get("manifest_id", "")),
-        "failure_classification": "generated_algorithm_sandbox_metric_gate_failed",
+        "feedback_id": _generated_sandbox_feedback_id(
+            feedback_type=feedback_type,
+            source_manifest_id=source_manifest_id,
+            failure_classification=failure_classification,
+            prototype_rows=prototypes,
+        ),
+        "feedback_type": feedback_type,
+        "algorithm_sandbox_manifest_id": source_manifest_id,
+        "failure_classification": failure_classification,
         "n_prototypes": 1,
         "n_executed": 1,
         "n_passed": 0,
         "n_metric_gate_failed": 1,
         "n_generated_code_executed": 1,
         "n_unsafe_generated_code_rejected": 0,
-        "prototypes": list(manifest.get("prototypes", []) or []),
+        "prototypes": prototypes,
         "required_repair": generated_coverage_metric_component_feedback(
             artifact_label="generated Python sandbox",
             target_coverage=target_coverage,

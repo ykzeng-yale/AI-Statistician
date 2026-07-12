@@ -11140,6 +11140,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                     },
                     proposal_packet=proposal_packet,
+                    repair_feedback=environment_feedback,
                 )
             )
         for draft in simulation_code_drafts:
@@ -11162,6 +11163,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 _annotate_generated_sandbox_prototype_provenance(
                     prototype,
                     proposal_packet=proposal_packet,
+                    repair_feedback=environment_feedback,
                 )
             )
             generated_simulation_tool_calls.append(tool_call)
@@ -11852,6 +11854,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     _annotate_generated_sandbox_prototype_provenance(
                         prototype,
                         proposal_packet=proposal_packet,
+                        repair_feedback=environment_feedback,
                     )
                 )
                 tool_calls.append(tool_call)
@@ -11872,6 +11875,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                             "llm_algorithm_engineer_target": proposal_target,
                         },
                         proposal_packet=proposal_packet,
+                        repair_feedback=environment_feedback,
                     )
                 )
             elif template_hint:
@@ -46005,6 +46009,7 @@ def _annotate_generated_sandbox_prototype_provenance(
     prototype: Mapping[str, Any],
     *,
     proposal_packet: Mapping[str, Any] | None,
+    repair_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     annotated = dict(prototype)
     packet = proposal_packet if isinstance(proposal_packet, Mapping) else {}
@@ -46023,7 +46028,119 @@ def _annotate_generated_sandbox_prototype_provenance(
     annotated["source_llm_proposal_live_generator"] = (
         _runtime_llm_proposal_packet_live_generator(packet) if packet else False
     )
+    annotated["prototype_artifact_id"] = _generated_sandbox_prototype_artifact_id(
+        annotated
+    )
+    feedback = repair_feedback if isinstance(repair_feedback, Mapping) else {}
+    feedback_id = str(feedback.get("feedback_id", "") or "").strip()
+    parent_manifest_id = str(
+        feedback.get("algorithm_sandbox_manifest_id", "")
+        or feedback.get("simulation_manifest_id", "")
+        or ""
+    ).strip()
+    parent_rows = feedback.get("prototypes", [])
+    if not isinstance(parent_rows, list) or not parent_rows:
+        parent_rows = feedback.get("generated_simulation_prototypes", [])
+    if not isinstance(parent_rows, list):
+        parent_rows = []
+    parent_artifact_ids = [
+        str(row.get("prototype_artifact_id", "") or "").strip()
+        for row in parent_rows
+        if isinstance(row, Mapping)
+        and str(row.get("prototype_artifact_id", "") or "").strip()
+    ]
+    parent_script_hashes = [
+        str(row.get("script_hash", "") or "").strip()
+        for row in parent_rows
+        if isinstance(row, Mapping)
+        and str(row.get("script_hash", "") or "").strip()
+    ]
+    if feedback_id and parent_manifest_id and parent_artifact_ids:
+        annotated["repair_lineage"] = {
+            "schema_version": 1,
+            "artifact_kind": "GeneratedSandboxRepairLineage",
+            "feedback_id": feedback_id,
+            "feedback_type": str(feedback.get("feedback_type", "") or ""),
+            "feedback_failure_classification": str(
+                feedback.get("failure_classification", "") or ""
+            ),
+            "parent_manifest_id": parent_manifest_id,
+            "parent_prototype_artifact_ids": list(dict.fromkeys(parent_artifact_ids)),
+            "parent_script_hashes": list(dict.fromkeys(parent_script_hashes)),
+            "child_prototype_artifact_id": annotated["prototype_artifact_id"],
+            "child_script_hash": _generated_sandbox_prototype_script_hash(annotated),
+            "child_proposal_id": annotated["source_llm_proposal_id"],
+            "feedback_supplied_to_generator": True,
+            "lineage_contract_complete": True,
+            "boundary": (
+                "This lineage records which failed generated artifact and runtime "
+                "feedback were supplied to the next LLM proposal. It is execution "
+                "provenance, not statistical or theorem proof evidence."
+            ),
+        }
     return annotated
+
+
+def _generated_sandbox_prototype_script_hash(row: Mapping[str, Any]) -> str:
+    script_hash = str(row.get("script_hash", "") or "").strip()
+    if script_hash:
+        return script_hash
+    code_excerpt = str(row.get("code_excerpt", "") or "")
+    return stable_hash(code_excerpt) if code_excerpt else ""
+
+
+def _generated_sandbox_prototype_artifact_id(row: Mapping[str, Any]) -> str:
+    scope_id = str(
+        row.get("simulation_id", "")
+        or row.get("estimator_id", "")
+        or "generated_sandbox"
+    )
+    identity = {
+        "executor": str(row.get("executor", "") or ""),
+        "scope_id": scope_id,
+        "script_hash": _generated_sandbox_prototype_script_hash(row),
+        "source_llm_proposal_id": str(
+            row.get("source_llm_proposal_id", "") or ""
+        ),
+    }
+    if not identity["script_hash"]:
+        identity["missing_code_identity"] = stable_hash(
+            {
+                "status": str(row.get("prototype_status", "") or ""),
+                "reason": str(row.get("reason", "") or ""),
+                "spec": row.get("spec", {}),
+            }
+        )
+    return "generated_sandbox_prototype:" + stable_hash(identity)[:20]
+
+
+def _generated_sandbox_feedback_id(
+    *,
+    feedback_type: str,
+    source_manifest_id: str,
+    failure_classification: str,
+    prototype_rows: Sequence[Mapping[str, Any]],
+) -> str:
+    snapshot = [
+        {
+            "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(row),
+            "script_hash": _generated_sandbox_prototype_script_hash(row),
+            "prototype_status": str(row.get("prototype_status", "") or ""),
+            "smoke_passed": row.get("smoke_passed"),
+            "metric_gate_errors": list(_str_tuple(row.get("metric_gate_errors", []))),
+            "safety_errors": list(_str_tuple(row.get("safety_errors", []))),
+        }
+        for row in list(prototype_rows)[:5]
+        if isinstance(row, Mapping)
+    ]
+    return "generated_sandbox_feedback:" + stable_hash(
+        [
+            feedback_type,
+            source_manifest_id,
+            failure_classification,
+            snapshot,
+        ]
+    )[:20]
 
 
 def _generated_sandbox_row_executed(row: Mapping[str, Any]) -> bool:
@@ -85163,8 +85280,9 @@ def _generated_sandbox_repair_sequence_breakdown(
     missing_statuses: set[str],
     live_generated_only: bool = False,
 ) -> Counter[str]:
-    pending_failure_classes_by_scope: dict[str, set[str]] = {}
     closed_sequences: Counter[str] = Counter()
+    prior_manifests: dict[str, Mapping[str, Any]] = {}
+    consumed_feedback_ids: set[str] = set()
     for manifest in sorted(
         manifests,
         key=lambda row: (
@@ -85172,11 +85290,10 @@ def _generated_sandbox_repair_sequence_breakdown(
             str(row.get("manifest_id", "") or ""),
         ),
     ):
+        manifest_id = str(manifest.get("manifest_id", "") or "").strip()
         rows = manifest.get(prototype_key, [])
         if not isinstance(rows, list):
             rows = []
-        manifest_failure_classes: set[str] = set()
-        manifest_has_generated_pass = False
         for row in rows:
             if not isinstance(row, Mapping):
                 continue
@@ -85187,37 +85304,150 @@ def _generated_sandbox_repair_sequence_breakdown(
             if live_generated_only and not _generated_sandbox_row_live_generated(row):
                 continue
             smoke_passed = row.get("smoke_passed")
-            if status == "EXECUTED" and smoke_passed is True:
-                manifest_has_generated_pass = True
-            elif (
-                status in {
-                    "FAILED",
-                    "FAILED_METRIC_GATE",
-                    "GENERATED_CODE_REQUIRED_BUT_MISSING",
-                    "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
-                    "REJECTED_UNSAFE_GENERATED_CODE",
-                }
-                or smoke_passed is False
+            if status != "EXECUTED" or smoke_passed is not True:
+                continue
+            lineage = row.get("repair_lineage", {})
+            if not isinstance(lineage, Mapping):
+                continue
+            feedback_id = str(lineage.get("feedback_id", "") or "").strip()
+            source_manifest_id = str(
+                lineage.get("parent_manifest_id", "") or ""
+            ).strip()
+            feedback_type = str(lineage.get("feedback_type", "") or "").strip()
+            expected_feedback_type = (
+                "algorithm_sandbox_execution_feedback"
+                if generated_executor == "generated_python_sandbox"
+                else "generated_simulation_sandbox_execution_feedback"
+            )
+            failure_classification = str(
+                lineage.get("feedback_failure_classification", "") or ""
+            ).strip()
+            if (
+                not feedback_id
+                or feedback_id in consumed_feedback_ids
+                or feedback_type != expected_feedback_type
+                or not source_manifest_id
+                or source_manifest_id not in prior_manifests
+                or lineage.get("feedback_supplied_to_generator") is not True
+                or lineage.get("lineage_contract_complete") is not True
             ):
-                manifest_failure_classes.update(
+                continue
+            child_artifact_id = _generated_sandbox_prototype_artifact_id(row)
+            child_script_hash = _generated_sandbox_prototype_script_hash(row)
+            if (
+                str(row.get("prototype_artifact_id", "") or "")
+                != child_artifact_id
+                or str(lineage.get("child_prototype_artifact_id", "") or "")
+                != child_artifact_id
+                or str(lineage.get("child_script_hash", "") or "")
+                != child_script_hash
+                or str(lineage.get("child_proposal_id", "") or "")
+                != str(row.get("source_llm_proposal_id", "") or "")
+            ):
+                continue
+
+            source_manifest = prior_manifests[source_manifest_id]
+            if _generated_sandbox_repair_scope_key(source_manifest) != (
+                _generated_sandbox_repair_scope_key(manifest)
+            ):
+                continue
+            source_rows = source_manifest.get(prototype_key, [])
+            if not isinstance(source_rows, list):
+                source_rows = []
+            expected_feedback_id = _generated_sandbox_feedback_id(
+                feedback_type=feedback_type,
+                source_manifest_id=source_manifest_id,
+                failure_classification=failure_classification,
+                prototype_rows=[
+                    source_row
+                    for source_row in source_rows
+                    if isinstance(source_row, Mapping)
+                ],
+            )
+            if expected_feedback_id != feedback_id:
+                continue
+            parent_ids = {
+                str(value).strip()
+                for value in lineage.get("parent_prototype_artifact_ids", []) or []
+                if str(value).strip()
+            }
+            if not parent_ids:
+                continue
+            parent_rows = [
+                source_row
+                for source_row in source_rows
+                if isinstance(source_row, Mapping)
+                and str(source_row.get("prototype_artifact_id", "") or "")
+                == _generated_sandbox_prototype_artifact_id(source_row)
+                and _generated_sandbox_prototype_artifact_id(source_row) in parent_ids
+            ]
+            if not parent_rows:
+                continue
+            failed_parent_rows: list[Mapping[str, Any]] = []
+            failure_classes: set[str] = set()
+            for parent_row in parent_rows:
+                parent_status = str(
+                    parent_row.get("prototype_status", "") or ""
+                )
+                parent_failed = bool(
+                    parent_status
+                    in {
+                        "FAILED",
+                        "FAILED_METRIC_GATE",
+                        "GENERATED_CODE_REQUIRED_BUT_MISSING",
+                        "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING",
+                        "REJECTED_UNSAFE_GENERATED_CODE",
+                    }
+                    or parent_row.get("smoke_passed") is False
+                )
+                if not parent_failed:
+                    continue
+                if live_generated_only and not _generated_sandbox_row_live_generated(
+                    parent_row
+                ):
+                    continue
+                failed_parent_rows.append(parent_row)
+                failure_classes.update(
                     _generated_sandbox_failure_classes(
-                        row,
-                        status=status,
+                        parent_row,
+                        status=parent_status,
                         missing_statuses=missing_statuses,
                     )
                 )
-        scope_key = _generated_sandbox_repair_scope_key(manifest)
-        pending_failure_classes = pending_failure_classes_by_scope.setdefault(
-            scope_key,
-            set(),
-        )
-        if manifest_has_generated_pass and pending_failure_classes:
+            if not failed_parent_rows:
+                continue
+            parent_proposal_ids = {
+                str(parent_row.get("source_llm_proposal_id", "") or "").strip()
+                for parent_row in failed_parent_rows
+                if str(parent_row.get("source_llm_proposal_id", "") or "").strip()
+            }
+            child_proposal_id = str(
+                row.get("source_llm_proposal_id", "") or ""
+            ).strip()
+            if not child_proposal_id or child_proposal_id in parent_proposal_ids:
+                continue
+            prior_script_hashes = {
+                _generated_sandbox_prototype_script_hash(parent_row)
+                for parent_row in failed_parent_rows
+                if _generated_sandbox_prototype_script_hash(parent_row)
+            }
+            if child_script_hash and child_script_hash in prior_script_hashes:
+                continue
+            recorded_parent_hashes = {
+                str(value).strip()
+                for value in lineage.get("parent_script_hashes", []) or []
+                if str(value).strip()
+            }
+            if prior_script_hashes and not prior_script_hashes.issubset(
+                recorded_parent_hashes
+            ):
+                continue
             closed_sequences["total"] += 1
-            for failure_class in pending_failure_classes:
+            for failure_class in failure_classes:
                 closed_sequences[failure_class] += 1
-            pending_failure_classes.clear()
-        if manifest_failure_classes:
-            pending_failure_classes.update(manifest_failure_classes)
+            consumed_feedback_ids.add(feedback_id)
+        if manifest_id:
+            prior_manifests[manifest_id] = manifest
     return closed_sequences
 
 
@@ -88464,6 +88694,10 @@ def _algorithm_sandbox_revision_feedback(
         compact_prototypes.append(
             {
                 "estimator_id": str(row.get("estimator_id", "") or ""),
+                "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(
+                    row
+                ),
+                "script_hash": _generated_sandbox_prototype_script_hash(row),
                 "prototype_status": str(row.get("prototype_status", "") or ""),
                 "executor": str(row.get("executor", "") or ""),
                 "smoke_passed": row.get("smoke_passed"),
@@ -88498,9 +88732,18 @@ def _algorithm_sandbox_revision_feedback(
         if has_metric_gate_failure
         else ""
     )
+    feedback_type = "algorithm_sandbox_execution_feedback"
+    source_manifest_id = str(manifest.get("manifest_id", "") or "")
+    feedback_id = _generated_sandbox_feedback_id(
+        feedback_type=feedback_type,
+        source_manifest_id=source_manifest_id,
+        failure_classification=failure_classification,
+        prototype_rows=prototypes,
+    )
     return {
-        "feedback_type": "algorithm_sandbox_execution_feedback",
-        "algorithm_sandbox_manifest_id": str(manifest.get("manifest_id", "") or ""),
+        "feedback_id": feedback_id,
+        "feedback_type": feedback_type,
+        "algorithm_sandbox_manifest_id": source_manifest_id,
         "failure_classification": failure_classification,
         "n_prototypes": int(manifest.get("n_prototypes", 0) or 0),
         "n_executed": int(manifest.get("n_executed", 0) or 0),
@@ -88610,6 +88853,10 @@ def _generated_simulation_revision_feedback(
         compact_prototypes.append(
             {
                 "simulation_id": str(row.get("simulation_id", "") or ""),
+                "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(
+                    row
+                ),
+                "script_hash": _generated_sandbox_prototype_script_hash(row),
                 "prototype_status": str(row.get("prototype_status", "") or ""),
                 "executor": str(row.get("executor", "") or ""),
                 "smoke_passed": row.get("smoke_passed"),
@@ -88647,9 +88894,18 @@ def _generated_simulation_revision_feedback(
         if has_metric_gate_failure
         else ""
     )
+    feedback_type = "generated_simulation_sandbox_execution_feedback"
+    source_manifest_id = str(manifest.get("manifest_id", "") or "")
+    feedback_id = _generated_sandbox_feedback_id(
+        feedback_type=feedback_type,
+        source_manifest_id=source_manifest_id,
+        failure_classification=failure_classification,
+        prototype_rows=prototypes,
+    )
     return {
-        "feedback_type": "generated_simulation_sandbox_execution_feedback",
-        "simulation_manifest_id": str(manifest.get("manifest_id", "") or ""),
+        "feedback_id": feedback_id,
+        "feedback_type": feedback_type,
+        "simulation_manifest_id": source_manifest_id,
         "failure_classification": failure_classification,
         "n_generated_simulation_sandbox_prototypes": int(
             manifest.get("n_generated_simulation_sandbox_prototypes", 0) or 0

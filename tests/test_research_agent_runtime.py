@@ -38042,6 +38042,17 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
     assert failed_manifest["prototypes"][0]["executor"] == "generated_python_sandbox"
     assert passed_manifest["prototypes"][0]["prototype_status"] == "EXECUTED"
     assert passed_manifest["prototypes"][0]["executor"] == "generated_python_sandbox"
+    algorithm_lineage = passed_manifest["prototypes"][0]["repair_lineage"]
+    assert algorithm_lineage["parent_manifest_id"] == failed_manifest["manifest_id"]
+    assert failed_manifest["prototypes"][0]["prototype_artifact_id"] in (
+        algorithm_lineage["parent_prototype_artifact_ids"]
+    )
+    assert algorithm_lineage["child_prototype_artifact_id"] == (
+        passed_manifest["prototypes"][0]["prototype_artifact_id"]
+    )
+    assert algorithm_lineage["parent_script_hashes"] != [
+        algorithm_lineage["child_script_hash"]
+    ]
 
     sequence_counts = _generated_sandbox_repair_sequence_counts(
         result.blackboard.artifacts
@@ -39452,6 +39463,18 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
         "prototype_status"
     ] == "EXECUTED"
     assert passed_manifest["proof_evidence_status"] == "SIMULATION_NOT_PROOF_EVIDENCE"
+    simulation_lineage = passed_manifest[
+        "generated_simulation_sandbox_prototypes"
+    ][0]["repair_lineage"]
+    assert simulation_lineage["parent_manifest_id"] == failed_manifest["manifest_id"]
+    assert failed_manifest["generated_simulation_sandbox_prototypes"][0][
+        "prototype_artifact_id"
+    ] in simulation_lineage["parent_prototype_artifact_ids"]
+    assert simulation_lineage["child_prototype_artifact_id"] == (
+        passed_manifest["generated_simulation_sandbox_prototypes"][0][
+            "prototype_artifact_id"
+        ]
+    )
 
     sequence_counts = _generated_sandbox_repair_sequence_counts(
         result.blackboard.artifacts
@@ -40254,7 +40277,7 @@ def test_generated_simulation_sandbox_requires_coverage_metric_for_coverage_targ
     ]
 
 
-def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass() -> None:
+def test_generated_sandbox_repair_sequence_counts_require_explicit_artifact_lineage() -> None:
     artifacts = {
         "algorithm_sandbox_manifest:one_shot": {
             "artifact_kind": "RuntimeAlgorithmSandboxManifest",
@@ -40332,49 +40355,49 @@ def test_generated_sandbox_repair_sequence_counts_require_fail_then_later_pass()
         sequence_counts[
             "n_generated_code_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         sequence_counts[
             "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         sequence_counts[
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         sequence_counts[
             "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         evidence_summary["algorithm"][
             "n_generated_code_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         evidence_summary["algorithm"][
             "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         evidence_summary["simulation"][
             "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         evidence_summary["simulation"][
             "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
 
 
@@ -81299,8 +81322,25 @@ def test_runtime_capability_scorecard_recomputes_full_frontier_target_binding() 
     assert rows["full_frontier_theorem_kernel_proved"]["passed"] is True
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
-    ]["passed"] is True
+    ]["passed"] is False
     assert ladder_rows[8]["passed"] is True
+    assert ladder_rows[9]["passed"] is False
+
+    payload.update(
+        {
+            "fresh_start_cross_task_e2e_generalization_demonstrated": True,
+            "n_fresh_start_full_e2e_tasks": 2,
+            "fresh_start_full_e2e_task_families": ["causal", "conformal"],
+        }
+    )
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is True
     assert ladder_rows[9]["passed"] is True
 
 
@@ -82251,7 +82291,7 @@ def _algorithm_repair_provenance_artifacts(
     }
 
 
-def test_runtime_evidence_summary_recovers_live_generated_algorithm_repair_from_topology_provenance() -> None:
+def test_runtime_evidence_summary_does_not_infer_repair_from_topology_provenance() -> None:
     artifacts = _algorithm_repair_provenance_artifacts()
 
     repair_counts = _generated_sandbox_repair_sequence_counts(artifacts)
@@ -82263,25 +82303,25 @@ def test_runtime_evidence_summary_recovers_live_generated_algorithm_repair_from_
         repair_counts[
             "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         repair_counts[
             "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         summary["algorithm"][
             "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         summary["algorithm"][
             "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert summary["algorithm"]["n_live_generated_code_sandbox_executed"] == 2
     assert summary["algorithm"]["n_live_generated_code_sandbox_metric_gate_failed"] == 1
@@ -82305,7 +82345,7 @@ def test_runtime_evidence_summary_does_not_recover_live_generated_repair_for_mod
         repair_counts[
             "n_generated_code_sandbox_failed_then_passed_repair_sequences"
         ]
-        == 1
+        == 0
     )
     assert (
         repair_counts[
@@ -83911,11 +83951,27 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
 
     assert rows[
         "cross_task_full_theorem_generalization_demonstrated"
+    ]["passed"] is False
+    assert "recommended_capability_eval_command" in rows[
+        "cross_task_full_theorem_generalization_demonstrated"
+    ]
+    assert ladder["scale"] == "L0-L9"
+    assert ladder_rows[9]["passed"] is False
+
+    payload["fresh_start_cross_task_e2e_generalization_demonstrated"] = True
+    payload["n_fresh_start_full_e2e_tasks"] = 2
+    payload["fresh_start_full_e2e_task_families"] = ["causal", "conformal"]
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    ladder = _runtime_capability_ladder(payload)
+    ladder_rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[
+        "cross_task_full_theorem_generalization_demonstrated"
     ]["passed"] is True
     assert "recommended_capability_eval_command" not in rows[
         "cross_task_full_theorem_generalization_demonstrated"
     ]
-    assert ladder["scale"] == "L0-L9"
     assert ladder_rows[9]["passed"] is True
 
     payload.pop("task_families")

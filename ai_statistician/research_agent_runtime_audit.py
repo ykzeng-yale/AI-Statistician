@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .fresh_start_cross_task_e2e import audit_fresh_start_cross_task_e2e
 from .exact_source_theorem_proof_body_executor import (
     ARTIFACT_KERNEL_NOT_SOURCE_STATUS as EXACT_PROOF_BODY_ARTIFACT_KERNEL_NOT_SOURCE_STATUS,
     PROOF_EVIDENCE_STATUS as EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
@@ -4395,11 +4396,28 @@ def audit_research_agent_runtime(
             *source_candidate_materialization_target_ids,
         ]
     )
+    fresh_start_cross_task_e2e = audit_fresh_start_cross_task_e2e(
+        runtime_manifest=manifest,
+        result_payloads=[_load_json(path, errors) for path in result_paths],
+        row_summaries=[asdict(row) for row in rows],
+    )
     payload: dict[str, Any] = {
         "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
+        "fresh_start_cross_task_e2e": fresh_start_cross_task_e2e,
+        "fresh_start_cross_task_e2e_generalization_demonstrated": bool(
+            fresh_start_cross_task_e2e[
+                "cross_task_full_e2e_generalization_demonstrated"
+            ]
+        ),
+        "n_fresh_start_full_e2e_tasks": int(
+            fresh_start_cross_task_e2e["n_complete_tasks"]
+        ),
+        "fresh_start_full_e2e_task_families": list(
+            fresh_start_cross_task_e2e["complete_task_families"]
+        ),
         "runtime_learning_rows_jsonl": str(learning_path),
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_audit_export_jsonl": (
             exact_semantic_definition_authoring_retry_task_audit_export_path
@@ -11903,7 +11921,9 @@ def audit_research_agent_runtime(
         "exact semantic-definition authoring with live backend provenance whenever "
         "authoring is required, zero unresolved AgentRuntime/Architect deferred "
         "meta capability gaps, real kernel evidence, and no remaining full-theorem "
-        "formal gaps. Attached component calibration is reported separately and "
+        "formal gaps. Cross-task readiness additionally requires at least two "
+        "fresh-start per-task evidence graphs; aggregate family and proof counters "
+        "cannot substitute for those lineages. Attached component calibration is reported separately and "
         "does not substitute for integrated readiness."
     )
     if out_dir is not None:
@@ -14881,6 +14901,10 @@ def _runtime_capability_gap_audit_metrics(
         "cross_task_full_theorem_generalization_demonstrated": (
             "question_ids",
             "n_distinct_question_ids",
+            "fresh_start_cross_task_e2e",
+            "fresh_start_cross_task_e2e_generalization_demonstrated",
+            "n_fresh_start_full_e2e_tasks",
+            "fresh_start_full_e2e_task_families",
             "question_ids_with_full_frontier_theorem_proved",
             "n_question_ids_with_full_frontier_theorem_proved",
             "task_families_with_full_frontier_theorem_proved",
@@ -18257,9 +18281,6 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     current_kernel_evidence_count = _payload_current_kernel_evidence_count(payload)
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
-    cross_task_full_theorem_family_count = (
-        _payload_cross_task_full_theorem_family_count(payload)
-    )
     architect_orchestration_executed = _runtime_architect_orchestration_executed(
         payload
     )
@@ -18575,9 +18596,18 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         and int(payload.get("n_formal_gaps", 0) or 0) <= 0
     )
     cross_task_generalization_ready = (
-        distinct_task_family_count >= 2
-        and cross_task_full_theorem_family_count >= 2
-        and full_frontier_target_bound_kernel_count >= 2
+        payload.get(
+            "fresh_start_cross_task_e2e_generalization_demonstrated"
+        )
+        is True
+        and distinct_task_family_count >= 2
+        and int(payload.get("n_fresh_start_full_e2e_tasks", 0) or 0) >= 2
+        and len(
+            explicit_task_family_list(
+                payload.get("fresh_start_full_e2e_task_families", [])
+            )
+        )
+        >= 2
     )
     levels = [
         _ladder_level(
@@ -18860,11 +18890,17 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "target_bound_proved_task_families="
                 f"{payload.get('task_families_with_full_frontier_target_bound_kernel_verified')} "
                 "n_target_bound_proved_task_families="
-                f"{payload.get('n_task_families_with_full_frontier_target_bound_kernel_verified')}"
+                f"{payload.get('n_task_families_with_full_frontier_target_bound_kernel_verified')} "
+                "fresh_start_per_task_e2e="
+                f"{payload.get('fresh_start_cross_task_e2e_generalization_demonstrated')} "
+                "n_fresh_start_full_e2e_tasks="
+                f"{payload.get('n_fresh_start_full_e2e_tasks')}"
             ),
             (
-                "no multi-family kernel-verified theorem generalization was "
-                "demonstrated"
+                "no fresh-start multi-family run completed the Architect, "
+                "theory, generated-code, simulation, RAG, verifier-feedback, "
+                "and exact source-theorem kernel evidence graph independently "
+                "for every task"
             ),
         ),
     ]
@@ -18967,9 +19003,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     current_kernel_evidence_count = _payload_current_kernel_evidence_count(payload)
     distinct_task_family_count = _payload_distinct_task_family_count(payload)
-    cross_task_full_theorem_family_count = (
-        _payload_cross_task_full_theorem_family_count(payload)
-    )
     proof_body_goal_reached_count = (
         _payload_source_theorem_proof_body_goal_reached_count(payload)
     )
@@ -27450,9 +27483,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "cross_task_full_theorem_generalization_demonstrated",
             (
-                distinct_task_family_count >= 2
-                and cross_task_full_theorem_family_count >= 2
-                and full_frontier_target_bound_kernel_count >= 2
+                payload.get(
+                    "fresh_start_cross_task_e2e_generalization_demonstrated"
+                )
+                is True
+                and distinct_task_family_count >= 2
+                and int(payload.get("n_fresh_start_full_e2e_tasks", 0) or 0) >= 2
+                and len(
+                    explicit_task_family_list(
+                        payload.get("fresh_start_full_e2e_task_families", [])
+                    )
+                )
+                >= 2
             ),
             (
                 "n_distinct_question_ids="
@@ -27478,13 +27520,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "n_task_families_with_full_frontier_target_bound_kernel_verified="
                 f"{payload.get('n_task_families_with_full_frontier_target_bound_kernel_verified')} "
                 "task_families_with_full_frontier_target_bound_kernel_verified="
-                f"{payload.get('task_families_with_full_frontier_target_bound_kernel_verified')}"
+                f"{payload.get('task_families_with_full_frontier_target_bound_kernel_verified')} "
+                "fresh_start_per_task_e2e="
+                f"{payload.get('fresh_start_cross_task_e2e_generalization_demonstrated')} "
+                "n_fresh_start_full_e2e_tasks="
+                f"{payload.get('n_fresh_start_full_e2e_tasks')} "
+                "fresh_start_full_e2e_task_families="
+                f"{payload.get('fresh_start_full_e2e_task_families')}"
             ),
             (
                 "capability eval has not kernel-verified full source/frontier "
                 "theorems across at least two explicitly target-bound statistics "
-                "task families; two question ids inside one family cannot establish "
-                "general AI Statistician readiness"
+                "task families while independently binding each theorem to its "
+                "fresh-start Architect, theory, generated algorithm/simulation, "
+                "RAG, and Lean-feedback lineage; aggregate counters or two "
+                "question ids inside one family cannot establish general AI "
+                "Statistician readiness"
             ),
             **_cross_task_generalization_scorecard_routing(payload),
         ),
@@ -28415,10 +28466,10 @@ def _cross_task_generalization_scorecard_routing(
         ),
         "recommended_capability_eval_command": command,
         "success_metric": (
-            "explicit target-bound task family ids>=2 and "
-            "n_task_families_with_full_frontier_target_bound_kernel_verified>=2 "
-            "with explicit family ids and local Lean/AXLE kernel verification "
-            "for the full source/frontier theorem in each family"
+            "fresh_start_cross_task_e2e_generalization_demonstrated=true, "
+            "explicit target-bound task family ids>=2, and each task's own "
+            "Architect/theory/code/simulation/RAG/Lean-feedback lineage ending "
+            "in local Lean/AXLE verification of its exact source theorem"
         ),
         "proof_evidence_status": "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE",
         "routing_boundary": (
@@ -29976,6 +30027,29 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         lines.append(
             f"Boundary: {payload.get('runtime_cross_task_theorem_family_boundary')}"
         )
+    fresh_e2e = payload.get("fresh_start_cross_task_e2e", {})
+    if isinstance(fresh_e2e, Mapping):
+        lines.extend(
+            [
+                "",
+                "## Fresh-Start Per-Task E2E",
+                "- generalization demonstrated: "
+                f"{fresh_e2e.get('cross_task_full_e2e_generalization_demonstrated')}",
+                "- complete tasks / families: "
+                f"{fresh_e2e.get('n_complete_tasks')} / "
+                f"{fresh_e2e.get('n_complete_task_families')}",
+            ]
+        )
+        for row in fresh_e2e.get("task_rows", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            lines.append(
+                "- "
+                f"{row.get('question_id')}: family={row.get('task_family')} "
+                f"complete={row.get('complete')} "
+                f"missing={row.get('missing_requirements')}"
+            )
+        lines.append(f"Boundary: {fresh_e2e.get('boundary')}")
     lines.extend(["", "## Capability Routing"])
     routed_rows = [
         row
