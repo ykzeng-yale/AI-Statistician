@@ -161,9 +161,11 @@ retains candidates and failure feedback across packet-validation retries,
 deduplicates unchanged semantic search states, and filters invalid candidates
 without discarding valid siblings. Provider output is never promoted to proof
 until AI-Statistician reruns the exact declaration under local Lean/AXLE. The
-plumbing has full local regression coverage, but no production external call is
-claimed because current trusted provider checkouts/indexes are not available on
-this machine.
+plumbing has full local regression coverage. Current OpenProver and
+EmpericalProcessLEAN RAG checkouts are available under `.codex/external`, and
+the declaration graph contains 18,724 declarations; the fresh two-family trace
+used that retrieval topology but exhausted its budget before the typed exact
+source prover stage, so no live OpenProver theorem closure is claimed.
 
 Seventh concrete change in this lane: OpenProver direct proof bodies now enter
 a deterministic exact-declaration rerun before any LLM rewrite. The executor
@@ -185,7 +187,42 @@ prompt compaction, and resume.
 This is a generation-verification-feedback mechanism, not a hand edit of one
 generated theorem.
 
+Eighth concrete change in this lane: the default formal-source context now
+combines AI-Statistician's local declaration index, its reusable proof bank,
+and configured EmpericalProcessLEAN/external providers. Proof-bank rows retain
+the exact statement, candidate body, source identity, and provider provenance,
+but are retrieval context only until the runtime rematerializes and verifies
+the intended declaration. Architect receives this provider topology and must
+plan the full evidence-required worker graph. Same-owner validation, compiler,
+and proof-state retries remain inside the responsible coding agent's feedback
+loop instead of spending another Architect turn. The strict live CLI also
+checks the selected Lake project for `Mathlib.olean` before any model call.
+No Lean grammar, tactic sequence, theorem-specific proof, or generated-output
+patch was encoded in this change.
+
 Live evidence collected during this lane:
+
+- `runs/main_worker_s14_two_family_fresh_live_20260712_v1/research_agent_runtime_manifest.json`:
+  a fresh Claude capability run exercised experimental-design and
+  multiple-testing task families with generated code/simulation, local Lean,
+  OpenProver-shaped proof search, and external declaration RAG. It scored
+  86/108 and remained not ready: both tasks exhausted their iteration budget,
+  10 formal gaps remained, and no exact source theorem closed. The run exposed
+  five Architect plan repairs per question. After the general control-plane
+  fix, `runs/main_worker_architect_complete_plan_live_20260712_v2` produced a
+  complete nine-stage worker plan, and the three-turn resume
+  `runs/main_worker_architect_complete_plan_live_20260712_v2_resume3` executed
+  RetrievalMemory, TheoryDeveloper, and SimulationEvaluator with zero plan
+  repairs; an invalid generated simulation draft returned directly to the same
+  coding agent with structured feedback.
+
+- The configured Lean project completed `lake build Mathlib` in 8,560 jobs.
+  Independent exact-declaration checks passed five of six selected reusable
+  proof-bank assets across the two task families. The failing
+  `randomization_variance_decomposition_bridge` type mismatch remains an honest
+  ProofEngineer/OpenProver feedback target. Neither retrieval hits nor the five
+  passing support declarations establish a source theorem, and S14 remains
+  false.
 
 - `runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6/runtime_validated_external_exact_candidate_rerun.json`:
   a real two-stage local Lake/Lean check compiled one indented,

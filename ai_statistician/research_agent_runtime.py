@@ -163,6 +163,7 @@ from .lean_agent_providers import (
     provider_runtime_diagnostics,
     reset_provider_runtime_diagnostics,
 )
+from .proof_bank_formal_source import build_default_formal_source_retriever
 from .proof_bank import get_obligation
 from .proof_state_feedback import (
     PROOF_STATE_FEEDBACK_BOUNDARY,
@@ -7839,9 +7840,13 @@ class ArchitectCoordinatorRuntimeSubsystem:
         *,
         coordinator: LLMArchitectCoordinatorAgent,
         runtime_config: ResearchAgentRuntimeConfig,
+        exact_source_theorem_prover_available: bool = False,
     ) -> None:
         self.coordinator = coordinator
         self.runtime_config = runtime_config
+        self.exact_source_theorem_prover_available = bool(
+            exact_source_theorem_prover_available
+        )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -7868,10 +7873,14 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     "evidence and does not imply that any theorem gap is closed."
                 ),
             }
+        runtime_config_payload = asdict(self.runtime_config)
+        runtime_config_payload["exact_source_theorem_prover_available"] = (
+            self.exact_source_theorem_prover_available
+        )
         packet = self.coordinator.propose(
             question=question,
             architect_context=context,
-            runtime_config=asdict(self.runtime_config),
+            runtime_config=runtime_config_payload,
         )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
@@ -9064,6 +9073,8 @@ def _architect_plan_guard_handoff_policy(
         return result
     if next_task.owner_subsystem == "ArchitectCoordinator":
         return result
+    if next_task.owner_subsystem == subsystem_name:
+        return result
     inputs = next_task.inputs if isinstance(next_task.inputs, Mapping) else {}
     architect_context = (
         inputs.get("architect_context", {})
@@ -9838,7 +9849,9 @@ class RetrievalMemoryRuntimeSubsystem:
     name = "RetrievalMemory"
 
     def __init__(self, *, formal_source_retriever: Any | None = None) -> None:
-        self.formal_source_retriever = formal_source_retriever or FormalSourceRetriever()
+        self.formal_source_retriever = (
+            formal_source_retriever or build_default_formal_source_retriever()
+        )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -27716,7 +27729,9 @@ def run_research_agent_runtime(
     tool_call_rows: list[dict[str, Any]] = []
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
-    shared_formal_source_retriever = formal_source_retriever or FormalSourceRetriever()
+    shared_formal_source_retriever = (
+        formal_source_retriever or build_default_formal_source_retriever()
+    )
     lean_provider_topology = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLeanProviderTopology",
@@ -27890,6 +27905,9 @@ def run_research_agent_runtime(
                 "ArchitectCoordinator": ArchitectCoordinatorRuntimeSubsystem(
                     coordinator=architect_coordinator,
                     runtime_config=config,
+                    exact_source_theorem_prover_available=(
+                        proof_search_provider is not None
+                    ),
                 ),
                 **subsystems,
             }

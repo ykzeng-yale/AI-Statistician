@@ -25,6 +25,7 @@ from ai_statistician.cli import (
     _effective_resume_through_architect,
     _minimum_task_family_selection_errors,
     _research_agent_runtime_capability_config_errors,
+    _research_agent_runtime_local_lean_preflight_errors,
     _research_agent_runtime_static_subsystem_config_errors,
     _select_questions_by_task_family,
     _selected_question_task_families,
@@ -5469,6 +5470,69 @@ def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
     assert row["route_decision_sources"] == ["architect_plan_repair"]
     assert row["only_default_route_source"] is False
     assert row["has_architect_context"] is True
+
+
+def test_architect_plan_guard_keeps_same_owner_feedback_inside_worker_loop() -> None:
+    class FormalizerRepairSubsystem:
+        name = "FormalizationEvaluator"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="REVISE",
+                rationale="retry the schema-invalid formalizer packet with diagnostics",
+                next_task=AgentTask(
+                    task_id="formalize-repair:q1",
+                    owner_subsystem="FormalizationEvaluator",
+                    objective="repair the packet from validator feedback",
+                    inputs={
+                        "architect_context": {
+                            "architect_runtime_plan": {
+                                "subsystem_execution_plan": [
+                                    {
+                                        "subsystem": "TheoryDeveloper",
+                                        "objective": "derive theory",
+                                    }
+                                ]
+                            }
+                        },
+                        "environment_feedback": {
+                            "failure_classification": "packet_validation_failed",
+                            "diagnostics": ["missing exact theorem conclusion"],
+                        },
+                    },
+                    acceptance_gate="repaired packet passes schema validation",
+                ),
+                failure_classification="packet_validation_failed",
+            )
+
+    runtime = AgentRuntime(
+        subsystems={"FormalizationEvaluator": FormalizerRepairSubsystem()},
+        blackboard=BlackboardState(project_id="same-owner-plan-guard-test"),
+        handoff_policy=_architect_plan_guard_handoff_policy,
+    )
+
+    result = runtime.run(
+        AgentTask(
+            task_id="formalize:q1",
+            owner_subsystem="FormalizationEvaluator",
+            objective="formalize",
+        ),
+        max_iterations=1,
+    )
+    trace = result.traces[0]
+
+    assert trace.next_task is not None
+    assert trace.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert trace.next_task.task_id == "formalize-repair:q1"
+    assert trace.failure_classification == "packet_validation_failed"
+    assert not any(
+        row.observation_type == "architect_plan_repair_handoff"
+        for row in trace.observations
+    )
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
@@ -14938,6 +15002,9 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
 
     assert "problem_analysis_before_retrieval" in prompt
     assert "dynamic_stat_knowledge_bank" in prompt
+    assert "subsystem_execution_plan is exempt" in prompt
+    assert "complete amended remaining graph" in prompt
+    assert "FormalizationGapPlanner" in prompt
     assert "literature_fair_comparison_gate" in prompt
     assert "proposer_verifier_iteration" in prompt
     assert "embedding/RAG similarity" in prompt
@@ -18605,6 +18672,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         "formal_verification_policy": "optional",
         "recommended_research_path": "",
         "evaluation_mode": "capability_eval",
+        "exact_source_theorem_prover_available": True,
     }
 
     prompt = build_architect_coordinator_prompt(
@@ -18612,13 +18680,24 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         architect_context={},
         runtime_config=runtime_config,
     )
+    response = _architect_sample_response()
+    response["subsystem_execution_plan"] = [
+        *response["subsystem_execution_plan"],
+        {
+            "subsystem": "ExactSourceTheoremProver",
+            "objective": "run an exact-source work order emitted by ProofEngineer",
+            "inputs_needed": ["lineage-bound exact source theorem work order"],
+            "expected_artifacts": ["independent local Lean rerun manifest"],
+            "acceptance_gate": "exact declaration passes the local kernel rerun",
+        },
+    ]
     packet = _normalize_architect_packet(
-        _architect_sample_response(),
+        response,
         question=question,
         model="claude-sonnet-4-6",
         model_tier="sonnet",
         provider_name="anthropic",
-        raw_response=json.dumps(_architect_sample_response()),
+        raw_response=json.dumps(response),
         runtime_config=runtime_config,
     )
 
@@ -18626,12 +18705,66 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"capability_eval_requires_generated_algorithm_code":true' in prompt
     assert '"capability_eval_requires_generated_simulation_code":true' in prompt
     assert '"capability_eval_requires_formalizer_lean_candidate":true' in prompt
+    assert '"capability_eval_requires_exact_source_theorem_prover":true' in prompt
+    assert '"required_subsystems":["RetrievalMemory","TheoryDeveloper"' in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
     assert contract["capability_eval_requires_generated_algorithm_code"] is True
     assert contract["capability_eval_requires_generated_simulation_code"] is True
     assert contract["capability_eval_requires_formalizer_lean_candidate"] is True
+    assert contract["capability_eval_requires_exact_source_theorem_prover"] is True
     assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_architect_coordinator_validator_requires_capability_worker_graph() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    sample = _architect_sample_response()
+    evidence_contract = dict(sample["evidence_contract"])
+    evidence_contract.update(
+        {
+            "formal_verification_policy": "required",
+            "formal_required_for_final": True,
+        }
+    )
+    packet = _normalize_architect_packet(
+        {
+            **sample,
+            "evidence_contract": evidence_contract,
+            "subsystem_execution_plan": [
+                {
+                    "subsystem": "RetrievalMemory",
+                    "objective": "retrieve context",
+                    "inputs_needed": ["question"],
+                    "expected_artifacts": ["retrieval manifest"],
+                    "acceptance_gate": "context recorded",
+                }
+            ],
+        },
+        question=question,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        raw_response="fixture",
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "required",
+        },
+    )
+
+    errors = validate_architect_coordinator_packet(packet)
+
+    assert (
+        "subsystem_execution_plan missing evidence-contract-required subsystem: "
+        "SimulationEvaluator"
+    ) in errors
+    assert (
+        "subsystem_execution_plan missing evidence-contract-required subsystem: "
+        "ProofEngineer"
+    ) in errors
+    assert (
+        "subsystem_execution_plan missing evidence-contract-required subsystem: "
+        "FormalizationGapPlanner"
+    ) in errors
 
 
 def test_architect_coordinator_validator_requires_research_control_fields() -> None:
@@ -43898,6 +44031,34 @@ def _architect_policy_static_response(
     problem_type: str,
     primary_success: str,
 ) -> dict[str, object]:
+    if formal_required:
+        plan_subsystems = (
+            "RetrievalMemory",
+            "TheoryDeveloper",
+            "FormalizationEvaluator",
+            "ProofEngineer",
+            "FormalizationGapPlanner",
+            "CriticEvaluator",
+        )
+    elif path == "simulation_first":
+        plan_subsystems = (
+            "RetrievalMemory",
+            "TheoryDeveloper",
+            "AlgorithmEngineer",
+            "SimulationEvaluator",
+            "CriticEvaluator",
+        )
+    else:
+        plan_subsystems = (
+            "RetrievalMemory",
+            "TheoryDeveloper",
+            "SimulationEvaluator",
+            "AlgorithmEngineer",
+            "FormalizationEvaluator",
+            "ProofEngineer",
+            "FormalizationGapPlanner",
+            "CriticEvaluator",
+        )
     return {
         "intake_assessment": {
             "problem_type": problem_type,
@@ -43937,12 +44098,13 @@ def _architect_policy_static_response(
         },
         "subsystem_execution_plan": [
             {
-                "subsystem": "RetrievalMemory",
-                "objective": "collect source analogies",
-                "inputs_needed": ["question"],
-                "expected_artifacts": ["retrieval manifest"],
-                "acceptance_gate": "source context gathered",
+                "subsystem": subsystem,
+                "objective": f"execute the policy-scoped {subsystem} stage",
+                "inputs_needed": ["prior stage artifacts and evidence contract"],
+                "expected_artifacts": [f"{subsystem} runtime artifact"],
+                "acceptance_gate": "stage-specific runtime evidence is recorded",
             }
+            for subsystem in plan_subsystems
         ],
         "retrieval_strategy": {
             "paper_queries": ["policy fixture paper query"],
@@ -94594,6 +94756,45 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.run_formalizer_pseudo_formal_packet_eval is False
     assert args.run_pseudo_formal_block_verifier_eval is False
     assert _research_agent_runtime_capability_config_errors(args) == []
+    assert _research_agent_runtime_local_lean_preflight_errors(args) == []
+
+
+def test_capability_eval_local_lean_preflight_rejects_unbuilt_mathlib(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "lean-project"
+    project.mkdir()
+    (project / "lakefile.lean").write_text("import Lake\n", encoding="utf-8")
+    args = argparse.Namespace(
+        capability_eval=True,
+        local_lean=True,
+        formalizer_candidate_local_lean=True,
+        formalizer_candidate_lean_lsp_mcp=False,
+        formalizer_candidate_lean_project=str(project),
+        lean_project=str(project),
+    )
+
+    errors = _research_agent_runtime_local_lean_preflight_errors(args)
+
+    assert len(errors) == 1
+    assert "unbuilt Mathlib root" in errors[0]
+    assert "lake build Mathlib" in errors[0]
+
+    mathlib_root = (
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib.olean"
+    )
+    mathlib_root.parent.mkdir(parents=True)
+    mathlib_root.write_bytes(b"fixture")
+
+    assert _research_agent_runtime_local_lean_preflight_errors(args) == []
 
 
 def test_live_runtime_defaults_formalizer_candidate_local_lean_project() -> None:

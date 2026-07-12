@@ -287,11 +287,11 @@ from .formal_source_index import (
     build_formal_source_search_backend,
 )
 from .lean_agent_providers import (
-    CompositeFormalSourceRetriever,
     EmpericalProcessLeanRetrievalProvider,
     OpenProverHLMConfig,
     OpenProverHLMProofSearchProvider,
 )
+from .proof_bank_formal_source import build_default_formal_source_retriever
 from .formal_source_hybrid import FormalSourceHybridRetriever
 from .formal_source_retrieval_ablation import run_formal_source_retrieval_ablation_benchmark
 from .formal_source_retrieval_benchmark import (
@@ -5110,7 +5110,7 @@ def _formal_source_retriever_from_runtime_args(
         getattr(args, "emperical_process_lean_rag_root", "") or ""
     ).strip()
     if not root_value:
-        return None
+        return build_default_formal_source_retriever()
     root = Path(root_value).expanduser().resolve()
     script = root / "lean_rag" / "scripts" / "shared_proof_retrieval.py"
     if not script.is_file():
@@ -5137,7 +5137,9 @@ def _formal_source_retriever_from_runtime_args(
         no_sorry=True,
         with_graph_context=True,
     )
-    return CompositeFormalSourceRetriever((FormalSourceRetriever(), external))
+    return build_default_formal_source_retriever(
+        additional_providers=(external,),
+    )
 
 
 def _proof_search_provider_from_runtime_args(
@@ -11423,6 +11425,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     _apply_research_agent_runtime_live_lean_defaults(args)
     if getattr(args, "capability_eval", False):
         config_errors = _research_agent_runtime_capability_config_errors(args)
+        if not config_errors:
+            config_errors.extend(
+                _research_agent_runtime_local_lean_preflight_errors(args)
+            )
         if config_errors:
             print("\nAI Statistician Agent Runtime capability eval rejected")
             print("=" * 72)
@@ -14062,6 +14068,53 @@ def _is_lake_project(path: Path) -> bool:
             or (path / "lakefile.toml").exists()
         )
     )
+
+
+def _research_agent_runtime_local_lean_preflight_errors(
+    args: argparse.Namespace,
+) -> list[str]:
+    """Fail before live provider calls when the strict Lean root is unbuilt."""
+
+    if not bool(getattr(args, "capability_eval", False)):
+        return []
+    if not (
+        bool(getattr(args, "local_lean", False))
+        or bool(getattr(args, "formalizer_candidate_local_lean", False))
+        or bool(getattr(args, "formalizer_candidate_lean_lsp_mcp", False))
+    ):
+        return []
+    project_value = str(
+        getattr(args, "formalizer_candidate_lean_project", "")
+        or getattr(args, "lean_project", "")
+        or ""
+    ).strip()
+    if not project_value:
+        return []
+    project = Path(project_value).expanduser().resolve()
+    if not _is_lake_project(project):
+        return [
+            "capability eval local Lean preflight requires an existing Lake project; "
+            f"invalid project: {project}"
+        ]
+    mathlib_roots = (
+        project / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean",
+        project
+        / ".lake"
+        / "packages"
+        / "mathlib"
+        / ".lake"
+        / "build"
+        / "lib"
+        / "lean"
+        / "Mathlib.olean",
+    )
+    if any(path.is_file() for path in mathlib_roots):
+        return []
+    return [
+        "capability eval local Lean preflight found an unbuilt Mathlib root at "
+        f"{project}; run `cd {project} && lake build Mathlib` before spending "
+        "live LLM budget"
+    ]
 
 
 def _research_agent_runtime_capability_config_errors(

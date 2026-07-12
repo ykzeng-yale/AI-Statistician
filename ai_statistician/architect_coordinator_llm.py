@@ -26,6 +26,17 @@ ARCHITECT_CAPABILITY_GAP_ROUTING_BOUNDARY = (
     "not proof evidence, simulation evidence, generated-code evidence, or "
     "verifier evidence."
 )
+ARCHITECT_RUNTIME_SUBSYSTEMS = (
+    "RetrievalMemory",
+    "TheoryDeveloper",
+    "SimulationEvaluator",
+    "AlgorithmEngineer",
+    "FormalizationEvaluator",
+    "ProofEngineer",
+    "ExactSourceTheoremProver",
+    "FormalizationGapPlanner",
+    "CriticEvaluator",
+)
 
 LONG_HORIZON_RESEARCH_GUIDANCE: dict[str, Any] = {
     "problem_analysis_before_retrieval": [
@@ -133,6 +144,42 @@ def build_architect_coordinator_prompt(
     capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
         architect_context
     )
+    formal_verification_policy = str(
+        runtime_config.get("formal_verification_policy", "optional") or "optional"
+    )
+    requested_evidence_contract = {
+        "formal_verification_policy": formal_verification_policy,
+        "requested_research_path": str(
+            runtime_config.get("recommended_research_path", "") or ""
+        ),
+        "formal_required_for_final": formal_verification_policy == "required",
+        **_architect_runtime_capability_eval_contract(runtime_config),
+        "policy_semantics": {
+            "required": (
+                "full formal proof is an acceptance gate; unresolved formal "
+                "gaps block final theorem acceptance"
+            ),
+            "optional": (
+                "Architect chooses simulation-first, proof-first, or "
+                "dual-track based on problem type and verification cost; "
+                "formal gaps must still be disclosed"
+            ),
+            "advisory": (
+                "formal tools are diagnostic only; final research-candidate "
+                "acceptance may rely on derivation, implementation, "
+                "simulation stress tests, and critic review with explicit "
+                "non-formal-proof disclosure"
+            ),
+        },
+        "allowed_research_paths": [
+            "simulation_first",
+            "proof_first",
+            "dual_track",
+        ],
+    }
+    required_plan_subsystems = _required_architect_plan_subsystems(
+        requested_evidence_contract
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -142,16 +189,20 @@ def build_architect_coordinator_prompt(
         },
         "architect_context": dict(architect_context),
         "runtime_config": dict(runtime_config),
-        "available_subsystems": [
-            "RetrievalMemory",
-            "TheoryDeveloper",
-            "SimulationEvaluator",
-            "AlgorithmEngineer",
-            "FormalizationEvaluator",
-            "ProofEngineer",
-            "ExactSourceTheoremProver",
-            "CriticEvaluator",
-        ],
+        "available_subsystems": list(ARCHITECT_RUNTIME_SUBSYSTEMS),
+        "execution_plan_contract": {
+            "required_subsystems": list(required_plan_subsystems),
+            "planning_rule": (
+                "subsystem_execution_plan must contain one compact row for every "
+                "required subsystem plus any other anticipated worker; order rows "
+                "by intended execution and represent same-owner retries in "
+                "iteration_policy rather than duplicate stage rows"
+            ),
+            "resume_rule": (
+                "on plan repair or resume, return the complete amended remaining "
+                "worker graph, not only the pending worker"
+            ),
+        },
         "authority_gates": [
             "schema validation for all LLM packets",
             "AgentRuntime owns shell/filesystem/simulation execution",
@@ -161,38 +212,7 @@ def build_architect_coordinator_prompt(
         ],
         "runtime_capability_gap_routing_agenda": capability_gap_routing_agenda,
         "long_horizon_research_guidance": LONG_HORIZON_RESEARCH_GUIDANCE,
-        "requested_evidence_contract": {
-            "formal_verification_policy": str(
-                runtime_config.get("formal_verification_policy", "optional")
-                or "optional"
-            ),
-            "requested_research_path": str(
-                runtime_config.get("recommended_research_path", "") or ""
-            ),
-            **_architect_runtime_capability_eval_contract(runtime_config),
-            "policy_semantics": {
-                "required": (
-                    "full formal proof is an acceptance gate; unresolved formal "
-                    "gaps block final theorem acceptance"
-                ),
-                "optional": (
-                    "Architect chooses simulation-first, proof-first, or "
-                    "dual-track based on problem type and verification cost; "
-                    "formal gaps must still be disclosed"
-                ),
-                "advisory": (
-                    "formal tools are diagnostic only; final research-candidate "
-                    "acceptance may rely on derivation, implementation, "
-                    "simulation stress tests, and critic review with explicit "
-                    "non-formal-proof disclosure"
-                ),
-            },
-            "allowed_research_paths": [
-                "simulation_first",
-                "proof_first",
-                "dual_track",
-            ],
-        },
+        "requested_evidence_contract": requested_evidence_contract,
         "required_output_contract": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT,
         "boundary": ARCHITECT_COORDINATOR_BOUNDARY,
     }
@@ -200,7 +220,11 @@ def build_architect_coordinator_prompt(
         "Act as the top-level ArchitectCoordinator for the AI Statistician runtime. "
         "Return ONLY one compact JSON object matching required_output_contract. The object "
         "must contain exactly the required top-level fields unless a field is needed for "
-        "schema repair. Keep each list to at most 2 short strings or 1 short object. Do not "
+        "schema repair. Keep non-plan lists to at most 2 short strings or 1 short "
+        "object. subsystem_execution_plan is exempt: include one compact object for "
+        "every execution_plan_contract.required_subsystems entry and any other worker "
+        "you anticipate, up to the available subsystem count. On resume or plan repair, "
+        "return the complete amended remaining graph rather than only the pending worker. Do not "
         "include paragraphs, Markdown, LaTeX derivations, optional long-form analysis sections, "
         "or code. Choose the earliest feasible next subsystem from next_actions "
         "and subsystem_execution_plan; route to RetrievalMemory when source/formal "
@@ -674,12 +698,22 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         ):
             if evidence_contract.get(field) in (None, "", [], {}):
                 errors.append(f"evidence_contract missing or empty field: {field}")
+    planned_subsystems: set[str] = set()
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
             errors.append("subsystem_execution_plan entries must be objects")
             continue
-        if not str(row.get("subsystem", "")).strip():
+        subsystem = str(row.get("subsystem", "") or "").strip()
+        if not subsystem:
             errors.append("subsystem_execution_plan entry missing subsystem")
+            continue
+        planned_subsystems.add(subsystem)
+    for subsystem in _required_architect_plan_subsystems(evidence_contract):
+        if subsystem not in planned_subsystems:
+            errors.append(
+                "subsystem_execution_plan missing evidence-contract-required "
+                f"subsystem: {subsystem}"
+            )
     forbidden = _contains_forbidden_claim(packet)
     if forbidden:
         errors.append(f"packet contains forbidden execution/proof claim: {forbidden}")
@@ -750,7 +784,49 @@ def _architect_runtime_capability_eval_contract(
         "capability_eval_requires_generated_algorithm_code": capability_eval,
         "capability_eval_requires_generated_simulation_code": capability_eval,
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
+        "capability_eval_requires_exact_source_theorem_prover": (
+            capability_eval
+            and bool(runtime_config.get("exact_source_theorem_prover_available", False))
+        ),
     }
+
+
+def _required_architect_plan_subsystems(
+    evidence_contract: Mapping[str, Any],
+) -> tuple[str, ...]:
+    required: set[str] = set()
+    if str(evidence_contract.get("evaluation_mode", "") or "") == "capability_eval":
+        required.update(("RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"))
+        if evidence_contract.get("capability_eval_requires_generated_simulation_code") is True:
+            required.add("SimulationEvaluator")
+        if evidence_contract.get("capability_eval_requires_generated_algorithm_code") is True:
+            required.add("AlgorithmEngineer")
+        if evidence_contract.get("capability_eval_requires_formalizer_lean_candidate") is True:
+            required.add("FormalizationEvaluator")
+        if (
+            evidence_contract.get(
+                "capability_eval_requires_exact_source_theorem_prover"
+            )
+            is True
+        ):
+            required.add("ExactSourceTheoremProver")
+    if (
+        evidence_contract.get("formal_required_for_final") is True
+        or str(evidence_contract.get("formal_verification_policy", "") or "")
+        == "required"
+    ):
+        required.update(
+            (
+                "FormalizationEvaluator",
+                "ProofEngineer",
+                "FormalizationGapPlanner",
+            )
+        )
+    return tuple(
+        subsystem
+        for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS
+        if subsystem in required
+    )
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-12T10:32:52Z",
+  "updated_at": "2026-07-12T15:21:07Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "External exact-source proof search is now a typed AgentRuntime stage instead of an opportunistic branch hidden inside ProofEngineer. ProofEngineer emits an immutable RuntimeExactSourceTheoremProverWorkOrder; ExactSourceTheoremProver invokes the configured zero-shot Lean coding-agent provider, independently rematerializes and locally checks returned proof bodies against the preserved exact declaration, and returns compiler feedback or kernel evidence through a resumable typed handoff. Work-order, provider-result, exact-rerun, and execution-manifest identities and content hashes are revalidated before ProofEngineer can consume a result. The production run_research_agent_runtime registry uses this worker whenever a proof-search provider is configured; direct legacy subsystem harnesses retain their inline compatibility path. No Lean grammar, tactic template, or theorem-specific repair rule was added.",
-  "latest_main_worker_live_probe": "An unmocked local-Lean smoke executed ProofEngineer -> ExactSourceTheoremProver -> ProofEngineer in legacy_sources/emperical_process_lean, called the OpenProver-shaped provider once, compiled the exact source declaration in both executor and runtime-owned recheck (1/1 each), recorded source_theorem_kernel_verified=true, and consumed the same manifest without an LLM rewrite. Production-entrypoint, serialized pending-task/rehydrated-blackboard, work-order mutation, and failed-candidate diagnostic-return tests also passed. This proves the new control path and local kernel gate on a toy proposition; the provider payload is fixture-shaped, so it is not a live model call, statistical source theorem, or S14 cross-task capability evidence.",
-  "latest_main_worker_design_issue": "The exact proof executor was already called inside AgentRuntime, but it was an inline ProofEngineer side branch whose provider call, budget, pending state, and return feedback were not independently visible to Architect. That second-plane behavior is now removed from the production configuration by a typed, plan-visible worker. The remaining blocker is empirical execution, not another validator: two unrelated fresh statistical task families still need complete live Architect, theory, coding/simulation repair, RAG, Formalizer/LSP, and exact-source Lean closure DAGs. Until both live lineages exist, capability_ready_for_full_ai_statistician and S14 remain false.",
-  "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
+  "latest_main_worker_patch": "The default formal-source RAG now composes the local declaration index, the mature proof bank, and configured external providers. Proof-bank hits expose exact formal statements and candidate bodies with provider provenance, but remain explicitly non-proof until the exact declaration is rerun under local Lean/AXLE. Architect now receives provider topology, must emit the complete evidence-required worker graph, and no longer intercepts same-owner compiler/validator feedback loops. Strict live entrypoints also fail before API spending when the selected Lake project does not expose Mathlib.olean. This is LLM generation plus retrieval plus verifier feedback; no Lean grammar, tactic template, theorem-specific repair, or generated-output hand edit was added.",
+  "latest_main_worker_live_probe": "A fresh strict Claude run covered experimental_design/design_based_variance_bound and multiple_testing/multiple_testing_fdr_bh. It scored 86/108 and correctly remained not ready: both questions reached MAX_ITERATIONS_REACHED, with 3 kernel-verified support subclaims, 10 formal gaps, and no source theorem closure. The trace exposed five Architect plan repairs per task caused by incomplete plans and interception of same-owner retries. After the control-plane patch, a live Architect emitted the complete nine-stage graph and a three-turn resume ran RetrievalMemory -> TheoryDeveloper -> SimulationEvaluator with zero Architect plan repairs; the failed simulation draft returned directly to SimulationEvaluator as typed compiler feedback. This validates the repaired loop, not S14 or theorem completion.",
+  "latest_main_worker_design_issue": "The shared blocker was control-plane starvation, not a missing theorem-specific rule: Architect prompts demanded globally tiny lists while runtime evidence required a complete future worker graph, and the plan guard consumed same-owner Formalizer/ProofEngineer repair turns. The prompt/validator and transition policy now encode the general execution contract. Remaining work is empirical theorem closure: proof-bank and external RAG ranking must ground zero-shot Lean generation, failed candidates must iterate through local diagnostics, generated simulation should emit executable first drafts more reliably, and two unrelated task families must each close an exact source theorem before S14 can become true.",
+  "main_objective": "Drive AI-Statistician to a genuinely live autonomous end-to-end AI Statistical Theory Lab. Own one Architect-controlled AgentRuntime; integrate the strongest reusable OpenProver, EmpericalProcessLEAN, CodexProver, proof-bank, and prior Mac Pro mechanisms; require LLM/coding agents to generate rigorous theory, Python/R algorithms and simulations, and exact Lean candidates; iterate through execution, compiler/LSP/proof-state, retrieval, critic, and worker feedback; eliminate runtime-generated Lean tactics, theorem-specific grammar rewrites, duplicate orchestration planes, and capability-attribution shortcuts; preserve immutable lineage and strict evidence boundaries; and do not claim completion until two unrelated fresh statistical task families each close an exact source theorem under local Lean/AXLE with no acceptance-gating formal gaps and honest S14 evidence.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
     "take ownership of live capability milestones L2 through L6",
@@ -22,6 +22,75 @@
     "llm_theory_ready": true,
     "registered_proof_obligations": 135,
     "registered_algorithms": 4
+  },
+  "latest_s14_two_family_control_plane_probe": {
+    "fresh_runtime_manifest": "runs/main_worker_s14_two_family_fresh_live_20260712_v1/research_agent_runtime_manifest.json",
+    "task_families": [
+      "experimental_design/design_based_variance_bound",
+      "multiple_testing/multiple_testing_fdr_bh"
+    ],
+    "scorecard": "86/108",
+    "question_statuses": [
+      "MAX_ITERATIONS_REACHED",
+      "MAX_ITERATIONS_REACHED"
+    ],
+    "architect_plan_repairs_per_question_before_patch": 5,
+    "root_cause": "incomplete Architect future-worker plans plus plan-guard interception of same-owner validator/compiler retries",
+    "post_fix_architect_runtime_manifest": "runs/main_worker_architect_complete_plan_live_20260712_v2/research_agent_runtime_manifest.json",
+    "post_fix_architect_plan_stages": [
+      "RetrievalMemory",
+      "TheoryDeveloper",
+      "AlgorithmEngineer",
+      "SimulationEvaluator",
+      "FormalizationEvaluator",
+      "FormalizationGapPlanner",
+      "ProofEngineer",
+      "ExactSourceTheoremProver",
+      "CriticEvaluator"
+    ],
+    "post_fix_resume_runtime_manifest": "runs/main_worker_architect_complete_plan_live_20260712_v2_resume3/research_agent_runtime_manifest.json",
+    "post_fix_resume_trace": [
+      "RetrievalMemory",
+      "TheoryDeveloper",
+      "SimulationEvaluator"
+    ],
+    "post_fix_architect_plan_repairs": 0,
+    "same_owner_simulation_feedback_preserved": true,
+    "proof_bank_in_default_formal_source_rag": true,
+    "proof_bank_hits_are_non_proof_evidence": true,
+    "mathlib_build_jobs_completed": 8560,
+    "independent_cross_family_proof_bank_kernel_recheck": "5/6",
+    "independent_recheck_failure": "randomization_variance_decomposition_bridge: local Lean type mismatch retained as coding-agent feedback",
+    "source_theorem_kernel_verified": false,
+    "capability_ready_for_full_ai_statistician": false,
+    "s14_satisfied": false
+  },
+  "original_end_to_end_target_gap_audit_20260712": {
+    "unified_architect_control_plane": "PARTIAL: typed AgentRuntime is real and the newest plan/feedback loop is repaired, but legacy post-runtime bridges and executors still form a second orchestration plane",
+    "rigorous_llm_theory_development": "PARTIAL: Claude theory generation and critic handoffs are live, but the default packet remains too compact for long equation-chain derivation, lemma DAG construction, assumption audit, and iterative theorem revision",
+    "python_coding_agent": "PARTIAL_LIVE: generated algorithm and simulation sandboxes execute and can repair from feedback, but first-pass executable-draft reliability and arbitrary scientific-library breadth remain limited",
+    "r_coding_agent": "MISSING: no production R generation, sandbox execution, package environment, or R-specific repair evaluation exists",
+    "formalizer_and_prover": "PARTIAL_LIVE: exact typed prover, OpenProver HLM, local Lean/LSP feedback, proof bank, and kernel gates are integrated; no fresh statistical exact source theorem has closed in the two-family probe",
+    "formal_rag": "PARTIAL_LIVE: proof bank and a 18,724-declaration EmpericalProcessLEAN graph are available with provenance and non-proof boundaries; natural-language ranking remains weak/high-fanout and latest signed-index scripts still need canonical runtime adoption",
+    "coding_agent_feedback_fidelity": "PARTIAL: same-owner retries now bypass Architect plan repair, but legacy signature probes/materializers still rewrite generated Lean before compiler adjudication and must become candidate-preserving",
+    "worker_communication": "PARTIAL: typed tasks, blackboard artifacts, immutable handoffs, and critic feedback exist, but not every legacy bridge/executor is a plan-visible worker and full replanning after downstream proof blockers is not yet demonstrated",
+    "cross_task_evaluation": "NOT_READY: experimental-design and multiple-testing fresh lineages exist, but both reached MAX_ITERATIONS_REACHED and S14 remains false",
+    "completion_gate": "Do not declare the system end-to-end until two unrelated fresh task families each complete Architect, rigorous theory, generated Python/R implementation and simulation, formal RAG, zero-shot Lean/OpenProver generation, compiler/LSP feedback revision, Critic review, and exact source-theorem local Lean/AXLE kernel closure with no acceptance-gating formal gaps."
+  },
+  "previous_mac_pro_foundation_reconciliation_20260712": {
+    "snapshot_path": "AI Statistician before 0710 on main MacPro",
+    "snapshot_head": "1dde8179",
+    "snapshot_branch": "codex/ai-stat-lab-sync-main-20260706",
+    "merge_base_with_current": "0a72d7325c1b4db4e80fee3b487853c0d96f432a",
+    "snapshot_unique_commits": 442,
+    "current_unique_commits": 757,
+    "current_changed_files_since_snapshot_head": 202,
+    "production_files_present_only_in_snapshot_head": [
+      "ai_statistician/formalization_gap_planner_quality_controls.py",
+      "ai_statistician/formalization_gap_planner_route_adoption_blockers.py"
+    ],
+    "integration_decision": "Do not overlay the 38GB dirty snapshot. Its only current-missing production modules are portable prover quality-control and route-adoption taxonomy helpers, while current route-planner modules already carry the active taxonomy and the snapshot adds no stronger live theory, R, Lean coding-agent, or theorem-closure capability. Reuse bounded protocol concepts when legacy route-planner work is migrated into AgentRuntime.",
+    "snapshot_promoted_as_runtime_evidence": false
   },
   "latest_typed_exact_source_prover_runtime": {
     "trace_subsystems": [
@@ -1790,6 +1859,10 @@
     }
   },
   "latest_local_verification": [
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 1042 passed in 1452.83s after complete Architect worker-graph validation, same-owner feedback-loop preservation, proof-bank formal-source RAG integration, exact-provider topology propagation, and strict local-Lean preflight",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_core.py -q # 289 passed, 5 skipped, 6 subtests passed in 764.47s after the S14 two-family control-plane patch",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_proof_bank_formal_source.py tests/test_lean_agent_providers.py -q # 12 passed, including cross-family proof-bank retrieval, non-proof provenance, default composite topology, external provider contracts, and OpenProver final-feedback configuration",
+    ".venv/bin/python -m py_compile ai_statistician/proof_bank_formal_source.py ai_statistician/architect_coordinator_llm.py ai_statistician/cli.py ai_statistician/research_agent_runtime.py tests/test_proof_bank_formal_source.py tests/test_research_agent_runtime.py && .venv/bin/python -m json.tool docs/main_worker_status.json >/dev/null && git diff --check # passed",
     "PYTHONPATH=. .venv/bin/pytest -q tests/test_lean_agent_providers.py tests/test_model_backend.py tests/test_llm_json_repair.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_research_agent_runtime.py # 1066 passed in 1164.23s after typed EmpericalProcessLEAN/OpenProver provider integration, semantic-state proof-search deduplication, per-candidate contract filtering, and validation-retry feedback preservation",
     "PYTHONPATH=. .venv/bin/pytest -q tests/test_research_agent_runtime.py -k 'proof_body or formal_source_grounding or formalizer_validation_failure or proofengineer or external_proof_search or branch_provenanced' # 107 passed, 909 deselected after external provider routing integration",
     "PYTHONPATH=. .venv/bin/pytest -q tests/test_lean_agent_providers.py # 6 passed against structured provider fixtures matching current GitHub OpenProver and EmpericalProcessLEAN APIs, including real dynamic import of a dataclass-bearing provider module",
@@ -2376,18 +2449,18 @@
     "git diff --check # passed after bounded Formalizer repair eval attachment patch"
   ],
   "current_blockers": [
-    "Typed OpenProver HLM and EmpericalProcessLEAN declaration-graph providers are integrated into AgentRuntime, but this machine lacks current trusted local checkouts and an EmpericalProcessLEAN shared retrieval index, so no production provider call has yet been executed or claimed.",
-    "The newest live Opus whole-proof attempts were correctly rejected for exact theorem identity/signature drift and then use of sorry. External provider feedback can now enter the same ProofEngineer lineage, but no exact source-theorem candidate has yet passed the AI-Statistician local Lean/AXLE gate and no human should patch the emitted theorem by hand.",
-    "project .env is not present in the repo worktree",
-    "AXLE is not configured in the local runtime environment used for this chat",
-    "OpenProver checkout is not present at the default /Users/yukang/Documents/OpenProver/src path",
+    "The fresh experimental-design and multiple-testing lineages remain MAX_ITERATIONS_REACHED with 10 formal gaps and no exact source theorem closure; S14 and capability_ready_for_full_ai_statistician remain false.",
+    "The post-fix live trace validates complete Architect planning and direct same-owner compiler feedback, but it covers only three worker turns and therefore is control-plane evidence rather than a full research closure DAG.",
+    "The 18,724-declaration external graph and proof bank are connected to default RAG, but broad natural-language retrieval still has weak ranking/high fanout; retrieval quality must improve through query/context/reranking feedback rather than theorem-specific aliases.",
+    "Independent local Lean recheck passed 5/6 selected cross-family proof-bank assets; randomization_variance_decomposition_bridge has a real type mismatch that must be repaired by the generated whole-proof loop, not by a human patch.",
+    "AXLE is not configured in the local runtime environment used for this chat; local Lake/Lean remains the active kernel gate.",
     "freshest live combined runtime lineage records generated AlgorithmEngineer repair=1, generated SimulationEngineer repair=1, and Formalizer Lean repair=1, but capability_ready_for_full_ai_statistician remains false",
     "Formalizer/ProofEngineer now has live failed-then-passed local Lean repair sequences, but the compiled rows are diagnostic helpers or source-to-bridge premise support candidates and not proof of the intended conformal source theorem",
     "latest Formalizer blocker moved from missing concrete source-to-bridge candidate source to downstream Critic/proof integration: a patched bridge replay verifies the no-import hGoodRankImpliesCovered premise derivation from hC, but the full source theorem and exact semantic definitions are still unproved",
     "proof-hole packet-validation loop moved into candidate precheck/local Lean repair, and Critic feedback now routes missing Mathlib.olean environment failures as typed lean_unavailable_import blocker requests rather than vague local Lean failures",
     "verified hGoodRankImpliesCovered premise derivation now routes into a source-theorem proof-body adapter work order with checked Lean signature context; the adapter remains unverified with adapter_candidate_not_evidence_eligible, and the deduped semantic-definition frontier still needs reviewed definitions for coverage_event, good_rank_event, and C_n before any source theorem can be kernel verified",
     "Runtime next-action agendas are compacted and ranked by concrete repair specificity, Formalizer validation repairs flow through typed policy rows, source-to-bridge adapter-object semantic work orders carry target/placeholder identity, exact semantic-definition environment blockers survive the Critic-to-Formalizer handoff, fresh target-scoped source-to-bridge premise derivations are pinned into bounded memory, source-theorem proof-body adapter check artifacts carry target_ids directly, split-conformal semantic-support mappings are isolated in a declarative policy pack, source-theorem promotion handoffs/materialization seeds preserve target_ids, and promotion seeds now block proof-execution materialization while unresolved exact semantic placeholders remain. The freshest live runtime handoff is CriticEvaluator task critic:conformal_prediction_coverage:e0544f12 from runs/main_worker_formalizer_after_artifact_normalization_live. Kernel-verified support subclaims are 124 and formal gaps are 80, but source theorem proof-body and promotion kernel counters remain 0. The agenda has 15 rows, no missing target_ids, no duplicate ids, good_rank_event/coverage_event/covered are typechecked review-required in agenda and pending feedback, C_n remains LEAN_IMPORT_PREFIX_UNAVAILABLE_IN_PROJECT, promotion materialization has 0 execution queue rows, and exact semantic review remains the proof-body gate. Runtime learning rows and blackboard artifacts are normalized so compiled source-to-bridge rows remain support-only with source theorem candidate count 0; the newest patch also prevents seed-derived exact-semantic work-order rows from dropping queue/typecheck status when merged with memory-derived rows.",
-    "legacy Lean project can import selected Mathlib MeasureTheory/Probability submodules after cache population, but root `import Mathlib` remains unavailable because Mathlib.olean is absent",
+    "Both fresh task families initially produced generated_simulation_sandbox_no_executable_draft; same-owner feedback now survives, but first-pass generated simulation packet reliability remains below the intended coding-agent capability.",
     "real kernel-verified helper/subclaim rows are present, but no source theorem or full frontier theorem proof is present",
     "Latest exact source proof-body replay is runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707: the verifier-approved good_rank_event row now reaches the intended target split_conformal_finite_sample_coverage_repair_v3 with target_ids=[split_conformal_finite_sample_coverage] and opens the proof-body kernel-repair gate, but local Lean still fails with proof_body_incomplete and source_theorem_kernel_verified=0.",
     "The current conformal proof blocker is now proof-body construction/adapter derivation from the reached source-level Lean goal with hExch and hq context, not target identity mismatch or a dropped proof-body handoff. Remaining coverage_event/covered/C_n exact-semantic lanes still matter for full closure, but the good_rank verifier-approved replay should feed ProofEngineer rather than another broad semantic-review detour.",
@@ -2404,9 +2477,9 @@
     "Design bug found in the live probe tail: the main AgentRuntime manifest was already written, but the CLI could still hang in optional Formalizer Lean-candidate repair calibration while building a formal source retriever. This was post-run calibration, not integrated theorem proof progress; it is now bounded by a runtime watchdog and converted to an attached failure manifest on timeout/exception."
   ],
   "next_main_worker_actions": [
-    "provision trusted current OpenProver and EmpericalProcessLEAN checkouts plus the EmpericalProcessLEAN shared declaration index, configure --openprover-root and --emperical-process-lean-rag-root, and verify RuntimeLeanProviderTopology records exact repository provenance",
-    "replay the rejected live whole-proof blocker through branch-provenanced retrieval, OpenProver HLM search, ProofEngineer revision, and exact local Lean/AXLE without manually editing generated Lean; record provider or validation failure honestly if the loop still cannot close the theorem",
-    "add a deterministic exact-candidate rerun path for direct OpenProver proof bodies so a provider candidate is wrapped with the preserved target signature and checked locally before any extra LLM rewrite; keep provider verification non-proof until this gate succeeds",
+    "rerun both unrelated S14 task families from fresh state with the complete Architect graph and enough turns for Formalizer, FormalizationGapPlanner, ProofEngineer, ExactSourceTheoremProver, and Critic feedback to execute; require exact source-theorem kernel closure rather than support-lemma counts",
+    "improve formal-source retrieval through task-aware LLM query generation, proof-state context, provider provenance, and reranking feedback over the proof bank plus 18,724-declaration graph; do not add theorem-specific alias or Lean-grammar rules",
+    "route randomization_variance_decomposition_bridge and subsequent generated whole-proof failures through exact declaration rematerialization, local Lean diagnostics, OpenProver/ProofEngineer revision, and immutable artifact lineage without manually editing emitted Lean",
     "run the next FormalizationGapPlanner/ArchitectCoordinator revision loop from the new staged-assembly contract-feedback row; keep the staged followup path but accept only a full response-contract-valid route before target-prover replay candidates",
     "feed runs/main_worker_good_rank_verifier_gate_approved_packet_proof_body_executor_top_level_handoff_20260707/runtime_learning_export/runtime_learning_rows.jsonl back into AgentRuntime/Formalizer memory so ProofEngineer sees proof_body_incomplete, the exact target, target_ids, candidate/signature artifacts, and the reached hExch/hq Lean goal without digging through nested input_summary",
     "repair the exact source theorem proof body, or derive a source-to-bridge adapter/premise derivation if the reached source-level hExch/hq goal cannot be closed directly; do not reroute this good_rank lane to broad semantic review unless new explicit semantic_alignment_blockers appear",
@@ -2414,7 +2487,7 @@
     "continue targeted semantic review/import repair for remaining coverage_event/covered/C_n exact-definition lanes as parallel support work, but keep those rows non-proof until source faithfulness is reviewed and the intended theorem is locally Lean/AXLE verified",
     "promote no source theorem, adapter, premise derivation, or semantic definition until local Lean/AXLE verifies the intended source theorem declaration; the open proof-body gate is repair permission, not proof evidence",
     "next exact-semantic work should preserve verifier-approved proof-body rows and avoid broad loops that drop the current target-known proof-body gate-open handoff",
-    "add a second non-conformal task-family capability run before claiming cross-task generality",
+    "close one exact source theorem in each of the experimental-design and multiple-testing families before claiming cross-task theorem generality or S14",
     "commit focused system-level batches and push this branch directly to GitHub; do not open a PR unless the user changes the main-stream instruction",
     "Resume pending FormalizationEvaluator task from runs/main_worker_s13_formalizer_repair_resume_probe_20260704 after the PF/BV root-scope memory patch; validate that runtime_pseudo_formal_block_routing_contract_complete clears, then continue Formalizer schema repair until a valid packet materializes a local-Lean candidate or routes a typed formal blocker.",
     "run the exact semantic-definition authoring worker with an approved live/backend provider on the remaining prompt packets surfaced in runs/main_worker_authoring_prompt_backend_next_action_static_resume_v2_20260704, then route any approved_definition_candidate semantic-review packet through the local Lean/AXLE verifier gate before proof-body retry",
