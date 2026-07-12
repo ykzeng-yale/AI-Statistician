@@ -99329,6 +99329,52 @@ def test_dedicated_exact_source_prover_is_typed_resumable_runtime_worker(
     )
     assert rerun["runtime_verification_contract_satisfied"] is True
     assert rerun["source_theorem_kernel_verified"] is True
+    trajectory = next(
+        artifact
+        for artifact in resumed.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeLeanProofRepairTrajectory"
+    )
+    assert trajectory["promotion"]["source_theorem_kernel_verified"] is True
+    assert trajectory["final_exact_checker_manifest"]["success"] is True
+    assert trajectory["authority_boundary"]["provider_output_can_verify"] is False
+    assert trajectory["authority_boundary"]["mcp_output_can_verify"] is False
+    execution = next(
+        artifact
+        for artifact in resumed.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeExactSourceTheoremProverExecutionManifest"
+    )
+    assert execution["proof_repair_trajectory_id"] == trajectory["trajectory_id"]
+    assert execution["proof_repair_trajectory_validated"] is True
+    exact_trace = resumed.traces[0]
+    assert exact_trace.next_task is not None
+    tampered_blackboard = BlackboardState(
+        project_id=resumed.blackboard.project_id,
+        artifacts=copy.deepcopy(resumed.blackboard.artifacts),
+    )
+    tampered_trajectory = dict(
+        tampered_blackboard.artifacts[trajectory["trajectory_id"]]
+    )
+    tampered_promotion = dict(tampered_trajectory["promotion"])
+    tampered_promotion["source_theorem_kernel_verified"] = False
+    tampered_trajectory["promotion"] = tampered_promotion
+    tampered_blackboard.artifacts[
+        trajectory["trajectory_id"]
+    ] = tampered_trajectory
+    _, _, lineage_errors = (
+        runtime_module._runtime_prior_exact_source_theorem_prover_execution(
+            environment_feedback=exact_trace.next_task.inputs[
+                "environment_feedback"
+            ],
+            blackboard=tampered_blackboard,
+            question_id=question.id,
+        )
+    )
+    assert "proof_repair_trajectory_id immutable artifact hash mismatch" in (
+        lineage_errors
+    )
     formalization = next(
         artifact
         for artifact in resumed.blackboard.artifacts.values()
@@ -99519,6 +99565,15 @@ def test_dedicated_exact_source_prover_routes_lean_diagnostics_to_llm_revision(
     assert searched.status == "REVISE"
     assert searched.next_task is not None
     assert searched.next_task.owner_subsystem == "ProofEngineer"
+    trajectory = next(
+        artifact
+        for artifact in searched.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeLeanProofRepairTrajectory"
+    )
+    assert trajectory["promotion"]["source_theorem_kernel_verified"] is False
+    assert trajectory["final_exact_checker_manifest"]["success"] is False
+    assert trajectory["repair_attempts"][-1]["failure_class"] == "type_error"
     blackboard.artifacts.update(searched.produced_artifacts)
     revised = proofengineer.run(searched.next_task, blackboard)
 
@@ -99670,6 +99725,15 @@ def test_run_research_agent_runtime_registers_and_executes_dedicated_exact_prove
         artifact.get("artifact_kind")
         == "RuntimeExternalExactProofCandidateRerunManifest"
         and artifact.get("runtime_verification_contract_satisfied") is True
+        for artifact in artifacts.values()
+        if isinstance(artifact, dict)
+    )
+    assert any(
+        artifact.get("artifact_kind") == "RuntimeLeanProofRepairTrajectory"
+        and artifact.get("promotion", {}).get(
+            "source_theorem_kernel_verified"
+        )
+        is True
         for artifact in artifacts.values()
         if isinstance(artifact, dict)
     )

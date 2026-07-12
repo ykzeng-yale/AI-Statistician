@@ -245,6 +245,65 @@ def test_emperical_process_lean_provider_globally_ranks_and_rejects_stale_hits(
     assert diagnostics[-1]["ranking"] == "global_score_across_checkouts"
 
 
+def test_emperical_process_lean_provider_rejects_unsigned_and_dirty_indexes(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "EmpericalProcessLEAN"
+    entries = []
+    for name, state, dirty in (
+        ("unsigned", "unknown", False),
+        ("dirty", "unchanged", True),
+    ):
+        checkout = root / name
+        checkout.mkdir(parents=True)
+        db = root / "build" / "lean_graph" / f"{name}.sqlite"
+        db.parent.mkdir(parents=True, exist_ok=True)
+        db.write_text("fixture", encoding="utf-8")
+        entries.append(
+            {
+                "name": name,
+                "path": str(checkout),
+                "db": str(db),
+                "dirty": dirty,
+                "fixture_signature_state": state,
+            }
+        )
+
+    class FakeSharedRetrievalModule:
+        @staticmethod
+        def load_manifest(_db_dir: Path):
+            return entries
+
+        @staticmethod
+        def iter_searchable_entries(manifest, _source, _checkouts):
+            return list(manifest)
+
+        @staticmethod
+        def index_signature_state(entry, _root: Path):
+            return entry["fixture_signature_state"]
+
+        @staticmethod
+        def git_dirty(checkout: Path):
+            return checkout.name == "dirty"
+
+        @staticmethod
+        def search_db(*_args, **_kwargs):
+            raise AssertionError("rejected indexes must not be searched")
+
+    provider = EmpericalProcessLeanRetrievalProvider(
+        root=root,
+        module_loader=lambda: FakeSharedRetrievalModule(),  # type: ignore[arg-type]
+    )
+
+    assert provider.search("target", k=2) == []
+    diagnostics = provider.runtime_diagnostics()
+    assert any(row["status"] == "unsigned_index_rejected" for row in diagnostics)
+    assert any(row["status"] == "dirty_checkout_rejected" for row in diagnostics)
+    descriptor = provider.descriptor()
+    assert descriptor["reject_unknown_index_signature"] is True
+    assert descriptor["reject_dirty_checkout"] is True
+
+
 def test_emperical_process_lean_dynamic_loader_registers_dataclass_module(
     tmp_path: Path,
 ) -> None:

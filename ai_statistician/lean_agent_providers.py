@@ -232,6 +232,8 @@ class EmpericalProcessLeanRetrievalProvider:
         no_sorry: bool = True,
         with_graph_context: bool = True,
         reject_changed_index_signature: bool = True,
+        reject_unknown_index_signature: bool = True,
+        reject_dirty_checkout: bool = True,
         module_loader: Callable[[], ModuleType] | None = None,
     ) -> None:
         self.root = Path(root).expanduser().resolve()
@@ -246,6 +248,10 @@ class EmpericalProcessLeanRetrievalProvider:
         self.no_sorry = bool(no_sorry)
         self.with_graph_context = bool(with_graph_context)
         self.reject_changed_index_signature = bool(reject_changed_index_signature)
+        self.reject_unknown_index_signature = bool(
+            reject_unknown_index_signature
+        )
+        self.reject_dirty_checkout = bool(reject_dirty_checkout)
         self._module_loader = module_loader
         self._module: ModuleType | None = None
         self._runtime_diagnostics: list[dict[str, Any]] = []
@@ -264,6 +270,8 @@ class EmpericalProcessLeanRetrievalProvider:
             "source": self.source,
             "checkouts": list(self.checkouts),
             "reject_changed_index_signature": self.reject_changed_index_signature,
+            "reject_unknown_index_signature": self.reject_unknown_index_signature,
+            "reject_dirty_checkout": self.reject_dirty_checkout,
             "available": self.script_path.is_file(),
             "repository_provenance": _git_provenance(self.root),
             "boundary": LEAN_PROVIDER_BOUNDARY,
@@ -310,6 +318,22 @@ class EmpericalProcessLeanRetrievalProvider:
                 )
                 continue
             checkout_path = Path(str(entry.get("path", "") or self.root))
+            checkout_dirty = self._checkout_dirty(
+                module,
+                entry=entry,
+                checkout_path=checkout_path,
+            )
+            if self.reject_dirty_checkout and checkout_dirty:
+                self._runtime_diagnostics.append(
+                    {
+                        "status": "dirty_checkout_rejected",
+                        "checkout_name": str(entry.get("name", "") or ""),
+                        "db": str(db),
+                        "manifest_dirty": bool(entry.get("dirty", False)),
+                        "checkout_dirty": checkout_dirty,
+                    }
+                )
+                continue
             index_signature_state = self._index_signature_state(
                 module,
                 entry=entry,
@@ -322,6 +346,19 @@ class EmpericalProcessLeanRetrievalProvider:
                 self._runtime_diagnostics.append(
                     {
                         "status": "stale_index_rejected",
+                        "checkout_name": str(entry.get("name", "") or ""),
+                        "db": str(db),
+                        "index_signature_state": index_signature_state,
+                    }
+                )
+                continue
+            if (
+                self.reject_unknown_index_signature
+                and index_signature_state != "unchanged"
+            ):
+                self._runtime_diagnostics.append(
+                    {
+                        "status": "unsigned_index_rejected",
                         "checkout_name": str(entry.get("name", "") or ""),
                         "db": str(db),
                         "index_signature_state": index_signature_state,
@@ -406,6 +443,21 @@ class EmpericalProcessLeanRetrievalProvider:
             return str(module.index_signature_state(dict(entry), checkout_path))
         except Exception:
             return "unknown"
+
+    @staticmethod
+    def _checkout_dirty(
+        module: ModuleType,
+        *,
+        entry: Mapping[str, Any],
+        checkout_path: Path,
+    ) -> bool:
+        manifest_dirty = bool(entry.get("dirty", False))
+        if not hasattr(module, "git_dirty"):
+            return manifest_dirty
+        try:
+            return manifest_dirty or bool(module.git_dirty(checkout_path))
+        except Exception:
+            return True
 
     def _load_module(self) -> ModuleType:
         if self._module is not None:

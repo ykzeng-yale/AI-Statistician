@@ -5136,6 +5136,20 @@ def _formal_source_retriever_from_runtime_args(
         ),
         no_sorry=True,
         with_graph_context=True,
+        reject_unknown_index_signature=not bool(
+            getattr(
+                args,
+                "emperical_process_lean_rag_allow_unsigned_index",
+                False,
+            )
+        ),
+        reject_dirty_checkout=not bool(
+            getattr(
+                args,
+                "emperical_process_lean_rag_allow_dirty_index",
+                False,
+            )
+        ),
     )
     return build_default_formal_source_retriever(
         additional_providers=(external,),
@@ -21057,6 +21071,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="optional indexed checkout name filter; repeatable",
+    )
+    research_agent_runtime.add_argument(
+        "--emperical-process-lean-rag-allow-unsigned-index",
+        action="store_true",
+        help=(
+            "compatibility only: allow a declaration-graph shard whose source "
+            "signature is unknown; strict runtime rejects unsigned shards"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--emperical-process-lean-rag-allow-dirty-index",
+        action="store_true",
+        help=(
+            "compatibility only: allow a shard built from or attached to a dirty "
+            "checkout; strict runtime rejects dirty provenance"
+        ),
     )
     research_agent_runtime.add_argument(
         "--openprover-hlm",

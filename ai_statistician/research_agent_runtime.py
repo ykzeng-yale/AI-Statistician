@@ -165,6 +165,11 @@ from .lean_agent_providers import (
 )
 from .proof_bank_formal_source import build_default_formal_source_retriever
 from .proof_bank import get_obligation
+from .proof_repair_trajectory import (
+    ARTIFACT_KIND as PROOF_REPAIR_TRAJECTORY_ARTIFACT_KIND,
+    build_runtime_lean_proof_repair_trajectory,
+    validate_runtime_lean_proof_repair_trajectory,
+)
 from .proof_state_feedback import (
     PROOF_STATE_FEEDBACK_BOUNDARY,
     PROOF_STATE_FEEDBACK_STATUS,
@@ -13762,6 +13767,7 @@ def _runtime_exact_source_theorem_prover_dispatch_result(
         expected_artifacts=(
             "external_proof_search_result",
             "external_exact_proof_candidate_rerun_manifest",
+            "lean_proof_repair_trajectory",
             "exact_source_theorem_prover_execution_manifest",
         ),
         acceptance_gate=(
@@ -13893,6 +13899,13 @@ def _runtime_prior_exact_source_theorem_prover_execution(
             hash_key="exact_candidate_rerun_manifest_hash",
             expected_kind="RuntimeExternalExactProofCandidateRerunManifest",
         )
+    proof_repair_trajectory: dict[str, Any] | None = None
+    if str(execution.get("proof_repair_trajectory_id", "") or ""):
+        proof_repair_trajectory = artifact(
+            id_key="proof_repair_trajectory_id",
+            hash_key="proof_repair_trajectory_hash",
+            expected_kind=PROOF_REPAIR_TRAJECTORY_ARTIFACT_KIND,
+        )
     request = (
         work_order.get("request", {})
         if isinstance(work_order, Mapping)
@@ -13932,6 +13945,35 @@ def _runtime_prior_exact_source_theorem_prover_execution(
             != str(execution.get("provider_result_id", "") or "")
         ):
             errors.append("exact rerun provider_result_id mismatch")
+    if proof_repair_trajectory is not None:
+        if work_order is None or provider_result is None:
+            errors.append("proof-repair trajectory lineage artifacts missing")
+        else:
+            errors.extend(
+                validate_runtime_lean_proof_repair_trajectory(
+                    proof_repair_trajectory,
+                    work_order=work_order,
+                    provider_result=provider_result,
+                    exact_result=exact_result,
+                )
+            )
+        if not _bool_like(
+            execution.get("proof_repair_trajectory_validated", False)
+        ):
+            errors.append("proof-repair trajectory was not validated at execution")
+    expected_exact_verified = bool(
+        exact_result
+        and exact_result.get("runtime_verification_contract_satisfied", False)
+        and _runtime_manifest_int(
+            exact_result,
+            "n_source_theorem_kernel_verified",
+        )
+        > 0
+    )
+    if _bool_like(
+        execution.get("source_theorem_kernel_verified", False)
+    ) != expected_exact_verified:
+        errors.append("execution proof status does not match exact checker contract")
     if execution_manifest is not None:
         for key in (
             "execution_id",
@@ -13943,11 +13985,21 @@ def _runtime_prior_exact_source_theorem_prover_execution(
             "provider_result_artifact_kind",
             "exact_candidate_rerun_manifest_id",
             "exact_candidate_rerun_manifest_hash",
+            "proof_repair_trajectory_id",
+            "proof_repair_trajectory_hash",
         ):
             if str(execution_manifest.get(key, "") or "") != str(
                 execution.get(key, "") or ""
             ):
                 errors.append(f"execution manifest {key} mismatch")
+        if _bool_like(
+            execution_manifest.get("proof_repair_trajectory_validated", False)
+        ) != _bool_like(
+            execution.get("proof_repair_trajectory_validated", False)
+        ):
+            errors.append(
+                "execution manifest proof_repair_trajectory_validated mismatch"
+            )
         if str(execution_manifest.get("question_id", "") or "") != question_id:
             errors.append("execution manifest question_id mismatch")
         if (
@@ -16886,7 +16938,7 @@ class ExactSourceTheoremProverRuntimeSubsystem:
             )
             produced_artifacts[exact_result_id] = exact_result
 
-        exact_verified = bool(
+        exact_contract_verified = bool(
             exact_result
             and exact_result.get("runtime_verification_contract_satisfied", False)
             and _runtime_manifest_int(
@@ -16897,6 +16949,35 @@ class ExactSourceTheoremProverRuntimeSubsystem:
         )
         provider_result_hash = stable_hash(provider_result)
         exact_result_hash = stable_hash(exact_result) if exact_result else ""
+        proof_repair_trajectory = build_runtime_lean_proof_repair_trajectory(
+            work_order=work_order,
+            provider_result=provider_result,
+            exact_result=exact_result,
+            lean_project=str(self.lean_project or ""),
+        )
+        trajectory_validation_errors = (
+            validate_runtime_lean_proof_repair_trajectory(
+                proof_repair_trajectory,
+                work_order=work_order,
+                provider_result=provider_result,
+                exact_result=exact_result,
+            )
+        )
+        trajectory_validated = not trajectory_validation_errors
+        proof_repair_trajectory_id = str(
+            proof_repair_trajectory.get("trajectory_id", "") or ""
+        )
+        proof_repair_trajectory = _runtime_artifact_with_architect_control(
+            proof_repair_trajectory_id,
+            proof_repair_trajectory,
+            control_seed,
+            subsystem_override=self.name,
+        )
+        produced_artifacts[
+            proof_repair_trajectory_id
+        ] = proof_repair_trajectory
+        proof_repair_trajectory_hash = stable_hash(proof_repair_trajectory)
+        exact_verified = exact_contract_verified and trajectory_validated
         execution_id = "exact_source_theorem_prover_execution:" + stable_hash(
             [
                 work_order_id,
@@ -16905,6 +16986,8 @@ class ExactSourceTheoremProverRuntimeSubsystem:
                 provider_result_hash,
                 exact_result_id,
                 exact_result_hash,
+                proof_repair_trajectory_id,
+                proof_repair_trajectory_hash,
             ]
         )[:20]
         execution_manifest = {
@@ -16931,6 +17014,12 @@ class ExactSourceTheoremProverRuntimeSubsystem:
             ),
             "exact_candidate_rerun_manifest_id": exact_result_id,
             "exact_candidate_rerun_manifest_hash": exact_result_hash,
+            "proof_repair_trajectory_id": proof_repair_trajectory_id,
+            "proof_repair_trajectory_hash": proof_repair_trajectory_hash,
+            "proof_repair_trajectory_validated": trajectory_validated,
+            "proof_repair_trajectory_validation_errors": list(
+                trajectory_validation_errors
+            ),
             "source_theorem_kernel_verified": exact_verified,
             "proof_evidence_status": (
                 "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
@@ -16981,6 +17070,9 @@ class ExactSourceTheoremProverRuntimeSubsystem:
             ),
             "exact_candidate_rerun_manifest_id": exact_result_id,
             "exact_candidate_rerun_manifest_hash": exact_result_hash,
+            "proof_repair_trajectory_id": proof_repair_trajectory_id,
+            "proof_repair_trajectory_hash": proof_repair_trajectory_hash,
+            "proof_repair_trajectory_validated": trajectory_validated,
             "source_theorem_kernel_verified": exact_verified,
             "proof_evidence_status": (
                 "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
@@ -17067,6 +17159,36 @@ class ExactSourceTheoremProverRuntimeSubsystem:
                     },
                 )
             )
+        evidence_entries.append(
+            EvidenceLedgerEntry(
+                evidence_id="evidence:"
+                + stable_hash(
+                    [task.task_id, proof_repair_trajectory_id]
+                )[:20],
+                task_id=task.task_id,
+                artifact_id=proof_repair_trajectory_id,
+                evidence_type="lean_proof_repair_trajectory",
+                status=(
+                    "TRAJECTORY_BOUND_EXACT_CHECKER_SUCCESS"
+                    if exact_verified
+                    else "PROOF_REPAIR_TRAJECTORY_RECORDED_NOT_PROOF_EVIDENCE"
+                ),
+                boundary=str(
+                    proof_repair_trajectory.get(
+                        "proof_evidence_boundary",
+                        LEAN_PROVIDER_BOUNDARY,
+                    )
+                    or LEAN_PROVIDER_BOUNDARY
+                ),
+                payload={
+                    "work_order_id": work_order_id,
+                    "provider_result_id": provider_result_id,
+                    "exact_candidate_rerun_manifest_id": exact_result_id,
+                    "trajectory_validated": trajectory_validated,
+                    "source_theorem_kernel_verified": exact_verified,
+                },
+            )
+        )
 
         provider_status = str(provider_result.get("status", "") or "")
         tool_calls: list[ToolCallRecord] = [
@@ -17196,6 +17318,8 @@ class ExactSourceTheoremProverRuntimeSubsystem:
                         "work_order_id": work_order_id,
                         "provider_result_id": provider_result_id,
                         "exact_candidate_rerun_manifest_id": exact_result_id,
+                        "proof_repair_trajectory_id": proof_repair_trajectory_id,
+                        "proof_repair_trajectory_validated": trajectory_validated,
                         "source_theorem_kernel_verified": exact_verified,
                         "proof_evidence_status": execution_manifest[
                             "proof_evidence_status"

@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-07-11
+Updated: 2026-07-12
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -232,6 +232,31 @@ byte-for-byte and returned as feedback. The old one-shot tactic and
 formal-source templates are now opt-in calibration only through
 `legacy_static_template_baseline`; the default and AgentRuntime path keep them
 off. This completes the active-path attribution repair, not theorem closure.
+
+Eleventh concrete change in this lane: formal retrieval and exact-source repair
+now carry immutable external provenance. EmpericalProcessLEAN's shared graph
+builder was fixed on `codex/lean-reuse-source-integration` at `779604a9f30e` so
+nested repositories are signed against their actual Git top level. The clean
+runtime shard contains 444 Lean files, 26,373 declarations, 956 import edges,
+and 75,479 declaration edges. AI-Statistician rejects dirty, changed, unknown,
+or unsigned shards by default before retrieval; compatibility bypasses are
+explicit CLI flags and cannot create proof evidence. A live strict search
+returned three hits with `index_signature_state=unchanged`, `dirty=false`, and
+the expected commit. Its long high-fanout declarations confirm that ranking
+quality remains a real open problem.
+
+The dedicated `ExactSourceTheoremProver` now emits a
+`RuntimeLeanProofRepairTrajectory` adapted from CodexProver's tool-use and
+repair-manifest protocol. It binds the original work order and theorem
+statement to coding-agent candidates, candidate hashes, diagnostics, tool
+health, and the runtime-owned exact-checker manifest. AgentRuntime validates
+the trajectory before proof promotion and again on resume; a changed artifact
+is rejected through both immutable blackboard hash and trajectory fingerprint
+checks. Retrieval, provider, MCP/LSP, failed-attempt, and trajectory artifacts
+remain guidance rather than proof authority. Only the bound local Lean/AXLE
+exact checker may verify the exact source theorem. This closes an attribution
+gap in the real prover loop; it does not close a fresh statistical theorem,
+S14, serious theory mode, R execution, or the second orchestration plane.
 
 Live evidence collected during this lane:
 
