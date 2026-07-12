@@ -32,6 +32,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "SimulationEvaluator",
     "AlgorithmEngineer",
     "FormalizationEvaluator",
+    "TheoremReductionClosureProofEngineer",
     "ProofEngineer",
     "ExactSourceTheoremProver",
     "FormalizationGapPlanner",
@@ -234,6 +235,11 @@ def build_architect_coordinator_prompt(
         "it only after ProofEngineer emits a lineage-bound exact-source work order. "
         "Its external Lean coding-agent output remains a proposal until the independent "
         "local Lean/kernel rerun accepts the preserved exact declaration. "
+        "Treat TheoremReductionClosureProofEngineer as another typed child stage: "
+        "schedule it only after FormalizationEvaluator emits an immutable closure "
+        "work order. Missing candidates return to the LLM ProofEngineer; existing "
+        "candidates pass unchanged to local Lean, and the child must run before "
+        "CriticEvaluator rather than as post-runtime processing. "
         "If runtime learning memory reports concrete source-to-bridge premise targets with "
         "premise_derivation_gap_kind=concrete_premise_target_lacks_nonvacuous_derivation_candidate, "
         "route upstream to TheoryDeveloper/Formalizer for semantic-assumption or lemma repair before "
@@ -788,6 +794,9 @@ def _architect_runtime_capability_eval_contract(
             capability_eval
             and bool(runtime_config.get("exact_source_theorem_prover_available", False))
         ),
+        "theorem_reduction_closure_proofengineer_required": bool(
+            runtime_config.get("theorem_closure_proofengineer_bridge", False)
+        ),
     }
 
 
@@ -822,6 +831,13 @@ def _required_architect_plan_subsystems(
                 "FormalizationGapPlanner",
             )
         )
+    if (
+        evidence_contract.get(
+            "theorem_reduction_closure_proofengineer_required"
+        )
+        is True
+    ):
+        required.add("TheoremReductionClosureProofEngineer")
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

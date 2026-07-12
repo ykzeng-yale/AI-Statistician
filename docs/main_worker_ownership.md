@@ -1122,6 +1122,36 @@ replacement was again rejected by Lean and routed back through identifier lookup
 which is the intended behavior until a locally checked definition or a
 fail-closed/parameterized semantic object exists.
 
+## Typed Theorem-Closure Runtime Migration
+
+The theorem-reduction closure lane is now the first proof-critical legacy lane
+removed from the second post-runtime orchestration plane. FormalizationEvaluator
+emits an immutable, source-manifest-bound work order and routes it to the
+`TheoremReductionClosureProofEngineer` AgentRuntime child before CriticEvaluator.
+If the candidate is missing, the child emits a typed generation request and
+returns to the LLM ProofEngineer. If a candidate exists, its exact bytes are
+written unchanged and passed to local Lean; Python does not generate closure
+Lean, parse declaration grammar, repair tactics, or infer a signature from a
+`.lean` artifact.
+
+The worker has a deterministic execution id and persists its bound next task,
+so resume replays the execution artifact without repeating bridge/compiler
+side effects. Kernel promotion requires matching source-manifest and row hashes,
+queue paths, candidate bytes, structured declaration identity, bridge/audit
+counts, local-Lean attempt, zero return code, and kernel evidence statuses. A
+bridge that merely reports a kernel count without the bound Lean attempt fails
+closed and returns feedback rather than proof evidence.
+
+This does not complete the unified control plane. Source-semantic, promotion,
+exact-semantic, adapter/premise, and exact proof-body executors still run after
+AgentRuntime. The next proof-critical migration is the exact source-theorem
+proof-body queue, with compiler feedback and replanning inside the same runtime.
+That migration must also replace the exact executor's Python declaration/block
+regex parsing with immutable source slices plus Lean/LSP/compiler-backed target
+identity; it must not move those grammar heuristics into another worker.
+No statistical source theorem or full frontier theorem was proved by this
+control-plane patch.
+
 ## Whole-Proof Agent Correction
 
 Generated Lean failures are system feedback, not files for the main worker to
@@ -1144,10 +1174,11 @@ The mature EmpericalProcessLEAN retrieval and OpenProver HLM controller should
 be integrated as typed providers under this contract rather than reimplemented
 as theorem-specific runtime rules.
 
-## Delegation To Other Codex Workers
+## Optional Future Delegation
 
-These are useful parallel lanes, but the main worker should integrate their
-outputs into the runtime path:
+No other Codex worker is currently active. The main worker owns the commit
+stream and must integrate any future parallel branch outputs into the runtime
+path. Useful bounded lanes, if parallel work is restarted, are:
 
 - Formalizer/ProofEngineer worker: repair the remaining semantic-anchor gap for
   `hQuantileThreshold` and `hGoodRank`, and keep helper/adapter candidates out
@@ -1163,5 +1194,6 @@ outputs into the runtime path:
 - Cross-task evaluation worker: add non-conformal task-family capability runs.
 
 The main worker should not delegate away the integration burden: every lane
-must end in runtime artifacts, evidence ledger rows, tests, and a GitHub-visible
-branch or PR.
+must end in runtime artifacts, evidence ledger rows, tests, and a committed,
+pushed GitHub-visible main-worker branch. Do not open a PR unless the user
+changes the direct commit-stream instruction.

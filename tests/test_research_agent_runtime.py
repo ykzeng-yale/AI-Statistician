@@ -330,6 +330,9 @@ from ai_statistician.research_schema import (
     TheoremGoal,
 )
 from ai_statistician.theory_derivation_trace import theory_trace_alignment_contract
+from ai_statistician.theorem_reduction_closure_proofengineer_bridge import (
+    run_theorem_reduction_closure_proofengineer_bridge,
+)
 from ai_statistician.schema import ProofCheck
 from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
@@ -18673,6 +18676,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         "recommended_research_path": "",
         "evaluation_mode": "capability_eval",
         "exact_source_theorem_prover_available": True,
+        "theorem_closure_proofengineer_bridge": True,
     }
 
     prompt = build_architect_coordinator_prompt(
@@ -18681,8 +18685,20 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         runtime_config=runtime_config,
     )
     response = _architect_sample_response()
+    base_plan = list(response["subsystem_execution_plan"])
     response["subsystem_execution_plan"] = [
-        *response["subsystem_execution_plan"],
+        *base_plan[:-1],
+        {
+            "subsystem": "TheoremReductionClosureProofEngineer",
+            "objective": (
+                "consume an immutable theorem-reduction closure work order"
+            ),
+            "inputs_needed": ["typed closure work order"],
+            "expected_artifacts": ["typed closure execution manifest"],
+            "acceptance_gate": (
+                "candidate bytes are preserved and only local Lean can verify"
+            ),
+        },
         {
             "subsystem": "ExactSourceTheoremProver",
             "objective": "run an exact-source work order emitted by ProofEngineer",
@@ -18690,6 +18706,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
             "expected_artifacts": ["independent local Lean rerun manifest"],
             "acceptance_gate": "exact declaration passes the local kernel rerun",
         },
+        base_plan[-1],
     ]
     packet = _normalize_architect_packet(
         response,
@@ -18706,6 +18723,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"capability_eval_requires_generated_simulation_code":true' in prompt
     assert '"capability_eval_requires_formalizer_lean_candidate":true' in prompt
     assert '"capability_eval_requires_exact_source_theorem_prover":true' in prompt
+    assert '"theorem_reduction_closure_proofengineer_required":true' in prompt
     assert '"required_subsystems":["RetrievalMemory","TheoryDeveloper"' in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
@@ -18713,6 +18731,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert contract["capability_eval_requires_generated_simulation_code"] is True
     assert contract["capability_eval_requires_formalizer_lean_candidate"] is True
     assert contract["capability_eval_requires_exact_source_theorem_prover"] is True
+    assert contract["theorem_reduction_closure_proofengineer_required"] is True
     assert validate_architect_coordinator_packet(packet) == []
 
 
@@ -18748,6 +18767,7 @@ def test_architect_coordinator_validator_requires_capability_worker_graph() -> N
         runtime_config={
             "evaluation_mode": "capability_eval",
             "formal_verification_policy": "required",
+            "theorem_closure_proofengineer_bridge": True,
         },
     )
 
@@ -18764,6 +18784,10 @@ def test_architect_coordinator_validator_requires_capability_worker_graph() -> N
     assert (
         "subsystem_execution_plan missing evidence-contract-required subsystem: "
         "FormalizationGapPlanner"
+    ) in errors
+    assert (
+        "subsystem_execution_plan missing evidence-contract-required subsystem: "
+        "TheoremReductionClosureProofEngineer"
     ) in errors
 
 
@@ -69166,10 +69190,16 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
                     "kernel_verified": False,
                     "full_frontier_theorem_proved": False,
                     "formal_targets": [
-                        {
-                            "id": "split_conformal_finite_sample_coverage_reduction_closure",
-                            "informal_source": "connect verified conformal bridge obligations to the frontier theorem",
-                            "lean_statement_sketch": "theorem split_conformal_finite_sample_coverage_reduction_closure := by",
+                            {
+                                "id": "split_conformal_finite_sample_coverage_reduction_closure",
+                                "informal_source": "connect verified conformal bridge obligations to the frontier theorem",
+                                "target_lean_declaration": (
+                                    "split_conformal_finite_sample_coverage_reduction_closure"
+                                ),
+                                "lean_statement_sketch": (
+                                    "theorem split_conformal_finite_sample_coverage_reduction_closure : "
+                                    "True := by\n  trivial\n"
+                                ),
                             "semantic_alignment_constraints": ["marginal coverage only"],
                             "expected_status": "OPEN",
                         }
@@ -69205,8 +69235,12 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
         objective="test theorem closure work-order export",
         inputs={
             "question": question_payload,
-            "architect_context": {
-                "runtime_learning_memory": {
+                "architect_context": {
+                    "runtime_requested_evidence_contract": {
+                        "evaluation_mode": "capability_eval",
+                        "capability_eval_requires_formalizer_lean_candidate": True,
+                    },
+                    "runtime_learning_memory": {
                     "artifact_kind": "RuntimeLearningMemoryContext",
                     "rows": [
                         {
@@ -69246,6 +69280,11 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
     assert work_orders[0]["artifact_kind"] == "TheoremReductionClosureWorkOrder"
     assert work_orders[0]["proof_mode"] == "theorem_level_reduction_closure"
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert work_orders[0]["candidate_bytes_preserved"] is True
+    assert work_orders[0]["candidate_generation_required"] is False
+    assert work_orders[0]["candidate_source_hash"] == runtime_module.stable_hash(
+        work_orders[0]["lean_statement_sketch"]
+    )
     assert work_orders[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
     assert set(work_orders[0]["verified_bridge_obligation_ids"]) == set(verified_ids)
     queue_rows = _runtime_theorem_reduction_closure_work_order_rows(
@@ -69280,6 +69319,10 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
         proposal_agent=ExplodingFormalizer(),
         proof_verifier=MockProofVerifier(),
         max_proof_obligations=1,
+        runtime_config=ResearchAgentRuntimeConfig(
+            theorem_closure_proofengineer_bridge=True,
+            theorem_closure_proofengineer_local_lean=False,
+        ),
     )
     blackboard = BlackboardState(
         project_id="test",
@@ -69342,16 +69385,18 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
         "DETERMINISTIC_WORK_ORDER_SEED_NOT_AGENTIC_CAPABILITY"
     )
     assert proposal["proof_bank_obligation_requests"] == []
-    assert proposal["formal_targets"][0]["expected_status"] == "KERNEL_CHECK_READY"
-    assert "sorry" not in proposal["formal_targets"][0]["lean_statement_sketch"]
-    assert "splitConformalFiniteSampleCoverage_reductionClosure" in proposal["formal_targets"][0][
-        "lean_statement_sketch"
-    ]
-    assert "hGoodCovered" in proposal["formal_targets"][0]["lean_statement_sketch"]
-    assert "good-rank-containment-to-coverage" in proposal["formal_targets"][0]["lean_statement_sketch"]
-    assert "exchangeability, rank-uniformity, and order-statistic construction remain explicit" in proposal[
-        "formal_targets"
-    ][0]["lean_statement_sketch"]
+    target = proposal["formal_targets"][0]
+    assert target["expected_status"] == "FORMAL_GAP"
+    assert target["lean_statement_sketch"] == ""
+    assert target["target_lean_declaration"] == ""
+    assert target["candidate_generation_required"] is True
+    assert target["candidate_generation_request"]["request_kind"] == (
+        "llm_theorem_reduction_closure_candidate"
+    )
+    assert "Python runtime must not generate" in target[
+        "candidate_generation_request"
+    ]["forbidden_runtime_substitution"]
+    assert proposal["proof_search_plan"]["tactic_or_certificate_hints"] == []
     assert control["proof_bank_bridge_catalog_exhausted_by_memory"] is True
     assert control["theorem_reduction_closure_required"] is True
     assert control["n_selected_proof_obligations"] == 0
@@ -69359,10 +69404,346 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
     assert control["llm_requested_proof_obligation_ids"] == []
     assert work_orders and len(work_orders) == 1
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert work_orders[0]["lean_statement_sketch"] == ""
+    assert work_orders[0]["candidate_source_hash"] == ""
+    assert work_orders[0]["candidate_generation_required"] is True
+    assert work_orders[0]["candidate_generation_request"]["request_kind"] == (
+        "llm_theorem_reduction_closure_candidate"
+    )
     assert work_orders[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
     assert set(work_orders[0]["verified_bridge_obligation_ids"]) == set(verified_ids)
+    typed_work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        runtime_module.THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+    )
+    assert typed_work_order["source_formalization_manifest_id"] == (
+        manifest["manifest_id"]
+    )
+    assert typed_work_order["execution_policy_fingerprint"] == (
+        runtime_module.stable_hash(typed_work_order["execution_policy"])
+    )
     assert proposal_evidence.evidence_type == "deterministic_theorem_closure_work_order_seed"
     assert proposal_evidence.status == "WORK_ORDER_SEED_RECORDED_NOT_PROOF_EVIDENCE"
+
+
+def _theorem_closure_worker_fixture(
+    tmp_path: Path,
+    *,
+    lean_source: str,
+    local_lean: bool,
+) -> tuple[OpenResearchQuestion, BlackboardState, AgentTask, dict[str, object]]:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    target_declaration = "closure_candidate" if lean_source.strip() else ""
+    inner_work_order = {
+        "schema_version": 1,
+        "artifact_kind": "TheoremReductionClosureWorkOrder",
+        "work_order_id": "theorem_reduction_closure_work_order:typed_worker",
+        "source_formalizer_packet_id": "formalizer_proposal:typed_worker",
+        "source_formal_target_id": "frontier_target_reduction_closure",
+        "target_theorem_goal_ids": ["frontier_target"],
+        "verified_bridge_obligation_ids": ["bridge_obligation"],
+        "remaining_unverified_proof_bank_obligation_ids": [],
+        "target_lean_declaration": target_declaration,
+        "lean_statement_sketch": lean_source,
+        "candidate_source_hash": (
+            runtime_module.stable_hash(lean_source) if lean_source else ""
+        ),
+        "candidate_bytes_preserved": True,
+        "candidate_generation_required": not bool(lean_source.strip()),
+        "candidate_generation_request": {
+            "request_kind": "llm_theorem_reduction_closure_candidate",
+            "target_theorem_goal_ids": ["frontier_target"],
+        },
+        "semantic_alignment_constraints": [
+            "preserve the source theorem target and assumptions"
+        ],
+        "proof_mode": "theorem_level_reduction_closure",
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": runtime_module.KERNEL_PROOF_BOUNDARY,
+    }
+    formalization_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:typed_closure_worker",
+        "question": runtime_module._question_to_payload(question),
+        "theorem_reduction_closure_work_orders": [inner_work_order],
+    }
+    source_task = AgentTask(
+        task_id="formalize:typed_closure_worker",
+        owner_subsystem="FormalizationEvaluator",
+        objective="emit a theorem-reduction closure work order",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {},
+        },
+    )
+    critic_task = AgentTask(
+        task_id="critic:typed_closure_worker",
+        owner_subsystem="CriticEvaluator",
+        objective="review theorem-reduction closure evidence",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "formalization_manifest_id": formalization_manifest["manifest_id"],
+            "architect_context": {},
+        },
+    )
+    runtime_config = ResearchAgentRuntimeConfig(
+        theorem_closure_proofengineer_bridge=True,
+        theorem_closure_proofengineer_local_lean=local_lean,
+        theorem_closure_proofengineer_lean_project=str(tmp_path / "LeanProject"),
+    )
+    work_order = runtime_module._runtime_theorem_reduction_closure_work_order(
+        source_task=source_task,
+        question=question,
+        architect_context={},
+        formalization_manifest=formalization_manifest,
+        return_task=critic_task,
+        runtime_config=runtime_config,
+    )
+    dispatch_task = runtime_module._runtime_theorem_reduction_closure_dispatch_task(
+        question=question,
+        architect_context={},
+        work_order=work_order,
+    )
+    blackboard = BlackboardState(
+        project_id="typed-theorem-closure-worker",
+        artifacts={
+            formalization_manifest["manifest_id"]: formalization_manifest,
+            work_order["work_order_id"]: work_order,
+        },
+    )
+    return question, blackboard, dispatch_task, work_order
+
+
+def test_theorem_closure_typed_worker_requests_llm_candidate_and_replays_once(
+    tmp_path: Path,
+) -> None:
+    _question, blackboard, dispatch_task, work_order = (
+        _theorem_closure_worker_fixture(
+            tmp_path,
+            lean_source="",
+            local_lean=False,
+        )
+    )
+    runner_calls = 0
+
+    def counting_runner(**kwargs: object) -> dict[str, object]:
+        nonlocal runner_calls
+        runner_calls += 1
+        return run_theorem_reduction_closure_proofengineer_bridge(**kwargs)
+
+    worker = runtime_module.TheoremReductionClosureProofEngineerRuntimeSubsystem(
+        out_root=tmp_path,
+        bridge_runner=counting_runner,
+        repair_available=True,
+    )
+
+    first = worker.run(dispatch_task, blackboard)
+
+    assert runner_calls == 1
+    assert first.status == "REVISE"
+    assert first.next_task is not None
+    assert first.next_task.owner_subsystem == "ProofEngineer"
+    generation_request = next(
+        artifact
+        for artifact in first.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_GENERATION_REQUEST_KIND
+    )
+    execution = next(
+        artifact
+        for artifact in first.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
+    )
+    assert generation_request["runtime_generated_lean"] is False
+    assert execution["work_order_id"] == work_order["work_order_id"]
+    assert execution["execution_result_status"] == "REVISE"
+    assert execution["candidate_bytes_preserved"] is True
+    assert execution["runtime_generated_lean"] is False
+    blackboard.artifacts.update(first.produced_artifacts)
+
+    replay = worker.run(dispatch_task, blackboard)
+
+    assert runner_calls == 1
+    assert replay.status == "REVISE"
+    assert replay.next_task == first.next_task
+    assert replay.tool_calls == ()
+    assert replay.observations[0].observation_type == (
+        "theorem_reduction_closure_execution_replayed"
+    )
+    assert replay.observations[0].payload[
+        "bridge_or_compiler_reexecuted"
+    ] is False
+
+
+def test_theorem_closure_typed_worker_accepts_only_exact_kernel_checked_candidate(
+    tmp_path: Path,
+) -> None:
+    exact_source = "theorem closure_candidate : True := by\n  trivial\n"
+    _question, blackboard, dispatch_task, _work_order = (
+        _theorem_closure_worker_fixture(
+            tmp_path,
+            lean_source=exact_source,
+            local_lean=True,
+        )
+    )
+    trusted_local_lean_evidence = False
+
+    def verified_runner(**kwargs: object) -> dict[str, object]:
+        out_dir = Path(kwargs["out_dir"])
+        queue_path = Path(kwargs["queue_jsonl"])
+        rows = [
+            json.loads(line)
+            for line in queue_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        audit_dir = out_dir / "audit"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        candidate_path = audit_dir / "closure_candidate.lean"
+        candidate_path.write_text(exact_source, encoding="utf-8")
+        row = rows[0]
+        check = {
+            "work_order_id": row["work_order_id"],
+            "target_lean_declaration": row["target_lean_declaration"],
+            "kernel_checked_source_excerpt": exact_source[:4000],
+            "kernel_checked_source_bytes": len(exact_source.encode("utf-8")),
+            "candidate_bytes_preserved": True,
+            "lean_export_path": str(candidate_path),
+            "status": "KERNEL_VERIFIED",
+            "kernel_verified": True,
+            "local_lean_attempted": trusted_local_lean_evidence,
+            "local_lean_returncode": 0,
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_THEOREM_CLOSURE"
+            ),
+        }
+        audit_manifest_path = audit_dir / "manifest.json"
+        audit_manifest_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": (
+                        "TheoremReductionClosureWorkOrderAuditManifest"
+                    ),
+                    "source_queue_jsonl": str(queue_path.resolve()),
+                    "n_work_orders": 1,
+                    "n_kernel_verified": 1,
+                    "local_lean_requested": True,
+                    "all_kernel_verified": True,
+                    "proof_evidence_status": (
+                        "KERNEL_VERIFIED_THEOREM_CLOSURE_PRESENT"
+                    ),
+                    "checks": [check],
+                }
+            ),
+            encoding="utf-8",
+        )
+        learning_path = audit_dir / "learning.jsonl"
+        learning_path.write_text("", encoding="utf-8")
+        return {
+            "artifact_kind": (
+                "TheoremReductionClosureProofEngineerBridgeManifest"
+            ),
+            "source_queue_jsonl": str(queue_path.resolve()),
+            "audit_manifest": str(audit_manifest_path),
+            "runtime_learning_rows_jsonl": str(learning_path),
+            "n_work_orders": 1,
+            "n_kernel_verified": 1,
+            "runtime_learning_ready": True,
+            "local_lean_requested": True,
+            "proof_evidence_status": (
+                "KERNEL_VERIFIED_THEOREM_CLOSURE_PRESENT"
+            ),
+        }
+
+    worker = runtime_module.TheoremReductionClosureProofEngineerRuntimeSubsystem(
+        out_root=tmp_path,
+        bridge_runner=verified_runner,
+        repair_available=True,
+    )
+
+    rejected = worker.run(dispatch_task, blackboard)
+
+    rejected_execution = next(
+        artifact
+        for artifact in rejected.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
+    )
+    assert rejected.status == "REROUTE"
+    assert rejected.next_task is not None
+    assert rejected.next_task.owner_subsystem == "CriticEvaluator"
+    assert rejected.failure_classification == (
+        "theorem_reduction_closure_execution_contract_invalid"
+    )
+    assert rejected_execution["all_kernel_verified"] is False
+    assert rejected_execution["execution_contract_satisfied"] is False
+    assert any(
+        "lacks local Lean attempt" in error
+        for error in rejected_execution["execution_contract_errors"]
+    )
+
+    trusted_local_lean_evidence = True
+    result = worker.run(dispatch_task, blackboard)
+
+    execution = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
+    )
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "CriticEvaluator"
+    assert execution["all_kernel_verified"] is True
+    assert execution["execution_contract_satisfied"] is True
+    assert execution["proof_evidence_status"] == (
+        "KERNEL_VERIFIED_THEOREM_CLOSURE_PRESENT"
+    )
+    assert execution["execution_result_status"] == "REROUTE"
+
+
+def test_theorem_closure_typed_worker_rejects_tampering_before_runner(
+    tmp_path: Path,
+) -> None:
+    _question, blackboard, dispatch_task, work_order = (
+        _theorem_closure_worker_fixture(
+            tmp_path,
+            lean_source="theorem closure_candidate : True := by\n  trivial\n",
+            local_lean=False,
+        )
+    )
+    work_order["work_order_rows"][0]["lean_statement_sketch"] = (
+        "theorem changed_candidate : True := by\n  trivial\n"
+    )
+    runner_calls = 0
+
+    def exploding_runner(**_kwargs: object) -> dict[str, object]:
+        nonlocal runner_calls
+        runner_calls += 1
+        raise AssertionError("runner must not be called for a changed work order")
+
+    worker = runtime_module.TheoremReductionClosureProofEngineerRuntimeSubsystem(
+        out_root=tmp_path,
+        bridge_runner=exploding_runner,
+        repair_available=True,
+    )
+
+    result = worker.run(dispatch_task, blackboard)
+
+    assert runner_calls == 0
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "theorem_reduction_closure_work_order_invalid"
+    )
+    assert result.tool_calls == ()
+    assert result.produced_artifacts == {}
 
 
 def test_formalization_capability_eval_does_not_replace_live_formalizer_with_deterministic_closure() -> None:
@@ -69601,10 +69982,20 @@ def test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without
     assert manifest["theorem_closure_proofengineer_bridge_runtime_learning_ready"] is False
     assert manifest["theorem_closure_proofengineer_bridge_n_kernel_verified"] == 0
     assert manifest["theorem_closure_proofengineer_bridge_proof_evidence_status"] == (
-        "NO_KERNEL_VERIFIED_THEOREM_CLOSURE"
+        "THEOREM_REDUCTION_CLOSURE_EXECUTION_NOT_PROOF_EVIDENCE"
     )
     assert manifest["n_kernel_verified_subclaims"] == 0
-    assert "does not retroactively prove the current run" in manifest[
+    assert manifest["theorem_closure_proofengineer_execution_mode"] == (
+        "agent_runtime_typed_worker"
+    )
+    assert manifest["n_theorem_closure_agent_runtime_work_orders"] == 1
+    assert manifest["n_theorem_closure_agent_runtime_executions"] == 1
+    assert manifest["n_theorem_closure_agent_runtime_pending_work_orders"] == 0
+    assert manifest["theorem_closure_legacy_post_runtime_fallback_used"] is False
+    assert "typed, budgeted, Architect-visible AgentRuntime" in manifest[
+        "theorem_closure_proofengineer_bridge_boundary"
+    ]
+    assert "performs no verifier side effects" in manifest[
         "theorem_closure_proofengineer_bridge_boundary"
     ]
 
@@ -69632,6 +70023,33 @@ def test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without
     assert len(learning_rows) == 1
     assert learning_rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == []
     assert "routing guidance" in learning_rows[0]["boundary"]
+    result_payload = json.loads(
+        Path(manifest["artifacts"]["per_question_results"][0]).read_text(
+            encoding="utf-8"
+        )
+    )
+    trace_subsystems = [row["subsystem"] for row in result_payload["traces"]]
+    assert trace_subsystems == [
+        "RetrievalMemory",
+        "TheoryDeveloper",
+        "SimulationEvaluator",
+        "AlgorithmEngineer",
+        "FormalizationEvaluator",
+        "TheoremReductionClosureProofEngineer",
+        "ProofEngineer",
+        "FormalizationGapPlanner",
+    ]
+    execution = next(
+        artifact
+        for artifact in result_payload["blackboard"]["artifacts"].values()
+        if artifact.get("artifact_kind")
+        == runtime_module.THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND
+    )
+    assert execution["n_candidate_generation_required"] == 1
+    assert execution["execution_result_status"] == "REVISE"
+    assert execution["resume_next_task"]["owner_subsystem"] == "ProofEngineer"
+    assert execution["execution_contract_satisfied"] is True
+    assert execution["runtime_generated_lean"] is False
 
 
 def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memory(
@@ -72734,10 +73152,13 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
     verified_ids = [str(row["obligation_id"]) for row in catalog]
     premise_artifact = tmp_path / "hGoodCovered_derivation.lean"
-    premise_artifact.write_text(
+    premise_source = (
         "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
         "(good covered : Prop) (h : good -> covered) (hg : good) : covered := by\n"
-        "  exact h hg\n",
+        "  exact h hg\n"
+    )
+    premise_artifact.write_text(
+        premise_source,
         encoding="utf-8",
     )
     signature_probe_path = str(tmp_path / "proof_body_signature_probe.jsonl")
@@ -72788,12 +73209,15 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
                 "proof_body_signature_probe_artifact_path": signature_probe_path,
                 "source_theorem_signature_probe_artifact_path": signature_probe_path,
                 "candidate_artifact_path": str(tmp_path / "split_conformal_attempt.lean"),
-                "source_to_bridge_premise_candidate_artifact_path": str(
-                    premise_artifact
-                ),
-                "source_to_bridge_premise_candidate_declaration_name": (
-                    "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
-                ),
+                    "source_to_bridge_premise_candidate_artifact_path": str(
+                        premise_artifact
+                    ),
+                    "source_to_bridge_premise_candidate_declaration_name": (
+                        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+                    ),
+                    "verified_source_to_bridge_premise_derivation_signature_excerpts": [
+                        premise_source
+                    ],
             },
             "target_behavior": (
                 "rerun the source-to-bridge adapter bridge with the verified premise"
@@ -72826,10 +73250,7 @@ def test_verified_premise_routing_row_unblocks_adapter_retry_without_old_adapter
     )
     assert summary[
         "verified_source_to_bridge_premise_derivation_signature_excerpts"
-    ] == [
-        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
-        "(good covered : Prop) (h : good -> covered) (hg : good) : covered"
-    ]
+    ] == [premise_source.strip()]
     assert summary["source_theorem_proof_body_adapter_diagnostics"][0][
         "verified_source_to_bridge_premise_derivation_signature_excerpts"
     ] == summary["verified_source_to_bridge_premise_derivation_signature_excerpts"]
@@ -76576,6 +76997,9 @@ def test_theorem_reduction_closure_learning_export_keeps_closure_memory_separate
                             "splitConformalFiniteSampleCoverage_reductionClosure"
                         ),
                         "lean_export_path": str(closure_artifact),
+                        "kernel_checked_source_excerpt": (
+                            closure_artifact.read_text(encoding="utf-8")
+                        ),
                         "target_theorem_goal_ids": [
                             "split_conformal_finite_sample_coverage"
                         ],
@@ -76691,19 +77115,7 @@ def test_theorem_reduction_closure_learning_export_keeps_closure_memory_separate
     ]
     assert export_manifest[
         "kernel_verified_theorem_reduction_closure_signature_excerpts"
-    ] == [
-        "\n".join(
-            [
-                "theorem splitConformalFiniteSampleCoverage_reductionClosure {Ω ρ : Type*}",
-                "    [MeasurableSpace Ω]",
-                "    (μ : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure μ]",
-                "    (covered : Set Ω) (BadRanks : Finset ρ) (rank : Ω → ρ)",
-                "    (α : ρ → ENNReal) (α_total : ENNReal)",
-                "    (hGoodCovered : {ω | rank ω ∈ BadRanks}ᶜ ⊆ covered) :",
-                "    1 - α_total ≤ μ covered",
-            ]
-        )
-    ]
+    ] == [closure_artifact.read_text(encoding="utf-8")]
 
 
 def _architect_sample_response() -> dict[str, object]:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Mapping
 
@@ -43,16 +42,13 @@ def export_theorem_reduction_closure_learning_from_manifest(
     for row in verified_checks:
         declaration = str(row.get("target_lean_declaration", "") or "").strip()
         artifact_path = str(row.get("lean_export_path", "") or "").strip()
-        if not declaration and artifact_path:
-            declaration = _lean_declaration_name_from_artifact(Path(artifact_path))
         if declaration and declaration not in declaration_names:
             declaration_names.append(declaration)
         if artifact_path and artifact_path not in artifact_paths:
             artifact_paths.append(artifact_path)
-        signature_excerpt = _lean_declaration_signature_excerpt_from_artifact(
-            Path(artifact_path),
-            declaration=declaration,
-        )
+        signature_excerpt = str(
+            row.get("kernel_checked_source_excerpt", "") or ""
+        ).strip()[:2000]
         if signature_excerpt and signature_excerpt not in signature_excerpts:
             signature_excerpts.append(signature_excerpt)
         for goal_id in row.get("target_theorem_goal_ids", []) or []:
@@ -102,7 +98,9 @@ def export_theorem_reduction_closure_learning_from_manifest(
             "Theorem-closure learning rows are runtime memory and routing guidance. "
             "They preserve the referenced local Lean/AXLE audit manifest as proof evidence "
             "for the closure reduction only; they do not prove upstream statistical semantics "
-            "or the full paper/source theorem."
+            "or the full paper/source theorem. Prompt excerpts are bounded text copied "
+            "from compiler inputs, not Python-parsed Lean signatures; the referenced "
+            "audit and artifact retain the exact checked candidate bytes."
         ),
     }
     learning_path = out_dir / "runtime_learning_rows.jsonl"
@@ -130,52 +128,3 @@ def export_theorem_reduction_closure_learning_from_manifest(
         "runtime_learning_rows_jsonl": learning_path,
         "export_manifest_path": manifest_out,
     }
-
-
-def _lean_declaration_name_from_artifact(path: Path) -> str:
-    try:
-        text = path.expanduser().read_text(encoding="utf-8")
-    except OSError:
-        return ""
-    match = re.search(
-        r"(?m)^\s*(?:noncomputable\s+)?(?:private\s+)?"
-        r"(?:theorem|lemma|def|abbrev)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
-        text,
-    )
-    return match.group(1) if match else ""
-
-
-def _lean_declaration_signature_excerpt_from_artifact(
-    path: Path,
-    *,
-    declaration: str = "",
-    max_lines: int = 40,
-    max_chars: int = 2000,
-) -> str:
-    try:
-        text = path.expanduser().read_text(encoding="utf-8")
-    except OSError:
-        return ""
-    wanted = str(declaration or "").strip()
-    lines = text.splitlines()
-    start = -1
-    declaration_pattern = (
-        rf"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
-        rf"{re.escape(wanted)}\b"
-        if wanted
-        else r"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
-    )
-    for index, line in enumerate(lines):
-        if re.search(declaration_pattern, line):
-            start = index
-            break
-    if start < 0:
-        return ""
-    excerpt_lines: list[str] = []
-    for line in lines[start : start + max_lines]:
-        if ":= by" in line:
-            before, _sep, _after = line.partition(":= by")
-            excerpt_lines.append(before.rstrip())
-            break
-        excerpt_lines.append(line.rstrip())
-    return "\n".join(excerpt_lines).strip()[:max_chars]

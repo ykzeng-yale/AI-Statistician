@@ -251,7 +251,6 @@ from .source_theorem_semantic_primitive_proofengineer_bridge import (
     semantic_gap_for_exact_goal_shape_obligation as _policy_semantic_gap_for_exact_goal_shape_obligation,
     semantic_gap_for_placeholder_symbol as _policy_semantic_gap_for_placeholder_symbol,
     semantic_primitive_id_for_gap as _policy_semantic_primitive_id_for_gap,
-    theorem_closure_reduction_strategy_for_goal as _policy_theorem_closure_reduction_strategy_for_goal,
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
 from .source_theorem_proof_body_adapter_proofengineer_bridge import (
@@ -302,8 +301,12 @@ from . import source_to_bridge_metadata as stb_metadata
 from .source_theorem_exact_semantic_definition_lean_environment_repair_executor import (
     run_source_theorem_exact_semantic_definition_lean_environment_repair_executor,
 )
-from .theorem_reduction_closure_proofengineer_bridge import (
-    run_theorem_reduction_closure_proofengineer_bridge,
+from .theorem_reduction_closure_runtime_worker import (
+    THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+    THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND,
+    THEOREM_REDUCTION_CLOSURE_RUNTIME_GENERATION_REQUEST_KIND,
+    THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND,
+    TheoremReductionClosureRuntimeWorker,
 )
 from .verifier import ProofVerifier
 
@@ -9023,6 +9026,8 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "formalizer/leanprover": "FormalizationEvaluator",
         "proofengineer": "ProofEngineer",
         "leanprover": "ProofEngineer",
+        "theoremreductionclosureproofengineer": "ProofEngineer",
+        "theoremclosureproofengineer": "ProofEngineer",
         "exactsourcetheoremprover": "ProofEngineer",
         "exactsourceprover": "ProofEngineer",
         "externalexactproofsearch": "ProofEngineer",
@@ -9838,7 +9843,7 @@ RUNTIME_RETRIEVAL_RETURN_OWNERS = {
     "FormalizationEvaluator",
     "ProofEngineer",
     "FormalizationGapPlanner",
-}
+    }
 
 
 def _runtime_retrieval_return_owner(task: AgentTask) -> str:
@@ -14078,6 +14083,151 @@ def _agent_step_result_with_external_proof_search(
     )
 
 
+def _runtime_theorem_reduction_closure_queue_rows_from_manifest(
+    formalization_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    manifest_id = str(formalization_manifest.get("manifest_id", "") or "")
+    return _runtime_theorem_reduction_closure_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        manifest_id: dict(formalization_manifest),
+                    }
+                }
+            }
+        ]
+    )
+
+
+def _runtime_theorem_reduction_closure_work_order(
+    *,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    return_task: AgentTask,
+    runtime_config: ResearchAgentRuntimeConfig,
+) -> dict[str, Any]:
+    queue_rows = _runtime_theorem_reduction_closure_queue_rows_from_manifest(
+        formalization_manifest
+    )
+    source_manifest_id = str(
+        formalization_manifest.get("manifest_id", "") or ""
+    )
+    source_manifest_hash = stable_hash(dict(formalization_manifest))
+    execution_policy = {
+        "local_lean": bool(
+            runtime_config.theorem_closure_proofengineer_local_lean
+        ),
+        "lean_project": str(
+            runtime_config.theorem_closure_proofengineer_lean_project or ""
+        ),
+        "lean_timeout": int(
+            runtime_config.theorem_closure_proofengineer_lean_timeout
+        ),
+        "candidate_source_policy": (
+            "Preserve coding-agent candidate bytes. Python may reject forbidden "
+            "proof placeholders and invoke the configured compiler, but must not "
+            "parse, generate, repair, or substitute Lean grammar or tactics."
+        ),
+    }
+    work_order_id = "runtime_theorem_reduction_closure_work_order:" + stable_hash(
+        [
+            source_task.task_id,
+            source_manifest_id,
+            source_manifest_hash,
+            queue_rows,
+            execution_policy,
+        ]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem=THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": str(source_task.owner_subsystem or ""),
+        "target_subsystem": (
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+        ),
+        "source_formalization_manifest_id": source_manifest_id,
+        "source_formalization_manifest_hash": source_manifest_hash,
+        "work_order_rows": queue_rows,
+        "work_order_row_hashes": [stable_hash(row) for row in queue_rows],
+        "execution_policy": execution_policy,
+        "execution_policy_fingerprint": stable_hash(execution_policy),
+        "source_task": asdict(source_task),
+        "return_task": asdict(return_task),
+        "proof_evidence_status": (
+            "THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override=THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+    )
+
+
+def _runtime_theorem_reduction_closure_dispatch_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"theorem-closure-proofengineer:{question.id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+        objective=(
+            "Consume the immutable theorem-reduction closure work order inside "
+            "AgentRuntime. Request an LLM candidate when missing, otherwise pass "
+            "the unchanged candidate to local Lean and return exact diagnostics."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "theorem_reduction_closure_work_order_id": work_order_id,
+            "theorem_reduction_closure_work_order_hash": stable_hash(
+                dict(work_order)
+            ),
+        },
+        allowed_tools=(
+            "blackboard",
+            "model_backend",
+            "formal_source_retrieval",
+            "proof_search",
+            "local_lean",
+            "lean_lsp_mcp",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "theorem_reduction_closure_candidate_generation_request",
+            "theorem_reduction_closure_proofengineer_execution_manifest",
+        ),
+        acceptance_gate=(
+            "every exact candidate remains byte-preserved and only a bound local "
+            "Lean/AXLE check may mark its closure row kernel verified"
+        ),
+        stop_condition=(
+            "all closure rows are kernel verified, or candidate/compiler feedback "
+            "is returned to the LLM ProofEngineer inside the same AgentRuntime"
+        ),
+    )
+
+
+
 class FormalizationEvaluatorRuntimeSubsystem:
     name = "FormalizationEvaluator"
 
@@ -14919,7 +15069,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
             pseudo_formalization_required = False
         elif _should_emit_deterministic_theorem_closure_packet(
             proof_bank_runtime_memory_summary
-        ) and not _runtime_context_requires_formalizer_lean_candidate(context):
+        ) and not _runtime_context_requires_formalizer_lean_candidate(
+            context
+        ) and str(
+            environment_feedback.get("feedback_type", "") or ""
+        ) != "theorem_reduction_closure_execution_feedback":
             proposal_packet = _deterministic_theorem_closure_proposal_packet(
                 question=question,
                 theorem_goals=theorem_goals,
@@ -16282,6 +16436,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 },
             )
         )
+        theorem_closure_dispatch_evidence: EvidenceLedgerEntry | None = None
         if lean_candidate_repair_feedback is not None:
             observations.append(
                 EnvironmentObservation(
@@ -16610,7 +16765,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 or "formalizer_proof_state_routing_requested"
             )
         else:
-            next_task = AgentTask(
+            critic_task = AgentTask(
                 task_id=f"critic:{question.id}:{stable_hash(manifest_id)[:8]}",
                 owner_subsystem="CriticEvaluator",
                 objective=(
@@ -16636,14 +16791,102 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ),
                 stop_condition="critic agenda and learning rows recorded",
             )
+            if (
+                self.runtime_config.theorem_closure_proofengineer_bridge
+                and theorem_reduction_closure_work_orders
+            ):
+                theorem_closure_work_order = (
+                    _runtime_theorem_reduction_closure_work_order(
+                        source_task=task,
+                        question=question,
+                        architect_context=context,
+                        formalization_manifest=manifest,
+                        return_task=critic_task,
+                        runtime_config=self.runtime_config,
+                    )
+                )
+                theorem_closure_work_order_id = str(
+                    theorem_closure_work_order.get("work_order_id", "") or ""
+                )
+                produced_artifacts[
+                    theorem_closure_work_order_id
+                ] = theorem_closure_work_order
+                next_task = _runtime_theorem_reduction_closure_dispatch_task(
+                    question=question,
+                    architect_context=context,
+                    work_order=theorem_closure_work_order,
+                )
+                theorem_closure_dispatch_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash(
+                        [task.task_id, theorem_closure_work_order_id]
+                    )[:20],
+                    task_id=task.task_id,
+                    artifact_id=theorem_closure_work_order_id,
+                    evidence_type=(
+                        "theorem_reduction_closure_proofengineer_work_order"
+                    ),
+                    status=(
+                        "THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_RECORDED_NOT_PROOF_EVIDENCE"
+                    ),
+                    boundary=KERNEL_PROOF_BOUNDARY,
+                    payload={
+                        "source_formalization_manifest_id": manifest_id,
+                        "n_work_order_rows": len(
+                            theorem_closure_work_order.get(
+                                "work_order_rows",
+                                [],
+                            )
+                            or []
+                        ),
+                        "next_owner_subsystem": (
+                            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+                        ),
+                        "runtime_generated_lean": False,
+                    },
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "theorem_reduction_closure_proofengineer_work_order"
+                        ),
+                        summary=(
+                            "immutable theorem-closure work order routed to an "
+                            "AgentRuntime ProofEngineer child before CriticEvaluator"
+                        ),
+                        payload={
+                            "work_order_id": theorem_closure_work_order_id,
+                            "n_work_order_rows": len(
+                                theorem_closure_work_order.get(
+                                    "work_order_rows",
+                                    [],
+                                )
+                                or []
+                            ),
+                            "next_owner_subsystem": (
+                                THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+                            ),
+                            "proof_evidence_status": (
+                                "THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    )
+                )
+                result_rationale = (
+                    "Runtime recorded formalization/proof feedback and routed "
+                    "the immutable theorem-reduction closure work order to the "
+                    "typed ProofEngineer child before CriticEvaluator."
+                )
+            else:
+                next_task = critic_task
+                result_rationale = (
+                    "Runtime recorded formalization/proof feedback. Registered "
+                    "subclaims and frontier gaps are distinguished; full frontier "
+                    "theorem remains unproved unless a separate kernel-verified "
+                    "reduction closes the gaps. Routing to CriticEvaluator for "
+                    "next-action agenda and learning rows."
+                )
             result_status = "REROUTE"
-            result_rationale = (
-                "Runtime recorded formalization/proof feedback. Registered "
-                "subclaims and frontier gaps are distinguished; full frontier "
-                "theorem remains unproved unless a separate kernel-verified "
-                "reduction closes the gaps. Routing to CriticEvaluator for next-action "
-                "agenda and learning rows."
-            )
             failure_classification = ""
         return AgentStepResult(
             status=result_status,
@@ -16661,6 +16904,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     candidate_proof_state_evidence,
                     proof_state_routing_evidence,
                     gap_planner_evidence,
+                    theorem_closure_dispatch_evidence,
                 )
                 if row is not None
             ),
@@ -16733,6 +16977,32 @@ class ProofEngineerRuntimeSubsystem(FormalizationEvaluatorRuntimeSubsystem):
                     architect_context=architect_context,
                 )
         return super().run(task, blackboard)
+
+
+class TheoremReductionClosureProofEngineerRuntimeSubsystem(
+    TheoremReductionClosureRuntimeWorker
+):
+    """Runtime adapter binding the worker to formalization row extraction."""
+
+    def __init__(
+        self,
+        *,
+        out_root: Path,
+        bridge_runner: Callable[..., Mapping[str, Any]] | None = None,
+        repair_available: bool = False,
+    ) -> None:
+        worker_kwargs: dict[str, Any] = {
+            "out_root": out_root,
+            "source_rows_resolver": (
+                _runtime_theorem_reduction_closure_queue_rows_from_manifest
+            ),
+            "repair_available": repair_available,
+        }
+        if bridge_runner is not None:
+            worker_kwargs["bridge_runner"] = bridge_runner
+        super().__init__(
+            **worker_kwargs,
+        )
 
 
 class ExactSourceTheoremProverRuntimeSubsystem:
@@ -20398,6 +20668,15 @@ def _runtime_architect_control_subsystem_for_artifact(
             "ProofEngineer"
         ),
         "RuntimeExactSourceTheoremProverWorkOrder": "ProofEngineer",
+        THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND: (
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+        ),
+        THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND: (
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+        ),
+        THEOREM_REDUCTION_CLOSURE_RUNTIME_GENERATION_REQUEST_KIND: (
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
+        ),
         "RuntimeExactSourceTheoremProverExecutionManifest": (
             EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
         ),
@@ -20434,6 +20713,18 @@ def _runtime_architect_control_subsystem_for_artifact(
         (
             "exact_source_theorem_prover_work_order:",
             "ProofEngineer",
+        ),
+        (
+            "runtime_theorem_reduction_closure_work_order:",
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+        ),
+        (
+            "runtime_theorem_reduction_closure_execution:",
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+        ),
+        (
+            "runtime_theorem_reduction_closure_generation_request:",
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
         ),
         (
             "exact_source_theorem_prover_execution:",
@@ -27999,6 +28290,12 @@ def run_research_agent_runtime(
             ),
             "FormalizationEvaluator": formalization_subsystem,
             "ProofEngineer": proofengineer_subsystem,
+            THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM: (
+                TheoremReductionClosureProofEngineerRuntimeSubsystem(
+                    out_root=out_dir,
+                    repair_available=formalizer is not None,
+                )
+            ),
             "FormalizationGapPlanner": FormalizationGapPlannerRuntimeSubsystem(
                 out_dir=out_dir,
                 runtime_config=config,
@@ -28494,6 +28791,26 @@ def run_research_agent_runtime(
         "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_names": (
             evidence_summary["proof"][
                 "external_exact_proof_candidate_source_theorem_kernel_verified_target_names"
+            ]
+        ),
+        "n_theorem_reduction_closure_agent_runtime_work_orders": (
+            evidence_summary["proof"][
+                "n_theorem_reduction_closure_agent_runtime_work_orders"
+            ]
+        ),
+        "n_theorem_reduction_closure_agent_runtime_executions": (
+            evidence_summary["proof"][
+                "n_theorem_reduction_closure_agent_runtime_executions"
+            ]
+        ),
+        "n_theorem_reduction_closure_agent_runtime_kernel_verified": (
+            evidence_summary["proof"][
+                "n_theorem_reduction_closure_agent_runtime_kernel_verified"
+            ]
+        ),
+        "n_theorem_reduction_closure_agent_runtime_generation_requests": (
+            evidence_summary["proof"][
+                "n_theorem_reduction_closure_agent_runtime_generation_requests"
             ]
         ),
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -29210,22 +29527,30 @@ def run_research_agent_runtime(
         source_theorem_promotion_materialization_seed_rows,
         queue_dir=source_theorem_promotion_materialization_seed_queue_dir,
     )
-    theorem_closure_bridge_manifest: dict[str, Any] | None = None
+    (
+        theorem_closure_agent_runtime_work_orders,
+        theorem_closure_agent_runtime_executions,
+    ) = _runtime_theorem_reduction_closure_agent_runtime_artifacts(results)
+    theorem_closure_bridge_manifest = (
+        _runtime_aggregate_theorem_reduction_closure_executions(
+            theorem_closure_agent_runtime_executions
+        )
+    )
+    theorem_closure_bridge_execution_mode = (
+        "agent_runtime_typed_worker"
+        if theorem_closure_bridge_manifest is not None
+        else "agent_runtime_work_order_pending"
+        if theorem_closure_agent_runtime_work_orders
+        else "not_run"
+    )
+    theorem_closure_legacy_post_runtime_fallback_used = False
     if (
         config.theorem_closure_proofengineer_bridge
         and theorem_reduction_closure_work_order_rows
+        and not theorem_closure_agent_runtime_work_orders
     ):
-        theorem_closure_bridge_manifest = run_theorem_reduction_closure_proofengineer_bridge(
-            out_dir=out_dir / "runtime_theorem_reduction_closure_proofengineer_bridge",
-            queue_jsonl=theorem_reduction_closure_work_orders_path,
-            question_id=questions[0].id if len(questions) == 1 else "",
-            local_lean=config.theorem_closure_proofengineer_local_lean,
-            lean_project=(
-                Path(config.theorem_closure_proofengineer_lean_project)
-                if config.theorem_closure_proofengineer_lean_project
-                else None
-            ),
-            lean_timeout=config.theorem_closure_proofengineer_lean_timeout,
+        theorem_closure_bridge_execution_mode = (
+            "legacy_post_runtime_execution_disabled"
         )
     source_semantic_bridge_manifest: dict[str, Any] | None = None
     if (
@@ -29387,11 +29712,22 @@ def run_research_agent_runtime(
     new_source_theorem_semantic_primitive_adapter_feedback_work_order_rows: list[
         dict[str, Any]
     ] = []
-    theorem_closure_bridge_learning_rows = (
-        _runtime_bridge_learning_rows(theorem_closure_bridge_manifest)
-        if theorem_closure_bridge_manifest is not None
-        else []
-    )
+    theorem_closure_bridge_learning_rows = [
+        learning_row
+        for execution_manifest in theorem_closure_agent_runtime_executions
+        for learning_row in (
+            [
+                dict(row)
+                for row in execution_manifest.get(
+                    "runtime_learning_rows",
+                    [],
+                )
+                or []
+                if isinstance(row, Mapping)
+            ]
+            or _runtime_bridge_learning_rows(execution_manifest)
+        )
+    ]
     source_semantic_bridge_learning_rows = (
         _runtime_bridge_learning_rows(source_semantic_bridge_manifest)
         if source_semantic_bridge_manifest is not None
@@ -36544,16 +36880,46 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
         ] = str(
-            out_dir
-            / "runtime_theorem_reduction_closure_proofengineer_bridge"
-            / "theorem_reduction_closure_proofengineer_bridge_manifest.json"
+            theorem_closure_bridge_manifest.get("bridge_manifest_path", "")
+            or ""
         )
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl"
-        ] = str(theorem_closure_bridge_manifest["runtime_learning_rows_jsonl"])
+        ] = str(
+            theorem_closure_bridge_manifest.get(
+                "runtime_learning_rows_jsonl",
+                "",
+            )
+            or ""
+        )
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_audit_manifest"
-        ] = str(theorem_closure_bridge_manifest["audit_manifest"])
+        ] = str(
+            theorem_closure_bridge_manifest.get("audit_manifest", "") or ""
+        )
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_execution_manifests"
+        ] = [
+            str(row.get("manifest_id", "") or "")
+            for row in theorem_closure_agent_runtime_executions
+        ]
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl_paths"
+        ] = list(
+            theorem_closure_bridge_manifest.get(
+                "runtime_learning_rows_jsonl_paths",
+                [],
+            )
+            or [
+                str(
+                    theorem_closure_bridge_manifest.get(
+                        "runtime_learning_rows_jsonl",
+                        "",
+                    )
+                    or ""
+                )
+            ]
+        )
     if source_semantic_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_bridge_manifest"
@@ -42766,12 +43132,35 @@ def run_research_agent_runtime(
     manifest["theorem_closure_proofengineer_bridge_ran"] = (
         theorem_closure_bridge_manifest is not None
     )
+    manifest["theorem_closure_proofengineer_execution_mode"] = (
+        theorem_closure_bridge_execution_mode
+    )
+    manifest[
+        "n_theorem_closure_agent_runtime_work_orders"
+    ] = len(theorem_closure_agent_runtime_work_orders)
+    manifest[
+        "n_theorem_closure_agent_runtime_executions"
+    ] = len(theorem_closure_agent_runtime_executions)
+    manifest[
+        "n_theorem_closure_agent_runtime_pending_work_orders"
+    ] = max(
+        0,
+        len(theorem_closure_agent_runtime_work_orders)
+        - len(theorem_closure_agent_runtime_executions),
+    )
+    manifest[
+        "theorem_closure_legacy_post_runtime_fallback_used"
+    ] = theorem_closure_legacy_post_runtime_fallback_used
     manifest["theorem_closure_proofengineer_bridge_skipped_reason"] = (
         ""
         if theorem_closure_bridge_manifest is not None
         else (
             "bridge_disabled"
             if not config.theorem_closure_proofengineer_bridge
+            else "agent_runtime_work_order_pending"
+            if theorem_closure_agent_runtime_work_orders
+            else "legacy_post_runtime_execution_disabled"
+            if theorem_reduction_closure_work_order_rows
             else "no_theorem_reduction_closure_work_orders"
         )
     )
@@ -42790,11 +43179,13 @@ def run_research_agent_runtime(
         else ""
     )
     manifest["theorem_closure_proofengineer_bridge_boundary"] = (
-        "The runtime theorem-closure ProofEngineer bridge consumes emitted "
-        "work orders after the current runtime loop and exports separate "
-        "runtime-learning rows for a later run. It does not retroactively "
-        "prove the current run, and it is proof evidence only for closure "
-        "rows whose referenced audit manifest has kernel_verified=true."
+        "The theorem-closure bridge executes only as a typed, budgeted, "
+        "Architect-visible AgentRuntime ProofEngineer child. Postprocessing "
+        "projects its immutable artifacts and performs no verifier side effects. "
+        "Candidate generation and compiler failures return inside the same runtime. "
+        "Only closure rows whose bound local Lean/AXLE audit has "
+        "kernel_verified=true are proof evidence for that exact closure artifact; "
+        "they do not by themselves prove the full source theorem."
     )
     manifest["source_semantic_proofengineer_bridge_requested"] = bool(
         config.source_semantic_proofengineer_bridge
@@ -53273,13 +53664,6 @@ def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
                     text = str(value).strip()
                     if text:
                         bucket.append(text)
-    if not signature_excerpts and artifact_paths:
-        signature_excerpts.extend(
-            _lean_declaration_signature_excerpts_from_artifacts(
-                artifact_paths=artifact_paths,
-                declarations=declarations,
-            )
-        )
     return {
         "work_order_ids": tuple(dict.fromkeys(work_order_ids)),
         "target_ids": tuple(dict.fromkeys(target_ids)),
@@ -53389,64 +53773,6 @@ def _runtime_learning_memory_kernel_verified_source_to_bridge_premise_context(
         "declarations": tuple(dict.fromkeys(declarations)),
         "signature_excerpts": tuple(dict.fromkeys(signature_excerpts)),
     }
-
-
-def _lean_declaration_signature_excerpts_from_artifacts(
-    *,
-    artifact_paths: list[str],
-    declarations: list[str],
-    max_artifacts: int = 3,
-) -> list[str]:
-    excerpts: list[str] = []
-    for index, artifact_path in enumerate(artifact_paths[:max_artifacts]):
-        declaration = declarations[index] if index < len(declarations) else ""
-        excerpt = _lean_declaration_signature_excerpt_from_artifact_path(
-            artifact_path,
-            declaration=declaration,
-        )
-        if excerpt and excerpt not in excerpts:
-            excerpts.append(excerpt)
-    return excerpts
-
-
-def _lean_declaration_signature_excerpt_from_artifact_path(
-    artifact_path: str,
-    *,
-    declaration: str = "",
-    max_lines: int = 40,
-    max_chars: int = 2000,
-) -> str:
-    path_text = str(artifact_path or "").strip()
-    if not path_text or not path_text.endswith(".lean"):
-        return ""
-    try:
-        path = Path(path_text).expanduser()
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-    wanted = str(declaration or "").strip()
-    pattern = (
-        rf"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
-        rf"{re.escape(wanted)}\b"
-        if wanted
-        else r"^\s*(?:noncomputable\s+)?(?:private\s+)?(?:theorem|lemma|def|abbrev)\s+"
-    )
-    lines = text.splitlines()
-    start = -1
-    for index, line in enumerate(lines):
-        if re.search(pattern, line):
-            start = index
-            break
-    if start < 0:
-        return ""
-    excerpt_lines: list[str] = []
-    for line in lines[start : start + max_lines]:
-        if ":=" in line:
-            before, _sep, _after = line.partition(":=")
-            excerpt_lines.append(before.rstrip())
-            break
-        excerpt_lines.append(line.rstrip())
-    return "\n".join(excerpt_lines).strip()[:max_chars]
 
 
 def _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives(
@@ -54402,29 +54728,6 @@ def _runtime_verified_source_to_bridge_premise_signature_excerpts(
             "premise_candidate_signature_excerpt",
         )
     )
-    if not excerpts:
-        artifact_paths = list(
-            _runtime_row_string_values(
-                row,
-                "source_to_bridge_premise_candidate_artifact_path",
-                "premise_candidate_artifact_path",
-                "verified_source_to_bridge_premise_derivation_artifact_paths",
-            )
-        )
-        declarations = list(
-            _runtime_row_string_values(
-                row,
-                "source_to_bridge_premise_candidate_declaration_name",
-                "premise_candidate_declaration_name",
-                "verified_source_to_bridge_premise_derivation_declarations",
-            )
-        )
-        excerpts.extend(
-            _lean_declaration_signature_excerpts_from_artifacts(
-                artifact_paths=artifact_paths,
-                declarations=declarations,
-            )
-        )
     return tuple(dict.fromkeys(excerpts))
 
 
@@ -65564,11 +65867,6 @@ def _deterministic_theorem_closure_proposal_packet(
     target_rows: list[dict[str, Any]] = []
     for goal_id in target_goal_ids:
         safe_goal = _safe_identifier(goal_id or "frontier_theorem")
-        lean_statement_sketch = _deterministic_theorem_closure_lean_statement_sketch(
-            goal_id=goal_id,
-            verified_bridge_ids=verified_bridge_ids,
-        )
-        is_kernel_check_ready = "sorry" not in lean_statement_sketch
         target_rows.append(
             {
                 "id": f"{safe_goal}_reduction_closure",
@@ -65576,13 +65874,29 @@ def _deterministic_theorem_closure_proposal_packet(
                     "Connect the runtime-memory kernel-verified proof-bank bridge "
                     "obligations to the remaining frontier theorem goal."
                 ),
-                "lean_statement_sketch": lean_statement_sketch,
+                "lean_statement_sketch": "",
+                "target_lean_declaration": "",
+                "candidate_generation_required": True,
+                "candidate_generation_request": {
+                    "request_kind": "llm_theorem_reduction_closure_candidate",
+                    "target_theorem_goal_ids": [goal_id],
+                    "verified_bridge_obligation_ids": verified_bridge_ids,
+                    "required_output": (
+                        "A complete exact Lean declaration candidate preserving "
+                        "the theorem goal and assumptions, followed by unchanged "
+                        "local Lean/LSP compiler feedback."
+                    ),
+                    "forbidden_runtime_substitution": (
+                        "Python runtime must not generate a theorem, tactic, "
+                        "placeholder proof, grammar rewrite, or proof-bank body."
+                    ),
+                },
                 "semantic_alignment_constraints": [
                     "Do not strengthen assumptions beyond the source theorem.",
                     "Preserve the theorem goal semantics; bridge obligations are subclaims only.",
                     "Do not treat this work order or sketch as proof evidence until local Lean/AXLE checks it.",
                 ],
-                "expected_status": "KERNEL_CHECK_READY" if is_kernel_check_ready else "OPEN",
+                "expected_status": "FORMAL_GAP",
             }
         )
     packet_id = (
@@ -65603,7 +65917,7 @@ def _deterministic_theorem_closure_proposal_packet(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source_agent": "DeterministicTheoremClosureWorkOrderSeed",
         "provider": "deterministic",
-        "model": "runtime_memory_theorem_closure_seed",
+        "model": "runtime_memory_theorem_closure_work_order_seed",
         "model_tier": "none",
         "question": _question_to_payload(question),
         "proof_evidence_status": "DETERMINISTIC_THEOREM_CLOSURE_PACKET_NOT_PROOF_EVIDENCE",
@@ -65628,16 +65942,13 @@ def _deterministic_theorem_closure_proposal_packet(
         ],
         "proof_search_plan": {
             "preferred_tools": ["local_lean", "lean_lsp_mcp", "formal_source_retriever"],
-            "tactic_or_certificate_hints": [
-                "start from the exported theorem-reduction closure work order",
-                "reuse only kernel-verified bridge obligations from runtime memory",
-            ],
+            "tactic_or_certificate_hints": [],
             "kernel_check_plan": [
                 "materialize a Lean theorem-level reduction with no sorry",
                 "run local Lean or AXLE before claiming proof evidence",
             ],
             "known_blockers": [
-                "the full source theorem may still need exchangeability/order-statistic primitives",
+                "the full source theorem may still need source-specific semantic primitives or dependencies",
             ],
         },
         "proof_bank_obligation_requests": [],
@@ -65666,54 +65977,6 @@ def _deterministic_theorem_closure_proposal_packet(
             }
         ],
     }
-
-
-def _deterministic_theorem_closure_lean_statement_sketch(
-    *,
-    goal_id: str,
-    verified_bridge_ids: list[str],
-) -> str:
-    closure_strategy = _policy_theorem_closure_reduction_strategy_for_goal(
-        goal_id=goal_id,
-        verified_bridge_ids=verified_bridge_ids,
-    )
-    if closure_strategy:
-        obligation_id = closure_strategy["proof_obligation_id"]
-        source_theorem_name = closure_strategy["source_theorem_name"]
-        closure_theorem_name = closure_strategy["closure_theorem_name"]
-        reduction_description = closure_strategy["reduction_description"]
-        obligation = get_obligation(obligation_id)
-        statement = obligation.formal_statement.strip().replace(
-            f"theorem {source_theorem_name}",
-            f"theorem {closure_theorem_name}",
-            1,
-        )
-        candidate = re.sub(
-            r":=\s*by\s+sorry\s*$",
-            ":= " + obligation.proof_body.strip(),
-            statement,
-            flags=re.S,
-        )
-        if "sorry" not in candidate:
-            return (
-                "/-\n"
-                "Deterministic theorem-closure reduction generated from the "
-                f"kernel-verified {obligation_id} proof-bank obligation.\n"
-                f"This proves the {reduction_description} reduction only; exchangeability, "
-                "rank-uniformity, and order-statistic construction remain explicit upstream assumptions.\n"
-                "-/\n"
-                + candidate
-            )
-    safe_goal = _safe_identifier(goal_id or "frontier_theorem")
-    return "\n".join(
-        [
-            f"theorem {safe_goal}_reduction_closure :",
-            "    True := by",
-            "  -- Replace this placeholder with the theorem-level reduction",
-            "  -- from the verified bridge obligations to the source theorem.",
-            "  sorry",
-        ]
-    )
 
 
 def _pseudo_formal_packet_validation_quarantine_required_repair(
@@ -66089,11 +66352,25 @@ def _formalizer_theorem_reduction_closure_work_orders(
         )
         if not target_id or not is_closure_target:
             continue
+        lean_statement_sketch = str(
+            target.get("lean_statement_sketch", "") or ""
+        )
+        candidate_source_hash = (
+            stable_hash(lean_statement_sketch) if lean_statement_sketch else ""
+        )
         work_order = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "TheoremReductionClosureWorkOrder",
             "work_order_id": "theorem_reduction_closure_work_order:"
-            + stable_hash([target_id, remaining_goal_ids, verified_bridge_ids])[:20],
+            + stable_hash(
+                [
+                    target_id,
+                    remaining_goal_ids,
+                    verified_bridge_ids,
+                    str(proposal_packet.get("packet_id", "") or ""),
+                    candidate_source_hash,
+                ]
+            )[:20],
             "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "")),
             "source_formal_target_id": target_id,
             "target_theorem_goal_ids": remaining_goal_ids,
@@ -66107,7 +66384,23 @@ def _formalizer_theorem_reduction_closure_work_orders(
                 or []
                 if str(row).strip()
             ],
-            "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
+            "target_lean_declaration": str(
+                target.get("target_lean_declaration", "") or ""
+            ),
+            "lean_statement_sketch": lean_statement_sketch,
+            "candidate_source_hash": candidate_source_hash,
+            "candidate_bytes_preserved": True,
+            "candidate_generation_required": not bool(
+                lean_statement_sketch.strip()
+            ),
+            "candidate_generation_request": dict(
+                target.get("candidate_generation_request", {})
+                if isinstance(
+                    target.get("candidate_generation_request", {}),
+                    Mapping,
+                )
+                else {}
+            ),
             "informal_source": str(target.get("informal_source", "") or ""),
             "semantic_alignment_constraints": [
                 str(row)
@@ -73715,6 +74008,142 @@ def _runtime_theorem_reduction_closure_work_order_rows(
                     by_work_order_id[work_order_id] = len(rows)
                 rows.append(row)
     return rows
+
+
+def _runtime_theorem_reduction_closure_agent_runtime_artifacts(
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    work_orders: list[dict[str, Any]] = []
+    executions: list[dict[str, Any]] = []
+    seen_work_orders: set[str] = set()
+    seen_executions: set[str] = set()
+    for result in results:
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind == THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND:
+                artifact_id = str(
+                    artifact.get("work_order_id", "") or ""
+                )
+                if artifact_id and artifact_id not in seen_work_orders:
+                    seen_work_orders.add(artifact_id)
+                    work_orders.append(dict(artifact))
+            elif kind == THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND:
+                artifact_id = str(artifact.get("manifest_id", "") or "")
+                if artifact_id and artifact_id not in seen_executions:
+                    seen_executions.add(artifact_id)
+                    executions.append(dict(artifact))
+    return work_orders, executions
+
+
+def _runtime_aggregate_theorem_reduction_closure_executions(
+    executions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    rows = [dict(row) for row in executions if isinstance(row, Mapping)]
+    if not rows:
+        return None
+    if len(rows) == 1:
+        aggregate = dict(rows[0])
+        aggregate["runtime_execution_mode"] = "agent_runtime_typed_worker"
+        aggregate["n_agent_runtime_execution_manifests"] = 1
+        return aggregate
+    learning_paths = list(
+        dict.fromkeys(
+            str(row.get("runtime_learning_rows_jsonl", "") or "")
+            for row in rows
+            if str(row.get("runtime_learning_rows_jsonl", "") or "")
+        )
+    )
+    audit_paths = list(
+        dict.fromkeys(
+            str(row.get("audit_manifest", "") or "")
+            for row in rows
+            if str(row.get("audit_manifest", "") or "")
+        )
+    )
+    bridge_paths = list(
+        dict.fromkeys(
+            str(row.get("bridge_manifest_path", "") or "")
+            for row in rows
+            if str(row.get("bridge_manifest_path", "") or "")
+        )
+    )
+    embedded_learning_rows = [
+        dict(learning_row)
+        for row in rows
+        for learning_row in row.get("runtime_learning_rows", []) or []
+        if isinstance(learning_row, Mapping)
+    ]
+    n_work_orders = sum(
+        int(row.get("n_work_orders", 0) or 0) for row in rows
+    )
+    n_kernel_verified = sum(
+        int(row.get("n_kernel_verified", 0) or 0) for row in rows
+    )
+    all_kernel_verified = bool(
+        n_work_orders
+        and n_kernel_verified == n_work_orders
+        and all(_bool_like(row.get("all_kernel_verified", False)) for row in rows)
+    )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": (
+            "RuntimeTheoremReductionClosureProofEngineerExecutionAggregate"
+        ),
+        "manifest_id": (
+            "runtime_theorem_reduction_closure_execution_aggregate:"
+            + stable_hash(rows)[:20]
+        ),
+        "runtime_execution_mode": "agent_runtime_typed_worker",
+        "n_agent_runtime_execution_manifests": len(rows),
+        "agent_runtime_execution_manifest_ids": [
+            str(row.get("manifest_id", "") or "") for row in rows
+        ],
+        "runtime_learning_rows_jsonl": learning_paths[0]
+        if learning_paths
+        else "",
+        "runtime_learning_rows_jsonl_paths": learning_paths,
+        "runtime_learning_rows": embedded_learning_rows,
+        "n_runtime_learning_rows": len(embedded_learning_rows),
+        "audit_manifest": audit_paths[0] if audit_paths else "",
+        "audit_manifests": audit_paths,
+        "bridge_manifest_path": bridge_paths[0] if bridge_paths else "",
+        "bridge_manifest_paths": bridge_paths,
+        "n_work_orders": n_work_orders,
+        "n_kernel_verified": n_kernel_verified,
+        "all_kernel_verified": all_kernel_verified,
+        "runtime_learning_ready": n_kernel_verified > 0,
+        "source_work_order_ids": list(
+            dict.fromkeys(
+                str(value)
+                for row in rows
+                for value in row.get("source_work_order_ids", []) or []
+                if str(value)
+            )
+        ),
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_THEOREM_CLOSURE_PRESENT"
+            if n_kernel_verified
+            else "THEOREM_REDUCTION_CLOSURE_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "This aggregate projects typed AgentRuntime ProofEngineer child "
+            "executions. It performs no bridge or verifier work. Only the "
+            "referenced local Lean/AXLE kernel-verified rows are proof evidence."
+        ),
+    }
 
 
 def _runtime_source_theorem_semantic_primitive_work_order_rows(
@@ -84058,7 +84487,6 @@ RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_LIVE_ROUTE_BLOCKED_WITHOUT_FEEDBACK = (
 )
 
 RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS: tuple[str, ...] = (
-    "theorem_closure_proofengineer_bridge",
     "source_semantic_proofengineer_bridge",
     "source_theorem_proof_body_adapter_proofengineer_bridge",
     "source_to_bridge_premise_derivation_proofengineer_bridge",
@@ -87028,6 +87456,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "has_formalizer_proof_state_structural_replan_loop": False,
         "formalizer_lean_candidate_materialization_manifest_paths": [],
         "n_theorem_reduction_closure_work_orders": 0,
+        "n_theorem_reduction_closure_agent_runtime_work_orders": 0,
+        "n_theorem_reduction_closure_agent_runtime_executions": 0,
+        "n_theorem_reduction_closure_agent_runtime_kernel_verified": 0,
+        "n_theorem_reduction_closure_agent_runtime_generation_requests": 0,
         "n_full_frontier_raw_theorem_proved_claims": 0,
         "n_full_frontier_target_bound_kernel_verified": 0,
         "n_full_frontier_theorem_proved": 0,
@@ -87575,6 +88007,32 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         )
                         if strength:
                             strengths.add(strength)
+            elif kind == THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND:
+                proof[
+                    "n_theorem_reduction_closure_agent_runtime_work_orders"
+                ] += 1
+            elif kind == THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND:
+                proof[
+                    "n_theorem_reduction_closure_agent_runtime_executions"
+                ] += 1
+                if (
+                    _bool_like(
+                        artifact.get("execution_contract_satisfied", False)
+                    )
+                    and _bool_like(artifact.get("all_kernel_verified", False))
+                ):
+                    proof[
+                        "n_theorem_reduction_closure_agent_runtime_kernel_verified"
+                    ] += int(artifact.get("n_kernel_verified", 0) or 0)
+                    verifier_names.add(
+                        "local.theorem_reduction_closure_agent_runtime"
+                    )
+            elif kind == (
+                THEOREM_REDUCTION_CLOSURE_RUNTIME_GENERATION_REQUEST_KIND
+            ):
+                proof[
+                    "n_theorem_reduction_closure_agent_runtime_generation_requests"
+                ] += 1
             elif kind == "FormalizerProofEngineerProposalPacket":
                 proposal_id = str(artifact.get("packet_id", "") or "").strip()
                 if proposal_id:
