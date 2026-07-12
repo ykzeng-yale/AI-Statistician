@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import textwrap
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
+from uuid import uuid4
 
 from .fingerprint import stable_hash
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
@@ -34,6 +36,15 @@ ARTIFACT_KERNEL_NOT_SOURCE_STATUS = (
     "EXACT_SOURCE_THEOREM_PROOF_BODY_ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM"
 )
 SOURCE_KERNEL_STATUS = "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+EXTERNAL_CANDIDATE_KERNEL_STATUS = (
+    "EXTERNAL_PROOF_CANDIDATE_EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+)
+EXTERNAL_CANDIDATE_ARTIFACT_KERNEL_STATUS = (
+    "EXTERNAL_PROOF_CANDIDATE_ARTIFACT_KERNEL_VERIFIED_NOT_SOURCE_THEOREM"
+)
+EXTERNAL_CANDIDATE_NOT_PROOF_STATUS = (
+    "EXTERNAL_PROOF_CANDIDATE_RERUN_NOT_PROOF_EVIDENCE"
+)
 SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED_FAILURE = (
     "source_theorem_candidate_materialization_required"
 )
@@ -44,10 +55,13 @@ SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_CONTRACT = (
 )
 PROOF_EVIDENCE_BOUNDARY = (
     "Exact source-theorem proof-body executor rows materialize ProofEngineer "
-    "candidate artifacts and run optional local Lean/AXLE checks. A compiled "
-    "candidate is source-theorem proof evidence only when the exact declaration "
-    "passes Lean/AXLE and the formal environment has no placeholder primitives "
-    "or unresolved semantic repairs."
+    "candidate artifacts from the source prefix environment plus the exact target "
+    "declaration and run optional local Lean/AXLE checks. Commands after the target "
+    "are content-hash-bound lineage but are intentionally outside the theorem's "
+    "visible elaboration environment and are not claimed to compile. A candidate "
+    "is source-theorem proof evidence only when the exact declaration passes "
+    "Lean/AXLE and the prefix environment has no placeholder primitives or "
+    "unresolved semantic repairs."
 )
 DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS = (
     "assumption",
@@ -55,6 +69,481 @@ DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS = (
     "simp",
     "exact True.intro",
 )
+
+
+def execute_external_exact_source_theorem_proof_candidates(
+    *,
+    request: Mapping[str, Any],
+    provider_result: Mapping[str, Any],
+    out_dir: Path,
+    local_lean: bool = False,
+    lean_project: str | Path | None = None,
+    lean_timeout: int = 90,
+    lean_command: tuple[str, ...] | None = None,
+    local_lean_runner: Callable[..., tuple[bool, int, tuple[str, ...]]] | None = None,
+    max_candidates: int = 4,
+) -> dict[str, object]:
+    """Materialize external proof bodies against the preserved exact declaration.
+
+    The external provider remains proposal/search infrastructure. Source-theorem
+    evidence is emitted only when the original lineage-bound declaration is
+    preserved and the resulting artifact passes this process's local Lean gate.
+    """
+
+    request_payload = dict(request)
+    result_payload = dict(provider_result)
+    request_fingerprint = str(
+        request_payload.get("request_fingerprint", "") or ""
+    )
+    target_declaration = str(
+        request_payload.get("target_lean_declaration", "") or ""
+    ).strip()
+    target_statement = str(
+        request_payload.get("target_theorem_statement", "") or ""
+    ).strip()
+    target_ids = _str_tuple(request_payload.get("target_ids", []))
+    source_candidate_path_text = str(
+        request_payload.get("lineage_candidate_artifact_path", "")
+        or request_payload.get("source_candidate_artifact_path", "")
+        or request_payload.get("candidate_artifact_path", "")
+        or ""
+    )
+    source_candidate_path = Path(source_candidate_path_text)
+    proof_bodies = _external_proof_candidate_bodies(
+        result_payload,
+        max_candidates=max_candidates,
+    )
+    project_path = Path(lean_project) if lean_project else None
+    command = lean_command or _lean_command(project_path)
+    runner = local_lean_runner or _run_local_lean
+
+    source = ""
+    source_errors: list[str] = []
+    if not request_fingerprint:
+        source_errors.append("request_fingerprint missing")
+    provider_fingerprint = str(
+        result_payload.get("request_fingerprint", "") or ""
+    )
+    if provider_fingerprint != request_fingerprint:
+        source_errors.append("provider result request_fingerprint mismatch")
+    provider_target = str(
+        result_payload.get("target_lean_declaration", "") or ""
+    ).strip()
+    if provider_target != target_declaration:
+        source_errors.append("provider result target_lean_declaration mismatch")
+    if not target_declaration:
+        source_errors.append("target_lean_declaration missing")
+    if not target_statement:
+        source_errors.append("target_theorem_statement missing")
+    if not source_candidate_path_text:
+        source_errors.append("lineage-bound candidate artifact path missing")
+    elif not source_candidate_path.is_file():
+        source_errors.append(
+            f"lineage-bound candidate artifact missing: {source_candidate_path}"
+        )
+    else:
+        try:
+            source = source_candidate_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            source_errors.append(
+                "failed to read lineage-bound candidate artifact: "
+                f"{type(exc).__name__}: {exc}"
+            )
+    observed_statement = _external_exact_target_statement(
+        source,
+        target_declaration=target_declaration,
+    )
+    exact_target_span = _exact_target_statement_span(
+        source,
+        target_declaration=target_declaration,
+        target_statement=target_statement,
+    )
+    if source and not observed_statement:
+        source_errors.append(
+            "lineage-bound candidate artifact lacks the exact target declaration proof"
+        )
+    elif observed_statement and _normalized_lean_signature(
+        observed_statement
+    ) != _normalized_lean_signature(target_statement):
+        source_errors.append(
+            "lineage-bound candidate theorem signature differs from "
+            "target_theorem_statement"
+        )
+    if source and exact_target_span is None:
+        source_errors.append(
+            "target_theorem_statement is not the exact byte-preserved declaration "
+            "header immediately followed by `:= by`"
+        )
+    exact_target_prefix_hash = stable_hash(
+        source[: exact_target_span[0]] if exact_target_span is not None else ""
+    )
+    source_after_exact_target_marker_hash = stable_hash(
+        source[exact_target_span[2] :] if exact_target_span is not None else ""
+    )
+    source_errors.extend(
+        _external_candidate_lineage_errors(
+            request_payload,
+            source=source,
+            observed_statement=observed_statement,
+            target_declaration=target_declaration,
+            target_statement=target_statement,
+            source_candidate_path=source_candidate_path,
+        )
+    )
+
+    run_started_at = datetime.now(timezone.utc).isoformat()
+    source_candidate_artifact_hash = stable_hash(source)
+    provider_result_fingerprint = stable_hash(result_payload)
+    verification_config_fingerprint = stable_hash(
+        {
+            "local_lean": bool(local_lean),
+            "lean_command": list(command),
+            "lean_project": str(project_path or ""),
+            "lean_timeout": max(1, int(lean_timeout or 90)),
+            "runner": (
+                f"{getattr(runner, '__module__', '')}."
+                f"{getattr(runner, '__qualname__', type(runner).__qualname__)}"
+            ),
+        }
+    )
+    input_fingerprint = stable_hash(
+        {
+            "request_fingerprint": request_fingerprint,
+            "request_lineage": {
+                key: request_payload.get(key)
+                for key in (
+                    "source_work_order_id",
+                    "execution_queue_id",
+                    "lineage_candidate_artifact_path",
+                    "lineage_candidate_artifact_hash",
+                    "target_declaration_source_hash",
+                    "target_theorem_statement_hash",
+                    "proof_body_signature_probe_artifact_path",
+                )
+            },
+            "target_declaration": target_declaration,
+            "target_statement": target_statement,
+            "source_candidate_artifact_hash": source_candidate_artifact_hash,
+            "provider_result_fingerprint": provider_result_fingerprint,
+            "proof_bodies": proof_bodies,
+            "verification_config_fingerprint": verification_config_fingerprint,
+        }
+    )
+    execution_fingerprint = stable_hash(
+        [input_fingerprint, run_started_at, uuid4().hex]
+    )
+    run_key = f"{input_fingerprint[:20]}/{execution_fingerprint[:20]}"
+    artifact_dir = Path(out_dir) / run_key
+    artifact_dir.mkdir(parents=True, exist_ok=False)
+    execution_id = (
+        "external_exact_proof_candidate_rerun_execution:"
+        + execution_fingerprint[:20]
+    )
+    manifest_id = "external_exact_proof_candidate_rerun:" + execution_fingerprint[:20]
+    manifest_path = artifact_dir / "external_exact_proof_candidate_rerun_manifest.json"
+    rows_path = artifact_dir / "external_exact_proof_candidate_rerun_rows.jsonl"
+
+    evidence_blockers = _external_candidate_source_evidence_blockers(
+        request_payload,
+        target_ids=target_ids,
+        target_declaration=target_declaration,
+    )
+    rows: list[dict[str, object]] = []
+    safe_target = re.sub(r"[^A-Za-z0-9_.-]+", "_", target_declaration).strip("_")
+    safe_target = safe_target or "exact_source_theorem"
+    for index, raw_body in enumerate(proof_bodies, start=1):
+        body = _normalize_external_proof_body(raw_body)
+        precheck_errors = [
+            *source_errors,
+            *_external_proof_body_contract_errors(body),
+        ]
+        candidate_source = ""
+        materialized_support_asset_names: tuple[str, ...] = ()
+        materialized_support_asset_hashes: tuple[str, ...] = ()
+        candidate_path = artifact_dir / f"{index:03d}_{safe_target}.lean"
+        candidate_written = False
+        if not precheck_errors:
+            (
+                candidate_source,
+                materialized_support_asset_names,
+                materialized_support_asset_hashes,
+                materialization_errors,
+            ) = materialize_external_exact_source_candidate(
+                source=source,
+                proof_body=body,
+                support_assets=result_payload.get(
+                    "verified_support_assets",
+                    [],
+                ),
+                target_declaration=target_declaration,
+                target_statement=target_statement,
+            )
+            precheck_errors.extend(materialization_errors)
+            materialized_statement = _external_exact_target_statement(
+                candidate_source,
+                target_declaration=target_declaration,
+            )
+            if candidate_source and _normalized_lean_signature(
+                materialized_statement
+            ) != _normalized_lean_signature(target_statement):
+                precheck_errors.append(
+                    "materialized candidate did not preserve target_theorem_statement"
+                )
+        else:
+            materialized_statement = ""
+        exact_signature_preserved = bool(
+            materialized_statement
+            and _normalized_lean_signature(materialized_statement)
+            == _normalized_lean_signature(target_statement)
+        )
+        if candidate_source and not precheck_errors:
+            candidate_path.write_text(candidate_source, encoding="utf-8")
+            candidate_written = True
+
+        checked = False
+        compiled = False
+        returncode = -1
+        diagnostics: tuple[str, ...] = ()
+        candidate_artifact_hash = ""
+        candidate_artifact_unchanged_after_verification = candidate_written
+        if local_lean and not command:
+            diagnostics = ("Lean executable not found",)
+        elif local_lean and not precheck_errors:
+            checked = True
+            compiled, returncode, diagnostics = runner(
+                candidate_path,
+                lean_command=command,
+                lean_project=project_path,
+                timeout_s=max(1, int(lean_timeout or 90)),
+            )
+            diagnostics = tuple(str(value) for value in diagnostics)
+        if candidate_written:
+            try:
+                persisted_candidate_source = candidate_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                persisted_candidate_source = ""
+                candidate_artifact_unchanged_after_verification = False
+                diagnostics = (
+                    *diagnostics,
+                    "candidate artifact unreadable after local Lean verification: "
+                    f"{type(exc).__name__}: {exc}",
+                )
+            else:
+                candidate_artifact_hash = stable_hash(persisted_candidate_source)
+                candidate_artifact_unchanged_after_verification = (
+                    persisted_candidate_source == candidate_source
+                )
+            if not candidate_artifact_unchanged_after_verification:
+                compiled = False
+                diagnostics = (
+                    *diagnostics,
+                    "candidate artifact changed during local Lean verification",
+                )
+        artifact_kernel_verified = bool(
+            checked
+            and compiled
+            and candidate_artifact_unchanged_after_verification
+            and not precheck_errors
+        )
+        source_theorem_kernel_verified = bool(
+            artifact_kernel_verified and not evidence_blockers
+        )
+        if source_theorem_kernel_verified:
+            status = "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+            proof_status = EXTERNAL_CANDIDATE_KERNEL_STATUS
+        elif artifact_kernel_verified:
+            status = "ARTIFACT_KERNEL_VERIFIED_LINEAGE_BLOCKED"
+            proof_status = EXTERNAL_CANDIDATE_ARTIFACT_KERNEL_STATUS
+        elif precheck_errors:
+            status = "CANDIDATE_PRECHECK_REJECTED"
+            proof_status = EXTERNAL_CANDIDATE_NOT_PROOF_STATUS
+        elif checked:
+            status = "LOCAL_LEAN_FAILED"
+            proof_status = EXTERNAL_CANDIDATE_NOT_PROOF_STATUS
+        else:
+            status = "MATERIALIZED_REQUIRES_LOCAL_LEAN"
+            proof_status = EXTERNAL_CANDIDATE_NOT_PROOF_STATUS
+        rows.append(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "artifact_kind": "ExternalExactProofCandidateRerunRow",
+                "row_id": "external_exact_proof_candidate_rerun_row:"
+                + stable_hash([manifest_id, index, body])[:20],
+                "candidate_index": index,
+                "candidate_proof_body": body,
+                "candidate_proof_body_hash": stable_hash(body),
+                "request_fingerprint": request_fingerprint,
+                "input_fingerprint": input_fingerprint,
+                "execution_id": execution_id,
+                "question_id": str(request_payload.get("question_id", "") or ""),
+                "source_task_id": str(
+                    request_payload.get("source_task_id", "") or ""
+                ),
+                "source_work_order_id": str(
+                    request_payload.get("source_work_order_id", "") or ""
+                ),
+                "execution_queue_id": str(
+                    request_payload.get("execution_queue_id", "") or ""
+                ),
+                "source_lineage_id": str(
+                    request_payload.get("source_lineage_id", "") or ""
+                ),
+                "materialized_verified_support_asset_names": list(
+                    materialized_support_asset_names
+                ),
+                "materialized_verified_support_asset_hashes": list(
+                    materialized_support_asset_hashes
+                ),
+                "source_candidate_artifact_path": source_candidate_path_text,
+                "source_candidate_artifact_hash": (
+                    source_candidate_artifact_hash
+                ),
+                "candidate_artifact_path": str(candidate_path) if candidate_written else "",
+                "candidate_artifact_hash": (
+                    candidate_artifact_hash
+                ),
+                "candidate_artifact_unchanged_after_verification": (
+                    candidate_artifact_unchanged_after_verification
+                ),
+                "target_ids": list(target_ids),
+                "target_lean_declaration": target_declaration,
+                "target_theorem_statement": target_statement,
+                "verification_scope": (
+                    "source_prefix_environment_plus_exact_target_declaration"
+                ),
+                "exact_target_prefix_hash": exact_target_prefix_hash,
+                "source_after_exact_target_marker_hash": (
+                    source_after_exact_target_marker_hash
+                ),
+                "source_suffix_commands_executed": False,
+                "exact_signature_preserved": exact_signature_preserved,
+                "precheck_errors": precheck_errors,
+                "source_theorem_evidence_blockers": list(evidence_blockers),
+                "local_lean_requested": bool(local_lean),
+                "local_lean_checked": checked,
+                "local_lean_compiled": compiled,
+                "lean_command": list(command),
+                "lean_project": str(project_path or ""),
+                "lean_timeout": max(1, int(lean_timeout or 90)),
+                "returncode": returncode,
+                "diagnostics": list(diagnostics)[:24],
+                "artifact_kernel_verified": artifact_kernel_verified,
+                "source_theorem_kernel_verified": (
+                    source_theorem_kernel_verified
+                ),
+                "verification_strength": (
+                    "local_lean_exact_external_whole_proof_candidate_kernel"
+                    if checked
+                    else "deterministic_exact_candidate_materialization"
+                ),
+                "proof_evidence_status": proof_status,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                "status": status,
+            }
+        )
+        if source_theorem_kernel_verified:
+            break
+
+    rows_path.write_text(
+        "".join(json.dumps(row, default=str) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    verified_rows = [
+        row for row in rows if row["source_theorem_kernel_verified"] is True
+    ]
+    compiled_rows = [
+        row for row in rows if row["local_lean_compiled"] is True
+    ]
+    manifest: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_kind": "RuntimeExternalExactProofCandidateRerunManifest",
+        "manifest_id": manifest_id,
+        "execution_id": execution_id,
+        "created_at": run_started_at,
+        "input_fingerprint": input_fingerprint,
+        "provider_result_fingerprint": provider_result_fingerprint,
+        "verification_config_fingerprint": verification_config_fingerprint,
+        "request_fingerprint": request_fingerprint,
+        "question_id": str(request_payload.get("question_id", "") or ""),
+        "source_task_id": str(request_payload.get("source_task_id", "") or ""),
+        "source_lineage_id": str(
+            request_payload.get("source_lineage_id", "") or ""
+        ),
+        "source_work_order_id": str(
+            request_payload.get("source_work_order_id", "") or ""
+        ),
+        "execution_queue_id": str(
+            request_payload.get("execution_queue_id", "") or ""
+        ),
+        "provider": str(result_payload.get("provider", "") or ""),
+        "provider_result_id": str(result_payload.get("result_id", "") or ""),
+        "target_ids": list(target_ids),
+        "target_lean_declaration": target_declaration,
+        "target_theorem_statement": target_statement,
+        "verification_scope": (
+            "source_prefix_environment_plus_exact_target_declaration"
+        ),
+        "exact_target_prefix_hash": exact_target_prefix_hash,
+        "source_after_exact_target_marker_hash": (
+            source_after_exact_target_marker_hash
+        ),
+        "source_suffix_commands_executed": False,
+        "source_candidate_artifact_path": source_candidate_path_text,
+        "source_candidate_artifact_hash": source_candidate_artifact_hash,
+        "proof_body_signature_probe_artifact_path": str(
+            request_payload.get(
+                "proof_body_signature_probe_artifact_path",
+                "",
+            )
+            or ""
+        ),
+        "proof_body_signature_probe_artifact_hash": str(
+            request_payload.get(
+                "proof_body_signature_probe_artifact_hash",
+                "",
+            )
+            or ""
+        ),
+        "source_precheck_errors": source_errors,
+        "manifest_path": str(manifest_path),
+        "rows_path": str(rows_path),
+        "rows": rows,
+        "n_candidate_proof_bodies": len(proof_bodies),
+        "n_result_rows": len(rows),
+        "n_precheck_rejected": sum(
+            1 for row in rows if row["status"] == "CANDIDATE_PRECHECK_REJECTED"
+        ),
+        "n_local_lean_checked": sum(
+            1 for row in rows if row["local_lean_checked"] is True
+        ),
+        "n_local_lean_compiled": len(compiled_rows),
+        "n_artifact_kernel_verified": sum(
+            1 for row in rows if row["artifact_kernel_verified"] is True
+        ),
+        "n_source_theorem_kernel_verified": len(verified_rows),
+        "source_theorem_kernel_verified": bool(verified_rows),
+        "source_theorem_kernel_verified_target_ids": (
+            list(target_ids) if verified_rows else []
+        ),
+        "source_theorem_kernel_verified_target_names": (
+            [target_declaration] if verified_rows else []
+        ),
+        "local_lean_requested": bool(local_lean),
+        "full_frontier_theorem_proved": False,
+        "proof_evidence_status": (
+            EXTERNAL_CANDIDATE_KERNEL_STATUS
+            if verified_rows
+            else EXTERNAL_CANDIDATE_ARTIFACT_KERNEL_STATUS
+            if compiled_rows
+            else EXTERNAL_CANDIDATE_NOT_PROOF_STATUS
+        ),
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, default=str),
+        encoding="utf-8",
+    )
+    return manifest
 
 
 def _bool_like(value: Any, *, default: bool = False) -> bool:
@@ -866,6 +1355,28 @@ def _execution_result_row(
         proof_body_attempt_summaries=proof_body_attempt_summaries,
         semantic_alignment_constraints=semantic_alignment_constraints,
         semantic_alignment_blockers=semantic_alignment_blockers,
+        source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_identity_status=(
+            source_theorem_target_identity_status
+        ),
+        source_theorem_target_provenance=source_theorem_target_provenance,
+        expected_target_lean_declaration=expected_target_lean_declaration,
+        source_work_order_id=source_work_order_id,
+        execution_queue_id=execution_queue_id,
+        signature_probe_artifact_path=signature_probe_artifact_path,
+        source_theorem_signature_probe_artifact_path=(
+            source_theorem_signature_probe_artifact_path
+        ),
+        proof_body_signature_probe_artifact_path=(
+            proof_body_signature_probe_artifact_path
+        ),
+        target_identity_status=target_identity_status,
+        target_identity_errors=target_identity_errors,
+        source_theorem_kernel_evidence_eligible=(
+            source_theorem_kernel_evidence_eligible
+        ),
+        formal_environment_placeholder_symbols=placeholder_symbols,
+        formal_environment_typeclass_blockers=typeclass_blockers,
     )
     if candidate_live_request and proofengineer_repair_context:
         candidate_live_request["proofengineer_repair_context"] = (
@@ -1407,28 +1918,824 @@ def _compact_diagnostic_line(line: str, *, max_len: int) -> str:
     return cleaned[:12] + "..." + cleaned[-keep_tail:]
 
 
+def _external_proof_candidate_bodies(
+    provider_result: Mapping[str, Any],
+    *,
+    max_candidates: int,
+) -> tuple[str, ...]:
+    raw = provider_result.get("source_theorem_candidate_proof_bodies", [])
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    bodies: list[str] = []
+    for value in raw:
+        body = str(value or "").strip()
+        if body and body not in bodies:
+            bodies.append(body)
+        if len(bodies) >= max(0, int(max_candidates)):
+            break
+    return tuple(bodies)
+
+
+def _normalize_external_proof_body(source: str) -> str:
+    body = textwrap.dedent(str(source or "")).strip()
+    if body.startswith(":= by"):
+        body = body[len(":= by") :].strip()
+    if body == "by":
+        return ""
+    if body.startswith("by\n"):
+        body = textwrap.dedent(body.split("\n", 1)[1]).strip()
+    elif body.startswith("by "):
+        body = body[3:].strip()
+    return body
+
+
+def _external_proof_body_contract_errors(body: str) -> list[str]:
+    errors: list[str] = []
+    if not body:
+        errors.append("external proof candidate body is empty")
+        return errors
+    if len(body) > 20000:
+        errors.append("external proof candidate body exceeds 20000 characters")
+    forbidden = [
+        token
+        for token in FORBIDDEN_ARTIFACT_TOKENS
+        if re.search(r"\b" + re.escape(token) + r"\b", body, flags=re.I)
+    ]
+    if forbidden:
+        errors.append(
+            "external proof candidate contains forbidden tokens: "
+            + ", ".join(forbidden)
+        )
+    if re.search(r"\b(?:by|exact)\?", body):
+        errors.append("external proof candidate contains an interactive proof hole")
+    if "```" in body:
+        errors.append("external proof candidate contains fenced markdown")
+    if re.search(
+        r"(?m)^\s*(?:import|theorem|lemma|def|abbrev|opaque|instance|"
+        r"axiom|constant|structure|class|inductive|namespace|section|end|"
+        r"example|notation|infix|prefix|postfix|open|attribute|set_option|"
+        r"macro|syntax|elab)\b",
+        body,
+    ):
+        errors.append(
+            "external proof candidate must be a proof body, not a declaration or module"
+        )
+    if re.search(r"(?m)^\s*#", body):
+        errors.append("external proof candidate contains a command elaborator")
+    if re.search(r"\brun_tac\b|\bIO\.(?:FS|Process)\b", body):
+        errors.append(
+            "external proof candidate contains a compile-time side-effect primitive"
+        )
+    return errors
+
+
+def _external_exact_target_statement(
+    source: str,
+    *,
+    target_declaration: str,
+) -> str:
+    block = _extract_lean_declaration_block(source, target_declaration)
+    if not block:
+        return ""
+    proof_marker = _lean_top_level_proof_marker_span(block)
+    if proof_marker is None:
+        return ""
+    return block[: proof_marker[0]].rstrip()
+
+
+def _lean_top_level_proof_marker_span(source: str) -> tuple[int, int] | None:
+    paren_depth = 0
+    bracket_depth = 0
+    brace_depth = 0
+    block_comment_depth = 0
+    in_line_comment = False
+    in_string = False
+    escaped = False
+    index = 0
+    while index < len(source):
+        char = source[index]
+        next_char = source[index + 1] if index + 1 < len(source) else ""
+        if in_line_comment:
+            if char == "\n":
+                in_line_comment = False
+            index += 1
+            continue
+        if block_comment_depth > 0:
+            if char == "/" and next_char == "-":
+                block_comment_depth += 1
+                index += 2
+                continue
+            if char == "-" and next_char == "/":
+                block_comment_depth -= 1
+                index += 2
+                continue
+            index += 1
+            continue
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == "-" and next_char == "-":
+            in_line_comment = True
+            index += 2
+            continue
+        if char == "/" and next_char == "-":
+            block_comment_depth = 1
+            index += 2
+            continue
+        if char == '"':
+            in_string = True
+            index += 1
+            continue
+        if char == "(":
+            paren_depth += 1
+        elif char == ")":
+            paren_depth = max(0, paren_depth - 1)
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth = max(0, brace_depth - 1)
+        elif (
+            char == ":"
+            and next_char == "="
+            and paren_depth == 0
+            and bracket_depth == 0
+            and brace_depth == 0
+        ):
+            body_start = index + 2
+            while body_start < len(source) and source[body_start].isspace():
+                body_start += 1
+            if source.startswith("by", body_start) and (
+                body_start + 2 == len(source)
+                or not (
+                    source[body_start + 2].isalnum()
+                    or source[body_start + 2] in {"_", "'"}
+                )
+            ):
+                return index, body_start + 2
+        index += 1
+    return None
+
+
+def _exact_target_statement_span(
+    source: str,
+    *,
+    target_declaration: str,
+    target_statement: str,
+) -> tuple[int, int, int] | None:
+    if not source or not target_declaration or not target_statement:
+        return None
+    declaration_span = _lean_declaration_span(source, target_declaration)
+    if declaration_span is None:
+        return None
+    declaration_start, _ = declaration_span
+    statement_start = declaration_start
+    while statement_start < len(source) and source[statement_start] in {" ", "\t"}:
+        statement_start += 1
+    statement = target_statement.rstrip()
+    if source[statement_start : statement_start + len(statement)] != statement:
+        return None
+    statement_end = statement_start + len(statement)
+    marker_start = statement_end
+    while marker_start < len(source) and source[marker_start].isspace():
+        marker_start += 1
+    if not source.startswith(":=", marker_start):
+        return None
+    body_start = marker_start + 2
+    while body_start < len(source) and source[body_start].isspace():
+        body_start += 1
+    if not source.startswith("by", body_start) or (
+        body_start + 2 < len(source)
+        and (
+            source[body_start + 2].isalnum()
+            or source[body_start + 2] in {"_", "'"}
+        )
+    ):
+        return None
+    return statement_start, statement_end, body_start + 2
+
+
+def _normalized_lean_signature(source: str) -> str:
+    return re.sub(r"\s+", " ", str(source or "").strip())
+
+
+def _external_source_lineage_id(payload: Mapping[str, Any]) -> str:
+    return "source_theorem_lineage:" + stable_hash(dict(payload))[:20]
+
+
+def _external_candidate_lineage_errors(
+    request: Mapping[str, Any],
+    *,
+    source: str,
+    observed_statement: str,
+    target_declaration: str,
+    target_statement: str,
+    source_candidate_path: Path,
+) -> list[str]:
+    errors: list[str] = []
+    expected_declaration = str(
+        request.get("expected_target_lean_declaration", "") or ""
+    )
+    if expected_declaration != target_declaration:
+        errors.append(
+            "expected_target_lean_declaration does not bind the exact declaration"
+        )
+    source_work_order_id = str(request.get("source_work_order_id", "") or "")
+    execution_queue_id = str(request.get("execution_queue_id", "") or "")
+    if not str(request.get("question_id", "") or ""):
+        errors.append("question_id missing")
+    if not str(request.get("source_task_id", "") or ""):
+        errors.append("source_task_id missing")
+    if not source_work_order_id:
+        errors.append("source_work_order_id missing")
+    if not execution_queue_id:
+        errors.append("execution_queue_id missing")
+
+    lineage_path_text = str(
+        request.get("lineage_candidate_artifact_path", "") or ""
+    )
+    if not lineage_path_text:
+        errors.append("lineage_candidate_artifact_path missing")
+    else:
+        try:
+            lineage_path = Path(lineage_path_text).expanduser().resolve()
+            observed_path = source_candidate_path.expanduser().resolve()
+        except OSError:
+            lineage_path = Path(lineage_path_text)
+            observed_path = source_candidate_path
+        if lineage_path != observed_path:
+            errors.append(
+                "lineage_candidate_artifact_path does not match the rerun source"
+            )
+
+    expected_source_hash = str(
+        request.get("lineage_candidate_artifact_hash", "") or ""
+    )
+    if not expected_source_hash:
+        errors.append("lineage_candidate_artifact_hash missing")
+    elif expected_source_hash != stable_hash(source):
+        errors.append("lineage candidate artifact content hash mismatch")
+
+    declaration_source = _extract_lean_declaration_block(
+        source,
+        target_declaration,
+    )
+    expected_declaration_hash = str(
+        request.get("target_declaration_source_hash", "") or ""
+    )
+    if not expected_declaration_hash:
+        errors.append("target_declaration_source_hash missing")
+    elif expected_declaration_hash != stable_hash(declaration_source):
+        errors.append("target declaration source hash mismatch")
+
+    expected_statement_hash = str(
+        request.get("target_theorem_statement_hash", "") or ""
+    )
+    observed_statement_hash = stable_hash(
+        _normalized_lean_signature(observed_statement)
+    )
+    requested_statement_hash = stable_hash(
+        _normalized_lean_signature(target_statement)
+    )
+    if not expected_statement_hash:
+        errors.append("target_theorem_statement_hash missing")
+    elif expected_statement_hash not in {
+        observed_statement_hash,
+        requested_statement_hash,
+    }:
+        errors.append("target theorem statement hash mismatch")
+
+    probe_path_text = str(
+        request.get("proof_body_signature_probe_artifact_path", "") or ""
+    )
+    expected_probe_hash = str(
+        request.get("proof_body_signature_probe_artifact_hash", "") or ""
+    )
+    if not probe_path_text:
+        errors.append("proof_body_signature_probe_artifact_path missing")
+    elif not expected_probe_hash:
+        errors.append("proof_body_signature_probe_artifact_hash missing")
+    else:
+        probe_path = Path(probe_path_text).expanduser()
+        try:
+            probe_source = probe_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(
+                "proof-body signature probe artifact unreadable: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            if stable_hash(probe_source) != expected_probe_hash:
+                errors.append("proof-body signature probe artifact hash mismatch")
+            probe_statement = _external_exact_target_statement(
+                probe_source,
+                target_declaration=target_declaration,
+            )
+            if _normalized_lean_signature(probe_statement) != (
+                _normalized_lean_signature(target_statement)
+            ):
+                errors.append(
+                    "proof-body signature probe does not bind target_theorem_statement"
+                )
+
+    lineage_payload = {
+        key: request.get(key)
+        for key in (
+            "source_work_order_id",
+            "execution_queue_id",
+            "lineage_candidate_artifact_path",
+            "lineage_candidate_artifact_hash",
+            "target_declaration_source_hash",
+            "target_theorem_statement_hash",
+            "proof_body_signature_probe_artifact_path",
+            "proof_body_signature_probe_artifact_hash",
+            "expected_target_lean_declaration",
+            "target_lean_declaration",
+            "target_ids",
+        )
+    }
+    source_lineage_id = str(request.get("source_lineage_id", "") or "")
+    if not source_lineage_id:
+        errors.append("source_lineage_id missing")
+    elif source_lineage_id != _external_source_lineage_id(lineage_payload):
+        errors.append("source_lineage_id does not match the exact lineage payload")
+    return errors
+
+
+def _external_candidate_source_evidence_blockers(
+    request: Mapping[str, Any],
+    *,
+    target_ids: tuple[str, ...],
+    target_declaration: str,
+) -> tuple[str, ...]:
+    blockers: list[str] = []
+    if not target_ids:
+        blockers.append("target_ids missing")
+    if not _bool_like(request.get("source_theorem_target_known", False)):
+        blockers.append("source_theorem_target_known is false")
+    if str(
+        request.get("source_theorem_target_identity_status", "") or ""
+    ) != "SOURCE_THEOREM_TARGET_KNOWN":
+        blockers.append(
+            "source_theorem_target_identity_status is not "
+            "SOURCE_THEOREM_TARGET_KNOWN"
+        )
+    provenance = (
+        request.get("source_theorem_target_provenance", {})
+        if isinstance(
+            request.get("source_theorem_target_provenance", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if str(provenance.get("target_lean_declaration", "") or "") != (
+        target_declaration
+    ):
+        blockers.append(
+            "source_theorem_target_provenance does not bind the exact declaration"
+        )
+    provenance_target_ids = _str_tuple(provenance.get("target_ids", []))
+    if set(provenance_target_ids) != set(target_ids):
+        blockers.append(
+            "source_theorem_target_provenance does not bind the exact target_ids"
+        )
+    if not any(
+        str(provenance.get(key, "") or "")
+        for key in (
+            "source_theorem_question_id",
+            "question_id",
+            "source_theorem_goal_id",
+            "source_theorem_route_id",
+        )
+    ):
+        blockers.append("source_theorem_target_provenance lacks a source identity")
+    request_question_id = str(request.get("question_id", "") or "")
+    provenance_question_id = str(
+        provenance.get("source_theorem_question_id", "")
+        or provenance.get("question_id", "")
+        or ""
+    )
+    if request_question_id != provenance_question_id:
+        blockers.append(
+            "source_theorem_target_provenance question identity mismatch"
+        )
+    if str(provenance.get("source_work_order_id", "") or "") != str(
+        request.get("source_work_order_id", "") or ""
+    ):
+        blockers.append(
+            "source_theorem_target_provenance work-order identity mismatch"
+        )
+    if str(provenance.get("execution_queue_id", "") or "") != str(
+        request.get("execution_queue_id", "") or ""
+    ):
+        blockers.append(
+            "source_theorem_target_provenance execution-queue identity mismatch"
+        )
+    if str(request.get("target_identity_status", "") or "") != (
+        "TARGET_DECLARATION_MATCHED"
+    ):
+        blockers.append("target_identity_status is not TARGET_DECLARATION_MATCHED")
+    target_identity_errors = _str_tuple(request.get("target_identity_errors", []))
+    if target_identity_errors:
+        blockers.append("target_identity_errors are present")
+    if not _bool_like(
+        request.get("source_theorem_kernel_evidence_eligible", False)
+    ):
+        blockers.append("source_theorem_kernel_evidence_eligible is false")
+    semantic_blockers = _str_tuple(
+        request.get("semantic_alignment_blockers", [])
+    )
+    if semantic_blockers:
+        blockers.append("semantic_alignment_blockers are unresolved")
+    placeholder_symbols = _str_tuple(
+        request.get("formal_environment_placeholder_symbols", [])
+    )
+    if placeholder_symbols:
+        blockers.append("formal_environment_placeholder_symbols are unresolved")
+    typeclass_blockers = _str_tuple(
+        request.get("formal_environment_typeclass_blockers", [])
+    )
+    if typeclass_blockers:
+        blockers.append("formal_environment_typeclass_blockers are unresolved")
+    return tuple(blockers)
+
+
+def materialize_external_exact_source_candidate(
+    *,
+    source: str,
+    proof_body: str,
+    support_assets: Any,
+    target_declaration: str,
+    target_statement: str,
+) -> tuple[str, tuple[str, ...], tuple[str, ...], list[str]]:
+    """Deterministically build the only candidate shape accepted by the rerun gate."""
+
+    body = _normalize_external_proof_body(proof_body)
+    errors = _external_proof_body_contract_errors(body)
+    if errors:
+        return "", (), (), errors
+    candidate_source = _replace_exact_theorem_proof_body(
+        source,
+        declaration_name=target_declaration,
+        tactic=body,
+        target_statement=target_statement,
+        exact_target_only=True,
+    )
+    if not candidate_source:
+        return "", (), (), [
+            "could not replace the exact theorem proof body conservatively"
+        ]
+    (
+        candidate_source,
+        materialized_names,
+        materialized_hashes,
+        support_errors,
+    ) = _materialize_referenced_external_support_assets(
+        candidate_source,
+        proof_body=body,
+        support_assets=support_assets,
+        target_declaration=target_declaration,
+    )
+    errors.extend(support_errors)
+    forbidden_source_tokens = [
+        token
+        for token in FORBIDDEN_ARTIFACT_TOKENS
+        if re.search(
+            r"\b" + re.escape(token) + r"\b",
+            candidate_source,
+            flags=re.I,
+        )
+    ]
+    if forbidden_source_tokens:
+        errors.append(
+            "materialized exact candidate contains forbidden tokens: "
+            + ", ".join(forbidden_source_tokens)
+        )
+    return (
+        candidate_source,
+        materialized_names,
+        materialized_hashes,
+        list(dict.fromkeys(errors)),
+    )
+
+
+def _materialize_referenced_external_support_assets(
+    source: str,
+    *,
+    proof_body: str,
+    support_assets: Any,
+    target_declaration: str,
+) -> tuple[str, tuple[str, ...], tuple[str, ...], list[str]]:
+    if not isinstance(support_assets, (list, tuple)):
+        return source, (), (), []
+    assets_by_name: dict[str, Mapping[str, Any]] = {}
+    duplicate_names: set[str] = set()
+    asset_order: list[str] = []
+    for raw_asset in support_assets[:16]:
+        if not isinstance(raw_asset, Mapping):
+            continue
+        theorem_source = str(raw_asset.get("theorem_src", "") or "").strip()
+        declared_names = re.findall(
+            r"\b(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
+            theorem_source,
+        )
+        asset_name = str(raw_asset.get("name", "") or "").strip()
+        if not asset_name and len(declared_names) == 1:
+            asset_name = declared_names[0]
+        if not asset_name:
+            continue
+        if asset_name in assets_by_name:
+            duplicate_names.add(asset_name)
+            continue
+        assets_by_name[asset_name] = raw_asset
+        asset_order.append(asset_name)
+
+    directly_referenced = [
+        name
+        for name in asset_order
+        if _lean_identifier_referenced(proof_body, name)
+    ]
+    ordered_names: list[str] = []
+    sanitized_sources: dict[str, str] = {}
+    visited: set[str] = set()
+    visiting: set[str] = set()
+    errors: list[str] = []
+
+    def visit(name: str) -> bool:
+        if name in visited:
+            return True
+        if name in visiting:
+            errors.append(
+                f"referenced external support asset dependency cycle at {name}"
+            )
+            return False
+        if name in duplicate_names:
+            errors.append(
+                f"referenced external support asset name is duplicated: {name}"
+            )
+            return False
+        raw_asset = assets_by_name.get(name)
+        if raw_asset is None:
+            return False
+        theorem_source, validation_errors = (
+            _sanitized_external_support_theorem_source(
+                raw_asset,
+                asset_name=name,
+                target_declaration=target_declaration,
+            )
+        )
+        if validation_errors:
+            errors.extend(validation_errors)
+            return False
+        sanitized_sources[name] = theorem_source
+        visiting.add(name)
+        dependencies_ok = True
+        for dependency_name in asset_order:
+            if dependency_name == name:
+                continue
+            if _lean_identifier_referenced(theorem_source, dependency_name):
+                dependencies_ok = visit(dependency_name) and dependencies_ok
+        visiting.remove(name)
+        if dependencies_ok:
+            visited.add(name)
+            ordered_names.append(name)
+        return dependencies_ok
+
+    for name in directly_referenced:
+        visit(name)
+
+    materialized_names: list[str] = []
+    materialized_hashes: list[str] = []
+    updated = source
+    for asset_name in ordered_names:
+        theorem_source = sanitized_sources[asset_name]
+        existing_source = _extract_lean_declaration_block(updated, asset_name)
+        if existing_source:
+            if _normalized_lean_signature(existing_source) != (
+                _normalized_lean_signature(theorem_source)
+            ):
+                errors.append(
+                    f"referenced external support asset {asset_name} collides with "
+                    "a different existing declaration"
+                )
+                continue
+            materialized_names.append(asset_name)
+            materialized_hashes.append(stable_hash(theorem_source))
+            continue
+        inserted = _insert_before_lean_declaration(
+            updated,
+            declaration_name=target_declaration,
+            insertion=theorem_source,
+        )
+        if inserted == updated:
+            errors.append(
+                f"could not materialize referenced external support asset {asset_name}"
+            )
+            continue
+        updated = inserted
+        materialized_names.append(asset_name)
+        materialized_hashes.append(stable_hash(theorem_source))
+    return (
+        updated,
+        tuple(materialized_names),
+        tuple(materialized_hashes),
+        errors,
+    )
+
+
+def _sanitized_external_support_theorem_source(
+    raw_asset: Mapping[str, Any],
+    *,
+    asset_name: str,
+    target_declaration: str,
+) -> tuple[str, list[str]]:
+    theorem_source = str(raw_asset.get("theorem_src", "") or "").strip()
+    proof_body = _normalize_external_proof_body(
+        str(raw_asset.get("proof", "") or "")
+    )
+    errors: list[str] = []
+    if not theorem_source:
+        return "", [
+            f"referenced external support asset {asset_name} lacks theorem_src"
+        ]
+    if not proof_body:
+        errors.append(
+            f"referenced external support asset {asset_name} lacks structured proof"
+        )
+    declared_names = re.findall(
+        r"\b(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
+        theorem_source,
+    )
+    if len(declared_names) != 1 or declared_names[0] != asset_name:
+        errors.append(
+            "referenced external support asset declaration mismatch: "
+            f"expected {asset_name}"
+        )
+    forbidden = [
+        token
+        for token in FORBIDDEN_ARTIFACT_TOKENS
+        if re.search(
+            r"\b" + re.escape(token) + r"\b",
+            theorem_source,
+            flags=re.I,
+        )
+    ]
+    if forbidden:
+        errors.append(
+            f"referenced external support asset {asset_name} contains forbidden "
+            "tokens: "
+            + ", ".join(forbidden)
+        )
+    if re.search(r"(?m)^[ \t]*@\[", theorem_source):
+        errors.append(
+            f"referenced external support asset {asset_name} may not attach "
+            "declaration attributes"
+        )
+    declaration_span = _lean_declaration_span(theorem_source, asset_name)
+    if declaration_span is None or declaration_span[0] != 0:
+        errors.append(
+            f"referenced external support asset {asset_name} must begin with its "
+            "theorem or lemma declaration"
+        )
+    proof_marker = _lean_top_level_proof_marker_span(theorem_source)
+    if proof_marker is None:
+        errors.append(
+            f"referenced external support asset {asset_name} lacks a top-level "
+            "`:= by` proof marker"
+        )
+        theorem_header = ""
+        observed_proof_body = ""
+    else:
+        theorem_header = theorem_source[: proof_marker[0]].strip()
+        observed_proof_body = _normalize_external_proof_body(
+            theorem_source[proof_marker[1] :]
+        )
+        if _normalized_lean_signature(observed_proof_body) != (
+            _normalized_lean_signature(proof_body)
+        ):
+            errors.append(
+                f"referenced external support asset {asset_name} theorem_src "
+                "does not match its structured proof field"
+            )
+    errors.extend(_external_proof_body_contract_errors(proof_body))
+    if asset_name == target_declaration:
+        errors.append(
+            "referenced external support asset aliases the exact target declaration"
+        )
+    elif _lean_identifier_referenced(theorem_source, target_declaration):
+        errors.append(
+            f"referenced external support asset {asset_name} depends on the exact "
+            "target declaration"
+        )
+    errors = list(dict.fromkeys(errors))
+    if errors:
+        return "", errors
+    indented_proof = "\n".join(
+        "  " + line if line else ""
+        for line in textwrap.dedent(proof_body).strip().splitlines()
+    )
+    return theorem_header + " := by\n" + indented_proof + "\n", []
+
+
+def _lean_identifier_referenced(source: str, name: str) -> bool:
+    return bool(
+        re.search(
+            r"(?<![A-Za-z0-9_'])"
+            + re.escape(name)
+            + r"(?![A-Za-z0-9_'])",
+            source,
+        )
+    )
+
+
 def _replace_exact_theorem_proof_body(
     source: str,
     *,
     declaration_name: str,
     tactic: str,
+    target_statement: str = "",
+    exact_target_only: bool = False,
 ) -> str:
     if not source or not declaration_name or not tactic.strip():
         return ""
-    match = re.search(r"\btheorem\s+" + re.escape(declaration_name) + r"\b", source)
-    if match is None:
+    normalized_tactic = textwrap.dedent(tactic).strip()
+    if target_statement:
+        exact_span = _exact_target_statement_span(
+            source,
+            target_declaration=declaration_name,
+            target_statement=target_statement,
+        )
+        if exact_span is None:
+            return ""
+        theorem_start, statement_end, _ = exact_span
+        indented_tactic = _indent_tactic_for_declaration(
+            source,
+            declaration_start=theorem_start,
+            tactic=normalized_tactic,
+        )
+        replacement = (
+            target_statement.rstrip()
+            + " := by\n"
+            + indented_tactic
+            + "\n"
+        )
+        if exact_target_only:
+            return source[:theorem_start] + replacement
+    else:
+        span = _lean_declaration_span(source, declaration_name)
+        if span is None:
+            return ""
+        theorem_start, theorem_end = span
+        declaration_source = source[theorem_start:theorem_end]
+        proof_marker = _lean_top_level_proof_marker_span(declaration_source)
+        if proof_marker is None:
+            return ""
+        statement_end = theorem_start + proof_marker[0]
+        indented_tactic = _indent_tactic_for_declaration(
+            source,
+            declaration_start=theorem_start,
+            tactic=normalized_tactic,
+        )
+        replacement = (
+            source[theorem_start:statement_end].rstrip()
+            + " := by\n"
+            + indented_tactic
+            + "\n"
+        )
+    span = _lean_declaration_span(source, declaration_name)
+    if span is None:
         return ""
-    theorem_start = match.start()
-    proof_match = re.search(r":=\s*by\b", source[theorem_start:])
-    if proof_match is None:
-        return ""
-    proof_start = theorem_start + proof_match.start()
-    proof_body_start = theorem_start + proof_match.end()
-    trailing = source[proof_body_start:]
-    if re.search(r"\n(?:theorem|lemma|def|structure|class|inductive)\s+", trailing):
-        return ""
-    prefix = source[:proof_start]
-    return prefix.rstrip() + " := by\n  " + tactic.strip() + "\n"
+    _, theorem_end = span
+    suffix = source[theorem_end:]
+    if suffix and not suffix.startswith("\n"):
+        replacement += "\n"
+    return source[:theorem_start] + replacement + suffix
+
+
+def _indent_tactic_for_declaration(
+    source: str,
+    *,
+    declaration_start: int,
+    tactic: str,
+) -> str:
+    line_start = source.rfind("\n", 0, declaration_start) + 1
+    declaration_indent = source[line_start:declaration_start]
+    if declaration_indent.strip():
+        declaration_indent = ""
+    tactic_indent = declaration_indent + "  "
+    return "\n".join(
+        tactic_indent + line if line else ""
+        for line in tactic.splitlines()
+    )
 
 
 def _materialize_verified_theorem_reduction_closure_dependencies(
@@ -1616,26 +2923,85 @@ def _prepend_lean_imports(source: str, imports: list[str]) -> str:
     return "\n".join(missing) + "\n" + source
 
 
-def _extract_lean_declaration_block(source: str, declaration_name: str) -> str:
+def _lean_declaration_span(
+    source: str,
+    declaration_name: str,
+) -> tuple[int, int] | None:
     if not source or not declaration_name:
-        return ""
+        return None
     declaration_head = (
-        r"(?m)^[ \t]*(?:noncomputable[ \t]+)?(?:private[ \t]+)?"
+        r"(?m)^(?P<indent>[ \t]*)(?:@\[[^\]\n]*\][ \t]*)*"
+        r"(?:noncomputable[ \t]+)?(?:private[ \t]+)?"
         r"(?:theorem|lemma|def|abbrev)\s+"
         + re.escape(declaration_name)
         + r"\b"
     )
-    match = re.search(declaration_head, source)
-    if match is None:
-        return ""
-    rest = source[match.start() :]
-    next_decl = re.search(
-        r"(?m)^[ \t]*(?:noncomputable[ \t]+)?(?:private[ \t]+)?"
-        r"(?:theorem|lemma|def|abbrev|structure|class|inductive|namespace|end)\b",
-        rest[1:],
+    matches = list(re.finditer(declaration_head, source))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    declaration_start = _lean_attribute_prefix_start(
+        source,
+        command_start=match.start(),
+        command_indent=len(match.group("indent").expandtabs(4)),
     )
-    end = match.start() + 1 + next_decl.start() if next_decl else len(source)
-    return source[match.start() : end].strip()
+    rest = source[match.end() :]
+    declaration_indent = len(match.group("indent").expandtabs(4))
+    next_command = next(
+        (
+            candidate
+            for candidate in re.finditer(
+                r"(?m)^(?P<indent>[ \t]*)(?:@\[[^\]\n]*\][ \t]*)*"
+                r"(?:noncomputable[ \t]+)?(?:private[ \t]+)?"
+                r"(?:theorem|lemma|def|abbrev|opaque|"
+                r"instance|axiom|constant|structure|class|inductive|"
+                r"namespace|section|end|open|attribute|set_option|macro|"
+                r"syntax)\b",
+                rest,
+            )
+            if len(candidate.group("indent").expandtabs(4))
+            <= declaration_indent
+        ),
+        None,
+    )
+    if next_command is None:
+        end = len(source)
+    else:
+        next_command_start = match.end() + next_command.start()
+        end = _lean_attribute_prefix_start(
+            source,
+            command_start=next_command_start,
+            command_indent=len(next_command.group("indent").expandtabs(4)),
+        )
+    return declaration_start, end
+
+
+def _lean_attribute_prefix_start(
+    source: str,
+    *,
+    command_start: int,
+    command_indent: int,
+) -> int:
+    start = command_start
+    while start > 0:
+        previous_line_end = start - 1
+        previous_line_start = source.rfind("\n", 0, previous_line_end) + 1
+        previous_line = source[previous_line_start:previous_line_end].rstrip("\r")
+        match = re.fullmatch(r"(?P<indent>[ \t]*)@\[[^\]\n]*\][ \t]*", previous_line)
+        if match is None or len(match.group("indent").expandtabs(4)) != (
+            command_indent
+        ):
+            break
+        start = previous_line_start
+    return start
+
+
+def _extract_lean_declaration_block(source: str, declaration_name: str) -> str:
+    span = _lean_declaration_span(source, declaration_name)
+    if span is None:
+        return ""
+    start, end = span
+    return source[start:end].strip()
 
 
 def _proofengineer_whole_proof_repair_context(
@@ -1649,23 +3015,98 @@ def _proofengineer_whole_proof_repair_context(
     proof_body_attempt_summaries: tuple[str, ...],
     semantic_alignment_constraints: tuple[str, ...],
     semantic_alignment_blockers: tuple[str, ...],
+    source_theorem_target_known: bool = False,
+    source_theorem_target_identity_status: str = "",
+    source_theorem_target_provenance: Mapping[str, object] | None = None,
+    expected_target_lean_declaration: str = "",
+    source_work_order_id: str = "",
+    execution_queue_id: str = "",
+    signature_probe_artifact_path: str = "",
+    source_theorem_signature_probe_artifact_path: str = "",
+    proof_body_signature_probe_artifact_path: str = "",
+    target_identity_status: str = "",
+    target_identity_errors: tuple[str, ...] = (),
+    source_theorem_kernel_evidence_eligible: bool = False,
+    formal_environment_placeholder_symbols: tuple[str, ...] = (),
+    formal_environment_typeclass_blockers: tuple[str, ...] = (),
 ) -> dict[str, object]:
     declaration_source = _extract_lean_declaration_block(source, target_declaration)
     if not declaration_source:
         return {}
-    proof_marker = re.search(r":=\s*by\b", declaration_source)
+    proof_marker = _lean_top_level_proof_marker_span(declaration_source)
     if proof_marker is None:
         target_statement = declaration_source
         current_proof_body = ""
     else:
-        target_statement = declaration_source[: proof_marker.start()].rstrip()
-        current_proof_body = declaration_source[proof_marker.end() :].strip()
+        target_statement = declaration_source[: proof_marker[0]].rstrip()
+        current_proof_body = declaration_source[proof_marker[1] :].strip()
+    normalized_provenance = dict(source_theorem_target_provenance or {})
+    normalized_provenance.setdefault(
+        "target_lean_declaration",
+        target_declaration,
+    )
+    normalized_provenance.setdefault("target_ids", list(target_ids))
+    normalized_provenance.setdefault("source_work_order_id", source_work_order_id)
+    normalized_provenance.setdefault("execution_queue_id", execution_queue_id)
+    lineage_candidate_artifact_hash = stable_hash(source)
+    target_declaration_source_hash = stable_hash(declaration_source)
+    target_theorem_statement_hash = stable_hash(
+        _normalized_lean_signature(target_statement)
+    )
+    proof_body_probe_path = str(
+        proof_body_signature_probe_artifact_path
+        or source_theorem_signature_probe_artifact_path
+        or signature_probe_artifact_path
+        or ""
+    )
+    proof_body_probe_source = ""
+    if proof_body_probe_path:
+        try:
+            proof_body_probe_source = Path(proof_body_probe_path).read_text(
+                encoding="utf-8"
+            )
+        except OSError:
+            proof_body_probe_source = ""
+    proof_body_signature_probe_artifact_hash = (
+        stable_hash(proof_body_probe_source) if proof_body_probe_source else ""
+    )
+    lineage_payload = {
+        "source_work_order_id": source_work_order_id,
+        "execution_queue_id": execution_queue_id,
+        "lineage_candidate_artifact_path": str(candidate_artifact_path),
+        "lineage_candidate_artifact_hash": lineage_candidate_artifact_hash,
+        "target_declaration_source_hash": target_declaration_source_hash,
+        "target_theorem_statement_hash": target_theorem_statement_hash,
+        "proof_body_signature_probe_artifact_path": proof_body_probe_path,
+        "proof_body_signature_probe_artifact_hash": (
+            proof_body_signature_probe_artifact_hash
+        ),
+        "expected_target_lean_declaration": (
+            expected_target_lean_declaration or target_declaration
+        ),
+        "target_lean_declaration": target_declaration,
+        "target_ids": list(target_ids),
+    }
     return {
         "context_kind": "exact_source_theorem_whole_proof_repair",
         "owner_subsystem": "ProofEngineer",
         "repair_scope": "replace_entire_exact_declaration_proof_body",
         "target_lean_declaration": target_declaration,
         "target_ids": list(target_ids),
+        "source_theorem_target_known": source_theorem_target_known,
+        "source_theorem_target_identity_status": (
+            source_theorem_target_identity_status
+        ),
+        "source_theorem_target_provenance": dict(
+            normalized_provenance
+        ),
+        **lineage_payload,
+        "source_lineage_id": _external_source_lineage_id(lineage_payload),
+        "target_identity_status": target_identity_status,
+        "target_identity_errors": list(target_identity_errors),
+        "source_theorem_kernel_evidence_eligible": (
+            source_theorem_kernel_evidence_eligible
+        ),
         "candidate_artifact_path": str(candidate_artifact_path),
         "source_candidate_artifact_path": source_candidate_artifact_path,
         "target_declaration_source_excerpt": declaration_source[:12000],
@@ -1680,6 +3121,12 @@ def _proofengineer_whole_proof_repair_context(
         "failed_proof_body_attempts": list(proof_body_attempt_summaries)[:8],
         "semantic_alignment_constraints": list(semantic_alignment_constraints)[:8],
         "semantic_alignment_blockers": list(semantic_alignment_blockers)[:8],
+        "formal_environment_placeholder_symbols": list(
+            formal_environment_placeholder_symbols
+        )[:16],
+        "formal_environment_typeclass_blockers": list(
+            formal_environment_typeclass_blockers
+        )[:16],
         "required_behavior": (
             "Preserve target_theorem_statement exactly, replace the entire proof body, "
             "and return a complete Lean declaration or a typed mathematical/formal-library "
@@ -1717,13 +3164,19 @@ def _insert_before_lean_declaration(
 ) -> str:
     if not source or not declaration_name or not insertion.strip():
         return source
-    match = re.search(
-        r"(?m)^[ \t]*(?:theorem|lemma)\s+" + re.escape(declaration_name) + r"\b",
-        source,
-    )
-    if match is None:
+    span = _lean_declaration_span(source, declaration_name)
+    if span is None:
         return source
-    return source[: match.start()].rstrip() + insertion + "\n\n" + source[match.start() :]
+    start, _ = span
+    prefix = source[:start].rstrip()
+    prefix_separator = "\n\n" if prefix else ""
+    return (
+        prefix
+        + prefix_separator
+        + insertion.strip()
+        + "\n\n"
+        + source[start:]
+    )
 
 
 def _candidate_live_proof_state_request(

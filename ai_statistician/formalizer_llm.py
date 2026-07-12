@@ -6846,7 +6846,9 @@ def _formalizer_mode_specific_instructions(
                 "proofengineer_repair_context.external_proof_search_result. Treat "
                 "source_theorem_candidate_proof_bodies as whole-body proposals for "
                 "the exact target declaration and verified_support_assets as candidate "
-                "dependencies. Do not copy a nested residual goal into a weaker theorem, "
+                "dependencies. When exact_candidate_rerun is present, repair from its "
+                "local Lean precheck/diagnostics instead of asking a human to edit the "
+                "artifact. Do not copy a nested residual goal into a weaker theorem, "
                 "and do not treat the provider report as final proof evidence. Preserve "
                 "target_theorem_statement exactly, emit the complete declaration, and "
                 "let the AI Statistician local Lean/AXLE gate rerun it."
@@ -11043,7 +11045,42 @@ def _compact_value_for_key(key: Any, value: Any) -> Any:
         value,
         list | tuple,
     ):
-        return [str(child)[:6000] for child in list(value)[:4] if str(child)]
+        return [str(child)[:12000] for child in list(value)[:4] if str(child)]
+    if str(key) == "verified_support_assets" and isinstance(value, list | tuple):
+        return [
+            {
+                str(asset_key): (
+                    str(asset_value)[:20000]
+                    if str(asset_key) in {"theorem_src", "proof"}
+                    else _compact_value_for_key(asset_key, asset_value)
+                )
+                for asset_key, asset_value in asset.items()
+                if str(asset_key)
+                in {
+                    "name",
+                    "statement",
+                    "proof",
+                    "theorem_src",
+                    "call_expr",
+                    "axioms_report",
+                    "proof_source",
+                }
+                and asset_value not in (None, "", [], {})
+            }
+            for asset in list(value)[:8]
+            if isinstance(asset, Mapping)
+        ]
+    if str(key) == "candidate_feedback_rows" and isinstance(value, list | tuple):
+        return [
+            _compact_external_candidate_feedback_row(row)
+            for row in list(value)[:4]
+            if isinstance(row, Mapping)
+        ]
+    if str(key) == "source_theorem_target_provenance" and isinstance(
+        value,
+        Mapping,
+    ):
+        return _compact_mapping(value, keys=tuple(value.keys())[:24])
     if str(key) == "external_proof_search_result" and isinstance(value, Mapping):
         return _compact_mapping(
             value,
@@ -11057,9 +11094,58 @@ def _compact_value_for_key(key: Any, value: Any) -> Any:
                 "source_theorem_candidate_proof_bodies",
                 "verified_support_assets",
                 "failure_feedback",
+                "exact_candidate_rerun",
                 "report_path",
                 "checkpoint_path",
                 "blocker",
+                "error",
+                "proof_evidence_status",
+                "proof_evidence_boundary",
+            ),
+        )
+    if str(key) == "exact_candidate_rerun" and isinstance(value, Mapping):
+        return _compact_mapping(
+            value,
+            keys=(
+                "manifest_id",
+                "execution_id",
+                "input_fingerprint",
+                "provider_result_fingerprint",
+                "verification_config_fingerprint",
+                "request_fingerprint",
+                "question_id",
+                "source_task_id",
+                "source_lineage_id",
+                "source_work_order_id",
+                "execution_queue_id",
+                "target_ids",
+                "target_lean_declaration",
+                "target_theorem_statement",
+                "verification_scope",
+                "exact_target_prefix_hash",
+                "source_after_exact_target_marker_hash",
+                "source_suffix_commands_executed",
+                "source_candidate_artifact_path",
+                "source_candidate_artifact_hash",
+                "proof_body_signature_probe_artifact_path",
+                "proof_body_signature_probe_artifact_hash",
+                "n_candidate_proof_bodies",
+                "n_result_rows",
+                "n_precheck_rejected",
+                "n_local_lean_checked",
+                "n_local_lean_compiled",
+                "n_artifact_kernel_verified",
+                "n_source_theorem_kernel_verified",
+                "source_theorem_kernel_verified",
+                "source_theorem_kernel_verified_target_ids",
+                "source_theorem_kernel_verified_target_names",
+                "runtime_verification_contract_satisfied",
+                "runtime_verification_contract_errors",
+                "reported_source_theorem_kernel_verified",
+                "runtime_owned_local_lean_checked",
+                "runtime_owned_local_lean_compiled",
+                "runtime_owned_source_theorem_kernel_verified",
+                "candidate_feedback_rows",
                 "error",
                 "proof_evidence_status",
                 "proof_evidence_boundary",
@@ -11110,11 +11196,123 @@ def _compact_value_for_key(key: Any, value: Any) -> Any:
     return _compact_value(value)
 
 
+def _compact_external_candidate_feedback_row(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    keys = (
+        "candidate_index",
+        "candidate_proof_body",
+        "candidate_proof_body_hash",
+        "candidate_artifact_path",
+        "candidate_artifact_hash",
+        "request_fingerprint",
+        "input_fingerprint",
+        "execution_id",
+        "question_id",
+        "source_task_id",
+        "source_lineage_id",
+        "source_work_order_id",
+        "execution_queue_id",
+        "source_candidate_artifact_hash",
+        "materialized_verified_support_asset_names",
+        "materialized_verified_support_asset_hashes",
+        "verification_scope",
+        "exact_target_prefix_hash",
+        "source_after_exact_target_marker_hash",
+        "source_suffix_commands_executed",
+        "exact_signature_preserved",
+        "precheck_errors",
+        "source_theorem_evidence_blockers",
+        "runtime_structural_contract_errors",
+        "local_lean_checked",
+        "local_lean_compiled",
+        "returncode",
+        "diagnostics",
+        "runtime_owned_local_lean_checked",
+        "runtime_owned_local_lean_compiled",
+        "runtime_owned_local_lean_returncode",
+        "runtime_owned_local_lean_diagnostics",
+        "artifact_kernel_verified",
+        "reported_artifact_kernel_verified",
+        "reported_source_theorem_kernel_verified",
+        "source_theorem_kernel_verified",
+        "proof_evidence_status",
+        "status",
+    )
+    compact: dict[str, Any] = {}
+    for key in keys:
+        value = row.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if key == "candidate_proof_body" and isinstance(value, str):
+            compact[key] = value[:12000]
+        elif key in {
+            "precheck_errors",
+            "source_theorem_evidence_blockers",
+            "runtime_structural_contract_errors",
+            "diagnostics",
+            "runtime_owned_local_lean_diagnostics",
+        } and isinstance(value, list | tuple):
+            compact[key] = [
+                _compact_external_candidate_diagnostic(str(child))
+                for child in list(value)[:24]
+            ]
+        elif _is_compaction_path_key(key) and isinstance(value, str):
+            compact[key] = value
+        elif isinstance(value, str):
+            compact[key] = value[:2000]
+        else:
+            compact[key] = _compact_value(value)
+    return compact
+
+
+def _compact_external_candidate_diagnostic(
+    value: str,
+    *,
+    max_chars: int = 2400,
+) -> str:
+    if len(value) <= max_chars:
+        return value
+    head_chars = 700
+    tail_chars = max_chars - head_chars - 5
+    return value[:head_chars] + " ... " + value[-tail_chars:]
+
+
 def _compact_value(value: Any) -> Any:
     if isinstance(value, str):
         return value[:FORMALIZER_MAX_TEXT_CHARS]
     if isinstance(value, Mapping):
         priority_keys = (
+            "context_kind",
+            "repair_scope",
+            "target_lean_declaration",
+            "target_ids",
+            "source_theorem_target_known",
+            "source_theorem_target_identity_status",
+            "source_theorem_target_provenance",
+            "target_identity_status",
+            "target_identity_errors",
+            "source_theorem_kernel_evidence_eligible",
+            "expected_target_lean_declaration",
+            "source_work_order_id",
+            "execution_queue_id",
+            "source_lineage_id",
+            "candidate_artifact_path",
+            "source_candidate_artifact_path",
+            "lineage_candidate_artifact_path",
+            "lineage_candidate_artifact_hash",
+            "target_declaration_source_hash",
+            "target_theorem_statement_hash",
+            "proof_body_signature_probe_artifact_path",
+            "proof_body_signature_probe_artifact_hash",
+            "target_theorem_statement",
+            "current_proof_body_excerpt",
+            "formal_environment_placeholder_symbols",
+            "formal_environment_typeclass_blockers",
+            "semantic_alignment_constraints",
+            "semantic_alignment_blockers",
+            "external_proof_search_result",
+            "proof_search_result_use",
             "feedback_kind",
             "contract_kind",
             "required_output_key",
@@ -11139,11 +11337,10 @@ def _compact_value(value: Any) -> Any:
             "diagnostic_classes",
             "required_behavior",
             "acceptance_gate",
-            "external_proof_search_result",
-            "proof_search_result_use",
             "source_theorem_candidate_proof_bodies",
             "verified_support_assets",
             "failure_feedback",
+            "exact_candidate_rerun",
             "proof_evidence_status",
             "blocked_import_prefixes",
             "mathlib_import_unavailable",
@@ -11167,9 +11364,16 @@ def _compact_value(value: Any) -> Any:
         for key in value:
             if key not in ordered_keys and value.get(key) not in (None, "", [], {}):
                 ordered_keys.append(key)
+        mapping_limit = (
+            40
+            if str(value.get("context_kind", ""))
+            == "exact_source_theorem_whole_proof_repair"
+            or "external_proof_search_result" in value
+            else 16
+        )
         return {
             str(key): _compact_value_for_key(key, child)
-            for key in ordered_keys[:16]
+            for key in ordered_keys[:mapping_limit]
             for child in (value.get(key),)
         }
     if isinstance(value, list | tuple):

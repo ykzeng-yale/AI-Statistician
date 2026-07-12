@@ -165,7 +165,40 @@ plumbing has full local regression coverage, but no production external call is
 claimed because current trusted provider checkouts/indexes are not available on
 this machine.
 
-Live evidence collected on 2026-06-25:
+Seventh concrete change in this lane: OpenProver direct proof bodies now enter
+a deterministic exact-declaration rerun before any LLM rewrite. The executor
+binds each run to question/task/work-order/queue/source/signature-probe hashes,
+accepts the canonical lineage path, preserves target-relative indentation and
+the source prefix environment, and hash-binds without executing or claiming
+commands after the target. It computes the transitive closure of
+referenced structured support lemmas, requires each `theorem_src` to match its
+separate `proof` field, and records execution plus content fingerprints.
+AgentRuntime independently checks the persisted manifest and JSONL, re-reads
+the source and signature probe, recomputes evidence eligibility, binds every
+proof body to the provider result, reconstructs the only permitted candidate
+bytes, and rejects target comments or injected environment commands. It then
+performs a second runtime-owned local Lean invocation, downgrading each failed
+row and recomputing canonical counters before source-theorem evidence can be
+emitted. Failed candidates and their Lean exit status remain structured
+ProofEngineer feedback across candidate repair, capability-contract returns,
+prompt compaction, and resume.
+This is a generation-verification-feedback mechanism, not a hand edit of one
+generated theorem.
+
+Live evidence collected during this lane:
+
+- `runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6/runtime_validated_external_exact_candidate_rerun.json`:
+  a real two-stage local Lake/Lean check compiled one indented,
+  namespace-scoped, attributed exact theorem supplied through only its
+  canonical lineage path and a two-level support-lemma dependency closure.
+  Provider body binding and runtime eligibility recomputation passed;
+  deterministic rematerialization reported no structural errors; executor Lean
+  and runtime-owned Lean each checked and compiled one candidate; and the
+  runtime verification contract passed with no errors. The scope is the source
+  prefix plus exact target declaration; suffix commands are hash-bound but not
+  executed. The provider payload is fixture-shaped and the theorem is a toy
+  contract smoke; this is not a live OpenProver call, a project statistical
+  source theorem, or frontier proof.
 
 - `runs/main_worker_doctor_live_env/doctor_manifest.json`: live environment
   ready for Anthropic and AXLE when keys are loaded via process environment.

@@ -1,12 +1,815 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import ai_statistician.exact_source_theorem_proof_body_executor as executor_module
+import pytest
 from ai_statistician.exact_source_theorem_proof_body_executor import (
+    execute_external_exact_source_theorem_proof_candidates,
     export_exact_source_theorem_proof_body_execution_results,
 )
+from ai_statistician.fingerprint import stable_hash
+
+
+def _external_candidate_request(candidate: Path) -> dict[str, object]:
+    source = candidate.read_text(encoding="utf-8")
+    target_statement = executor_module._external_exact_target_statement(
+        source,
+        target_declaration="exact_source",
+    ) or "theorem exact_source (p : Prop) (hp : p) : p"
+    declaration_source = executor_module._extract_lean_declaration_block(
+        source,
+        "exact_source",
+    )
+    lineage_payload = {
+        "source_work_order_id": "exact_source_work_order:fixture",
+        "execution_queue_id": "exact_source_queue:fixture",
+        "lineage_candidate_artifact_path": str(candidate),
+        "lineage_candidate_artifact_hash": stable_hash(source),
+        "target_declaration_source_hash": stable_hash(declaration_source),
+        "target_theorem_statement_hash": stable_hash(
+            executor_module._normalized_lean_signature(target_statement)
+        ),
+        "proof_body_signature_probe_artifact_path": str(candidate),
+        "proof_body_signature_probe_artifact_hash": stable_hash(source),
+        "expected_target_lean_declaration": "exact_source",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+    }
+    return {
+        "request_fingerprint": "request:exact-source",
+        "question_id": "fixture_question",
+        "source_task_id": "proofengineer:fixture_question",
+        "target_ids": ["exact_source_goal"],
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": target_statement,
+        "candidate_artifact_path": str(candidate),
+        "source_candidate_artifact_path": str(candidate),
+        "source_theorem_target_known": True,
+        "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+        "source_theorem_target_provenance": {
+            "target_lean_declaration": "exact_source",
+            "source_theorem_question_id": "fixture_question",
+            "target_ids": ["exact_source_goal"],
+            "source_work_order_id": "exact_source_work_order:fixture",
+            "execution_queue_id": "exact_source_queue:fixture",
+        },
+        **lineage_payload,
+        "source_lineage_id": executor_module._external_source_lineage_id(
+            lineage_payload
+        ),
+        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+        "target_identity_errors": [],
+        "source_theorem_kernel_evidence_eligible": True,
+        "semantic_alignment_blockers": [],
+        "formal_environment_placeholder_symbols": [],
+        "formal_environment_typeclass_blockers": [],
+    }
+
+
+def test_external_candidate_rerun_rejects_bad_sibling_and_verifies_exact_source(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    checked_sources: list[str] = []
+
+    def lean_runner(path: Path, **_kwargs):
+        source = path.read_text(encoding="utf-8")
+        checked_sources.append(source)
+        assert (
+            "theorem checked_support (p : Prop) (hp : p) : p := by\n"
+            "  exact hp\n\n"
+            "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+            "  exact checked_support p hp\n"
+        ) in source
+        return True, 0, ()
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:result",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": [
+                "sorry",
+                "exact checked_support p hp",
+            ],
+            "verified_support_assets": [
+                {
+                    "name": "checked_support",
+                    "proof": "exact hp",
+                    "theorem_src": (
+                        "theorem checked_support (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp"
+                    ),
+                }
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lean_runner,
+    )
+
+    assert manifest["n_candidate_proof_bodies"] == 2
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 1
+    assert manifest["n_source_theorem_kernel_verified"] == 1
+    assert manifest["source_theorem_kernel_verified"] is True
+    assert manifest["source_theorem_kernel_verified_target_ids"] == [
+        "exact_source_goal"
+    ]
+    assert manifest["question_id"] == "fixture_question"
+    assert manifest["source_task_id"] == "proofengineer:fixture_question"
+    assert manifest["source_work_order_id"] == "exact_source_work_order:fixture"
+    assert manifest["execution_queue_id"] == "exact_source_queue:fixture"
+    assert manifest["source_lineage_id"].startswith("source_theorem_lineage:")
+    assert len(checked_sources) == 1
+    assert manifest["rows"][0]["status"] == "CANDIDATE_PRECHECK_REJECTED"
+    assert manifest["rows"][1]["status"] == (
+        "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    )
+    assert manifest["rows"][1][
+        "materialized_verified_support_asset_names"
+    ] == ["checked_support"]
+    assert manifest["rows"][1]["question_id"] == "fixture_question"
+    assert manifest["rows"][1]["source_task_id"] == (
+        "proofengineer:fixture_question"
+    )
+    assert manifest["rows"][1]["source_work_order_id"] == (
+        "exact_source_work_order:fixture"
+    )
+    assert manifest["rows"][1]["execution_queue_id"] == (
+        "exact_source_queue:fixture"
+    )
+
+
+def test_external_candidate_rerun_compiles_but_does_not_promote_weak_lineage(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    request = _external_candidate_request(candidate)
+    request["source_theorem_target_known"] = False
+    request["source_theorem_kernel_evidence_eligible"] = False
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result={
+            "result_id": "openprover:result",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": [
+                "have h : p := hp\nexact h"
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    row = manifest["rows"][0]
+    assert row["local_lean_compiled"] is True
+    assert row["artifact_kernel_verified"] is True
+    assert row["source_theorem_kernel_verified"] is False
+    assert row["status"] == "ARTIFACT_KERNEL_VERIFIED_LINEAGE_BLOCKED"
+    assert "source_theorem_target_known is false" in row[
+        "source_theorem_evidence_blockers"
+    ]
+    materialized = Path(row["candidate_artifact_path"]).read_text(encoding="utf-8")
+    assert "  have h : p := hp\n  exact h\n" in materialized
+
+
+def test_external_candidate_rerun_accepts_canonical_lineage_path_only(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    request = _external_candidate_request(candidate)
+    request.pop("candidate_artifact_path")
+    request.pop("source_candidate_artifact_path")
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result={
+            "result_id": "openprover:lineage-only",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    assert manifest["source_candidate_artifact_path"] == str(candidate)
+    assert manifest["source_theorem_kernel_verified"] is True
+
+
+@pytest.mark.skipif(shutil.which("lake") is None, reason="lake is unavailable")
+def test_external_candidate_rerun_preserves_indented_target_declaration(
+    tmp_path: Path,
+) -> None:
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    candidate = tmp_path / "IndentedSource.lean"
+    candidate.write_text(
+        "namespace Indented\n\n"
+        "  theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "    exact missing\n\n"
+        "end Indented\n",
+        encoding="utf-8",
+    )
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:indented-target",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_project=lean_project,
+        lean_timeout=90,
+    )
+
+    assert manifest["source_theorem_kernel_verified"] is True
+    row = manifest["rows"][0]
+    assert row["local_lean_compiled"] is True
+    checked_source = Path(row["candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert "  theorem exact_source" in checked_source
+    assert "    exact hp" in checked_source
+
+
+def test_external_candidate_rerun_rejects_forbidden_source_environment(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "axiom leaked : False\n\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    runner_calls = 0
+
+    def lean_runner(_path: Path, **_kwargs):
+        nonlocal runner_calls
+        runner_calls += 1
+        return True, 0, ()
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:result",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lean_runner,
+    )
+
+    assert runner_calls == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_source_theorem_kernel_verified"] == 0
+    assert "materialized exact candidate contains forbidden tokens: axiom" in (
+        manifest["rows"][0]["precheck_errors"]
+    )
+
+
+def test_external_candidate_rerun_scopes_verification_before_forbidden_suffix(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n\n"
+        "axiom leaked_after_target : False\n",
+        encoding="utf-8",
+    )
+    runner_calls = 0
+
+    def lean_runner(path: Path, **_kwargs):
+        nonlocal runner_calls
+        runner_calls += 1
+        materialized = path.read_text(encoding="utf-8")
+        assert "axiom leaked_after_target" not in materialized
+        assert "theorem exact_source (p : Prop) (hp : p) : p := by" in materialized
+        return True, 0, ()
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:suffix",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lean_runner,
+    )
+
+    assert runner_calls == 1
+    assert manifest["source_theorem_kernel_verified"] is True
+    assert manifest["verification_scope"] == (
+        "source_prefix_environment_plus_exact_target_declaration"
+    )
+    assert manifest["source_suffix_commands_executed"] is False
+
+
+def test_external_candidate_rerun_rejects_support_environment_injection(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:injected-support",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": [
+                "exact checked_support p hp"
+            ],
+            "verified_support_assets": [
+                {
+                    "name": "checked_support",
+                    "proof": "exact hp",
+                    "theorem_src": (
+                        "def Covered : Prop := True\n"
+                        "theorem checked_support (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp"
+                    ),
+                }
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    row = manifest["rows"][0]
+    assert row["local_lean_checked"] is False
+    assert row["candidate_artifact_path"] == ""
+    assert any(
+        "exactly one theorem or lemma command" in error
+        or "must begin with its theorem or lemma declaration" in error
+        for error in row["precheck_errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    "trailing_command",
+    (
+        'notation "Covered" => True',
+        '#eval IO.FS.writeFile "/tmp/ai_statistician_should_not_write" "bad"',
+    ),
+)
+def test_external_candidate_rerun_rejects_trailing_support_commands(
+    tmp_path: Path,
+    trailing_command: str,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:trailing-support-command",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": [
+                "exact checked_support p hp"
+            ],
+            "verified_support_assets": [
+                {
+                    "name": "checked_support",
+                    "proof": "exact hp",
+                    "theorem_src": (
+                        "theorem checked_support (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                        + trailing_command
+                    ),
+                }
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    row = manifest["rows"][0]
+    assert row["local_lean_checked"] is False
+    assert row["candidate_artifact_path"] == ""
+    assert any(
+        "does not match its structured proof field" in error
+        for error in row["precheck_errors"]
+    )
+
+
+def test_external_candidate_rerun_materializes_transitive_support_closure(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    def lean_runner(path: Path, **_kwargs):
+        source = path.read_text(encoding="utf-8")
+        assert source.index("theorem helper_base") < source.index(
+            "theorem helper_top"
+        ) < source.index("theorem exact_source")
+        assert "  exact hp\n\ntheorem helper_top" in source
+        assert "  exact helper_base p hp\n\ntheorem exact_source" in source
+        return True, 0, ()
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:transitive-support",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact helper_top p hp"],
+            "verified_support_assets": [
+                {
+                    "name": "helper_top",
+                    "proof": "exact helper_base p hp",
+                    "theorem_src": (
+                        "theorem helper_top (p : Prop) (hp : p) : p := by\n"
+                        "  exact helper_base p hp"
+                    ),
+                },
+                {
+                    "name": "helper_base",
+                    "proof": "exact hp",
+                    "theorem_src": (
+                        "theorem helper_base (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp"
+                    ),
+                },
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lean_runner,
+    )
+
+    row = manifest["rows"][0]
+    assert row["source_theorem_kernel_verified"] is True
+    assert row["materialized_verified_support_asset_names"] == [
+        "helper_base",
+        "helper_top",
+    ]
+    assert len(row["materialized_verified_support_asset_hashes"]) == 2
+
+
+@pytest.mark.skipif(shutil.which("lake") is None, reason="lake is unavailable")
+def test_external_candidate_rerun_ignores_binder_default_proof_marker(
+    tmp_path: Path,
+) -> None:
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (n : Nat := by exact 0) : n = n := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    request = _external_candidate_request(candidate)
+    assert request["target_theorem_statement"] == (
+        "theorem exact_source (n : Nat := by exact 0) : n = n"
+    )
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result={
+            "result_id": "openprover:binder-default",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": [
+                "exact 0) : True := by\n  trivial",
+                "rfl",
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_project=lean_project,
+        lean_timeout=90,
+    )
+
+    assert manifest["n_local_lean_checked"] == 2
+    assert manifest["rows"][0]["local_lean_compiled"] is False
+    assert manifest["rows"][1]["exact_signature_preserved"] is True
+    assert manifest["rows"][1]["source_theorem_kernel_verified"] is True
+
+
+def test_external_candidate_rerun_artifacts_are_execution_unique_and_no_stale_path(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    request = _external_candidate_request(candidate)
+    base_result = {
+        "provider": "openprover_hlm_controller",
+        "request_fingerprint": "request:exact-source",
+        "target_lean_declaration": "exact_source",
+        "source_theorem_candidate_proof_bodies": ["exact hp"],
+    }
+    first = execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result={**base_result, "result_id": "openprover:first"},
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+    second = execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result={
+            **base_result,
+            "result_id": "openprover:second",
+            "source_theorem_candidate_proof_bodies": ["sorry"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    assert first["manifest_id"] != second["manifest_id"]
+    assert first["input_fingerprint"] != second["input_fingerprint"]
+    assert first["rows"][0]["candidate_artifact_path"]
+    assert second["rows"][0]["candidate_artifact_path"] == ""
+
+
+def test_external_candidate_rerun_rejects_mutated_lineage_artifact(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    request = _external_candidate_request(candidate)
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact hp\n",
+        encoding="utf-8",
+    )
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result={
+            "result_id": "openprover:mutated-lineage",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    row = manifest["rows"][0]
+    assert row["local_lean_checked"] is False
+    assert "lineage candidate artifact content hash mismatch" in row[
+        "precheck_errors"
+    ]
+    assert "proof-body signature probe artifact hash mismatch" in row[
+        "precheck_errors"
+    ]
+
+
+def test_external_candidate_rerun_preserves_namespace_prefix_and_scopes_target(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "namespace Smoke\n\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n\n"
+        "theorem untouched : True := by\n"
+        "  trivial\n\n"
+        "end Smoke\n",
+        encoding="utf-8",
+    )
+
+    def lean_runner(path: Path, **_kwargs):
+        source = path.read_text(encoding="utf-8")
+        assert source.startswith("namespace Smoke")
+        assert "theorem untouched : True := by" not in source
+        assert "end Smoke" not in source
+        assert "exact missing" not in source
+        return True, 0, ()
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:namespace",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lean_runner,
+    )
+
+    assert manifest["source_theorem_kernel_verified"] is True
+    assert manifest["source_suffix_commands_executed"] is False
+
+
+def test_external_candidate_support_insertion_preserves_target_attribute_binding(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "@[simp]\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    def lean_runner(path: Path, **_kwargs):
+        source = path.read_text(encoding="utf-8")
+        assert source.index("theorem checked_support") < source.index("@[simp]")
+        assert "@[simp]\ntheorem exact_source" in source
+        return True, 0, ()
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:target-attribute",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": [
+                "exact checked_support p hp"
+            ],
+            "verified_support_assets": [
+                {
+                    "name": "checked_support",
+                    "proof": "exact hp",
+                    "theorem_src": (
+                        "theorem checked_support (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp"
+                    ),
+                }
+            ],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lean_runner,
+    )
+
+    assert manifest["source_theorem_kernel_verified"] is True
+
+
+@pytest.mark.skipif(shutil.which("lake") is None, reason="lake is unavailable")
+def test_external_candidate_rerun_rejects_post_verification_artifact_mutation(
+    tmp_path: Path,
+) -> None:
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    def mutating_runner(path: Path, **kwargs):
+        result = executor_module._run_local_lean(path, **kwargs)
+        path.write_text("theorem changed : True := by sorry\n", encoding="utf-8")
+        return result
+
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:mutating-runner",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_project=lean_project,
+        lean_timeout=90,
+        local_lean_runner=mutating_runner,
+    )
+
+    row = manifest["rows"][0]
+    assert row["candidate_artifact_unchanged_after_verification"] is False
+    assert row["local_lean_compiled"] is False
+    assert row["source_theorem_kernel_verified"] is False
+    assert "candidate artifact changed during local Lean verification" in row[
+        "diagnostics"
+    ]
+    assert row["candidate_artifact_hash"] == stable_hash(
+        "theorem changed : True := by sorry\n"
+    )
+
+
+@pytest.mark.skipif(shutil.which("lake") is None, reason="lake is unavailable")
+def test_external_candidate_rerun_real_lean_exact_gate(tmp_path: Path) -> None:
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    if not (lean_project / "lakefile.lean").is_file():
+        pytest.skip("bundled Lean project is unavailable")
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+    manifest = execute_external_exact_source_theorem_proof_candidates(
+        request=_external_candidate_request(candidate),
+        provider_result={
+            "result_id": "openprover:real-lean",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+        },
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_project=lean_project,
+        lean_timeout=90,
+    )
+
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 1
+    assert manifest["n_source_theorem_kernel_verified"] == 1
 
 
 def test_exact_source_executor_materializes_verified_closure_dependency(

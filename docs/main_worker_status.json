@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-11T23:15:25Z",
+  "updated_at": "2026-07-12T01:33:57Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "AgentRuntime now has typed external Lean provider boundaries instead of theorem-specific output patching. RetrievalMemory can compose the internal retriever with EmpericalProcessLEAN's structured shared_proof_retrieval API using reciprocal-rank fusion while preserving checkout/branch/commit/index/graph provenance and returning formal-blocker retrieval to ProofEngineer. ProofEngineer can run OpenProver's verifier-backed HLM controller with AI-Statistician's negotiated generator backend, carry candidates/support assets/failure feedback through packet-validation retries, and avoid repeated searches using a semantic-state fingerprint. Candidate contract failures are filtered per candidate so valid siblings remain searchable. Every external result remains non-proof feedback until the exact declaration is rerun under AI-Statistician local Lean/AXLE.",
-  "latest_main_worker_live_probe": "No new production external-provider run is claimed: this machine has no current OpenProver checkout and no EmpericalProcessLEAN shared retrieval checkout/index, and unauthenticated git cannot clone the private repositories. The integration was verified against the current GitHub APIs through structured fixtures and 1066 passing core tests. The latest real generated-output evidence remains runs/main_worker_whole_proof_agent_routing_live_opus_validated_20260711, where a sorry-bearing whole-proof proposal was rejected without manual Lean repair and without a theorem-proof claim.",
-  "latest_main_worker_design_issue": "The provider architecture gap is implemented, but production capability is not yet demonstrated. The immediate next step is to provision trusted current OpenProver and EmpericalProcessLEAN checkouts plus the shared declaration index, replay the exact whole-proof blocker through AgentRuntime, and record the resulting candidates/diagnostics. A direct OpenProver candidate should next be deterministically materialized and rerun under the exact AI-Statistician declaration gate before asking another LLM to rewrite it; only that exact local Lean/AXLE result may upgrade proof evidence.",
+  "latest_main_worker_patch": "ProofEngineer now treats OpenProver whole-proof output as generated search proposals and deterministically reruns each candidate against the lineage-bound exact Lean declaration before asking the Formalizer LLM to rewrite it. The executor accepts the canonical lineage artifact path, preserves declaration-relative indentation and the source prefix environment, binds but does not execute commands after the target, materializes only structured theorem/lemma support assets whose theorem_src exactly matches their proof field, resolves transitive support dependencies, and records execution/content fingerprints plus question, task, work-order, queue, and source-lineage identity. AgentRuntime independently re-reads the source, signature probe, manifest, JSONL rows, provider result, and candidate; recomputes source-theorem eligibility blockers; requires each candidate proof body to come from the bound provider result; reconstructs the only permitted candidate bytes; rejects target-in-comment and injected-environment forgeries; canonicalizes counters from rows; downgrades each row that fails runtime-owned Lean; and emits source-theorem evidence or skips LLM repair only after an independent second Lean check. Failed diagnostics, exit status, and exact lineage survive candidate failures, capability-contract returns, prompt compaction, and resume memory.",
+  "latest_main_worker_live_probe": "runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6 records a real two-stage local Lake/Lean check of an indented, namespace-scoped, attributed exact theorem supplied through only its canonical lineage path and a two-level support-lemma closure. Provider proof-body binding and runtime eligibility recomputation passed; deterministic runtime rematerialization had zero structural errors; executor checked=1, compiled=1, source_theorem_kernel_verified=1; runtime-owned Lean independently checked=1 and compiled=1; and the runtime verification contract passed with no errors. Verification scope is source_prefix_environment_plus_exact_target_declaration and source_suffix_commands_executed=false. This is deliberately fixture-shaped OpenProver input and a toy exact theorem, not a live OpenProver call, not the project statistical source theorem, and not frontier-theorem evidence. Production OpenProver and EmpericalProcessLEAN provider runs remain unclaimed because trusted local checkouts/indexes are still unavailable.",
+  "latest_main_worker_design_issue": "The one-off output-patching gap is closed at the architecture level: candidate generation, exact materialization, local verification, failure feedback, and evidence promotion now form a fail-closed agent loop. The remaining capability gap is external production execution and theorem difficulty, not manual repair plumbing: provision trusted current OpenProver and EmpericalProcessLEAN checkouts plus the shared index, run this exact contract on a real current source-theorem blocker, and keep formal gaps/frontier proof false unless the actual target closes. Cross-task theorem proof generalization and live tactic-state search remain open.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -22,6 +22,32 @@
     "llm_theory_ready": true,
     "registered_proof_obligations": 135,
     "registered_algorithms": 4
+  },
+  "latest_external_exact_candidate_rerun_contract_smoke": {
+    "executor_manifest": "runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6/executor/1adfc65d182b046e360b/b3bf57dd77a09ed8cf93/external_exact_proof_candidate_rerun_manifest.json",
+    "runtime_validation": "runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6/runtime_validated_external_exact_candidate_rerun.json",
+    "local_lean_checked": 1,
+    "local_lean_compiled": 1,
+    "source_theorem_kernel_verified": 1,
+    "runtime_deterministic_rematerialization_errors": 0,
+    "runtime_owned_local_lean_checked": 1,
+    "runtime_owned_local_lean_compiled": 1,
+    "runtime_owned_source_theorem_kernel_verified": 1,
+    "runtime_verification_contract_satisfied": true,
+    "lineage_path_only_input": true,
+    "indented_target_preserved": true,
+    "provider_candidate_body_bound": true,
+    "runtime_recomputed_evidence_blockers": 0,
+    "verification_scope": "source_prefix_environment_plus_exact_target_declaration",
+    "source_suffix_commands_executed": false,
+    "support_dependency_closure": [
+      "helper_base",
+      "helper_top"
+    ],
+    "provider_input_kind": "fixture_shaped_openprover_payload",
+    "live_openprover_call": false,
+    "project_statistical_source_theorem": false,
+    "full_frontier_theorem_proved": false
   },
   "latest_live_capability_eval": {
     "doctor_manifest": "runs/main_worker_doctor_live_env/doctor_manifest.json",
@@ -3127,6 +3153,12 @@
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run pytest tests/test_research_agent_runtime.py -k \"capability_eval_full_live_preset_attaches_component_repair_gates or capability_eval_preset or capability_full_live_rerun_command\" # 1 passed, 945 deselected after bounded Formalizer repair eval attachment patch",
     "PYTHONPATH=/Users/yukangzengcmac/AI-Statistician uv run python - <<PY ... audit_research_agent_runtime(runs/main_worker_formalizer_repair_pending_probe_live) # ready=false score=92/104; pending gap-planner-live-route:conformal_prediction_coverage:abf13cf47d95",
     "uv run python -m ai_statistician.cli research-agent-runtime --help | rg \"formalizer-repair-eval-runtime-timeout|run-formalizer-lean-candidate-repair-eval\" # new watchdog flag present",
-    "git diff --check # passed after bounded Formalizer repair eval attachment patch"
+    "git diff --check # passed after bounded Formalizer repair eval attachment patch",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_exact_source_theorem_proof_body_executor.py # 33 passed, including real Lean checks for binder-default markers, canonical lineage-path input, indented exact declarations, support closure, and artifact mutation",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_lean_agent_providers.py tests/test_model_backend.py tests/test_llm_json_repair.py tests/test_exact_source_theorem_proof_body_executor.py # 68 passed after exact external-candidate generation/verification/feedback hardening",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_research_agent_runtime.py -k 'proof_body or formal_source_grounding or formalizer_validation_failure or proofengineer or external_proof_search or branch_provenanced or external_exact or forged_candidate_environment or runtime_clears_rows' # 119 passed, 914 deselected",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_lean_agent_providers.py tests/test_model_backend.py tests/test_llm_json_repair.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_research_agent_runtime.py # 1101 passed in 1176.73s",
+    "runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6 # lineage-path-only indented target, structured two-level provider support closure, executor Lean=1/1, runtime-owned Lean=1/1, eligibility blockers=0, deterministic rematerialization errors=0, full_frontier_theorem_proved=false",
+    ".venv/bin/python -m py_compile ai_statistician/cli.py ai_statistician/exact_source_theorem_proof_body_executor.py ai_statistician/formalizer_llm.py ai_statistician/research_agent_runtime.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_research_agent_runtime.py && jq empty docs/main_worker_status.json && git diff --check # passed before commit"
   ]
 }

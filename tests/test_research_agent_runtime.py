@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 
 import ai_statistician.cli as cli_module
+import ai_statistician.exact_source_theorem_proof_body_executor as exact_executor_module
+import ai_statistician.formalizer_llm as formalizer_module
 import ai_statistician.research_agent_runtime as runtime_module
 import ai_statistician.research_agent_runtime_audit as audit_module
 from ai_statistician.cli import (
@@ -152,6 +154,7 @@ from ai_statistician.research_agent_runtime import (
     ProofEngineerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS,
+    SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS,
     SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS,
     SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS,
     SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS,
@@ -22939,7 +22942,20 @@ def test_formalizer_runtime_still_requires_lean_tool_contract_without_pf_bv_rout
         task_id="task:formalizer_no_pf_bv_route",
         owner_subsystem="FormalizationEvaluator",
         objective="Fail closed when required Lean proof-state path has no PF/BV route.",
-        inputs={"question": {"id": question.id, "title": question.title}},
+        inputs={
+            "question": {"id": question.id, "title": question.title},
+            "environment_feedback": {
+                "proofengineer_repair_context": {
+                    "context_kind": "exact_source_theorem_whole_proof_repair",
+                    "target_lean_declaration": "exact_source",
+                    "target_ids": ["exact_source_goal"],
+                    "target_theorem_statement": "theorem exact_source : True",
+                    "source_work_order_id": "exact_source_work_order:contract",
+                    "execution_queue_id": "exact_source_queue:contract",
+                    "source_lineage_id": "source_theorem_lineage:contract",
+                }
+            },
+        },
     )
     context = {
         "runtime_requested_evidence_contract": {
@@ -22992,6 +23008,17 @@ def test_formalizer_runtime_still_requires_lean_tool_contract_without_pf_bv_rout
     )
     assert failure["missing_contracts"][0]["flag"] == (
         "capability_eval_requires_formalizer_proof_state_request"
+    )
+    assert result.next_task is not None
+    repair_context = result.next_task.inputs["environment_feedback"][
+        "proofengineer_repair_context"
+    ]
+    assert repair_context["target_ids"] == ["exact_source_goal"]
+    assert repair_context["target_theorem_statement"] == (
+        "theorem exact_source : True"
+    )
+    assert repair_context["source_lineage_id"] == (
+        "source_theorem_lineage:contract"
     )
 
 
@@ -81022,11 +81049,40 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
     assert len(SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS) == len(
         SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS
     )
+    assert SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS[0] == (
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
+    )
+    assert SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS[0] == (
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows"
+    )
+    assert SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS[0] == (
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+    )
     assert all(key.endswith("_n_source_theorem_kernel_verified") for key in aggregate_kernel_keys)
     assert all(key.endswith("_n_result_rows") for key in aggregate_result_keys)
     assert (
         "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
         in audit_keys
+    )
+    assert (
+        "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified"
+        in audit_keys
+    )
+    assert (
+        "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified"
+        in target_bound_keys
+    )
+    assert (
+        "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_ids"
+        in target_bound_target_keys
+    )
+    assert (
+        "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified"
+        in aggregate_kernel_keys
+    )
+    assert (
+        "external_exact_proof_candidate_rerun_n_result_rows"
+        in aggregate_result_keys
     )
     assert (
         "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified"
@@ -81106,6 +81162,30 @@ def test_source_theorem_kernel_evidence_registries_separate_raw_and_audit_counts
         "full_frontier_theorem_kernel_verified_target_ids"
         in full_frontier_target_bound_target_keys
     )
+
+
+def test_external_exact_candidate_rerun_is_target_bound_source_proof_only() -> None:
+    payload = {
+        "target_theorem_name": "exact_source",
+        "external_exact_proof_candidate_rerun_n_result_rows": 1,
+        "external_exact_proof_candidate_rerun_n_local_lean_checked": 1,
+        "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified": 1,
+        "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_ids": [
+            "exact_source"
+        ],
+        "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_names": [
+            "exact_source"
+        ],
+        "n_formal_gaps": 1,
+    }
+
+    truth = _runtime_evidence_truth_table(payload)
+    rows = {row["evidence_id"]: row for row in truth["rows"]}
+
+    assert truth["source_theorem_kernel_verified"] is True
+    assert truth["formal_gaps_open"] is True
+    assert rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
+    assert rows["formal_gaps"]["proof_evidence"] is False
 
 
 def test_runtime_evidence_summary_requires_full_frontier_target_binding() -> None:
@@ -98281,10 +98361,54 @@ def test_proofengineer_consumes_external_proof_search_before_llm_proposal(
 
     proof_search = ProofSearchProvider()
     formalizer = RecordingFormalizer()
+
+    def failing_exact_rerunner(**kwargs):
+        request = kwargs["request"]
+        return {
+            "schema_version": 1,
+            "artifact_kind": "RuntimeExternalExactProofCandidateRerunManifest",
+            "manifest_id": "external_exact_proof_candidate_rerun:failed",
+            "request_fingerprint": request["request_fingerprint"],
+            "provider": "fixture_openprover_hlm",
+            "provider_result_id": "openprover_hlm_result:test",
+            "target_ids": ["exact_source_goal"],
+            "target_lean_declaration": "exact_source",
+            "rows": [
+                {
+                    "candidate_index": 1,
+                    "candidate_proof_body": "exact hp",
+                    "candidate_artifact_path": str(candidate),
+                    "exact_signature_preserved": True,
+                    "local_lean_checked": True,
+                    "local_lean_compiled": False,
+                    "diagnostics": ["unknown identifier hp"],
+                    "artifact_kernel_verified": False,
+                    "source_theorem_kernel_verified": False,
+                    "proof_evidence_status": (
+                        "EXTERNAL_PROOF_CANDIDATE_RERUN_NOT_PROOF_EVIDENCE"
+                    ),
+                    "status": "LOCAL_LEAN_FAILED",
+                }
+            ],
+            "n_candidate_proof_bodies": 1,
+            "n_result_rows": 1,
+            "n_precheck_rejected": 0,
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "n_artifact_kernel_verified": 0,
+            "n_source_theorem_kernel_verified": 0,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": (
+                "EXTERNAL_PROOF_CANDIDATE_RERUN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": "exact local Lean gate",
+        }
+
     subsystem = ProofEngineerRuntimeSubsystem(
         proposal_agent=formalizer,  # type: ignore[arg-type]
         proof_verifier=MockProofVerifier(),
         proof_search_provider=proof_search,  # type: ignore[arg-type]
+        external_proof_candidate_rerunner=failing_exact_rerunner,
         max_proof_obligations=0,
         lean_candidate_root=tmp_path / "formalizer_lean_candidates",
     )
@@ -98341,6 +98465,13 @@ def test_proofengineer_consumes_external_proof_search_before_llm_proposal(
     ]
     assert external["source_theorem_candidate_proof_bodies"] == ["exact hp"]
     assert external["openprover_summary"]["direct_target_solved"] == 1
+    assert external["exact_candidate_rerun"]["n_result_rows"] == 1
+    assert external["exact_candidate_rerun"]["candidate_feedback_rows"][0][
+        "status"
+    ] == "LOCAL_LEAN_FAILED"
+    assert external["exact_candidate_rerun"]["candidate_feedback_rows"][0][
+        "diagnostics"
+    ] == ["unknown identifier hp"]
     assert not feedback.get("source_theorem_kernel_verified", False)
     assert any(
         artifact.get("artifact_kind")
@@ -98355,6 +98486,1225 @@ def test_proofengineer_consumes_external_proof_search_before_llm_proposal(
     assert any(
         call.tool_name == "LeanProofSearchProvider.run" for call in result.tool_calls
     )
+    assert any(
+        call.tool_name
+        == "ExactSourceTheoremProofBodyExecutor.rerun_external_candidate"
+        for call in result.tool_calls
+    )
+
+
+def test_proofengineer_skips_llm_after_exact_external_candidate_kernel_rerun(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    class ProofSearchProvider:
+        name = "fixture_openprover_hlm"
+
+        def run(self, request):
+            return {
+                "artifact_kind": "RuntimeOpenProverHLMProofSearchResult",
+                "result_id": "openprover_hlm_result:verified",
+                "provider": self.name,
+                "request_fingerprint": request["request_fingerprint"],
+                "target_lean_declaration": request["target_lean_declaration"],
+                "status": "DIRECT_CANDIDATE_AVAILABLE",
+                "source_theorem_candidate_proof_bodies": ["exact hp"],
+                "verified_support_assets": [],
+                "failure_feedback": [],
+                "proof_evidence_status": (
+                    "OPENPROVER_HLM_RESULT_REQUIRES_EXACT_AI_STATISTICIAN_KERNEL_RERUN"
+                ),
+            }
+
+    class FormalizerMustNotRun:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs):
+            self.calls += 1
+            raise AssertionError("verified exact candidate must bypass LLM rewrite")
+
+    monkeypatch.setattr(
+        exact_executor_module,
+        "_run_local_lean",
+        lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    formalizer = FormalizerMustNotRun()
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    subsystem = ProofEngineerRuntimeSubsystem(
+        proposal_agent=formalizer,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_search_provider=ProofSearchProvider(),  # type: ignore[arg-type]
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        lean_candidate_local_lean=True,
+        lean_candidate_lean_project=lean_project,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
+    candidate_source = candidate.read_text(encoding="utf-8")
+    declaration_source = exact_executor_module._extract_lean_declaration_block(
+        candidate_source,
+        "exact_source",
+    )
+    lineage_payload = {
+        "source_work_order_id": "exact_source_work_order:runtime",
+        "execution_queue_id": "exact_source_queue:runtime",
+        "lineage_candidate_artifact_path": str(candidate),
+        "lineage_candidate_artifact_hash": runtime_module.stable_hash(
+            candidate_source
+        ),
+        "target_declaration_source_hash": runtime_module.stable_hash(
+            declaration_source
+        ),
+        "target_theorem_statement_hash": runtime_module.stable_hash(
+            exact_executor_module._normalized_lean_signature(target_statement)
+        ),
+        "proof_body_signature_probe_artifact_path": str(candidate),
+        "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
+            candidate_source
+        ),
+        "expected_target_lean_declaration": "exact_source",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+    }
+    task = AgentTask(
+        task_id="proofengineer-whole-proof:verified-external",
+        owner_subsystem="ProofEngineer",
+        objective="rerun exact external candidate before LLM revision",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "repair_owner_agent": "ProofEngineer",
+                "proofengineer_repair_context": {
+                    "context_kind": "exact_source_theorem_whole_proof_repair",
+                    "repair_scope": "replace_entire_exact_declaration_proof_body",
+                    "target_lean_declaration": "exact_source",
+                    "target_ids": ["exact_source_goal"],
+                    "target_theorem_statement": target_statement,
+                    "candidate_artifact_path": str(candidate),
+                    "source_candidate_artifact_path": str(candidate),
+                    "source_theorem_target_known": True,
+                    "source_theorem_target_identity_status": (
+                        "SOURCE_THEOREM_TARGET_KNOWN"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "target_lean_declaration": "exact_source",
+                        "source_theorem_question_id": question.id,
+                        "target_ids": ["exact_source_goal"],
+                        "source_work_order_id": (
+                            "exact_source_work_order:runtime"
+                        ),
+                        "execution_queue_id": "exact_source_queue:runtime",
+                    },
+                    **lineage_payload,
+                    "source_lineage_id": (
+                        exact_executor_module._external_source_lineage_id(
+                            lineage_payload
+                        )
+                    ),
+                    "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                    "target_identity_errors": [],
+                    "source_theorem_kernel_evidence_eligible": True,
+                    "current_proof_body_excerpt": "exact missing",
+                    "semantic_alignment_blockers": [],
+                    "formal_environment_placeholder_symbols": [],
+                    "formal_environment_typeclass_blockers": [],
+                },
+            },
+        },
+        allowed_tools=("proof_search", "local_lean"),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert formalizer.calls == 0
+    rerun = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeExternalExactProofCandidateRerunManifest"
+    )
+    assert rerun["source_theorem_kernel_verified"] is True
+    assert rerun["runtime_owned_local_lean_checked"] == 1
+    assert rerun["runtime_owned_local_lean_compiled"] == 1
+    assert rerun["runtime_verification_contract_satisfied"] is True
+    formalization = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert formalization["formalizer_proposal_source"] == (
+        "external_exact_source_theorem_candidate_kernel_rerun"
+    )
+    assert formalization["source_theorem_kernel_verified"] is True
+    assert formalization["source_theorem_kernel_verified_target_ids"] == [
+        "exact_source_goal"
+    ]
+    assert any(
+        entry.evidence_type == "external_exact_proof_candidate_kernel_rerun"
+        and entry.status == "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+        for entry in result.evidence_entries
+    )
+    assert any(
+        call.tool_name
+        == "AgentRuntime.verify_external_exact_candidate_local_lean"
+        for call in result.tool_calls
+    )
+
+
+def test_runtime_evidence_summary_counts_external_exact_source_kernel_rerun() -> None:
+    summary = runtime_module._runtime_evidence_summary(
+        [
+            {
+                "traces": [],
+                "blackboard": {
+                    "artifacts": {
+                        "external_exact_proof_candidate_rerun:verified": {
+                            "artifact_kind": (
+                                "RuntimeExternalExactProofCandidateRerunManifest"
+                            ),
+                            "manifest_id": (
+                                "external_exact_proof_candidate_rerun:verified"
+                            ),
+                            "n_result_rows": 2,
+                            "n_precheck_rejected": 1,
+                            "n_local_lean_checked": 1,
+                            "n_local_lean_compiled": 1,
+                            "n_artifact_kernel_verified": 1,
+                            "n_source_theorem_kernel_verified": 1,
+                            "runtime_verification_contract_satisfied": True,
+                            "source_theorem_kernel_verified_target_ids": [
+                                "exact_source_goal"
+                            ],
+                            "source_theorem_kernel_verified_target_names": [
+                                "exact_source"
+                            ],
+                            "rows": [
+                                {
+                                    "local_lean_checked": True,
+                                    "verification_strength": (
+                                        "local_lean_exact_external_whole_proof_candidate_kernel"
+                                    ),
+                                }
+                            ],
+                        }
+                    }
+                },
+            }
+        ]
+    )
+
+    proof = summary["proof"]
+    assert proof["n_external_exact_proof_candidate_rerun_manifests"] == 1
+    assert proof["n_external_exact_proof_candidate_rerun_rows"] == 2
+    assert proof["n_external_exact_proof_candidate_precheck_rejected"] == 1
+    assert proof["n_external_exact_proof_candidate_local_lean_checked"] == 1
+    assert proof["n_external_exact_proof_candidate_local_lean_compiled"] == 1
+    assert (
+        proof[
+            "n_external_exact_proof_candidate_source_theorem_kernel_verified"
+        ]
+        == 1
+    )
+    assert proof[
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_ids"
+    ] == ["exact_source_goal"]
+    assert proof["has_kernel_evidence"] is True
+
+
+def test_runtime_evidence_summary_ignores_contract_rejected_rerun_counters() -> None:
+    summary = runtime_module._runtime_evidence_summary(
+        [
+            {
+                "traces": [],
+                "blackboard": {
+                    "artifacts": {
+                        "external_exact:rejected": {
+                            "artifact_kind": (
+                                "RuntimeExternalExactProofCandidateRerunManifest"
+                            ),
+                            "reported_source_theorem_kernel_verified": True,
+                            "runtime_verification_contract_satisfied": False,
+                            "n_result_rows": 999,
+                            "n_precheck_rejected": 999,
+                            "n_local_lean_checked": 999,
+                            "n_local_lean_compiled": 999,
+                            "n_artifact_kernel_verified": 999,
+                            "n_source_theorem_kernel_verified": 999,
+                            "source_theorem_kernel_verified_target_ids": [
+                                "forged_goal"
+                            ],
+                            "source_theorem_kernel_verified_target_names": [
+                                "forged_theorem"
+                            ],
+                        }
+                    }
+                },
+            }
+        ]
+    )
+
+    proof = summary["proof"]
+    assert proof["n_external_exact_proof_candidate_rerun_manifests"] == 1
+    assert proof["n_external_exact_proof_candidate_rerun_rows"] == 0
+    assert proof["n_external_exact_proof_candidate_local_lean_checked"] == 0
+    assert proof["n_external_exact_proof_candidate_local_lean_compiled"] == 0
+    assert proof["n_external_exact_proof_candidate_artifact_kernel_verified"] == 0
+    assert proof[
+        "n_external_exact_proof_candidate_source_theorem_kernel_verified"
+    ] == 0
+    assert "local.exact_external_proof_candidate_rerun" not in proof["verifiers"]
+    assert proof["has_kernel_evidence"] is False
+
+
+def test_runtime_external_rerun_summary_preserves_executor_returncode() -> None:
+    summary = runtime_module._runtime_external_exact_candidate_rerun_summary(
+        {
+            "manifest_id": "external-rerun:returncode",
+            "rows": [
+                {
+                    "candidate_index": 1,
+                    "returncode": 7,
+                    "diagnostics": ["Lean failed"],
+                    "status": "LOCAL_LEAN_FAILED",
+                }
+            ],
+        }
+    )
+
+    assert summary["candidate_feedback_rows"][0]["returncode"] == 7
+
+
+def test_runtime_rejects_incoherent_external_exact_rerunner_proof_claim() -> None:
+    result = runtime_module._runtime_validated_external_exact_candidate_rerun_result(
+        request={
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "target_theorem_statement": (
+                "theorem exact_source (p : Prop) (hp : p) : p"
+            ),
+            "target_ids": ["exact_source_goal"],
+        },
+        provider_result={
+            "result_id": "openprover:forged",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+        },
+        result={
+            "artifact_kind": "RuntimeExternalExactProofCandidateRerunManifest",
+            "manifest_id": "external_exact_proof_candidate_rerun:forged",
+            "request_fingerprint": "request:wrong",
+            "target_lean_declaration": "wrong_target",
+            "target_ids": ["wrong_goal"],
+            "source_theorem_kernel_verified": True,
+            "n_source_theorem_kernel_verified": 1,
+            "rows": [],
+        },
+    )
+
+    assert result["reported_source_theorem_kernel_verified"] is True
+    assert result["runtime_verification_contract_satisfied"] is False
+    assert result["source_theorem_kernel_verified"] is False
+    assert result["n_source_theorem_kernel_verified"] == 0
+    assert "rerun request_fingerprint mismatch" in result[
+        "runtime_verification_contract_errors"
+    ]
+    assert "rerun lacks a content-bound exact local-compiled verified row" in result[
+        "runtime_verification_contract_errors"
+    ]
+
+
+@pytest.mark.skipif(shutil.which("lake") is None, reason="lake is unavailable")
+def test_runtime_owned_lean_rejects_self_attested_invalid_rerunner(
+    tmp_path: Path,
+) -> None:
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    source_path = tmp_path / "Source.lean"
+    source = (
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n"
+    )
+    source_path.write_text(source, encoding="utf-8")
+    candidate_path = tmp_path / "ForgedCandidate.lean"
+    candidate_source = (
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n"
+    )
+    candidate_path.write_text(candidate_source, encoding="utf-8")
+    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
+    exact_source_span = exact_executor_module._exact_target_statement_span(
+        source,
+        target_declaration="exact_source",
+        target_statement=target_statement,
+    )
+    assert exact_source_span is not None
+    exact_target_prefix_hash = runtime_module.stable_hash(
+        source[: exact_source_span[0]]
+    )
+    source_after_exact_target_marker_hash = runtime_module.stable_hash(
+        source[exact_source_span[2] :]
+    )
+    lineage_payload = {
+        "source_work_order_id": "exact_source_work_order:forged",
+        "execution_queue_id": "exact_source_queue:forged",
+        "lineage_candidate_artifact_path": str(source_path),
+        "lineage_candidate_artifact_hash": runtime_module.stable_hash(source),
+        "target_declaration_source_hash": runtime_module.stable_hash(
+            exact_executor_module._extract_lean_declaration_block(
+                source,
+                "exact_source",
+            )
+        ),
+        "target_theorem_statement_hash": runtime_module.stable_hash(
+            exact_executor_module._normalized_lean_signature(target_statement)
+        ),
+        "proof_body_signature_probe_artifact_path": str(source_path),
+        "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
+            source
+        ),
+        "expected_target_lean_declaration": "exact_source",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+    }
+    request = {
+        "request_fingerprint": "request:exact-source",
+        "question_id": "forged_question",
+        "source_task_id": "proofengineer:forged",
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": target_statement,
+        "target_ids": ["exact_source_goal"],
+        **lineage_payload,
+        "source_lineage_id": exact_executor_module._external_source_lineage_id(
+            lineage_payload
+        ),
+        "source_theorem_target_known": True,
+        "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+        "source_theorem_target_provenance": {
+            "source_theorem_question_id": "forged_question",
+            "target_lean_declaration": "exact_source",
+            "target_ids": ["exact_source_goal"],
+            "source_work_order_id": "exact_source_work_order:forged",
+            "execution_queue_id": "exact_source_queue:forged",
+        },
+        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+        "target_identity_errors": [],
+        "source_theorem_kernel_evidence_eligible": True,
+        "semantic_alignment_blockers": [],
+        "formal_environment_placeholder_symbols": [],
+        "formal_environment_typeclass_blockers": [],
+    }
+    provider_result = {
+        "result_id": "openprover:forged",
+        "request_fingerprint": "request:exact-source",
+        "target_lean_declaration": "exact_source",
+        "source_theorem_candidate_proof_bodies": ["exact missing"],
+    }
+    row = {
+        "candidate_index": 1,
+        "candidate_proof_body": "exact missing",
+        "candidate_proof_body_hash": runtime_module.stable_hash("exact missing"),
+        "candidate_artifact_path": str(candidate_path),
+        "candidate_artifact_hash": runtime_module.stable_hash(candidate_source),
+        "candidate_artifact_unchanged_after_verification": True,
+        "request_fingerprint": "request:exact-source",
+        "input_fingerprint": "a" * 64,
+        "execution_id": "external_exact_execution:forged",
+        "question_id": "forged_question",
+        "source_task_id": "proofengineer:forged",
+        "source_work_order_id": "exact_source_work_order:forged",
+        "execution_queue_id": "exact_source_queue:forged",
+        "source_lineage_id": request["source_lineage_id"],
+        "source_candidate_artifact_hash": runtime_module.stable_hash(source),
+        "materialized_verified_support_asset_names": [],
+        "materialized_verified_support_asset_hashes": [],
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": request["target_theorem_statement"],
+        "target_ids": ["exact_source_goal"],
+        "verification_scope": (
+            "source_prefix_environment_plus_exact_target_declaration"
+        ),
+        "exact_target_prefix_hash": exact_target_prefix_hash,
+        "source_after_exact_target_marker_hash": (
+            source_after_exact_target_marker_hash
+        ),
+        "source_suffix_commands_executed": False,
+        "exact_signature_preserved": True,
+        "precheck_errors": [],
+        "source_theorem_evidence_blockers": [],
+        "local_lean_checked": True,
+        "local_lean_compiled": True,
+        "artifact_kernel_verified": True,
+        "source_theorem_kernel_verified": True,
+        "status": "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED",
+    }
+    manifest_path = tmp_path / "rerun_manifest.json"
+    rows_path = tmp_path / "rerun_rows.jsonl"
+    payload = {
+        "artifact_kind": "RuntimeExternalExactProofCandidateRerunManifest",
+        "manifest_id": "external_exact_proof_candidate_rerun:forged",
+        "execution_id": "external_exact_execution:forged",
+        "input_fingerprint": "a" * 64,
+        "provider_result_fingerprint": runtime_module.stable_hash(provider_result),
+        "verification_config_fingerprint": "b" * 64,
+        "request_fingerprint": "request:exact-source",
+        "question_id": "forged_question",
+        "source_task_id": "proofengineer:forged",
+        "source_work_order_id": "exact_source_work_order:forged",
+        "execution_queue_id": "exact_source_queue:forged",
+        "source_lineage_id": request["source_lineage_id"],
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": target_statement,
+        "target_ids": ["exact_source_goal"],
+        "exact_target_prefix_hash": exact_target_prefix_hash,
+        "source_after_exact_target_marker_hash": (
+            source_after_exact_target_marker_hash
+        ),
+        "source_candidate_artifact_path": str(source_path),
+        "source_candidate_artifact_hash": runtime_module.stable_hash(source),
+        "proof_body_signature_probe_artifact_path": str(source_path),
+        "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
+            source
+        ),
+        "manifest_path": str(manifest_path),
+        "rows_path": str(rows_path),
+        "rows": [row],
+        "n_result_rows": 1,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 1,
+        "n_artifact_kernel_verified": 1,
+        "n_source_theorem_kernel_verified": 1,
+        "source_theorem_kernel_verified": True,
+        "source_theorem_kernel_verified_target_ids": ["exact_source_goal"],
+        "source_theorem_kernel_verified_target_names": ["exact_source"],
+        "local_lean_requested": True,
+        "verification_scope": (
+            "source_prefix_environment_plus_exact_target_declaration"
+        ),
+        "source_suffix_commands_executed": False,
+    }
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    rows_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    validated = runtime_module._runtime_validated_external_exact_candidate_rerun_result(
+        request=request,
+        provider_result=provider_result,
+        result=payload,
+        runtime_lean_project=lean_project,
+        runtime_lean_timeout=90,
+    )
+
+    assert validated["runtime_owned_local_lean_checked"] == 1
+    assert validated["runtime_owned_local_lean_compiled"] == 0
+    assert validated["runtime_verification_contract_satisfied"] is False
+    assert validated["source_theorem_kernel_verified"] is False
+    assert validated["rows"][0]["reported_source_theorem_kernel_verified"] is True
+    assert validated["rows"][0]["source_theorem_kernel_verified"] is False
+    assert (
+        "runtime-owned Lean did not verify a content-bound exact candidate"
+        in validated["runtime_verification_contract_errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "forged_source",
+        "forged_proof_body",
+        "provider_binds_forged_body",
+        "runtime_request_eligible",
+        "expected_structural_error",
+    ),
+    [
+        (
+            "-- theorem exact_source (p : Prop) (hp : p) : p\n"
+            "theorem unrelated : True := by\n"
+            "  trivial\n",
+            "exact hp",
+            True,
+            True,
+            "candidate artifact does not byte-bind the exact target declaration",
+        ),
+        (
+            "constant falseWitness : False\n"
+            "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+            "  exact False.elim falseWitness\n",
+            "exact False.elim falseWitness",
+            True,
+            True,
+            (
+                "candidate artifact bytes differ from deterministic "
+                "source/provider rematerialization"
+            ),
+        ),
+        (
+            "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+            "  exact (id hp)\n",
+            "exact (id hp)",
+            False,
+            True,
+            "candidate proof body is not bound to the provider result",
+        ),
+        (
+            "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+            "  exact hp\n",
+            "exact hp",
+            True,
+            False,
+            "verified row self-attestation or exact-lineage contract mismatch",
+        ),
+    ],
+)
+def test_runtime_rejects_forged_candidate_environment(
+    tmp_path: Path,
+    forged_source: str,
+    forged_proof_body: str,
+    provider_binds_forged_body: bool,
+    runtime_request_eligible: bool,
+    expected_structural_error: str,
+) -> None:
+    source_path = tmp_path / "Source.lean"
+    source = (
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n"
+    )
+    source_path.write_text(source, encoding="utf-8")
+    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
+    declaration_source = exact_executor_module._extract_lean_declaration_block(
+        source,
+        "exact_source",
+    )
+    lineage_payload = {
+        "source_work_order_id": "exact_source_work_order:comment-forgery",
+        "execution_queue_id": "exact_source_queue:comment-forgery",
+        "lineage_candidate_artifact_path": str(source_path),
+        "lineage_candidate_artifact_hash": runtime_module.stable_hash(source),
+        "target_declaration_source_hash": runtime_module.stable_hash(
+            declaration_source
+        ),
+        "target_theorem_statement_hash": runtime_module.stable_hash(
+            exact_executor_module._normalized_lean_signature(target_statement)
+        ),
+        "proof_body_signature_probe_artifact_path": str(source_path),
+        "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
+            source
+        ),
+        "expected_target_lean_declaration": "exact_source",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+    }
+    request = {
+        "request_fingerprint": "request:comment-forgery",
+        "question_id": "comment_forgery_question",
+        "source_task_id": "proofengineer:comment-forgery",
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": target_statement,
+        "target_ids": ["exact_source_goal"],
+        "candidate_artifact_path": str(source_path),
+        "source_candidate_artifact_path": str(source_path),
+        **lineage_payload,
+        "source_lineage_id": exact_executor_module._external_source_lineage_id(
+            lineage_payload
+        ),
+        "source_theorem_target_known": True,
+        "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+        "source_theorem_target_provenance": {
+            "source_theorem_question_id": "comment_forgery_question",
+            "target_lean_declaration": "exact_source",
+            "target_ids": ["exact_source_goal"],
+            "source_work_order_id": "exact_source_work_order:comment-forgery",
+            "execution_queue_id": "exact_source_queue:comment-forgery",
+        },
+        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+        "target_identity_errors": [],
+        "source_theorem_kernel_evidence_eligible": True,
+        "semantic_alignment_blockers": [],
+        "formal_environment_placeholder_symbols": [],
+        "formal_environment_typeclass_blockers": [],
+    }
+    provider_result = {
+        "result_id": "openprover:comment-forgery",
+        "provider": "openprover_hlm_controller",
+        "request_fingerprint": "request:comment-forgery",
+        "target_lean_declaration": "exact_source",
+        "source_theorem_candidate_proof_bodies": [
+            forged_proof_body if provider_binds_forged_body else "exact hp"
+        ],
+    }
+    manifest = exact_executor_module.execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result=provider_result,
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+    request["source_theorem_kernel_evidence_eligible"] = runtime_request_eligible
+    candidate_path = Path(manifest["rows"][0]["candidate_artifact_path"])
+    candidate_path.write_text(forged_source, encoding="utf-8")
+    manifest["rows"][0]["candidate_proof_body"] = forged_proof_body
+    manifest["rows"][0]["candidate_proof_body_hash"] = runtime_module.stable_hash(
+        forged_proof_body
+    )
+    manifest["rows"][0]["candidate_artifact_hash"] = runtime_module.stable_hash(
+        forged_source
+    )
+    Path(manifest["rows_path"]).write_text(
+        json.dumps(manifest["rows"][0]) + "\n",
+        encoding="utf-8",
+    )
+    Path(manifest["manifest_path"]).write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+
+    validated = runtime_module._runtime_validated_external_exact_candidate_rerun_result(
+        request=request,
+        provider_result=provider_result,
+        result=manifest,
+        runtime_lean_command=("lean",),
+        runtime_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+
+    assert validated["runtime_owned_local_lean_checked"] == 0
+    assert validated["runtime_verification_contract_satisfied"] is False
+    assert validated["source_theorem_kernel_verified"] is False
+    assert validated["rows"][0]["reported_source_theorem_kernel_verified"] is True
+    assert validated["rows"][0]["source_theorem_kernel_verified"] is False
+    assert validated["rows"][0]["runtime_structural_contract_errors"] == [
+        expected_structural_error
+    ]
+    if not runtime_request_eligible:
+        assert any(
+            error.startswith(
+                "rerun request is ineligible for source-theorem evidence:"
+            )
+            for error in validated["runtime_verification_contract_errors"]
+        )
+
+
+def test_runtime_clears_rows_that_fail_its_owned_lean_check(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "Source.lean"
+    source = (
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n"
+    )
+    source_path.write_text(source, encoding="utf-8")
+    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
+    lineage_payload = {
+        "source_work_order_id": "exact_source_work_order:multi-row",
+        "execution_queue_id": "exact_source_queue:multi-row",
+        "lineage_candidate_artifact_path": str(source_path),
+        "lineage_candidate_artifact_hash": runtime_module.stable_hash(source),
+        "target_declaration_source_hash": runtime_module.stable_hash(
+            exact_executor_module._extract_lean_declaration_block(
+                source,
+                "exact_source",
+            )
+        ),
+        "target_theorem_statement_hash": runtime_module.stable_hash(
+            exact_executor_module._normalized_lean_signature(target_statement)
+        ),
+        "proof_body_signature_probe_artifact_path": str(source_path),
+        "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
+            source
+        ),
+        "expected_target_lean_declaration": "exact_source",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+    }
+    request = {
+        "request_fingerprint": "request:multi-row",
+        "question_id": "multi_row_question",
+        "source_task_id": "proofengineer:multi-row",
+        "target_lean_declaration": "exact_source",
+        "target_theorem_statement": target_statement,
+        "target_ids": ["exact_source_goal"],
+        "candidate_artifact_path": str(source_path),
+        "source_candidate_artifact_path": str(source_path),
+        **lineage_payload,
+        "source_lineage_id": exact_executor_module._external_source_lineage_id(
+            lineage_payload
+        ),
+        "source_theorem_target_known": True,
+        "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+        "source_theorem_target_provenance": {
+            "source_theorem_question_id": "multi_row_question",
+            "target_lean_declaration": "exact_source",
+            "target_ids": ["exact_source_goal"],
+            "source_work_order_id": "exact_source_work_order:multi-row",
+            "execution_queue_id": "exact_source_queue:multi-row",
+        },
+        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+        "target_identity_errors": [],
+        "source_theorem_kernel_evidence_eligible": True,
+        "semantic_alignment_blockers": [],
+        "formal_environment_placeholder_symbols": [],
+        "formal_environment_typeclass_blockers": [],
+    }
+    provider_result = {
+        "result_id": "openprover:multi-row",
+        "provider": "openprover_hlm_controller",
+        "request_fingerprint": "request:multi-row",
+        "target_lean_declaration": "exact_source",
+        "source_theorem_candidate_proof_bodies": ["exact hp"],
+    }
+    manifest = exact_executor_module.execute_external_exact_source_theorem_proof_candidates(
+        request=request,
+        provider_result=provider_result,
+        out_dir=tmp_path / "rerun",
+        local_lean=True,
+        lean_command=("lean",),
+        local_lean_runner=lambda _path, **_kwargs: (True, 0, ()),
+    )
+    first_row = copy.deepcopy(manifest["rows"][0])
+    second_row = copy.deepcopy(first_row)
+    second_row["row_id"] = "external_exact_proof_candidate_rerun_row:second"
+    second_row["candidate_index"] = 2
+    manifest["rows"] = [first_row, second_row]
+    for key in (
+        "n_result_rows",
+        "n_local_lean_checked",
+        "n_local_lean_compiled",
+        "n_artifact_kernel_verified",
+        "n_source_theorem_kernel_verified",
+    ):
+        manifest[key] = 2
+    Path(manifest["rows_path"]).write_text(
+        "".join(json.dumps(row) + "\n" for row in manifest["rows"]),
+        encoding="utf-8",
+    )
+    Path(manifest["manifest_path"]).write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    runtime_calls = 0
+
+    def runtime_runner(_path: Path, **_kwargs):
+        nonlocal runtime_calls
+        runtime_calls += 1
+        return runtime_calls == 2, 0 if runtime_calls == 2 else 1, ()
+
+    validated = runtime_module._runtime_validated_external_exact_candidate_rerun_result(
+        request=request,
+        provider_result=provider_result,
+        result=manifest,
+        runtime_lean_command=("lean",),
+        runtime_lean_runner=runtime_runner,
+    )
+
+    assert validated["runtime_verification_contract_satisfied"] is True
+    assert validated["runtime_owned_local_lean_checked"] == 2
+    assert validated["runtime_owned_local_lean_compiled"] == 1
+    assert validated["n_artifact_kernel_verified"] == 1
+    assert validated["n_source_theorem_kernel_verified"] == 1
+    assert validated["rows"][0]["reported_source_theorem_kernel_verified"] is True
+    assert validated["rows"][0]["source_theorem_kernel_verified"] is False
+    assert validated["rows"][0]["status"] == "RUNTIME_OWNED_LOCAL_LEAN_FAILED"
+    assert validated["rows"][1]["source_theorem_kernel_verified"] is True
+
+
+def test_runtime_rerunner_malformed_counters_fail_closed() -> None:
+    validated = runtime_module._runtime_validated_external_exact_candidate_rerun_result(
+        request={
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "target_theorem_statement": "theorem exact_source : True",
+            "target_ids": ["exact_source_goal"],
+        },
+        provider_result={"result_id": "openprover:malformed"},
+        result={
+            "source_theorem_kernel_verified": False,
+            "n_result_rows": "not-an-int",
+            "n_precheck_rejected": -3,
+            "n_local_lean_checked": {},
+        },
+    )
+
+    assert validated["runtime_verification_contract_satisfied"] is False
+    assert "rerun n_result_rows is not an integer" in validated[
+        "runtime_verification_contract_errors"
+    ]
+    assert "rerun n_precheck_rejected is negative" in validated[
+        "runtime_verification_contract_errors"
+    ]
+    assert validated["n_result_rows"] == 0
+    assert validated["n_precheck_rejected"] == 0
+    assert validated["n_local_lean_checked"] == 0
+    assert validated["reported_n_result_rows"] == 0
+    assert validated["reported_n_precheck_rejected"] == 0
+
+
+def test_external_proof_search_preservation_keeps_feedback_evidence_and_tools() -> None:
+    external_result = {
+        "result_id": "openprover:failed",
+        "provider": "openprover_hlm_controller",
+        "request_fingerprint": "request:exact-source",
+        "target_lean_declaration": "exact_source",
+        "status": "DIRECT_CANDIDATE_AVAILABLE",
+        "exact_candidate_rerun": {
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "candidate_feedback_rows": [
+                {
+                    "status": "LOCAL_LEAN_FAILED",
+                    "diagnostics": ["unknown identifier hp"],
+                }
+            ],
+        },
+    }
+    observation = runtime_module.EnvironmentObservation(
+        observation_type="external_proof_search",
+        summary="failed exact candidate",
+        payload={"result_id": "openprover:failed"},
+    )
+    evidence = runtime_module.EvidenceLedgerEntry(
+        evidence_id="evidence:external",
+        task_id="task:contract",
+        artifact_id="openprover:failed",
+        evidence_type="external_proof_search_feedback",
+        status="RECORDED_NOT_PROOF_EVIDENCE",
+        boundary="not proof evidence",
+        payload={},
+    )
+    tool_call = runtime_module.ToolCallRecord(
+        tool_name="LeanProofSearchProvider.run",
+        inputs={"request_fingerprint": "request:exact-source"},
+        output_paths=(),
+        exit_status="0",
+        stdout_summary="candidate failed",
+        safety_boundary="not proof evidence",
+    )
+    next_task = AgentTask(
+        task_id="formalizer-capability-contract-repair:test",
+        owner_subsystem="FormalizationEvaluator",
+        objective="repair capability contract",
+        inputs={"environment_feedback": {"failure_classification": "missing_tool"}},
+    )
+    contract_result = AgentStepResult(
+        status="REVISE",
+        rationale="capability contract failed",
+        produced_artifacts={"openprover:failed": external_result},
+        observations=(observation,),
+        next_task=next_task,
+    )
+
+    preserved = runtime_module._agent_step_result_with_external_proof_search(
+        contract_result,
+        external_result=external_result,
+        artifacts={"openprover:failed": external_result},
+        observations=(observation,),
+        evidence_entries=(evidence,),
+        tool_calls=(tool_call,),
+    )
+
+    assert len(preserved.observations) == 1
+    assert preserved.evidence_entries == (evidence,)
+    assert preserved.tool_calls == (tool_call,)
+    assert preserved.next_task is not None
+    next_feedback = preserved.next_task.inputs["environment_feedback"]
+    assert next_feedback["failure_classification"] == "missing_tool"
+    assert next_feedback["external_proof_search_result"]["result_id"] == (
+        "openprover:failed"
+    )
+    assert next_feedback["proofengineer_repair_context"][
+        "external_proof_search_result"
+    ]["exact_candidate_rerun"]["candidate_feedback_rows"][0]["status"] == (
+        "LOCAL_LEAN_FAILED"
+    )
+
+
+def test_formalizer_candidate_failure_keeps_external_exact_rerun_feedback() -> None:
+    external_result = {
+        "result_id": "openprover:failed",
+        "provider": "openprover_hlm_controller",
+        "request_fingerprint": "request:exact-source",
+        "target_lean_declaration": "exact_source",
+        "status": "DIRECT_CANDIDATE_AVAILABLE",
+        "exact_candidate_rerun": {
+            "n_local_lean_checked": 1,
+            "n_local_lean_compiled": 0,
+            "candidate_feedback_rows": [
+                {
+                    "candidate_proof_body": "exact hp",
+                    "diagnostics": ["unknown identifier hp"],
+                    "status": "LOCAL_LEAN_FAILED",
+                }
+            ],
+        },
+    }
+    feedback = runtime_module._formalizer_lean_candidate_repair_feedback(
+        {
+            "manifest_id": "formalizer_lean_candidate_materialization:failed",
+            "n_candidate_sources": 1,
+            "n_candidate_artifacts_written": 0,
+            "n_precheck_rejected": 1,
+            "n_local_lean_checked": 0,
+            "n_local_lean_compiled": 0,
+            "candidate_rows": [
+                {
+                    "candidate_id": "candidate:failed",
+                    "candidate_kind": "formal_target",
+                    "source_field": "formal_targets",
+                    "target_lean_declaration": "exact_source",
+                    "precheck_status": "REJECTED_BY_RUNTIME_PRECHECK",
+                    "precheck_errors": ["target declaration drift"],
+                    "local_lean_attempted": False,
+                    "local_lean_compiled": False,
+                }
+            ],
+        },
+        prior_environment_feedback={
+            "external_proof_search_result": external_result,
+            "proofengineer_repair_context": {
+                "context_kind": "exact_source_theorem_whole_proof_repair",
+                "target_lean_declaration": "exact_source",
+                "target_ids": ["exact_source_goal"],
+                "target_theorem_statement": "theorem exact_source : True",
+                "source_work_order_id": "exact_source_work_order:fixture",
+                "execution_queue_id": "exact_source_queue:fixture",
+                "source_lineage_id": "source_theorem_lineage:fixture",
+                "external_proof_search_result": external_result,
+            },
+        },
+    )
+
+    assert feedback is not None
+    assert feedback["external_proof_search_result"]["result_id"] == (
+        "openprover:failed"
+    )
+    rerun = feedback["proofengineer_repair_context"][
+        "external_proof_search_result"
+    ]["exact_candidate_rerun"]
+    assert feedback["proofengineer_repair_context"]["target_ids"] == [
+        "exact_source_goal"
+    ]
+    assert feedback["proofengineer_repair_context"][
+        "target_theorem_statement"
+    ] == "theorem exact_source : True"
+    assert feedback["proofengineer_repair_context"]["source_lineage_id"] == (
+        "source_theorem_lineage:fixture"
+    )
+    assert rerun["candidate_feedback_rows"][0]["diagnostics"] == [
+        "unknown identifier hp"
+    ]
+
+
+def test_cli_compaction_preserves_external_exact_rerun_lineage_and_feedback() -> None:
+    long_proof_body = "have h : p := hp\n" + "simp_all\n" * 80 + "exact h"
+    compact = cli_module._compact_proofengineer_repair_context(
+        {
+            "context_kind": "exact_source_theorem_whole_proof_repair",
+            "target_lean_declaration": "exact_source",
+            "target_ids": ["exact_source_goal"],
+            "source_theorem_target_known": True,
+            "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+            "source_theorem_target_provenance": {
+                "source_theorem_question_id": "fixture_question",
+                "target_lean_declaration": "exact_source",
+                "target_ids": ["exact_source_goal"],
+            },
+            "target_identity_status": "TARGET_DECLARATION_MATCHED",
+            "source_theorem_kernel_evidence_eligible": True,
+            "source_work_order_id": "exact_source_work_order:fixture",
+            "execution_queue_id": "exact_source_queue:fixture",
+            "lineage_candidate_artifact_path": "/tmp/exact_source.lean",
+            "lineage_candidate_artifact_hash": "a" * 64,
+            "target_declaration_source_hash": "b" * 64,
+            "target_theorem_statement_hash": "c" * 64,
+            "proof_body_signature_probe_artifact_path": "/tmp/probe.lean",
+            "proof_body_signature_probe_artifact_hash": "d" * 64,
+            "source_lineage_id": "source_theorem_lineage:fixture",
+            "external_proof_search_result": {
+                "result_id": "openprover:result",
+                "provider": "openprover_hlm_controller",
+                "request_fingerprint": "request:exact-source",
+                "target_lean_declaration": "exact_source",
+                "status": "DIRECT_CANDIDATE_AVAILABLE",
+                "source_theorem_candidate_proof_bodies": [long_proof_body],
+                "exact_candidate_rerun": {
+                    "manifest_id": "external-rerun:1",
+                    "execution_id": "external-rerun-execution:1",
+                    "input_fingerprint": "e" * 64,
+                    "n_local_lean_checked": 1,
+                    "n_local_lean_compiled": 0,
+                    "n_source_theorem_kernel_verified": 0,
+                    "runtime_verification_contract_satisfied": False,
+                    "runtime_verification_contract_errors": [
+                        "exact local Lean candidate did not compile"
+                    ],
+                    "candidate_feedback_rows": [
+                        {
+                            "candidate_index": 1,
+                            "candidate_proof_body": long_proof_body,
+                            "candidate_proof_body_hash": "f" * 64,
+                            "candidate_artifact_path": "/tmp/rerun.lean",
+                            "candidate_artifact_hash": "0" * 64,
+                            "materialized_verified_support_asset_names": [
+                                "helper"
+                            ],
+                            "materialized_verified_support_asset_hashes": [
+                                "1" * 64
+                            ],
+                            "exact_signature_preserved": True,
+                            "local_lean_checked": True,
+                            "local_lean_compiled": False,
+                            "returncode": 1,
+                            "diagnostics": ["unknown identifier hp"],
+                            "artifact_kernel_verified": False,
+                            "source_theorem_kernel_verified": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            "status": "LOCAL_LEAN_FAILED",
+                        }
+                    ],
+                    "proof_evidence_status": (
+                        "EXTERNAL_PROOF_CANDIDATE_RERUN_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            },
+        }
+    )
+
+    assert compact["source_theorem_target_known"] is True
+    assert compact["source_theorem_target_identity_status"] == (
+        "SOURCE_THEOREM_TARGET_KNOWN"
+    )
+    assert compact["target_identity_status"] == "TARGET_DECLARATION_MATCHED"
+    assert compact["source_lineage_id"] == "source_theorem_lineage:fixture"
+    external = compact["external_proof_search_result"]
+    assert external["source_theorem_candidate_proof_bodies"] == [long_proof_body]
+    rerun = external["exact_candidate_rerun"]
+    assert rerun["n_local_lean_checked"] == 1
+    assert rerun["runtime_verification_contract_errors"] == [
+        "exact local Lean candidate did not compile"
+    ]
+    assert rerun["candidate_feedback_rows"][0]["candidate_proof_body"] == (
+        long_proof_body
+    )
+    assert rerun["candidate_feedback_rows"][0]["local_lean_compiled"] is False
+    assert rerun["candidate_feedback_rows"][0]["diagnostics"] == [
+        "unknown identifier hp"
+    ]
+
+
+def test_formalizer_compaction_preserves_exact_lineage_and_rerun_diagnostics() -> None:
+    long_candidate_body = "have h : True := by trivial\n" + "simp\n" * 120
+    long_diagnostic = "elaboration context " * 180 + (
+        "unknown identifier decisive_tail_symbol"
+    )
+    context = {
+        "context_kind": "exact_source_theorem_whole_proof_repair",
+        "repair_scope": "replace_entire_exact_declaration_proof_body",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+        "source_theorem_target_known": True,
+        "source_theorem_target_identity_status": "SOURCE_THEOREM_TARGET_KNOWN",
+        "source_theorem_target_provenance": {
+            "source_theorem_question_id": "fixture_question",
+            "target_lean_declaration": "exact_source",
+            "target_ids": ["exact_source_goal"],
+        },
+        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+        "target_identity_errors": [],
+        "source_theorem_kernel_evidence_eligible": True,
+        "expected_target_lean_declaration": "exact_source",
+        "source_work_order_id": "exact_source_work_order:fixture",
+        "execution_queue_id": "exact_source_queue:fixture",
+        "source_lineage_id": "source_theorem_lineage:fixture",
+        "candidate_artifact_path": "/tmp/exact_source.lean",
+        "source_candidate_artifact_path": "/tmp/source.lean",
+        "lineage_candidate_artifact_path": "/tmp/exact_source.lean",
+        "lineage_candidate_artifact_hash": "a" * 64,
+        "target_declaration_source_hash": "b" * 64,
+        "target_theorem_statement_hash": "c" * 64,
+        "proof_body_signature_probe_artifact_path": "/tmp/probe.lean",
+        "proof_body_signature_probe_artifact_hash": "d" * 64,
+        "target_theorem_statement": (
+            "theorem exact_source (p : Prop) (hp : p) : p"
+        ),
+        "current_proof_body_excerpt": "exact missing",
+        "formal_environment_placeholder_symbols": ["Covered"],
+        "formal_environment_typeclass_blockers": ["instMeasurable"],
+        "semantic_alignment_constraints": ["preserve source semantics"],
+        "semantic_alignment_blockers": ["definition unresolved"],
+        "external_proof_search_result": {
+            "result_id": "openprover:failed",
+            "provider": "openprover_hlm_controller",
+            "request_fingerprint": "request:exact-source",
+            "target_lean_declaration": "exact_source",
+            "status": "DIRECT_CANDIDATE_AVAILABLE",
+            "source_theorem_candidate_proof_bodies": ["exact hp"],
+            "exact_candidate_rerun": {
+                "manifest_id": "external-rerun:failed",
+                "runtime_verification_contract_satisfied": False,
+                "runtime_verification_contract_errors": [
+                    "content-bound exact row missing"
+                ],
+                "candidate_feedback_rows": [
+                    {
+                        "candidate_index": 1,
+                        "candidate_proof_body": long_candidate_body,
+                        "local_lean_checked": True,
+                        "local_lean_compiled": False,
+                        "diagnostics": [long_diagnostic],
+                        "status": "LOCAL_LEAN_FAILED",
+                    }
+                ],
+            },
+        },
+    }
+
+    compact = formalizer_module._compact_value(context)
+
+    assert compact["source_theorem_target_identity_status"] == (
+        "SOURCE_THEOREM_TARGET_KNOWN"
+    )
+    assert compact["source_theorem_target_provenance"]["target_ids"] == [
+        "exact_source_goal"
+    ]
+    assert compact["formal_environment_placeholder_symbols"] == ["Covered"]
+    assert compact["formal_environment_typeclass_blockers"] == [
+        "instMeasurable"
+    ]
+    rerun = compact["external_proof_search_result"]["exact_candidate_rerun"]
+    assert rerun["runtime_verification_contract_errors"] == [
+        "content-bound exact row missing"
+    ]
+    compact_row = rerun["candidate_feedback_rows"][0]
+    assert compact_row["candidate_proof_body"] == long_candidate_body
+    assert "decisive_tail_symbol" in compact_row["diagnostics"][0]
+    assert rerun["candidate_feedback_rows"][0]["status"] == "LOCAL_LEAN_FAILED"
 
 
 def test_whole_proof_validation_failure_stays_with_proofengineer() -> None:

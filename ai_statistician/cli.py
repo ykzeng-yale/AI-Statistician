@@ -3296,6 +3296,16 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "candidate_proof_state_manifest_id",
         "candidate_artifact_path",
         "source_candidate_artifact_path",
+        "expected_target_lean_declaration",
+        "source_work_order_id",
+        "execution_queue_id",
+        "lineage_candidate_artifact_path",
+        "lineage_candidate_artifact_hash",
+        "target_declaration_source_hash",
+        "target_theorem_statement_hash",
+        "proof_body_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_hash",
+        "source_lineage_id",
         "adapter_candidate_artifact_path",
         "adapter_declaration_name",
         "adapter_kernel_verified",
@@ -3436,6 +3446,10 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "exact_goal_shape_obligation_ids",
         "exact_goal_shape_obligations",
         "diagnostics",
+        "runtime_owned_local_lean_checked",
+        "runtime_owned_local_lean_compiled",
+        "runtime_owned_local_lean_returncode",
+        "runtime_owned_local_lean_diagnostics",
         "adapter_candidate_imports",
         "precheck_errors",
         "prototypes",
@@ -4273,8 +4287,26 @@ def _compact_proofengineer_repair_context(value: object) -> object:
         "repair_scope",
         "target_lean_declaration",
         "target_ids",
+        "source_theorem_target_known",
+        "source_theorem_target_identity_status",
+        "source_theorem_target_provenance",
+        "target_identity_status",
+        "target_identity_errors",
+        "source_theorem_kernel_evidence_eligible",
+        "formal_environment_placeholder_symbols",
+        "formal_environment_typeclass_blockers",
         "candidate_artifact_path",
         "source_candidate_artifact_path",
+        "expected_target_lean_declaration",
+        "source_work_order_id",
+        "execution_queue_id",
+        "lineage_candidate_artifact_path",
+        "lineage_candidate_artifact_hash",
+        "target_declaration_source_hash",
+        "target_theorem_statement_hash",
+        "proof_body_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_hash",
+        "source_lineage_id",
         "target_declaration_source_excerpt",
         "target_theorem_statement",
         "current_proof_body_excerpt",
@@ -4297,11 +4329,230 @@ def _compact_proofengineer_repair_context(value: object) -> object:
             continue
         if key in code_limits and isinstance(child, str):
             compact[key] = child[: code_limits[key]]
+        elif key == "source_theorem_target_provenance" and isinstance(
+            child,
+            Mapping,
+        ):
+            compact[key] = {
+                str(provenance_key): (
+                    provenance_value
+                    if isinstance(provenance_value, str)
+                    and _runtime_learning_key_is_path_like(str(provenance_key))
+                    else _compact_runtime_learning_value(provenance_value)
+                )
+                for provenance_key, provenance_value in list(child.items())[:24]
+                if provenance_value not in (None, "", [], {})
+            }
+        elif key == "external_proof_search_result" and isinstance(child, Mapping):
+            compact[key] = _compact_external_proof_search_result(child)
         elif isinstance(child, str) and _runtime_learning_key_is_path_like(key):
             compact[key] = child
         else:
             compact[key] = _compact_runtime_learning_value(child)
     return compact
+
+
+def _compact_external_proof_search_result(
+    value: Mapping[str, object],
+) -> dict[str, object]:
+    keys = (
+        "result_id",
+        "provider",
+        "request_fingerprint",
+        "target_lean_declaration",
+        "status",
+        "openprover_summary",
+        "source_theorem_candidate_proof_bodies",
+        "verified_support_assets",
+        "failure_feedback",
+        "exact_candidate_rerun",
+        "report_path",
+        "checkpoint_path",
+        "blocker",
+        "error",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    compact: dict[str, object] = {}
+    for key in keys:
+        child = value.get(key)
+        if child in (None, "", [], {}):
+            continue
+        if key == "source_theorem_candidate_proof_bodies" and isinstance(
+            child,
+            (list, tuple),
+        ):
+            compact[key] = [str(body)[:12000] for body in child[:4] if str(body)]
+        elif key == "verified_support_assets" and isinstance(child, (list, tuple)):
+            compact[key] = [
+                {
+                    asset_key: (
+                        str(asset_value)[:20000]
+                        if asset_key in {"theorem_src", "proof"}
+                        else _compact_runtime_learning_value(asset_value)
+                    )
+                    for asset_key, asset_value in asset.items()
+                    if asset_key
+                    in {
+                        "name",
+                        "statement",
+                        "proof",
+                        "theorem_src",
+                        "call_expr",
+                        "axioms_report",
+                        "proof_source",
+                    }
+                    and asset_value not in (None, "", [], {})
+                }
+                for asset in child[:8]
+                if isinstance(asset, Mapping)
+            ]
+        elif key != "exact_candidate_rerun":
+            compact[key] = _compact_runtime_learning_value(child)
+    exact_rerun = value.get("exact_candidate_rerun")
+    if isinstance(exact_rerun, Mapping):
+        exact_keys = (
+            "manifest_id",
+            "execution_id",
+            "input_fingerprint",
+            "provider_result_fingerprint",
+            "verification_config_fingerprint",
+            "request_fingerprint",
+            "question_id",
+            "source_task_id",
+            "source_lineage_id",
+            "source_work_order_id",
+            "execution_queue_id",
+            "target_ids",
+            "target_lean_declaration",
+            "target_theorem_statement",
+            "verification_scope",
+            "exact_target_prefix_hash",
+            "source_after_exact_target_marker_hash",
+            "source_suffix_commands_executed",
+            "source_candidate_artifact_path",
+            "source_candidate_artifact_hash",
+            "proof_body_signature_probe_artifact_path",
+            "proof_body_signature_probe_artifact_hash",
+            "n_candidate_proof_bodies",
+            "n_result_rows",
+            "n_precheck_rejected",
+            "n_local_lean_checked",
+            "n_local_lean_compiled",
+            "n_artifact_kernel_verified",
+            "n_source_theorem_kernel_verified",
+            "source_theorem_kernel_verified",
+            "source_theorem_kernel_verified_target_ids",
+            "source_theorem_kernel_verified_target_names",
+            "runtime_verification_contract_satisfied",
+            "runtime_verification_contract_errors",
+            "reported_source_theorem_kernel_verified",
+            "runtime_owned_local_lean_checked",
+            "runtime_owned_local_lean_compiled",
+            "runtime_owned_source_theorem_kernel_verified",
+            "candidate_feedback_rows",
+            "error",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        )
+        compact_rerun: dict[str, object] = {}
+        for key in exact_keys:
+            child = exact_rerun.get(key)
+            if child in (None, "", [], {}):
+                continue
+            if key == "candidate_feedback_rows" and isinstance(
+                child,
+                (list, tuple),
+            ):
+                compact_rerun[key] = [
+                    _compact_external_exact_candidate_feedback_row(row)
+                    for row in child[:4]
+                    if isinstance(row, Mapping)
+                ]
+            else:
+                compact_rerun[key] = _compact_runtime_learning_value(child)
+        compact["exact_candidate_rerun"] = compact_rerun
+    return compact
+
+
+def _compact_external_exact_candidate_feedback_row(
+    row: Mapping[str, object],
+) -> dict[str, object]:
+    keys = (
+        "candidate_index",
+        "candidate_proof_body",
+        "candidate_proof_body_hash",
+        "candidate_artifact_path",
+        "candidate_artifact_hash",
+        "request_fingerprint",
+        "input_fingerprint",
+        "execution_id",
+        "question_id",
+        "source_task_id",
+        "source_lineage_id",
+        "source_work_order_id",
+        "execution_queue_id",
+        "source_candidate_artifact_hash",
+        "materialized_verified_support_asset_names",
+        "materialized_verified_support_asset_hashes",
+        "verification_scope",
+        "exact_target_prefix_hash",
+        "source_after_exact_target_marker_hash",
+        "source_suffix_commands_executed",
+        "exact_signature_preserved",
+        "precheck_errors",
+        "source_theorem_evidence_blockers",
+        "runtime_structural_contract_errors",
+        "local_lean_checked",
+        "local_lean_compiled",
+        "returncode",
+        "diagnostics",
+        "runtime_owned_local_lean_checked",
+        "runtime_owned_local_lean_compiled",
+        "runtime_owned_local_lean_returncode",
+        "runtime_owned_local_lean_diagnostics",
+        "artifact_kernel_verified",
+        "reported_artifact_kernel_verified",
+        "reported_source_theorem_kernel_verified",
+        "source_theorem_kernel_verified",
+        "proof_evidence_status",
+        "status",
+    )
+    compact: dict[str, object] = {}
+    for key in keys:
+        child = row.get(key)
+        if child in (None, "", [], {}):
+            continue
+        if key == "candidate_proof_body" and isinstance(child, str):
+            compact[key] = child[:12000]
+        elif key in {
+            "precheck_errors",
+            "source_theorem_evidence_blockers",
+            "runtime_structural_contract_errors",
+            "diagnostics",
+            "runtime_owned_local_lean_diagnostics",
+        } and isinstance(child, (list, tuple)):
+            compact[key] = [
+                _compact_external_candidate_diagnostic(str(value))
+                for value in child[:24]
+            ]
+        elif isinstance(child, str) and _runtime_learning_key_is_path_like(key):
+            compact[key] = child
+        else:
+            compact[key] = _compact_runtime_learning_value(child)
+    return compact
+
+
+def _compact_external_candidate_diagnostic(
+    value: str,
+    *,
+    max_chars: int = 2400,
+) -> str:
+    if len(value) <= max_chars:
+        return value
+    head_chars = 700
+    tail_chars = max_chars - head_chars - 5
+    return value[:head_chars] + " ... " + value[-tail_chars:]
 
 
 def _compact_formalization_gap_planner_execution_context(value: object) -> object:
@@ -11387,6 +11638,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             formalizer_candidate_local_lean=bool(
                 getattr(args, "formalizer_candidate_local_lean", False)
                 or getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
+                or getattr(args, "openprover_hlm", False)
             ),
             formalizer_candidate_lean_lsp_mcp=bool(
                 getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
@@ -20740,7 +20992,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "run the configured OpenProver verifier-backed HLM controller on "
-            "lineage-bound whole-theorem ProofEngineer repair tasks"
+            "lineage-bound whole-theorem ProofEngineer repair tasks, then "
+            "deterministically rerun direct candidates under the exact local "
+            "AI-Statistician Lean gate before any LLM rewrite"
         ),
     )
     research_agent_runtime.add_argument(

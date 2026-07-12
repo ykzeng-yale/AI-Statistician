@@ -55,6 +55,9 @@ from .generated_metric_repair_policy import (
     is_generated_metric_auxiliary_name as policy_is_generated_metric_auxiliary_name,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
+    FORBIDDEN_ARTIFACT_TOKENS,
+    _lean_command as _runtime_owned_lean_command,
+    _run_local_lean as _runtime_owned_local_lean,
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
 from .formal_verifier_agentic_proof_execution_materializer import (
@@ -67,7 +70,17 @@ from .formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
 from .exact_source_theorem_proof_body_executor import (
+    _exact_target_statement_span as _external_exact_target_statement_span,
+    _external_candidate_source_evidence_blockers as _external_exact_source_evidence_blockers,
+    _external_exact_target_statement as _external_exact_candidate_statement,
+    _external_proof_candidate_bodies as _external_exact_provider_candidate_bodies,
+    _external_source_lineage_id as _external_exact_source_lineage_id,
+    _extract_lean_declaration_block as _external_exact_declaration_block,
+    _normalize_external_proof_body as _normalize_external_exact_proof_body,
+    _normalized_lean_signature as _normalized_external_lean_signature,
+    execute_external_exact_source_theorem_proof_candidates,
     export_exact_source_theorem_proof_body_execution_results,
+    materialize_external_exact_source_candidate,
 )
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
@@ -392,6 +405,7 @@ FORMAL_VERIFICATION_POLICIES = ("required", "optional", "advisory")
 RECOMMENDED_RESEARCH_PATHS = ("simulation_first", "proof_first", "dual_track")
 FORMAL_BLOCKER_RESOURCE_REQUEST_LIMIT = 12
 SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
@@ -411,6 +425,7 @@ SOURCE_THEOREM_RAW_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
     "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
 )
 SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_proof_body_recheck_executor_n_source_theorem_kernel_verified",
     "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified",
@@ -425,11 +440,14 @@ SOURCE_THEOREM_AUDIT_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
     "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified",
 )
 SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_COUNT_KEYS: tuple[str, ...] = (
+    "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified",
     "n_source_theorem_target_bound_kernel_verified",
     "n_source_theorem_current_target_kernel_verified",
     "source_theorem_target_bound_n_source_theorem_kernel_verified",
 )
 SOURCE_THEOREM_TARGET_BOUND_KERNEL_EVIDENCE_TARGET_KEYS: tuple[str, ...] = (
+    "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_ids",
+    "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_names",
     "source_theorem_target_bound_kernel_verified_target_ids",
     "source_theorem_target_bound_kernel_verified_target_names",
     "source_theorem_kernel_verified_target_ids",
@@ -459,6 +477,7 @@ FULL_FRONTIER_CURRENT_TARGET_KEYS: tuple[str, ...] = (
 )
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+    "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_source_theorem_kernel_verified",
     "source_theorem_exact_proof_body_repair_executor_n_source_theorem_kernel_verified",
@@ -467,6 +486,7 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_KERNEL_EVIDENCE_KEYS: tuple[str, ...] 
 )
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+    "external_exact_proof_candidate_rerun_n_result_rows",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
     "source_theorem_exact_proof_body_repair_executor_n_result_rows",
@@ -475,6 +495,7 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_RESULT_ROW_KEYS: tuple[str, ...] = (
 )
 SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked",
+    "external_exact_proof_candidate_rerun_n_local_lean_checked",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_local_lean_checked",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_local_lean_checked",
     "source_theorem_exact_proof_body_repair_executor_n_local_lean_checked",
@@ -491,6 +512,7 @@ SOURCE_THEOREM_AUDIT_FORMAL_ENV_AGGREGATE_LOCAL_LEAN_CHECK_KEYS: tuple[str, ...]
 )
 SOURCE_THEOREM_PROOF_BODY_RESULT_ROW_KEYS: tuple[str, ...] = (
     "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+    "external_exact_proof_candidate_rerun_n_result_rows",
     "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
     "source_theorem_formal_environment_proof_body_executor_from_post_executor_semantic_promotion_n_result_rows",
     "source_theorem_exact_proof_body_repair_executor_n_result_rows",
@@ -12405,6 +12427,97 @@ def _runtime_external_proof_search_request(
         "target_declaration_source_excerpt": str(
             repair_context.get("target_declaration_source_excerpt", "") or ""
         )[:12000],
+        "candidate_artifact_path": str(
+            repair_context.get("candidate_artifact_path", "") or ""
+        ),
+        "source_candidate_artifact_path": str(
+            repair_context.get("source_candidate_artifact_path", "") or ""
+        ),
+        "expected_target_lean_declaration": str(
+            repair_context.get("expected_target_lean_declaration", "") or ""
+        ),
+        "source_work_order_id": str(
+            repair_context.get("source_work_order_id", "") or ""
+        ),
+        "execution_queue_id": str(
+            repair_context.get("execution_queue_id", "") or ""
+        ),
+        "lineage_candidate_artifact_path": str(
+            repair_context.get("lineage_candidate_artifact_path", "") or ""
+        ),
+        "lineage_candidate_artifact_hash": str(
+            repair_context.get("lineage_candidate_artifact_hash", "") or ""
+        ),
+        "target_declaration_source_hash": str(
+            repair_context.get("target_declaration_source_hash", "") or ""
+        ),
+        "target_theorem_statement_hash": str(
+            repair_context.get("target_theorem_statement_hash", "") or ""
+        ),
+        "proof_body_signature_probe_artifact_path": str(
+            repair_context.get(
+                "proof_body_signature_probe_artifact_path",
+                "",
+            )
+            or ""
+        ),
+        "proof_body_signature_probe_artifact_hash": str(
+            repair_context.get(
+                "proof_body_signature_probe_artifact_hash",
+                "",
+            )
+            or ""
+        ),
+        "source_lineage_id": str(
+            repair_context.get("source_lineage_id", "") or ""
+        ),
+        "source_theorem_target_known": _bool_like(
+            repair_context.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_identity_status": str(
+            repair_context.get("source_theorem_target_identity_status", "")
+            or ""
+        ),
+        "source_theorem_target_provenance": dict(
+            repair_context.get("source_theorem_target_provenance", {}) or {}
+        )
+        if isinstance(
+            repair_context.get("source_theorem_target_provenance", {}),
+            Mapping,
+        )
+        else {},
+        "target_identity_status": str(
+            repair_context.get("target_identity_status", "") or ""
+        ),
+        "target_identity_errors": [
+            str(value)
+            for value in repair_context.get("target_identity_errors", []) or []
+            if str(value)
+        ][:12],
+        "source_theorem_kernel_evidence_eligible": _bool_like(
+            repair_context.get(
+                "source_theorem_kernel_evidence_eligible",
+                False,
+            )
+        ),
+        "formal_environment_placeholder_symbols": [
+            str(value)
+            for value in repair_context.get(
+                "formal_environment_placeholder_symbols",
+                [],
+            )
+            or []
+            if str(value)
+        ][:16],
+        "formal_environment_typeclass_blockers": [
+            str(value)
+            for value in repair_context.get(
+                "formal_environment_typeclass_blockers",
+                [],
+            )
+            or []
+            if str(value)
+        ][:16],
         "current_proof_body_excerpt": str(
             repair_context.get("current_proof_body_excerpt", "") or ""
         )[:6000],
@@ -12521,6 +12634,881 @@ def _runtime_external_proof_search_error_result(
     }
 
 
+def _runtime_external_exact_candidate_rerun_error_result(
+    *,
+    request: Mapping[str, Any],
+    provider_result: Mapping[str, Any],
+    exc: Exception,
+) -> dict[str, Any]:
+    request_fingerprint = str(request.get("request_fingerprint", "") or "")
+    manifest_id = "external_exact_proof_candidate_rerun_error:" + stable_hash(
+        [request_fingerprint, type(exc).__name__, str(exc)[:300]]
+    )[:20]
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeExternalExactProofCandidateRerunManifest",
+        "manifest_id": manifest_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "request_fingerprint": request_fingerprint,
+        "provider": str(provider_result.get("provider", "") or ""),
+        "provider_result_id": str(provider_result.get("result_id", "") or ""),
+        "target_ids": list(request.get("target_ids", []) or []),
+        "target_lean_declaration": str(
+            request.get("target_lean_declaration", "") or ""
+        ),
+        "n_candidate_proof_bodies": len(
+            provider_result.get("source_theorem_candidate_proof_bodies", []) or []
+        ),
+        "n_result_rows": 0,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 0,
+        "n_local_lean_compiled": 0,
+        "n_artifact_kernel_verified": 0,
+        "n_source_theorem_kernel_verified": 0,
+        "source_theorem_kernel_verified": False,
+        "source_theorem_kernel_verified_target_ids": [],
+        "source_theorem_kernel_verified_target_names": [],
+        "error": f"{type(exc).__name__}: {str(exc)[:500]}",
+        "proof_evidence_status": (
+            "EXTERNAL_PROOF_CANDIDATE_RERUN_ERROR_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+
+def _runtime_external_exact_candidate_rerun_summary(
+    result: Mapping[str, Any],
+) -> dict[str, Any]:
+    summary = {
+        key: result.get(key)
+        for key in (
+            "manifest_id",
+            "execution_id",
+            "input_fingerprint",
+            "provider_result_fingerprint",
+            "verification_config_fingerprint",
+            "request_fingerprint",
+            "question_id",
+            "source_task_id",
+            "source_lineage_id",
+            "source_work_order_id",
+            "execution_queue_id",
+            "provider",
+            "provider_result_id",
+            "target_ids",
+            "target_lean_declaration",
+            "target_theorem_statement",
+            "verification_scope",
+            "exact_target_prefix_hash",
+            "source_after_exact_target_marker_hash",
+            "source_suffix_commands_executed",
+            "source_candidate_artifact_path",
+            "source_candidate_artifact_hash",
+            "proof_body_signature_probe_artifact_path",
+            "proof_body_signature_probe_artifact_hash",
+            "manifest_path",
+            "rows_path",
+            "n_candidate_proof_bodies",
+            "n_result_rows",
+            "n_precheck_rejected",
+            "n_local_lean_checked",
+            "n_local_lean_compiled",
+            "n_artifact_kernel_verified",
+            "n_source_theorem_kernel_verified",
+            "source_theorem_kernel_verified",
+            "source_theorem_kernel_verified_target_ids",
+            "source_theorem_kernel_verified_target_names",
+            "runtime_verification_contract_satisfied",
+            "runtime_verification_contract_errors",
+            "reported_source_theorem_kernel_verified",
+            "runtime_owned_local_lean_checked",
+            "runtime_owned_local_lean_compiled",
+            "runtime_owned_source_theorem_kernel_verified",
+            "error",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        )
+        if result.get(key) not in (None, "", [], {})
+    }
+    summary["candidate_feedback_rows"] = [
+        {
+            key: row.get(key)
+            for key in (
+                "candidate_index",
+                "candidate_proof_body",
+                "candidate_proof_body_hash",
+                "candidate_artifact_path",
+                "candidate_artifact_hash",
+                "request_fingerprint",
+                "input_fingerprint",
+                "execution_id",
+                "question_id",
+                "source_task_id",
+                "source_lineage_id",
+                "source_work_order_id",
+                "execution_queue_id",
+                "source_candidate_artifact_hash",
+                "materialized_verified_support_asset_names",
+                "materialized_verified_support_asset_hashes",
+                "verification_scope",
+                "exact_target_prefix_hash",
+                "source_after_exact_target_marker_hash",
+                "source_suffix_commands_executed",
+                "exact_signature_preserved",
+                "precheck_errors",
+                "source_theorem_evidence_blockers",
+                "runtime_structural_contract_errors",
+                "local_lean_checked",
+                "local_lean_compiled",
+                "returncode",
+                "diagnostics",
+                "runtime_owned_local_lean_checked",
+                "runtime_owned_local_lean_compiled",
+                "runtime_owned_local_lean_returncode",
+                "runtime_owned_local_lean_diagnostics",
+                "artifact_kernel_verified",
+                "reported_artifact_kernel_verified",
+                "reported_source_theorem_kernel_verified",
+                "source_theorem_kernel_verified",
+                "proof_evidence_status",
+                "status",
+            )
+            if row.get(key) not in (None, "", [], {})
+        }
+        for row in result.get("rows", []) or []
+        if isinstance(row, Mapping)
+    ][:4]
+    if not summary["candidate_feedback_rows"]:
+        summary.pop("candidate_feedback_rows")
+    return summary
+
+
+def _runtime_validated_external_exact_candidate_rerun_result(
+    *,
+    request: Mapping[str, Any],
+    provider_result: Mapping[str, Any],
+    result: Mapping[str, Any],
+    runtime_lean_project: Path | None = None,
+    runtime_lean_timeout: int = 90,
+    runtime_lean_command: tuple[str, ...] | None = None,
+    runtime_lean_runner: Callable[..., tuple[bool, int, tuple[str, ...]]] | None = None,
+) -> dict[str, Any]:
+    payload = dict(result)
+    reported_verified = _bool_like(
+        payload.get("source_theorem_kernel_verified", False)
+    )
+    payload["reported_source_theorem_kernel_verified"] = reported_verified
+    errors: list[str] = []
+    reported_rows = [
+        dict(row)
+        for row in payload.get("rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    enriched_rows = [dict(row) for row in reported_rows]
+    runtime_checked = 0
+    runtime_compiled = 0
+    runtime_verified_rows: list[dict[str, Any]] = []
+
+    def reported_count(key: str) -> int:
+        raw = payload.get(key, 0)
+        try:
+            value = int(raw or 0)
+        except (TypeError, ValueError):
+            errors.append(f"rerun {key} is not an integer")
+            return 0
+        if value < 0:
+            errors.append(f"rerun {key} is negative")
+            return 0
+        return value
+
+    reported_counts = {
+        key: reported_count(key)
+        for key in (
+            "n_result_rows",
+            "n_precheck_rejected",
+            "n_local_lean_checked",
+            "n_local_lean_compiled",
+            "n_artifact_kernel_verified",
+            "n_source_theorem_kernel_verified",
+        )
+    }
+    row_counts = {
+        "n_result_rows": len(reported_rows),
+        "n_precheck_rejected": sum(
+            1
+            for row in reported_rows
+            if str(row.get("status", "") or "") == "CANDIDATE_PRECHECK_REJECTED"
+        ),
+        "n_local_lean_checked": sum(
+            1
+            for row in reported_rows
+            if _bool_like(row.get("local_lean_checked", False))
+        ),
+        "n_local_lean_compiled": sum(
+            1
+            for row in reported_rows
+            if _bool_like(row.get("local_lean_compiled", False))
+        ),
+        "n_artifact_kernel_verified": sum(
+            1
+            for row in reported_rows
+            if _bool_like(row.get("artifact_kernel_verified", False))
+        ),
+        "n_source_theorem_kernel_verified": sum(
+            1
+            for row in reported_rows
+            if _bool_like(row.get("source_theorem_kernel_verified", False))
+        ),
+    }
+    for key, row_count in row_counts.items():
+        if reported_counts[key] != row_count:
+            errors.append(f"rerun {key} does not match rows")
+    if reported_verified:
+        request_fingerprint = str(request.get("request_fingerprint", "") or "")
+        target_declaration = str(
+            request.get("target_lean_declaration", "") or ""
+        )
+        raw_target_statement = str(
+            request.get("target_theorem_statement", "") or ""
+        ).strip()
+        target_statement = _normalized_external_lean_signature(
+            raw_target_statement
+        )
+        target_ids = {
+            str(value)
+            for value in request.get("target_ids", []) or []
+            if str(value)
+        }
+        expected_evidence_blockers = _external_exact_source_evidence_blockers(
+            request,
+            target_ids=tuple(sorted(target_ids)),
+            target_declaration=target_declaration,
+        )
+        if expected_evidence_blockers:
+            errors.append(
+                "rerun request is ineligible for source-theorem evidence: "
+                + "; ".join(expected_evidence_blockers)
+            )
+        provider_candidate_bodies = {
+            _normalize_external_exact_proof_body(body)
+            for body in _external_exact_provider_candidate_bodies(
+                provider_result,
+                max_candidates=4,
+            )
+            if _normalize_external_exact_proof_body(body)
+        }
+        request_identity = {
+            key: str(request.get(key, "") or "")
+            for key in (
+                "question_id",
+                "source_task_id",
+                "source_work_order_id",
+                "execution_queue_id",
+            )
+        }
+        for key, value in request_identity.items():
+            if not value:
+                errors.append(f"rerun request {key} missing")
+            if str(payload.get(key, "") or "") != value:
+                errors.append(f"rerun {key} mismatch")
+        lineage_payload = {
+            key: request.get(key)
+            for key in (
+                "source_work_order_id",
+                "execution_queue_id",
+                "lineage_candidate_artifact_path",
+                "lineage_candidate_artifact_hash",
+                "target_declaration_source_hash",
+                "target_theorem_statement_hash",
+                "proof_body_signature_probe_artifact_path",
+                "proof_body_signature_probe_artifact_hash",
+                "expected_target_lean_declaration",
+                "target_lean_declaration",
+                "target_ids",
+            )
+        }
+        expected_source_lineage_id = _external_exact_source_lineage_id(
+            lineage_payload
+        )
+        if str(request.get("source_lineage_id", "") or "") != (
+            expected_source_lineage_id
+        ):
+            errors.append("rerun request source_lineage_id mismatch")
+        if str(payload.get("source_lineage_id", "") or "") != (
+            expected_source_lineage_id
+        ):
+            errors.append("rerun source_lineage_id mismatch")
+        if str(payload.get("request_fingerprint", "") or "") != request_fingerprint:
+            errors.append("rerun request_fingerprint mismatch")
+        if str(payload.get("target_lean_declaration", "") or "") != (
+            target_declaration
+        ):
+            errors.append("rerun target_lean_declaration mismatch")
+        if _normalized_external_lean_signature(
+            str(payload.get("target_theorem_statement", "") or "")
+        ) != target_statement:
+            errors.append("rerun target_theorem_statement mismatch")
+        if {
+            str(value)
+            for value in payload.get("target_ids", []) or []
+            if str(value)
+        } != target_ids:
+            errors.append("rerun target_ids mismatch")
+        if {
+            str(value)
+            for value in payload.get(
+                "source_theorem_kernel_verified_target_ids",
+                [],
+            )
+            or []
+            if str(value)
+        } != target_ids:
+            errors.append("rerun verified target_ids mismatch")
+        if target_declaration not in {
+            str(value)
+            for value in payload.get(
+                "source_theorem_kernel_verified_target_names",
+                [],
+            )
+            or []
+            if str(value)
+        }:
+            errors.append("rerun verified target declaration missing")
+        for key in (
+            "execution_id",
+            "input_fingerprint",
+            "provider_result_fingerprint",
+            "verification_config_fingerprint",
+            "source_candidate_artifact_hash",
+        ):
+            if not str(payload.get(key, "") or ""):
+                errors.append(f"rerun {key} missing")
+        if str(payload.get("provider_result_fingerprint", "") or "") != (
+            stable_hash(dict(provider_result))
+        ):
+            errors.append("rerun provider_result_fingerprint mismatch")
+        if not _bool_like(payload.get("local_lean_requested", False)):
+            errors.append("rerun local_lean_requested is false")
+        if str(payload.get("verification_scope", "") or "") != (
+            "source_prefix_environment_plus_exact_target_declaration"
+        ):
+            errors.append("rerun verification_scope is not exact-target scoped")
+        if _bool_like(payload.get("source_suffix_commands_executed", True)):
+            errors.append("rerun unexpectedly executed source suffix commands")
+        for key in (
+            "n_result_rows",
+            "n_local_lean_checked",
+            "n_local_lean_compiled",
+            "n_artifact_kernel_verified",
+            "n_source_theorem_kernel_verified",
+        ):
+            if reported_counts[key] <= 0:
+                errors.append(f"rerun {key} must be positive")
+        source_path = Path(
+            str(payload.get("source_candidate_artifact_path", "") or "")
+        )
+        request_source_path_text = str(
+            request.get("lineage_candidate_artifact_path", "") or ""
+        )
+        request_source_path = Path(request_source_path_text)
+        expected_source_hash = str(
+            payload.get("source_candidate_artifact_hash", "") or ""
+        )
+        expected_exact_target_prefix_hash = ""
+        expected_source_after_exact_target_marker_hash = ""
+        current_source = ""
+        if not request_source_path_text:
+            errors.append("rerun request lineage_candidate_artifact_path missing")
+        else:
+            try:
+                source_paths_match = source_path.expanduser().resolve() == (
+                    request_source_path.expanduser().resolve()
+                )
+            except OSError:
+                source_paths_match = source_path == request_source_path
+            if not source_paths_match:
+                errors.append("rerun source candidate artifact path mismatch")
+        if not source_path.is_file():
+            errors.append("rerun source_candidate_artifact_path missing")
+        else:
+            try:
+                current_source = source_path.read_text(encoding="utf-8")
+            except OSError:
+                errors.append("rerun source candidate artifact is unreadable")
+            else:
+                current_source_hash = stable_hash(current_source)
+                if current_source_hash != expected_source_hash:
+                    errors.append("rerun source candidate artifact hash mismatch")
+                if current_source_hash != str(
+                    request.get("lineage_candidate_artifact_hash", "") or ""
+                ):
+                    errors.append("rerun source artifact no longer matches lineage")
+                observed_source_statement = _external_exact_candidate_statement(
+                    current_source,
+                    target_declaration=target_declaration,
+                )
+                if _normalized_external_lean_signature(
+                    observed_source_statement
+                ) != target_statement:
+                    errors.append(
+                        "rerun source artifact does not contain the exact target statement"
+                    )
+                exact_source_span = _external_exact_target_statement_span(
+                    current_source,
+                    target_declaration=target_declaration,
+                    target_statement=raw_target_statement,
+                )
+                if exact_source_span is None:
+                    errors.append(
+                        "rerun source artifact does not byte-bind the exact target declaration"
+                    )
+                else:
+                    expected_exact_target_prefix_hash = stable_hash(
+                        current_source[: exact_source_span[0]]
+                    )
+                    expected_source_after_exact_target_marker_hash = stable_hash(
+                        current_source[exact_source_span[2] :]
+                    )
+                if str(payload.get("exact_target_prefix_hash", "") or "") != (
+                    expected_exact_target_prefix_hash
+                ):
+                    errors.append("rerun exact_target_prefix_hash mismatch")
+                if str(
+                    payload.get("source_after_exact_target_marker_hash", "") or ""
+                ) != expected_source_after_exact_target_marker_hash:
+                    errors.append(
+                        "rerun source_after_exact_target_marker_hash mismatch"
+                    )
+                source_declaration = _external_exact_declaration_block(
+                    current_source,
+                    target_declaration,
+                )
+                if stable_hash(source_declaration) != str(
+                    request.get("target_declaration_source_hash", "") or ""
+                ):
+                    errors.append("rerun target declaration source hash mismatch")
+                if stable_hash(target_statement) != str(
+                    request.get("target_theorem_statement_hash", "") or ""
+                ):
+                    errors.append("rerun target theorem statement hash mismatch")
+
+        probe_path_text = str(
+            request.get("proof_body_signature_probe_artifact_path", "") or ""
+        )
+        expected_probe_hash = str(
+            request.get("proof_body_signature_probe_artifact_hash", "") or ""
+        )
+        if str(
+            payload.get("proof_body_signature_probe_artifact_path", "") or ""
+        ) != probe_path_text:
+            errors.append("rerun proof-body signature probe path mismatch")
+        if str(
+            payload.get("proof_body_signature_probe_artifact_hash", "") or ""
+        ) != expected_probe_hash:
+            errors.append("rerun proof-body signature probe hash mismatch")
+        probe_path = Path(probe_path_text)
+        if not probe_path_text or not probe_path.is_file():
+            errors.append("rerun proof-body signature probe artifact missing")
+        else:
+            try:
+                probe_source = probe_path.read_text(encoding="utf-8")
+            except OSError:
+                errors.append("rerun proof-body signature probe artifact is unreadable")
+            else:
+                if stable_hash(probe_source) != expected_probe_hash:
+                    errors.append("rerun proof-body signature probe content hash mismatch")
+                observed_probe_statement = _external_exact_candidate_statement(
+                    probe_source,
+                    target_declaration=target_declaration,
+                )
+                if _normalized_external_lean_signature(
+                    observed_probe_statement
+                ) != target_statement:
+                    errors.append(
+                        "rerun proof-body signature probe target statement mismatch"
+                    )
+
+        structurally_verified_rows: list[tuple[int, dict[str, Any], Path, str]] = []
+        for row_index, row in enumerate(reported_rows):
+            row_target_ids = {
+                str(value)
+                for value in row.get("target_ids", []) or []
+                if str(value)
+            }
+            row_statement = _normalized_external_lean_signature(
+                str(row.get("target_theorem_statement", "") or "")
+            )
+            row_contract_errors: list[str] = []
+            if not (
+                _bool_like(row.get("source_theorem_kernel_verified", False))
+                and _bool_like(row.get("artifact_kernel_verified", False))
+                and _bool_like(row.get("local_lean_checked", False))
+                and _bool_like(row.get("local_lean_compiled", False))
+                and _bool_like(
+                    row.get("candidate_artifact_unchanged_after_verification", False)
+                )
+                and _bool_like(row.get("exact_signature_preserved", False))
+                and str(row.get("target_lean_declaration", "") or "")
+                == target_declaration
+                and row_target_ids == target_ids
+                and row_statement == target_statement
+                and str(row.get("request_fingerprint", "") or "")
+                == request_fingerprint
+                and str(row.get("input_fingerprint", "") or "")
+                == str(payload.get("input_fingerprint", "") or "")
+                and str(row.get("execution_id", "") or "")
+                == str(payload.get("execution_id", "") or "")
+                and str(row.get("question_id", "") or "")
+                == request_identity["question_id"]
+                and str(row.get("source_task_id", "") or "")
+                == request_identity["source_task_id"]
+                and str(row.get("source_work_order_id", "") or "")
+                == request_identity["source_work_order_id"]
+                and str(row.get("execution_queue_id", "") or "")
+                == request_identity["execution_queue_id"]
+                and str(row.get("source_lineage_id", "") or "")
+                == expected_source_lineage_id
+                and str(row.get("source_candidate_artifact_hash", "") or "")
+                == expected_source_hash
+                and str(row.get("verification_scope", "") or "")
+                == "source_prefix_environment_plus_exact_target_declaration"
+                and str(row.get("exact_target_prefix_hash", "") or "")
+                == expected_exact_target_prefix_hash
+                and str(
+                    row.get("source_after_exact_target_marker_hash", "") or ""
+                )
+                == expected_source_after_exact_target_marker_hash
+                and not _bool_like(
+                    row.get("source_suffix_commands_executed", True)
+                )
+                and not list(row.get("precheck_errors", []) or [])
+                and list(row.get("source_theorem_evidence_blockers", []) or [])
+                == list(expected_evidence_blockers)
+                and not expected_evidence_blockers
+            ):
+                row_contract_errors.append(
+                    "verified row self-attestation or exact-lineage contract mismatch"
+                )
+                enriched_rows[row_index][
+                    "runtime_structural_contract_errors"
+                ] = row_contract_errors
+                continue
+            candidate_path = Path(
+                str(row.get("candidate_artifact_path", "") or "")
+            )
+            candidate_hash = str(row.get("candidate_artifact_hash", "") or "")
+            if not candidate_hash or not candidate_path.is_file():
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate artifact path or content hash missing"
+                ]
+                continue
+            try:
+                candidate_source = candidate_path.read_text(encoding="utf-8")
+            except OSError:
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate artifact is unreadable"
+                ]
+                continue
+            if stable_hash(candidate_source) != candidate_hash:
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate artifact content hash mismatch"
+                ]
+                continue
+            candidate_proof_body = _normalize_external_exact_proof_body(
+                str(row.get("candidate_proof_body", "") or "")
+            )
+            if candidate_proof_body not in provider_candidate_bodies:
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate proof body is not bound to the provider result"
+                ]
+                continue
+            candidate_statement = _external_exact_candidate_statement(
+                candidate_source,
+                target_declaration=target_declaration,
+            )
+            candidate_target_span = _external_exact_target_statement_span(
+                candidate_source,
+                target_declaration=target_declaration,
+                target_statement=raw_target_statement,
+            )
+            if (
+                _normalized_external_lean_signature(candidate_statement)
+                != target_statement
+                or candidate_target_span is None
+            ):
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate artifact does not byte-bind the exact target declaration"
+                ]
+                continue
+            (
+                expected_candidate_source,
+                expected_support_names,
+                expected_support_hashes,
+                rematerialization_errors,
+            ) = materialize_external_exact_source_candidate(
+                source=current_source,
+                proof_body=candidate_proof_body,
+                support_assets=provider_result.get("verified_support_assets", []),
+                target_declaration=target_declaration,
+                target_statement=raw_target_statement,
+            )
+            if rematerialization_errors or candidate_source != expected_candidate_source:
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    *[
+                        "candidate rematerialization failed: " + str(error)
+                        for error in rematerialization_errors
+                    ],
+                    *(
+                        [
+                            "candidate artifact bytes differ from deterministic "
+                            "source/provider rematerialization"
+                        ]
+                        if candidate_source != expected_candidate_source
+                        else []
+                    ),
+                ]
+                continue
+            if list(row.get("materialized_verified_support_asset_names", []) or []) != (
+                list(expected_support_names)
+            ) or list(
+                row.get("materialized_verified_support_asset_hashes", []) or []
+            ) != list(expected_support_hashes):
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate support-asset lineage differs from deterministic "
+                    "source/provider rematerialization"
+                ]
+                continue
+            if str(row.get("candidate_proof_body_hash", "") or "") != stable_hash(
+                candidate_proof_body
+            ):
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate proof-body content hash mismatch"
+                ]
+                continue
+            if any(
+                re.search(
+                    r"\b" + re.escape(token) + r"\b",
+                    candidate_source,
+                    flags=re.I,
+                )
+                for token in FORBIDDEN_ARTIFACT_TOKENS
+            ):
+                enriched_rows[row_index]["runtime_structural_contract_errors"] = [
+                    "candidate artifact contains forbidden proof-boundary tokens"
+                ]
+                continue
+            enriched_rows[row_index]["runtime_structural_contract_errors"] = []
+            structurally_verified_rows.append(
+                (row_index, row, candidate_path, candidate_hash)
+            )
+        if not structurally_verified_rows:
+            errors.append(
+                "rerun lacks a content-bound exact local-compiled verified row"
+            )
+
+        owned_runner = runtime_lean_runner or _runtime_owned_local_lean
+        owned_project = (
+            Path(runtime_lean_project)
+            if runtime_lean_project is not None
+            else None
+        )
+        owned_command = runtime_lean_command or _runtime_owned_lean_command(
+            owned_project
+        )
+        if not owned_command:
+            errors.append("runtime-owned Lean executable is unavailable")
+        if owned_command:
+            for row_index, row, candidate_path, candidate_hash in (
+                structurally_verified_rows
+            ):
+                runtime_checked += 1
+                try:
+                    compiled, returncode, diagnostics = owned_runner(
+                        candidate_path,
+                        lean_command=owned_command,
+                        lean_project=owned_project,
+                        timeout_s=max(1, int(runtime_lean_timeout or 90)),
+                    )
+                except Exception as exc:
+                    compiled = False
+                    returncode = -1
+                    diagnostics = (
+                        "runtime-owned Lean verifier raised "
+                        f"{type(exc).__name__}: {exc}",
+                    )
+                diagnostics = tuple(str(value) for value in diagnostics)
+                try:
+                    postcheck_source = candidate_path.read_text(encoding="utf-8")
+                except OSError as exc:
+                    compiled = False
+                    diagnostics = (
+                        *diagnostics,
+                        "runtime-owned Lean candidate postcheck failed: "
+                        f"{type(exc).__name__}: {exc}",
+                    )
+                else:
+                    if stable_hash(postcheck_source) != candidate_hash:
+                        compiled = False
+                        diagnostics = (
+                            *diagnostics,
+                            "candidate artifact changed during runtime-owned Lean check",
+                        )
+                enriched_rows[row_index]["runtime_owned_local_lean_checked"] = True
+                enriched_rows[row_index]["runtime_owned_local_lean_compiled"] = bool(
+                    compiled
+                )
+                enriched_rows[row_index]["runtime_owned_local_lean_returncode"] = int(
+                    returncode
+                )
+                enriched_rows[row_index]["runtime_owned_local_lean_diagnostics"] = list(
+                    diagnostics
+                )[:24]
+                enriched_rows[row_index]["runtime_owned_local_lean_command"] = list(
+                    owned_command
+                )
+                enriched_rows[row_index]["runtime_owned_local_lean_project"] = str(
+                    owned_project or ""
+                )
+                enriched_rows[row_index][
+                    "reported_artifact_kernel_verified"
+                ] = _bool_like(row.get("artifact_kernel_verified", False))
+                enriched_rows[row_index][
+                    "reported_source_theorem_kernel_verified"
+                ] = _bool_like(row.get("source_theorem_kernel_verified", False))
+                if compiled:
+                    runtime_compiled += 1
+                    runtime_verified_rows.append(enriched_rows[row_index])
+                else:
+                    enriched_rows[row_index]["artifact_kernel_verified"] = False
+                    enriched_rows[row_index][
+                        "source_theorem_kernel_verified"
+                    ] = False
+                    enriched_rows[row_index]["status"] = (
+                        "RUNTIME_OWNED_LOCAL_LEAN_FAILED"
+                    )
+                    enriched_rows[row_index]["proof_evidence_status"] = (
+                        "EXTERNAL_PROOF_CANDIDATE_RUNTIME_LEAN_FAILED_NOT_PROOF_EVIDENCE"
+                    )
+        if not runtime_verified_rows:
+            errors.append(
+                "runtime-owned Lean did not verify a content-bound exact candidate"
+            )
+
+        manifest_path = Path(str(payload.get("manifest_path", "") or ""))
+        rows_path = Path(str(payload.get("rows_path", "") or ""))
+        if not manifest_path.is_file():
+            errors.append("rerun manifest_path missing")
+        else:
+            try:
+                persisted_manifest = json.loads(
+                    manifest_path.read_text(encoding="utf-8")
+                )
+            except (OSError, ValueError, TypeError):
+                errors.append("rerun manifest_path is unreadable")
+            else:
+                for key in (
+                    "manifest_id",
+                    "execution_id",
+                    "input_fingerprint",
+                    "provider_result_fingerprint",
+                    "verification_config_fingerprint",
+                    "request_fingerprint",
+                    "question_id",
+                    "source_task_id",
+                    "source_work_order_id",
+                    "execution_queue_id",
+                    "source_lineage_id",
+                    "target_lean_declaration",
+                    "target_theorem_statement",
+                    "verification_scope",
+                    "exact_target_prefix_hash",
+                    "source_after_exact_target_marker_hash",
+                    "source_suffix_commands_executed",
+                    "source_candidate_artifact_path",
+                    "source_candidate_artifact_hash",
+                    "proof_body_signature_probe_artifact_path",
+                    "proof_body_signature_probe_artifact_hash",
+                ):
+                    if persisted_manifest.get(key) != payload.get(key):
+                        errors.append(f"persisted rerun {key} mismatch")
+                if not _bool_like(
+                    persisted_manifest.get(
+                        "source_theorem_kernel_verified",
+                        False,
+                    )
+                ):
+                    errors.append("persisted rerun does not verify the source theorem")
+                if stable_hash(persisted_manifest.get("rows", [])) != stable_hash(
+                    reported_rows
+                ):
+                    errors.append("persisted rerun rows mismatch")
+        if not rows_path.is_file():
+            errors.append("rerun rows_path missing")
+        else:
+            try:
+                persisted_rows = [
+                    json.loads(line)
+                    for line in rows_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+            except (OSError, ValueError, TypeError):
+                errors.append("rerun rows_path is unreadable")
+            else:
+                if stable_hash(persisted_rows) != stable_hash(reported_rows):
+                    errors.append("rerun rows_path content mismatch")
+
+    contract_satisfied = bool(reported_verified and not errors)
+    payload["rows"] = enriched_rows
+    for key, row_count in row_counts.items():
+        payload[f"reported_{key}"] = reported_counts[key]
+        payload[key] = row_count
+    payload["n_artifact_kernel_verified"] = sum(
+        1
+        for row in enriched_rows
+        if _bool_like(row.get("artifact_kernel_verified", False))
+    )
+    payload["n_source_theorem_kernel_verified"] = (
+        len(runtime_verified_rows) if contract_satisfied else 0
+    )
+    payload["runtime_owned_local_lean_checked"] = runtime_checked
+    payload["runtime_owned_local_lean_compiled"] = runtime_compiled
+    payload["runtime_owned_source_theorem_kernel_verified"] = int(
+        contract_satisfied and runtime_compiled > 0
+    )
+    payload["runtime_verification_contract_satisfied"] = contract_satisfied
+    payload["runtime_verification_contract_errors"] = list(
+        dict.fromkeys(errors)
+    )
+    if not contract_satisfied:
+        rejected_row_source_claim = False
+        for row in enriched_rows:
+            row_reported_verified = _bool_like(
+                row.get(
+                    "reported_source_theorem_kernel_verified",
+                    row.get("source_theorem_kernel_verified", False),
+                )
+            )
+            row["reported_source_theorem_kernel_verified"] = (
+                row_reported_verified
+            )
+            if row_reported_verified:
+                rejected_row_source_claim = True
+                row["source_theorem_kernel_verified"] = False
+                row["status"] = "RUNTIME_VERIFICATION_CONTRACT_REJECTED"
+                row["proof_evidence_status"] = (
+                    "EXTERNAL_PROOF_CANDIDATE_RERUN_CONTRACT_REJECTED_NOT_PROOF_EVIDENCE"
+                )
+        payload["source_theorem_kernel_verified"] = False
+        payload["n_source_theorem_kernel_verified"] = 0
+        payload["source_theorem_kernel_verified_target_ids"] = []
+        payload["source_theorem_kernel_verified_target_names"] = []
+        if reported_verified or rejected_row_source_claim:
+            payload["proof_evidence_status"] = (
+                "EXTERNAL_PROOF_CANDIDATE_RERUN_CONTRACT_REJECTED_NOT_PROOF_EVIDENCE"
+            )
+    return payload
+
+
 def _runtime_environment_feedback_with_external_proof_search_result(
     feedback: Mapping[str, Any],
     result: Mapping[str, Any],
@@ -12538,6 +13526,7 @@ def _runtime_environment_feedback_with_external_proof_search_result(
             "source_theorem_candidate_proof_bodies",
             "verified_support_assets",
             "failure_feedback",
+            "exact_candidate_rerun",
             "report_path",
             "checkpoint_path",
             "blocker",
@@ -12570,10 +13559,10 @@ def _agent_step_result_with_external_proof_search(
     external_result: Mapping[str, Any] | None,
     artifacts: Mapping[str, Any],
     observations: Sequence[EnvironmentObservation],
-    evidence: EvidenceLedgerEntry | None,
-    tool_call: ToolCallRecord | None,
+    evidence_entries: Sequence[EvidenceLedgerEntry],
+    tool_calls: Sequence[ToolCallRecord],
 ) -> AgentStepResult:
-    if not artifacts and not observations and evidence is None and tool_call is None:
+    if not artifacts and not observations and not evidence_entries and not tool_calls:
         return result
     next_task = result.next_task
     if next_task is not None and external_result:
@@ -12590,16 +13579,35 @@ def _agent_step_result_with_external_proof_search(
             )
         )
         next_task = replace(next_task, inputs=next_inputs)
+    merged_observations: list[EnvironmentObservation] = []
+    seen_observations: set[str] = set()
+    for observation in (*observations, *result.observations):
+        fingerprint = stable_hash(asdict(observation))
+        if fingerprint in seen_observations:
+            continue
+        seen_observations.add(fingerprint)
+        merged_observations.append(observation)
+    merged_tool_calls: list[ToolCallRecord] = []
+    seen_tool_calls: set[str] = set()
+    for tool_call in (*tool_calls, *result.tool_calls):
+        fingerprint = stable_hash(asdict(tool_call))
+        if fingerprint in seen_tool_calls:
+            continue
+        seen_tool_calls.add(fingerprint)
+        merged_tool_calls.append(tool_call)
+    merged_evidence: list[EvidenceLedgerEntry] = []
+    seen_evidence_ids: set[str] = set()
+    for evidence in (*evidence_entries, *result.evidence_entries):
+        if evidence.evidence_id in seen_evidence_ids:
+            continue
+        seen_evidence_ids.add(evidence.evidence_id)
+        merged_evidence.append(evidence)
     return replace(
         result,
         produced_artifacts={**dict(artifacts), **result.produced_artifacts},
-        observations=tuple(observations) + result.observations,
-        tool_calls=tuple(
-            row for row in (tool_call, *result.tool_calls) if row is not None
-        ),
-        evidence_entries=tuple(
-            row for row in (evidence, *result.evidence_entries) if row is not None
-        ),
+        observations=tuple(merged_observations),
+        tool_calls=tuple(merged_tool_calls),
+        evidence_entries=tuple(merged_evidence),
         next_task=next_task,
     )
 
@@ -12615,6 +13623,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
         proof_state_provider: ProofStateFeedbackProvider | None = None,
         formal_source_retriever: Any | None = None,
         proof_search_provider: LeanProofSearchProvider | None = None,
+        external_proof_candidate_rerunner: Callable[..., Mapping[str, Any]] = (
+            execute_external_exact_source_theorem_proof_candidates
+        ),
         proof_obligation_ids: tuple[str, ...] = (),
         max_proof_obligations: int = 0,
         lean_candidate_root: Path = Path("runs") / "formalizer_lean_candidates",
@@ -12634,6 +13645,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.runtime_config = runtime_config
         self.formal_source_retriever = formal_source_retriever
         self.proof_search_provider = proof_search_provider
+        self.external_proof_candidate_rerunner = external_proof_candidate_rerunner
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
             formal_source_retriever=formal_source_retriever,
@@ -12774,9 +13786,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
         observations: list[EnvironmentObservation] = []
         external_proof_search_artifacts: dict[str, Any] = {}
         external_proof_search_observations: list[EnvironmentObservation] = []
-        external_proof_search_evidence: EvidenceLedgerEntry | None = None
-        external_proof_search_tool_call: ToolCallRecord | None = None
+        external_proof_search_evidence_entries: list[EvidenceLedgerEntry] = []
+        external_proof_search_tool_calls: list[ToolCallRecord] = []
         external_proof_search_result: dict[str, Any] | None = None
+        external_exact_candidate_rerun_result: dict[str, Any] | None = None
+        external_exact_source_theorem_verified = False
         if self.proof_search_provider is not None:
             external_proof_search_request = _runtime_external_proof_search_request(
                 task=task,
@@ -12817,6 +13831,284 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "proof_evidence_boundary",
                     LEAN_PROVIDER_BOUNDARY,
                 )
+                if external_proof_search_result.get(
+                    "source_theorem_candidate_proof_bodies"
+                ):
+                    try:
+                        raw_external_exact_candidate_rerun_result = (
+                            self.external_proof_candidate_rerunner(
+                                request=external_proof_search_request,
+                                provider_result=external_proof_search_result,
+                                out_dir=(
+                                    self.lean_candidate_root.parent
+                                    / "external_exact_proof_candidate_reruns"
+                                ),
+                                local_lean=self.lean_candidate_local_lean,
+                                lean_project=self.lean_candidate_lean_project,
+                                lean_timeout=self.lean_candidate_lean_timeout,
+                            )
+                        )
+                        if not isinstance(
+                            raw_external_exact_candidate_rerun_result,
+                            Mapping,
+                        ):
+                            raise TypeError(
+                                "external proof candidate rerunner must return a mapping"
+                            )
+                        external_exact_candidate_rerun_result = dict(
+                            raw_external_exact_candidate_rerun_result
+                        )
+                    except Exception as exc:
+                        external_exact_candidate_rerun_result = (
+                            _runtime_external_exact_candidate_rerun_error_result(
+                                request=external_proof_search_request,
+                                provider_result=external_proof_search_result,
+                                exc=exc,
+                            )
+                        )
+                    external_exact_candidate_rerun_result = (
+                        _runtime_validated_external_exact_candidate_rerun_result(
+                            request=external_proof_search_request,
+                            provider_result=external_proof_search_result,
+                            result=external_exact_candidate_rerun_result,
+                            runtime_lean_project=(
+                                self.lean_candidate_lean_project
+                            ),
+                            runtime_lean_timeout=(
+                                self.lean_candidate_lean_timeout
+                            ),
+                        )
+                    )
+                    external_exact_rerun_id = str(
+                        external_exact_candidate_rerun_result.get(
+                            "manifest_id",
+                            "",
+                        )
+                        or "external_exact_proof_candidate_rerun:"
+                        + stable_hash(external_exact_candidate_rerun_result)[:20]
+                    )
+                    external_exact_candidate_rerun_result["manifest_id"] = (
+                        external_exact_rerun_id
+                    )
+                    external_exact_candidate_rerun_result = (
+                        _runtime_artifact_with_architect_control(
+                            external_exact_rerun_id,
+                            external_exact_candidate_rerun_result,
+                            formalization_control_seed,
+                            subsystem_override=subsystem_name,
+                        )
+                    )
+                    external_proof_search_result["exact_candidate_rerun"] = (
+                        _runtime_external_exact_candidate_rerun_summary(
+                            external_exact_candidate_rerun_result
+                        )
+                    )
+                    produced_artifacts[external_exact_rerun_id] = (
+                        external_exact_candidate_rerun_result
+                    )
+                    external_proof_search_artifacts[external_exact_rerun_id] = (
+                        external_exact_candidate_rerun_result
+                    )
+                    external_exact_source_theorem_verified = bool(
+                        external_exact_candidate_rerun_result.get(
+                            "runtime_verification_contract_satisfied",
+                            False,
+                        )
+                    )
+                    external_proof_search_observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "external_exact_proof_candidate_rerun"
+                            ),
+                            summary=(
+                                "checked="
+                                f"{external_exact_candidate_rerun_result.get('n_local_lean_checked', 0)} "
+                                "compiled="
+                                f"{external_exact_candidate_rerun_result.get('n_local_lean_compiled', 0)} "
+                                "source_verified="
+                                f"{int(external_exact_source_theorem_verified)}"
+                            ),
+                            payload=(
+                                _runtime_external_exact_candidate_rerun_summary(
+                                    external_exact_candidate_rerun_result
+                                )
+                            ),
+                        )
+                    )
+                    external_rerun_boundary = str(
+                        external_exact_candidate_rerun_result.get(
+                            "proof_evidence_boundary",
+                            KERNEL_PROOF_BOUNDARY,
+                        )
+                        or KERNEL_PROOF_BOUNDARY
+                    )
+                    external_proof_search_evidence_entries.append(
+                        EvidenceLedgerEntry(
+                            evidence_id="evidence:"
+                            + stable_hash(
+                                [task.task_id, external_exact_rerun_id]
+                            )[:20],
+                            task_id=task.task_id,
+                            artifact_id=external_exact_rerun_id,
+                            evidence_type=(
+                                "external_exact_proof_candidate_kernel_rerun"
+                            ),
+                            status=(
+                                "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+                                if external_exact_source_theorem_verified
+                                else "EXTERNAL_EXACT_CANDIDATE_RERUN_RECORDED_NOT_SOURCE_PROOF"
+                            ),
+                            boundary=external_rerun_boundary,
+                            payload={
+                                "n_local_lean_checked": _runtime_manifest_int(
+                                    external_exact_candidate_rerun_result,
+                                    "n_local_lean_checked",
+                                ),
+                                "n_local_lean_compiled": _runtime_manifest_int(
+                                    external_exact_candidate_rerun_result,
+                                    "n_local_lean_compiled",
+                                ),
+                                "n_source_theorem_kernel_verified": _runtime_manifest_int(
+                                    external_exact_candidate_rerun_result,
+                                    "n_source_theorem_kernel_verified",
+                                ),
+                                "runtime_owned_local_lean_checked": _runtime_manifest_int(
+                                    external_exact_candidate_rerun_result,
+                                    "runtime_owned_local_lean_checked",
+                                ),
+                                "runtime_owned_local_lean_compiled": _runtime_manifest_int(
+                                    external_exact_candidate_rerun_result,
+                                    "runtime_owned_local_lean_compiled",
+                                ),
+                                "target_ids": list(
+                                    external_exact_candidate_rerun_result.get(
+                                        "target_ids",
+                                        [],
+                                    )
+                                    or []
+                                ),
+                            },
+                        )
+                    )
+                    external_proof_search_tool_calls.append(
+                        ToolCallRecord(
+                            tool_name=(
+                                "ExactSourceTheoremProofBodyExecutor."
+                                "rerun_external_candidate"
+                            ),
+                            inputs={
+                                "request_fingerprint": str(
+                                    external_proof_search_request.get(
+                                        "request_fingerprint",
+                                        "",
+                                    )
+                                    or ""
+                                ),
+                                "target_lean_declaration": str(
+                                    external_proof_search_request.get(
+                                        "target_lean_declaration",
+                                        "",
+                                    )
+                                    or ""
+                                ),
+                                "local_lean_requested": (
+                                    self.lean_candidate_local_lean
+                                ),
+                            },
+                            output_paths=tuple(
+                                str(
+                                    external_exact_candidate_rerun_result.get(
+                                        key,
+                                        "",
+                                    )
+                                    or ""
+                                )
+                                for key in ("manifest_path", "rows_path")
+                                if str(
+                                    external_exact_candidate_rerun_result.get(
+                                        key,
+                                        "",
+                                    )
+                                    or ""
+                                )
+                            ),
+                            exit_status=(
+                                "0"
+                                if external_exact_source_theorem_verified
+                                else "source_theorem_not_verified"
+                            ),
+                            stdout_summary=(
+                                "checked="
+                                f"{external_exact_candidate_rerun_result.get('n_local_lean_checked', 0)} "
+                                "compiled="
+                                f"{external_exact_candidate_rerun_result.get('n_local_lean_compiled', 0)} "
+                                "source_verified="
+                                f"{int(external_exact_source_theorem_verified)}"
+                            ),
+                            safety_boundary=external_rerun_boundary,
+                        )
+                    )
+                    runtime_owned_checked = _runtime_manifest_int(
+                        external_exact_candidate_rerun_result,
+                        "runtime_owned_local_lean_checked",
+                    )
+                    if runtime_owned_checked > 0:
+                        runtime_owned_compiled = _runtime_manifest_int(
+                            external_exact_candidate_rerun_result,
+                            "runtime_owned_local_lean_compiled",
+                        )
+                        external_proof_search_tool_calls.append(
+                            ToolCallRecord(
+                                tool_name=(
+                                    "AgentRuntime."
+                                    "verify_external_exact_candidate_local_lean"
+                                ),
+                                inputs={
+                                    "request_fingerprint": str(
+                                        external_proof_search_request.get(
+                                            "request_fingerprint",
+                                            "",
+                                        )
+                                        or ""
+                                    ),
+                                    "target_lean_declaration": str(
+                                        external_proof_search_request.get(
+                                            "target_lean_declaration",
+                                            "",
+                                        )
+                                        or ""
+                                    ),
+                                    "lean_project": str(
+                                        self.lean_candidate_lean_project or ""
+                                    ),
+                                },
+                                output_paths=tuple(
+                                    str(row.get("candidate_artifact_path", "") or "")
+                                    for row in external_exact_candidate_rerun_result.get(
+                                        "rows",
+                                        [],
+                                    )
+                                    or []
+                                    if isinstance(row, Mapping)
+                                    and str(
+                                        row.get("candidate_artifact_path", "")
+                                        or ""
+                                    )
+                                ),
+                                exit_status=(
+                                    "0"
+                                    if external_exact_source_theorem_verified
+                                    else "runtime_owned_source_theorem_not_verified"
+                                ),
+                                stdout_summary=(
+                                    f"checked={runtime_owned_checked} "
+                                    f"compiled={runtime_owned_compiled} "
+                                    "source_verified="
+                                    f"{int(external_exact_source_theorem_verified)}"
+                                ),
+                                safety_boundary=external_rerun_boundary,
+                            )
+                        )
                 external_proof_search_result = (
                     _runtime_artifact_with_architect_control(
                         external_result_id,
@@ -12884,70 +14176,79 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     )
                 )
                 observations.extend(external_proof_search_observations)
-                external_proof_search_evidence = EvidenceLedgerEntry(
-                    evidence_id="evidence:"
-                    + stable_hash([task.task_id, external_result_id])[:20],
-                    task_id=task.task_id,
-                    artifact_id=external_result_id,
-                    evidence_type="external_proof_search_feedback",
-                    status=(
-                        "EXTERNAL_PROOF_SEARCH_RECORDED_NOT_PROOF_EVIDENCE"
-                    ),
-                    boundary=LEAN_PROVIDER_BOUNDARY,
-                    payload={
-                        "provider": str(
-                            getattr(
-                                self.proof_search_provider,
-                                "name",
-                                type(self.proof_search_provider).__name__,
-                            )
+                external_proof_search_evidence_entries.append(
+                    EvidenceLedgerEntry(
+                        evidence_id="evidence:"
+                        + stable_hash([task.task_id, external_result_id])[:20],
+                        task_id=task.task_id,
+                        artifact_id=external_result_id,
+                        evidence_type="external_proof_search_feedback",
+                        status=(
+                            "EXTERNAL_PROOF_SEARCH_RECORDED_NOT_PROOF_EVIDENCE"
                         ),
-                        "status": external_status,
-                        "exact_kernel_rerun_required": True,
-                    },
+                        boundary=LEAN_PROVIDER_BOUNDARY,
+                        payload={
+                            "provider": str(
+                                getattr(
+                                    self.proof_search_provider,
+                                    "name",
+                                    type(self.proof_search_provider).__name__,
+                                )
+                            ),
+                            "status": external_status,
+                            "exact_kernel_rerun_required": (
+                                not external_exact_source_theorem_verified
+                            ),
+                        },
+                    )
                 )
-                external_proof_search_tool_call = ToolCallRecord(
-                    tool_name="LeanProofSearchProvider.run",
-                    inputs={
-                        "provider": str(
-                            getattr(
-                                self.proof_search_provider,
-                                "name",
-                                type(self.proof_search_provider).__name__,
+                external_proof_search_tool_calls.insert(
+                    0,
+                    ToolCallRecord(
+                        tool_name="LeanProofSearchProvider.run",
+                        inputs={
+                            "provider": str(
+                                getattr(
+                                    self.proof_search_provider,
+                                    "name",
+                                    type(self.proof_search_provider).__name__,
+                                )
+                            ),
+                            "request_fingerprint": str(
+                                external_proof_search_request.get(
+                                    "request_fingerprint",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "target_lean_declaration": str(
+                                external_proof_search_request.get(
+                                    "target_lean_declaration",
+                                    "",
+                                )
+                                or ""
+                            ),
+                        },
+                        output_paths=tuple(
+                            str(external_proof_search_result.get(key, "") or "")
+                            for key in ("report_path", "checkpoint_path")
+                            if str(
+                                external_proof_search_result.get(key, "") or ""
                             )
                         ),
-                        "request_fingerprint": str(
-                            external_proof_search_request.get(
-                                "request_fingerprint",
-                                "",
-                            )
-                            or ""
+                        exit_status=(
+                            "provider_error"
+                            if external_status == "PROVIDER_ERROR"
+                            else "0"
                         ),
-                        "target_lean_declaration": str(
-                            external_proof_search_request.get(
-                                "target_lean_declaration",
-                                "",
-                            )
-                            or ""
+                        stdout_summary=(
+                            f"status={external_status} candidates="
+                            f"{len(external_proof_search_result.get('source_theorem_candidate_proof_bodies', []) or [])} "
+                            "support_assets="
+                            f"{len(external_proof_search_result.get('verified_support_assets', []) or [])}"
                         ),
-                    },
-                    output_paths=tuple(
-                        str(external_proof_search_result.get(key, "") or "")
-                        for key in ("report_path", "checkpoint_path")
-                        if str(external_proof_search_result.get(key, "") or "")
+                        safety_boundary=LEAN_PROVIDER_BOUNDARY,
                     ),
-                    exit_status=(
-                        "provider_error"
-                        if external_status == "PROVIDER_ERROR"
-                        else "0"
-                    ),
-                    stdout_summary=(
-                        f"status={external_status} candidates="
-                        f"{len(external_proof_search_result.get('source_theorem_candidate_proof_bodies', []) or [])} "
-                        "support_assets="
-                        f"{len(external_proof_search_result.get('verified_support_assets', []) or [])}"
-                    ),
-                    safety_boundary=LEAN_PROVIDER_BOUNDARY,
                 )
 
         def preserve_external_proof_search(
@@ -12958,8 +14259,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 external_result=external_proof_search_result,
                 artifacts=external_proof_search_artifacts,
                 observations=external_proof_search_observations,
-                evidence=external_proof_search_evidence,
-                tool_call=external_proof_search_tool_call,
+                evidence_entries=external_proof_search_evidence_entries,
+                tool_calls=external_proof_search_tool_calls,
             )
 
         proposal_source = ""
@@ -13100,7 +14401,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 },
             )
 
-        if _should_emit_deterministic_theorem_closure_packet(
+        if external_exact_source_theorem_verified:
+            proposal_source = (
+                "external_exact_source_theorem_candidate_kernel_rerun"
+            )
+            pseudo_formalization_required = False
+        elif _should_emit_deterministic_theorem_closure_packet(
             proof_bank_runtime_memory_summary
         ) and not _runtime_context_requires_formalizer_lean_candidate(context):
             proposal_packet = _deterministic_theorem_closure_proposal_packet(
@@ -13253,14 +14559,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
             required_pf_bv_route_satisfies_formalizer_candidate_gate = (
                 _feedback_requires_pseudo_formalization(
-                    (
-                        task.inputs.get("environment_feedback", {})
-                        if isinstance(
-                            task.inputs.get("environment_feedback", {}),
-                            Mapping,
-                        )
-                        else {}
-                    ),
+                    environment_feedback,
                     proof_bank_runtime_memory_summary,
                 )
                 and bool(
@@ -13276,16 +14575,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     or 0
                 )
                 == 0
-                and not _formalizer_repeated_syntax_fail_closed_packet_satisfies(
-                    proposal_packet=proposal_packet,
-                    environment_feedback=(
-                        task.inputs.get("environment_feedback", {})
-                        if isinstance(
-                            task.inputs.get("environment_feedback", {}),
-                            Mapping,
-                        )
-                        else {}
-                    ),
+                    and not _formalizer_repeated_syntax_fail_closed_packet_satisfies(
+                        proposal_packet=proposal_packet,
+                        environment_feedback=environment_feedback,
                 )
                 and not required_pf_bv_route_satisfies_formalizer_candidate_gate
             ):
@@ -13352,14 +14644,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     _formalizer_lean_candidate_repair_feedback(
                         lean_candidate_materialization,
                         formal_source_retriever=self.formal_source_retriever,
-                        prior_environment_feedback=(
-                            task.inputs.get("environment_feedback", {})
-                            if isinstance(
-                                task.inputs.get("environment_feedback", {}),
-                                Mapping,
-                            )
-                            else {}
-                        ),
+                        prior_environment_feedback=environment_feedback,
                     )
                 )
                 if lean_candidate_repair_feedback is not None:
@@ -13581,7 +14866,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 )
             )
             if contract_failure_result is not None:
-                return contract_failure_result
+                return preserve_external_proof_search(contract_failure_result)
         subclaims = _run_runtime_coroutine_from_sync(
             self.prover.prove(
                 problem,
@@ -13900,6 +15185,10 @@ class FormalizationEvaluatorRuntimeSubsystem:
         deterministic_formalizer_work_order_seed_used = (
             proposal_source == "deterministic_theorem_closure_work_order_seed"
         )
+        external_exact_candidate_kernel_rerun_used = (
+            proposal_source
+            == "external_exact_source_theorem_candidate_kernel_rerun"
+        )
         llm_formalizer_proof_engineer_proposal_observed = (
             proposal_source == "llm_formalizer_proof_engineer_proposal"
         )
@@ -13918,7 +15207,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
             if isinstance(proposal_packet, Mapping)
             else ""
         )
-        if live_llm_formalizer_proof_engineer_proposal_observed:
+        if external_exact_candidate_kernel_rerun_used:
+            formalizer_agentic_capability_evidence_status = (
+                "EXTERNAL_EXACT_CANDIDATE_KERNEL_RERUN_IS_PROOF_EVIDENCE_"
+                "NOT_A_FORMALIZER_PROPOSAL"
+            )
+        elif live_llm_formalizer_proof_engineer_proposal_observed:
             formalizer_agentic_capability_evidence_status = (
                 "LIVE_LLM_FORMALIZER_PROOFENGINEER_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
             )
@@ -13969,6 +15263,46 @@ class FormalizationEvaluatorRuntimeSubsystem:
             ),
             "deterministic_formalizer_work_order_seed_used": (
                 deterministic_formalizer_work_order_seed_used
+            ),
+            "external_exact_candidate_kernel_rerun_used": (
+                external_exact_candidate_kernel_rerun_used
+            ),
+            "external_exact_candidate_rerun_result_id": str(
+                external_exact_candidate_rerun_result.get("manifest_id", "")
+                if external_exact_candidate_rerun_result
+                else ""
+            ),
+            "external_exact_candidate_rerun": (
+                _runtime_external_exact_candidate_rerun_summary(
+                    external_exact_candidate_rerun_result
+                )
+                if external_exact_candidate_rerun_result
+                else {}
+            ),
+            "source_theorem_kernel_verified": (
+                external_exact_source_theorem_verified
+            ),
+            "source_theorem_kernel_verified_target_ids": (
+                list(
+                    external_exact_candidate_rerun_result.get(
+                        "source_theorem_kernel_verified_target_ids",
+                        [],
+                    )
+                    or []
+                )
+                if external_exact_candidate_rerun_result
+                else []
+            ),
+            "source_theorem_kernel_verified_target_names": (
+                list(
+                    external_exact_candidate_rerun_result.get(
+                        "source_theorem_kernel_verified_target_names",
+                        [],
+                    )
+                    or []
+                )
+                if external_exact_candidate_rerun_result
+                else []
             ),
             "formalizer_agentic_capability_evidence_status": (
                 formalizer_agentic_capability_evidence_status
@@ -14153,11 +15487,44 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "pseudo_formalization_required_satisfied": int(
                     pseudo_formalization_required_satisfied
                 ),
+                "external_exact_candidate_local_lean_checked": _runtime_manifest_int(
+                    external_exact_candidate_rerun_result,
+                    "n_local_lean_checked",
+                )
+                if external_exact_candidate_rerun_result
+                else 0,
+                "external_exact_candidate_local_lean_compiled": _runtime_manifest_int(
+                    external_exact_candidate_rerun_result,
+                    "n_local_lean_compiled",
+                )
+                if external_exact_candidate_rerun_result
+                else 0,
+                "external_exact_candidate_runtime_owned_local_lean_checked": (
+                    _runtime_manifest_int(
+                        external_exact_candidate_rerun_result,
+                        "runtime_owned_local_lean_checked",
+                    )
+                    if external_exact_candidate_rerun_result
+                    else 0
+                ),
+                "external_exact_candidate_runtime_owned_local_lean_compiled": (
+                    _runtime_manifest_int(
+                        external_exact_candidate_rerun_result,
+                        "runtime_owned_local_lean_compiled",
+                    )
+                    if external_exact_candidate_rerun_result
+                    else 0
+                ),
+                "external_exact_candidate_source_theorem_kernel_verified": int(
+                    external_exact_source_theorem_verified
+                ),
             },
             "verifiers": verifier_names,
             "full_frontier_theorem_proved": False,
             "proof_evidence_status": (
-                "KERNEL_VERIFIED_SUBCLAIMS_PRESENT"
+                "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+                if external_exact_source_theorem_verified
+                else "KERNEL_VERIFIED_SUBCLAIMS_PRESENT"
                 if n_kernel_verified
                 else "NO_KERNEL_VERIFIED_SUBCLAIMS_IN_THIS_RUN"
             ),
@@ -14206,7 +15573,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
         produced_artifacts[str(gap_planner_bridge["bridge_id"])] = gap_planner_bridge
         produced_artifacts[manifest_id] = manifest
         evidence_status = (
-            "KERNEL_VERIFIED_SUBCLAIMS_RECORDED"
+            "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+            if external_exact_source_theorem_verified
+            else "KERNEL_VERIFIED_SUBCLAIMS_RECORDED"
             if n_kernel_verified
             else "FORMALIZATION_GAPS_AND_NONKERNEL_ROWS_RECORDED"
         )
@@ -14220,6 +15589,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
             payload={
                 "counts": manifest["counts"],
                 "full_frontier_theorem_proved": False,
+                "source_theorem_kernel_verified": (
+                    external_exact_source_theorem_verified
+                ),
+                "source_theorem_kernel_verified_target_ids": manifest[
+                    "source_theorem_kernel_verified_target_ids"
+                ],
                 "verifiers": verifier_names,
                 "architect_acceptance_gate": formalization_control.get("acceptance_gate", ""),
             },
@@ -14513,8 +15888,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 safety_boundary=KERNEL_PROOF_BOUNDARY,
             )
         ]
-        if external_proof_search_tool_call is not None:
-            tool_calls.insert(0, external_proof_search_tool_call)
+        if external_proof_search_tool_calls:
+            tool_calls[0:0] = external_proof_search_tool_calls
         if proof_state_manifest is not None:
             tool_calls.append(
                 ToolCallRecord(
@@ -14811,7 +16186,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             evidence_entries=tuple(
                 row
                 for row in (
-                    external_proof_search_evidence,
+                    *external_proof_search_evidence_entries,
                     proposal_evidence,
                     evidence,
                     proof_state_evidence,
@@ -16645,6 +18020,23 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
         ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    prior_environment_feedback = (
+        task.inputs.get("environment_feedback", {})
+        if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    if prior_environment_feedback:
+        merged_feedback = dict(prior_environment_feedback)
+        merged_feedback.update(repair_feedback)
+        prior_repair_context = prior_environment_feedback.get(
+            "proofengineer_repair_context",
+            {},
+        )
+        if isinstance(prior_repair_context, Mapping) and prior_repair_context:
+            merged_feedback["proofengineer_repair_context"] = dict(
+                prior_repair_context
+            )
+        repair_feedback = merged_feedback
     next_inputs = dict(task.inputs)
     next_inputs["architect_context"] = dict(context)
     next_inputs["environment_feedback"] = repair_feedback
@@ -19534,6 +20926,53 @@ def _formalizer_lean_candidate_repair_feedback(
     prior_feedback = (
         prior_environment_feedback if isinstance(prior_environment_feedback, Mapping) else {}
     )
+    prior_proofengineer_repair_context = (
+        prior_feedback.get("proofengineer_repair_context", {})
+        if isinstance(
+            prior_feedback.get("proofengineer_repair_context", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if prior_proofengineer_repair_context:
+        merged_repair_context = dict(proofengineer_repair_context)
+        exact_lineage_keys = (
+            "context_kind",
+            "owner_subsystem",
+            "repair_scope",
+            "target_lean_declaration",
+            "target_ids",
+            "source_theorem_target_known",
+            "source_theorem_target_identity_status",
+            "source_theorem_target_provenance",
+            "target_identity_status",
+            "target_identity_errors",
+            "source_theorem_kernel_evidence_eligible",
+            "candidate_artifact_path",
+            "source_candidate_artifact_path",
+            "expected_target_lean_declaration",
+            "source_work_order_id",
+            "execution_queue_id",
+            "lineage_candidate_artifact_path",
+            "lineage_candidate_artifact_hash",
+            "target_declaration_source_hash",
+            "target_theorem_statement",
+            "target_theorem_statement_hash",
+            "proof_body_signature_probe_artifact_path",
+            "proof_body_signature_probe_artifact_hash",
+            "source_lineage_id",
+            "formal_environment_placeholder_symbols",
+            "formal_environment_typeclass_blockers",
+            "semantic_alignment_constraints",
+            "semantic_alignment_blockers",
+            "external_proof_search_result",
+            "proof_search_result_use",
+        )
+        for key in exact_lineage_keys:
+            value = prior_proofengineer_repair_context.get(key)
+            if value not in (None, "", [], {}):
+                merged_repair_context[key] = value
+        proofengineer_repair_context = merged_repair_context
     parent_formalizer_proof_state_feedback = (
         _compact_parent_formalizer_proof_state_feedback(prior_feedback)
     )
@@ -19615,6 +21054,17 @@ def _formalizer_lean_candidate_repair_feedback(
     if parent_formalizer_proof_state_feedback:
         feedback["parent_formalizer_proof_state_feedback"] = (
             parent_formalizer_proof_state_feedback
+        )
+    prior_external_proof_search_result = prior_feedback.get(
+        "external_proof_search_result",
+        {},
+    )
+    if isinstance(prior_external_proof_search_result, Mapping) and (
+        prior_external_proof_search_result
+    ):
+        feedback = _runtime_environment_feedback_with_external_proof_search_result(
+            feedback,
+            prior_external_proof_search_result,
         )
     return feedback
 
@@ -26360,6 +27810,62 @@ def run_research_agent_runtime(
             "unsupported_generator_backends_enabled"
         ],
         "n_kernel_verified_subclaims": evidence_summary["proof"]["n_kernel_verified_subclaims"],
+        "n_external_exact_proof_candidate_rerun_manifests": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_rerun_manifests"],
+        "n_external_exact_proof_candidate_rerun_rows": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_rerun_rows"],
+        "n_external_exact_proof_candidate_precheck_rejected": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_precheck_rejected"],
+        "n_external_exact_proof_candidate_local_lean_checked": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_local_lean_checked"],
+        "n_external_exact_proof_candidate_local_lean_compiled": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_local_lean_compiled"],
+        "n_external_exact_proof_candidate_artifact_kernel_verified": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_artifact_kernel_verified"],
+        "n_external_exact_proof_candidate_source_theorem_kernel_verified": (
+            evidence_summary["proof"][
+                "n_external_exact_proof_candidate_source_theorem_kernel_verified"
+            ]
+        ),
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_ids": (
+            evidence_summary["proof"][
+                "external_exact_proof_candidate_source_theorem_kernel_verified_target_ids"
+            ]
+        ),
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_names": (
+            evidence_summary["proof"][
+                "external_exact_proof_candidate_source_theorem_kernel_verified_target_names"
+            ]
+        ),
+        "external_exact_proof_candidate_rerun_n_result_rows": evidence_summary[
+            "proof"
+        ]["n_external_exact_proof_candidate_rerun_rows"],
+        "external_exact_proof_candidate_rerun_n_local_lean_checked": (
+            evidence_summary["proof"][
+                "n_external_exact_proof_candidate_local_lean_checked"
+            ]
+        ),
+        "external_exact_proof_candidate_rerun_n_source_theorem_kernel_verified": (
+            evidence_summary["proof"][
+                "n_external_exact_proof_candidate_source_theorem_kernel_verified"
+            ]
+        ),
+        "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_ids": (
+            evidence_summary["proof"][
+                "external_exact_proof_candidate_source_theorem_kernel_verified_target_ids"
+            ]
+        ),
+        "external_exact_proof_candidate_rerun_source_theorem_kernel_verified_target_names": (
+            evidence_summary["proof"][
+                "external_exact_proof_candidate_source_theorem_kernel_verified_target_names"
+            ]
+        ),
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
         "n_formalizer_lean_candidate_materialization_manifests": evidence_summary[
             "proof"
@@ -84626,6 +86132,15 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_compiled": 0,
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_local_lean_tool_calls": 0,
         "n_source_theorem_exact_semantic_definition_lean_repair_executor_executed_tool_calls": 0,
+        "n_external_exact_proof_candidate_rerun_manifests": 0,
+        "n_external_exact_proof_candidate_rerun_rows": 0,
+        "n_external_exact_proof_candidate_precheck_rejected": 0,
+        "n_external_exact_proof_candidate_local_lean_checked": 0,
+        "n_external_exact_proof_candidate_local_lean_compiled": 0,
+        "n_external_exact_proof_candidate_artifact_kernel_verified": 0,
+        "n_external_exact_proof_candidate_source_theorem_kernel_verified": 0,
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_ids": [],
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_names": [],
         "n_llm_formalizer_proof_engineer_proposals": 0,
         "n_live_llm_formalizer_proof_engineer_proposals": 0,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
@@ -84748,6 +86263,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
     verifier_names: set[str] = set()
     strengths: set[str] = set()
+    external_exact_verified_target_ids: set[str] = set()
+    external_exact_verified_target_names: set[str] = set()
     theory_trace_consumption_keys: set[tuple[str, str]] = set()
     theory_trace_consumption_with_trace: set[tuple[str, str]] = set()
     theory_trace_consumption_with_equation_chain: set[tuple[str, str]] = set()
@@ -85107,6 +86624,85 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     int(theory["max_assumption_ledger_rows"]),
                     n_assumption_ledger_rows,
                 )
+            elif kind == "RuntimeExternalExactProofCandidateRerunManifest":
+                proof["n_external_exact_proof_candidate_rerun_manifests"] += 1
+                external_rerun_contract_satisfied = _bool_like(
+                    artifact.get(
+                        "runtime_verification_contract_satisfied",
+                        False,
+                    )
+                )
+                reported_source_claim = _bool_like(
+                    artifact.get(
+                        "reported_source_theorem_kernel_verified",
+                        artifact.get("source_theorem_kernel_verified", False),
+                    )
+                )
+                rejected_source_claim = bool(
+                    reported_source_claim
+                    and not external_rerun_contract_satisfied
+                )
+                if not rejected_source_claim:
+                    proof["n_external_exact_proof_candidate_rerun_rows"] += (
+                        _runtime_manifest_int(artifact, "n_result_rows")
+                    )
+                    proof[
+                        "n_external_exact_proof_candidate_precheck_rejected"
+                    ] += _runtime_manifest_int(artifact, "n_precheck_rejected")
+                    proof[
+                        "n_external_exact_proof_candidate_local_lean_checked"
+                    ] += _runtime_manifest_int(artifact, "n_local_lean_checked")
+                    proof[
+                        "n_external_exact_proof_candidate_local_lean_compiled"
+                    ] += _runtime_manifest_int(artifact, "n_local_lean_compiled")
+                    proof[
+                        "n_external_exact_proof_candidate_artifact_kernel_verified"
+                    ] += _runtime_manifest_int(
+                        artifact,
+                        "n_artifact_kernel_verified",
+                    )
+                proof[
+                    "n_external_exact_proof_candidate_source_theorem_kernel_verified"
+                ] += (
+                    _runtime_manifest_int(
+                        artifact,
+                        "n_source_theorem_kernel_verified",
+                    )
+                    if external_rerun_contract_satisfied
+                    else 0
+                )
+                if external_rerun_contract_satisfied:
+                    external_exact_verified_target_ids.update(
+                        str(value)
+                        for value in artifact.get(
+                            "source_theorem_kernel_verified_target_ids",
+                            [],
+                        )
+                        or []
+                        if str(value)
+                    )
+                    external_exact_verified_target_names.update(
+                        str(value)
+                        for value in artifact.get(
+                            "source_theorem_kernel_verified_target_names",
+                            [],
+                        )
+                        or []
+                        if str(value)
+                    )
+                if not rejected_source_claim:
+                    for rerun_row in artifact.get("rows", []) or []:
+                        if not isinstance(rerun_row, Mapping):
+                            continue
+                        if _bool_like(rerun_row.get("local_lean_checked", False)):
+                            verifier_names.add(
+                                "local.exact_external_proof_candidate_rerun"
+                            )
+                        strength = str(
+                            rerun_row.get("verification_strength", "") or ""
+                        )
+                        if strength:
+                            strengths.add(strength)
             elif kind == "FormalizerProofEngineerProposalPacket":
                 proposal_id = str(artifact.get("packet_id", "") or "").strip()
                 if proposal_id:
@@ -85687,7 +87283,21 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         0,
         int(proof["n_proved_subclaims"]) - int(proof["n_kernel_verified_subclaims"]),
     )
-    proof["has_kernel_evidence"] = int(proof["n_kernel_verified_subclaims"]) > 0
+    proof[
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_ids"
+    ] = sorted(external_exact_verified_target_ids)
+    proof[
+        "external_exact_proof_candidate_source_theorem_kernel_verified_target_names"
+    ] = sorted(external_exact_verified_target_names)
+    proof["has_kernel_evidence"] = bool(
+        int(proof["n_kernel_verified_subclaims"]) > 0
+        or int(
+            proof[
+                "n_external_exact_proof_candidate_source_theorem_kernel_verified"
+            ]
+        )
+        > 0
+    )
     proof["has_formal_gaps"] = int(proof["n_formal_gaps"]) > 0
     proof["has_formalization_gap_planner_bridge"] = (
         int(proof["n_formalization_gap_planner_bridges"]) > 0
