@@ -33,6 +33,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "AlgorithmEngineer",
     "FormalizationEvaluator",
     "TheoremReductionClosureProofEngineer",
+    "ExactSourceTheoremProofBodyExecutor",
     "ProofEngineer",
     "ExactSourceTheoremProver",
     "FormalizationGapPlanner",
@@ -240,6 +241,11 @@ def build_architect_coordinator_prompt(
         "work order. Missing candidates return to the LLM ProofEngineer; existing "
         "candidates pass unchanged to local Lean, and the child must run before "
         "CriticEvaluator rather than as post-runtime processing. "
+        "Treat ExactSourceTheoremProofBodyExecutor as the typed exact-source "
+        "compiler child after FormalizationEvaluator has emitted a hash-bound "
+        "candidate and structured target location. It must reject inferred target "
+        "identity, preserve candidate lineage, route exact Lean diagnostics back "
+        "to ProofEngineer, and run before CriticEvaluator. "
         "If runtime learning memory reports concrete source-to-bridge premise targets with "
         "premise_derivation_gap_kind=concrete_premise_target_lacks_nonvacuous_derivation_candidate, "
         "route upstream to TheoryDeveloper/Formalizer for semantic-assumption or lemma repair before "
@@ -797,6 +803,16 @@ def _architect_runtime_capability_eval_contract(
         "theorem_reduction_closure_proofengineer_required": bool(
             runtime_config.get("theorem_closure_proofengineer_bridge", False)
         ),
+        "exact_source_theorem_proof_body_executor_required": bool(
+            runtime_config.get(
+                "source_theorem_formal_environment_proofengineer_bridge",
+                False,
+            )
+            and runtime_config.get(
+                "source_theorem_formal_environment_proofengineer_execute_proof_body",
+                False,
+            )
+        ),
     }
 
 
@@ -838,6 +854,13 @@ def _required_architect_plan_subsystems(
         is True
     ):
         required.add("TheoremReductionClosureProofEngineer")
+    if (
+        evidence_contract.get(
+            "exact_source_theorem_proof_body_executor_required"
+        )
+        is True
+    ):
+        required.add("ExactSourceTheoremProofBodyExecutor")
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

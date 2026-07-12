@@ -30,6 +30,95 @@ def test_executor_only_runs_upstream_agent_proof_body_candidates() -> None:
     ) == ("exact h_from_agent",)
 
 
+def test_structured_runtime_queue_compiles_without_python_lean_parsing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = (
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact hp\n"
+    )
+    source_path = tmp_path / "source.lean"
+    source_path.write_text(source, encoding="utf-8")
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir()
+    queue_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "rows": [
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                "execution_queue_id": "exact-source-queue:structured",
+                "source_work_order_id": "exact-source-work-order:structured",
+                "question_id": "structured_fixture",
+                "target_theorem_name": "exact_source",
+                "target_ids": ["exact_source"],
+                "target_lean_declaration": "exact_source",
+                "expected_target_lean_declaration": "exact_source",
+                "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                "target_identity_errors": [],
+                "target_identity_source": (
+                    "upstream_structured_target_declaration_and_artifact_hash"
+                ),
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": {
+                    "source_theorem_question_id": "structured_fixture",
+                    "target_lean_declaration": "exact_source",
+                },
+                "source_theorem_kernel_evidence_eligible": True,
+                "signature_probe_artifact_path": str(source_path),
+                "signature_probe_artifact_hash": stable_hash(source),
+                "expected_signature_probe_artifact_hash": stable_hash(source),
+                "candidate_artifact_path": str(tmp_path / "candidate.lean"),
+                "execution_transcript_path": str(tmp_path / "transcript.jsonl"),
+                "live_goal_location_ready": False,
+                "live_proof_state_request": {},
+                "already_repaired_environment": {},
+                "proof_body_attempts": ["exact hp"],
+                "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+            }
+        ],
+    }
+    (
+        queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    ).write_text(json.dumps(queue_manifest), encoding="utf-8")
+
+    def parser_must_not_run(*_args, **_kwargs):
+        raise AssertionError("typed runtime queue must not parse Lean in Python")
+
+    monkeypatch.setattr(
+        executor_module,
+        "_has_exact_declaration",
+        parser_must_not_run,
+    )
+    monkeypatch.setattr(
+        executor_module,
+        "_extract_lean_declaration_block",
+        parser_must_not_run,
+    )
+    monkeypatch.setattr(
+        executor_module,
+        "_run_bounded_proof_body_attempts",
+        parser_must_not_run,
+    )
+
+    manifest = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "executor",
+        local_lean=False,
+    )
+
+    row = manifest["rows"][0]
+    assert row["target_identity_source"] == (
+        "upstream_structured_target_declaration_and_artifact_hash"
+    )
+    assert row["signature_probe_artifact_hash_verified"] is True
+    assert row["target_artifact_lineage_verified"] is True
+    assert row["exact_declaration_present"] is True
+    assert row["proof_body_attempted"] is False
+
+
 def _external_candidate_request(candidate: Path) -> dict[str, object]:
     source = candidate.read_text(encoding="utf-8")
     target_statement = executor_module._external_exact_target_statement(

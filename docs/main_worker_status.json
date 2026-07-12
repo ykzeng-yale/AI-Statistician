@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-12T20:33:14Z",
+  "updated_at": "2026-07-12T22:13:04Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "The theorem-reduction closure ProofEngineer lane now executes as a typed, Architect-visible AgentRuntime child before CriticEvaluator instead of as a direct post-runtime bridge. FormalizationEvaluator emits an immutable source-manifest-bound work order; missing candidates return to the LLM ProofEngineer, existing coding-agent candidates are written and compiled byte-for-byte, and compiler/audit feedback stays inside the same runtime loop. Stable execution ids plus persisted next-task metadata make resume idempotent without repeating bridge/compiler calls. Python no longer generates deterministic closure Lean, parses closure/premise declarations with regex, or reconstructs signatures from .lean files. Proof promotion requires matching queue lineage, candidate bytes, structured declaration identity, local-Lean attempt, return code, audit status, and evidence status. This is the first legacy second-plane migration only: semantic, promotion, exact-semantic, adapter, and exact proof-body executors still require migration, and no statistical source theorem was proved by this patch.",
+  "latest_main_worker_patch": "The primary exact source-theorem proof-body lane now executes as a typed, Architect-visible AgentRuntime child before CriticEvaluator. FormalizationEvaluator emits an immutable work order bound to its source manifest, Formalizer packet, structured source-theorem declaration, formal target, candidate id, candidate path, candidate content hash, and execution policy. The child sends the coding-agent candidate unchanged to a direct compiler queue and local Lean gate; on this typed lane Python does not parse Lean declarations, rewrite source, splice dependencies, run signature-probe source synthesis, or try bounded tactic substitutions. Exact compiler diagnostics route back to the LLM ProofEngineer inside AgentRuntime, verifier-contract corruption routes fail-closed to Critic, and stable execution ids make resume replay side-effect free. Post-runtime handling is projection only for this primary lane. No statistical source theorem was proved by this control-plane migration.",
   "latest_main_worker_live_probe": "A fresh strict Claude run covered experimental_design/design_based_variance_bound and multiple_testing/multiple_testing_fdr_bh. It scored 86/108 and correctly remained not ready: both questions reached MAX_ITERATIONS_REACHED, with 3 kernel-verified support subclaims, 10 formal gaps, and no source theorem closure. The trace exposed five Architect plan repairs per task caused by incomplete plans and interception of same-owner retries. After the control-plane patch, a live Architect emitted the complete nine-stage graph and a three-turn resume ran RetrievalMemory -> TheoryDeveloper -> SimulationEvaluator with zero Architect plan repairs; the failed simulation draft returned directly to SimulationEvaluator as typed compiler feedback. This validates the repaired loop, not S14 or theorem completion.",
-  "latest_main_worker_design_issue": "The theorem-reduction closure executor is no longer part of the duplicate post-runtime orchestration plane, but that plane still owns source-semantic, promotion, exact-semantic, adapter, and exact proof-body execution. The next proof-critical migration should be the exact proof-body queue so Architect can observe compiler feedback and replan before postprocessing. The older Formalizer candidate repair summary still aggregates some passes at question scope and must move to immutable parent/child candidate lineage. Natural-language retrieval ranking over the signed graph remains weak/high-fanout. Larger blockers are unchanged: no fresh statistical source theorem has closed, R is missing, serious theory mode is incomplete, and S14 is false.",
+  "latest_main_worker_design_issue": "The theorem-reduction closure and primary exact source-theorem proof-body compiler loops are now typed AgentRuntime children, but the duplicate post-runtime plane still owns source-semantic ProofEngineer bridging, source-theorem promotion, exact-semantic authoring/repair/recheck, proof-body adapter/premise derivation, and later same-run proof-body rechecks. The next central migration is source-semantic and promotion feedback, followed by the remaining exact-semantic and adapter queues. The older Formalizer candidate repair summary still aggregates some passes at question scope and must move to immutable parent/child candidate lineage. Natural-language retrieval ranking over the signed graph remains weak/high-fanout. Larger blockers are unchanged: no fresh statistical source theorem has closed, R is missing, serious theory mode is incomplete, and S14 is false.",
   "main_objective": "Drive AI-Statistician to a genuinely live autonomous end-to-end AI Statistical Theory Lab. Own one Architect-controlled AgentRuntime; integrate the strongest reusable OpenProver, EmpericalProcessLEAN, CodexProver, proof-bank, and prior Mac Pro mechanisms; require LLM/coding agents to generate rigorous theory, Python/R algorithms and simulations, and exact Lean candidates; iterate through execution, compiler/LSP/proof-state, retrieval, critic, and worker feedback; eliminate runtime-generated Lean tactics, theorem-specific grammar rewrites, duplicate orchestration planes, and capability-attribution shortcuts; preserve immutable lineage and strict evidence boundaries; and do not claim completion until two unrelated fresh statistical task families each close an exact source theorem under local Lean/AXLE with no acceptance-gating formal gaps and honest S14 evidence.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -66,14 +66,14 @@
     "s14_satisfied": false
   },
   "original_end_to_end_target_gap_audit_20260712": {
-    "unified_architect_control_plane": "PARTIAL_IMPROVED: typed AgentRuntime is real and theorem-reduction closure now runs as an Architect-visible child with in-loop LLM/compiler feedback and replay; source-semantic, promotion, exact-semantic, adapter, and exact proof-body bridges/executors still form a second orchestration plane",
+    "unified_architect_control_plane": "PARTIAL_IMPROVED: typed AgentRuntime is real, and both theorem-reduction closure and the primary exact source-theorem proof-body compiler loop now run as Architect-visible children with in-loop LLM/compiler feedback and replay; source-semantic, promotion, exact-semantic, adapter/premise, and later same-run proof-body recheck bridges/executors still form a second orchestration plane",
     "rigorous_llm_theory_development": "PARTIAL: Claude theory generation and critic handoffs are live, but the default packet remains too compact for long equation-chain derivation, lemma DAG construction, assumption audit, and iterative theorem revision",
     "python_coding_agent": "PARTIAL_LIVE: generated algorithm and simulation sandboxes execute and can repair from feedback, but first-pass executable-draft reliability and arbitrary scientific-library breadth remain limited",
     "r_coding_agent": "MISSING: no production R generation, sandbox execution, package environment, or R-specific repair evaluation exists",
     "formalizer_and_prover": "PARTIAL_LIVE: exact typed prover, OpenProver HLM, local Lean/LSP feedback, proof bank, and kernel gates are integrated; no fresh statistical exact source theorem has closed in the two-family probe",
     "formal_rag": "PARTIAL_LIVE_SIGNED: proof bank plus a clean signed EmpericalProcessLEAN graph are canonical runtime providers. The current shard binds commit 779604a9f30e, 444 Lean files, 26,373 declarations, 956 import edges, and 75,479 declaration edges; strict runtime rejects dirty/changed/unknown signatures. Retrieval remains non-proof evidence and natural-language ranking is still weak/high-fanout.",
     "coding_agent_feedback_fidelity": "ACTIVE_PATH_READY: same-owner retries bypass Architect plan repair; signature/exact-semantic/exact-source/generic materializer/adapter/premise feedback preserves generated candidates; missing candidates become typed LLM work; legacy static templates are explicit calibration only",
-    "worker_communication": "PARTIAL_IMPROVED: typed tasks, blackboard artifacts, immutable handoffs, and critic feedback exist; theorem-closure missing-candidate/compiler feedback now returns to ProofEngineer inside AgentRuntime, but not every legacy bridge/executor is plan-visible and full exact-proof-body replanning is not yet demonstrated",
+    "worker_communication": "PARTIAL_IMPROVED: typed tasks, blackboard artifacts, immutable handoffs, and critic feedback exist; theorem-closure and primary exact proof-body missing-candidate/compiler feedback now return to ProofEngineer inside AgentRuntime, but not every legacy bridge/executor is plan-visible and cross-lane source-semantic/promotion replanning is not yet demonstrated",
     "cross_task_evaluation": "NOT_READY: experimental-design and multiple-testing fresh lineages exist, but both reached MAX_ITERATIONS_REACHED and S14 remains false",
     "completion_gate": "Do not declare the system end-to-end until two unrelated fresh task families each complete Architect, rigorous theory, generated Python/R implementation and simulation, formal RAG, zero-shot Lean/OpenProver generation, compiler/LSP feedback revision, Critic review, and exact source-theorem local Lean/AXLE kernel closure with no acceptance-gating formal gaps."
   },
@@ -208,7 +208,52 @@
       "source theorem promotion bridge",
       "exact semantic-definition authoring and repair executors",
       "proof-body adapter and premise derivation bridges",
-      "exact source theorem proof-body execution queues"
+      "primary exact source theorem proof-body execution migrated below; later same-run recheck queues remain"
+    ],
+    "source_theorem_kernel_verified": false,
+    "full_frontier_theorem_proved": false,
+    "s14_satisfied": false
+  },
+  "latest_typed_exact_source_theorem_proof_body_runtime_migration": {
+    "runtime_subsystem": "ExactSourceTheoremProofBodyExecutor",
+    "execution_position": "FormalizationEvaluator -> ExactSourceTheoremProofBodyExecutor -> ProofEngineer or CriticEvaluator",
+    "architect_visible": true,
+    "primary_legacy_post_runtime_execution_enabled": false,
+    "legacy_post_runtime_fallback_used": false,
+    "immutable_source_formalization_manifest_binding": true,
+    "immutable_formalizer_packet_binding": true,
+    "immutable_formal_target_and_candidate_binding": true,
+    "immutable_candidate_content_hash_binding": true,
+    "stable_execution_id": true,
+    "resume_replays_without_bridge_compiler_or_coding_agent_reexecution": true,
+    "direct_compiler_queue_preserves_exact_candidate_bytes": true,
+    "legacy_signature_probe_source_synthesis_enabled_on_typed_lane": false,
+    "python_lean_declaration_parser_enabled_on_typed_lane": false,
+    "python_source_rewrite_or_dependency_splice_enabled_on_typed_lane": false,
+    "python_bounded_tactic_attempts_enabled_on_typed_lane": false,
+    "compiler_failure_routes_to_llm_proofengineer": true,
+    "verifier_contract_corruption_routes_fail_closed_to_critic": true,
+    "kernel_promotion_requires_bound_target_artifact_lineage": true,
+    "kernel_promotion_requires_local_lean_attempt_and_zero_returncode": true,
+    "full_runtime_trace_verified": [
+      "RetrievalMemory",
+      "TheoryDeveloper",
+      "SimulationEvaluator",
+      "AlgorithmEngineer",
+      "FormalizationEvaluator",
+      "ExactSourceTheoremProofBodyExecutor"
+    ],
+    "replay_exactly_once_verified": true,
+    "forged_kernel_without_local_lean_rejected": true,
+    "targeted_tests": "75 passed across AgentRuntime, exact executor, bridge, Formalizer core, and focused runtime regressions",
+    "full_runtime_tests": "1047 passed in 1282.89s",
+    "full_core_tests": "289 passed, 5 skipped, 6 subtests passed in 658.13s",
+    "remaining_second_plane_lanes": [
+      "source semantic ProofEngineer bridge",
+      "source theorem promotion bridge",
+      "exact semantic-definition authoring, repair, and recheck",
+      "proof-body adapter and premise derivation bridges",
+      "later same-run proof-body recheck queues"
     ],
     "source_theorem_kernel_verified": false,
     "full_frontier_theorem_proved": false,
@@ -1981,6 +2026,9 @@
     }
   },
   "latest_local_verification": [
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # 1047 passed in 1282.89s after primary exact source-theorem proof-body execution moved into typed AgentRuntime",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py # 289 passed, 5 skipped, 6 subtests passed in 658.13s after the typed exact proof-body runtime migration",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_exact_source_theorem_proof_body_runtime_worker.py tests/test_exact_source_theorem_proof_body_executor.py tests/test_source_theorem_formal_environment_bridge.py tests/test_research_agent_runtime.py -k 'exact_source_theorem_proof_body_runtime or typed_direct_queue or runtime_exact_source_theorem_proof_body or architect_required_plan' # focused typed-child, immutable-lineage, replay, forged-kernel, compiler-feedback, and Architect-routing regressions passed",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # 1042 passed in 1392.37s after signed formal-RAG and immutable exact-source proof-repair trajectory integration",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py # 289 passed, 5 skipped, 6 subtests passed in 705.25s",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_proof_repair_trajectory.py tests/test_lean_agent_providers.py tests/test_research_agent_runtime.py -k 'proof_repair_trajectory or lean_agent_providers or dedicated_exact_source_prover or full_runtime_dedicated' # 13 passed, 1039 deselected",
@@ -2618,8 +2666,8 @@
     "Design bug found in the live probe tail: the main AgentRuntime manifest was already written, but the CLI could still hang in optional Formalizer Lean-candidate repair calibration while building a formal source retriever. This was post-run calibration, not integrated theorem proof progress; it is now bounded by a runtime watchdog and converted to an attached failure manifest on timeout/exception."
   ],
   "next_main_worker_actions": [
-    "migrate the exact source-theorem proof-body execution queue into an immutable Architect-visible AgentRuntime child, including candidate generation, local Lean/LSP feedback, resume replay, and Critic/ProofEngineer replanning; postprocessing must become projection only",
-    "during exact proof-body migration, remove Python declaration-presence and declaration-block Lean regex parsing from exact_source_theorem_proof_body_executor; bind exact source slices and declaration identity through structured provenance plus Lean/LSP/compiler checks instead of rediscovering Lean grammar",
+    "migrate source-semantic ProofEngineer bridging and source-theorem promotion feedback into typed Architect-visible AgentRuntime children, chaining into the exact proof-body child where the immutable target/candidate contract is satisfied",
+    "migrate the remaining exact-semantic authoring/repair/recheck, proof-body adapter/premise, and later same-run proof-body recheck queues into AgentRuntime; remove Python Lean synthesis, parsing, and rewriting from their typed paths while preserving compiler/LSP diagnostics for the responsible LLM coding agent",
     "rerun both unrelated S14 task families from fresh state with the complete Architect graph and enough turns for Formalizer, FormalizationGapPlanner, ProofEngineer, ExactSourceTheoremProver, and Critic feedback to execute; require exact source-theorem kernel closure rather than support-lemma counts",
     "improve formal-source retrieval through task-aware LLM query generation, proof-state context, provider provenance, and reranking feedback over the proof bank plus 18,724-declaration graph; do not add theorem-specific alias or Lean-grammar rules",
     "route randomization_variance_decomposition_bridge and subsequent generated whole-proof failures through exact declaration rematerialization, local Lean diagnostics, OpenProver/ProofEngineer revision, and immutable artifact lineage without manually editing emitted Lean",

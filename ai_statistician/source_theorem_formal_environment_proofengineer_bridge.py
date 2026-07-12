@@ -484,6 +484,21 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_ids": target_ids,
         "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_lean_declaration,
+        "target_lean_declaration_source": str(
+            row.get("target_lean_declaration_source", "") or ""
+        ),
+        "target_lean_file": str(row.get("target_lean_file", "") or ""),
+        "target_lean_line": int(row.get("target_lean_line", 0) or 0),
+        "target_lean_column": int(row.get("target_lean_column", 0) or 0),
+        "target_lean_location_source": str(
+            row.get("target_lean_location_source", "") or ""
+        ),
+        "candidate_source_hash": str(
+            row.get("candidate_source_hash", "") or ""
+        ),
+        "live_proof_state_request": dict(
+            row.get("live_proof_state_request", {}) or {}
+        ),
         "candidate_artifact_path": candidate_artifact_path,
         "exact_semantic_definition_context": exact_semantic_context,
         "lean_statement_sketch": str(row.get("lean_statement_sketch", "") or ""),
@@ -1390,6 +1405,27 @@ def _proof_body_work_order(
         "target_ids": target_ids,
         "target_theorem_goal_ids": list(target_ids),
         "target_lean_declaration": target_lean_declaration,
+        "target_lean_declaration_source": str(
+            repair_packet.get("target_lean_declaration_source", "") or ""
+        ),
+        "target_lean_file": str(
+            repair_packet.get("target_lean_file", "") or ""
+        ),
+        "target_lean_line": int(
+            repair_packet.get("target_lean_line", 0) or 0
+        ),
+        "target_lean_column": int(
+            repair_packet.get("target_lean_column", 0) or 0
+        ),
+        "target_lean_location_source": str(
+            repair_packet.get("target_lean_location_source", "") or ""
+        ),
+        "candidate_source_hash": str(
+            repair_packet.get("candidate_source_hash", "") or ""
+        ),
+        "live_proof_state_request": dict(
+            repair_packet.get("live_proof_state_request", {}) or {}
+        ),
         "source_theorem_target_known": bool(
             repair_packet.get("source_theorem_target_known", False)
             or source_target_provenance.get("source_theorem_target_known", False)
@@ -1464,6 +1500,9 @@ def _proof_body_work_order(
         ),
         "signature_probe_artifact_path": str(
             probe_row.get("signature_probe_artifact_path", "") or ""
+        ),
+        "signature_probe_source_hash": str(
+            probe_row.get("signature_probe_source_fingerprint", "") or ""
         ),
         "proof_body_failure_classification": str(
             probe_row.get("failure_classification", "") or ""
@@ -2247,7 +2286,21 @@ def _proof_body_execution_queue_row(
     )[:20]
     candidate_artifact_path = candidate_dir / f"{safe}_proof_body_attempt.lean"
     transcript_path = transcript_dir / f"{safe}_proof_body_attempt.jsonl"
-    location = _lean_goal_location(Path(signature_artifact_path))
+    location = _structured_lean_goal_location(work_order)
+    target_identity_source = (
+        "upstream_structured_target_declaration_and_artifact_hash"
+    )
+    if not (
+        location["target_lean_file"]
+        and location["target_lean_declaration"]
+        and str(work_order.get("candidate_source_hash", "") or "")
+        and str(
+            work_order.get("target_lean_declaration_source", "") or ""
+        )
+        == "formalizer_structured_source_theorem_target_provenance"
+    ):
+        location = _lean_goal_location(Path(signature_artifact_path))
+        target_identity_source = "legacy_local_source_scan"
     target_identity_errors = _target_identity_errors(
         expected_target_declaration=expected_target_declaration,
         location=location,
@@ -2259,13 +2312,17 @@ def _proof_body_execution_queue_row(
         target_lean_declaration=str(location["target_lean_declaration"]),
     )
     exact_semantic_context = _exact_semantic_definition_context(work_order)
+    compiler_ready = (
+        bool(location["target_lean_file"] and location["target_lean_declaration"])
+        and not target_identity_errors
+    )
     live_ready = (
         bool(location["target_lean_file"] and location["target_lean_line"])
         and not target_identity_errors
     )
     status = (
         "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
-        if live_ready
+        if compiler_ready
         else (
             "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_IDENTITY"
             if target_identity_errors
@@ -2314,6 +2371,16 @@ def _proof_body_execution_queue_row(
         "target_lean_line": int(location["target_lean_line"]),
         "target_lean_column": int(location["target_lean_column"]),
         "target_lean_declaration": str(location["target_lean_declaration"]),
+        "target_lean_location_source": str(
+            work_order.get("target_lean_location_source", "") or ""
+        ),
+        "target_identity_source": target_identity_source,
+        "signature_probe_artifact_hash": _artifact_content_hash(
+            Path(signature_artifact_path)
+        ),
+        "expected_signature_probe_artifact_hash": str(
+            work_order.get("signature_probe_source_hash", "") or ""
+        ),
         "target_identity_status": (
             "TARGET_DECLARATION_MATCHED"
             if not target_identity_errors
@@ -2502,6 +2569,32 @@ def _lean_goal_location(path: Path) -> dict[str, object]:
         "target_lean_column": 3 if target_line > 0 else 0,
         "target_lean_declaration": target_declaration,
     }
+
+
+def _structured_lean_goal_location(
+    work_order: Mapping[str, Any],
+) -> dict[str, object]:
+    declaration = str(work_order.get("target_lean_declaration", "") or "")
+    path = str(
+        work_order.get("target_lean_file", "")
+        or work_order.get("signature_probe_artifact_path", "")
+        or ""
+    )
+    return {
+        "target_lean_file": path,
+        "target_lean_line": int(work_order.get("target_lean_line", 0) or 0),
+        "target_lean_column": int(
+            work_order.get("target_lean_column", 0) or 0
+        ),
+        "target_lean_declaration": declaration,
+    }
+
+
+def _artifact_content_hash(path: Path) -> str:
+    try:
+        return stable_hash(path.read_text(encoding="utf-8"))
+    except OSError:
+        return ""
 
 
 def _proof_body_live_proof_state_request(

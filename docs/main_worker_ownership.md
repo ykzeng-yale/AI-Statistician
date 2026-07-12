@@ -1142,15 +1142,48 @@ counts, local-Lean attempt, zero return code, and kernel evidence statuses. A
 bridge that merely reports a kernel count without the bound Lean attempt fails
 closed and returns feedback rather than proof evidence.
 
-This does not complete the unified control plane. Source-semantic, promotion,
-exact-semantic, adapter/premise, and exact proof-body executors still run after
-AgentRuntime. The next proof-critical migration is the exact source-theorem
-proof-body queue, with compiler feedback and replanning inside the same runtime.
-That migration must also replace the exact executor's Python declaration/block
-regex parsing with immutable source slices plus Lean/LSP/compiler-backed target
-identity; it must not move those grammar heuristics into another worker.
+This does not complete the unified control plane. The primary exact
+source-theorem proof-body queue has since moved into the typed runtime path
+described below. Source-semantic, promotion, exact-semantic, adapter/premise,
+and later same-run proof-body recheck executors still run after AgentRuntime.
 No statistical source theorem or full frontier theorem was proved by this
 control-plane patch.
+
+## Typed Exact Proof-Body Runtime Migration
+
+The primary exact source-theorem proof-body compiler lane now runs as the
+Architect-visible `ExactSourceTheoremProofBodyExecutor` AgentRuntime child.
+FormalizationEvaluator emits an immutable work order binding the source
+formalization manifest, Formalizer packet, structured source-theorem
+declaration, formal target, materialized candidate id, candidate path and
+content hash, and execution policy. The worker then creates a direct compiler
+queue whose candidate bytes are exactly those emitted by the coding agent.
+
+The typed lane disables the legacy signature-probe source synthesis and does
+not parse Lean declaration grammar, extract and rewrite declaration blocks,
+splice dependency declarations, or run Python-selected bounded tactic
+attempts. Structured provenance identifies the intended declaration; the
+candidate artifact hash, direct queue, local Lean result, and independent
+execution-manifest validation establish whether that exact artifact compiled.
+Compiler failures carry the exact diagnostics and candidate excerpt back to
+the LLM ProofEngineer. Corrupt verifier lineage fails closed to CriticEvaluator
+instead of becoming coding-agent feedback or proof evidence.
+
+Execution ids and persisted next-task metadata are deterministic, so resume
+replays the accepted execution without rerunning the bridge, compiler, or
+coding agent. Post-runtime processing only projects the typed execution
+artifacts and cannot silently invoke the primary legacy lane. Regression tests
+also reject forged kernel counts without a bound local Lean attempt and reject
+candidate tampering before any tool runs. The full runtime suite passes 1047
+tests; the core suite passes 289 tests with 5 skips and 6 passing subtests.
+
+This migration still proves no statistical source theorem by itself. The
+remaining duplicate plane includes source-semantic ProofEngineer bridging,
+source-theorem promotion, exact-semantic authoring/repair/recheck,
+adapter/premise derivation, and later same-run proof-body rechecks. Those lanes
+must become typed children before the Architect owns the whole formal feedback
+graph, and S14 remains false until two unrelated fresh task families close
+their intended exact source theorems under local Lean/AXLE.
 
 ## Whole-Proof Agent Correction
 

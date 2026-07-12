@@ -593,6 +593,10 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     kernel_verified_theorem_reduction_closure_target_ids: tuple[str, ...]
     target_identity_status: str
     target_identity_errors: tuple[str, ...]
+    target_identity_source: str
+    signature_probe_artifact_hash: str
+    signature_probe_artifact_hash_verified: bool
+    target_artifact_lineage_verified: bool
     source_candidate_artifact_path: str
     signature_probe_artifact_path: str
     source_theorem_signature_probe_artifact_path: str
@@ -982,6 +986,17 @@ def _execution_result_row(
     exact_semantic_definition_context = _exact_semantic_definition_context(row)
     target_identity_status = str(row.get("target_identity_status", "") or "")
     target_identity_errors = _str_tuple(row.get("target_identity_errors", []))
+    target_identity_source = str(
+        row.get("target_identity_source", "") or "legacy_unbound_target_identity"
+    )
+    signature_probe_artifact_hash = str(
+        row.get("signature_probe_artifact_hash", "") or ""
+    )
+    expected_signature_probe_artifact_hash = str(
+        row.get("expected_signature_probe_artifact_hash", "") or ""
+    )
+    signature_probe_artifact_hash_verified = False
+    target_artifact_lineage_verified = False
     source_theorem_target_identity_status = str(
         row.get("source_theorem_target_identity_status", "") or ""
     ) or _source_theorem_target_identity_status(
@@ -1144,47 +1159,69 @@ def _execution_result_row(
         try:
             source = candidate_artifact_path.read_text(encoding="utf-8")
         except Exception as exc:
-            errors.append(f"failed to read candidate artifact: {type(exc).__name__}: {exc}")
+                errors.append(f"failed to read candidate artifact: {type(exc).__name__}: {exc}")
         if source:
-            source, dependency_errors = (
-                _materialize_verified_theorem_reduction_closure_dependencies(
-                    source,
-                    dependency_artifact_paths=(
-                        verified_theorem_reduction_closure_artifact_paths
-                    ),
-                    dependency_declarations=(
-                        kernel_verified_theorem_reduction_closure_declarations
-                    ),
-                    target_declaration=target_lean_declaration,
+            observed_source_hash = stable_hash(source)
+            signature_probe_artifact_hash_verified = bool(
+                signature_probe_artifact_hash
+                and observed_source_hash == signature_probe_artifact_hash
+                and (
+                    not expected_signature_probe_artifact_hash
+                    or expected_signature_probe_artifact_hash
+                    == signature_probe_artifact_hash
                 )
             )
-            errors.extend(dependency_errors)
-            source, adapter_dependency_errors = (
-                _materialize_verified_source_theorem_proof_body_adapter_dependencies(
-                    source,
-                    dependency_artifact_paths=(
-                        verified_source_theorem_proof_body_adapter_artifact_paths
-                    ),
-                    dependency_declarations=(
-                        verified_source_theorem_proof_body_adapter_declarations
-                    ),
-                    target_declaration=target_lean_declaration,
+            if (
+                target_identity_source
+                == "upstream_structured_target_declaration_and_artifact_hash"
+                and not signature_probe_artifact_hash_verified
+            ):
+                errors.append(
+                    "structured target identity is not bound to the exact "
+                    "signature-probe artifact hash"
                 )
-            )
-            errors.extend(adapter_dependency_errors)
-            source, premise_derivation_dependency_errors = (
-                _materialize_verified_source_to_bridge_premise_derivation_dependencies(
-                    source,
-                    dependency_artifact_paths=(
-                        verified_source_to_bridge_premise_derivation_artifact_paths
-                    ),
-                    dependency_declarations=(
-                        verified_source_to_bridge_premise_derivation_declarations
-                    ),
-                    target_declaration=target_lean_declaration,
+            if target_identity_source != (
+                "upstream_structured_target_declaration_and_artifact_hash"
+            ):
+                source, dependency_errors = (
+                    _materialize_verified_theorem_reduction_closure_dependencies(
+                        source,
+                        dependency_artifact_paths=(
+                            verified_theorem_reduction_closure_artifact_paths
+                        ),
+                        dependency_declarations=(
+                            kernel_verified_theorem_reduction_closure_declarations
+                        ),
+                        target_declaration=target_lean_declaration,
+                    )
                 )
-            )
-            errors.extend(premise_derivation_dependency_errors)
+                errors.extend(dependency_errors)
+                source, adapter_dependency_errors = (
+                    _materialize_verified_source_theorem_proof_body_adapter_dependencies(
+                        source,
+                        dependency_artifact_paths=(
+                            verified_source_theorem_proof_body_adapter_artifact_paths
+                        ),
+                        dependency_declarations=(
+                            verified_source_theorem_proof_body_adapter_declarations
+                        ),
+                        target_declaration=target_lean_declaration,
+                    )
+                )
+                errors.extend(adapter_dependency_errors)
+                source, premise_derivation_dependency_errors = (
+                    _materialize_verified_source_to_bridge_premise_derivation_dependencies(
+                        source,
+                        dependency_artifact_paths=(
+                            verified_source_to_bridge_premise_derivation_artifact_paths
+                        ),
+                        dependency_declarations=(
+                            verified_source_to_bridge_premise_derivation_declarations
+                        ),
+                        target_declaration=target_lean_declaration,
+                    )
+                )
+                errors.extend(premise_derivation_dependency_errors)
             try:
                 candidate_artifact_path.write_text(source, encoding="utf-8")
             except Exception as exc:
@@ -1196,7 +1233,25 @@ def _execution_result_row(
         forbidden_tokens_found = tuple(
             token for token in FORBIDDEN_ARTIFACT_TOKENS if token in source
         )
-        exact_declaration_present = _has_exact_declaration(source, target_lean_declaration)
+        exact_declaration_present = (
+            target_identity_status == "TARGET_DECLARATION_MATCHED"
+            and not target_identity_errors
+            and expected_target_lean_declaration == target_lean_declaration
+            and (
+                signature_probe_artifact_hash_verified
+                if target_identity_source
+                == "upstream_structured_target_declaration_and_artifact_hash"
+                else _has_exact_declaration(source, target_lean_declaration)
+            )
+        )
+        target_artifact_lineage_verified = bool(
+            target_identity_source
+            == "upstream_structured_target_declaration_and_artifact_hash"
+            and exact_declaration_present
+            and signature_probe_artifact_hash_verified
+            and source_work_order_id
+            and execution_queue_id
+        )
         if forbidden_tokens_found:
             errors.append(
                 "candidate artifact contains forbidden tokens: "
@@ -1241,6 +1296,8 @@ def _execution_result_row(
         verification_strength = "local_lean_exact_source_proof_body_kernel"
         if (
             not compiled
+            and target_identity_source
+            != "upstream_structured_target_declaration_and_artifact_hash"
             and _proof_body_attempts(row)
             and _proof_body_attempts_should_run(
                 diagnostics,
@@ -1303,6 +1360,12 @@ def _execution_result_row(
         and source_theorem_kernel_evidence_eligible
         and target_identity_status == "TARGET_DECLARATION_MATCHED"
         and not target_identity_errors
+        and (
+            target_artifact_lineage_verified
+            if target_identity_source
+            == "upstream_structured_target_declaration_and_artifact_hash"
+            else True
+        )
     )
     failure_classification = (
         ""
@@ -1375,6 +1438,19 @@ def _execution_result_row(
         ),
         target_identity_status=target_identity_status,
         target_identity_errors=target_identity_errors,
+        target_identity_source=target_identity_source,
+        target_declaration_source_excerpt=str(
+            row.get("target_declaration_source_excerpt", "") or ""
+        ),
+        target_declaration_source_hash=str(
+            row.get("target_declaration_source_hash", "") or ""
+        ),
+        target_theorem_statement=str(
+            row.get("target_theorem_statement", "") or ""
+        ),
+        current_proof_body_excerpt=str(
+            row.get("current_proof_body_excerpt", "") or ""
+        ),
         source_theorem_kernel_evidence_eligible=(
             source_theorem_kernel_evidence_eligible
         ),
@@ -1470,6 +1546,12 @@ def _execution_result_row(
         ),
         target_identity_status=target_identity_status,
         target_identity_errors=target_identity_errors,
+        target_identity_source=target_identity_source,
+        signature_probe_artifact_hash=signature_probe_artifact_hash,
+        signature_probe_artifact_hash_verified=(
+            signature_probe_artifact_hash_verified
+        ),
+        target_artifact_lineage_verified=target_artifact_lineage_verified,
         source_candidate_artifact_path=source_candidate_artifact_path,
         candidate_artifact_path=candidate_artifact_path,
         status=status,
@@ -1557,6 +1639,12 @@ def _execution_result_row(
         ),
         target_identity_status=target_identity_status,
         target_identity_errors=target_identity_errors,
+        target_identity_source=target_identity_source,
+        signature_probe_artifact_hash=signature_probe_artifact_hash,
+        signature_probe_artifact_hash_verified=(
+            signature_probe_artifact_hash_verified
+        ),
+        target_artifact_lineage_verified=target_artifact_lineage_verified,
         source_candidate_artifact_path=source_candidate_artifact_path,
         signature_probe_artifact_path=signature_probe_artifact_path,
         source_theorem_signature_probe_artifact_path=(
@@ -3037,6 +3125,11 @@ def _proofengineer_whole_proof_repair_context(
     proof_body_signature_probe_artifact_path: str = "",
     target_identity_status: str = "",
     target_identity_errors: tuple[str, ...] = (),
+    target_identity_source: str = "",
+    target_declaration_source_excerpt: str = "",
+    target_declaration_source_hash: str = "",
+    target_theorem_statement: str = "",
+    current_proof_body_excerpt: str = "",
     source_theorem_kernel_evidence_eligible: bool = False,
     formal_environment_placeholder_symbols: tuple[str, ...] = (),
     formal_environment_typeclass_blockers: tuple[str, ...] = (),
@@ -3044,16 +3137,26 @@ def _proofengineer_whole_proof_repair_context(
     compiler_returncode: int = -1,
     compiler_checked: bool = False,
 ) -> dict[str, object]:
-    declaration_source = _extract_lean_declaration_block(source, target_declaration)
-    if not declaration_source:
-        return {}
-    proof_marker = _lean_top_level_proof_marker_span(declaration_source)
-    if proof_marker is None:
-        target_statement = declaration_source
-        current_proof_body = ""
+    if target_identity_source == (
+        "upstream_structured_target_declaration_and_artifact_hash"
+    ):
+        declaration_source = target_declaration_source_excerpt
+        target_statement = target_theorem_statement
+        current_proof_body = current_proof_body_excerpt
     else:
-        target_statement = declaration_source[: proof_marker[0]].rstrip()
-        current_proof_body = declaration_source[proof_marker[1] :].strip()
+        declaration_source = _extract_lean_declaration_block(
+            source,
+            target_declaration,
+        )
+        if not declaration_source:
+            return {}
+        proof_marker = _lean_top_level_proof_marker_span(declaration_source)
+        if proof_marker is None:
+            target_statement = declaration_source
+            current_proof_body = ""
+        else:
+            target_statement = declaration_source[: proof_marker[0]].rstrip()
+            current_proof_body = declaration_source[proof_marker[1] :].strip()
     normalized_provenance = dict(source_theorem_target_provenance or {})
     normalized_provenance.setdefault(
         "target_lean_declaration",
@@ -3063,7 +3166,10 @@ def _proofengineer_whole_proof_repair_context(
     normalized_provenance.setdefault("source_work_order_id", source_work_order_id)
     normalized_provenance.setdefault("execution_queue_id", execution_queue_id)
     lineage_candidate_artifact_hash = stable_hash(source)
-    target_declaration_source_hash = stable_hash(declaration_source)
+    target_declaration_source_hash = (
+        target_declaration_source_hash
+        or (stable_hash(declaration_source) if declaration_source else "")
+    )
     target_theorem_statement_hash = stable_hash(
         _normalized_lean_signature(target_statement)
     )
@@ -3118,12 +3224,14 @@ def _proofengineer_whole_proof_repair_context(
         "source_lineage_id": _external_source_lineage_id(lineage_payload),
         "target_identity_status": target_identity_status,
         "target_identity_errors": list(target_identity_errors),
+        "target_identity_source": target_identity_source,
         "source_theorem_kernel_evidence_eligible": (
             source_theorem_kernel_evidence_eligible
         ),
         "candidate_artifact_path": str(candidate_artifact_path),
         "source_candidate_artifact_path": source_candidate_artifact_path,
         "target_declaration_source_excerpt": declaration_source[:12000],
+        "candidate_source_excerpt": source[:12000],
         "target_theorem_statement": target_statement[:9000],
         "current_proof_body_excerpt": current_proof_body[:6000],
         "candidate_imports": _lean_import_lines(source)[:16],
@@ -3431,6 +3539,10 @@ def _append_transcript_event(
     kernel_verified_theorem_reduction_closure_target_ids: tuple[str, ...],
     target_identity_status: str,
     target_identity_errors: tuple[str, ...],
+    target_identity_source: str,
+    signature_probe_artifact_hash: str,
+    signature_probe_artifact_hash_verified: bool,
+    target_artifact_lineage_verified: bool,
     source_candidate_artifact_path: str,
     candidate_artifact_path: Path,
     status: str,
@@ -3522,6 +3634,14 @@ def _append_transcript_event(
             ),
             "target_identity_status": target_identity_status,
             "target_identity_errors": target_identity_errors,
+            "target_identity_source": target_identity_source,
+            "signature_probe_artifact_hash": signature_probe_artifact_hash,
+            "signature_probe_artifact_hash_verified": (
+                signature_probe_artifact_hash_verified
+            ),
+            "target_artifact_lineage_verified": (
+                target_artifact_lineage_verified
+            ),
             "source_candidate_artifact_path": source_candidate_artifact_path,
             "candidate_artifact_path": str(candidate_artifact_path),
             "execution_status": status,

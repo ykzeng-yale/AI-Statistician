@@ -8814,9 +8814,11 @@ def _formalizer_mode_specific_instructions(
             "target fixed and consume source_theorem_exact_proof_body_repair_diagnostics "
             "as a lineage-bound ProofEngineer task. When proof_body_repair_scope is "
             "replace_entire_exact_declaration_proof_body, preserve target_theorem_statement "
-            "exactly and replace the complete proof after `:= by`; use "
-            "target_declaration_source_excerpt and current_proof_body_excerpt as the code "
-            "to repair. proof_body_goal_excerpt is a residual subgoal produced while "
+            "exactly and replace the complete proof after `:= by`; use a provided "
+            "target_declaration_source_excerpt when it is source-bound, otherwise use "
+            "candidate_source_excerpt plus target_lean_declaration and compiler feedback. "
+            "Do not ask Python to parse a Lean declaration to manufacture missing context. "
+            "proof_body_goal_excerpt is a residual subgoal produced while "
             "elaborating the current proof and may be nested inside a bad tactic term; do "
             "not silently change the theorem statement to that residual goal. Emit a "
             "complete exact-declaration formal_targets candidate for local Lean/AXLE, a "
@@ -10052,6 +10054,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "next_owner_subsystem",
                 "proof_body_repair_scope",
                 "target_declaration_source_excerpt",
+                "candidate_source_excerpt",
                 "target_theorem_statement",
                 "current_proof_body_excerpt",
                 "residual_goal_role",
@@ -10093,6 +10096,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "next_owner_subsystem",
                 "proof_body_repair_scope",
                 "target_declaration_source_excerpt",
+                "candidate_source_excerpt",
                 "target_theorem_statement",
                 "current_proof_body_excerpt",
                 "residual_goal_role",
@@ -10884,11 +10888,13 @@ def _source_theorem_candidate_materialization_contract(
 def _compact_value_for_key(key: Any, value: Any) -> Any:
     if str(key) in {
         "target_declaration_source_excerpt",
+        "candidate_source_excerpt",
         "target_theorem_statement",
         "current_proof_body_excerpt",
     } and isinstance(value, str):
         limits = {
             "target_declaration_source_excerpt": 12000,
+            "candidate_source_excerpt": 12000,
             "target_theorem_statement": 9000,
             "current_proof_body_excerpt": 6000,
         }

@@ -308,6 +308,12 @@ from .theorem_reduction_closure_runtime_worker import (
     THEOREM_REDUCTION_CLOSURE_RUNTIME_WORK_ORDER_KIND,
     TheoremReductionClosureRuntimeWorker,
 )
+from .exact_source_theorem_proof_body_runtime_worker import (
+    EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_EXECUTION_KIND,
+    EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_KIND,
+    EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+    ExactSourceTheoremProofBodyRuntimeWorker,
+)
 from .verifier import ProofVerifier
 
 
@@ -9028,6 +9034,8 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "leanprover": "ProofEngineer",
         "theoremreductionclosureproofengineer": "ProofEngineer",
         "theoremclosureproofengineer": "ProofEngineer",
+        "exactsourcetheoremproofbodyexecutor": "ProofEngineer",
+        "exactsourceproofbodyexecutor": "ProofEngineer",
         "exactsourcetheoremprover": "ProofEngineer",
         "exactsourceprover": "ProofEngineer",
         "externalexactproofsearch": "ProofEngineer",
@@ -14227,6 +14235,185 @@ def _runtime_theorem_reduction_closure_dispatch_task(
     )
 
 
+def _runtime_exact_source_theorem_proof_body_rows_from_manifest(
+    formalization_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return [
+        dict(row)
+        for row in formalization_manifest.get(
+            "runtime_exact_source_theorem_proof_body_rows",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+
+
+def _runtime_exact_source_candidate_bindings(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    bindings: list[dict[str, Any]] = []
+    for path_text in sorted(
+        {
+            str(row.get("candidate_artifact_path", "") or "")
+            for row in rows
+            if str(row.get("candidate_artifact_path", "") or "")
+        }
+    ):
+        path = Path(path_text)
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError:
+            source = ""
+        bindings.append(
+            {
+                "path": path_text,
+                "content_hash": stable_hash(source) if source else "",
+                "utf8_bytes": len(source.encode("utf-8")) if source else 0,
+            }
+        )
+    return bindings
+
+
+def _runtime_exact_source_theorem_proof_body_work_order(
+    *,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    return_task: AgentTask,
+    runtime_config: ResearchAgentRuntimeConfig,
+) -> dict[str, Any]:
+    rows = _runtime_exact_source_theorem_proof_body_rows_from_manifest(
+        formalization_manifest
+    )
+    source_manifest_id = str(
+        formalization_manifest.get("manifest_id", "") or ""
+    )
+    source_manifest_hash = stable_hash(dict(formalization_manifest))
+    candidate_bindings = _runtime_exact_source_candidate_bindings(rows)
+    execution_policy = {
+        "legacy_signature_probes_requested": bool(
+            runtime_config.source_theorem_formal_environment_proofengineer_signature_probes
+        ),
+        "run_signature_probes": False,
+        "local_lean": bool(
+            runtime_config.source_theorem_formal_environment_proofengineer_proof_body_local_lean
+        ),
+        "overwrite": bool(
+            runtime_config.source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts
+        ),
+        "lean_project": str(
+            runtime_config.source_theorem_formal_environment_proofengineer_lean_project
+            or ""
+        ),
+        "lean_timeout": int(
+            runtime_config.source_theorem_formal_environment_proofengineer_lean_timeout
+        ),
+        "candidate_source_policy": (
+            "Consume a hash-bound coding-agent candidate and upstream structured "
+            "source-theorem declaration identity. Return compiler diagnostics to "
+            "the LLM/prover; "
+            "Python must not infer, synthesize, repair, or substitute Lean grammar "
+            "or tactics."
+        ),
+    }
+    work_order_id = "runtime_exact_source_theorem_proof_body_work_order:" + stable_hash(
+        [
+            source_task.task_id,
+            source_manifest_id,
+            source_manifest_hash,
+            rows,
+            candidate_bindings,
+            execution_policy,
+        ]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem=EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": str(source_task.owner_subsystem or ""),
+        "target_subsystem": EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+        "source_formalization_manifest_id": source_manifest_id,
+        "source_formalization_manifest_hash": source_manifest_hash,
+        "work_order_rows": rows,
+        "work_order_row_hashes": [stable_hash(row) for row in rows],
+        "source_candidate_artifact_bindings": candidate_bindings,
+        "execution_policy": execution_policy,
+        "execution_policy_fingerprint": stable_hash(execution_policy),
+        "source_task": asdict(source_task),
+        "return_task": asdict(return_task),
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override=EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+    )
+
+
+def _runtime_exact_source_theorem_proof_body_dispatch_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"exact-source-proof-body:{question.id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+        objective=(
+            "Consume the immutable exact source-theorem work order inside "
+            "AgentRuntime, verify its structured target identity and candidate "
+            "hash, invoke the exact Lean compiler gate, and return diagnostics to "
+            "ProofEngineer without generating Lean in Python."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "exact_source_theorem_proof_body_work_order_id": work_order_id,
+            "exact_source_theorem_proof_body_work_order_hash": stable_hash(
+                dict(work_order)
+            ),
+        },
+        allowed_tools=(
+            "blackboard",
+            "model_backend",
+            "formal_source_retrieval",
+            "proof_search",
+            "local_lean",
+            "lean_lsp_mcp",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "exact_source_theorem_proof_body_execution_manifest",
+            "exact_source_theorem_compiler_feedback",
+        ),
+        acceptance_gate=(
+            "the hash-bound exact candidate and structured target identity pass "
+            "local Lean/AXLE, or exact diagnostics are routed to ProofEngineer"
+        ),
+        stop_condition=(
+            "source theorem is kernel verified, or candidate/compiler feedback "
+            "is returned to the LLM ProofEngineer in the same AgentRuntime"
+        ),
+    )
+
+
 
 class FormalizationEvaluatorRuntimeSubsystem:
     name = "FormalizationEvaluator"
@@ -16191,6 +16378,55 @@ class FormalizationEvaluatorRuntimeSubsystem:
             ),
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         }
+        exact_source_rows: list[dict[str, Any]] = []
+        if isinstance(proposal_packet, Mapping):
+            materialization_artifacts = {
+                str(lean_candidate_materialization.get("manifest_id", "") or ""):
+                lean_candidate_materialization
+            }
+            materialized_candidate_index = (
+                _runtime_formalizer_materialized_candidate_index(
+                    materialization_artifacts,
+                    proposal_id=str(proposal_packet.get("packet_id", "") or ""),
+                )
+            )
+            all_exact_source_rows = (
+                _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_targets(
+                    artifact=manifest,
+                    proposal_packet=proposal_packet,
+                    seen=set(),
+                    materialized_candidate_index=materialized_candidate_index,
+                )
+            )
+            exact_source_rows = [
+                row
+                for row in all_exact_source_rows
+                if str(row.get("candidate_artifact_path", "") or "")
+                and str(row.get("candidate_source_hash", "") or "")
+                and str(row.get("target_lean_declaration", "") or "")
+                and str(
+                    row.get("target_lean_declaration_source", "") or ""
+                )
+                == "formalizer_structured_source_theorem_target_provenance"
+            ]
+            manifest["source_theorem_formal_environment_work_orders"] = (
+                all_exact_source_rows
+            )
+            manifest["runtime_exact_source_theorem_proof_body_rows"] = (
+                exact_source_rows
+            )
+            manifest["counts"][
+                "source_theorem_formal_environment_work_orders"
+            ] = len(all_exact_source_rows)
+            manifest["counts"][
+                "runtime_exact_source_theorem_proof_body_rows"
+            ] = len(exact_source_rows)
+            manifest["exact_source_theorem_proof_body_runtime_boundary"] = (
+                "Only hash-bound candidates with a Formalizer-provided source "
+                "theorem declaration enter the typed exact-source compiler child. "
+                "Missing candidates or target identities remain ProofEngineer/GapPlanner "
+                "tasks and are not repaired by Python Lean parsing."
+            )
         manifest = _runtime_artifact_with_architect_control(
             manifest_id,
             manifest,
@@ -16437,6 +16673,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
         )
         theorem_closure_dispatch_evidence: EvidenceLedgerEntry | None = None
+        exact_source_proof_body_dispatch_evidence: EvidenceLedgerEntry | None = None
         if lean_candidate_repair_feedback is not None:
             observations.append(
                 EnvironmentObservation(
@@ -16877,6 +17114,78 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "the immutable theorem-reduction closure work order to the "
                     "typed ProofEngineer child before CriticEvaluator."
                 )
+            elif (
+                self.runtime_config.source_theorem_formal_environment_proofengineer_bridge
+                and self.runtime_config.source_theorem_formal_environment_proofengineer_execute_proof_body
+                and exact_source_rows
+            ):
+                exact_work_order = (
+                    _runtime_exact_source_theorem_proof_body_work_order(
+                        source_task=task,
+                        question=question,
+                        architect_context=context,
+                        formalization_manifest=manifest,
+                        return_task=critic_task,
+                        runtime_config=self.runtime_config,
+                    )
+                )
+                exact_work_order_id = str(
+                    exact_work_order.get("work_order_id", "") or ""
+                )
+                produced_artifacts[exact_work_order_id] = exact_work_order
+                next_task = _runtime_exact_source_theorem_proof_body_dispatch_task(
+                    question=question,
+                    architect_context=context,
+                    work_order=exact_work_order,
+                )
+                exact_source_proof_body_dispatch_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash([task.task_id, exact_work_order_id])[:20],
+                    task_id=task.task_id,
+                    artifact_id=exact_work_order_id,
+                    evidence_type="exact_source_theorem_proof_body_work_order",
+                    status=(
+                        "EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_"
+                        "RECORDED_NOT_PROOF_EVIDENCE"
+                    ),
+                    boundary=KERNEL_PROOF_BOUNDARY,
+                    payload={
+                        "source_formalization_manifest_id": manifest_id,
+                        "n_work_order_rows": len(exact_source_rows),
+                        "next_owner_subsystem": (
+                            EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+                        ),
+                        "runtime_generated_lean": False,
+                        "structured_target_identity_required": True,
+                    },
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "exact_source_theorem_proof_body_work_order"
+                        ),
+                        summary=(
+                            "immutable exact-source work order routed to the "
+                            "AgentRuntime compiler child before CriticEvaluator"
+                        ),
+                        payload={
+                            "work_order_id": exact_work_order_id,
+                            "n_work_order_rows": len(exact_source_rows),
+                            "next_owner_subsystem": (
+                                EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+                            ),
+                            "proof_evidence_status": (
+                                "EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_"
+                                "NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    )
+                )
+                result_rationale = (
+                    "Runtime recorded formalization/proof feedback and routed the "
+                    "hash-bound exact source-theorem candidate to the typed "
+                    "compiler child before CriticEvaluator."
+                )
             else:
                 next_task = critic_task
                 result_rationale = (
@@ -16905,6 +17214,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     proof_state_routing_evidence,
                     gap_planner_evidence,
                     theorem_closure_dispatch_evidence,
+                    exact_source_proof_body_dispatch_evidence,
                 )
                 if row is not None
             ),
@@ -19930,6 +20240,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "target_lean_declaration": str(
                     target_location.get("target_lean_declaration", "") or ""
                 ),
+                "target_lean_location_source": "legacy_runtime_source_scan",
                 "target_ids": list(target_context.get("target_ids", []) or []),
                 "target_theorem_goal_ids": list(
                     target_context.get("target_theorem_goal_ids", []) or []
@@ -20677,6 +20988,12 @@ def _runtime_architect_control_subsystem_for_artifact(
         THEOREM_REDUCTION_CLOSURE_RUNTIME_GENERATION_REQUEST_KIND: (
             THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM
         ),
+        EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_KIND: (
+            EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+        ),
+        EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_EXECUTION_KIND: (
+            EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+        ),
         "RuntimeExactSourceTheoremProverExecutionManifest": (
             EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
         ),
@@ -20725,6 +21042,14 @@ def _runtime_architect_control_subsystem_for_artifact(
         (
             "runtime_theorem_reduction_closure_generation_request:",
             THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM,
+        ),
+        (
+            "runtime_exact_source_theorem_proof_body_work_order:",
+            EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+        ),
+        (
+            "runtime_exact_source_theorem_proof_body_execution:",
+            EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
         ),
         (
             "exact_source_theorem_prover_execution:",
@@ -28296,6 +28621,15 @@ def run_research_agent_runtime(
                     repair_available=formalizer is not None,
                 )
             ),
+            EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM: (
+                ExactSourceTheoremProofBodyRuntimeWorker(
+                    out_root=out_dir,
+                    source_rows_resolver=(
+                        _runtime_exact_source_theorem_proof_body_rows_from_manifest
+                    ),
+                    repair_available=formalizer is not None,
+                )
+            ),
             "FormalizationGapPlanner": FormalizationGapPlannerRuntimeSubsystem(
                 out_dir=out_dir,
                 runtime_config=config,
@@ -28811,6 +29145,21 @@ def run_research_agent_runtime(
         "n_theorem_reduction_closure_agent_runtime_generation_requests": (
             evidence_summary["proof"][
                 "n_theorem_reduction_closure_agent_runtime_generation_requests"
+            ]
+        ),
+        "n_exact_source_theorem_proof_body_agent_runtime_work_orders": (
+            evidence_summary["proof"][
+                "n_exact_source_theorem_proof_body_agent_runtime_work_orders"
+            ]
+        ),
+        "n_exact_source_theorem_proof_body_agent_runtime_executions": (
+            evidence_summary["proof"][
+                "n_exact_source_theorem_proof_body_agent_runtime_executions"
+            ]
+        ),
+        "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified": (
+            evidence_summary["proof"][
+                "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified"
             ]
         ),
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -29552,6 +29901,20 @@ def run_research_agent_runtime(
         theorem_closure_bridge_execution_mode = (
             "legacy_post_runtime_execution_disabled"
         )
+    (
+        exact_source_proof_body_agent_runtime_work_orders,
+        exact_source_proof_body_agent_runtime_executions,
+    ) = _runtime_exact_source_theorem_proof_body_agent_runtime_artifacts(
+        results
+    )
+    exact_source_proof_body_execution_mode = (
+        "agent_runtime_typed_worker"
+        if exact_source_proof_body_agent_runtime_executions
+        else "agent_runtime_work_order_pending"
+        if exact_source_proof_body_agent_runtime_work_orders
+        else "not_run"
+    )
+    exact_source_proof_body_legacy_post_runtime_fallback_used = False
     source_semantic_bridge_manifest: dict[str, Any] | None = None
     if (
         config.source_semantic_proofengineer_bridge
@@ -29765,17 +30128,59 @@ def run_research_agent_runtime(
                 ]
             )
         )
-    (
-        source_theorem_formal_environment_bridge_manifest,
-        source_theorem_formal_environment_proof_body_executor_manifest,
-        source_theorem_formal_environment_bridge_learning_rows,
-        source_theorem_formal_environment_proof_body_executor_learning_rows,
-    ) = _run_runtime_source_theorem_formal_environment_bridge_stack(
-        out_dir=out_dir / "runtime_source_theorem_formal_environment_proofengineer_bridge",
-        queue_jsonl=source_theorem_formal_environment_bridge_queue,
-        question_id=questions[0].id if len(questions) == 1 else "",
-        config=config,
-    )
+    source_theorem_formal_environment_proof_body_executor_manifest: (
+        dict[str, Any] | None
+    ) = None
+    source_theorem_formal_environment_bridge_learning_rows: list[
+        dict[str, Any]
+    ] = []
+    source_theorem_formal_environment_proof_body_executor_learning_rows: list[
+        dict[str, Any]
+    ] = []
+    typed_exact_source_execution_projection: dict[str, Any] = {}
+    if exact_source_proof_body_agent_runtime_executions:
+        if len(exact_source_proof_body_agent_runtime_executions) == 1:
+            typed_execution = exact_source_proof_body_agent_runtime_executions[0]
+            typed_exact_source_execution_projection = dict(typed_execution)
+            embedded_bridge = typed_execution.get("bridge_manifest", {})
+            embedded_executor = typed_execution.get("executor_manifest", {})
+            if isinstance(embedded_bridge, Mapping):
+                source_theorem_formal_environment_bridge_manifest = dict(
+                    embedded_bridge
+                )
+            if isinstance(embedded_executor, Mapping):
+                source_theorem_formal_environment_proof_body_executor_manifest = dict(
+                    embedded_executor
+                )
+        embedded_learning_rows = [
+            dict(row)
+            for execution in exact_source_proof_body_agent_runtime_executions
+            for row in execution.get("runtime_learning_rows", []) or []
+            if isinstance(row, Mapping)
+        ]
+        source_theorem_formal_environment_proof_body_executor_learning_rows = (
+            embedded_learning_rows
+        )
+    elif (
+        config.source_theorem_formal_environment_proofengineer_bridge
+        and config.source_theorem_formal_environment_proofengineer_execute_proof_body
+    ):
+        exact_source_proof_body_execution_mode = (
+            "legacy_post_runtime_execution_disabled"
+        )
+    else:
+        (
+            source_theorem_formal_environment_bridge_manifest,
+            source_theorem_formal_environment_proof_body_executor_manifest,
+            source_theorem_formal_environment_bridge_learning_rows,
+            source_theorem_formal_environment_proof_body_executor_learning_rows,
+        ) = _run_runtime_source_theorem_formal_environment_bridge_stack(
+            out_dir=out_dir
+            / "runtime_source_theorem_formal_environment_proofengineer_bridge",
+            queue_jsonl=source_theorem_formal_environment_bridge_queue,
+            question_id=questions[0].id if len(questions) == 1 else "",
+            config=config,
+        )
     source_theorem_formal_environment_source_semantic_bridge_manifest: (
         dict[str, Any] | None
     ) = None
@@ -36980,11 +37385,29 @@ def run_research_agent_runtime(
                 "proof_library_expansion_queue_manifest"
             ]
         )
+    if exact_source_proof_body_agent_runtime_work_orders:
+        manifest["artifacts"][
+            "runtime_exact_source_theorem_proof_body_agent_runtime_work_orders"
+        ] = [
+            str(row.get("work_order_id", "") or "")
+            for row in exact_source_proof_body_agent_runtime_work_orders
+        ]
+    if exact_source_proof_body_agent_runtime_executions:
+        manifest["artifacts"][
+            "runtime_exact_source_theorem_proof_body_agent_runtime_executions"
+        ] = [
+            str(row.get("manifest_id", "") or "")
+            for row in exact_source_proof_body_agent_runtime_executions
+        ]
     if source_theorem_formal_environment_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_formal_environment_proofengineer_bridge_manifest"
         ] = str(
-            out_dir
+            typed_exact_source_execution_projection.get(
+                "bridge_manifest_path",
+                "",
+            )
+            or out_dir
             / "runtime_source_theorem_formal_environment_proofengineer_bridge"
             / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
         )
@@ -43496,7 +43919,27 @@ def run_research_agent_runtime(
     )
     manifest["source_theorem_formal_environment_proofengineer_bridge_requested"] = bool(
         config.source_theorem_formal_environment_proofengineer_bridge
+        or exact_source_proof_body_agent_runtime_work_orders
     )
+    manifest["exact_source_theorem_proof_body_execution_mode"] = (
+        exact_source_proof_body_execution_mode
+    )
+    manifest["n_exact_source_theorem_proof_body_agent_runtime_work_orders"] = len(
+        exact_source_proof_body_agent_runtime_work_orders
+    )
+    manifest["n_exact_source_theorem_proof_body_agent_runtime_executions"] = len(
+        exact_source_proof_body_agent_runtime_executions
+    )
+    manifest[
+        "n_exact_source_theorem_proof_body_agent_runtime_pending_work_orders"
+    ] = max(
+        0,
+        len(exact_source_proof_body_agent_runtime_work_orders)
+        - len(exact_source_proof_body_agent_runtime_executions),
+    )
+    manifest[
+        "exact_source_theorem_proof_body_legacy_post_runtime_fallback_used"
+    ] = exact_source_proof_body_legacy_post_runtime_fallback_used
     manifest["source_theorem_formal_environment_proofengineer_bridge_ran"] = (
         source_theorem_formal_environment_bridge_manifest is not None
     )
@@ -43508,6 +43951,10 @@ def run_research_agent_runtime(
         else (
             "bridge_disabled"
             if not config.source_theorem_formal_environment_proofengineer_bridge
+            else "agent_runtime_work_order_pending"
+            if exact_source_proof_body_agent_runtime_work_orders
+            else "legacy_post_runtime_execution_disabled"
+            if config.source_theorem_formal_environment_proofengineer_execute_proof_body
             else "no_source_theorem_formal_environment_work_orders"
         )
     )
@@ -43686,13 +44133,28 @@ def run_research_agent_runtime(
     )
     manifest[
         "source_theorem_formal_environment_proof_body_executor_requested"
-    ] = bool(config.source_theorem_formal_environment_proofengineer_execute_proof_body)
+    ] = bool(
+        config.source_theorem_formal_environment_proofengineer_execute_proof_body
+        or exact_source_proof_body_agent_runtime_work_orders
+    )
     manifest["source_theorem_formal_environment_proof_body_executor_ran"] = (
         source_theorem_formal_environment_proof_body_executor_manifest is not None
     )
     manifest[
         "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
-    ] = bool(config.source_theorem_formal_environment_proofengineer_proof_body_local_lean)
+    ] = bool(
+        config.source_theorem_formal_environment_proofengineer_proof_body_local_lean
+        or any(
+            _bool_like(
+                dict(row.get("execution_policy", {}) or {}).get(
+                    "local_lean",
+                    False,
+                )
+            )
+            for row in exact_source_proof_body_agent_runtime_work_orders
+            if isinstance(row.get("execution_policy", {}), Mapping)
+        )
+    )
     manifest[
         "source_theorem_formal_environment_proof_body_executor_skipped_reason"
     ] = (
@@ -43701,8 +44163,20 @@ def run_research_agent_runtime(
         else (
             "executor_disabled"
             if not config.source_theorem_formal_environment_proofengineer_execute_proof_body
+            else "agent_runtime_work_order_pending"
+            if exact_source_proof_body_agent_runtime_work_orders
+            else "legacy_post_runtime_execution_disabled"
+            if exact_source_proof_body_execution_mode
+            == "legacy_post_runtime_execution_disabled"
             else "no_proof_body_execution_queue"
         )
+    )
+    manifest["exact_source_theorem_proof_body_agent_runtime_boundary"] = (
+        "The primary exact source-theorem proof-body bridge and compiler execute "
+        "only as a typed, budgeted, Architect-visible AgentRuntime child. The "
+        "work order binds source-manifest bytes, candidate bytes, structured target "
+        "location, execution policy, and resume task. Postprocessing only projects "
+        "the embedded manifests and cannot invoke Lean or promote proof evidence."
     )
     manifest[
         "source_theorem_formal_environment_proof_body_executor_n_result_rows"
@@ -67773,7 +68247,10 @@ def _formalizer_target_requests_source_theorem_formal_environment_repair(
         return True
     if (
         expected_status in {"NEEDS_KERNEL_CHECK", "OPEN"}
-        and re.search(r"\b(theorem|lemma)\b", statement)
+        and str(
+            source_target_provenance.get("target_lean_declaration", "") or ""
+        ).strip()
+        and statement
     ):
         return True
     return bool(
@@ -67878,6 +68355,11 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
         target_lean_declaration = str(
             source_target_provenance.get("target_lean_declaration", "") or ""
         ).strip()
+        target_lean_declaration_source = (
+            "formalizer_structured_source_theorem_target_provenance"
+            if target_lean_declaration
+            else "legacy_lean_source_scan"
+        )
         if not target_lean_declaration:
             target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
         target_theorem_name = (
@@ -68030,6 +68512,34 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
                 "target_ids": target_ids,
                 "target_lean_declaration": target_lean_declaration
                 or target_theorem_name,
+                "target_lean_declaration_source": (
+                    target_lean_declaration_source
+                ),
+                "target_lean_file": str(
+                    materialized_candidate.get("target_lean_file", "")
+                    or candidate_artifact_path
+                    or ""
+                ),
+                "target_lean_line": int(
+                    materialized_candidate.get("target_lean_line", 0) or 0
+                ),
+                "target_lean_column": int(
+                    materialized_candidate.get("target_lean_column", 0) or 0
+                ),
+                "target_lean_location_source": str(
+                    materialized_candidate.get(
+                        "target_lean_location_source",
+                        "legacy_runtime_source_scan",
+                    )
+                    or "legacy_runtime_source_scan"
+                ),
+                "candidate_source_hash": str(
+                    materialized_candidate.get("source_hash", "") or ""
+                ),
+                "live_proof_state_request": dict(
+                    materialized_candidate.get("live_proof_state_request", {})
+                    or {}
+                ),
                 "target_theorem_goal_ids": list(target_ids),
                 "candidate_artifact_path": candidate_artifact_path,
                 "source_formalizer_lean_candidate_materialization_manifest_id": (
@@ -74040,6 +74550,41 @@ def _runtime_theorem_reduction_closure_agent_runtime_artifacts(
                     seen_work_orders.add(artifact_id)
                     work_orders.append(dict(artifact))
             elif kind == THEOREM_REDUCTION_CLOSURE_RUNTIME_EXECUTION_KIND:
+                artifact_id = str(artifact.get("manifest_id", "") or "")
+                if artifact_id and artifact_id not in seen_executions:
+                    seen_executions.add(artifact_id)
+                    executions.append(dict(artifact))
+    return work_orders, executions
+
+
+def _runtime_exact_source_theorem_proof_body_agent_runtime_artifacts(
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    work_orders: list[dict[str, Any]] = []
+    executions: list[dict[str, Any]] = []
+    seen_work_orders: set[str] = set()
+    seen_executions: set[str] = set()
+    for result in results:
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind == EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_KIND:
+                artifact_id = str(artifact.get("work_order_id", "") or "")
+                if artifact_id and artifact_id not in seen_work_orders:
+                    seen_work_orders.add(artifact_id)
+                    work_orders.append(dict(artifact))
+            elif kind == EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_EXECUTION_KIND:
                 artifact_id = str(artifact.get("manifest_id", "") or "")
                 if artifact_id and artifact_id not in seen_executions:
                     seen_executions.add(artifact_id)
@@ -84492,8 +85037,6 @@ RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS: tuple[str, ...] = (
     "source_to_bridge_premise_derivation_proofengineer_bridge",
     "source_theorem_formal_environment_proofengineer_bridge",
     "source_theorem_formal_environment_proofengineer_signature_probes",
-    "source_theorem_formal_environment_proofengineer_execute_proof_body",
-    "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
     "source_theorem_promotion_proofengineer_bridge",
     "source_theorem_exact_semantic_definition_source_lookup",
     "source_theorem_exact_semantic_definition_proofengineer_bridge",
@@ -87460,6 +88003,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_theorem_reduction_closure_agent_runtime_executions": 0,
         "n_theorem_reduction_closure_agent_runtime_kernel_verified": 0,
         "n_theorem_reduction_closure_agent_runtime_generation_requests": 0,
+        "n_exact_source_theorem_proof_body_agent_runtime_work_orders": 0,
+        "n_exact_source_theorem_proof_body_agent_runtime_executions": 0,
+        "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified": 0,
         "n_full_frontier_raw_theorem_proved_claims": 0,
         "n_full_frontier_target_bound_kernel_verified": 0,
         "n_full_frontier_theorem_proved": 0,
@@ -88033,6 +88579,33 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof[
                     "n_theorem_reduction_closure_agent_runtime_generation_requests"
                 ] += 1
+            elif kind == EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_KIND:
+                proof[
+                    "n_exact_source_theorem_proof_body_agent_runtime_work_orders"
+                ] += 1
+            elif kind == EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_EXECUTION_KIND:
+                proof[
+                    "n_exact_source_theorem_proof_body_agent_runtime_executions"
+                ] += 1
+                if (
+                    _bool_like(
+                        artifact.get("execution_contract_satisfied", False)
+                    )
+                    and _bool_like(
+                        artifact.get(
+                            "all_source_theorems_kernel_verified",
+                            False,
+                        )
+                    )
+                ):
+                    proof[
+                        "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified"
+                    ] += int(
+                        artifact.get("n_source_theorem_kernel_verified", 0) or 0
+                    )
+                    verifier_names.add(
+                        "local.exact_source_theorem_proof_body_agent_runtime"
+                    )
             elif kind == "FormalizerProofEngineerProposalPacket":
                 proposal_id = str(artifact.get("packet_id", "") or "").strip()
                 if proposal_id:

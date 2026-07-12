@@ -3334,7 +3334,7 @@ def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_withou
     )
     assert (
         "source_theorem_formal_environment_proofengineer_execute_proof_body"
-        in suppression["runtime_proof_postprocessing_disabled_config_fields"]
+        not in suppression["runtime_proof_postprocessing_disabled_config_fields"]
     )
     config = ResearchAgentRuntimeConfig(
         theorem_closure_proofengineer_bridge=True,
@@ -3364,6 +3364,14 @@ def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_withou
     for field_name in runtime_module.RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS:
         assert getattr(config, field_name) is True
         assert getattr(suppressed_config, field_name) is False
+    assert (
+        suppressed_config.source_theorem_formal_environment_proofengineer_execute_proof_body
+        is True
+    )
+    assert (
+        suppressed_config.source_theorem_formal_environment_proofengineer_proof_body_local_lean
+        is True
+    )
     assert suppressed_config.formalization_gap_planner_live_route_planner is True
 
     feedback_summary = dict(live_route_summary)
@@ -18677,6 +18685,8 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         "evaluation_mode": "capability_eval",
         "exact_source_theorem_prover_available": True,
         "theorem_closure_proofengineer_bridge": True,
+        "source_theorem_formal_environment_proofengineer_bridge": True,
+        "source_theorem_formal_environment_proofengineer_execute_proof_body": True,
     }
 
     prompt = build_architect_coordinator_prompt(
@@ -18697,6 +18707,21 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
             "expected_artifacts": ["typed closure execution manifest"],
             "acceptance_gate": (
                 "candidate bytes are preserved and only local Lean can verify"
+            ),
+        },
+        {
+            "subsystem": "ExactSourceTheoremProofBodyExecutor",
+            "objective": (
+                "compile a hash-bound exact source theorem candidate"
+            ),
+            "inputs_needed": [
+                "typed exact-source work order with structured target identity"
+            ],
+            "expected_artifacts": [
+                "typed exact-source execution manifest"
+            ],
+            "acceptance_gate": (
+                "only the bound local Lean result can promote source proof evidence"
             ),
         },
         {
@@ -18724,6 +18749,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"capability_eval_requires_formalizer_lean_candidate":true' in prompt
     assert '"capability_eval_requires_exact_source_theorem_prover":true' in prompt
     assert '"theorem_reduction_closure_proofengineer_required":true' in prompt
+    assert '"exact_source_theorem_proof_body_executor_required":true' in prompt
     assert '"required_subsystems":["RetrievalMemory","TheoryDeveloper"' in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
@@ -18732,6 +18758,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert contract["capability_eval_requires_formalizer_lean_candidate"] is True
     assert contract["capability_eval_requires_exact_source_theorem_prover"] is True
     assert contract["theorem_reduction_closure_proofengineer_required"] is True
+    assert contract["exact_source_theorem_proof_body_executor_required"] is True
     assert validate_architect_coordinator_packet(packet) == []
 
 
@@ -69521,6 +69548,119 @@ def _theorem_closure_worker_fixture(
     return question, blackboard, dispatch_task, work_order
 
 
+def test_formalization_dispatches_hash_bound_exact_source_candidate_to_typed_child(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    response = _formalizer_sample_response()
+    response["formal_targets"] = [
+        {
+            "id": "exact_source_target",
+            "informal_source": "exact source theorem fixture",
+            "lean_statement_sketch": (
+                "theorem exact_source_target (p : Prop) (hp : p) : p := by\n"
+                "  exact hp\n"
+            ),
+            "semantic_alignment_constraints": [
+                "preserve the exact source theorem proposition"
+            ],
+            "source_theorem_target_provenance": {
+                "source_theorem_target_known": True,
+                "source_theorem_question_id": question.id,
+                "target_lean_declaration": "exact_source_target",
+                "target_ids": ["exact_source_target"],
+            },
+            "source_theorem_formal_environment_repair_required": True,
+            "expected_status": "OPEN",
+        }
+    ]
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(
+            provider_name="static",
+            model="static-formalizer-model",
+        ),
+    )
+    config = ResearchAgentRuntimeConfig(
+        source_theorem_formal_environment_proofengineer_bridge=True,
+        source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+        source_theorem_formal_environment_proofengineer_signature_probes=False,
+        source_theorem_formal_environment_proofengineer_proof_body_local_lean=False,
+    )
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=formalizer,
+        proof_verifier=MockProofVerifier(),
+        lean_candidate_root=tmp_path / "candidates",
+        runtime_config=config,
+    )
+    theory_packet = _runtime_sample_response()
+    theory_packet_id = str(theory_packet["packet_id"])
+    blackboard = BlackboardState(
+        project_id="typed-exact-source-dispatch",
+        artifacts={
+            theory_packet_id: theory_packet,
+            "simulation_manifest:typed_exact": {
+                "manifest_id": "simulation_manifest:typed_exact",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:typed_exact": {
+                "manifest_id": "algorithm_sandbox_manifest:typed_exact",
+                "sandbox_passed": True,
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="formalize:typed_exact_source_dispatch",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Dispatch an exact source theorem compiler task",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": "simulation_manifest:typed_exact",
+            "algorithm_sandbox_manifest_id": (
+                "algorithm_sandbox_manifest:typed_exact"
+            ),
+            "architect_context": {},
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    rows = manifest["runtime_exact_source_theorem_proof_body_rows"]
+    assert len(rows) == 1
+    assert rows[0]["target_lean_declaration"] == "exact_source_target"
+    assert rows[0]["target_lean_declaration_source"] == (
+        "formalizer_structured_source_theorem_target_provenance"
+    )
+    assert rows[0]["candidate_source_hash"]
+    work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_WORK_ORDER_KIND
+    )
+    assert work_order["source_formalization_manifest_hash"] == (
+        runtime_module.stable_hash(manifest)
+    )
+    assert work_order["source_candidate_artifact_bindings"][0]["content_hash"] == (
+        rows[0]["candidate_source_hash"]
+    )
+    assert work_order["execution_policy"]["candidate_source_policy"].endswith(
+        "Lean grammar or tactics."
+    )
+
+
 def test_theorem_closure_typed_worker_requests_llm_candidate_and_replays_once(
     tmp_path: Path,
 ) -> None:
@@ -70050,6 +70190,126 @@ def test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without
     assert execution["resume_next_task"]["owner_subsystem"] == "ProofEngineer"
     assert execution["execution_contract_satisfied"] is True
     assert execution["runtime_generated_lean"] is False
+
+
+def test_full_runtime_executes_exact_source_child_without_post_runtime_fallback(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    formalizer_response = _formalizer_sample_response()
+    formalizer_response["formal_targets"] = [
+        {
+            "id": "exact_source_runtime_target",
+            "informal_source": "exact source theorem runtime fixture",
+            "lean_statement_sketch": (
+                "theorem exact_source_runtime_target (p : Prop) (hp : p) : p := by\n"
+                "  exact hp\n"
+            ),
+            "semantic_alignment_constraints": [
+                "preserve the exact source theorem proposition"
+            ],
+            "source_theorem_target_provenance": {
+                "source_theorem_target_known": True,
+                "source_theorem_question_id": question.id,
+                "target_lean_declaration": "exact_source_runtime_target",
+                "target_ids": ["exact_source_runtime_target"],
+            },
+            "source_theorem_formal_environment_repair_required": True,
+            "expected_status": "OPEN",
+        }
+    ]
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(
+                provider_name="static",
+                model="static-theory-model",
+            ),
+        ),
+        simulation_engineer=LLMSimulationEngineerAgent(
+            provider=StaticArchitectLLMProvider(_simulation_sample_response()),
+            config=SimulationEngineerConfig(
+                provider_name="static",
+                model="static-simulation-model",
+            ),
+        ),
+        algorithm_engineer=LLMAlgorithmEngineerAgent(
+            provider=StaticArchitectLLMProvider(_algorithm_sample_response()),
+            config=AlgorithmEngineerConfig(
+                provider_name="static",
+                model="static-algorithm-model",
+            ),
+        ),
+        formalizer=LLMFormalizerProofEngineerAgent(
+            provider=StaticArchitectLLMProvider(formalizer_response),
+            config=FormalizerConfig(
+                provider_name="static",
+                model="static-formalizer-model",
+            ),
+        ),
+        critic_evaluator=LLMCriticEvaluatorAgent(
+            provider=StaticArchitectLLMProvider(_critic_sample_response()),
+            config=CriticEvaluatorConfig(
+                provider_name="static",
+                model="static-critic-model",
+            ),
+        ),
+        config=ResearchAgentRuntimeConfig(
+            n_runs=8,
+            seed=20260528,
+            max_iterations=6,
+            source_theorem_formal_environment_proofengineer_bridge=True,
+            source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+            source_theorem_formal_environment_proofengineer_signature_probes=False,
+            source_theorem_formal_environment_proofengineer_proof_body_local_lean=False,
+        ),
+    )
+
+    assert manifest["exact_source_theorem_proof_body_execution_mode"] == (
+        "agent_runtime_typed_worker"
+    )
+    assert manifest[
+        "exact_source_theorem_proof_body_legacy_post_runtime_fallback_used"
+    ] is False
+    assert manifest[
+        "n_exact_source_theorem_proof_body_agent_runtime_work_orders"
+    ] == 1
+    assert manifest[
+        "n_exact_source_theorem_proof_body_agent_runtime_executions"
+    ] == 1
+    bridge_path = Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proofengineer_bridge_manifest"
+        ]
+    )
+    assert bridge_path.exists()
+    result_payload = json.loads(
+        Path(manifest["artifacts"]["per_question_results"][0]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [row["subsystem"] for row in result_payload["traces"]] == [
+        "RetrievalMemory",
+        "TheoryDeveloper",
+        "SimulationEvaluator",
+        "AlgorithmEngineer",
+        "FormalizationEvaluator",
+        runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+    ]
+    execution = next(
+        artifact
+        for artifact in result_payload["blackboard"]["artifacts"].values()
+        if artifact.get("artifact_kind")
+        == runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_EXECUTION_KIND
+    )
+    assert execution["runtime_generated_lean"] is False
+    assert execution["structured_target_identity_required"] is True
+    assert execution["execution_result_status"] == "REVISE"
+    assert execution["resume_next_task"]["owner_subsystem"] == "ProofEngineer"
 
 
 def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memory(
