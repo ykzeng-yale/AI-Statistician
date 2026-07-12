@@ -1293,6 +1293,35 @@ fixture providers, or a proof target that does not match the current
 formalization target all fail closed. The S14 audit composes capability
 evidence; the underlying local Lean/AXLE rows remain the theorem-proof evidence.
 
+### Typed Exact-Source Prover Execution
+
+The production runtime now treats external whole-proof search as a distinct
+AgentRuntime stage instead of an opportunistic call hidden inside a
+`ProofEngineer.run()` pass:
+
+1. `ProofEngineer` emits an immutable
+   `RuntimeExactSourceTheoremProverWorkOrder` containing the exact target,
+   source-artifact lineage, provider request, and serialized return task.
+2. `ExactSourceTheoremProver` calls the configured Lean coding-agent provider.
+   Provider output is proposal/search evidence only.
+3. The existing exact-source executor rematerializes each proof body against the
+   preserved declaration and the runtime independently reruns local Lean/AXLE.
+4. The provider result, exact rerun manifest, execution manifest, work order,
+   and their content hashes return through one typed handoff to
+   `ProofEngineer`.
+5. A failed compile returns diagnostics to the next LLM revision. A successful
+   exact rerun is consumed by the normal formalization and Critic path.
+
+This stage is serializable through the pending-task mechanism and visible to
+Architect planning as a `ProofEngineer` child stage. Work-order mutation,
+cross-task identity drift, changed result hashes, or an unbound execution
+manifest fail closed before proof promotion. No Lean grammar, tactic template,
+or theorem-family rule is introduced by this orchestration change.
+
+The typed stage is necessary but does not itself satisfy S14. Fixture providers,
+toy propositions, one task family, or a runtime that lacks the rest of the
+per-task evidence DAG remain non-qualifying.
+
 ## Recommended Near-Term Gate
 
 For the next development cycle, use this gate stack:

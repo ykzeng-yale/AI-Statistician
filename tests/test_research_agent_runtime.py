@@ -98866,6 +98866,585 @@ def test_proofengineer_skips_llm_after_exact_external_candidate_kernel_rerun(
     )
 
 
+def _dedicated_exact_prover_test_task(
+    *,
+    question: OpenResearchQuestion,
+    candidate: Path,
+) -> AgentTask:
+    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
+    candidate_source = candidate.read_text(encoding="utf-8")
+    declaration_source = exact_executor_module._extract_lean_declaration_block(
+        candidate_source,
+        "exact_source",
+    )
+    lineage_payload = {
+        "source_work_order_id": "exact_source_work_order:dedicated",
+        "execution_queue_id": "exact_source_queue:dedicated",
+        "lineage_candidate_artifact_path": str(candidate),
+        "lineage_candidate_artifact_hash": runtime_module.stable_hash(
+            candidate_source
+        ),
+        "target_declaration_source_hash": runtime_module.stable_hash(
+            declaration_source
+        ),
+        "target_theorem_statement_hash": runtime_module.stable_hash(
+            exact_executor_module._normalized_lean_signature(target_statement)
+        ),
+        "proof_body_signature_probe_artifact_path": str(candidate),
+        "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
+            candidate_source
+        ),
+        "expected_target_lean_declaration": "exact_source",
+        "target_lean_declaration": "exact_source",
+        "target_ids": ["exact_source_goal"],
+    }
+    return AgentTask(
+        task_id="proofengineer-whole-proof:dedicated-external",
+        owner_subsystem="ProofEngineer",
+        objective="delegate an exact source theorem proof search work order",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "environment_feedback": {
+                "repair_owner_agent": "ProofEngineer",
+                "proofengineer_repair_context": {
+                    "context_kind": "exact_source_theorem_whole_proof_repair",
+                    "repair_scope": "replace_entire_exact_declaration_proof_body",
+                    "target_lean_declaration": "exact_source",
+                    "target_ids": ["exact_source_goal"],
+                    "target_theorem_statement": target_statement,
+                    "candidate_artifact_path": str(candidate),
+                    "source_candidate_artifact_path": str(candidate),
+                    "source_theorem_target_known": True,
+                    "source_theorem_target_identity_status": (
+                        "SOURCE_THEOREM_TARGET_KNOWN"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "target_lean_declaration": "exact_source",
+                        "source_theorem_question_id": question.id,
+                        "target_ids": ["exact_source_goal"],
+                        "source_work_order_id": (
+                            "exact_source_work_order:dedicated"
+                        ),
+                        "execution_queue_id": "exact_source_queue:dedicated",
+                    },
+                    **lineage_payload,
+                    "source_lineage_id": (
+                        exact_executor_module._external_source_lineage_id(
+                            lineage_payload
+                        )
+                    ),
+                    "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                    "target_identity_errors": [],
+                    "source_theorem_kernel_evidence_eligible": True,
+                    "current_proof_body_excerpt": "exact missing",
+                    "semantic_alignment_blockers": [],
+                    "formal_environment_placeholder_symbols": [],
+                    "formal_environment_typeclass_blockers": [],
+                },
+            },
+        },
+        allowed_tools=("proof_search", "local_lean"),
+    )
+
+
+def _dedicated_exact_prover_test_blackboard() -> BlackboardState:
+    return BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+
+
+def test_dedicated_exact_source_prover_is_typed_resumable_runtime_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    class ProofSearchProvider:
+        name = "fixture_openprover_hlm"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, request):
+            self.calls += 1
+            return {
+                "artifact_kind": "RuntimeOpenProverHLMProofSearchResult",
+                "result_id": "openprover_hlm_result:dedicated-verified",
+                "provider": self.name,
+                "request_fingerprint": request["request_fingerprint"],
+                "target_lean_declaration": request["target_lean_declaration"],
+                "status": "DIRECT_CANDIDATE_AVAILABLE",
+                "source_theorem_candidate_proof_bodies": ["exact hp"],
+                "verified_support_assets": [],
+                "failure_feedback": [],
+                "proof_evidence_status": (
+                    "OPENPROVER_HLM_RESULT_REQUIRES_EXACT_AI_STATISTICIAN_KERNEL_RERUN"
+                ),
+            }
+
+    class FormalizerMustNotRun:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs):
+            self.calls += 1
+            raise AssertionError("verified exact candidate must bypass LLM rewrite")
+
+    monkeypatch.setattr(
+        exact_executor_module,
+        "_run_local_lean",
+        lambda _path, **_kwargs: (True, 0, ()),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_owned_local_lean",
+        lambda _path, **_kwargs: (True, 0, ()),
+    )
+    provider = ProofSearchProvider()
+    formalizer = FormalizerMustNotRun()
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+    proofengineer = ProofEngineerRuntimeSubsystem(
+        proposal_agent=formalizer,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        inline_proof_search_enabled=False,
+        external_prover_task_owner=(
+            runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+        ),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        lean_candidate_local_lean=True,
+        lean_candidate_lean_project=lean_project,
+    )
+    exact_prover = runtime_module.ExactSourceTheoremProverRuntimeSubsystem(
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        out_dir=tmp_path / "external_exact_proof_candidate_reruns",
+        local_lean=True,
+        lean_project=lean_project,
+    )
+    initial_task = _dedicated_exact_prover_test_task(
+        question=question,
+        candidate=candidate,
+    )
+    first_runtime = AgentRuntime(
+        subsystems={"ProofEngineer": proofengineer},
+        blackboard=_dedicated_exact_prover_test_blackboard(),
+    )
+
+    first = first_runtime.run(initial_task, max_iterations=1)
+
+    assert provider.calls == 0
+    assert first.traces[0].subsystem == "ProofEngineer"
+    assert first.traces[0].next_task is not None
+    assert first.traces[0].next_task.owner_subsystem == (
+        runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+    )
+    work_order = next(
+        artifact
+        for artifact in first.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeExactSourceTheoremProverWorkOrder"
+    )
+    assert work_order["return_task"]["owner_subsystem"] == "ProofEngineer"
+    pending_payload = first.traces[0].to_json()["next_task"]
+    assert pending_payload is not None
+    resumed_task = runtime_module._agent_task_from_runtime_payload(pending_payload)
+    resumed_blackboard = BlackboardState(
+        project_id=first.blackboard.project_id,
+        artifacts=copy.deepcopy(first.blackboard.artifacts),
+    )
+    resumed_runtime = AgentRuntime(
+        subsystems={
+            runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM: exact_prover,
+            "ProofEngineer": proofengineer,
+        },
+        blackboard=resumed_blackboard,
+    )
+
+    resumed = resumed_runtime.run(resumed_task, max_iterations=2)
+
+    assert provider.calls == 1
+    assert [trace.subsystem for trace in resumed.traces] == [
+        runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        "ProofEngineer",
+    ]
+    assert formalizer.calls == 0
+    rerun = next(
+        artifact
+        for artifact in resumed.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeExternalExactProofCandidateRerunManifest"
+    )
+    assert rerun["runtime_verification_contract_satisfied"] is True
+    assert rerun["source_theorem_kernel_verified"] is True
+    formalization = next(
+        artifact
+        for artifact in resumed.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert formalization["formalizer_proposal_source"] == (
+        "external_exact_source_theorem_candidate_kernel_rerun"
+    )
+    assert formalization["source_theorem_kernel_verified"] is True
+    assert any(
+        row.task_id == resumed.traces[0].task.task_id
+        and row.evidence_type == "external_exact_proof_candidate_kernel_rerun"
+        and row.status == "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+        for row in resumed.blackboard.evidence_ledger
+    )
+
+
+def test_dedicated_exact_source_prover_rejects_changed_work_order_before_provider(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    class ProofSearchProvider:
+        name = "must_not_run"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, _request):
+            self.calls += 1
+            raise AssertionError("changed work order must fail before provider")
+
+    provider = ProofSearchProvider()
+    proofengineer = ProofEngineerRuntimeSubsystem(
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        inline_proof_search_enabled=False,
+        external_prover_task_owner=(
+            runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+        ),
+        max_proof_obligations=0,
+    )
+    blackboard = _dedicated_exact_prover_test_blackboard()
+    dispatched = proofengineer.run(
+        _dedicated_exact_prover_test_task(
+            question=question,
+            candidate=candidate,
+        ),
+        blackboard,
+    )
+    assert dispatched.next_task is not None
+    blackboard.artifacts.update(dispatched.produced_artifacts)
+    work_order_id = str(dispatched.next_task.inputs["work_order_id"])
+    changed = dict(blackboard.artifacts[work_order_id])
+    changed_request = dict(changed["request"])
+    changed_request["target_lean_declaration"] = "different_target"
+    changed["request"] = changed_request
+    blackboard.artifacts[work_order_id] = changed
+    exact_prover = runtime_module.ExactSourceTheoremProverRuntimeSubsystem(
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        out_dir=tmp_path / "external_exact_proof_candidate_reruns",
+    )
+
+    rejected = exact_prover.run(dispatched.next_task, blackboard)
+
+    assert rejected.status == "BLOCKED"
+    assert rejected.failure_classification == (
+        "exact_source_theorem_prover_work_order_invalid"
+    )
+    assert provider.calls == 0
+    assert "immutable work-order hash mismatch" in rejected.observations[0].payload[
+        "validation_errors"
+    ]
+
+
+def test_dedicated_exact_source_prover_routes_lean_diagnostics_to_llm_revision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    class ProofSearchProvider:
+        name = "fixture_openprover_hlm"
+
+        def run(self, request):
+            return {
+                "artifact_kind": "RuntimeOpenProverHLMProofSearchResult",
+                "result_id": "openprover_hlm_result:dedicated-failed",
+                "provider": self.name,
+                "request_fingerprint": request["request_fingerprint"],
+                "target_lean_declaration": request["target_lean_declaration"],
+                "status": "DIRECT_CANDIDATE_AVAILABLE",
+                "source_theorem_candidate_proof_bodies": ["exact unresolved_name"],
+                "verified_support_assets": [],
+                "failure_feedback": [],
+                "proof_evidence_status": (
+                    "OPENPROVER_HLM_RESULT_REQUIRES_EXACT_AI_STATISTICIAN_KERNEL_RERUN"
+                ),
+            }
+
+    class RecordingFormalizer:
+        def __init__(self) -> None:
+            self.feedback = []
+
+        def propose(self, **kwargs):
+            self.feedback.append(copy.deepcopy(kwargs["environment_feedback"]))
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:dedicated-failure-feedback",
+                    "source_agent": "RecordingFormalizer",
+                    "provider": "anthropic",
+                    "backend_provider": "anthropic",
+                    "model": "claude-opus-4-8",
+                    "model_tier": "opus",
+                    "proof_evidence_status": (
+                        "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                    ),
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                }
+            )
+            packet["formal_targets"] = []
+            packet["proof_bank_obligation_requests"] = []
+            return packet
+
+    compiler_result = (
+        False,
+        1,
+        ("unknown identifier 'unresolved_name'",),
+    )
+    monkeypatch.setattr(
+        exact_executor_module,
+        "_run_local_lean",
+        lambda _path, **_kwargs: compiler_result,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_owned_local_lean",
+        lambda _path, **_kwargs: compiler_result,
+    )
+    provider = ProofSearchProvider()
+    formalizer = RecordingFormalizer()
+    proofengineer = ProofEngineerRuntimeSubsystem(
+        proposal_agent=formalizer,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        inline_proof_search_enabled=False,
+        external_prover_task_owner=(
+            runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+        ),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        lean_candidate_local_lean=True,
+    )
+    blackboard = _dedicated_exact_prover_test_blackboard()
+    dispatched = proofengineer.run(
+        _dedicated_exact_prover_test_task(
+            question=question,
+            candidate=candidate,
+        ),
+        blackboard,
+    )
+    assert dispatched.next_task is not None
+    blackboard.artifacts.update(dispatched.produced_artifacts)
+    exact_prover = runtime_module.ExactSourceTheoremProverRuntimeSubsystem(
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        out_dir=tmp_path / "external_exact_proof_candidate_reruns",
+        local_lean=True,
+    )
+
+    searched = exact_prover.run(dispatched.next_task, blackboard)
+
+    assert searched.status == "REVISE"
+    assert searched.next_task is not None
+    assert searched.next_task.owner_subsystem == "ProofEngineer"
+    blackboard.artifacts.update(searched.produced_artifacts)
+    revised = proofengineer.run(searched.next_task, blackboard)
+
+    assert formalizer.feedback
+    external = formalizer.feedback[0]["proofengineer_repair_context"][
+        "external_proof_search_result"
+    ]
+    exact_feedback = external["exact_candidate_rerun"]
+    assert exact_feedback["runtime_verification_contract_satisfied"] is False
+    assert exact_feedback["candidate_feedback_rows"][0]["diagnostics"] == [
+        "unknown identifier 'unresolved_name'"
+    ]
+    assert not any(
+        entry.status == "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+        for entry in searched.evidence_entries
+    )
+    formalization = next(
+        artifact
+        for artifact in revised.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert formalization["source_theorem_kernel_verified"] is False
+
+
+def test_run_research_agent_runtime_registers_and_executes_dedicated_exact_prover(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n",
+        encoding="utf-8",
+    )
+
+    class ProofSearchProvider:
+        name = "fixture_openprover_hlm"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, request):
+            self.calls += 1
+            return {
+                "artifact_kind": "RuntimeOpenProverHLMProofSearchResult",
+                "result_id": "openprover_hlm_result:full-runtime-dedicated",
+                "provider": self.name,
+                "request_fingerprint": request["request_fingerprint"],
+                "target_lean_declaration": request["target_lean_declaration"],
+                "status": "DIRECT_CANDIDATE_AVAILABLE",
+                "source_theorem_candidate_proof_bodies": ["exact hp"],
+                "verified_support_assets": [],
+                "failure_feedback": [],
+                "proof_evidence_status": (
+                    "OPENPROVER_HLM_RESULT_REQUIRES_EXACT_AI_STATISTICIAN_KERNEL_RERUN"
+                ),
+            }
+
+        def descriptor(self):
+            return {
+                "name": self.name,
+                "repository": "ykzeng-yale/OpenProver",
+            }
+
+    class FormalizerMustNotRun:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs):
+            self.calls += 1
+            raise AssertionError("kernel-verified exact result must bypass rewrite")
+
+    monkeypatch.setattr(
+        exact_executor_module,
+        "_run_local_lean",
+        lambda _path, **_kwargs: (True, 0, ()),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_owned_local_lean",
+        lambda _path, **_kwargs: (True, 0, ()),
+    )
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static-theory-model",
+        ),
+    )
+    provider = ProofSearchProvider()
+    formalizer = FormalizerMustNotRun()
+    initial_blackboard = _dedicated_exact_prover_test_blackboard()
+    lean_project = (
+        Path(__file__).resolve().parents[1]
+        / "legacy_sources"
+        / "emperical_process_lean"
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=theory_developer,
+        formalizer=formalizer,  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        proof_search_provider=provider,  # type: ignore[arg-type]
+        config=ResearchAgentRuntimeConfig(
+            max_iterations=3,
+            max_proof_obligations=0,
+            formalizer_candidate_local_lean=True,
+            formalizer_candidate_lean_project=str(lean_project),
+        ),
+        initial_task_overrides={
+            question.id: _dedicated_exact_prover_test_task(
+                question=question,
+                candidate=candidate,
+            )
+        },
+        initial_blackboard_artifacts={
+            question.id: copy.deepcopy(initial_blackboard.artifacts)
+        },
+    )
+
+    assert provider.calls == 1
+    assert formalizer.calls == 0
+    result_path = Path(manifest["artifacts"]["per_question_results"][0])
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert [trace["subsystem"] for trace in result["traces"]] == [
+        "ProofEngineer",
+        runtime_module.EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        "ProofEngineer",
+    ]
+    artifacts = result["blackboard"]["artifacts"]
+    assert any(
+        artifact.get("artifact_kind")
+        == "RuntimeExactSourceTheoremProverWorkOrder"
+        for artifact in artifacts.values()
+        if isinstance(artifact, dict)
+    )
+    assert any(
+        artifact.get("artifact_kind")
+        == "RuntimeExactSourceTheoremProverExecutionManifest"
+        and artifact.get("source_theorem_kernel_verified") is True
+        for artifact in artifacts.values()
+        if isinstance(artifact, dict)
+    )
+    assert any(
+        artifact.get("artifact_kind")
+        == "RuntimeExternalExactProofCandidateRerunManifest"
+        and artifact.get("runtime_verification_contract_satisfied") is True
+        for artifact in artifacts.values()
+        if isinstance(artifact, dict)
+    )
+
+
 def test_runtime_evidence_summary_counts_external_exact_source_kernel_rerun() -> None:
     summary = runtime_module._runtime_evidence_summary(
         [

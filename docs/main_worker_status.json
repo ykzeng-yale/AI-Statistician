@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-12T09:29:56Z",
+  "updated_at": "2026-07-12T10:32:52Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "S14 fresh-start cross-task readiness is now computed from per-task raw artifact DAGs rather than aggregate family/kernel counters. Every qualifying task independently binds a live Architect plan, structured TheoryDeveloper equation/assumption trace, downstream theory consumption, formal-source RAG, live generated algorithm and simulation execution, artifact-bound repair feedback, linked formalization, live Lean LSP/MCP feedback, and an exact target-preserving external ProofEngineer candidate rerun with zero runtime-generated proof bodies and local Lean/AXLE source-theorem verification. Coding and simulation repair counts now require canonical parent prototype identity, parent script hash, deterministic feedback id, changed child script hash, new proposal identity, same-question scope, and a complete parent-feedback-child lineage; unrelated later successes, same-script replays, forged ids, stale metric refreshes, topology-only provenance, and cross-task feedback cannot close failures. L9 consumes the S14 result and explicit family consistency, while prior aggregate counters remain diagnostics only.",
-  "latest_main_worker_live_probe": "A local S14 exact-source smoke passed through the production external candidate executor with provider=openprover_hlm_controller, n_runtime_generated_proof_bodies=0, local Lean checked=1, compiled=1, and source_theorem_kernel_verified=1 in legacy_sources/emperical_process_lean. This verifies the exact-lineage and kernel gate only on a toy proposition; it is not a live model call, not a statistical source theorem, and not cross-task generalization evidence. The historical S13 conformal runtime re-audits successfully under the new schema and remains S14/L9 false with explicit missing fresh-start, Architect, artifact-bound repair, linked formalization, Lean-feedback, and exact source-theorem requirements.",
-  "latest_main_worker_design_issue": "The former L9 gate could be satisfied by combining two family labels with two target-bound kernel counters even when neither task had a complete autonomous research lineage, and generated-code repair could be overcounted by pairing any later success with an earlier failure from the same question. Both false-positive paths are closed. The remaining real design blocker is execution: exact proof manifests still need to be produced and attached inside fresh Architect-controlled AgentRuntime blackboards for at least two unrelated statistical families. Until those two complete live lineages exist, capability_ready_for_full_ai_statistician and S14 remain false.",
+  "latest_main_worker_patch": "External exact-source proof search is now a typed AgentRuntime stage instead of an opportunistic branch hidden inside ProofEngineer. ProofEngineer emits an immutable RuntimeExactSourceTheoremProverWorkOrder; ExactSourceTheoremProver invokes the configured zero-shot Lean coding-agent provider, independently rematerializes and locally checks returned proof bodies against the preserved exact declaration, and returns compiler feedback or kernel evidence through a resumable typed handoff. Work-order, provider-result, exact-rerun, and execution-manifest identities and content hashes are revalidated before ProofEngineer can consume a result. The production run_research_agent_runtime registry uses this worker whenever a proof-search provider is configured; direct legacy subsystem harnesses retain their inline compatibility path. No Lean grammar, tactic template, or theorem-specific repair rule was added.",
+  "latest_main_worker_live_probe": "An unmocked local-Lean smoke executed ProofEngineer -> ExactSourceTheoremProver -> ProofEngineer in legacy_sources/emperical_process_lean, called the OpenProver-shaped provider once, compiled the exact source declaration in both executor and runtime-owned recheck (1/1 each), recorded source_theorem_kernel_verified=true, and consumed the same manifest without an LLM rewrite. Production-entrypoint, serialized pending-task/rehydrated-blackboard, work-order mutation, and failed-candidate diagnostic-return tests also passed. This proves the new control path and local kernel gate on a toy proposition; the provider payload is fixture-shaped, so it is not a live model call, statistical source theorem, or S14 cross-task capability evidence.",
+  "latest_main_worker_design_issue": "The exact proof executor was already called inside AgentRuntime, but it was an inline ProofEngineer side branch whose provider call, budget, pending state, and return feedback were not independently visible to Architect. That second-plane behavior is now removed from the production configuration by a typed, plan-visible worker. The remaining blocker is empirical execution, not another validator: two unrelated fresh statistical task families still need complete live Architect, theory, coding/simulation repair, RAG, Formalizer/LSP, and exact-source Lean closure DAGs. Until both live lineages exist, capability_ready_for_full_ai_statistician and S14 remain false.",
   "main_objective": "Own the central integration path from Architect-controlled runtime to generated code execution, Formalizer/ProofEngineer repair, local Lean/AXLE diagnostics, evidence ledger rows, and cross-task capability evaluation.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -22,6 +22,28 @@
     "llm_theory_ready": true,
     "registered_proof_obligations": 135,
     "registered_algorithms": 4
+  },
+  "latest_typed_exact_source_prover_runtime": {
+    "trace_subsystems": [
+      "ProofEngineer",
+      "ExactSourceTheoremProver",
+      "ProofEngineer"
+    ],
+    "real_local_lean_smoke_summary": "/tmp/ai-statistician-dedicated-exact-real-lean/smoke_summary.json",
+    "real_local_lean_executor_checked": 1,
+    "real_local_lean_executor_compiled": 1,
+    "real_local_lean_runtime_owned_checked": 1,
+    "real_local_lean_runtime_owned_compiled": 1,
+    "real_local_lean_source_theorem_kernel_verified": true,
+    "runtime_verification_contract_satisfied": true,
+    "provider_calls": 1,
+    "formalizer_rewrite_calls_after_kernel_success": 0,
+    "runtime_tests": "1039 passed in 1356.93s",
+    "core_tests": "289 passed, 5 skipped, 6 subtests passed in 713.48s",
+    "exact_executor_tests": "34 passed in 4.11s",
+    "live_model_provider_called": false,
+    "statistical_source_theorem_proved": false,
+    "fresh_start_cross_task_s14_satisfied": false
   },
   "latest_external_exact_candidate_rerun_contract_smoke": {
     "executor_manifest": "runs/main_worker_external_exact_candidate_rerun_contract_smoke_20260711_v6/executor/1adfc65d182b046e360b/b3bf57dd77a09ed8cf93/external_exact_proof_candidate_rerun_manifest.json",

@@ -149,6 +149,7 @@ def build_architect_coordinator_prompt(
             "AlgorithmEngineer",
             "FormalizationEvaluator",
             "ProofEngineer",
+            "ExactSourceTheoremProver",
             "CriticEvaluator",
         ],
         "authority_gates": [
@@ -205,6 +206,10 @@ def build_architect_coordinator_prompt(
         "and subsystem_execution_plan; route to RetrievalMemory when source/formal "
         "context is needed, or to TheoryDeveloper when the next open obligation "
         "requires derivation, prerequisite repair, or downstream artifact preparation. "
+        "Treat ExactSourceTheoremProver as a typed ProofEngineer child stage: schedule "
+        "it only after ProofEngineer emits a lineage-bound exact-source work order. "
+        "Its external Lean coding-agent output remains a proposal until the independent "
+        "local Lean/kernel rerun accepts the preserved exact declaration. "
         "If runtime learning memory reports concrete source-to-bridge premise targets with "
         "premise_derivation_gap_kind=concrete_premise_target_lacks_nonvacuous_derivation_candidate, "
         "route upstream to TheoryDeveloper/Formalizer for semantic-assumption or lemma repair before "

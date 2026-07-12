@@ -9009,6 +9009,9 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "formalizer/leanprover": "FormalizationEvaluator",
         "proofengineer": "ProofEngineer",
         "leanprover": "ProofEngineer",
+        "exactsourcetheoremprover": "ProofEngineer",
+        "exactsourceprover": "ProofEngineer",
+        "externalexactproofsearch": "ProofEngineer",
         "critic": "CriticEvaluator",
         "criticevaluator": "CriticEvaluator",
         "architectcoordinator": "ArchitectCoordinator",
@@ -13658,6 +13661,299 @@ def _runtime_environment_feedback_with_external_proof_search_result(
     return payload
 
 
+EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM = "ExactSourceTheoremProver"
+
+
+def _runtime_exact_source_theorem_prover_work_order(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    request: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    request_payload = dict(request)
+    work_order_id = "exact_source_theorem_prover_work_order:" + stable_hash(
+        [task.task_id, request_payload]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem="ProofEngineer",
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeExactSourceTheoremProverWorkOrder",
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_subsystem": "ProofEngineer",
+        "target_subsystem": EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        "request_fingerprint": str(
+            request_payload.get("request_fingerprint", "") or ""
+        ),
+        "request": request_payload,
+        "return_task": asdict(task),
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROVER_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override="ProofEngineer",
+    )
+
+
+def _runtime_exact_source_theorem_prover_dispatch_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    request: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> AgentStepResult:
+    work_order = _runtime_exact_source_theorem_prover_work_order(
+        task=task,
+        question=question,
+        request=request,
+        architect_context=architect_context,
+    )
+    work_order_id = str(work_order["work_order_id"])
+    work_order_hash = stable_hash(work_order)
+    next_task = AgentTask(
+        task_id=(
+            f"exact-source-prover:{question.id}:"
+            f"{str(request.get('request_fingerprint', '') or '')[:12]}"
+        ),
+        owner_subsystem=EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        objective=(
+            "Run the configured external Lean proof-search coding agent on the "
+            "lineage-bound exact source theorem, then independently rerun every "
+            "returned proof body under the local Lean/kernel gate."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+        },
+        allowed_tools=(
+            "proof_search",
+            "local_lean",
+            "lean_lsp_mcp",
+            "formal_source_retrieval",
+            "blackboard",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "external_proof_search_result",
+            "external_exact_proof_candidate_rerun_manifest",
+            "exact_source_theorem_prover_execution_manifest",
+        ),
+        acceptance_gate=(
+            "provider output remains proposal evidence until the exact preserved "
+            "source declaration passes the runtime-owned local Lean/kernel gate"
+        ),
+        stop_condition=(
+            "exact source theorem is kernel verified or compiler/provider feedback "
+            "is returned to ProofEngineer for another LLM coding-agent revision"
+        ),
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, work_order_id])[:20],
+        task_id=task.task_id,
+        artifact_id=work_order_id,
+        evidence_type="exact_source_theorem_prover_work_order",
+        status="WORK_ORDER_RECORDED_NOT_PROOF_EVIDENCE",
+        boundary=LEAN_PROVIDER_BOUNDARY,
+        payload={
+            "request_fingerprint": str(
+                request.get("request_fingerprint", "") or ""
+            ),
+            "target_lean_declaration": str(
+                request.get("target_lean_declaration", "") or ""
+            ),
+            "next_owner_subsystem": EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        },
+    )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            "ProofEngineer emitted an immutable exact-source proof-search work "
+            "order and delegated provider execution plus local Lean verification "
+            "to the typed ExactSourceTheoremProver worker."
+        ),
+        produced_artifacts={work_order_id: work_order},
+        observations=(
+            EnvironmentObservation(
+                observation_type="exact_source_theorem_prover_work_order",
+                summary=(
+                    "lineage-bound exact source theorem proof-search work order "
+                    "routed to a dedicated AgentRuntime worker"
+                ),
+                payload={
+                    "work_order_id": work_order_id,
+                    "work_order_hash": work_order_hash,
+                    "request_fingerprint": str(
+                        request.get("request_fingerprint", "") or ""
+                    ),
+                    "target_lean_declaration": str(
+                        request.get("target_lean_declaration", "") or ""
+                    ),
+                    "proof_evidence_status": (
+                        "EXACT_SOURCE_THEOREM_PROVER_WORK_ORDER_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+    )
+
+
+def _runtime_prior_exact_source_theorem_prover_execution(
+    *,
+    environment_feedback: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, tuple[str, ...]]:
+    execution = (
+        environment_feedback.get("exact_source_theorem_prover_execution", {})
+        if isinstance(
+            environment_feedback.get(
+                "exact_source_theorem_prover_execution",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
+    if not execution:
+        return None, None, ()
+    errors: list[str] = []
+
+    def artifact(
+        *,
+        id_key: str,
+        hash_key: str,
+        expected_kind: str,
+    ) -> dict[str, Any] | None:
+        artifact_id = str(execution.get(id_key, "") or "")
+        expected_hash = str(execution.get(hash_key, "") or "")
+        value = blackboard.artifacts.get(artifact_id, {})
+        if not artifact_id:
+            errors.append(f"{id_key} missing")
+            return None
+        if not isinstance(value, Mapping):
+            errors.append(f"{id_key} missing from blackboard")
+            return None
+        payload = dict(value)
+        if str(payload.get("artifact_kind", "") or "") != expected_kind:
+            errors.append(f"{id_key} artifact_kind mismatch")
+        if not expected_hash or stable_hash(payload) != expected_hash:
+            errors.append(f"{id_key} immutable artifact hash mismatch")
+        return payload
+
+    execution_manifest = artifact(
+        id_key="execution_id",
+        hash_key="execution_manifest_hash",
+        expected_kind="RuntimeExactSourceTheoremProverExecutionManifest",
+    )
+    work_order = artifact(
+        id_key="work_order_id",
+        hash_key="work_order_hash",
+        expected_kind="RuntimeExactSourceTheoremProverWorkOrder",
+    )
+    provider_result = artifact(
+        id_key="provider_result_id",
+        hash_key="provider_result_hash",
+        expected_kind=str(
+            execution.get("provider_result_artifact_kind", "")
+            or "RuntimeExternalProofSearchResult"
+        ),
+    )
+    exact_result: dict[str, Any] | None = None
+    if str(execution.get("exact_candidate_rerun_manifest_id", "") or ""):
+        exact_result = artifact(
+            id_key="exact_candidate_rerun_manifest_id",
+            hash_key="exact_candidate_rerun_manifest_hash",
+            expected_kind="RuntimeExternalExactProofCandidateRerunManifest",
+        )
+    request = (
+        work_order.get("request", {})
+        if isinstance(work_order, Mapping)
+        and isinstance(work_order.get("request", {}), Mapping)
+        else {}
+    )
+    request_fingerprint = str(
+        execution.get("request_fingerprint", "") or ""
+    )
+    if not request_fingerprint:
+        errors.append("request_fingerprint missing")
+    if str(request.get("request_fingerprint", "") or "") != request_fingerprint:
+        errors.append("work-order request_fingerprint mismatch")
+    if str(request.get("question_id", "") or "") != question_id:
+        errors.append("work-order question_id mismatch")
+    if provider_result is not None:
+        if (
+            str(provider_result.get("request_fingerprint", "") or "")
+            != request_fingerprint
+        ):
+            errors.append("provider result request_fingerprint mismatch")
+        if (
+            str(provider_result.get("target_lean_declaration", "") or "")
+            != str(request.get("target_lean_declaration", "") or "")
+        ):
+            errors.append("provider result target declaration mismatch")
+    if exact_result is not None:
+        if (
+            str(exact_result.get("request_fingerprint", "") or "")
+            != request_fingerprint
+        ):
+            errors.append("exact rerun request_fingerprint mismatch")
+        if str(exact_result.get("question_id", "") or "") != question_id:
+            errors.append("exact rerun question_id mismatch")
+        if (
+            str(exact_result.get("provider_result_id", "") or "")
+            != str(execution.get("provider_result_id", "") or "")
+        ):
+            errors.append("exact rerun provider_result_id mismatch")
+    if execution_manifest is not None:
+        for key in (
+            "execution_id",
+            "work_order_id",
+            "work_order_hash",
+            "request_fingerprint",
+            "provider_result_id",
+            "provider_result_hash",
+            "provider_result_artifact_kind",
+            "exact_candidate_rerun_manifest_id",
+            "exact_candidate_rerun_manifest_hash",
+        ):
+            if str(execution_manifest.get(key, "") or "") != str(
+                execution.get(key, "") or ""
+            ):
+                errors.append(f"execution manifest {key} mismatch")
+        if str(execution_manifest.get("question_id", "") or "") != question_id:
+            errors.append("execution manifest question_id mismatch")
+        if (
+            _bool_like(
+                execution_manifest.get(
+                    "source_theorem_kernel_verified",
+                    False,
+                )
+            )
+            != _bool_like(
+                execution.get("source_theorem_kernel_verified", False)
+            )
+        ):
+            errors.append("execution manifest proof status mismatch")
+    if errors:
+        return None, None, tuple(dict.fromkeys(errors))
+    return provider_result, exact_result, ()
+
+
 def _agent_step_result_with_external_proof_search(
     result: AgentStepResult,
     *,
@@ -13728,6 +14024,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         proof_state_provider: ProofStateFeedbackProvider | None = None,
         formal_source_retriever: Any | None = None,
         proof_search_provider: LeanProofSearchProvider | None = None,
+        inline_proof_search_enabled: bool = True,
         external_proof_candidate_rerunner: Callable[..., Mapping[str, Any]] = (
             execute_external_exact_source_theorem_proof_candidates
         ),
@@ -13750,6 +14047,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.runtime_config = runtime_config
         self.formal_source_retriever = formal_source_retriever
         self.proof_search_provider = proof_search_provider
+        self.inline_proof_search_enabled = inline_proof_search_enabled
         self.external_proof_candidate_rerunner = external_proof_candidate_rerunner
         self.prover = FormalSubclaimProver(
             verifier=proof_verifier,
@@ -13893,10 +14191,53 @@ class FormalizationEvaluatorRuntimeSubsystem:
         external_proof_search_observations: list[EnvironmentObservation] = []
         external_proof_search_evidence_entries: list[EvidenceLedgerEntry] = []
         external_proof_search_tool_calls: list[ToolCallRecord] = []
-        external_proof_search_result: dict[str, Any] | None = None
-        external_exact_candidate_rerun_result: dict[str, Any] | None = None
-        external_exact_source_theorem_verified = False
-        if self.proof_search_provider is not None:
+        (
+            prior_external_proof_search_result,
+            prior_external_exact_candidate_rerun_result,
+            prior_external_prover_execution_errors,
+        ) = _runtime_prior_exact_source_theorem_prover_execution(
+            environment_feedback=environment_feedback,
+            blackboard=blackboard,
+            question_id=question.id,
+        )
+        external_proof_search_result = prior_external_proof_search_result
+        external_exact_candidate_rerun_result = (
+            prior_external_exact_candidate_rerun_result
+        )
+        external_exact_source_theorem_verified = bool(
+            external_exact_candidate_rerun_result
+            and external_exact_candidate_rerun_result.get(
+                "runtime_verification_contract_satisfied",
+                False,
+            )
+            and _runtime_manifest_int(
+                external_exact_candidate_rerun_result,
+                "n_source_theorem_kernel_verified",
+            )
+            > 0
+        )
+        if prior_external_prover_execution_errors:
+            observations.append(
+                EnvironmentObservation(
+                    observation_type=(
+                        "exact_source_theorem_prover_execution_lineage_rejected"
+                    ),
+                    summary=(
+                        "dedicated exact-source prover results failed immutable "
+                        "blackboard lineage validation and cannot support a proof claim"
+                    ),
+                    payload={
+                        "errors": list(prior_external_prover_execution_errors),
+                        "proof_evidence_status": (
+                            "EXACT_SOURCE_THEOREM_PROVER_LINEAGE_REJECTED_NOT_PROOF_EVIDENCE"
+                        ),
+                    },
+                )
+            )
+        if (
+            self.proof_search_provider is not None
+            and self.inline_proof_search_enabled
+        ):
             external_proof_search_request = _runtime_external_proof_search_request(
                 task=task,
                 question=question,
@@ -16272,6 +16613,594 @@ class ProofEngineerRuntimeSubsystem(FormalizationEvaluatorRuntimeSubsystem):
     """
 
     name = "ProofEngineer"
+
+    def __init__(
+        self,
+        *args: Any,
+        external_prover_task_owner: str = "",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.external_prover_task_owner = str(
+            external_prover_task_owner or ""
+        ).strip()
+        if self.external_prover_task_owner not in {
+            "",
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        }:
+            raise ValueError(
+                "external_prover_task_owner must be ExactSourceTheoremProver"
+            )
+
+    def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+        task_inputs = dict(task.inputs)
+        if task_inputs.pop(
+            "exact_source_theorem_prover_result_pending_consumption",
+            False,
+        ):
+            return super().run(replace(task, inputs=task_inputs), blackboard)
+        if (
+            self.external_prover_task_owner
+            and self.proof_search_provider is not None
+        ):
+            question = _question_from_payload(task.inputs["question"])
+            architect_context = dict(
+                task.inputs.get("architect_context", {}) or {}
+            )
+            environment_feedback = (
+                task.inputs.get("environment_feedback", {})
+                if isinstance(
+                    task.inputs.get("environment_feedback", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            request = _runtime_external_proof_search_request(
+                task=task,
+                question=question,
+                environment_feedback=environment_feedback,
+            )
+            if request:
+                return _runtime_exact_source_theorem_prover_dispatch_result(
+                    task=task,
+                    question=question,
+                    request=request,
+                    architect_context=architect_context,
+                )
+        return super().run(task, blackboard)
+
+
+class ExactSourceTheoremProverRuntimeSubsystem:
+    """Typed external proof-search worker with an independent exact Lean gate."""
+
+    name = EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+
+    def __init__(
+        self,
+        *,
+        proof_search_provider: LeanProofSearchProvider,
+        external_proof_candidate_rerunner: Callable[..., Mapping[str, Any]] = (
+            execute_external_exact_source_theorem_proof_candidates
+        ),
+        out_dir: Path = Path("runs") / "external_exact_proof_candidate_reruns",
+        local_lean: bool = False,
+        lean_project: Path | None = None,
+        lean_timeout: int = 30,
+    ) -> None:
+        self.proof_search_provider = proof_search_provider
+        self.external_proof_candidate_rerunner = external_proof_candidate_rerunner
+        self.out_dir = out_dir
+        self.local_lean = local_lean
+        self.lean_project = lean_project
+        self.lean_timeout = lean_timeout
+
+    def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+        question = _question_from_payload(task.inputs["question"])
+        context = dict(task.inputs.get("architect_context", {}) or {})
+        work_order_id = str(task.inputs.get("work_order_id", "") or "")
+        work_order_hash = str(task.inputs.get("work_order_hash", "") or "")
+        raw_work_order = blackboard.artifacts.get(work_order_id, {})
+        work_order = (
+            dict(raw_work_order) if isinstance(raw_work_order, Mapping) else {}
+        )
+        validation_errors: list[str] = []
+        if not work_order_id:
+            validation_errors.append("work_order_id missing")
+        if not work_order:
+            validation_errors.append("work order missing from blackboard")
+        if str(work_order.get("artifact_kind", "") or "") != (
+            "RuntimeExactSourceTheoremProverWorkOrder"
+        ):
+            validation_errors.append("work-order artifact_kind mismatch")
+        if str(work_order.get("work_order_id", "") or "") != work_order_id:
+            validation_errors.append("work-order identity mismatch")
+        if not work_order_hash or stable_hash(work_order) != work_order_hash:
+            validation_errors.append("immutable work-order hash mismatch")
+        if str(work_order.get("question_id", "") or "") != question.id:
+            validation_errors.append("work-order question_id mismatch")
+        request = (
+            dict(work_order.get("request", {}) or {})
+            if isinstance(work_order.get("request", {}), Mapping)
+            else {}
+        )
+        request_fingerprint = str(
+            request.get("request_fingerprint", "") or ""
+        )
+        expected_request_fingerprint = stable_hash(
+            {
+                key: value
+                for key, value in request.items()
+                if key not in {"source_task_id", "request_fingerprint"}
+            }
+        )
+        if not request_fingerprint:
+            validation_errors.append("request_fingerprint missing")
+        elif request_fingerprint != expected_request_fingerprint:
+            validation_errors.append("request_fingerprint recomputation mismatch")
+        if str(request.get("question_id", "") or "") != question.id:
+            validation_errors.append("request question_id mismatch")
+        if str(request.get("source_task_id", "") or "") != str(
+            work_order.get("source_task_id", "") or ""
+        ):
+            validation_errors.append("request source_task_id mismatch")
+        return_task_payload = (
+            work_order.get("return_task", {})
+            if isinstance(work_order.get("return_task", {}), Mapping)
+            else {}
+        )
+        if str(return_task_payload.get("owner_subsystem", "") or "") != (
+            "ProofEngineer"
+        ):
+            validation_errors.append("return task is not ProofEngineer-owned")
+        if str(return_task_payload.get("task_id", "") or "") != str(
+            work_order.get("source_task_id", "") or ""
+        ):
+            validation_errors.append("return task does not match source_task_id")
+        if validation_errors:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "ExactSourceTheoremProver rejected a missing, changed, or "
+                    "cross-task work order before calling any provider or verifier."
+                ),
+                observations=(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "exact_source_theorem_prover_work_order_rejected"
+                        ),
+                        summary="; ".join(validation_errors)[:500],
+                        payload={
+                            "work_order_id": work_order_id,
+                            "validation_errors": validation_errors,
+                            "proof_evidence_status": (
+                                "EXACT_SOURCE_THEOREM_PROVER_WORK_ORDER_REJECTED_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    ),
+                ),
+                failure_classification=(
+                    "exact_source_theorem_prover_work_order_invalid"
+                ),
+            )
+
+        try:
+            raw_provider_result = self.proof_search_provider.run(request)
+            if not isinstance(raw_provider_result, Mapping):
+                raise TypeError("proof search provider must return a mapping result")
+            provider_result = dict(raw_provider_result)
+        except Exception as exc:
+            provider_result = _runtime_external_proof_search_error_result(
+                request=request,
+                provider=self.proof_search_provider,
+                exc=exc,
+            )
+        provider_result_id = str(
+            provider_result.get("result_id", "")
+            or "external_proof_search_result:"
+            + stable_hash(provider_result)[:20]
+        )
+        provider_result["result_id"] = provider_result_id
+        provider_result.setdefault(
+            "artifact_kind",
+            "RuntimeExternalProofSearchResult",
+        )
+        provider_result.setdefault(
+            "proof_evidence_status",
+            "EXTERNAL_PROOF_SEARCH_RESULT_NOT_PROOF_EVIDENCE",
+        )
+        provider_result.setdefault("proof_evidence_boundary", LEAN_PROVIDER_BOUNDARY)
+
+        exact_result: dict[str, Any] | None = None
+        if provider_result.get("source_theorem_candidate_proof_bodies"):
+            try:
+                raw_exact_result = self.external_proof_candidate_rerunner(
+                    request=request,
+                    provider_result=provider_result,
+                    out_dir=self.out_dir,
+                    local_lean=self.local_lean,
+                    lean_project=self.lean_project,
+                    lean_timeout=self.lean_timeout,
+                )
+                if not isinstance(raw_exact_result, Mapping):
+                    raise TypeError(
+                        "external proof candidate rerunner must return a mapping"
+                    )
+                exact_result = dict(raw_exact_result)
+            except Exception as exc:
+                exact_result = _runtime_external_exact_candidate_rerun_error_result(
+                    request=request,
+                    provider_result=provider_result,
+                    exc=exc,
+                )
+            exact_result = _runtime_validated_external_exact_candidate_rerun_result(
+                request=request,
+                provider_result=provider_result,
+                result=exact_result,
+                runtime_lean_project=self.lean_project,
+                runtime_lean_timeout=self.lean_timeout,
+            )
+            exact_result_id = str(
+                exact_result.get("manifest_id", "")
+                or "external_exact_proof_candidate_rerun:"
+                + stable_hash(exact_result)[:20]
+            )
+            exact_result["manifest_id"] = exact_result_id
+            provider_result["exact_candidate_rerun"] = (
+                _runtime_external_exact_candidate_rerun_summary(exact_result)
+            )
+
+        control_seed = _runtime_architect_control_seed_from_context(
+            context,
+            subsystem="ProofEngineer",
+        )
+        provider_result = _runtime_artifact_with_architect_control(
+            provider_result_id,
+            provider_result,
+            control_seed,
+            subsystem_override=self.name,
+        )
+        produced_artifacts: dict[str, Any] = {
+            provider_result_id: provider_result,
+        }
+        exact_result_id = ""
+        if exact_result is not None:
+            exact_result_id = str(exact_result.get("manifest_id", "") or "")
+            exact_result = _runtime_artifact_with_architect_control(
+                exact_result_id,
+                exact_result,
+                control_seed,
+                subsystem_override=self.name,
+            )
+            produced_artifacts[exact_result_id] = exact_result
+
+        exact_verified = bool(
+            exact_result
+            and exact_result.get("runtime_verification_contract_satisfied", False)
+            and _runtime_manifest_int(
+                exact_result,
+                "n_source_theorem_kernel_verified",
+            )
+            > 0
+        )
+        provider_result_hash = stable_hash(provider_result)
+        exact_result_hash = stable_hash(exact_result) if exact_result else ""
+        execution_id = "exact_source_theorem_prover_execution:" + stable_hash(
+            [
+                work_order_id,
+                work_order_hash,
+                provider_result_id,
+                provider_result_hash,
+                exact_result_id,
+                exact_result_hash,
+            ]
+        )[:20]
+        execution_manifest = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeExactSourceTheoremProverExecutionManifest",
+            "execution_id": execution_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question.id,
+            "task_id": task.task_id,
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+            "request_fingerprint": request_fingerprint,
+            "provider": str(
+                getattr(
+                    self.proof_search_provider,
+                    "name",
+                    type(self.proof_search_provider).__name__,
+                )
+            ),
+            "provider_result_id": provider_result_id,
+            "provider_result_hash": provider_result_hash,
+            "provider_result_artifact_kind": str(
+                provider_result.get("artifact_kind", "") or ""
+            ),
+            "exact_candidate_rerun_manifest_id": exact_result_id,
+            "exact_candidate_rerun_manifest_hash": exact_result_hash,
+            "source_theorem_kernel_verified": exact_verified,
+            "proof_evidence_status": (
+                "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+                if exact_verified
+                else "EXACT_SOURCE_THEOREM_PROVER_EXECUTION_RECORDED_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": (
+                str(exact_result.get("proof_evidence_boundary", "") or "")
+                if exact_result
+                else LEAN_PROVIDER_BOUNDARY
+            ),
+        }
+        execution_manifest = _runtime_artifact_with_architect_control(
+            execution_id,
+            execution_manifest,
+            control_seed,
+            subsystem_override=self.name,
+        )
+        produced_artifacts[execution_id] = execution_manifest
+        execution_manifest_hash = stable_hash(execution_manifest)
+
+        prior_feedback = (
+            return_task_payload.get("inputs", {}).get("environment_feedback", {})
+            if isinstance(return_task_payload.get("inputs", {}), Mapping)
+            and isinstance(
+                return_task_payload.get("inputs", {}).get(
+                    "environment_feedback",
+                    {},
+                ),
+                Mapping,
+            )
+            else {}
+        )
+        feedback = _runtime_environment_feedback_with_external_proof_search_result(
+            prior_feedback,
+            provider_result,
+        )
+        feedback["exact_source_theorem_prover_execution"] = {
+            "execution_id": execution_id,
+            "execution_manifest_hash": execution_manifest_hash,
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+            "request_fingerprint": request_fingerprint,
+            "provider_result_id": provider_result_id,
+            "provider_result_hash": provider_result_hash,
+            "provider_result_artifact_kind": str(
+                provider_result.get("artifact_kind", "") or ""
+            ),
+            "exact_candidate_rerun_manifest_id": exact_result_id,
+            "exact_candidate_rerun_manifest_hash": exact_result_hash,
+            "source_theorem_kernel_verified": exact_verified,
+            "proof_evidence_status": (
+                "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+                if exact_verified
+                else "EXACT_SOURCE_THEOREM_PROVER_FEEDBACK_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        return_task = _agent_task_from_runtime_payload(return_task_payload)
+        next_inputs = dict(return_task.inputs)
+        next_inputs["environment_feedback"] = feedback
+        next_context = dict(next_inputs.get("architect_context", {}) or {})
+        next_context["environment_feedback"] = feedback
+        next_inputs["architect_context"] = next_context
+        next_inputs[
+            "exact_source_theorem_prover_result_pending_consumption"
+        ] = True
+        next_task = replace(
+            return_task,
+            task_id=(
+                f"proofengineer-exact-result:{question.id}:"
+                f"{stable_hash([execution_id, exact_verified])[:8]}"
+            ),
+            inputs=next_inputs,
+        )
+
+        evidence_entries: list[EvidenceLedgerEntry] = [
+            EvidenceLedgerEntry(
+                evidence_id="evidence:"
+                + stable_hash([task.task_id, provider_result_id])[:20],
+                task_id=task.task_id,
+                artifact_id=provider_result_id,
+                evidence_type="external_proof_search_feedback",
+                status="EXTERNAL_PROOF_SEARCH_RECORDED_NOT_PROOF_EVIDENCE",
+                boundary=LEAN_PROVIDER_BOUNDARY,
+                payload={
+                    "provider": execution_manifest["provider"],
+                    "status": str(provider_result.get("status", "") or ""),
+                    "exact_kernel_rerun_required": not exact_verified,
+                },
+            )
+        ]
+        if exact_result is not None:
+            evidence_entries.append(
+                EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash([task.task_id, exact_result_id])[:20],
+                    task_id=task.task_id,
+                    artifact_id=exact_result_id,
+                    evidence_type="external_exact_proof_candidate_kernel_rerun",
+                    status=(
+                        "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+                        if exact_verified
+                        else "EXTERNAL_EXACT_CANDIDATE_RERUN_RECORDED_NOT_SOURCE_PROOF"
+                    ),
+                    boundary=str(
+                        exact_result.get(
+                            "proof_evidence_boundary",
+                            KERNEL_PROOF_BOUNDARY,
+                        )
+                        or KERNEL_PROOF_BOUNDARY
+                    ),
+                    payload={
+                        "n_local_lean_checked": _runtime_manifest_int(
+                            exact_result,
+                            "n_local_lean_checked",
+                        ),
+                        "n_local_lean_compiled": _runtime_manifest_int(
+                            exact_result,
+                            "n_local_lean_compiled",
+                        ),
+                        "n_source_theorem_kernel_verified": _runtime_manifest_int(
+                            exact_result,
+                            "n_source_theorem_kernel_verified",
+                        ),
+                        "runtime_owned_local_lean_checked": _runtime_manifest_int(
+                            exact_result,
+                            "runtime_owned_local_lean_checked",
+                        ),
+                        "runtime_owned_local_lean_compiled": _runtime_manifest_int(
+                            exact_result,
+                            "runtime_owned_local_lean_compiled",
+                        ),
+                        "target_ids": list(exact_result.get("target_ids", []) or []),
+                    },
+                )
+            )
+
+        provider_status = str(provider_result.get("status", "") or "")
+        tool_calls: list[ToolCallRecord] = [
+            ToolCallRecord(
+                tool_name="LeanProofSearchProvider.run",
+                inputs={
+                    "provider": execution_manifest["provider"],
+                    "request_fingerprint": request_fingerprint,
+                    "target_lean_declaration": str(
+                        request.get("target_lean_declaration", "") or ""
+                    ),
+                },
+                output_paths=tuple(
+                    str(provider_result.get(key, "") or "")
+                    for key in ("report_path", "checkpoint_path")
+                    if str(provider_result.get(key, "") or "")
+                ),
+                exit_status=(
+                    "provider_error" if provider_status == "PROVIDER_ERROR" else "0"
+                ),
+                stdout_summary=(
+                    f"status={provider_status} candidates="
+                    f"{len(provider_result.get('source_theorem_candidate_proof_bodies', []) or [])}"
+                ),
+                safety_boundary=LEAN_PROVIDER_BOUNDARY,
+            )
+        ]
+        if exact_result is not None:
+            exact_boundary = str(
+                exact_result.get("proof_evidence_boundary", KERNEL_PROOF_BOUNDARY)
+                or KERNEL_PROOF_BOUNDARY
+            )
+            tool_calls.append(
+                ToolCallRecord(
+                    tool_name=(
+                        "ExactSourceTheoremProofBodyExecutor."
+                        "rerun_external_candidate"
+                    ),
+                    inputs={
+                        "request_fingerprint": request_fingerprint,
+                        "target_lean_declaration": str(
+                            request.get("target_lean_declaration", "") or ""
+                        ),
+                        "local_lean_requested": self.local_lean,
+                    },
+                    output_paths=tuple(
+                        str(exact_result.get(key, "") or "")
+                        for key in ("manifest_path", "rows_path")
+                        if str(exact_result.get(key, "") or "")
+                    ),
+                    exit_status=(
+                        "0" if exact_verified else "source_theorem_not_verified"
+                    ),
+                    stdout_summary=(
+                        "checked="
+                        f"{exact_result.get('n_local_lean_checked', 0)} "
+                        "compiled="
+                        f"{exact_result.get('n_local_lean_compiled', 0)} "
+                        f"source_verified={int(exact_verified)}"
+                    ),
+                    safety_boundary=exact_boundary,
+                )
+            )
+            if _runtime_manifest_int(
+                exact_result,
+                "runtime_owned_local_lean_checked",
+            ) > 0:
+                tool_calls.append(
+                    ToolCallRecord(
+                        tool_name=(
+                            "AgentRuntime."
+                            "verify_external_exact_candidate_local_lean"
+                        ),
+                        inputs={
+                            "request_fingerprint": request_fingerprint,
+                            "target_lean_declaration": str(
+                                request.get("target_lean_declaration", "") or ""
+                            ),
+                            "lean_project": str(self.lean_project or ""),
+                        },
+                        output_paths=tuple(
+                            str(row.get("candidate_artifact_path", "") or "")
+                            for row in exact_result.get("rows", []) or []
+                            if isinstance(row, Mapping)
+                            and str(row.get("candidate_artifact_path", "") or "")
+                        ),
+                        exit_status=(
+                            "0"
+                            if exact_verified
+                            else "runtime_owned_source_theorem_not_verified"
+                        ),
+                        stdout_summary=(
+                            "checked="
+                            f"{exact_result.get('runtime_owned_local_lean_checked', 0)} "
+                            "compiled="
+                            f"{exact_result.get('runtime_owned_local_lean_compiled', 0)} "
+                            f"source_verified={int(exact_verified)}"
+                        ),
+                        safety_boundary=exact_boundary,
+                    )
+                )
+
+        return AgentStepResult(
+            status="REROUTE" if exact_verified else "REVISE",
+            rationale=(
+                "ExactSourceTheoremProver independently kernel-verified the exact "
+                "source declaration and is returning the bound result to "
+                "ProofEngineer for formalization closure."
+                if exact_verified
+                else (
+                    "ExactSourceTheoremProver returned provider/compiler feedback "
+                    "to ProofEngineer for another LLM coding-agent revision; no "
+                    "source theorem proof claim was promoted."
+                )
+            ),
+            produced_artifacts=produced_artifacts,
+            observations=(
+                EnvironmentObservation(
+                    observation_type="exact_source_theorem_prover_execution",
+                    summary=(
+                        f"provider={execution_manifest['provider']} "
+                        f"status={provider_status} "
+                        f"source_verified={int(exact_verified)}"
+                    ),
+                    payload={
+                        "execution_id": execution_id,
+                        "work_order_id": work_order_id,
+                        "provider_result_id": provider_result_id,
+                        "exact_candidate_rerun_manifest_id": exact_result_id,
+                        "source_theorem_kernel_verified": exact_verified,
+                        "proof_evidence_status": execution_manifest[
+                            "proof_evidence_status"
+                        ],
+                    },
+                ),
+            ),
+            tool_calls=tuple(tool_calls),
+            evidence_entries=tuple(evidence_entries),
+            next_task=next_task,
+            failure_classification=(
+                ""
+                if exact_verified
+                else "external_proof_search_provider_error"
+                if provider_status == "PROVIDER_ERROR"
+                else "external_exact_source_theorem_not_verified"
+            ),
+        )
 
 
 def _formalizer_provider_failure_classification(exc: Exception) -> str:
@@ -19331,6 +20260,16 @@ def _runtime_architect_control_subsystem_for_artifact(
         "RuntimeFormalizerLeanCandidateProofStateFeedbackManifest": (
             "ProofEngineer"
         ),
+        "RuntimeExactSourceTheoremProverWorkOrder": "ProofEngineer",
+        "RuntimeExactSourceTheoremProverExecutionManifest": (
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+        ),
+        "RuntimeExternalProofSearchResult": (
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+        ),
+        "RuntimeExternalExactProofCandidateRerunManifest": (
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+        ),
         "RuntimeFormalizationGapPlannerBridge": "FormalizationGapPlanner",
         "RuntimeFormalizationGapPlannerHandoff": "FormalizationGapPlanner",
         "RuntimeFormalizationGapPlannerExecutionManifest": (
@@ -19355,6 +20294,22 @@ def _runtime_architect_control_subsystem_for_artifact(
         ("formalization_manifest:", "ProofEngineer"),
         ("proof_state_feedback_manifest:", "ProofEngineer"),
         ("formalizer_lean_candidate_materialization:", "ProofEngineer"),
+        (
+            "exact_source_theorem_prover_work_order:",
+            "ProofEngineer",
+        ),
+        (
+            "exact_source_theorem_prover_execution:",
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        ),
+        (
+            "external_proof_search_result:",
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        ),
+        (
+            "external_exact_proof_candidate_rerun:",
+            EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM,
+        ),
         (
             "formalizer_lean_candidate_proof_state_feedback_manifest:",
             "ProofEngineer",
@@ -26865,6 +27820,12 @@ def run_research_agent_runtime(
             proof_state_provider=proof_state_provider,
             formal_source_retriever=shared_formal_source_retriever,
             proof_search_provider=proof_search_provider,
+            inline_proof_search_enabled=(proof_search_provider is None),
+            external_prover_task_owner=(
+                EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
+                if proof_search_provider is not None
+                else ""
+            ),
             proof_obligation_ids=config.proof_obligation_ids,
             max_proof_obligations=config.max_proof_obligations,
             lean_candidate_root=out_dir / "formalizer_lean_candidates",
@@ -26908,6 +27869,22 @@ def run_research_agent_runtime(
                 runtime_config=config,
             ),
         }
+        if proof_search_provider is not None:
+            subsystems[EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM] = (
+                ExactSourceTheoremProverRuntimeSubsystem(
+                    proof_search_provider=proof_search_provider,
+                    out_dir=(
+                        out_dir / "external_exact_proof_candidate_reruns"
+                    ),
+                    local_lean=config.formalizer_candidate_local_lean,
+                    lean_project=(
+                        Path(config.formalizer_candidate_lean_project)
+                        if config.formalizer_candidate_lean_project
+                        else None
+                    ),
+                    lean_timeout=config.formalizer_candidate_lean_timeout,
+                )
+            )
         if architect_coordinator is not None:
             subsystems = {
                 "ArchitectCoordinator": ArchitectCoordinatorRuntimeSubsystem(
