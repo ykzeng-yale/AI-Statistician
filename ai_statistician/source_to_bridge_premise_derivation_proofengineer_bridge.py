@@ -117,6 +117,10 @@ class SourceToBridgePremiseDerivationCheckRow:
     premise_candidate_artifact_path: str
     premise_candidate_declaration_name: str
     premise_candidate_generation_mode: str
+    premise_candidate_source_fingerprint: str
+    premise_candidate_bytes_preserved: bool
+    llm_candidate_generation_required: bool
+    candidate_generation_request: dict[str, object]
     premise_candidate_vacuous: bool
     premise_candidate_assumes_forbidden_premise: bool
     premise_candidate_uninstantiated_adapter_object_binders: tuple[str, ...]
@@ -353,6 +357,12 @@ def run_source_to_bridge_premise_derivation_proofengineer_bridge(
         ),
         "n_premise_derivation_kernel_verified": len(verified_ids),
         "n_premise_derivation_candidate_requests": len(candidate_request_rows),
+        "n_llm_candidate_generation_required": sum(
+            1 for row in rows if row.llm_candidate_generation_required
+        ),
+        "n_premise_candidate_bytes_preserved": sum(
+            1 for row in rows if row.premise_candidate_bytes_preserved
+        ),
         "n_grouped_premise_derivation_candidate_requests": len(
             grouped_candidate_request_rows
         ),
@@ -579,6 +589,28 @@ def _premise_derivation_check_row(
         adapter_signature=source_context["adapter_signature"],
         premise_name=premise_name,
     )
+    if not str(premise_target.get("premise_type", "") or "").strip():
+        explicit_premise_type = str(
+            row.get("premise_target_type", "")
+            or candidate_request.get("premise_target_type", "")
+            or grouped_candidate_request.get("premise_target_type", "")
+            or ""
+        ).strip()
+        if explicit_premise_type:
+            premise_target = {
+                "status": "ADAPTER_PREMISE_TARGET_EXTRACTED",
+                "matched_premise_binder": str(
+                    row.get("premise_target_matched_binder", "")
+                    or candidate_request.get("premise_target_matched_binder", "")
+                    or (
+                        f"({premise_name} : {explicit_premise_type})"
+                        if premise_name
+                        else ""
+                    )
+                    or ""
+                ),
+                "premise_type": explicit_premise_type,
+            }
     premise_target_type = str(premise_target.get("premise_type", "") or "")
     premise_target_source = str(
         row.get("premise_target_source", "")
@@ -616,17 +648,19 @@ def _premise_derivation_check_row(
     )
     provided_source = _candidate_source_from_work_order(row)
     if provided_source:
-        source = _normalize_lean_source(provided_source)
-        source = _inline_dependency_context(source, row=row)
+        source = provided_source
         generation_mode = "formalizer_provided_premise_derivation_candidate"
+        candidate_path.write_text(source, encoding="utf-8")
     else:
-        source = _generated_premise_derivation_skeleton(
-            declaration_name=declaration_name,
-            row=row,
-        )
-        generation_mode = "proofengineer_generated_premise_derivation_skeleton"
-    candidate_path.write_text(source, encoding="utf-8")
+        source = ""
+        generation_mode = "llm_premise_derivation_candidate_required"
 
+    exact_source_binders = _request_mapping_tuple(
+        row.get("exact_source_theorem_binders", [])
+        or candidate_request.get("exact_source_theorem_binders", [])
+        or grouped_candidate_request.get("exact_source_theorem_binders", [])
+        or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
+    )
     forbidden_tokens = _forbidden_tokens(source)
     vacuous = _premise_candidate_vacuous(
         source,
@@ -640,12 +674,11 @@ def _premise_derivation_check_row(
         forbidden_as_adapter_assumption=bool(
             row.get("forbidden_as_adapter_assumption", False)
         ),
-    )
-    exact_source_binders = _request_mapping_tuple(
-        row.get("exact_source_theorem_binders", [])
-        or candidate_request.get("exact_source_theorem_binders", [])
-        or grouped_candidate_request.get("exact_source_theorem_binders", [])
-        or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
+        allowed_source_binder_names=tuple(
+            str(item.get("name", "") or "")
+            for item in exact_source_binders
+            if isinstance(item, Mapping) and str(item.get("name", "") or "")
+        ),
     )
     goal_context_semantic_requirements = (
         _proof_body_goal_semantic_dependency_requirements(
@@ -807,6 +840,87 @@ def _premise_derivation_check_row(
         diagnostics=diagnostics,
     )
     premise_verified = bool(local_lean and local_compiled and evidence_eligible)
+    llm_candidate_generation_required = not bool(provided_source)
+    candidate_generation_request = (
+        {
+            "schema_version": 1,
+            "request_kind": "source_to_bridge_premise_derivation_lean_candidate",
+            "work_order_id": work_order_id,
+            "target_lean_declaration": target_declaration,
+            "premise_name": premise_name,
+            "premise_candidate_declaration_name": declaration_name,
+            "candidate_request_id": candidate_request_id,
+            "grouped_candidate_request_id": grouped_candidate_request_id,
+            "premise_target_status": str(premise_target.get("status", "") or ""),
+            "premise_target_type": premise_target_type,
+            "premise_target_source": premise_target_source,
+            "proof_body_goal_context": proof_body_goal_context,
+            "exact_source_theorem_binders": list(exact_source_binders),
+            "premise_semantic_anchor_binders": list(semantic_anchor_binders),
+            "premise_semantic_anchor_binder_names": list(
+                semantic_anchor_binder_names
+            ),
+            "premise_semantic_dependency_requirements": list(
+                semantic_requirements
+            ),
+            "adapter_object_names_requiring_source_instantiation": list(
+                adapter_object_names
+            ),
+            "source_theorem_signature_excerpt": list(
+                source_context["source_theorem_signature"]
+            ),
+            "adapter_signature_excerpt": list(source_context["adapter_signature"]),
+            "source_context_status": source_context["status"],
+            "source_candidate_artifact_path": source_candidate_artifact_path,
+            "adapter_candidate_artifact_path": adapter_candidate_artifact_path,
+            "proof_body_signature_probe_artifact_path": (
+                proof_body_signature_probe_artifact_path
+            ),
+            "adapter_declaration_name": adapter_declaration_name,
+            "verified_theorem_reduction_closure_artifact_paths": list(
+                _str_tuple(
+                    row.get("verified_theorem_reduction_closure_artifact_paths", [])
+                )
+            ),
+            "kernel_verified_theorem_reduction_closure_declarations": list(
+                _str_tuple(
+                    row.get(
+                        "kernel_verified_theorem_reduction_closure_declarations",
+                        [],
+                    )
+                )
+            ),
+            "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
+                _str_tuple(
+                    row.get(
+                        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                        [],
+                    )
+                )
+            ),
+            "proof_body_attempt_summaries": list(
+                _str_tuple(row.get("proof_body_attempt_summaries", []))
+            ),
+            "proof_body_attempt_count": _int_like(
+                row.get("proof_body_attempt_count", 0)
+            ),
+            "proof_body_gate_status": str(
+                row.get("proof_body_gate_status", "") or ""
+            ),
+            "source_theorem_kernel_evidence_eligible": bool(
+                row.get("source_theorem_kernel_evidence_eligible", False)
+            ),
+            "semantic_alignment_constraints": list(
+                _str_tuple(row.get("semantic_alignment_constraints", []))
+            ),
+            "semantic_alignment_blockers": list(
+                _str_tuple(row.get("semantic_alignment_blockers", []))
+            ),
+            "proof_evidence_status": "LEAN_CANDIDATE_GENERATION_REQUEST_NOT_PROOF_EVIDENCE",
+        }
+        if llm_candidate_generation_required
+        else {}
+    )
     gap_kind, gap_summary = _premise_derivation_gap(
         premise_name=premise_name,
         premise_target_status=str(premise_target.get("status", "") or ""),
@@ -913,9 +1027,17 @@ def _premise_derivation_check_row(
         source_to_bridge_policy_dependency_requirements=tuple(
             policy_context["source_to_bridge_policy_dependency_requirements"]
         ),
-        premise_candidate_artifact_path=str(candidate_path),
+        premise_candidate_artifact_path=(str(candidate_path) if source else ""),
         premise_candidate_declaration_name=declaration_name,
         premise_candidate_generation_mode=generation_mode,
+        premise_candidate_source_fingerprint=(
+            stable_hash(provided_source) if provided_source else ""
+        ),
+        premise_candidate_bytes_preserved=bool(
+            provided_source and source == provided_source
+        ),
+        llm_candidate_generation_required=llm_candidate_generation_required,
+        candidate_generation_request=candidate_generation_request,
         premise_candidate_vacuous=vacuous,
         premise_candidate_assumes_forbidden_premise=assumes_forbidden_premise,
         premise_candidate_uninstantiated_adapter_object_binders=(
@@ -1256,8 +1378,8 @@ def _candidate_source_from_candidate_mapping(
         "lean_statement_sketch",
         "candidate_lean_source",
     ):
-        source = str(candidate.get(key, "") or "").strip()
-        if source:
+        source = str(candidate.get(key, "") or "")
+        if source.strip():
             return source
     nested = candidate.get("source_to_bridge_premise_derivation_candidates", [])
     if isinstance(nested, Sequence) and not isinstance(nested, (str, bytes)):
@@ -1507,500 +1629,6 @@ def _source_to_bridge_policy_premise_aliases_normalized() -> set[str]:
         if (normalized := _normalize_premise_identifier(alias))
     }
 
-
-def _generated_premise_derivation_skeleton(
-    *,
-    declaration_name: str,
-    row: Mapping[str, Any],
-) -> str:
-    candidate_request_raw = row.get(
-        "source_to_bridge_premise_derivation_candidate_request", {}
-    )
-    candidate_request = (
-        dict(candidate_request_raw) if isinstance(candidate_request_raw, Mapping) else {}
-    )
-    grouped_candidate_request_raw = row.get(
-        "source_to_bridge_grouped_premise_derivation_candidate_request", {}
-    )
-    grouped_candidate_request = (
-        dict(grouped_candidate_request_raw)
-        if isinstance(grouped_candidate_request_raw, Mapping)
-        else {}
-    )
-    premise_name = str(row.get("premise_name", "") or "").strip()
-    target = str(row.get("target_theorem_name", "") or "").strip()
-    required = str(row.get("required_derivation", "") or "").strip()
-    acceptance_gate = str(row.get("acceptance_gate", "") or "").strip()
-    source_candidate_artifact_path = str(
-        row.get("source_candidate_artifact_path", "") or ""
-    ).strip()
-    adapter_candidate_artifact_path = str(
-        row.get("adapter_candidate_artifact_path", "") or ""
-    ).strip()
-    proof_body_signature_probe_artifact_path = (
-        _proof_body_signature_probe_artifact_path_from_sources(
-            row,
-            candidate_request,
-            grouped_candidate_request,
-        )
-    )
-    source_theorem_signature_probe_artifact_path = (
-        _source_theorem_signature_probe_artifact_path_from_sources(
-            row,
-            candidate_request,
-            grouped_candidate_request,
-        )
-    )
-    adapter_declaration_name = str(
-        row.get("adapter_declaration_name", "") or ""
-    ).strip()
-    source_context = _source_context_from_candidate(
-        source_candidate_artifact_path=source_candidate_artifact_path,
-        adapter_candidate_artifact_path=adapter_candidate_artifact_path,
-        target_declaration=str(row.get("target_lean_declaration", "") or "").strip(),
-        adapter_declaration_name=adapter_declaration_name,
-    )
-    premise_target = _adapter_premise_target_from_signature(
-        adapter_signature=source_context["adapter_signature"],
-        premise_name=premise_name,
-    )
-    closure_declarations = _str_tuple(
-        row.get("kernel_verified_theorem_reduction_closure_declarations", [])
-    )[:12]
-    closure_artifacts = _str_tuple(
-        row.get("verified_theorem_reduction_closure_artifact_paths", [])
-    )[:12]
-    semantic_support_ids = _str_tuple(
-        row.get("kernel_verified_source_theorem_semantic_support_obligation_ids", [])
-    )[:12]
-    goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
-    proof_body_goal_context = _proof_body_goal_context_from_sources(
-        row,
-        candidate_request,
-        grouped_candidate_request,
-    )
-    proof_body_goal_binder_names = _proof_body_goal_binder_names_from_sources(
-        row,
-        candidate_request,
-        grouped_candidate_request,
-        proof_body_goal_context=proof_body_goal_context,
-    )[:24]
-    proof_body_goal_conclusion = _proof_body_goal_conclusion_from_sources(
-        row,
-        candidate_request,
-        grouped_candidate_request,
-        proof_body_goal_context=proof_body_goal_context,
-    )
-    attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
-    attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
-    proof_body_gate_status = str(row.get("proof_body_gate_status", "") or "").strip()
-    proof_body_gate_open = _bool_like(
-        row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
-    )
-    proof_body_gate_open_targets = _str_tuple(
-        row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
-    )[:12]
-    semantic_constraints = _str_tuple(row.get("semantic_alignment_constraints", []))[:8]
-    semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
-    source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
-    source_kernel_eligible = bool(source_kernel_eligible_raw)
-    exact_goal_shape_ids = _str_tuple(row.get("exact_goal_shape_obligation_ids", []))[:12]
-    comment_lines = [
-        "This is a generated source-to-bridge premise derivation skeleton, not proof evidence.",
-        "Replace the abstract source_hypotheses/bridge_premise placeholders with exact",
-        "source theorem hypotheses and prove the named bridge premise before rerunning",
-        "the source theorem proof body.",
-    ]
-    metadata_lines = [
-        ("target source theorem", target),
-        ("premise name", premise_name),
-        ("required derivation", required),
-        ("acceptance gate", acceptance_gate),
-        ("exact source candidate artifact", source_candidate_artifact_path),
-        ("source-to-bridge adapter candidate artifact", adapter_candidate_artifact_path),
-        (
-            "source theorem signature probe artifact",
-            source_theorem_signature_probe_artifact_path
-            or proof_body_signature_probe_artifact_path,
-        ),
-        ("source-to-bridge adapter declaration", adapter_declaration_name),
-    ]
-    metadata_comment = "\n".join(
-        f"-- {label}: {_sanitize_comment_text(value)}"
-        for label, value in metadata_lines
-        if value
-    )
-    exact_goal_comment = "\n".join(
-        f"-- exact goal-shape obligation id: {_sanitize_comment_text(value)}"
-        for value in exact_goal_shape_ids
-    )
-    closure_comment = "\n".join(
-        f"-- verified reduction/closure Lean declaration: {_sanitize_comment_text(value)}"
-        for value in closure_declarations
-    )
-    closure_artifact_comment = "\n".join(
-        f"-- verified reduction/closure artifact: {_sanitize_comment_text(value)}"
-        for value in closure_artifacts
-    )
-    semantic_support_comment = "\n".join(
-        f"-- verified semantic support obligation id: {_sanitize_comment_text(value)}"
-        for value in semantic_support_ids
-    )
-    goal_comment = "\n".join(
-        f"-- proof body goal: {_sanitize_comment_text(value)}"
-        for value in goal_excerpt
-    )
-    goal_binder_comment = "\n".join(
-        f"-- proof body goal binder: {_sanitize_comment_text(value)}"
-        for value in proof_body_goal_binder_names
-    )
-    goal_conclusion_comment = (
-        "-- proof body goal conclusion: "
-        + _sanitize_comment_text(proof_body_goal_conclusion)
-        if proof_body_goal_conclusion
-        else ""
-    )
-    attempt_comment = "\n".join(
-        f"-- proof body attempt: {_sanitize_comment_text(value)}"
-        for value in attempt_summaries
-    )
-    attempt_count_comment = (
-        f"-- proof body attempt count: {attempt_count}" if attempt_count else ""
-    )
-    proof_body_gate_status_comment = (
-        "-- proof body gate status: "
-        + _sanitize_comment_text(proof_body_gate_status)
-        if proof_body_gate_status
-        else ""
-    )
-    proof_body_gate_open_comment = (
-        "-- exact source proof-body gate open for kernel repair: "
-        + ("true" if proof_body_gate_open else "false")
-        if row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair")
-        is not None
-        else ""
-    )
-    proof_body_gate_open_target_comment = "\n".join(
-        f"-- exact source proof-body gate-open target: {_sanitize_comment_text(value)}"
-        for value in proof_body_gate_open_targets
-    )
-    source_kernel_eligible_comment = (
-        (
-            "-- source theorem kernel evidence eligible before premise derivation: "
-            + ("true" if source_kernel_eligible else "false")
-        )
-        if source_kernel_eligible_raw is not None
-        else ""
-    )
-    semantic_constraint_comment = "\n".join(
-        f"-- semantic alignment constraint: {_sanitize_comment_text(value)}"
-        for value in semantic_constraints
-    )
-    semantic_blocker_comment = "\n".join(
-        f"-- semantic alignment blocker: {_sanitize_comment_text(value)}"
-        for value in semantic_blockers
-    )
-    source_signature_comment = "\n".join(
-        f"-- exact source theorem signature: {_sanitize_comment_text(value)}"
-        for value in source_context["source_theorem_signature"]
-    )
-    adapter_signature_comment = "\n".join(
-        f"-- current adapter signature: {_sanitize_comment_text(value)}"
-        for value in source_context["adapter_signature"]
-    )
-    premise_target_comment = "\n".join(
-        [
-            "-- premise target status: "
-            + _sanitize_comment_text(str(premise_target["status"])),
-            "-- matched adapter premise binder: "
-            + _sanitize_comment_text(str(premise_target["matched_premise_binder"])),
-            "-- extracted premise target: "
-            + _sanitize_comment_text(str(premise_target["premise_type"])),
-            "-- premise target source: "
-            + _sanitize_comment_text(
-                str(
-                    row.get("premise_target_source", "")
-                    or row.get("source_to_bridge_premise_target_source", "")
-                    or ("adapter_signature" if premise_target["premise_type"] else "")
-                )
-            ),
-        ]
-    )
-    exact_source_binders = _request_mapping_tuple(
-        row.get("exact_source_theorem_binders", [])
-        or candidate_request.get("exact_source_theorem_binders", [])
-        or grouped_candidate_request.get("exact_source_theorem_binders", [])
-        or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
-    )
-    premise_target_source = str(
-        row.get("premise_target_source", "")
-        or row.get("source_to_bridge_premise_target_source", "")
-        or ("adapter_signature" if premise_target["premise_type"] else "")
-    ).strip()
-    premise_target_uses_goal_context = _premise_target_uses_proof_body_goal_context(
-        premise_target_source=premise_target_source,
-        premise_target_type=str(premise_target["premise_type"]),
-        proof_body_goal_conclusion=proof_body_goal_conclusion,
-    )
-    goal_context_semantic_requirements = (
-        _proof_body_goal_semantic_dependency_requirements(
-            proof_body_goal_context=proof_body_goal_context,
-            proof_body_goal_binder_names=proof_body_goal_binder_names,
-            proof_body_goal_conclusion=proof_body_goal_conclusion,
-        )
-        if premise_target_uses_goal_context
-        else ()
-    )
-    semantic_requirements = (
-        _explicit_premise_semantic_dependency_requirements(
-            row,
-            candidate_request,
-            grouped_candidate_request,
-        )
-        or goal_context_semantic_requirements
-        or _premise_semantic_dependency_requirements(
-            premise_name=premise_name,
-            premise_target_type=str(premise_target["premise_type"]),
-            source_signature=source_context["source_theorem_signature"],
-        )
-    )
-    goal_context_anchor_binders = (
-        _proof_body_goal_semantic_anchor_binders(
-            proof_body_goal_context=proof_body_goal_context,
-            proof_body_goal_binder_names=proof_body_goal_binder_names,
-            source_binders=tuple(
-                dict(item)
-                for item in exact_source_binders
-                if isinstance(item, Mapping)
-            ),
-        )
-        if premise_target_uses_goal_context
-        else ()
-    )
-    semantic_anchor_binders = _request_mapping_tuple(
-        row.get("premise_semantic_anchor_binders", [])
-        or candidate_request.get("premise_semantic_anchor_binders", [])
-        or grouped_candidate_request.get("premise_semantic_anchor_binders", [])
-        or goal_context_anchor_binders
-        or _premise_semantic_anchor_binder_summaries(
-            premise_name=premise_name,
-            premise_target_type=str(premise_target["premise_type"]),
-            semantic_requirements=semantic_requirements,
-            source_binders=tuple(
-                dict(item)
-                for item in exact_source_binders
-                if isinstance(item, Mapping)
-            ),
-        )
-    )
-    semantic_requirement_comment = "\n".join(
-        f"-- required source-to-bridge semantic dependency: {_sanitize_comment_text(value)}"
-        for value in semantic_requirements
-    )
-    source_binder_comment = "\n".join(
-        "-- exact source binder: "
-        + _sanitize_comment_text(
-            str(binder.get("name", "") or "")
-            + " : "
-            + str(binder.get("type", "") or "")
-            + " ["
-            + str(binder.get("role", "") or "")
-            + "]"
-        )
-        for binder in exact_source_binders
-    )
-    semantic_anchor_comment = "\n".join(
-        "-- required semantic anchor binder: "
-        + _sanitize_comment_text(
-            str(binder.get("name", "") or "")
-            + " : "
-            + str(binder.get("type", "") or "")
-            + " ["
-            + str(binder.get("role", "") or "")
-            + "]"
-        )
-        for binder in semantic_anchor_binders
-    )
-    adapter_object_names = _adapter_object_names_requiring_source_instantiation(
-        premise_target_type=str(premise_target["premise_type"]),
-        row=row,
-        candidate_request={**grouped_candidate_request, **candidate_request},
-    )
-    adapter_object_phrase = _adapter_object_contract_phrase(adapter_object_names)
-    skeleton_instantiation_policy = (
-        "-- bridge object instantiation policy: this premise target comes from "
-        "the reached proof-body goal; derive it from exact source binders and "
-        "the listed proof-body goal anchors, without introducing those binders "
-        "or the goal conclusion as free assumptions.\n"
-        if premise_target_uses_goal_context
-        else (
-            f"-- bridge object instantiation policy: {adapter_object_phrase} "
-            "are not free proof assumptions for the source theorem; define or "
-            "instantiate them from exact source binders, or report the missing "
-            "semantic primitive as a blocker.\n"
-        )
-    )
-    theorem_statement = _premise_derivation_theorem_statement(
-        declaration_name=declaration_name,
-        premise_target=premise_target,
-        premise_target_source=premise_target_source,
-        source_signature=source_context["source_theorem_signature"],
-        exact_source_binders=exact_source_binders,
-    )
-    block_comment = "\n".join(comment_lines)
-    return (
-        "import Mathlib\n\n"
-        "namespace AIStatisticianSourceToBridgePremiseDerivation\n\n"
-        "/-\n"
-        f"{block_comment}\n"
-        "-/\n"
-        f"{metadata_comment}\n"
-        f"{exact_goal_comment}\n"
-        f"{closure_comment}\n"
-        f"{closure_artifact_comment}\n"
-        f"{semantic_support_comment}\n"
-        f"{goal_comment}\n"
-        f"{goal_binder_comment}\n"
-        f"{goal_conclusion_comment}\n"
-        f"{attempt_comment}\n"
-        f"{attempt_count_comment}\n"
-        f"{proof_body_gate_status_comment}\n"
-        f"{proof_body_gate_open_comment}\n"
-        f"{proof_body_gate_open_target_comment}\n"
-        f"{source_kernel_eligible_comment}\n"
-        f"{semantic_constraint_comment}\n"
-        f"{semantic_blocker_comment}\n"
-        f"-- source context status: {_sanitize_comment_text(source_context['status'])}\n"
-        f"{source_signature_comment}\n"
-        f"{adapter_signature_comment}\n"
-        f"{premise_target_comment}\n"
-        f"{semantic_requirement_comment}\n"
-        f"{source_binder_comment}\n"
-        f"{semantic_anchor_comment}\n"
-        f"{skeleton_instantiation_policy}"
-        f"{theorem_statement}"
-        "  -- ProofEngineer must derive the bridge premise from exact source hypotheses.\n"
-        "  fail_if_success trivial\n\n"
-        "end AIStatisticianSourceToBridgePremiseDerivation\n"
-    )
-
-
-def _premise_derivation_theorem_statement(
-    *,
-    declaration_name: str,
-    premise_target: Mapping[str, Any],
-    premise_target_source: str = "",
-    source_signature: tuple[str, ...] = (),
-    exact_source_binders: tuple[dict[str, object], ...] = (),
-) -> str:
-    premise_type = str(premise_target.get("premise_type", "") or "").strip()
-    context_lines = tuple(
-        str(line).rstrip()
-        for line in premise_target.get("context_lines", ()) or ()
-        if str(line).strip()
-    )
-    if (
-        premise_type
-        and str(premise_target_source or "").strip()
-        == "source_theorem_signature_conclusion"
-    ):
-        source_context = _source_signature_context_for_declaration(
-            source_signature,
-            declaration_name=declaration_name,
-        )
-        if not source_context:
-            source_context = _source_binder_context_for_declaration(
-                declaration_name=declaration_name,
-                exact_source_binders=exact_source_binders,
-            )
-        if source_context:
-            return (
-                f"{source_context} :\n"
-                f"    {premise_type} := by\n"
-            )
-    if not premise_type or not context_lines:
-        return (
-            f"theorem {declaration_name} (source_hypotheses bridge_premise : Prop) "
-            "(hsource : source_hypotheses) :\n"
-            "    bridge_premise := by\n"
-        )
-    context = "\n".join(context_lines)
-    return (
-        f"theorem {declaration_name}\n"
-        f"{context} :\n"
-        f"    {premise_type} := by\n"
-    )
-
-
-def _source_signature_context_for_declaration(
-    source_signature: tuple[str, ...],
-    *,
-    declaration_name: str,
-) -> str:
-    text = " ".join(
-        str(line).strip() for line in source_signature if str(line).strip()
-    )
-    if not text:
-        return ""
-    colon_index = _lean_declaration_type_colon_index(text)
-    if colon_index < 0:
-        return ""
-    header = text[:colon_index].strip()
-    replacement = f"theorem {declaration_name}"
-    rewritten = re.sub(
-        r"^\s*(?:(?:noncomputable|private)\s+)*(?:theorem|lemma)\s+"
-        r"[A-Za-z_][A-Za-z0-9_'.]*\b",
-        replacement,
-        header,
-        count=1,
-    )
-    if rewritten == header and not header.startswith(f"theorem {declaration_name}"):
-        return ""
-    return rewritten
-
-
-def _source_binder_context_for_declaration(
-    *,
-    declaration_name: str,
-    exact_source_binders: tuple[dict[str, object], ...],
-) -> str:
-    binder_lines: list[str] = []
-    for binder in exact_source_binders:
-        name = str(binder.get("name", "") or "").strip()
-        binder_type = str(binder.get("type", "") or "").strip()
-        if not _is_safe_lean_declaration_identifier(name) or not binder_type:
-            continue
-        binder_lines.append(f"    ({name} : {binder_type})")
-    if not binder_lines:
-        return ""
-    return "\n".join([f"theorem {declaration_name}", *binder_lines])
-
-
-def _lean_declaration_type_colon_index(text: str) -> int:
-    paren_depth = 0
-    bracket_depth = 0
-    brace_depth = 0
-    for index, char in enumerate(str(text or "")):
-        if char == "(":
-            paren_depth += 1
-        elif char == ")" and paren_depth:
-            paren_depth -= 1
-        elif char == "[":
-            bracket_depth += 1
-        elif char == "]" and bracket_depth:
-            bracket_depth -= 1
-        elif char == "{":
-            brace_depth += 1
-        elif char == "}" and brace_depth:
-            brace_depth -= 1
-        elif (
-            char == ":"
-            and paren_depth == 0
-            and bracket_depth == 0
-            and brace_depth == 0
-        ):
-            return index
-    return -1
 
 
 def _explicit_premise_semantic_dependency_requirements(
@@ -4569,7 +4197,7 @@ def _premise_derivation_gap(
         return "", ""
     if (
         not source_binding_contract_present
-        and generation_mode != "proofengineer_generated_premise_derivation_skeleton"
+        and generation_mode != "llm_premise_derivation_candidate_required"
     ):
         return (
             "premise_derivation_missing_source_binding_contract",
@@ -4604,11 +4232,11 @@ def _premise_derivation_gap(
         )
     if premise_target_status == "ADAPTER_PREMISE_TARGET_EXTRACTED":
         target = premise_target_type or premise_name or "the adapter premise"
-        if generation_mode == "proofengineer_generated_premise_derivation_skeleton":
+        if generation_mode == "llm_premise_derivation_candidate_required":
             return (
                 "concrete_premise_target_lacks_nonvacuous_derivation_candidate",
                 "The adapter premise target is known, but the bridge only "
-                "materialized a non-evidence skeleton. Provide or synthesize a "
+                "has no coding-agent candidate. Generate a "
                 "non-vacuous Lean derivation of "
                 + target
                 + " from exact source-theorem hypotheses before retrying the "
@@ -4636,51 +4264,6 @@ def _premise_derivation_gap(
         )
     return "", ""
 
-
-def _normalize_lean_source(source: str) -> str:
-    return source.rstrip() + "\n"
-
-
-def _inline_dependency_context(source: str, *, row: Mapping[str, Any]) -> str:
-    dependency_sources: list[str] = []
-    for raw_path in _str_tuple(
-        row.get("verified_theorem_reduction_closure_artifact_paths", [])
-    )[:3]:
-        path_text = str(raw_path or "").strip()
-        if not path_text.endswith(".lean"):
-            continue
-        try:
-            dependency_source = Path(path_text).expanduser().read_text(
-                encoding="utf-8"
-            )
-        except OSError:
-            continue
-        if dependency_source.strip():
-            dependency_sources.append(dependency_source)
-    if not dependency_sources:
-        return source
-    return _merge_lean_sources([*dependency_sources, source])
-
-
-def _merge_lean_sources(sources: list[str]) -> str:
-    imports: list[str] = []
-    bodies: list[str] = []
-    for source in sources:
-        body_lines: list[str] = []
-        for line in str(source or "").rstrip().splitlines():
-            if re.match(r"^\s*import\s+", line):
-                normalized = line.strip()
-                if normalized not in imports:
-                    imports.append(normalized)
-                continue
-            body_lines.append(line)
-        body = "\n".join(body_lines).strip()
-        if body:
-            bodies.append(body)
-    body = "\n\n".join(bodies).rstrip()
-    if imports:
-        return "\n".join(imports) + "\n\n" + body + "\n"
-    return body + "\n"
 
 
 def _premise_name_referenced_by_candidate(
@@ -4716,22 +4299,6 @@ def _premise_name_referenced_by_candidate(
     return False
 
 
-def _sanitize_comment_text(value: str) -> str:
-    text = value.replace("\n", " ")
-    replacements = {
-        "sorry": "<proof-gap-redacted>",
-        "admit": "<placeholder-redacted>",
-        "axiom": "<assumption-redacted>",
-        "unsafe": "<policy-redacted>",
-    }
-    for token in FORBIDDEN_ARTIFACT_TOKENS:
-        text = re.sub(
-            rf"\b{re.escape(token)}\b",
-            replacements.get(token, "<forbidden-token-redacted>"),
-            text,
-        )
-    return text
-
 
 def _premise_candidate_vacuous(
     source: str,
@@ -4760,6 +4327,7 @@ def _candidate_assumes_forbidden_premise(
     premise_name: str,
     premise_target_type: str,
     forbidden_as_adapter_assumption: bool,
+    allowed_source_binder_names: tuple[str, ...] = (),
 ) -> bool:
     if not forbidden_as_adapter_assumption:
         return False
@@ -4775,7 +4343,10 @@ def _candidate_assumes_forbidden_premise(
     for binder in re.findall(r"\(([^()]*)\)", header):
         if ":" not in binder:
             continue
-        _name, binder_type = binder.split(":", 1)
+        name, binder_type = binder.split(":", 1)
+        binder_name = name.strip().split()[0] if name.strip() else ""
+        if binder_name in allowed_source_binder_names:
+            continue
         if _normalize_lean_binder_type(binder_type) == target:
             return True
     return False

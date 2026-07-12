@@ -1909,7 +1909,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertEqual(result.selected_source, "registered_proof_body")
         self.assertFalse(result.kernel_verified)
         self.assertEqual(result.schema_version, 6)
-        self.assertGreater(result.tactic_template_candidates_total, 0)
+        self.assertEqual(result.tactic_template_candidates_total, 0)
         self.assertGreater(result.retrieval_candidates_total, 0)
         self.assertEqual(result.formal_source_candidates_total, 0)
 
@@ -1989,6 +1989,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
                 max_nodes=3,
                 include_invalid_probe=True,
                 formal_source_retriever=DummyFormalSourceRetriever(),
+                legacy_static_template_baseline=True,
             )
 
         payload = asyncio.run(run())
@@ -2238,6 +2239,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
                 max_obligations=2,
                 max_nodes=2,
                 formal_source_k=1,
+                legacy_static_template_baseline=True,
             )
         )
         self.assertTrue(payload["all_ok"])
@@ -2273,6 +2275,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
                 max_nodes=2,
                 formal_source_k=1,
                 include_registered_proof=False,
+                legacy_static_template_baseline=True,
             )
         )
         self.assertTrue(payload["all_ok"])
@@ -4196,6 +4199,38 @@ class SystemTests(unittest.TestCase):
             materializer_dir,
         )
         self.assertTrue(materialized["all_ok"])
+        self.assertEqual(materialized["n_materialized_artifacts"], 0)
+        self.assertEqual(materialized["n_live_goal_location_ready"], 0)
+        self.assertEqual(materialized["n_live_proof_state_requests"], 0)
+        self.assertEqual(materialized["n_llm_candidate_generation_required"], 1)
+        waiting_row = materialized["rows"][0]
+        self.assertEqual(
+            waiting_row["materialization_status"],
+            "LLM_CANDIDATE_GENERATION_REQUIRED",
+        )
+        self.assertEqual(
+            waiting_row["static_contract_status"],
+            "WAITING_FOR_LLM_CANDIDATE",
+        )
+        self.assertFalse(waiting_row["runtime_generated_lean_tactics_enabled"])
+        self.assertEqual(
+            waiting_row["candidate_generation_request"]["request_kind"],
+            "bounded_lean_candidate_generation",
+        )
+        candidate_path = Path(waiting_row["candidate_artifact_path"])
+        self.assertFalse(candidate_path.exists())
+        candidate_path.parent.mkdir(parents=True, exist_ok=True)
+        candidate_path.write_text(
+            "theorem compose_kernel_overlay_subclaims_route_probe "
+            "(h : True) : True := by exact h\n",
+            encoding="utf-8",
+        )
+
+        materialized = export_formal_verifier_agentic_proof_execution_materializer(
+            queue_dir,
+            materializer_dir,
+        )
+        self.assertTrue(materialized["all_ok"])
         self.assertEqual(materialized["n_materialized_artifacts"], 1)
         self.assertEqual(materialized["n_live_goal_location_ready"], 1)
         self.assertEqual(materialized["n_live_proof_state_requests"], 1)
@@ -4256,8 +4291,9 @@ class SystemTests(unittest.TestCase):
         )
         source = Path(materialized_row["candidate_artifact_path"]).read_text()
         self.assertNotIn("import Mathlib", source)
-        self.assertIn("-- AI_STAT_EVOLVE_BLOCK_START", source)
-        self.assertIn("exact True.intro", source)
+        self.assertNotIn("-- AI_STAT_EVOLVE_BLOCK_START", source)
+        self.assertNotIn("exact True.intro", source)
+        self.assertIn("exact h", source)
         self.assertNotIn("sorry", source)
         self.assertNotIn("admit", source)
 

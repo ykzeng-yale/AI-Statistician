@@ -133,9 +133,15 @@ def export_formal_verifier_agentic_proof_execution_materializer(
             1
             for row in rows
             if row.materialization_mode == "exact_source_theorem_candidate"
+            and row.materialization_status
+            in {"MATERIALIZED_LEAN_ARTIFACT", "EXISTING_LEAN_ARTIFACT_REUSED"}
         ),
         "n_route_probe_artifacts": sum(
-            1 for row in rows if row.materialization_mode == "route_probe"
+            1
+            for row in rows
+            if row.materialization_mode == "route_probe"
+            and row.materialization_status
+            in {"MATERIALIZED_LEAN_ARTIFACT", "EXISTING_LEAN_ARTIFACT_REUSED"}
         ),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and all(row.ok for row in rows),
@@ -147,7 +153,7 @@ def export_formal_verifier_agentic_proof_execution_materializer(
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "materialized artifacts are proof-worker inputs, not verified theorem outputs",
-            "ordinary proof-worker rows still materialize route probes as operational work contracts",
+            "ordinary proof-worker rows without an upstream Lean candidate emit typed LLM generation requests instead of synthetic route probes",
             "source-theorem promotion rows materialize exact theorem candidates only when a statement sketch is present",
             "kernel_verified is false until a separate Lean/AXLE verifier accepts the artifact",
         ],
@@ -303,8 +309,16 @@ def _materializer_row(
     forbidden_tokens_found: tuple[str, ...] = ()
     live_proof_state_request: dict[str, object] = {}
     source = ""
+    candidate_statement = str(row.get("lean_statement_sketch", "") or "")
+    route_candidate_generation_required = bool(
+        materialization_mode == "route_probe"
+        and not candidate_statement
+        and not (candidate_artifact_path.exists() and not overwrite)
+    )
     if population_bucket == "source_discovery_attempt":
         status = "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
+    elif route_candidate_generation_required and not errors:
+        status = "LLM_CANDIDATE_GENERATION_REQUIRED"
     elif not errors:
         if (
             materialization_mode == "exact_source_theorem_candidate"
@@ -316,7 +330,11 @@ def _materializer_row(
             and not source_theorem_target_known
         ):
             errors.append("source theorem target is not resolved")
-    if not errors and population_bucket != "source_discovery_attempt":
+    if (
+        not errors
+        and population_bucket != "source_discovery_attempt"
+        and not route_candidate_generation_required
+    ):
         candidate_artifact_path.parent.mkdir(parents=True, exist_ok=True)
         execution_transcript_path.parent.mkdir(parents=True, exist_ok=True)
         if candidate_artifact_path.exists() and not overwrite:
@@ -371,26 +389,32 @@ def _materializer_row(
     static_contract_status = (
         "STATIC_CONTRACT_READY_FOR_LIVE_GOAL"
         if not errors and target_lean_line > 0 and status != "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
+        else "WAITING_FOR_LLM_CANDIDATE"
+        if status == "LLM_CANDIDATE_GENERATION_REQUIRED"
         else "STATIC_CONTRACT_NOT_READY_FOR_LIVE_GOAL"
     )
     ok = not errors
-    candidate_statement = str(row.get("lean_statement_sketch", "") or "")
     candidate_statement_fingerprint = (
         stable_hash(candidate_statement) if candidate_statement else ""
     )
     candidate_statement_bytes_preserved = bool(
-        materialization_mode == "exact_source_theorem_candidate"
-        and candidate_statement
-        and candidate_statement in source
+        candidate_statement and candidate_statement in source
     )
     llm_candidate_generation_required = bool(
-        materialization_mode == "exact_source_theorem_candidate"
-        and (not candidate_statement or forbidden_tokens_found)
+        route_candidate_generation_required
+        or (
+            materialization_mode == "exact_source_theorem_candidate"
+            and (not candidate_statement or forbidden_tokens_found)
+        )
     )
     candidate_generation_request = (
         {
             "schema_version": 1,
-            "request_kind": "exact_source_theorem_lean_candidate_generation",
+            "request_kind": (
+                "exact_source_theorem_lean_candidate_generation"
+                if materialization_mode == "exact_source_theorem_candidate"
+                else "bounded_lean_candidate_generation"
+            ),
             "target_theorem_name": target_theorem_name,
             "target_lean_declaration": target_lean_declaration,
             "upstream_candidate_path": str(candidate_artifact_path),
@@ -443,7 +467,7 @@ def _materializer_row(
         else {},
         candidate_statement_fingerprint=candidate_statement_fingerprint,
         candidate_statement_bytes_preserved=candidate_statement_bytes_preserved,
-        runtime_generated_lean_tactics_enabled=(materialization_mode == "route_probe"),
+        runtime_generated_lean_tactics_enabled=False,
         llm_candidate_generation_required=llm_candidate_generation_required,
         candidate_generation_request=candidate_generation_request,
         kernel_verified=False,
@@ -468,35 +492,10 @@ def _candidate_source(
             row=row,
             reused_subclaims=reused_subclaims,
         )
-    props = tuple(dict.fromkeys(reused_subclaims + target_blockers)) or (
-        "open_residual_goal",
-    )
-    binders = "\n".join(f"    ({_safe_identifier(prop)} : True)" for prop in props)
-    metadata = {
-        "execution_queue_id": row.get("execution_queue_id", ""),
-        "target_theorem_name": row.get("target_theorem_name", ""),
-        "residual_gap": row.get("residual_gap", ""),
-        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
-    }
-    metadata_lines = "\n".join(
-        f"-- {key}: {value}" for key, value in metadata.items() if value
-    )
-    return (
-        "/-!\n"
-        "Bounded Lean work artifact for an agentic proof-worker queue row.\n"
-        "This route probe is operational input for live proof-state tooling.\n"
-        "It is not theorem proof evidence for the referenced source claim.\n"
-        "-/\n\n"
-        "namespace AIStatisticianAgenticProofExecution\n\n"
-        f"{metadata_lines}\n"
-        f"theorem {declaration_name}\n"
-        f"{binders} :\n"
-        "    True := by\n"
-        "  -- AI_STAT_EVOLVE_BLOCK_START\n"
-        "  exact True.intro\n"
-        "  -- AI_STAT_EVOLVE_BLOCK_END\n\n"
-        "end AIStatisticianAgenticProofExecution\n"
-    )
+    del declaration_name, target_blockers, reused_subclaims
+    statement = str(row.get("lean_statement_sketch", "") or "")
+    imports = "\n".join(f"import {item}" for item in _target_imports(row))
+    return (imports + "\n\n" if imports else "") + statement
 
 
 def _materialization_mode(row: dict[str, Any]) -> str:

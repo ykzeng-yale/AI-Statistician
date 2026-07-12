@@ -31,6 +31,7 @@ async def audit_proof_search_controller(
     proof_value_model_json: Path | None = None,
     formal_source_retriever: Any | None = None,
     formal_source_k: int = 4,
+    legacy_static_template_baseline: bool = False,
 ) -> dict[str, object]:
     """Run a bounded whole-proof search audit over proof-bank obligations."""
 
@@ -52,6 +53,7 @@ async def audit_proof_search_controller(
         proof_verifier,
         proof_policy_model=proof_policy_model,
         proof_value_model=proof_value_model,
+        legacy_static_template_baseline=legacy_static_template_baseline,
     )
     retriever = ProofBankRetriever()
     obligations = sorted(all_obligations(), key=lambda row: row.id)[:max_obligations]
@@ -68,13 +70,14 @@ async def audit_proof_search_controller(
                     score=1500.0,
                 )
             )
-        probes.extend(
-            _formal_source_candidates(
-                obligation,
-                formal_source_retriever=formal_source_retriever,
-                k=formal_source_k,
+        if legacy_static_template_baseline:
+            probes.extend(
+                _formal_source_candidates(
+                    obligation,
+                    formal_source_retriever=formal_source_retriever,
+                    k=formal_source_k,
+                )
             )
-        )
         results.append(
             await controller.solve(
                 obligation,
@@ -142,6 +145,7 @@ async def audit_proof_search_controller(
         "value_model_fingerprint": proof_value_model.model_fingerprint if proof_value_model else "",
         "formal_source_retriever_enabled": formal_source_retriever is not None,
         "formal_source_k": formal_source_k,
+        "legacy_static_template_baseline": legacy_static_template_baseline,
         "n_obligations": n,
         "n_solved": solved,
         "n_failed": n - solved,
@@ -164,7 +168,11 @@ async def audit_proof_search_controller(
         "search_audit_fingerprint": stable_hash([asdict(row) for row in results]),
         "limitations": [
             "whole-proof candidate search only; no tactic-state environment yet",
-            "built-in tactic templates are one-shot whole-proof bodies, not interactive tactic-state expansion",
+            (
+                "legacy static tactic/formal-source templates are enabled only as an explicit calibration baseline"
+                if legacy_static_template_baseline
+                else "runtime-generated tactic and formal-source templates are disabled; candidates must come from registered proof memory, retrieval memory, or an external/LLM coding agent"
+            ),
             "best-first candidate priority can use trained whole-proof policy and value rankers when model JSON files are supplied",
             "formal-source templates are verifier-tested candidates; source-only declarations may fail if imports/types do not line up",
             (
@@ -174,6 +182,7 @@ async def audit_proof_search_controller(
             ),
             "invalid_probe is for branch/error-path testing and is disabled in release-style audits",
         ],
+        "proof_evidence_status": "PROOF_SEARCH_AUDIT_NOT_PROOF_EVIDENCE",
     }
     manifest_path = out_dir / "proof_search_audit_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")

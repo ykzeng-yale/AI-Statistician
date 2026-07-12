@@ -73,6 +73,10 @@ class SourceTheoremProofBodyAdapterCheckRow:
     adapter_candidate_imports: tuple[str, ...]
     unavailable_import: str
     adapter_generation_mode: str
+    adapter_candidate_source_fingerprint: str
+    adapter_candidate_bytes_preserved: bool
+    llm_candidate_generation_required: bool
+    candidate_generation_request: dict[str, Any]
     adapter_candidate_vacuous: bool
     adapter_candidate_requires_unproven_bridge_premises: bool
     unproven_bridge_premise_names: tuple[str, ...]
@@ -238,6 +242,12 @@ def run_source_theorem_proof_body_adapter_proofengineer_bridge(
         "n_adapter_candidate_evidence_eligible": sum(
             1 for row in rows if row.adapter_candidate_evidence_eligible
         ),
+        "n_llm_candidate_generation_required": sum(
+            1 for row in rows if row.llm_candidate_generation_required
+        ),
+        "n_adapter_candidate_bytes_preserved": sum(
+            1 for row in rows if row.adapter_candidate_bytes_preserved
+        ),
         "n_source_theorem_exact_proof_body_gate_open_for_kernel_repair": sum(
             1
             for row in rows
@@ -347,7 +357,7 @@ def _adapter_check_row(
         or target
     ).strip()
     safe_target = _safe_identifier(target_declaration or target or f"adapter_{rank}")
-    provided_sketch = str(row.get("lean_statement_sketch", "") or "").strip()
+    provided_sketch = str(row.get("lean_statement_sketch", "") or "")
     adapter_declaration = (
         _provided_adapter_declaration(provided_sketch)
         or f"{safe_target}_source_to_bridge_adapter"
@@ -355,34 +365,28 @@ def _adapter_check_row(
     adapter_hash = stable_hash([work_order_id, target, target_declaration, rank])[:16]
     adapter_path = candidate_dir / f"{adapter_declaration}_{adapter_hash}.lean"
     if provided_sketch:
-        provided_source = _normalize_adapter_source(provided_sketch)
-        provided_source = _inline_verified_adapter_dependency_context(
-            provided_source,
-            row=row,
-        )
-        if re.search(rf"\btheorem\s+{re.escape(adapter_declaration)}\b", provided_source):
-            source = provided_source
-            generation_mode = "formalizer_provided_adapter_candidate"
-        else:
-            source = _generated_adapter_skeleton(
-                adapter_declaration=adapter_declaration,
-                row=row,
-            )
-            generation_mode = "proofengineer_generated_adapter_skeleton"
+        source = provided_sketch
+        generation_mode = "formalizer_provided_adapter_candidate"
+        adapter_path.write_text(source, encoding="utf-8")
     else:
-        source = _generated_adapter_skeleton(
-            adapter_declaration=adapter_declaration,
-            row=row,
+        source = ""
+        generation_mode = "llm_adapter_candidate_required"
+    candidate_has_expected_declaration = bool(
+        source
+        and re.search(
+            rf"\btheorem\s+{re.escape(adapter_declaration)}\b",
+            source,
         )
-        generation_mode = "proofengineer_generated_adapter_skeleton"
-    adapter_path.write_text(source, encoding="utf-8")
+    )
+    if source and not candidate_has_expected_declaration:
+        generation_mode = "formalizer_provided_adapter_candidate_wrong_declaration"
 
     forbidden_tokens = _forbidden_tokens(source)
     vacuous = _adapter_candidate_vacuous(source)
     unproven_bridge_premise_names = _adapter_unproven_bridge_premise_names(
         source,
         row=row,
-        enforce=generation_mode == "formalizer_provided_adapter_candidate",
+        enforce=bool(source),
     )
     adapter_candidate_imports = _lean_import_modules_from_source(source)
     proof_body_goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))
@@ -408,13 +412,13 @@ def _adapter_check_row(
         and not vacuous
         and not forbidden_tokens
         and not requires_unproven_bridge_premises
-        and re.search(rf"\btheorem\s+{re.escape(adapter_declaration)}\b", source)
+        and candidate_has_expected_declaration
     )
     local_compiled = False
     local_checked = False
     returncode = 0
     diagnostics: tuple[str, ...] = ()
-    if local_lean:
+    if local_lean and source:
         local_checked = True
         if not lean_command:
             local_compiled = False
@@ -427,6 +431,10 @@ def _adapter_check_row(
                 lean_project=lean_project,
                 timeout_s=lean_timeout,
             )
+    elif local_lean:
+        diagnostics = (
+            "local Lean skipped because no LLM adapter candidate was provided",
+        )
     failure = _adapter_failure_classification(
         local_lean=local_lean,
         local_compiled=local_compiled,
@@ -436,10 +444,115 @@ def _adapter_check_row(
         forbidden_tokens=forbidden_tokens,
         diagnostics=diagnostics,
     )
+    if not source:
+        failure = "adapter_candidate_generation_required"
+    elif not candidate_has_expected_declaration:
+        failure = "adapter_candidate_wrong_declaration"
     unavailable_import = ""
     if failure == "adapter_lean_import_environment_missing":
         unavailable_import = _unavailable_lean_import_from_diagnostics(diagnostics)
     adapter_verified = bool(local_lean and local_compiled and evidence_eligible)
+    llm_candidate_generation_required = not candidate_has_expected_declaration
+    adapter_required_reasons = _proof_body_adapter_required_reasons(row)
+    candidate_generation_request = (
+        {
+            "schema_version": 1,
+            "request_kind": "source_theorem_proof_body_adapter_lean_candidate",
+            "work_order_id": work_order_id,
+            "target_theorem_name": target,
+            "target_lean_declaration": target_declaration,
+            "adapter_declaration_name": adapter_declaration,
+            "upstream_candidate_artifact_path": str(adapter_path) if source else "",
+            "upstream_candidate_fingerprint": stable_hash(source) if source else "",
+            "generation_reason": failure,
+            "proof_body_goal_context": proof_body_goal_context,
+            "proof_body_adapter_required_reasons": list(adapter_required_reasons),
+            "exact_goal_shape_obligation_id": str(
+                row.get("exact_goal_shape_obligation_id", "") or ""
+            ),
+            "exact_goal_shape_obligation": str(
+                row.get("exact_goal_shape_obligation", "") or ""
+            ),
+            "source_to_bridge_premise_derivation_work_items": list(
+                premise_derivation_work_items
+            ),
+            "source_candidate_artifact_path": str(
+                row.get("source_candidate_artifact_path", "")
+                or row.get("proof_body_candidate_artifact_path", "")
+                or row.get("candidate_artifact_path", "")
+                or ""
+            ),
+            "proof_body_signature_probe_artifact_path": str(
+                row.get("proof_body_signature_probe_artifact_path", "")
+                or row.get("source_theorem_signature_probe_artifact_path", "")
+                or row.get("signature_probe_artifact_path", "")
+                or ""
+            ),
+            "verified_source_to_bridge_premise_derivation_artifact_paths": list(
+                _str_tuple(
+                    row.get(
+                        "verified_source_to_bridge_premise_derivation_artifact_paths",
+                        [],
+                    )
+                )
+            ),
+            "verified_source_to_bridge_premise_derivation_declarations": list(
+                _str_tuple(
+                    row.get(
+                        "verified_source_to_bridge_premise_derivation_declarations",
+                        [],
+                    )
+                )
+            ),
+            "verified_source_to_bridge_premise_derivation_signature_excerpts": list(
+                verified_premise_signature_excerpts
+            ),
+            "verified_theorem_reduction_closure_artifact_paths": list(
+                _str_tuple(
+                    row.get("verified_theorem_reduction_closure_artifact_paths", [])
+                )
+            ),
+            "verified_theorem_reduction_closure_declarations": list(
+                _str_tuple(
+                    row.get("kernel_verified_theorem_reduction_closure_declarations", [])
+                )
+            ),
+            "kernel_verified_theorem_reduction_closure_target_ids": list(
+                _str_tuple(
+                    row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
+                )
+            ),
+            "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
+                _str_tuple(
+                    row.get(
+                        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                        [],
+                    )
+                )
+            ),
+            "proof_body_attempt_summaries": list(
+                _str_tuple(row.get("proof_body_attempt_summaries", []))
+            ),
+            "proof_body_attempt_count": _int_like(
+                row.get("proof_body_attempt_count", 0)
+            ),
+            "proof_body_gate_status": str(
+                row.get("proof_body_gate_status", "") or ""
+            ),
+            "source_theorem_kernel_evidence_eligible": bool(
+                row.get("source_theorem_kernel_evidence_eligible", False)
+            ),
+            "semantic_alignment_constraints": list(
+                _str_tuple(row.get("semantic_alignment_constraints", []))
+            ),
+            "semantic_alignment_blockers": list(
+                _str_tuple(row.get("semantic_alignment_blockers", []))
+            ),
+            "proof_evidence_status": "LEAN_CANDIDATE_GENERATION_REQUEST_NOT_PROOF_EVIDENCE",
+        }
+        if llm_candidate_generation_required
+        else {}
+    )
     check_id = "source_theorem_proof_body_adapter_check:" + stable_hash(
         [work_order_id, str(adapter_path), adapter_verified, failure]
     )[:20]
@@ -492,11 +605,19 @@ def _adapter_check_row(
             or row.get("signature_probe_artifact_path", "")
             or ""
         ),
-        adapter_candidate_artifact_path=str(adapter_path),
+        adapter_candidate_artifact_path=(str(adapter_path) if source else ""),
         adapter_declaration_name=adapter_declaration,
         adapter_candidate_imports=adapter_candidate_imports,
         unavailable_import=unavailable_import,
         adapter_generation_mode=generation_mode,
+        adapter_candidate_source_fingerprint=(
+            stable_hash(provided_sketch) if provided_sketch else ""
+        ),
+        adapter_candidate_bytes_preserved=bool(
+            provided_sketch and source == provided_sketch
+        ),
+        llm_candidate_generation_required=llm_candidate_generation_required,
+        candidate_generation_request=candidate_generation_request,
         adapter_candidate_vacuous=vacuous,
         adapter_candidate_requires_unproven_bridge_premises=(
             requires_unproven_bridge_premises
@@ -540,7 +661,7 @@ def _adapter_check_row(
         source_theorem_exact_proof_body_gate_open_target_names=_str_tuple(
             row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
         ),
-        proof_body_adapter_required_reasons=_proof_body_adapter_required_reasons(row),
+        proof_body_adapter_required_reasons=adapter_required_reasons,
         exact_goal_shape_obligation_id=str(
             row.get("exact_goal_shape_obligation_id", "") or ""
         ),
@@ -590,328 +711,6 @@ def _adapter_check_row(
         ok=adapter_verified,
     )
 
-
-def _generated_adapter_skeleton(
-    *,
-    adapter_declaration: str,
-    row: Mapping[str, Any],
-) -> str:
-    target = str(row.get("target_theorem_name", "") or "").strip()
-    reasons = _proof_body_adapter_required_reasons(row)
-    goal_excerpt = _str_tuple(row.get("proof_body_goal_excerpt", []))[:12]
-    goal_context = _proof_body_goal_context_from_excerpt(
-        _str_tuple(row.get("proof_body_goal_excerpt", []))
-    )
-    goal_binder_names = _str_tuple(goal_context.get("binder_names", []))[:24]
-    goal_conclusion = str(goal_context.get("conclusion", "") or "").strip()
-    attempt_summaries = _str_tuple(row.get("proof_body_attempt_summaries", []))[:12]
-    attempt_count = _int_like(row.get("proof_body_attempt_count", 0))
-    proof_body_gate_status = str(row.get("proof_body_gate_status", "") or "").strip()
-    proof_body_gate_open = bool(
-        row.get("source_theorem_exact_proof_body_gate_open_for_kernel_repair", False)
-    )
-    proof_body_gate_open_targets = _str_tuple(
-        row.get("source_theorem_exact_proof_body_gate_open_target_names", [])
-    )[:12]
-    source_candidate_artifact_path = str(
-        row.get("source_candidate_artifact_path", "")
-        or row.get("proof_body_candidate_artifact_path", "")
-        or row.get("candidate_artifact_path", "")
-        or ""
-    ).strip()
-    proof_body_signature_probe_artifact_path = str(
-        row.get("proof_body_signature_probe_artifact_path", "")
-        or row.get("source_theorem_signature_probe_artifact_path", "")
-        or row.get("signature_probe_artifact_path", "")
-        or ""
-    ).strip()
-    semantic_blockers = _str_tuple(row.get("semantic_alignment_blockers", []))[:8]
-    source_kernel_eligible_raw = row.get("source_theorem_kernel_evidence_eligible")
-    source_kernel_eligible = bool(source_kernel_eligible_raw)
-    exact_goal_shape_obligation_id = str(
-        row.get("exact_goal_shape_obligation_id", "") or ""
-    ).strip()
-    exact_goal_shape_obligation = str(
-        row.get("exact_goal_shape_obligation", "") or ""
-    ).strip()
-    source_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
-    target_artifact_kind = str(row.get("target_artifact_kind", "") or "").strip()
-    source_acceptance_gate = str(row.get("acceptance_gate", "") or "").strip()
-    closure_target_ids = _str_tuple(
-        row.get("kernel_verified_theorem_reduction_closure_target_ids", [])
-    )[:12]
-    closure_declarations = _str_tuple(
-        row.get("kernel_verified_theorem_reduction_closure_declarations", [])
-    )[:12]
-    closure_artifact_paths = _str_tuple(
-        row.get("verified_theorem_reduction_closure_artifact_paths", [])
-    )[:12]
-    semantic_support_ids = _str_tuple(
-        row.get("kernel_verified_source_theorem_semantic_support_obligation_ids", [])
-    )[:12]
-    verified_premise_derivation_ids = _str_tuple(
-        row.get("kernel_verified_source_to_bridge_premise_derivation_ids", [])
-    )[:12]
-    verified_premise_derivation_artifact_paths = _str_tuple(
-        row.get("verified_source_to_bridge_premise_derivation_artifact_paths", [])
-    )[:12]
-    verified_premise_derivation_declarations = _str_tuple(
-        row.get("verified_source_to_bridge_premise_derivation_declarations", [])
-    )[:12]
-    verified_premise_derivation_signature_excerpts = (
-        _verified_source_to_bridge_premise_derivation_signature_excerpts(row)[:6]
-    )
-    premise_work_items = _source_to_bridge_premise_derivation_work_items(
-        row,
-        proof_body_goal_context=goal_context,
-    )[:12]
-    premise_target_rows = _adapter_premise_target_rows(premise_work_items)
-    premise_target_comment = "\n".join(
-        "\n".join(
-            line
-            for line in (
-                (
-                    "-- source-to-bridge premise target: "
-                    + _sanitize_comment_text(target_row["premise_name"])
-                ),
-                (
-                    "-- premise target type: "
-                    + _sanitize_comment_text(target_row["premise_target_type"])
-                ),
-                (
-                    "-- premise target source: "
-                    + _sanitize_comment_text(target_row["premise_target_source"])
-                ),
-            )
-            if line
-        )
-        for target_row in premise_target_rows
-    )
-    premise_binder_lines = "\n".join(
-        "    "
-        f"({_safe_identifier(target_row['premise_name'])} : "
-        f"{target_row['premise_target_type']})"
-        for target_row in premise_target_rows
-    )
-    single_premise_target = (
-        premise_target_rows[0]["premise_target_type"]
-        if len(premise_target_rows) == 1
-        else ""
-    )
-    adapter_header = (
-        f"theorem {adapter_declaration}\n"
-        "    (source_hypotheses : Prop)\n"
-        "    (hsource : source_hypotheses)\n"
-    )
-    if len(premise_target_rows) != 1:
-        adapter_header += "    (bridge_premises : Prop)\n"
-    if premise_binder_lines:
-        adapter_header += f"{premise_binder_lines}\n"
-    adapter_conclusion = single_premise_target or "bridge_premises"
-    reason_comment = "\n".join(
-        f"-- reason: {_sanitize_comment_text(reason)}" for reason in reasons
-    )
-    goal_comment = "\n".join(
-        f"-- goal: {_sanitize_comment_text(line)}" for line in goal_excerpt
-    )
-    goal_binder_comment = "\n".join(
-        f"-- proof-body goal binder: {_sanitize_comment_text(name)}"
-        for name in goal_binder_names
-    )
-    goal_conclusion_comment = (
-        "-- proof-body goal conclusion: " + _sanitize_comment_text(goal_conclusion)
-        if goal_conclusion
-        else ""
-    )
-    attempt_comment = "\n".join(
-        f"-- proof-body attempt: {_sanitize_comment_text(line)}"
-        for line in attempt_summaries
-    )
-    attempt_count_comment = (
-        f"-- proof-body attempt count: {attempt_count}" if attempt_count else ""
-    )
-    proof_body_gate_status_comment = (
-        f"-- proof-body gate status: {_sanitize_comment_text(proof_body_gate_status)}"
-        if proof_body_gate_status
-        else ""
-    )
-    proof_body_gate_open_comment = (
-        "-- exact source proof-body gate open for kernel repair: "
-        + ("true" if proof_body_gate_open else "false")
-    )
-    proof_body_gate_open_target_comment = "\n".join(
-        f"-- exact source proof-body gate-open target: {_sanitize_comment_text(line)}"
-        for line in proof_body_gate_open_targets
-    )
-    source_kernel_eligible_comment = (
-        (
-            "-- source theorem kernel evidence eligible before adapter: "
-            + ("true" if source_kernel_eligible else "false")
-        )
-        if source_kernel_eligible_raw is not None
-        else ""
-    )
-    semantic_blocker_comment = "\n".join(
-        f"-- semantic alignment blocker: {_sanitize_comment_text(line)}"
-        for line in semantic_blockers
-    )
-    closure_comment = "\n".join(
-        f"-- verified reduction/closure target id: {_sanitize_comment_text(line)}"
-        for line in closure_target_ids
-    )
-    closure_declaration_comment = "\n".join(
-        f"-- verified reduction/closure Lean declaration: {_sanitize_comment_text(line)}"
-        for line in closure_declarations
-    )
-    closure_artifact_comment = "\n".join(
-        f"-- verified reduction/closure artifact: {_sanitize_comment_text(line)}"
-        for line in closure_artifact_paths
-    )
-    semantic_support_comment = "\n".join(
-        f"-- verified semantic support obligation id: {_sanitize_comment_text(line)}"
-        for line in semantic_support_ids
-    )
-    verified_premise_derivation_id_comment = "\n".join(
-        f"-- verified source-to-bridge premise derivation id: {_sanitize_comment_text(line)}"
-        for line in verified_premise_derivation_ids
-    )
-    verified_premise_derivation_artifact_comment = "\n".join(
-        f"-- verified source-to-bridge premise derivation artifact: {_sanitize_comment_text(line)}"
-        for line in verified_premise_derivation_artifact_paths
-    )
-    verified_premise_derivation_declaration_comment = "\n".join(
-        f"-- verified source-to-bridge premise derivation declaration: {_sanitize_comment_text(line)}"
-        for line in verified_premise_derivation_declarations
-    )
-    verified_premise_derivation_signature_comment = "\n".join(
-        _lean_comment_block(
-            "verified source-to-bridge premise derivation signature excerpt",
-            excerpt,
-        )
-        for excerpt in verified_premise_derivation_signature_excerpts
-    )
-    premise_work_item_comment = "\n".join(
-        "\n".join(
-            line
-            for line in (
-                (
-                    "-- source-to-bridge premise work item: "
-                    + _sanitize_comment_text(str(item.get("premise_name", "") or ""))
-                    if item.get("premise_name")
-                    else ""
-                ),
-                (
-                    "-- required derivation: "
-                    + _sanitize_comment_text(
-                        str(item.get("required_derivation", "") or "")
-                    )
-                    if item.get("required_derivation")
-                    else ""
-                ),
-                (
-                    "-- forbidden as adapter assumption: true"
-                    if item.get("forbidden_as_adapter_assumption")
-                    else ""
-                ),
-            )
-            if line
-        )
-        for item in premise_work_items
-    )
-    target_comment = (
-        f"-- target source theorem: {_sanitize_comment_text(target)}"
-        if target
-        else ""
-    )
-    source_candidate_comment = (
-        "-- source proof-body candidate artifact: "
-        + _sanitize_comment_text(source_candidate_artifact_path)
-        if source_candidate_artifact_path
-        else ""
-    )
-    signature_probe_comment = (
-        "-- source theorem signature probe artifact: "
-        + _sanitize_comment_text(proof_body_signature_probe_artifact_path)
-        if proof_body_signature_probe_artifact_path
-        else ""
-    )
-    exact_goal_shape_comment = "\n".join(
-        line
-        for line in (
-            (
-                "-- exact goal-shape obligation id: "
-                + _sanitize_comment_text(exact_goal_shape_obligation_id)
-                if exact_goal_shape_obligation_id
-                else ""
-            ),
-            (
-                "-- exact goal-shape obligation: "
-                + _sanitize_comment_text(exact_goal_shape_obligation)
-                if exact_goal_shape_obligation
-                else ""
-            ),
-            (
-                "-- source queue status: "
-                + _sanitize_comment_text(source_queue_status)
-                if source_queue_status
-                else ""
-            ),
-            (
-                "-- target adapter artifact kind: "
-                + _sanitize_comment_text(target_artifact_kind)
-                if target_artifact_kind
-                else ""
-            ),
-            (
-                "-- source acceptance gate: "
-                + _sanitize_comment_text(source_acceptance_gate)
-                if source_acceptance_gate
-                else ""
-            ),
-        )
-        if line
-    )
-    return (
-        "namespace AIStatisticianSourceTheoremProofBodyAdapter\n\n"
-        "/-\n"
-        "This is a generated adapter obligation skeleton, not proof evidence.\n"
-        "It should be replaced by a theorem deriving verified bridge premises from\n"
-        "the exact source theorem hypotheses before retrying the source theorem proof body.\n"
-        "-/\n"
-        f"{target_comment}\n"
-        f"{source_candidate_comment}\n"
-        f"{signature_probe_comment}\n"
-        f"{exact_goal_shape_comment}\n"
-        f"{reason_comment}\n"
-        f"{closure_comment}\n"
-        f"{closure_declaration_comment}\n"
-        f"{closure_artifact_comment}\n"
-        f"{semantic_support_comment}\n"
-        f"{verified_premise_derivation_id_comment}\n"
-        f"{verified_premise_derivation_artifact_comment}\n"
-        f"{verified_premise_derivation_declaration_comment}\n"
-        f"{verified_premise_derivation_signature_comment}\n"
-        f"{premise_work_item_comment}\n"
-        f"{premise_target_comment}\n"
-        f"{goal_comment}\n"
-        f"{goal_binder_comment}\n"
-        f"{goal_conclusion_comment}\n"
-        f"{attempt_comment}\n"
-        f"{attempt_count_comment}\n"
-        f"{proof_body_gate_status_comment}\n"
-        f"{proof_body_gate_open_comment}\n"
-        f"{proof_body_gate_open_target_comment}\n"
-        f"{source_kernel_eligible_comment}\n"
-        f"{semantic_blocker_comment}\n"
-        "-- adapter task: materialize/import the missing dependency context above,\n"
-        "-- then derive the bridge or reduction premise from exact source-level hypotheses.\n"
-        "-- Generated premise binders are target scaffolds for downstream premise derivation, not proof evidence.\n"
-        f"{adapter_header}"
-        f"    : {adapter_conclusion} := by\n"
-        "  -- ProofEngineer must derive bridge premises from the exact source hypotheses.\n"
-        "  fail_if_success trivial\n\n"
-        "end AIStatisticianSourceTheoremProofBodyAdapter\n"
-    )
 
 
 def _adapter_required_reasons_from_exact_goal_shape(
@@ -1436,11 +1235,6 @@ def _named_lean_binder_type(source: str, *, binder_name: str) -> str:
     return ""
 
 
-def _normalize_adapter_source(source: str) -> str:
-    if "import " not in source:
-        return source.rstrip() + "\n"
-    return source.rstrip() + "\n"
-
 
 def _verified_source_to_bridge_premise_derivation_signature_excerpts(
     row: Mapping[str, Any],
@@ -1538,58 +1332,6 @@ def _provided_adapter_declaration(source: str) -> str:
         return ""
     return _safe_identifier(declaration)
 
-
-def _inline_verified_adapter_dependency_context(
-    source: str,
-    *,
-    row: Mapping[str, Any],
-) -> str:
-    dependency_sources: list[str] = []
-    dependency_paths = [
-        *_str_tuple(row.get("verified_theorem_reduction_closure_artifact_paths", [])),
-        *_str_tuple(
-            row.get("verified_source_to_bridge_premise_derivation_artifact_paths", [])
-        ),
-    ]
-    for raw_path in tuple(dict.fromkeys(dependency_paths))[:6]:
-        path_text = str(raw_path or "").strip()
-        if not path_text.endswith(".lean"):
-            continue
-        try:
-            dependency_source = Path(path_text).expanduser().read_text(
-                encoding="utf-8"
-            )
-        except OSError:
-            continue
-        if dependency_source.strip():
-            dependency_sources.append(dependency_source)
-    if not dependency_sources:
-        return source
-    return _merge_lean_sources([*dependency_sources, source])
-
-
-def _merge_lean_sources(sources: list[str]) -> str:
-    imports: list[str] = []
-    bodies: list[str] = []
-    for source in sources:
-        body_lines: list[str] = []
-        for line in str(source or "").rstrip().splitlines():
-            if re.match(r"^\s*import\s+", line):
-                normalized = line.strip()
-                if normalized not in imports:
-                    imports.append(normalized)
-                continue
-            body_lines.append(line)
-        body = "\n".join(body_lines).strip()
-        if body:
-            bodies.append(body)
-    import_block = "\n".join(imports)
-    body_block = "\n\n".join(bodies).rstrip()
-    if import_block and body_block:
-        return import_block + "\n\n" + body_block + "\n"
-    if import_block:
-        return import_block + "\n"
-    return body_block + "\n"
 
 
 def _sanitize_comment_text(value: str) -> str:

@@ -216,7 +216,7 @@ def test_premise_bridge_resolves_runtime_formalizer_work_order_fallback(
     assert resolved == queue
 
 
-def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
+def test_premise_bridge_routes_typed_llm_candidate_request(tmp_path: Path) -> None:
     queue = tmp_path / "source_to_bridge_premise_derivation_queue.jsonl"
     source_attempt = tmp_path / "source_attempt.lean"
     adapter_attempt = tmp_path / "adapter_attempt.lean"
@@ -298,9 +298,13 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     )
     row = manifest["rows"][0]
     assert row["premise_name"] == "hGoodCovered"
+    assert manifest["n_llm_candidate_generation_required"] == 1
     assert row["premise_candidate_generation_mode"] == (
-        "proofengineer_generated_premise_derivation_skeleton"
+        "llm_premise_derivation_candidate_required"
     )
+    assert row["llm_candidate_generation_required"] is True
+    assert row["premise_candidate_artifact_path"] == ""
+    assert row["premise_candidate_bytes_preserved"] is False
     assert row["premise_candidate_evidence_eligible"] is False
     assert row["source_theorem_kernel_evidence_eligible"] is True
     assert row["semantic_alignment_blockers"] == ()
@@ -333,91 +337,38 @@ def test_premise_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert row["failure_classification"] == (
         "premise_derivation_candidate_missing_nonvacuous_source"
     )
-    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
+    request = row["candidate_generation_request"]
+    assert request["request_kind"] == (
+        "source_to_bridge_premise_derivation_lean_candidate"
     )
-    assert "fail_if_success trivial" in candidate_source
-    assert "-- premise name: hGoodCovered" in candidate_source
-    assert f"-- exact source candidate artifact: {source_attempt}" in candidate_source
-    assert (
-        f"-- source-to-bridge adapter candidate artifact: {adapter_attempt}"
-        in candidate_source
-    )
-    assert (
-        "-- source theorem signature probe artifact: "
+    assert request["source_candidate_artifact_path"] == str(source_attempt)
+    assert request["adapter_candidate_artifact_path"] == str(adapter_attempt)
+    assert request["proof_body_signature_probe_artifact_path"] == (
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
-    ) in candidate_source
-    assert (
-        "-- source-to-bridge adapter declaration: "
-        "split_conformal_coverage_source_to_bridge_adapter"
-    ) in candidate_source
-    assert "-- source context status: SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED" in (
-        candidate_source
     )
-    assert "-- exact source theorem signature: theorem split_conformal_coverage" in (
-        candidate_source
+    assert request["source_context_status"] == (
+        "SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED"
     )
-    assert "-- proof body attempt count: 1" in candidate_source
-    assert (
-        "-- proof body gate status: PROOF_BODY_REACHED_PROOF_INCOMPLETE"
-        in candidate_source
+    assert request["premise_target_type"] == "covered ⊆ covered"
+    assert request["proof_body_attempt_count"] == 1
+    assert request["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
-    assert (
-        "-- exact source proof-body gate open for kernel repair: true"
-        in candidate_source
-    )
-    assert (
-        "-- exact source proof-body gate-open target: split_conformal_coverage"
-        in candidate_source
-    )
-    assert "-- proof body goal binder: hExch" in candidate_source
-    assert "-- proof body goal binder: q" in candidate_source
-    assert "-- proof body goal binder: hq" in candidate_source
-    assert f"-- proof body goal conclusion: {PROOF_BODY_GOAL_CONCLUSION}" in (
-        candidate_source
-    )
-    assert (
-        "-- source theorem kernel evidence eligible before premise derivation: true"
-        in candidate_source
-    )
-    assert (
-        "-- semantic alignment constraint: covered must be instantiated from "
-        "the exact source coverage event"
-    ) in candidate_source
-    assert (
-        "-- current adapter signature: theorem split_conformal_coverage_source_to_bridge_adapter"
-        in candidate_source
-    )
-    assert "-- premise target status: ADAPTER_PREMISE_TARGET_EXTRACTED" in (
-        candidate_source
-    )
-    assert "-- extracted premise target: covered ⊆ covered" in candidate_source
-    assert (
-        "-- required source-to-bridge semantic dependency: define covered from "
-        "the exact source coverage event using hC"
-    ) in candidate_source
-    assert "-- exact source binder: hq : Prop [quantile_definition_anchor]" in (
-        candidate_source
-    )
-    assert "-- exact source binder: hC : Prop [coverage_event_anchor]" in (
-        candidate_source
-    )
-    assert "-- required semantic anchor binder: hq : Prop [quantile_definition_anchor]" in (
-        candidate_source
-    )
-    assert "-- required semantic anchor binder: hC : Prop [coverage_event_anchor]" in (
-        candidate_source
-    )
-    assert "-- bridge object instantiation policy:" in candidate_source
-    assert "the listed adapter objects covered" in candidate_source
-    assert "rank, BadRanks" not in candidate_source
-    assert "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation" in (
-        candidate_source
-    )
-    assert "(covered : Set Nat) :" in candidate_source
-    assert "covered ⊆ covered := by" in candidate_source
-    assert "bridge_premise : Prop" not in candidate_source
-    assert "splitConformalFiniteSampleCoverage_reductionClosure" in candidate_source
+    assert request["proof_body_goal_context"]["binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert request["source_theorem_kernel_evidence_eligible"] is True
+    assert request["semantic_alignment_constraints"] == [
+        "covered must be instantiated from the exact source coverage event"
+    ]
+    assert request["adapter_object_names_requiring_source_instantiation"] == [
+        "covered"
+    ]
+    assert request["kernel_verified_theorem_reduction_closure_declarations"] == [
+        "splitConformalFiniteSampleCoverage_reductionClosure"
+    ]
     assert row["source_context_status"] == "SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED"
     assert row["source_theorem_signature_excerpt"][0] == (
         "theorem split_conformal_coverage"
@@ -877,15 +828,19 @@ def test_premise_bridge_uses_goal_context_for_goal_sourced_target(
         "BadRanks" in requirement or "covered from" in requirement
         for requirement in row["premise_semantic_dependency_requirements"]
     )
-    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
+    generation_request = row["candidate_generation_request"]
+    assert generation_request["premise_semantic_anchor_binder_names"] == [
+        "hExch",
+        "q",
+        "hq",
+    ]
+    assert generation_request["premise_target_type"] == PROOF_BODY_GOAL_CONCLUSION
+    assert not any(
+        "covered from" in requirement
+        for requirement in generation_request[
+            "premise_semantic_dependency_requirements"
+        ]
     )
-    assert "-- required semantic anchor binder: hExch" in candidate_source
-    assert "-- required semantic anchor binder: q" in candidate_source
-    assert "-- required semantic anchor binder: hq" in candidate_source
-    assert "the reached proof-body goal" in candidate_source
-    assert "define covered from the exact source coverage event" not in candidate_source
-    assert "adapter objects such as covered, rank, BadRanks" not in candidate_source
 
     request = json.loads(
         Path(str(manifest["candidate_requests_jsonl"]))
@@ -1014,25 +969,17 @@ def test_premise_bridge_source_signature_target_binds_source_header(
     )
 
     row = manifest["rows"][0]
-    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
-    )
     assert row["premise_target_source"] == "source_theorem_signature_conclusion"
     assert row["premise_target_type"] == "∀ x : Nat, P x"
-    assert "theorem dependent_source_goal_hForallSource_source_to_bridge_derivation" in (
-        candidate_source
+    request = row["candidate_generation_request"]
+    assert request["premise_candidate_declaration_name"] == (
+        "dependent_source_goal_hForallSource_source_to_bridge_derivation"
     )
-    assert "(P : Nat → Prop)" in candidate_source
-    assert "(hP : ∀ x : Nat, P x)" in candidate_source
-    assert "    ∀ x : Nat, P x := by" in candidate_source
-    assert "(source_hypotheses bridge_premise : Prop)" not in candidate_source
-    theorem_start = candidate_source.rfind(
-        "theorem dependent_source_goal_hForallSource_source_to_bridge_derivation"
-    )
-    theorem_header = candidate_source[
-        theorem_start : candidate_source.find(":= by", theorem_start)
-    ]
-    assert "(hForallSource : ∀ x : Nat, P x)" not in theorem_header
+    assert request["premise_target_type"] == "∀ x : Nat, P x"
+    assert {item["name"] for item in request["exact_source_theorem_binders"]} == {
+        "P",
+        "hP",
+    }
 
 
 def test_premise_bridge_grouped_learning_uses_goal_context_target_behavior(
@@ -1205,18 +1152,13 @@ def test_premise_bridge_prefers_artifact_semantic_requirements(
     assert list(row["premise_semantic_anchor_binder_names"]) == [
         "hRetrievedCoverage"
     ]
-    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
-    )
-    assert retrieved_requirement in candidate_source
-    assert (
-        "-- exact source binder: hRetrievedCoverage : Prop "
-        "[retrieved_formal_source_anchor]"
-    ) in candidate_source
-    assert (
-        "define covered from the exact source coverage event using hC"
-        not in candidate_source
-    )
+    generation_request = row["candidate_generation_request"]
+    assert generation_request["premise_semantic_dependency_requirements"] == [
+        retrieved_requirement
+    ]
+    assert generation_request["exact_source_theorem_binders"] == [
+        retrieved_binder
+    ]
 
     request = json.loads(
         Path(str(manifest["candidate_requests_jsonl"]))
@@ -2204,16 +2146,14 @@ def test_premise_bridge_parses_multi_binder_source_signature(tmp_path: Path) -> 
     assert source_binders["hq"].startswith("∀ᵐ ω ∂P")
     assert "Finset.filter" in source_binders["hq"]
     assert source_binders["hC"].startswith("∀ ω, C")
-    candidate_source = Path(row["premise_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
-    )
-    assert "-- exact source binder: hn2 : 1 ≤ n2 [calibration_size_anchor]" in (
-        candidate_source
-    )
-    assert "-- exact source binder: alpha : ℝ [miscoverage_level_anchor]" in (
-        candidate_source
-    )
-    assert "-- exact source binder: n2 : ℕ) (hn2" not in candidate_source
+    request_binders = {
+        binder["name"]: binder["type"]
+        for binder in row["candidate_generation_request"][
+            "exact_source_theorem_binders"
+        ]
+    }
+    assert request_binders["hn2"] == "1 ≤ n2"
+    assert request_binders["alpha"] == "ℝ"
 
 
 def test_premise_bridge_rejects_candidate_that_reassumes_premise(

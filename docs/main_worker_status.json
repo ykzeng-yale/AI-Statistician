@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-12T16:32:05Z",
+  "updated_at": "2026-07-12T17:15:28Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Live formal-environment signature probes now copy upstream Lean candidates byte-for-byte, hash both source and probe, and route the unchanged compiler diagnostics. Exact-semantic candidate routing no longer normalizes Type*/declaration layout/orderStat witnesses, infers imports from tokens, injects signature preludes, applies literal/regex statement replacements, or substitutes hardcoded draft definitions. Exact-source materialization now preserves the LLM statement and proof body, never inserts a tactic/evolve block, never infers imports, and returns a typed generation request when forbidden placeholders are present. Legacy draft-repair flags remain parse-compatible but only record the request; runtime_generated_lean_replacements_enabled is always false and unresolved definitions become typed LLM/ProofEngineer work. The split-conformal policy pack now retains semantic contracts, source anchors, retrieval aliases, and risk rules but contains no executable Lean drafts or rewrite payloads.",
+  "latest_main_worker_patch": "All active Lean feedback/materialization lanes now preserve coding-agent candidates instead of generating or rewriting Lean. Formal-environment probes copy candidate bytes; exact-semantic routing applies no grammar/import/definition repairs; exact-source materialization preserves statement and proof body; generic materializer, proof-body adapter, and source-to-bridge premise lanes emit typed LLM generation requests when no valid candidate exists. Verified dependencies remain structured context and are not inlined into candidate source. The historical whole-proof tactic/formal-source templates are disabled by default and available only under an explicit legacy_static_template_baseline calibration flag, never as AgentRuntime capability evidence.",
   "latest_main_worker_live_probe": "A fresh strict Claude run covered experimental_design/design_based_variance_bound and multiple_testing/multiple_testing_fdr_bh. It scored 86/108 and correctly remained not ready: both questions reached MAX_ITERATIONS_REACHED, with 3 kernel-verified support subclaims, 10 formal gaps, and no source theorem closure. The trace exposed five Architect plan repairs per task caused by incomplete plans and interception of same-owner retries. After the control-plane patch, a live Architect emitted the complete nine-stage graph and a three-turn resume ran RetrievalMemory -> TheoryDeveloper -> SimulationEvaluator with zero Architect plan repairs; the failed simulation draft returned directly to SimulationEvaluator as typed compiler feedback. This validates the repaired loop, not S14 or theorem completion.",
-  "latest_main_worker_design_issue": "The completed audit confirmed capability-attribution contamination in legacy Lean paths: Python could rewrite generated statement syntax, imports, semantic primitives, proof bodies, or draft definitions before compiler adjudication. Signature probes and exact-semantic routing are byte-preserving; exact-source materialization now preserves the upstream statement/proof body and only prepends explicitly supplied imports and non-executable metadata. Legacy proof_search baseline plus generic materializer/source-to-bridge/adapter route-probe scaffolds still contain static Lean snippets and must be isolated or replaced with LLM generation work orders. No fresh statistical source theorem has closed; S14 remains false.",
+  "latest_main_worker_design_issue": "The capability-attribution contamination in active Lean paths is repaired: Python no longer changes generated statement syntax/imports/semantic primitives/proof bodies, creates route-probe theorems, or inlines dependency proofs before compiler adjudication. Missing or wrong-declaration candidates now return typed, lineage-rich generation work to ProofEngineer. Historical static tactic/formal-source templates remain only as an explicit calibration baseline with legacy_static_template_baseline=false by default. The larger end-to-end blockers remain unchanged: no fresh statistical source theorem has closed, R is missing, serious theory mode is incomplete, the post-runtime second orchestration plane remains, and S14 is false.",
   "main_objective": "Drive AI-Statistician to a genuinely live autonomous end-to-end AI Statistical Theory Lab. Own one Architect-controlled AgentRuntime; integrate the strongest reusable OpenProver, EmpericalProcessLEAN, CodexProver, proof-bank, and prior Mac Pro mechanisms; require LLM/coding agents to generate rigorous theory, Python/R algorithms and simulations, and exact Lean candidates; iterate through execution, compiler/LSP/proof-state, retrieval, critic, and worker feedback; eliminate runtime-generated Lean tactics, theorem-specific grammar rewrites, duplicate orchestration planes, and capability-attribution shortcuts; preserve immutable lineage and strict evidence boundaries; and do not claim completion until two unrelated fresh statistical task families each close an exact source theorem under local Lean/AXLE with no acceptance-gating formal gaps and honest S14 evidence.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -72,7 +72,7 @@
     "r_coding_agent": "MISSING: no production R generation, sandbox execution, package environment, or R-specific repair evaluation exists",
     "formalizer_and_prover": "PARTIAL_LIVE: exact typed prover, OpenProver HLM, local Lean/LSP feedback, proof bank, and kernel gates are integrated; no fresh statistical exact source theorem has closed in the two-family probe",
     "formal_rag": "PARTIAL_LIVE: proof bank and a 18,724-declaration EmpericalProcessLEAN graph are available with provenance and non-proof boundaries; natural-language ranking remains weak/high-fanout and latest signed-index scripts still need canonical runtime adoption",
-    "coding_agent_feedback_fidelity": "PARTIAL: same-owner retries now bypass Architect plan repair, signature/exact-semantic/exact-source feedback preserves the generated candidate, but generic materializer and source-to-bridge/adapter route probes still synthesize static Lean scaffolds and must become typed LLM generation work",
+    "coding_agent_feedback_fidelity": "ACTIVE_PATH_READY: same-owner retries bypass Architect plan repair; signature/exact-semantic/exact-source/generic materializer/adapter/premise feedback preserves generated candidates; missing candidates become typed LLM work; legacy static templates are explicit calibration only",
     "worker_communication": "PARTIAL: typed tasks, blackboard artifacts, immutable handoffs, and critic feedback exist, but not every legacy bridge/executor is a plan-visible worker and full replanning after downstream proof blockers is not yet demonstrated",
     "cross_task_evaluation": "NOT_READY: experimental-design and multiple-testing fresh lineages exist, but both reached MAX_ITERATIONS_REACHED and S14 remains false",
     "completion_gate": "Do not declare the system end-to-end until two unrelated fresh task families each complete Architect, rigorous theory, generated Python/R implementation and simulation, formal RAG, zero-shot Lean/OpenProver generation, compiler/LSP feedback revision, Critic review, and exact source-theorem local Lean/AXLE kernel closure with no acceptance-gating formal gaps."
@@ -117,6 +117,24 @@
     "targeted_runtime_integration_tests": "100 passed, 1007 deselected across exact-semantic, signature-probe, and materializer contracts",
     "full_runtime_tests": "1042 passed in 1433.51s",
     "full_core_tests": "289 passed, 5 skipped, 6 subtests passed in 758.82s",
+    "source_theorem_kernel_verified": false,
+    "s14_satisfied": false
+  },
+  "latest_llm_owned_lean_candidate_routing_patch": {
+    "generic_materializer_runtime_generated_tactics_enabled": false,
+    "generic_missing_candidate_status": "LLM_CANDIDATE_GENERATION_REQUIRED",
+    "proof_body_adapter_missing_candidate_mode": "llm_adapter_candidate_required",
+    "source_to_bridge_premise_missing_candidate_mode": "llm_premise_derivation_candidate_required",
+    "wrong_declaration_candidate_preserved_and_returned": true,
+    "verified_dependency_context_inlined_into_candidate": false,
+    "candidate_source_fingerprints_recorded": true,
+    "candidate_bytes_preserved_recorded": true,
+    "legacy_static_template_baseline_default": false,
+    "active_runtime_static_tactic_templates_enabled": false,
+    "targeted_candidate_routing_tests": "70 passed, 1017 deselected",
+    "targeted_proof_search_baseline_tests": "7 passed, 287 deselected",
+    "full_runtime_tests": "1042 passed in 1442.18s",
+    "full_core_tests": "289 passed, 5 skipped, 6 subtests passed in 778.83s",
     "source_theorem_kernel_verified": false,
     "s14_satisfied": false
   },
@@ -1887,6 +1905,10 @@
     }
   },
   "latest_local_verification": [
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 1042 passed in 1442.18s after generic materializer/adapter/premise lanes stopped generating Lean and routed typed LLM candidate work",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_core.py -q # 289 passed, 5 skipped, 6 subtests passed in 778.83s after static proof templates became explicit calibration only",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_source_to_bridge_premise_derivation_bridge.py tests/test_source_theorem_proof_body_adapter_bridge.py tests/test_core.py::SystemTests::test_agentic_proof_execution_materializer_creates_live_goal_location tests/test_research_agent_runtime.py -k 'materializer or adapter_bridge or premise_derivation' # 70 passed, 1017 deselected after dead source-normalization/inlining helpers were removed",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py -k 'best_first_whole_proof_search or proof_search_audit or proof_search_retrieval_ablation' # 7 passed, 287 deselected with legacy static templates disabled by default and explicit in calibration tests",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 1042 passed in 1433.51s after candidate-preserving signature, exact-semantic, and exact-source materializer feedback changes",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest tests/test_core.py -q # 289 passed, 5 skipped, 6 subtests passed in 758.82s after exact-source materializer stopped rewriting proof bodies/imports",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_exact_semantic_definition_policy.py tests/test_source_theorem_exact_semantic_definition_source_lookup.py tests/test_source_theorem_formal_environment_bridge.py tests/test_research_agent_runtime.py -k 'exact_semantic_definition or formal_environment_signature_probe or materializer' # 100 passed, 1007 deselected",

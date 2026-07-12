@@ -710,6 +710,7 @@ async def run_research_system_audit(
         include_invalid_probe=True,
         proof_policy_model_json=Path(str(proof_policy_model_manifest["model_json"])),
         formal_source_retriever=formal_source_retriever,
+        legacy_static_template_baseline=True,
     )
     proof_search_bootstrap_training_manifest = export_proof_search_process_dataset(
         Path(str(proof_search_bootstrap_manifest["results_jsonl"])),
@@ -730,6 +731,7 @@ async def run_research_system_audit(
         proof_policy_model_json=Path(str(proof_policy_model_manifest["model_json"])),
         proof_value_model_json=Path(str(proof_search_value_manifest["model_json"])),
         formal_source_retriever=formal_source_retriever,
+        legacy_static_template_baseline=True,
     )
     proof_search_retrieval_ablation_manifest = await run_proof_search_retrieval_ablation(
         out_dir / "proof_search_retrieval_ablation",
@@ -739,6 +741,7 @@ async def run_research_system_audit(
         max_obligations=6,
         max_nodes=4,
         formal_source_k=4,
+        legacy_static_template_baseline=True,
     )
     proof_search_retrieval_no_registered_ablation_manifest = await run_proof_search_retrieval_ablation(
         out_dir / "proof_search_retrieval_no_registered_ablation",
@@ -748,6 +751,7 @@ async def run_research_system_audit(
         max_obligations=6,
         max_nodes=4,
         formal_source_k=4,
+        legacy_static_template_baseline=True,
         include_registered_proof=False,
         baseline_name="proof_search_without_dependency_graph_no_registered_proof",
         enhanced_name="proof_search_with_dependency_graph_no_registered_proof",

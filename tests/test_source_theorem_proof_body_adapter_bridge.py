@@ -190,7 +190,11 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert list(row["target_theorem_goal_ids"]) == [
         "split_conformal_finite_sample_coverage"
     ]
-    assert row["adapter_generation_mode"] == "proofengineer_generated_adapter_skeleton"
+    assert manifest["n_llm_candidate_generation_required"] == 1
+    assert row["adapter_generation_mode"] == "llm_adapter_candidate_required"
+    assert row["llm_candidate_generation_required"] is True
+    assert row["adapter_candidate_artifact_path"] == ""
+    assert row["adapter_candidate_bytes_preserved"] is False
     assert row["adapter_candidate_evidence_eligible"] is False
     assert row["source_candidate_artifact_path"] == (
         "runs/split_conformal_coverage_attempt.lean"
@@ -201,7 +205,7 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert row["source_theorem_signature_probe_artifact_path"] == (
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
     )
-    assert row["failure_classification"] == "adapter_candidate_not_evidence_eligible"
+    assert row["failure_classification"] == "adapter_candidate_generation_required"
     assert row["source_theorem_kernel_evidence_eligible"] is True
     assert row["proof_body_gate_status"] == "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     assert row["source_theorem_exact_proof_body_reached"] is True
@@ -230,71 +234,43 @@ def test_adapter_bridge_materializes_nonproof_skeleton(tmp_path: Path) -> None:
     assert row["source_to_bridge_premise_derivation_work_items"][0][
         "proof_body_goal_binder_names"
     ] == ["hexch", "hq", "hC"]
-    adapter_source = Path(row["adapter_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
+    request = row["candidate_generation_request"]
+    assert request["request_kind"] == (
+        "source_theorem_proof_body_adapter_lean_candidate"
     )
-    assert "fail_if_success trivial" in adapter_source
-    assert "source-level hypotheses" in adapter_source
-    assert (
-        "-- source proof-body candidate artifact: "
+    assert request["source_candidate_artifact_path"] == (
         "runs/split_conformal_coverage_attempt.lean"
-    ) in adapter_source
-    assert (
-        "-- source theorem signature probe artifact: "
+    )
+    assert request["proof_body_signature_probe_artifact_path"] == (
         "runs/signature_probes/split_conformal_coverage_signature_probe.lean"
-    ) in adapter_source
-    assert (
-        "-- verified reduction/closure target id: "
+    )
+    assert request["kernel_verified_theorem_reduction_closure_target_ids"] == [
         "split_conformal_finite_sample_coverage_reduction_closure"
-    ) in adapter_source
-    assert (
-        "-- verified reduction/closure Lean declaration: "
+    ]
+    assert request["verified_theorem_reduction_closure_declarations"] == [
         "splitConformalFiniteSampleCoverage_reductionClosure"
-    ) in adapter_source
-    assert (
-        "-- verified reduction/closure artifact: "
+    ]
+    assert request["verified_theorem_reduction_closure_artifact_paths"] == [
         "runs/theorem_reduction_closure/closure.lean"
-    ) in adapter_source
-    assert (
-        "-- verified semantic support obligation id: "
-        "split_conformal_good_rank_set_inclusion_bridge"
-    ) in adapter_source
-    assert "-- source-to-bridge premise work item: hGoodCovered" in adapter_source
-    assert (
-        "-- required derivation: derive hGoodCovered from exact source hypotheses"
-        in adapter_source
+    ]
+    assert request[
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == ["split_conformal_good_rank_set_inclusion_bridge"]
+    assert request["source_to_bridge_premise_derivation_work_items"][0][
+        "premise_name"
+    ] == "hGoodCovered"
+    assert request["proof_body_attempt_summaries"] == [
+        "1:simpa:returncode=1:compiled=False"
+    ]
+    assert request["proof_body_gate_status"] == (
+        "PROOF_BODY_REACHED_PROOF_INCOMPLETE"
     )
-    assert "-- forbidden as adapter assumption: true" in adapter_source
-    assert "-- source-to-bridge premise target: hGoodCovered" in adapter_source
-    assert "-- premise target type: Prop" in adapter_source
-    assert "-- premise target source: opaque_prop_fallback" in adapter_source
-    assert "(hGoodCovered : Prop)" in adapter_source
-    assert "-- proof-body attempt: 1:simpa:returncode=1:compiled=False" in adapter_source
-    assert "-- proof-body attempt count: 1" in adapter_source
-    assert (
-        "-- proof-body gate status: PROOF_BODY_REACHED_PROOF_INCOMPLETE"
-        in adapter_source
-    )
-    assert "-- proof-body goal binder: hexch" in adapter_source
-    assert "-- proof-body goal binder: hq" in adapter_source
-    assert "-- proof-body goal binder: hC" in adapter_source
-    assert (
-        "-- proof-body goal conclusion: 1 - alpha ≤ P.real "
-        "{ω | s (Fin.last n2) ω ≤ q_hat ω} ∧"
-    ) in adapter_source
-    assert (
-        "-- exact source proof-body gate open for kernel repair: true"
-        in adapter_source
-    )
-    assert (
-        "-- exact source proof-body gate-open target: split_conformal_coverage"
-        in adapter_source
-    )
-    assert (
-        "-- source theorem kernel evidence eligible before adapter: true"
-        in adapter_source
-    )
-    assert "materialize/import the missing dependency context" in adapter_source
+    assert request["proof_body_goal_context"]["binder_names"] == [
+        "hexch",
+        "hq",
+        "hC",
+    ]
+    assert request["source_theorem_kernel_evidence_eligible"] is True
     learning_rows = [
         json.loads(line)
         for line in Path(str(manifest["runtime_learning_rows_jsonl"]))
@@ -557,21 +533,14 @@ def test_adapter_bridge_consumes_verified_premise_derivation_context(
     assert list(row["verified_source_to_bridge_premise_derivation_declarations"]) == [
         "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
     ]
-    adapter_source = Path(row["adapter_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
-    )
-    assert (
-        "-- verified source-to-bridge premise derivation id: "
-        "source_to_bridge_premise_derivation_check:hGoodCovered"
-    ) in adapter_source
-    assert (
-        "-- verified source-to-bridge premise derivation artifact: "
-        f"{premise_artifact}"
-    ) in adapter_source
-    assert (
-        "-- verified source-to-bridge premise derivation declaration: "
-        "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
-    ) in adapter_source
+    assert row["adapter_candidate_artifact_path"] == ""
+    request = row["candidate_generation_request"]
+    assert request[
+        "verified_source_to_bridge_premise_derivation_artifact_paths"
+    ] == [str(premise_artifact)]
+    assert request[
+        "verified_source_to_bridge_premise_derivation_declarations"
+    ] == ["split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"]
     learning_rows = [
         json.loads(line)
         for line in Path(str(manifest["runtime_learning_rows_jsonl"]))
@@ -587,7 +556,7 @@ def test_adapter_bridge_consumes_verified_premise_derivation_context(
     ] == [str(premise_artifact)]
 
 
-def test_adapter_bridge_inlines_verified_premise_derivation_artifact_for_candidate(
+def test_adapter_bridge_preserves_candidate_and_dependency_lineage(
     tmp_path: Path,
 ) -> None:
     premise_artifact = tmp_path / "premise_derivations" / "hGoodCovered.lean"
@@ -638,11 +607,14 @@ def test_adapter_bridge_inlines_verified_premise_derivation_artifact_for_candida
     adapter_source = Path(row["adapter_candidate_artifact_path"]).read_text(
         encoding="utf-8"
     )
-    assert (
-        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
-        in adapter_source
+    assert adapter_source == (
+        "import Mathlib\n\n"
+        "theorem split_conformal_coverage_source_to_bridge_adapter : "
+        "True := by\n"
+        "  exact split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
     )
     assert row["adapter_generation_mode"] == "formalizer_provided_adapter_candidate"
+    assert row["adapter_candidate_bytes_preserved"] is True
     assert list(row["kernel_verified_source_to_bridge_premise_derivation_ids"]) == [
         "source_to_bridge_premise_derivation_check:hGoodCovered"
     ]
@@ -711,14 +683,13 @@ def test_adapter_bridge_synthesizes_premise_queue_from_closure_signature(
     assert premise_queue_rows[1]["premise_target_type"] == (
         "MeasurableSet {ω | rank ω ∈ BadRanks}"
     )
-    adapter_source = Path(
-        manifest["rows"][0]["adapter_candidate_artifact_path"]
-    ).read_text(encoding="utf-8")
-    assert "(hGoodCovered : {ω | rank ω ∈ BadRanks}ᶜ ⊆ covered)" in adapter_source
-    assert (
-        "(hBadEvent : MeasurableSet {ω | rank ω ∈ BadRanks})"
-        in adapter_source
-    )
+    request = manifest["rows"][0]["candidate_generation_request"]
+    assert request["source_to_bridge_premise_derivation_work_items"][0][
+        "premise_target_type"
+    ] == "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered"
+    assert request["source_to_bridge_premise_derivation_work_items"][1][
+        "premise_target_type"
+    ] == "MeasurableSet {ω | rank ω ∈ BadRanks}"
     assert all(
         row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
         for row in premise_queue_rows
@@ -778,11 +749,11 @@ def test_adapter_bridge_goal_conclusion_target_feeds_premise_bridge(
         queue_jsonl=queue,
         local_lean=False,
     )
-    adapter_source = Path(
-        adapter_manifest["rows"][0]["adapter_candidate_artifact_path"]
-    ).read_text(encoding="utf-8")
-    assert f"(hGoodCovered : {conclusion})" in adapter_source
-    assert "-- premise target source: proof_body_goal_conclusion" in adapter_source
+    adapter_row = adapter_manifest["rows"][0]
+    assert adapter_row["adapter_candidate_artifact_path"] == ""
+    assert adapter_row["candidate_generation_request"][
+        "source_to_bridge_premise_derivation_work_items"
+    ][0]["premise_target_type"] == conclusion
 
     premise_manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
         out_dir=tmp_path / "premise_bridge",
@@ -792,7 +763,9 @@ def test_adapter_bridge_goal_conclusion_target_feeds_premise_bridge(
 
     assert premise_manifest["n_premise_derivation_candidate_requests"] == 1
     row = premise_manifest["rows"][0]
-    assert row["source_context_status"] == "SOURCE_AND_ADAPTER_SIGNATURES_EXTRACTED"
+    assert row["source_context_status"] == (
+        "SOURCE_THEOREM_SIGNATURE_EXTRACTED_ADAPTER_SIGNATURE_MISSING"
+    )
     assert row["premise_target_status"] == "ADAPTER_PREMISE_TARGET_EXTRACTED"
     assert row["premise_target_matched_binder"] == f"(hGoodCovered : {conclusion})"
     assert row["premise_target_type"] == conclusion
@@ -864,14 +837,10 @@ def test_adapter_bridge_prefers_source_conclusion_over_mismatched_goal(
         local_lean=False,
     )
 
-    adapter_source = Path(
-        manifest["rows"][0]["adapter_candidate_artifact_path"]
-    ).read_text(encoding="utf-8")
-    assert f"(hGoodCovered : {source_conclusion})" in adapter_source
-    assert f"(hGoodCovered : {proof_body_goal})" not in adapter_source
-    assert "-- premise target source: source_theorem_signature_conclusion" in (
-        adapter_source
-    )
+    adapter_request = manifest["rows"][0]["candidate_generation_request"]
+    assert adapter_request["source_to_bridge_premise_derivation_work_items"][0][
+        "premise_target_type"
+    ] == source_conclusion
 
     premise_queue_rows = [
         json.loads(line)
@@ -1052,30 +1021,19 @@ def test_adapter_bridge_consumes_exact_goal_shape_adapter_instantiation_queue(
     )
     assert row["adapter_candidate_vacuous"] is False
     assert row["adapter_candidate_evidence_eligible"] is False
-    assert row["failure_classification"] == "adapter_candidate_not_evidence_eligible"
+    assert row["failure_classification"] == "adapter_candidate_generation_required"
     assert row["proof_body_adapter_required_reasons"][:2] == (
         "verified adapter or closure dependencies do not directly match the "
         "exact source theorem goal shape",
         "derive bridge premises from exact source-theorem assumptions before "
         "retrying the exact source proof body",
     )
-    adapter_source = Path(row["adapter_candidate_artifact_path"]).read_text(
-        encoding="utf-8"
-    )
-    assert (
-        "-- exact goal-shape obligation id: "
+    request = row["candidate_generation_request"]
+    assert request["exact_goal_shape_obligation_id"] == (
         "source_to_bridge_adapter_goal_shape_mismatch"
-    ) in adapter_source
-    assert (
-        "-- source queue status: "
-        "PENDING_SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION"
-    ) in adapter_source
-    assert (
-        "-- target adapter artifact kind: "
-        "source_theorem_exact_proof_body_adapter_instantiation"
-    ) in adapter_source
-    assert "derive bridge premises from exact source-theorem assumptions" in (
-        adapter_source
+    )
+    assert request["proof_body_adapter_required_reasons"][:2] == list(
+        row["proof_body_adapter_required_reasons"][:2]
     )
     learning_rows = [
         json.loads(line)
@@ -1388,7 +1346,7 @@ def test_adapter_bridge_rejects_placeholder_comment_candidate_before_evidence(
     assert manifest["n_source_theorem_kernel_verified"] == 0
 
 
-def test_adapter_bridge_inlines_verified_closure_artifact_context(
+def test_adapter_bridge_preserves_candidate_with_verified_closure_context(
     tmp_path: Path,
 ) -> None:
     closure_artifact = tmp_path / "closure_artifact.lean"
@@ -1434,14 +1392,13 @@ def test_adapter_bridge_inlines_verified_closure_artifact_context(
         encoding="utf-8"
     )
     assert adapter_source.count("import Mathlib") == 1
-    assert (
-        "theorem splitConformalFiniteSampleCoverage_reductionClosure"
-        in adapter_source
+    assert "theorem splitConformalFiniteSampleCoverage_reductionClosure" not in (
+        adapter_source
     )
-    assert (
-        adapter_source.index("theorem splitConformalFiniteSampleCoverage_reductionClosure")
-        < adapter_source.index("theorem split_conformal_coverage_source_to_bridge_adapter")
-    )
+    assert row["adapter_candidate_bytes_preserved"] is True
+    assert list(row["verified_theorem_reduction_closure_artifact_paths"]) == [
+        str(closure_artifact)
+    ]
     assert row["adapter_candidate_evidence_eligible"] is True
     assert row["adapter_kernel_verified"] is True
     assert manifest["n_adapter_kernel_verified"] == 1

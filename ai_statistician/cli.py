@@ -6035,6 +6035,7 @@ async def _proof_search_audit(args: argparse.Namespace) -> int:
         include_registered_proof=not args.no_registered_proof,
         proof_policy_model_json=Path(args.policy_model_json) if args.policy_model_json else None,
         proof_value_model_json=Path(args.value_model_json) if args.value_model_json else None,
+        legacy_static_template_baseline=args.legacy_static_template_baseline,
     )
     print("\nAI Statistician Proof Search Audit")
     print("=" * 72)
@@ -16054,6 +16055,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-invalid-probe",
         action="store_true",
         help="put one invalid high-priority candidate before the registered proof to test branch/error logging",
+    )
+    proof_search_audit.add_argument(
+        "--legacy-static-template-baseline",
+        action="store_true",
+        help=(
+            "explicit calibration only: enable historical Python-generated tactic "
+            "and formal-source proof templates; disabled by default and never "
+            "attributed to the LLM coding-agent runtime"
+        ),
     )
     proof_search_audit.add_argument(
         "--no-registered-proof",

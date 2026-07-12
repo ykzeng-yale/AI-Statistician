@@ -221,6 +221,18 @@ explicitly by the upstream agent. Generic route probes in the materializer and
 the source-to-bridge/adapter lanes remain legacy static scaffolds; they are
 tracked as the next migration target and are not being mislabeled as repaired.
 
+Tenth concrete change in this lane: those remaining active scaffolds are now
+removed. A generic proof row without a candidate returns
+`LLM_CANDIDATE_GENERATION_REQUIRED`; proof-body adapter and source-to-bridge
+premise rows return typed requests carrying the exact goal, binders, semantic
+anchors, verified dependency paths/signatures, prior attempts, and evidence
+boundary. They do not create a `True` theorem, insert a tactic, or inline a
+verified dependency into model source. Wrong-declaration candidates are kept
+byte-for-byte and returned as feedback. The old one-shot tactic and
+formal-source templates are now opt-in calibration only through
+`legacy_static_template_baseline`; the default and AgentRuntime path keep them
+off. This completes the active-path attribution repair, not theorem closure.
+
 Live evidence collected during this lane:
 
 - `runs/main_worker_s14_two_family_fresh_live_20260712_v1/research_agent_runtime_manifest.json`:

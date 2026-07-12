@@ -69995,17 +69995,22 @@ def test_source_theorem_proof_body_adapter_bridge_avoids_mathlib_for_core_prop_s
     candidate_source = Path(row["adapter_candidate_artifact_path"]).read_text(
         encoding="utf-8"
     )
-    assert row["adapter_generation_mode"] == "proofengineer_generated_adapter_skeleton"
+    assert row["adapter_generation_mode"] == (
+        "formalizer_provided_adapter_candidate_wrong_declaration"
+    )
     assert row["adapter_candidate_evidence_eligible"] is False
+    assert row["adapter_candidate_bytes_preserved"] is True
+    assert row["llm_candidate_generation_required"] is True
+    assert row["failure_classification"] == "adapter_candidate_wrong_declaration"
     assert list(row["verified_source_to_bridge_premise_derivation_signature_excerpts"]) == [
         "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
         "(good covered : Prop) (h : good -> covered) (hg : good) : covered"
     ]
     assert "import Mathlib" not in candidate_source
-    assert "namespace AIStatisticianSourceTheoremProofBodyAdapter" in candidate_source
-    assert "verified source-to-bridge premise derivation id" in candidate_source
-    assert "verified source-to-bridge premise derivation signature excerpt" in candidate_source
-    assert "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation" in candidate_source
+    assert candidate_source == work_order["lean_statement_sketch"]
+    assert row["candidate_generation_request"][
+        "verified_source_to_bridge_premise_derivation_signature_excerpts"
+    ] == list(row["verified_source_to_bridge_premise_derivation_signature_excerpts"])
 
 
 def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(

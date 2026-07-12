@@ -89,6 +89,7 @@ class BestFirstWholeProofSearchController:
         proof_policy_weight: float = 100.0,
         proof_value_model: ProofSearchValueModel | None = None,
         proof_value_weight: float = 1000.0,
+        legacy_static_template_baseline: bool = False,
     ) -> None:
         if proof_policy_weight < 0:
             raise ValueError("proof_policy_weight must be nonnegative")
@@ -100,6 +101,9 @@ class BestFirstWholeProofSearchController:
         self.proof_policy_weight = proof_policy_weight
         self.proof_value_model = proof_value_model
         self.proof_value_weight = proof_value_weight
+        self.legacy_static_template_baseline = bool(
+            legacy_static_template_baseline
+        )
 
     async def solve(
         self,
@@ -223,38 +227,41 @@ class BestFirstWholeProofSearchController:
                     policy_prompt=query_metadata["prompt"],
                 )
             )
-        candidates.extend(_builtin_tactic_candidates(obligation, query_metadata["prompt"]))
-        for idx, lemma in enumerate(obligation.expected_lemmas):
-            if not lemma or any(ch.isspace() for ch in lemma):
-                continue
-            candidates.append(
-                ProofCandidate(
-                    candidate_id=f"{obligation.id}:lemma_simpa:{idx}",
-                    proof_body=f"by\n  simpa using {lemma}",
-                    source="expected_lemma_template",
-                    score=250.0 - idx,
-                    base_score=250.0 - idx,
-                    value_score=None,
-                    origin_obligation_id=obligation.id,
-                    expected_lemmas=tuple(obligation.expected_lemmas),
-                    tags=tuple(obligation.tags),
-                    policy_prompt=query_metadata["prompt"],
-                )
+        if self.legacy_static_template_baseline:
+            candidates.extend(
+                _builtin_tactic_candidates(obligation, query_metadata["prompt"])
             )
-            candidates.append(
-                ProofCandidate(
-                    candidate_id=f"{obligation.id}:lemma_exact:{idx}",
-                    proof_body=f"by\n  exact {lemma}",
-                    source="expected_lemma_template",
-                    score=200.0 - idx,
-                    base_score=200.0 - idx,
-                    value_score=None,
-                    origin_obligation_id=obligation.id,
-                    expected_lemmas=tuple(obligation.expected_lemmas),
-                    tags=tuple(obligation.tags),
-                    policy_prompt=query_metadata["prompt"],
+            for idx, lemma in enumerate(obligation.expected_lemmas):
+                if not lemma or any(ch.isspace() for ch in lemma):
+                    continue
+                candidates.append(
+                    ProofCandidate(
+                        candidate_id=f"{obligation.id}:lemma_simpa:{idx}",
+                        proof_body=f"by\n  simpa using {lemma}",
+                        source="expected_lemma_template",
+                        score=250.0 - idx,
+                        base_score=250.0 - idx,
+                        value_score=None,
+                        origin_obligation_id=obligation.id,
+                        expected_lemmas=tuple(obligation.expected_lemmas),
+                        tags=tuple(obligation.tags),
+                        policy_prompt=query_metadata["prompt"],
+                    )
                 )
-            )
+                candidates.append(
+                    ProofCandidate(
+                        candidate_id=f"{obligation.id}:lemma_exact:{idx}",
+                        proof_body=f"by\n  exact {lemma}",
+                        source="expected_lemma_template",
+                        score=200.0 - idx,
+                        base_score=200.0 - idx,
+                        value_score=None,
+                        origin_obligation_id=obligation.id,
+                        expected_lemmas=tuple(obligation.expected_lemmas),
+                        tags=tuple(obligation.tags),
+                        policy_prompt=query_metadata["prompt"],
+                    )
+                )
         for idx, neighbor in enumerate(_rank_memory_neighbors(obligation, self.proof_memory)[:5]):
             if neighbor.id == obligation.id:
                 continue

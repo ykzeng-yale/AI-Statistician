@@ -26,6 +26,7 @@ async def run_proof_search_retrieval_ablation(
     include_registered_proof: bool = True,
     baseline_name: str = "proof_search_without_dependency_graph",
     enhanced_name: str = "proof_search_with_dependency_graph",
+    legacy_static_template_baseline: bool = False,
 ) -> dict[str, object]:
     """Measure whether stronger source retrieval changes proof-search frontier.
 
@@ -49,6 +50,7 @@ async def run_proof_search_retrieval_ablation(
                 include_registered_proof=include_registered_proof,
                 baseline_name=baseline_name,
                 enhanced_name=enhanced_name,
+                legacy_static_template_baseline=legacy_static_template_baseline,
             )
     baseline_dir = out_dir / "baseline"
     enhanced_dir = out_dir / "enhanced"
@@ -60,6 +62,7 @@ async def run_proof_search_retrieval_ablation(
         formal_source_retriever=baseline_retriever,
         formal_source_k=formal_source_k,
         include_registered_proof=include_registered_proof,
+        legacy_static_template_baseline=legacy_static_template_baseline,
     )
     enhanced = await audit_proof_search_controller(
         enhanced_dir,
@@ -69,6 +72,7 @@ async def run_proof_search_retrieval_ablation(
         formal_source_retriever=enhanced_retriever,
         formal_source_k=formal_source_k,
         include_registered_proof=include_registered_proof,
+        legacy_static_template_baseline=legacy_static_template_baseline,
     )
     candidate_delta = int(enhanced["formal_source_candidates_total"]) - int(
         baseline["formal_source_candidates_total"]
@@ -100,6 +104,7 @@ async def run_proof_search_retrieval_ablation(
         "max_nodes": max_nodes,
         "formal_source_k": formal_source_k,
         "include_registered_proof": include_registered_proof,
+        "legacy_static_template_baseline": legacy_static_template_baseline,
         "baseline": _summary(baseline),
         "enhanced": _summary(enhanced),
         "formal_source_candidate_delta": candidate_delta,
