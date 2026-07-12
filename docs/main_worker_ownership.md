@@ -1178,12 +1178,49 @@ candidate tampering before any tool runs. The full runtime suite passes 1047
 tests; the core suite passes 289 tests with 5 skips and 6 passing subtests.
 
 This migration still proves no statistical source theorem by itself. The
-remaining duplicate plane includes source-semantic ProofEngineer bridging,
-source-theorem promotion, exact-semantic authoring/repair/recheck,
-adapter/premise derivation, and later same-run proof-body rechecks. Those lanes
-must become typed children before the Architect owns the whole formal feedback
-graph, and S14 remains false until two unrelated fresh task families close
-their intended exact source theorems under local Lean/AXLE.
+primary Formalizer-produced source-semantic lane has since moved into the typed
+runtime path described below. The remaining duplicate plane includes
+late-derived semantic work, source-theorem promotion, exact-semantic
+authoring/repair/recheck, adapter/premise derivation, and later same-run
+proof-body rechecks. Those lanes must become typed children before the
+Architect owns the whole formal feedback graph, and S14 remains false until
+two unrelated fresh task families close their intended exact source theorems
+under local Lean/AXLE.
+
+## Typed Source-Semantic Runtime Migration
+
+Primary source-semantic evaluation now runs as the Architect-visible
+`SourceSemanticProofEngineer` AgentRuntime child when FormalizationEvaluator
+has semantic work but no exact source candidate ready for the compiler child.
+Its immutable work order binds the source formalization manifest, the exact
+projected semantic work-order rows and hashes, execution policy, source task,
+and Critic return task. Deterministic execution ids and persisted next-task
+metadata make resume replay side-effect free.
+
+The child may use the existing proof bank as signed retrieval/calibration
+support and may independently run local Lean over registered support
+obligations. It then reopens the bound proof-audit manifest and recomputes that
+every claimed support id and summary count is kernel verified. Missing or
+forged support fails closed. Even valid support is recorded with
+`source_theorem_kernel_verified=false`: a helper bridge does not define the
+paper's statistical object and does not prove the source theorem.
+
+Unresolved definitions and proof obligations return to the LLM ProofEngineer
+with bridge checks, learning rows, exact target ids, and the support boundary.
+Python does not generate Lean declarations, definitions, grammar, or tactics.
+The active work-order selector uses the Formalizer packet's structured
+`gap_taxonomy.kind` values rather than scanning for conformal terms such as
+exchangeability, rank, order statistics, or quantiles; regression coverage
+includes an unrelated design-based Hajek semantic-alignment gap.
+
+This is still a partial control-plane migration. Semantic work discovered only
+after proof-body execution or postprocessing remains an explicitly reported
+`legacy_post_runtime_derived_execution` fallback so the existing
+adapter/premise cascade is not silently dropped. Source-theorem promotion also
+remains outside AgentRuntime. Those two linked paths are the next central
+migration. The full runtime suite passes 1047 tests and the core suite passes
+289 tests with 5 skips and 6 passing subtests. No statistical source theorem or
+S14 completion is claimed.
 
 ## Whole-Proof Agent Correction
 

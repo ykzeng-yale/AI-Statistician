@@ -314,6 +314,12 @@ from .exact_source_theorem_proof_body_runtime_worker import (
     EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
     ExactSourceTheoremProofBodyRuntimeWorker,
 )
+from .source_semantic_proofengineer_runtime_worker import (
+    SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+    SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND,
+    SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND,
+    SourceSemanticProofEngineerRuntimeWorker,
+)
 from .verifier import ProofVerifier
 
 
@@ -14414,6 +14420,173 @@ def _runtime_exact_source_theorem_proof_body_dispatch_task(
     )
 
 
+def _runtime_source_semantic_rows_from_manifest(
+    formalization_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    question = (
+        formalization_manifest.get("question", {})
+        if isinstance(formalization_manifest.get("question", {}), Mapping)
+        else {}
+    )
+    manifest_id = str(formalization_manifest.get("manifest_id", "") or "")
+    rows: list[dict[str, Any]] = []
+    for raw_row in formalization_manifest.get(
+        "runtime_source_semantic_work_orders", []
+    ) or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = dict(raw_row)
+        row["source_formalization_manifest_id"] = manifest_id
+        row["question_id"] = str(
+            row.get("question_id", "") or question.get("id", "") or ""
+        )
+        row["question_title"] = str(
+            row.get("question_title", "") or question.get("title", "") or ""
+        )
+        row["runtime_queue_status"] = str(
+            row.get("runtime_queue_status", "")
+            or "PENDING_SOURCE_SEMANTIC_SUPPORT_EVALUATION"
+        )
+        row["runtime_queue_boundary"] = str(
+            row.get("runtime_queue_boundary", "")
+            or (
+                "This typed source-semantic queue row is not proof evidence. "
+                "Registered support remains helper evidence; exact definitions "
+                "and source-theorem proofs require their own local Lean gates."
+            )
+        )
+        rows.append(row)
+    return rows
+
+
+def _runtime_source_semantic_work_order(
+    *,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    return_task: AgentTask,
+    runtime_config: ResearchAgentRuntimeConfig,
+) -> dict[str, Any]:
+    rows = _runtime_source_semantic_rows_from_manifest(formalization_manifest)
+    source_manifest_id = str(
+        formalization_manifest.get("manifest_id", "") or ""
+    )
+    source_manifest_hash = stable_hash(dict(formalization_manifest))
+    execution_policy = {
+        "local_lean": bool(
+            runtime_config.source_semantic_proofengineer_local_lean
+        ),
+        "lean_project": str(
+            runtime_config.source_semantic_proofengineer_lean_project or ""
+        ),
+        "lean_timeout": int(
+            runtime_config.source_semantic_proofengineer_lean_timeout
+        ),
+        "registered_support_policy": (
+            "Registered proof-bank obligations are retrieval/calibration support "
+            "only. They may be independently kernel checked, but they do not "
+            "supply an exact semantic definition or source-theorem proof."
+        ),
+        "candidate_source_policy": (
+            "Return unresolved semantic definitions and proof obligations to the "
+            "LLM Formalizer/ProofEngineer with signed RAG and compiler feedback. "
+            "Python must not generate Lean grammar, definitions, or tactics."
+        ),
+    }
+    work_order_id = "runtime_source_semantic_work_order:" + stable_hash(
+        [
+            source_task.task_id,
+            source_manifest_id,
+            source_manifest_hash,
+            rows,
+            execution_policy,
+        ]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem=SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": str(source_task.owner_subsystem or ""),
+        "target_subsystem": SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+        "source_formalization_manifest_id": source_manifest_id,
+        "source_formalization_manifest_hash": source_manifest_hash,
+        "work_order_rows": rows,
+        "work_order_row_hashes": [stable_hash(row) for row in rows],
+        "execution_policy": execution_policy,
+        "execution_policy_fingerprint": stable_hash(execution_policy),
+        "source_task": asdict(source_task),
+        "return_task": asdict(return_task),
+        "proof_evidence_status": (
+            "SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override=SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+    )
+
+
+def _runtime_source_semantic_dispatch_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"source-semantic-proofengineer:{question.id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+        objective=(
+            "Evaluate the immutable source-semantic work order inside "
+            "AgentRuntime. Independently check any registered support, keep it "
+            "separate from source-theorem evidence, and return unresolved exact "
+            "definition/proof work to the LLM ProofEngineer."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "source_semantic_work_order_id": work_order_id,
+            "source_semantic_work_order_hash": stable_hash(dict(work_order)),
+        },
+        allowed_tools=(
+            "blackboard",
+            "model_backend",
+            "formal_source_retrieval",
+            "proof_search",
+            "proof_bank_memory",
+            "local_lean",
+            "lean_lsp_mcp",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "source_semantic_proofengineer_execution_manifest",
+            "source_semantic_compiler_or_definition_feedback",
+        ),
+        acceptance_gate=(
+            "registered support is independently checked and remains support-only, "
+            "while unresolved exact semantics return to the LLM coding agent"
+        ),
+        stop_condition=(
+            "semantic support is recorded with its exact boundary, or unresolved "
+            "definition/proof feedback is returned inside the same AgentRuntime"
+        ),
+    )
+
+
 
 class FormalizationEvaluatorRuntimeSubsystem:
     name = "FormalizationEvaluator"
@@ -15988,6 +16161,33 @@ class FormalizationEvaluatorRuntimeSubsystem:
         pseudo_formal_work_order_rows = (
             pseudo_formal_work_order_rows if proposal_packet is not None else []
         )
+        source_semantic_work_orders: list[dict[str, Any]] = []
+        if isinstance(proposal_packet, Mapping):
+            source_semantic_work_orders.extend(
+                _formalizer_source_theorem_semantic_primitive_work_orders(
+                    proposal_packet=proposal_packet,
+                    proof_bank_runtime_memory_summary=(
+                        proof_bank_runtime_memory_summary
+                    ),
+                    theorem_goals=theorem_goals,
+                )
+            )
+        source_semantic_work_orders.extend(
+            _pseudo_formal_source_theorem_semantic_primitive_work_orders(
+                pseudo_formal_work_order_rows,
+                proof_bank_runtime_memory_summary=(
+                    proof_bank_runtime_memory_summary
+                ),
+                theorem_goals=theorem_goals,
+            )
+        )
+        source_semantic_work_orders = list(
+            {
+                str(row.get("work_order_id", "") or stable_hash(row)): dict(row)
+                for row in source_semantic_work_orders
+                if isinstance(row, Mapping)
+            }.values()
+        )
         pseudo_formal_effective_work_order_rows = (
             pseudo_formal_routable_work_order_rows(pseudo_formal_work_order_rows)
         )
@@ -16271,6 +16471,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "for ProofEngineer/Lean. They are not proof evidence until AXLE/local Lean "
                 "kernel verification closes the intended theorem-level reduction."
             ),
+            "runtime_source_semantic_work_orders": source_semantic_work_orders,
+            "runtime_source_semantic_work_order_boundary": (
+                "Source-semantic work orders are immutable inputs to the typed "
+                "SourceSemanticProofEngineer child. Registered proof-bank support "
+                "is retrieval/calibration evidence only and never proves the source "
+                "theorem; unresolved definitions and proofs return to the LLM worker."
+            ),
             "source_to_bridge_premise_derivation_work_orders": (
                 source_to_bridge_premise_derivation_work_orders
             ),
@@ -16321,6 +16528,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ],
                 "theorem_reduction_closure_work_orders": len(
                     theorem_reduction_closure_work_orders
+                ),
+                "runtime_source_semantic_work_orders": len(
+                    source_semantic_work_orders
                 ),
                 "pseudo_formal_work_order_rows": len(pseudo_formal_work_order_rows),
                 "pseudo_formal_routable_work_order_rows": len(
@@ -16674,6 +16884,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
         theorem_closure_dispatch_evidence: EvidenceLedgerEntry | None = None
         exact_source_proof_body_dispatch_evidence: EvidenceLedgerEntry | None = None
+        source_semantic_dispatch_evidence: EvidenceLedgerEntry | None = None
         if lean_candidate_repair_feedback is not None:
             observations.append(
                 EnvironmentObservation(
@@ -17186,6 +17397,82 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "hash-bound exact source-theorem candidate to the typed "
                     "compiler child before CriticEvaluator."
                 )
+            elif (
+                self.runtime_config.source_semantic_proofengineer_bridge
+                and source_semantic_work_orders
+            ):
+                source_semantic_work_order = _runtime_source_semantic_work_order(
+                    source_task=task,
+                    question=question,
+                    architect_context=context,
+                    formalization_manifest=manifest,
+                    return_task=critic_task,
+                    runtime_config=self.runtime_config,
+                )
+                source_semantic_work_order_id = str(
+                    source_semantic_work_order.get("work_order_id", "") or ""
+                )
+                produced_artifacts[source_semantic_work_order_id] = (
+                    source_semantic_work_order
+                )
+                next_task = _runtime_source_semantic_dispatch_task(
+                    question=question,
+                    architect_context=context,
+                    work_order=source_semantic_work_order,
+                )
+                source_semantic_dispatch_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash([task.task_id, source_semantic_work_order_id])[
+                        :20
+                    ],
+                    task_id=task.task_id,
+                    artifact_id=source_semantic_work_order_id,
+                    evidence_type="source_semantic_proofengineer_work_order",
+                    status=(
+                        "SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_RECORDED_"
+                        "NOT_PROOF_EVIDENCE"
+                    ),
+                    boundary=KERNEL_PROOF_BOUNDARY,
+                    payload={
+                        "source_formalization_manifest_id": manifest_id,
+                        "n_work_order_rows": len(source_semantic_work_orders),
+                        "next_owner_subsystem": (
+                            SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM
+                        ),
+                        "registered_support_is_source_theorem_proof": False,
+                        "runtime_generated_lean": False,
+                    },
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "source_semantic_proofengineer_work_order"
+                        ),
+                        summary=(
+                            "immutable source-semantic work order routed to an "
+                            "AgentRuntime support evaluator before CriticEvaluator"
+                        ),
+                        payload={
+                            "work_order_id": source_semantic_work_order_id,
+                            "n_work_order_rows": len(
+                                source_semantic_work_orders
+                            ),
+                            "next_owner_subsystem": (
+                                SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM
+                            ),
+                            "proof_evidence_status": (
+                                "SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_"
+                                "NOT_PROOF_EVIDENCE"
+                            ),
+                            "registered_support_is_source_theorem_proof": False,
+                        },
+                    )
+                )
+                result_rationale = (
+                    "Runtime recorded formalization/proof feedback and routed the "
+                    "immutable source-semantic work order to the typed support "
+                    "evaluator before CriticEvaluator."
+                )
             else:
                 next_task = critic_task
                 result_rationale = (
@@ -17215,6 +17502,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     gap_planner_evidence,
                     theorem_closure_dispatch_evidence,
                     exact_source_proof_body_dispatch_evidence,
+                    source_semantic_dispatch_evidence,
                 )
                 if row is not None
             ),
@@ -20994,6 +21282,12 @@ def _runtime_architect_control_subsystem_for_artifact(
         EXACT_SOURCE_THEOREM_PROOF_BODY_RUNTIME_EXECUTION_KIND: (
             EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
         ),
+        SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND: (
+            SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM
+        ),
+        SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND: (
+            SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM
+        ),
         "RuntimeExactSourceTheoremProverExecutionManifest": (
             EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
         ),
@@ -21050,6 +21344,14 @@ def _runtime_architect_control_subsystem_for_artifact(
         (
             "runtime_exact_source_theorem_proof_body_execution:",
             EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+        ),
+        (
+            "runtime_source_semantic_work_order:",
+            SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+        ),
+        (
+            "runtime_source_semantic_execution:",
+            SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
         ),
         (
             "exact_source_theorem_prover_execution:",
@@ -28630,6 +28932,18 @@ def run_research_agent_runtime(
                     repair_available=formalizer is not None,
                 )
             ),
+            SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM: (
+                SourceSemanticProofEngineerRuntimeWorker(
+                    out_root=out_dir,
+                    source_rows_resolver=(
+                        _runtime_source_semantic_rows_from_manifest
+                    ),
+                    bridge_runner=(
+                        run_source_theorem_semantic_primitive_proofengineer_bridge
+                    ),
+                    repair_available=formalizer is not None,
+                )
+            ),
             "FormalizationGapPlanner": FormalizationGapPlannerRuntimeSubsystem(
                 out_dir=out_dir,
                 runtime_config=config,
@@ -29160,6 +29474,17 @@ def run_research_agent_runtime(
         "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified": (
             evidence_summary["proof"][
                 "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified"
+            ]
+        ),
+        "n_source_semantic_agent_runtime_work_orders": evidence_summary["proof"][
+            "n_source_semantic_agent_runtime_work_orders"
+        ],
+        "n_source_semantic_agent_runtime_executions": evidence_summary["proof"][
+            "n_source_semantic_agent_runtime_executions"
+        ],
+        "n_source_semantic_agent_runtime_kernel_verified_support": (
+            evidence_summary["proof"][
+                "n_source_semantic_agent_runtime_kernel_verified_support"
             ]
         ),
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -29915,10 +30240,27 @@ def run_research_agent_runtime(
         else "not_run"
     )
     exact_source_proof_body_legacy_post_runtime_fallback_used = False
-    source_semantic_bridge_manifest: dict[str, Any] | None = None
+    (
+        source_semantic_agent_runtime_work_orders,
+        source_semantic_agent_runtime_executions,
+    ) = _runtime_source_semantic_agent_runtime_artifacts(results)
+    source_semantic_bridge_manifest = (
+        _runtime_aggregate_source_semantic_executions(
+            source_semantic_agent_runtime_executions
+        )
+    )
+    source_semantic_execution_mode = (
+        "agent_runtime_typed_worker"
+        if source_semantic_agent_runtime_executions
+        else "agent_runtime_work_order_pending"
+        if source_semantic_agent_runtime_work_orders
+        else "not_run"
+    )
+    source_semantic_legacy_post_runtime_fallback_used = False
     if (
         config.source_semantic_proofengineer_bridge
         and source_theorem_semantic_primitive_work_order_rows
+        and not source_semantic_agent_runtime_work_orders
     ):
         source_semantic_bridge_manifest = (
             run_source_theorem_semantic_primitive_proofengineer_bridge(
@@ -29935,6 +30277,8 @@ def run_research_agent_runtime(
                 lean_timeout=config.source_semantic_proofengineer_lean_timeout,
             )
         )
+        source_semantic_execution_mode = "legacy_post_runtime_derived_execution"
+        source_semantic_legacy_post_runtime_fallback_used = True
     source_theorem_promotion_bridge_manifest: dict[str, Any] | None = None
     if (
         config.source_theorem_promotion_proofengineer_bridge
@@ -37329,27 +37673,77 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_bridge_manifest"
         ] = str(
-            out_dir
-            / "runtime_source_theorem_semantic_primitive_proofengineer_bridge"
-            / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+            source_semantic_bridge_manifest.get("bridge_manifest_path", "")
+            or (
+                source_semantic_bridge_manifest.get("bridge_manifest_paths", [])
+                or [""]
+            )[0]
         )
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_learning_rows_jsonl"
-        ] = str(source_semantic_bridge_manifest["runtime_learning_rows_jsonl"])
+        ] = str(
+            source_semantic_bridge_manifest.get("runtime_learning_rows_jsonl", "")
+            or (
+                source_semantic_bridge_manifest.get(
+                    "runtime_learning_rows_jsonl_paths", []
+                )
+                or [""]
+            )[0]
+        )
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_learning_export_manifest"
-        ] = str(source_semantic_bridge_manifest["runtime_learning_export_manifest"])
+        ] = str(
+            source_semantic_bridge_manifest.get(
+                "runtime_learning_export_manifest", ""
+            )
+            or (
+                source_semantic_bridge_manifest.get(
+                    "runtime_learning_export_manifest_paths", []
+                )
+                or [""]
+            )[0]
+        )
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_checks_jsonl"
-        ] = str(source_semantic_bridge_manifest["checks_jsonl"])
+        ] = str(
+            source_semantic_bridge_manifest.get("checks_jsonl", "")
+            or (
+                source_semantic_bridge_manifest.get("checks_jsonl_paths", [])
+                or [""]
+            )[0]
+        )
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proof_library_expansion_queue_jsonl"
-        ] = str(source_semantic_bridge_manifest["proof_library_expansion_queue_jsonl"])
+        ] = str(
+            source_semantic_bridge_manifest.get(
+                "proof_library_expansion_queue_jsonl", ""
+            )
+            or (
+                source_semantic_bridge_manifest.get(
+                    "proof_library_expansion_queue_jsonl_paths", []
+                )
+                or [""]
+            )[0]
+        )
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proof_library_expansion_queue_manifest"
         ] = str(
-            source_semantic_bridge_manifest["proof_library_expansion_queue_manifest"]
+            source_semantic_bridge_manifest.get(
+                "proof_library_expansion_queue_manifest", ""
+            )
+            or (
+                source_semantic_bridge_manifest.get(
+                    "proof_library_expansion_queue_manifest_paths", []
+                )
+                or [""]
+            )[0]
         )
+        manifest["artifacts"][
+            "runtime_source_semantic_agent_runtime_execution_manifests"
+        ] = [
+            str(row.get("manifest_id", "") or "")
+            for row in source_semantic_agent_runtime_executions
+        ]
     if source_semantic_post_executor_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_bridge_from_proof_body_executor_manifest"
@@ -43613,6 +44007,23 @@ def run_research_agent_runtime(
     manifest["source_semantic_proofengineer_bridge_requested"] = bool(
         config.source_semantic_proofengineer_bridge
     )
+    manifest["source_semantic_proofengineer_execution_mode"] = (
+        source_semantic_execution_mode
+    )
+    manifest["n_source_semantic_agent_runtime_work_orders"] = len(
+        source_semantic_agent_runtime_work_orders
+    )
+    manifest["n_source_semantic_agent_runtime_executions"] = len(
+        source_semantic_agent_runtime_executions
+    )
+    manifest["n_source_semantic_agent_runtime_pending_work_orders"] = max(
+        0,
+        len(source_semantic_agent_runtime_work_orders)
+        - len(source_semantic_agent_runtime_executions),
+    )
+    manifest["source_semantic_legacy_post_runtime_fallback_used"] = (
+        source_semantic_legacy_post_runtime_fallback_used
+    )
     manifest["source_semantic_proofengineer_bridge_ran"] = (
         source_semantic_bridge_manifest is not None
     )
@@ -43622,17 +44033,27 @@ def run_research_agent_runtime(
         else (
             "bridge_disabled"
             if not config.source_semantic_proofengineer_bridge
+            else "agent_runtime_work_order_pending"
+            if source_semantic_agent_runtime_work_orders
+            else "legacy_post_runtime_execution_disabled"
+            if source_theorem_semantic_primitive_work_order_rows
             else "no_source_theorem_semantic_primitive_work_orders"
         )
     )
     manifest["source_semantic_proofengineer_bridge_runtime_learning_ready"] = bool(
         source_semantic_bridge_manifest
-        and source_semantic_bridge_manifest.get("runtime_learning_ready") is True
+        and (
+            source_semantic_bridge_manifest.get("runtime_learning_ready") is True
+            or bool(source_semantic_bridge_manifest.get("runtime_learning_rows", []))
+        )
     )
     manifest["source_semantic_proofengineer_bridge_n_kernel_verified_registered_candidates"] = int(
         source_semantic_bridge_manifest.get(
             "n_kernel_verified_registered_candidate_obligations",
-            0,
+            source_semantic_bridge_manifest.get(
+                "n_kernel_verified_source_theorem_semantic_primitive_ids",
+                0,
+            ),
         )
         if source_semantic_bridge_manifest
         else 0
@@ -43723,12 +44144,12 @@ def run_research_agent_runtime(
         else ""
     )
     manifest["source_semantic_proofengineer_bridge_boundary"] = (
-        "The runtime source-semantic ProofEngineer bridge consumes upstream "
-        "semantic primitive work orders after the current runtime loop and may "
-        "export separate runtime-learning rows for a later run. It does not "
-        "retroactively prove the current run, and verified registered semantic "
-        "bridges do not by themselves prove the full source theorem or any "
-        "unformalized upstream statistical definition."
+        "The primary source-semantic support lane executes only as a typed, "
+        "Architect-visible AgentRuntime child. Postprocessing projects its "
+        "immutable artifacts and performs no retrieval, bridge, or verifier side "
+        "effects. Registered proof-bank support remains support-only; unresolved "
+        "exact definitions and proofs return to the LLM ProofEngineer, and no "
+        "support row proves the source theorem or upstream statistical semantics."
     )
     manifest["source_semantic_post_executor_proofengineer_bridge_requested"] = bool(
         config.source_semantic_proofengineer_bridge
@@ -67729,23 +68150,7 @@ def _formalizer_source_theorem_semantic_primitive_work_orders(
         gap = str(row.get("gap", "") or "").strip()
         kind = str(row.get("kind", "") or "").strip()
         next_owner = str(row.get("next_owner", "") or "").strip()
-        text = f"{kind} {gap}".lower()
-        stale_reduction_gap = (
-            "reduction closure" in text
-            or "reduction_closure" in text
-            or "single lean proof term" in text
-        )
-        source_semantic_gap = (
-            "formal_primitive" in text
-            or "formal primitive" in text
-            or "exchangeab" in text
-            or "orderstat" in text
-            or "order statistic" in text
-            or "quantile" in text
-            or "rank uniform" in text
-            or "source theorem semantic" in text
-        )
-        if gap and source_semantic_gap and not stale_reduction_gap:
+        if gap and kind in {"formal_primitives", "semantic_alignment"}:
             selected_gaps.append(
                 {"gap": gap, "kind": kind, "next_owner": next_owner}
             )
@@ -74590,6 +74995,205 @@ def _runtime_exact_source_theorem_proof_body_agent_runtime_artifacts(
                     seen_executions.add(artifact_id)
                     executions.append(dict(artifact))
     return work_orders, executions
+
+
+def _runtime_source_semantic_agent_runtime_artifacts(
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    work_orders: list[dict[str, Any]] = []
+    executions: list[dict[str, Any]] = []
+    seen_work_orders: set[str] = set()
+    seen_executions: set[str] = set()
+    for result in results:
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind == SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND:
+                artifact_id = str(artifact.get("work_order_id", "") or "")
+                if artifact_id and artifact_id not in seen_work_orders:
+                    seen_work_orders.add(artifact_id)
+                    work_orders.append(dict(artifact))
+            elif kind == SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND:
+                artifact_id = str(artifact.get("manifest_id", "") or "")
+                if artifact_id and artifact_id not in seen_executions:
+                    seen_executions.add(artifact_id)
+                    executions.append(dict(artifact))
+    return work_orders, executions
+
+
+def _runtime_aggregate_source_semantic_executions(
+    executions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    rows = [dict(row) for row in executions if isinstance(row, Mapping)]
+    if not rows:
+        return None
+    bridge_manifests = [
+        dict(row.get("bridge_manifest", {}))
+        for row in rows
+        if isinstance(row.get("bridge_manifest", {}), Mapping)
+    ]
+    checks = [
+        dict(check)
+        for bridge in bridge_manifests
+        for check in bridge.get("checks", []) or []
+        if isinstance(check, Mapping)
+    ]
+    learning_rows = [
+        dict(learning_row)
+        for row in rows
+        for learning_row in row.get("runtime_learning_rows", []) or []
+        if isinstance(learning_row, Mapping)
+    ]
+    support_ids = list(
+        dict.fromkeys(
+            str(value)
+            for row in rows
+            for value in row.get("kernel_verified_support_ids", []) or []
+            if str(value)
+        )
+    )
+    exact_goal_shape_ids = list(
+        dict.fromkeys(
+            str(value)
+            for bridge in bridge_manifests
+            for value in bridge.get("exact_goal_shape_obligation_ids", []) or []
+            if str(value)
+        )
+    )
+    registered_exact_goal_shape_ids = list(
+        dict.fromkeys(
+            str(value)
+            for bridge in bridge_manifests
+            for value in bridge.get(
+                "registered_exact_goal_shape_obligation_ids", []
+            )
+            or []
+            if str(value)
+        )
+    )
+    unregistered_exact_goal_shape_ids = list(
+        dict.fromkeys(
+            str(value)
+            for bridge in bridge_manifests
+            for value in bridge.get(
+                "unregistered_exact_goal_shape_obligation_ids", []
+            )
+            or []
+            if str(value)
+        )
+    )
+    n_proof_library_rows = sum(
+        int(bridge.get("n_proof_library_expansion_queue_rows", 0) or 0)
+        for bridge in bridge_manifests
+    )
+    n_adapter_rows = sum(
+        int(
+            bridge.get(
+                "n_source_to_bridge_adapter_instantiation_queue_rows", 0
+            )
+            or 0
+        )
+        for bridge in bridge_manifests
+    )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeSourceSemanticProofEngineerExecutionAggregate",
+        "manifest_id": "runtime_source_semantic_execution_aggregate:"
+        + stable_hash(rows)[:20],
+        "runtime_execution_mode": "agent_runtime_typed_worker",
+        "n_agent_runtime_execution_manifests": len(rows),
+        "agent_runtime_execution_manifest_ids": [
+            str(row.get("manifest_id", "") or "") for row in rows
+        ],
+        "bridge_manifest_paths": [
+            str(row.get("bridge_manifest_path", "") or "")
+            for row in rows
+            if str(row.get("bridge_manifest_path", "") or "")
+        ],
+        "runtime_learning_rows_jsonl_paths": [
+            str(bridge.get("runtime_learning_rows_jsonl", "") or "")
+            for bridge in bridge_manifests
+            if str(bridge.get("runtime_learning_rows_jsonl", "") or "")
+        ],
+        "runtime_learning_export_manifest_paths": [
+            str(bridge.get("runtime_learning_export_manifest", "") or "")
+            for bridge in bridge_manifests
+            if str(bridge.get("runtime_learning_export_manifest", "") or "")
+        ],
+        "checks_jsonl_paths": [
+            str(bridge.get("checks_jsonl", "") or "")
+            for bridge in bridge_manifests
+            if str(bridge.get("checks_jsonl", "") or "")
+        ],
+        "proof_library_expansion_queue_jsonl_paths": [
+            str(bridge.get("proof_library_expansion_queue_jsonl", "") or "")
+            for bridge in bridge_manifests
+            if str(bridge.get("proof_library_expansion_queue_jsonl", "") or "")
+        ],
+        "proof_library_expansion_queue_manifest_paths": [
+            str(bridge.get("proof_library_expansion_queue_manifest", "") or "")
+            for bridge in bridge_manifests
+            if str(bridge.get("proof_library_expansion_queue_manifest", "") or "")
+        ],
+        "checks": checks,
+        "runtime_learning_rows": learning_rows,
+        "runtime_learning_ready": bool(learning_rows),
+        "n_work_orders": sum(int(row.get("n_work_orders", 0) or 0) for row in rows),
+        "n_kernel_verified_registered_candidate_obligations": len(support_ids),
+        "n_kernel_verified_source_theorem_semantic_primitive_ids": len(
+            support_ids
+        ),
+        "kernel_verified_source_theorem_semantic_primitive_ids": support_ids,
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            support_ids
+        ),
+        "n_exact_goal_shape_obligation_work_orders": len(exact_goal_shape_ids),
+        "exact_goal_shape_obligation_ids": exact_goal_shape_ids,
+        "registered_exact_goal_shape_obligation_ids": (
+            registered_exact_goal_shape_ids
+        ),
+        "unregistered_exact_goal_shape_obligation_ids": (
+            unregistered_exact_goal_shape_ids
+        ),
+        "proof_library_expansion_queue_ready": n_proof_library_rows > 0,
+        "n_proof_library_expansion_queue_rows": n_proof_library_rows,
+        "proof_library_expansion_queue_proof_evidence_status": (
+            "SOURCE_SEMANTIC_PROOF_LIBRARY_WORK_ORDERS_NOT_PROOF_EVIDENCE"
+        ),
+        "source_to_bridge_adapter_instantiation_queue_ready": n_adapter_rows > 0,
+        "n_source_to_bridge_adapter_instantiation_queue_rows": n_adapter_rows,
+        "source_to_bridge_adapter_instantiation_queue_proof_evidence_status": (
+            "SOURCE_TO_BRIDGE_ADAPTER_WORK_ORDERS_NOT_PROOF_EVIDENCE"
+        ),
+        "n_kernel_verified_source_theorem_semantic_definition_ids": 0,
+        "kernel_verified_source_theorem_semantic_definition_ids": [],
+        "source_theorem_ready_for_exact_proof_body": False,
+        "source_theorem_semantic_support_only": bool(support_ids),
+        "source_theorem_kernel_verified": False,
+        "registered_support_is_source_theorem_proof": False,
+        "proof_evidence_status": (
+            "KERNEL_VERIFIED_SOURCE_SEMANTIC_SUPPORT_PRESENT"
+            if support_ids
+            else "SOURCE_SEMANTIC_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "This aggregate projects typed AgentRuntime semantic-support child "
+            "executions. It performs no bridge or Lean work. Registered support "
+            "never proves an exact semantic definition or the source theorem."
+        ),
+    }
 
 
 def _runtime_aggregate_theorem_reduction_closure_executions(
@@ -84009,6 +84613,13 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
 def _runtime_bridge_learning_rows(
     bridge_manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
+    embedded_rows = [
+        dict(row)
+        for row in bridge_manifest.get("runtime_learning_rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if embedded_rows:
+        return embedded_rows
     learning_rows_path_value = str(
         bridge_manifest.get("runtime_learning_rows_jsonl", "") or ""
     )
@@ -88006,6 +88617,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_exact_source_theorem_proof_body_agent_runtime_work_orders": 0,
         "n_exact_source_theorem_proof_body_agent_runtime_executions": 0,
         "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified": 0,
+        "n_source_semantic_agent_runtime_work_orders": 0,
+        "n_source_semantic_agent_runtime_executions": 0,
+        "n_source_semantic_agent_runtime_kernel_verified_support": 0,
         "n_full_frontier_raw_theorem_proved_claims": 0,
         "n_full_frontier_target_bound_kernel_verified": 0,
         "n_full_frontier_theorem_proved": 0,
@@ -88606,6 +89220,24 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     verifier_names.add(
                         "local.exact_source_theorem_proof_body_agent_runtime"
                     )
+            elif kind == SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND:
+                proof["n_source_semantic_agent_runtime_work_orders"] += 1
+            elif kind == SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND:
+                proof["n_source_semantic_agent_runtime_executions"] += 1
+                if _bool_like(
+                    artifact.get("execution_contract_satisfied", False)
+                ):
+                    proof[
+                        "n_source_semantic_agent_runtime_kernel_verified_support"
+                    ] += int(
+                        artifact.get("n_kernel_verified_support_ids", 0) or 0
+                    )
+                    if int(
+                        artifact.get("n_kernel_verified_support_ids", 0) or 0
+                    ):
+                        verifier_names.add(
+                            "local.source_semantic_support_agent_runtime"
+                        )
             elif kind == "FormalizerProofEngineerProposalPacket":
                 proposal_id = str(artifact.get("packet_id", "") or "").strip()
                 if proposal_id:

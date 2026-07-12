@@ -34,6 +34,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "FormalizationEvaluator",
     "TheoremReductionClosureProofEngineer",
     "ExactSourceTheoremProofBodyExecutor",
+    "SourceSemanticProofEngineer",
     "ProofEngineer",
     "ExactSourceTheoremProver",
     "FormalizationGapPlanner",
@@ -246,6 +247,12 @@ def build_architect_coordinator_prompt(
         "candidate and structured target location. It must reject inferred target "
         "identity, preserve candidate lineage, route exact Lean diagnostics back "
         "to ProofEngineer, and run before CriticEvaluator. "
+        "Treat SourceSemanticProofEngineer as the typed semantic-support child "
+        "when FormalizationEvaluator has no exact source candidate but emits "
+        "source-semantic work orders. Registered proof-bank matches are retrieval "
+        "and support evidence only; unresolved definitions and proof obligations "
+        "must return to the LLM ProofEngineer, and this child must not generate "
+        "Lean or claim that helper support proves the source theorem. "
         "If runtime learning memory reports concrete source-to-bridge premise targets with "
         "premise_derivation_gap_kind=concrete_premise_target_lacks_nonvacuous_derivation_candidate, "
         "route upstream to TheoryDeveloper/Formalizer for semantic-assumption or lemma repair before "
@@ -813,6 +820,9 @@ def _architect_runtime_capability_eval_contract(
                 False,
             )
         ),
+        "source_semantic_proofengineer_required": bool(
+            runtime_config.get("source_semantic_proofengineer_bridge", False)
+        ),
     }
 
 
@@ -861,6 +871,8 @@ def _required_architect_plan_subsystems(
         is True
     ):
         required.add("ExactSourceTheoremProofBodyExecutor")
+    if evidence_contract.get("source_semantic_proofengineer_required") is True:
+        required.add("SourceSemanticProofEngineer")
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

@@ -18687,6 +18687,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         "theorem_closure_proofengineer_bridge": True,
         "source_theorem_formal_environment_proofengineer_bridge": True,
         "source_theorem_formal_environment_proofengineer_execute_proof_body": True,
+        "source_semantic_proofengineer_bridge": True,
     }
 
     prompt = build_architect_coordinator_prompt(
@@ -18725,6 +18726,19 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
             ),
         },
         {
+            "subsystem": "SourceSemanticProofEngineer",
+            "objective": (
+                "evaluate semantic support and return unresolved definitions"
+            ),
+            "inputs_needed": ["typed source-semantic work order"],
+            "expected_artifacts": [
+                "typed semantic-support execution manifest"
+            ],
+            "acceptance_gate": (
+                "registered support stays support-only and unresolved work returns to the LLM"
+            ),
+        },
+        {
             "subsystem": "ExactSourceTheoremProver",
             "objective": "run an exact-source work order emitted by ProofEngineer",
             "inputs_needed": ["lineage-bound exact source theorem work order"],
@@ -18750,6 +18764,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"capability_eval_requires_exact_source_theorem_prover":true' in prompt
     assert '"theorem_reduction_closure_proofengineer_required":true' in prompt
     assert '"exact_source_theorem_proof_body_executor_required":true' in prompt
+    assert '"source_semantic_proofengineer_required":true' in prompt
     assert '"required_subsystems":["RetrievalMemory","TheoryDeveloper"' in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
@@ -18759,6 +18774,7 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert contract["capability_eval_requires_exact_source_theorem_prover"] is True
     assert contract["theorem_reduction_closure_proofengineer_required"] is True
     assert contract["exact_source_theorem_proof_body_executor_required"] is True
+    assert contract["source_semantic_proofengineer_required"] is True
     assert validate_architect_coordinator_packet(packet) == []
 
 
@@ -59895,6 +59911,11 @@ def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure()
                 "next_owner": "FormalizerProofEngineer",
             },
             {
+                "gap": "The design-based Hajek projection needs a measurable finite-population definition.",
+                "kind": "semantic_alignment",
+                "next_owner": "FormalizerProofEngineer",
+            },
+            {
                 "gap": "Reduction closure is not yet assembled into a single Lean proof term.",
                 "kind": "source_theorem",
                 "next_owner": "AgentRuntime",
@@ -59919,7 +59940,13 @@ def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure()
     )
     assert "exchangeability_to_uniform_rank_semantics" in primitive_ids
     assert "order_statistic_quantile_semantics" in primitive_ids
-    assert len(work_orders) == 2
+    assert any(
+        row["semantic_primitive_gap"].startswith(
+            "The design-based Hajek projection"
+        )
+        for row in work_orders
+    )
+    assert len(work_orders) == 3
     assert all(row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE" for row in work_orders)
     assert all(row["proof_mode"] == "source_theorem_semantic_primitive_closure" for row in work_orders)
 
@@ -71638,6 +71665,8 @@ def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_b
             "schema_version": 1,
             "artifact_kind": "SourceTheoremSemanticPrimitiveProofEngineerBridgeManifest",
             "manifest_path": str(manifest_path),
+            "source_queue_jsonl": str(queue_path),
+            "source_proof_audit_manifest": "",
             "runtime_learning_rows_jsonl": str(learning_path),
             "runtime_learning_export_manifest": str(learning_export_path),
             "checks_jsonl": str(checks_path),
@@ -71660,6 +71689,20 @@ def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_b
                 "WORK_ORDER_NOT_PROOF_EVIDENCE"
             ),
             "runtime_learning_ready": False,
+            "local_lean_requested": False,
+            "n_work_orders": len(rows),
+            "checks": [
+                {
+                    "work_order_id": str(row.get("work_order_id", "") or ""),
+                    "semantic_primitive_id": str(
+                        row.get("semantic_primitive_id", "") or ""
+                    ),
+                    "registered_candidate_obligation_ids": [],
+                    "kernel_verified_registered_obligation_ids": [],
+                }
+                for row in rows
+            ],
+            "source_theorem_ready_for_exact_proof_body": False,
             "proof_evidence_status": (
                 "SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
             ),
@@ -71723,6 +71766,19 @@ def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_b
 
     assert bridge_queue_rows
     assert manifest["source_semantic_proofengineer_bridge_ran"] is True
+    assert manifest["source_semantic_proofengineer_execution_mode"] == (
+        "agent_runtime_typed_worker"
+    )
+    assert manifest["source_semantic_legacy_post_runtime_fallback_used"] is False
+    assert manifest["n_source_semantic_agent_runtime_executions"] >= 1
+    result_payload = json.loads(
+        Path(manifest["artifacts"]["per_question_results"][0]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert "SourceSemanticProofEngineer" in [
+        row["subsystem"] for row in result_payload["traces"]
+    ]
     assert (
         manifest[
             "n_runtime_source_theorem_semantic_primitive_work_orders_from_pseudo_formal"
