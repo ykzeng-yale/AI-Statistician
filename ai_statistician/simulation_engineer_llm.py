@@ -766,6 +766,7 @@ def _feedback_requires_generated_simulation_code(feedback: Mapping[str, Any]) ->
     failure = str(feedback.get("failure_classification", "") or "")
     if failure in {
         "generated_simulation_sandbox_metric_gate_failed",
+        "generated_simulation_sandbox_execution_failed",
         "generated_simulation_sandbox_no_executable_draft",
         "coding_agent_component_gate_calibration_required",
     }:

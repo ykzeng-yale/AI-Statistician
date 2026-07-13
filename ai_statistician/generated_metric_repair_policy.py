@@ -1,19 +1,35 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Mapping, Sequence
 
 
 GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE = (
     "GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE"
 )
-GENERATED_COVERAGE_METRIC_CONTEXT_TERMS: tuple[str, ...] = (
-    "coverage",
-    "conformal",
-    "prediction interval",
-    "prediction_interval",
-    "prediction set",
-    "prediction_set",
+GENERATED_COVERAGE_METRIC_CONTRACT_FIELDS: tuple[str, ...] = (
+    "acceptance_gate",
+    "acceptance_gates",
+    "evaluation_metrics",
+    "expected_metrics",
+    "expected_outputs",
+    "metric_contract",
+    "metric_names",
+    "required_metrics",
+    "simulation_targets",
+    "success_criteria",
+    "target_metrics",
+    "validation_metrics",
+    "validation_metric_names",
+)
+GENERATED_COVERAGE_METRIC_EXPLICIT_FLAG_FIELDS: tuple[str, ...] = (
+    "coverage_metric_required",
+    "requires_coverage_metric",
+)
+GENERATED_COVERAGE_METRIC_EXPLICIT_TARGET_FIELDS: tuple[str, ...] = (
+    "coverage_target",
+    "nominal_coverage",
+    "required_coverage",
+    "target_coverage",
 )
 GENERATED_COVERAGE_METRIC_REQUIRED_ERROR = (
     "coverage metric required by generated sandbox metric policy"
@@ -64,18 +80,75 @@ def generated_coverage_metric_required_error() -> str:
 def generated_sandbox_requires_coverage_metric(context: Mapping[str, Any]) -> bool:
     """Return whether policy expects a named coverage metric.
 
-    This keeps task-family vocabulary out of the central runtime executor. The
-    runtime may enforce the gate, but the vocabulary deciding when coverage is
-    required belongs to the generated-metric policy layer.
+    Coverage is a typed metric requirement, not a keyword inferred from the
+    entire research blackboard. In particular, source-inventory
+    ``coverage_status`` and prose such as ``assumption coverage`` must not alter
+    an executable simulation's acceptance contract.
     """
 
     if not isinstance(context, Mapping):
         return False
-    try:
-        text = json.dumps(context, default=str).lower()
-    except Exception:
-        text = str(context).lower()
-    return any(term in text for term in GENERATED_COVERAGE_METRIC_CONTEXT_TERMS)
+    stack: list[Any] = [context]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, Mapping):
+            for raw_key, value in item.items():
+                key = str(raw_key or "").strip().lower().replace("-", "_")
+                if key in GENERATED_COVERAGE_METRIC_EXPLICIT_FLAG_FIELDS:
+                    if value is True or str(value or "").strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                    }:
+                        return True
+                elif key in GENERATED_COVERAGE_METRIC_EXPLICIT_TARGET_FIELDS:
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        return True
+                elif key in GENERATED_COVERAGE_METRIC_CONTRACT_FIELDS:
+                    if _coverage_metric_contract_value_requires_metric(value):
+                        return True
+                if isinstance(value, (Mapping, list, tuple)):
+                    stack.append(value)
+        elif isinstance(item, (list, tuple)):
+            stack.extend(item)
+    return False
+
+
+def _coverage_metric_contract_value_requires_metric(value: Any) -> bool:
+    stack: list[Any] = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, Mapping):
+            stack.extend(item.values())
+            continue
+        if isinstance(item, (list, tuple)):
+            stack.extend(item)
+            continue
+        text = str(item or "").strip().lower().replace("_", " ").replace("-", " ")
+        if not text:
+            continue
+        if text in {"coverage", "miscoverage", "empirical coverage", "ci coverage"}:
+            return True
+        if any(
+            phrase in text
+            for phrase in (
+                "coverage >=",
+                "coverage >",
+                "coverage at least",
+                "coverage must",
+                "coverage probability",
+                "coverage rate",
+                "empirical coverage",
+                "interval coverage",
+                "miscoverage",
+                "prediction set coverage",
+                "prediction interval coverage",
+            )
+        ):
+            return True
+        if "%" in text and "coverage" in text:
+            return True
+    return False
 
 
 def is_generated_metric_auxiliary_name(name: str) -> bool:
@@ -128,17 +201,11 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "zip",
         ],
         "allowed_methods": [
-            "list.append",
-            "list.extend",
-            "list.sort",
-            "random.Random",
-            "rng.random",
-            "rng.uniform",
-            "rng.gauss",
-            "rng.normalvariate",
-            "rng.shuffle",
+            "public methods on sandbox-local list/dict/set/tuple values",
+            "public methods on objects returned by allowed modules",
             "math.*",
             "statistics.*",
+            "random.*",
         ],
         "forbidden_import_forms": [
             "from math import ...",
@@ -167,9 +234,16 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "global/nonlocal",
             "file I/O, network, subprocess, eval, exec",
             "private/dunder names or attributes",
+            "frame-reflection attributes such as generator/frame builtin or globals access",
+            "reflective string formatting methods such as str.format/format_map",
+            "rebinding protected sandbox callables or module names",
             "from-imported helper aliases; use plain module imports and module-qualified calls",
-            "method calls or attribute access outside math/statistics/random, rng random/shuffle methods, and list append/extend/sort",
+            "private/dunder method calls or attribute access",
         ],
+        "result_contract": (
+            "run_sandbox must return a JSON-serializable dict with string keys "
+            "and finite scalar/list/dict metric values"
+        ),
         "safe_random_usage": (
             "Use local RNG objects such as rng = random.Random(seed + rep); "
             "keep mutable state inside run_sandbox and do not use global/nonlocal."
@@ -201,10 +275,12 @@ def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) ->
         "module-qualified calls such as statistics.mean(values), "
         "statistics.stdev(values), and math.sqrt(x). For stochastic simulations, "
         "prefer local RNG objects such as rng = random.Random(seed + rep) and "
-        "call rng.random(), rng.uniform(), rng.gauss(), rng.normalvariate(), or "
-        "rng.shuffle(local_list). Use sandbox-local collection operations such "
-        "as values.append(value), values.extend(more_values), any(flags), and "
-        "all(flags). "
+        "use its public methods. Public operations on sandbox-local lists, dicts, "
+        "sets, tuples, and allowed-module objects are available; private/dunder "
+        "attributes, frame-reflection access, protected-name rebinding, and "
+        "reflective str.format/format_map calls remain forbidden. "
+        "Return a JSON-serializable dict with string "
+        "keys and finite scalar/list/dict metric values. "
         "Do not hand-roll closure-based RNG state that requires nonlocal. "
     )
 

@@ -169,6 +169,9 @@ def build_algorithm_engineer_prompt(
         ),
         "simulation_manifest_summary": _compact_simulation_manifest_for_algorithm(simulation_manifest),
         "implementation_gaps": _compact_implementation_gaps(implementation_gaps),
+        "canonical_implementation_gap_ids": _canonical_implementation_gap_ids(
+            implementation_gaps
+        ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
         "generated_code_sandbox_contract": {
@@ -198,18 +201,23 @@ def build_algorithm_engineer_prompt(
             "required for capability-eval coding-agent evidence"
         )
         payload["generated_code_sandbox_contract"]["default"] = (
-            "include one safe sandbox_code_drafts entry even when a registered "
-            "template also matches; the template may be referenced only as a baseline"
+            "include one safe sandbox_code_drafts entry for every canonical "
+            "implementation gap even when a registered template also matches; "
+            "templates may be referenced only as baselines"
         )
     generated_code_instruction = (
-        "Capability-eval mode is active: include exactly one safe "
-        "sandbox_code_drafts entry with entrypoint exactly \"run_sandbox\" and code "
-        "defining def run_sandbox(seed: int, replicates: int) -> dict. Set every "
+        "Capability-eval mode is active: for every ID in "
+        "canonical_implementation_gap_ids, include exactly one matching "
+        "implementation_targets row and one safe sandbox_code_drafts row with "
+        "entrypoint exactly \"run_sandbox\" and code defining "
+        "def run_sandbox(seed: int, replicates: int) -> dict. Set every "
         "implementation_targets row registered_template_hint to none so AgentRuntime "
         "can test Claude-generated algorithm code execution. Registered templates may "
         "be named only in prose as baselines; they will not be executed for this "
-        "capability gate. The JSON must contain sandbox_code_drafts[0].estimator_id "
-        "matching implementation_targets[0].estimator_id, language \"python\", "
+        "capability gate. Treat each supplied implementation_gaps estimator_id as "
+        "an exact task-artifact foreign key: copy it unchanged into the matching "
+        "implementation_targets and sandbox_code_drafts rows rather than inventing "
+        "a clearer alias. Every generated draft must use language \"python\", "
         "entrypoint \"run_sandbox\", and code with the run_sandbox definition. "
         if requires_generated_code
         else (
@@ -679,6 +687,21 @@ def _compact_implementation_gaps(value: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _canonical_implementation_gap_ids(value: Any) -> list[str]:
+    """Return every nonempty Architect-owned implementation artifact key."""
+
+    if not isinstance(value, list):
+        return []
+    return list(
+        dict.fromkeys(
+            str(row.get("estimator_id", row.get("id", "")) or "").strip()
+            for row in value
+            if isinstance(row, Mapping)
+            and str(row.get("estimator_id", row.get("id", "")) or "").strip()
+        )
+    )
+
+
 def _first_mapping_rows(value: Any, *, limit: int) -> list[Mapping[str, Any]]:
     if not isinstance(value, list):
         return []
@@ -746,7 +769,10 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
     if requires_generated_code:
         contract["sandbox_code_drafts"] = [
             {
-                "estimator_id": "same string as implementation_targets[0].estimator_id",
+                "estimator_id": (
+                    "one row per canonical_implementation_gap_ids value; copy the "
+                    "corresponding ID unchanged"
+                ),
                 "language": "python",
                 "entrypoint": "run_sandbox",
                 "code": (
@@ -829,6 +855,7 @@ def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> 
     failure = str(feedback.get("failure_classification", "") or "")
     if failure in {
         "generated_algorithm_sandbox_metric_gate_failed",
+        "generated_algorithm_sandbox_execution_failed",
         "generated_algorithm_sandbox_required_not_executed",
         "generated_algorithm_sandbox_repair_required",
         "coding_agent_component_gate_calibration_required",
@@ -885,15 +912,18 @@ def _validate_capability_eval_generated_algorithm_packet(
         if isinstance(row, Mapping)
         and str(row.get("estimator_id", row.get("id", ""))).strip()
     }
-    expected_ids = target_ids or gap_ids
     draft_ids = {
         str(row.get("estimator_id", "")).strip()
         for row in drafts
         if str(row.get("estimator_id", "")).strip()
     }
-    if expected_ids and draft_ids and expected_ids.isdisjoint(draft_ids):
+    expected_ids = gap_ids or target_ids
+    missing_ids = expected_ids - draft_ids
+    if missing_ids:
         errors.append(
-            "capability_eval sandbox_code_drafts estimator_id must match an implementation target or gap"
+            "capability_eval sandbox_code_drafts must bind every canonical "
+            "implementation-gap estimator_id; missing: "
+            + ", ".join(sorted(missing_ids))
         )
     return errors
 
@@ -988,10 +1018,12 @@ def _normalize_algorithm_sandbox_code_drafts(
     raw_drafts = body.get("sandbox_code_drafts", [])
     if not isinstance(raw_drafts, list):
         return
+    canonical_gap_id = _single_algorithm_gap_estimator_id(implementation_gaps)
     default_estimator_id = _single_algorithm_estimator_id(
         body.get("implementation_targets", []),
         implementation_gaps=implementation_gaps,
     )
+    mapping_draft_count = sum(isinstance(row, Mapping) for row in raw_drafts)
     normalized_drafts: list[Any] = []
     for row in raw_drafts:
         if not isinstance(row, Mapping):
@@ -1012,6 +1044,11 @@ def _normalize_algorithm_sandbox_code_drafts(
             and not str(normalized.get("estimator_id", "") or "").strip()
         ):
             normalized["estimator_id"] = default_estimator_id
+        if canonical_gap_id and mapping_draft_count == 1:
+            _bind_algorithm_estimator_id_to_gap(
+                normalized,
+                canonical_gap_id=canonical_gap_id,
+            )
         entrypoint = str(normalized.get("entrypoint", "") or "").strip()
         if _is_run_sandbox_signature_entrypoint(entrypoint):
             normalized["entrypoint"] = "run_sandbox"
@@ -1034,10 +1071,12 @@ def _normalize_algorithm_implementation_targets(
         isinstance(row, Mapping) and str(row.get("code", "") or "").strip()
         for row in draft_rows
     )
+    canonical_gap_id = _single_algorithm_gap_estimator_id(implementation_gaps)
     default_estimator_id = _single_algorithm_estimator_id(
         raw_targets,
         implementation_gaps=implementation_gaps,
     )
+    mapping_target_count = sum(isinstance(row, Mapping) for row in raw_targets)
     normalized_targets: list[Any] = []
     for row in raw_targets:
         if not isinstance(row, Mapping):
@@ -1050,6 +1089,11 @@ def _normalize_algorithm_implementation_targets(
                 normalized["estimator_id"] = alias
             elif default_estimator_id:
                 normalized["estimator_id"] = default_estimator_id
+        if canonical_gap_id and mapping_target_count == 1:
+            _bind_algorithm_estimator_id_to_gap(
+                normalized,
+                canonical_gap_id=canonical_gap_id,
+            )
         if requires_generated_code and has_code_draft:
             normalized["registered_template_hint"] = "none"
         normalized_targets.append(normalized)
@@ -1068,6 +1112,39 @@ def _algorithm_estimator_id_alias(row: Mapping[str, Any]) -> str:
         if value:
             return value
     return ""
+
+
+def _single_algorithm_gap_estimator_id(
+    implementation_gaps: list[Mapping[str, Any]],
+) -> str:
+    ids = {
+        str(row.get("estimator_id", row.get("id", "")) or "").strip()
+        for row in implementation_gaps
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", row.get("id", "")) or "").strip()
+    }
+    return next(iter(ids)) if len(ids) == 1 else ""
+
+
+def _bind_algorithm_estimator_id_to_gap(
+    row: dict[str, Any],
+    *,
+    canonical_gap_id: str,
+) -> None:
+    """Bind one unambiguous generated target to the Architect-owned gap key."""
+
+    source_id = str(row.get("estimator_id", "") or "").strip()
+    row["estimator_id"] = canonical_gap_id
+    if source_id and source_id != canonical_gap_id:
+        row["estimator_id_binding"] = {
+            "source_estimator_id": source_id,
+            "canonical_estimator_id": canonical_gap_id,
+            "binding_strategy": "single_gap_task_contract",
+            "boundary": (
+                "This is task-artifact identity normalization only; it does not "
+                "change generated code or provide execution/proof evidence."
+            ),
+        }
 
 
 def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:

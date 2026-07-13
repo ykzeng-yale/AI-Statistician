@@ -11271,6 +11271,28 @@ class SimulationEvaluatorRuntimeSubsystem:
             if _generated_sandbox_row_executed(row)
             and _generated_sandbox_row_live_generated(row)
         )
+        n_generated_simulation_execution_attempted = sum(
+            1
+            for row in generated_simulation_rows
+            if _generated_sandbox_row_execution_attempted(row)
+        )
+        n_live_generated_simulation_execution_attempted = sum(
+            1
+            for row in generated_simulation_rows
+            if _generated_sandbox_row_execution_attempted(row)
+            and _generated_sandbox_row_live_generated(row)
+        )
+        n_generated_simulation_execution_failed = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("prototype_status") == "FAILED"
+        )
+        n_live_generated_simulation_execution_failed = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("prototype_status") == "FAILED"
+            and _generated_sandbox_row_live_generated(row)
+        )
         n_generated_simulation_passed = sum(
             1 for row in generated_simulation_rows if row.get("smoke_passed") is True
         )
@@ -11357,6 +11379,18 @@ class SimulationEvaluatorRuntimeSubsystem:
             "n_live_generated_simulation_sandbox_executed": (
                 n_live_generated_simulation_executed
             ),
+            "n_generated_simulation_sandbox_execution_attempted": (
+                n_generated_simulation_execution_attempted
+            ),
+            "n_live_generated_simulation_sandbox_execution_attempted": (
+                n_live_generated_simulation_execution_attempted
+            ),
+            "n_generated_simulation_sandbox_execution_failed": (
+                n_generated_simulation_execution_failed
+            ),
+            "n_live_generated_simulation_sandbox_execution_failed": (
+                n_live_generated_simulation_execution_failed
+            ),
             "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
             "n_live_generated_simulation_sandbox_passed": (
                 n_live_generated_simulation_passed
@@ -11387,6 +11421,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "procedure_ids": [row.procedure_id for row in simulations],
                     "failed_procedure_ids": [row.procedure_id for row in simulations if not row.passed],
                     "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
+                    "n_generated_simulation_sandbox_execution_attempted": (
+                        n_generated_simulation_execution_attempted
+                    ),
+                    "n_generated_simulation_sandbox_execution_failed": (
+                        n_generated_simulation_execution_failed
+                    ),
                     "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
                     "n_generated_simulation_sandbox_metric_gate_failed": (
                         n_generated_simulation_metric_gate_failed
@@ -11407,6 +11447,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "seed": seed,
                 "simulation_passed": simulation_passed,
                 "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
+                "n_generated_simulation_sandbox_execution_attempted": (
+                    n_generated_simulation_execution_attempted
+                ),
+                "n_generated_simulation_sandbox_execution_failed": (
+                    n_generated_simulation_execution_failed
+                ),
                 "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
                 "n_unsafe_generated_simulation_code_rejected": n_unsafe_generated_simulation_rejected,
                 "architect_acceptance_gate": simulation_control.get("acceptance_gate", ""),
@@ -11416,6 +11462,8 @@ class SimulationEvaluatorRuntimeSubsystem:
             generated_simulation_failure_classification = (
                 "generated_simulation_sandbox_metric_gate_failed"
                 if n_generated_simulation_metric_gate_failed > 0
+                else "generated_simulation_sandbox_execution_failed"
+                if n_generated_simulation_execution_failed > 0
                 else "generated_simulation_sandbox_no_executable_draft"
             )
             feedback = _generated_simulation_revision_feedback(
@@ -12012,6 +12060,32 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "llm_algorithm_engineer_target": proposal_target,
                     }
                 )
+        n_generated_code_execution_attempted = sum(
+            1
+            for row in prototype_rows
+            if row.get("executor") == "generated_python_sandbox"
+            and _generated_sandbox_row_execution_attempted(row)
+        )
+        n_live_generated_code_execution_attempted = sum(
+            1
+            for row in prototype_rows
+            if row.get("executor") == "generated_python_sandbox"
+            and _generated_sandbox_row_execution_attempted(row)
+            and _generated_sandbox_row_live_generated(row)
+        )
+        n_generated_code_execution_failed = sum(
+            1
+            for row in prototype_rows
+            if row.get("executor") == "generated_python_sandbox"
+            and row.get("prototype_status") == "FAILED"
+        )
+        n_live_generated_code_execution_failed = sum(
+            1
+            for row in prototype_rows
+            if row.get("executor") == "generated_python_sandbox"
+            and row.get("prototype_status") == "FAILED"
+            and _generated_sandbox_row_live_generated(row)
+        )
         manifest_id = "algorithm_sandbox_manifest:" + stable_hash([task.task_id, prototype_rows])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -12058,6 +12132,16 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and _generated_sandbox_row_executed(row)
                 and _generated_sandbox_row_live_generated(row)
             ),
+            "n_generated_code_execution_attempted": (
+                n_generated_code_execution_attempted
+            ),
+            "n_live_generated_code_execution_attempted": (
+                n_live_generated_code_execution_attempted
+            ),
+            "n_generated_code_execution_failed": n_generated_code_execution_failed,
+            "n_live_generated_code_execution_failed": (
+                n_live_generated_code_execution_failed
+            ),
             "n_live_generated_code_metric_gate_failed": sum(
                 1
                 for row in prototype_rows
@@ -12094,6 +12178,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                 "n_executed": manifest["n_executed"],
                 "n_passed": manifest["n_passed"],
                 "n_generated_code_executed": manifest["n_generated_code_executed"],
+                "n_generated_code_execution_attempted": manifest[
+                    "n_generated_code_execution_attempted"
+                ],
+                "n_generated_code_execution_failed": manifest[
+                    "n_generated_code_execution_failed"
+                ],
                 "n_unsafe_generated_code_rejected": manifest["n_unsafe_generated_code_rejected"],
                 "promotion_ready": False,
                 "architect_acceptance_gate": algorithm_control.get("acceptance_gate", ""),
@@ -12123,11 +12213,13 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
         )
         revision_failure_classification = (
-            "generated_algorithm_sandbox_required_not_executed"
+            "generated_algorithm_sandbox_metric_gate_failed"
+            if int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
+            else "generated_algorithm_sandbox_execution_failed"
+            if int(manifest.get("n_generated_code_execution_failed", 0) or 0) > 0
+            else "generated_algorithm_sandbox_required_not_executed"
             if requires_generated_algorithm_code
             and manifest["n_generated_code_executed"] == 0
-            else "generated_algorithm_sandbox_metric_gate_failed"
-            if int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
             else "generated_algorithm_sandbox_repair_required"
             if requires_generated_algorithm_code
             else "algorithm_sandbox_no_executable_prototype"
@@ -12280,6 +12372,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "n_executed": manifest["n_executed"],
                     "n_passed": manifest["n_passed"],
                     "n_generated_code_executed": manifest["n_generated_code_executed"],
+                    "n_generated_code_execution_attempted": manifest[
+                        "n_generated_code_execution_attempted"
+                    ],
+                    "n_generated_code_execution_failed": manifest[
+                        "n_generated_code_execution_failed"
+                    ],
                     "n_unsafe_generated_code_rejected": manifest["n_unsafe_generated_code_rejected"],
                     "promotion_ready": False,
                 },
@@ -12367,7 +12465,8 @@ def _algorithm_engineer_packet_validation_failure_result(
             "evaluation, produce Claude/OpenAI-generated sandbox_code_drafts and set "
             "registered_template_hint to none for every implementation target; each "
             "sandbox_code_drafts entrypoint field must be exactly run_sandbox and "
-            "each draft estimator_id must match an implementation target or gap"
+            "each draft estimator_id must copy the Architect-supplied canonical "
+            "implementation-gap estimator_id exactly"
         ),
         "acceptance_gate": (
             "AlgorithmEngineer packet passes local validation; AgentRuntime then "
@@ -51452,6 +51551,11 @@ def _generated_sandbox_feedback_id(
             "smoke_passed": row.get("smoke_passed"),
             "metric_gate_errors": list(_str_tuple(row.get("metric_gate_errors", []))),
             "safety_errors": list(_str_tuple(row.get("safety_errors", []))),
+            "returncode": row.get("returncode"),
+            "stderr_summary_hash": stable_hash(
+                str(row.get("stderr_summary", "") or "")
+            ),
+            "result_parse_error": str(row.get("result_parse_error", "") or ""),
         }
         for row in list(prototype_rows)[:5]
         if isinstance(row, Mapping)
@@ -51469,6 +51573,14 @@ def _generated_sandbox_feedback_id(
 def _generated_sandbox_row_executed(row: Mapping[str, Any]) -> bool:
     return str(row.get("prototype_status", "") or "") in {
         "EXECUTED",
+        "FAILED_METRIC_GATE",
+    }
+
+
+def _generated_sandbox_row_execution_attempted(row: Mapping[str, Any]) -> bool:
+    return str(row.get("prototype_status", "") or "") in {
+        "EXECUTED",
+        "FAILED",
         "FAILED_METRIC_GATE",
     }
 
@@ -94763,7 +94875,15 @@ def _algorithm_sandbox_revision_feedback(
                 ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
-                "stderr_summary": str(row.get("stderr_summary", "") or "")[:500],
+                "stdout_summary": _generated_sandbox_diagnostic_excerpt(
+                    row.get("stdout_summary", ""), limit=1000
+                ),
+                "stderr_summary": _generated_sandbox_diagnostic_excerpt(
+                    row.get("stderr_summary", ""), limit=1200
+                ),
+                "result_parse_error": _generated_sandbox_diagnostic_excerpt(
+                    row.get("result_parse_error", ""), limit=500
+                ),
                 "reason": str(row.get("reason", "") or "")[:500],
             }
         )
@@ -94799,6 +94919,12 @@ def _algorithm_sandbox_revision_feedback(
         "n_metric_gate_failed": int(manifest.get("n_metric_gate_failed", 0) or 0),
         "n_generated_code_executed": int(
             manifest.get("n_generated_code_executed", 0) or 0
+        ),
+        "n_generated_code_execution_attempted": int(
+            manifest.get("n_generated_code_execution_attempted", 0) or 0
+        ),
+        "n_generated_code_execution_failed": int(
+            manifest.get("n_generated_code_execution_failed", 0) or 0
         ),
         "n_unsafe_generated_code_rejected": int(
             manifest.get("n_unsafe_generated_code_rejected", 0) or 0
@@ -94922,7 +95048,15 @@ def _generated_simulation_revision_feedback(
                 ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
-                "stderr_summary": str(row.get("stderr_summary", "") or "")[:500],
+                "stdout_summary": _generated_sandbox_diagnostic_excerpt(
+                    row.get("stdout_summary", ""), limit=1000
+                ),
+                "stderr_summary": _generated_sandbox_diagnostic_excerpt(
+                    row.get("stderr_summary", ""), limit=1200
+                ),
+                "result_parse_error": _generated_sandbox_diagnostic_excerpt(
+                    row.get("result_parse_error", ""), limit=500
+                ),
                 "reason": str(row.get("reason", "") or "")[:500],
             }
         )
@@ -94960,6 +95094,16 @@ def _generated_simulation_revision_feedback(
         ),
         "n_generated_simulation_sandbox_executed": int(
             manifest.get("n_generated_simulation_sandbox_executed", 0) or 0
+        ),
+        "n_generated_simulation_sandbox_execution_attempted": int(
+            manifest.get(
+                "n_generated_simulation_sandbox_execution_attempted", 0
+            )
+            or 0
+        ),
+        "n_generated_simulation_sandbox_execution_failed": int(
+            manifest.get("n_generated_simulation_sandbox_execution_failed", 0)
+            or 0
         ),
         "n_generated_simulation_sandbox_passed": int(
             manifest.get("n_generated_simulation_sandbox_passed", 0) or 0
@@ -95037,7 +95181,7 @@ def _run_generated_simulation_sandbox(
         prototype.get("execution_smoke_passed", prototype.get("smoke_passed") is True)
     )
     metric_gate_errors = list(_str_tuple(prototype.get("metric_gate_errors", [])))
-    if not metric_gate_errors:
+    if execution_smoke_passed and not metric_gate_errors:
         metric_gate_errors = _generated_sandbox_metric_gate_errors(
             prototype.get("metrics", {}),
             context={
@@ -95469,6 +95613,40 @@ def _estimator_spec(packet: Any, estimator_id: str) -> dict[str, Any]:
     return {}
 
 
+def _generated_sandbox_diagnostic_excerpt(
+    value: Any,
+    *,
+    limit: int = 1600,
+) -> str:
+    """Keep both traceback context and the final exception for LLM repair."""
+
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    separator = "\n... diagnostic truncated ...\n"
+    head_limit = max(200, limit // 3)
+    tail_limit = max(400, limit - head_limit - len(separator))
+    return text[:head_limit] + separator + text[-tail_limit:]
+
+
+def _generated_python_sandbox_environment(sandbox_dir: Path) -> dict[str, str]:
+    """Return a deterministic subprocess environment with no inherited secrets."""
+
+    environment = {
+        "HOME": str(sandbox_dir),
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": os.defpath,
+        "PYTHONHASHSEED": "0",
+        "TMPDIR": str(sandbox_dir),
+    }
+    for key in ("SYSTEMROOT", "WINDIR"):
+        value = str(os.environ.get(key, "") or "").strip()
+        if value:
+            environment[key] = value
+    return environment
+
+
 def _run_generated_python_sandbox(
     *,
     sandbox_dir: Path,
@@ -95521,6 +95699,7 @@ def _run_generated_python_sandbox(
     sandbox_dir.mkdir(parents=True, exist_ok=True)
     script_path.write_text(code, encoding="utf-8")
     runner_path.write_text(_generated_python_sandbox_runner_script(), encoding="utf-8")
+    result_path.unlink(missing_ok=True)
     replicates = max(5, min(int(n_runs), 80))
     cmd = [
         sys.executable,
@@ -95535,10 +95714,12 @@ def _run_generated_python_sandbox(
         "--seed",
         str(seed),
     ]
+    sandbox_environment = _generated_python_sandbox_environment(sandbox_dir)
     try:
         completed = subprocess.run(
             cmd,
             cwd=str(sandbox_dir),
+            env=sandbox_environment,
             check=False,
             capture_output=True,
             text=True,
@@ -95551,12 +95732,15 @@ def _run_generated_python_sandbox(
         returncode = 124
         stdout = str(exc.stdout or "").strip()
         stderr = f"timeout after {timeout_s}s: {exc.stderr or ''}".strip()
+    stdout_summary = _generated_sandbox_diagnostic_excerpt(stdout)
+    stderr_summary = _generated_sandbox_diagnostic_excerpt(stderr)
     metrics: dict[str, Any] = {}
+    result_parse_error = ""
     if result_path.exists():
         try:
             metrics = json.loads(result_path.read_text(encoding="utf-8"))
         except Exception as exc:  # pragma: no cover - defensive artifact parsing
-            metrics = {"parse_error": repr(exc)}
+            result_parse_error = repr(exc)
     execution_smoke_passed = (
         returncode == 0
         and bool(metrics)
@@ -95569,19 +95753,23 @@ def _run_generated_python_sandbox(
         "code_draft": code_draft,
         **(dict(validation_context or {})),
     }
-    metric_gate_errors = _generated_sandbox_metric_gate_errors(
-        metrics,
-        context=metric_context,
-        code=code,
+    metric_gate_errors = (
+        _generated_sandbox_metric_gate_errors(
+            metrics,
+            context=metric_context,
+            code=code,
+        )
+        if execution_smoke_passed
+        else []
     )
     metric_gate_targets: dict[str, Any] = {}
     target_coverage = _generated_sandbox_target_coverage_from_context(metric_context)
     if target_coverage is not None:
         metric_gate_targets["target_coverage"] = target_coverage
     smoke_passed = execution_smoke_passed and not metric_gate_errors
-    prototype_status = "EXECUTED" if returncode == 0 else "FAILED"
-    if execution_smoke_passed and metric_gate_errors:
-        prototype_status = "FAILED_METRIC_GATE"
+    prototype_status = "FAILED"
+    if execution_smoke_passed:
+        prototype_status = "FAILED_METRIC_GATE" if metric_gate_errors else "EXECUTED"
     prototype = {
         "estimator_id": estimator_id,
         "prototype_status": prototype_status,
@@ -95593,6 +95781,10 @@ def _run_generated_python_sandbox(
         "script_hash": stable_hash(code),
         "code_excerpt": code[:2000],
         "returncode": returncode,
+        "subprocess_environment_keys": sorted(sandbox_environment),
+        "stdout_summary": stdout_summary,
+        "stderr_summary": stderr_summary,
+        "result_parse_error": result_parse_error,
         "safety_errors": [],
         "metrics": metrics,
         "metric_gate_targets": metric_gate_targets,
@@ -95614,8 +95806,8 @@ def _run_generated_python_sandbox(
         input_hash=stable_hash({"code": code, "replicates": replicates, "seed": seed}),
         output_hash=stable_hash(metrics) if metrics else "",
         exit_status=str(returncode),
-        stdout_summary=stdout[:500],
-        stderr_summary=stderr[:500],
+        stdout_summary=stdout_summary,
+        stderr_summary=stderr_summary,
         safety_boundary=boundary,
     )
     return prototype, tool_call
@@ -95627,33 +95819,6 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
         return ["empty generated Python draft"]
     if len(code) > 12000:
         errors.append("generated Python draft exceeds 12000 characters")
-    lowered = code.lower()
-    forbidden_text = (
-        "subprocess",
-        "socket",
-        "urllib",
-        "requests",
-        "pathlib",
-        "shutil",
-        "os.",
-        "sys.",
-        "open(",
-        "__import__",
-        "eval(",
-        "exec(",
-        "compile(",
-        "globals(",
-        "locals(",
-        "vars(",
-        "getattr(",
-        "setattr(",
-        "delattr(",
-        "input(",
-        "breakpoint(",
-    )
-    for token in forbidden_text:
-        if token in lowered:
-            errors.append(f"forbidden generated-code token: {token}")
     try:
         tree = ast.parse(code)
     except SyntaxError as exc:
@@ -95664,25 +95829,58 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
         if isinstance(node, ast.FunctionDef)
     }
     allowed_modules = {"math", "statistics", "random"}
-    allowed_safe_methods = {
-        "append",
-        "extend",
-        "sort",
-        "random",
-        "uniform",
-        "gauss",
-        "normalvariate",
-        "shuffle",
+    allowed_builtin_calls = {
+        "all",
+        "any",
+        "abs",
+        "bool",
+        "dict",
+        "enumerate",
+        "float",
+        "int",
+        "len",
+        "list",
+        "max",
+        "min",
+        "pow",
+        "range",
+        "round",
+        "set",
+        "sorted",
+        "str",
+        "sum",
+        "tuple",
+        "zip",
+    }
+    protected_bindings = allowed_builtin_calls | allowed_modules | function_names
+    reflective_method_names = {"format", "format_map"}
+    frame_reflection_attributes = {
+        "ag_frame",
+        "cr_frame",
+        "f_back",
+        "f_builtins",
+        "f_globals",
+        "f_locals",
+        "gi_frame",
+        "tb_frame",
     }
     if "run_sandbox" not in function_names:
         errors.append("generated Python draft must define run_sandbox")
+    for function_name in sorted(function_names & (allowed_builtin_calls | allowed_modules)):
+        errors.append(
+            "generated Python draft cannot shadow protected sandbox binding: "
+            + function_name
+        )
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imported = {alias.name.split(".", 1)[0] for alias in node.names}
-            forbidden = sorted(imported - allowed_modules)
-            if forbidden:
+            imported = {alias.name for alias in node.names}
+            if imported - allowed_modules:
                 errors.append(
                     "generated Python draft can import only math/statistics/random modules"
+                )
+            if any(alias.asname for alias in node.names):
+                errors.append(
+                    "generated Python draft must import allowed modules without aliases"
                 )
         elif isinstance(node, ast.ImportFrom):
             module = str(node.module or "").split(".", 1)[0]
@@ -95695,10 +95893,29 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
                     "generated Python draft must use plain module imports "
                     "(import math/statistics/random), not from-import helper aliases"
                 )
-        elif isinstance(node, (ast.ClassDef, ast.AsyncFunctionDef, ast.With, ast.AsyncWith)):
+        elif isinstance(
+            node,
+            (
+                ast.ClassDef,
+                ast.AsyncFunctionDef,
+                ast.With,
+                ast.AsyncWith,
+            ),
+        ):
             errors.append(f"unsupported generated-code node: {node.__class__.__name__}")
         elif isinstance(node, (ast.Global, ast.Nonlocal)):
             errors.append("generated Python draft cannot use global/nonlocal")
+        elif isinstance(node, ast.arg) and node.arg in protected_bindings:
+            errors.append(
+                "generated Python draft cannot rebind protected sandbox binding: "
+                + node.arg
+            )
+        elif isinstance(node, ast.ExceptHandler):
+            if isinstance(node.name, str) and node.name in protected_bindings:
+                errors.append(
+                    "generated Python draft cannot rebind protected sandbox binding: "
+                    + node.name
+                )
         elif isinstance(node, ast.Name):
             if node.id.startswith("__") or node.id in {
                 "__builtins__",
@@ -95708,61 +95925,34 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
                 "__name__",
             }:
                 errors.append(f"forbidden generated-code name: {node.id}")
+            elif isinstance(node.ctx, ast.Store) and node.id in protected_bindings:
+                errors.append(
+                    "generated Python draft cannot rebind protected sandbox binding: "
+                    + node.id
+                )
         elif isinstance(node, ast.Attribute):
             if node.attr.startswith("_"):
                 errors.append(f"forbidden generated-code private attribute: {node.attr}")
-            if node.attr in allowed_safe_methods:
-                continue
-            if isinstance(node.value, ast.Name) and node.value.id not in allowed_modules:
-                object_name = node.value.id
+            elif node.attr in reflective_method_names:
                 errors.append(
-                    "generated-code attribute access is limited to "
-                    f"math/statistics/random modules or safe local methods: "
-                    f"{object_name}.{node.attr}"
+                    "forbidden generated-code reflective method: " + node.attr
+                )
+            elif node.attr in frame_reflection_attributes:
+                errors.append(
+                    "forbidden generated-code frame-reflection attribute: "
+                    + node.attr
                 )
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 name = node.func.id
-                allowed_calls = {
-                    "all",
-                    "any",
-                    "abs",
-                    "bool",
-                    "dict",
-                    "enumerate",
-                    "float",
-                    "int",
-                    "len",
-                    "list",
-                    "max",
-                    "min",
-                    "pow",
-                    "range",
-                    "round",
-                    "set",
-                    "sorted",
-                    "str",
-                    "sum",
-                    "tuple",
-                    "zip",
-                    *function_names,
-                }
+                allowed_calls = allowed_builtin_calls | function_names
                 if name not in allowed_calls:
                     errors.append(f"forbidden generated-code call: {name}")
             elif isinstance(node.func, ast.Attribute):
-                if not (
-                    isinstance(node.func.value, ast.Name)
-                    and node.func.value.id in allowed_modules
-                    and not node.func.attr.startswith("_")
-                ) and node.func.attr not in allowed_safe_methods:
-                    object_name = (
-                        node.func.value.id
-                        if isinstance(node.func.value, ast.Name)
-                        else node.func.value.__class__.__name__
-                    )
+                if node.func.attr.startswith("_"):
                     errors.append(
-                        f"forbidden generated-code method call: "
-                        f"{object_name}.{node.func.attr}"
+                        "forbidden generated-code private method call: "
+                        f"{node.func.attr}"
                     )
             else:
                 errors.append("unsupported generated-code call form")
@@ -95885,8 +96075,9 @@ def main() -> None:
     if not isinstance(payload, dict):
         raise RuntimeError("run_sandbox must return a dict")
     payload.setdefault("sandbox_failed", False)
+    serialized = json.dumps(payload, indent=2, sort_keys=True)
     with open(args.out, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write(serialized)
     print(json.dumps(payload, sort_keys=True))
 
 

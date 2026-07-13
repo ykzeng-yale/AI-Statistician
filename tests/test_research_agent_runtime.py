@@ -21110,11 +21110,12 @@ def test_algorithm_engineer_capability_eval_prompt_requires_generated_code() -> 
     )
 
     assert "Capability-eval mode is active" in prompt
-    assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert "for every ID in canonical_implementation_gap_ids" in prompt
+    assert "one safe sandbox_code_drafts row" in prompt
     assert "registered_template_hint to none" in prompt
     assert "will not be executed for this capability gate" in prompt
     assert "required for capability-eval coding-agent evidence" in prompt
-    assert "sandbox_code_drafts[0].estimator_id" in prompt
+    assert '"canonical_implementation_gap_ids":["E1"]' in prompt
     assert '"sandbox_code_drafts"' in prompt
     assert "leave sandbox_code_drafts empty whenever a template matches" not in prompt
 
@@ -21195,7 +21196,8 @@ def test_algorithm_engineer_prompt_uses_runtime_requested_capability_contract() 
         "capability_eval_requires_generated_algorithm_code"
     ] is True
     assert "Capability-eval mode is active" in prompt
-    assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert "for every ID in canonical_implementation_gap_ids" in prompt
+    assert '"canonical_implementation_gap_ids":["E1"]' in prompt
 
 
 def test_algorithm_engineer_capability_eval_validator_rejects_template_only_packet() -> None:
@@ -21368,6 +21370,117 @@ def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None
             ],
         )
         == []
+    )
+
+
+def test_algorithm_engineer_binds_single_generated_target_to_canonical_gap_id() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    packet = _normalize_algorithm_packet(
+        {
+            "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
+            "implementation_targets": [
+                {
+                    "estimator_id": "clearer_generated_alias",
+                    "registered_template_hint": "none",
+                }
+            ],
+            "sandbox_code_drafts": [
+                {
+                    "estimator_id": "clearer_generated_alias",
+                    "language": "python",
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                        "    return {'sandbox_failed': False, 'replicates': int(replicates)}\n"
+                    ),
+                }
+            ],
+            "next_actions": [{"owner": "AlgorithmEngineer", "action": "execute"}],
+        },
+        question=question,
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        raw_response="{}",
+        theory_packet=_structured_theory_packet_fixture(),
+        implementation_gaps=[
+            {
+                "estimator_id": "architect_canonical_estimator",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        requires_generated_code=True,
+    )
+
+    target = packet["implementation_targets"][0]
+    draft = packet["sandbox_code_drafts"][0]
+    assert target["estimator_id"] == "architect_canonical_estimator"
+    assert draft["estimator_id"] == "architect_canonical_estimator"
+    assert target["estimator_id_binding"]["source_estimator_id"] == (
+        "clearer_generated_alias"
+    )
+    assert draft["estimator_id_binding"]["binding_strategy"] == (
+        "single_gap_task_contract"
+    )
+    assert (
+        _validate_capability_eval_generated_algorithm_packet(
+            packet,
+            implementation_gaps=[
+                {"estimator_id": "architect_canonical_estimator"}
+            ],
+        )
+        == []
+    )
+
+
+def test_algorithm_engineer_exposes_and_requires_every_canonical_gap_id() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    gaps = [
+        {
+            "estimator_id": f"architect_gap_{index}",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+        }
+        for index in range(4)
+    ]
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet=_structured_theory_packet_fixture(),
+        simulation_manifest={},
+        implementation_gaps=gaps,
+        environment_feedback={
+            "failure_classification": (
+                "generated_algorithm_sandbox_required_not_executed"
+            )
+        },
+    )
+
+    assert "canonical_implementation_gap_ids" in prompt
+    assert "for every ID" in prompt
+    assert all(f"architect_gap_{index}" in prompt for index in range(4))
+
+    packet = {
+        "implementation_targets": [
+            {"estimator_id": row["estimator_id"], "registered_template_hint": "none"}
+            for row in gaps
+        ],
+        "sandbox_code_drafts": [
+            {
+                "estimator_id": "architect_gap_0",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": "def run_sandbox(seed: int, replicates: int) -> dict:\n    return {}\n",
+            }
+        ],
+    }
+    errors = _validate_capability_eval_generated_algorithm_packet(
+        packet,
+        implementation_gaps=gaps,
+    )
+
+    assert any(
+        "architect_gap_1, architect_gap_2, architect_gap_3" in error
+        for error in errors
     )
 
 
@@ -36979,9 +37092,167 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
         "can import only math/statistics/random" in row
         for row in prototype["safety_errors"]
     )
-    assert any("forbidden generated-code token" in row for row in prototype["safety_errors"])
+    assert all("forbidden generated-code token" not in row for row in prototype["safety_errors"])
     assert tool_call.tool_name == "python.generated_sandbox_precheck"
     assert tool_call.exit_status == "rejected"
+
+
+def test_generated_algorithm_sandbox_rejects_file_io_and_private_attributes(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="private_access_probe",
+        spec={"id": "private_access_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    values = [seed, replicates]\n"
+                "    handle = open('sandbox_escape.txt', 'w')\n"
+                "    return {'kind': str(values.__class__), 'sandbox_failed': False}\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert "forbidden generated-code call: open" in prototype["safety_errors"]
+    assert any("private attribute: __class__" in row for row in prototype["safety_errors"])
+    assert tool_call.exit_status == "rejected"
+
+
+def test_generated_algorithm_sandbox_rejects_format_private_traversal(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="format_traversal_probe",
+        spec={"id": "format_traversal_probe"},
+        code_draft={
+            "code": (
+                "import random\n"
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    leaked = '{0.__init__.__globals__[_os].environ}'.format(random.Random)\n"
+                "    return {'leaked': leaked, 'sandbox_failed': False}\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert "forbidden generated-code reflective method: format" in prototype[
+        "safety_errors"
+    ]
+    assert tool_call.exit_status == "rejected"
+
+
+def test_generated_algorithm_sandbox_rejects_frame_and_callable_rebinding_escape(
+    tmp_path: Path,
+) -> None:
+    escape_path = tmp_path / "sandbox_escape_canary.txt"
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="frame_binding_escape_probe",
+        spec={"id": "frame_binding_escape_probe"},
+        code_draft={
+            "code": (
+                "def helper(*args):\n"
+                "    return None\n"
+                "helper = (x for x in ()).gi_frame.f_builtins.get('open')\n"
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                f"    handle = helper({str(escape_path)!r}, 'w')\n"
+                "    handle.write('escaped')\n"
+                "    handle.close()\n"
+                "    return {'sandbox_failed': False}\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert any(
+        "frame-reflection attribute: gi_frame" in row
+        for row in prototype["safety_errors"]
+    )
+    assert any(
+        "cannot rebind protected sandbox binding: helper" in row
+        for row in prototype["safety_errors"]
+    )
+    assert not escape_path.exists()
+    assert tool_call.exit_status == "rejected"
+
+
+def test_generated_algorithm_sandbox_rejects_safe_builtin_rebinding(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="builtin_binding_escape_probe",
+        spec={"id": "builtin_binding_escape_probe"},
+        code_draft={
+            "code": (
+                "str = 1\n"
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    return {'value': str(seed), 'sandbox_failed': False}\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert "generated Python draft cannot rebind protected sandbox binding: str" in (
+        prototype["safety_errors"]
+    )
+    assert tool_call.exit_status == "rejected"
+
+
+def test_generated_algorithm_sandbox_does_not_inherit_provider_secrets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_environment: dict[str, str] = {}
+    real_run = runtime_module.subprocess.run
+
+    def recording_run(*args: object, **kwargs: object):
+        captured_environment.update(dict(kwargs.get("env", {}) or {}))
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sandbox-provider-secret-canary")
+    monkeypatch.setenv("OPENAI_API_KEY", "sandbox-provider-secret-canary")
+    monkeypatch.setattr(runtime_module.subprocess, "run", recording_run)
+
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="environment_isolation_probe",
+        spec={"id": "environment_isolation_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'seed': int(seed),\n"
+                "        'replicates': int(replicates),\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert tool_call.exit_status == "0"
+    assert "ANTHROPIC_API_KEY" not in captured_environment
+    assert "OPENAI_API_KEY" not in captured_environment
+    assert set(prototype["subprocess_environment_keys"]) == set(captured_environment)
 
 
 def test_generated_algorithm_sandbox_rejects_from_import_helper_aliases(
@@ -37144,7 +37415,7 @@ def test_generated_algorithm_sandbox_allows_collection_predicates_and_extend(
     assert tool_call.exit_status == "0"
 
 
-def test_generated_algorithm_feedback_names_forbidden_method_calls(
+def test_generated_algorithm_sandbox_allows_public_local_collection_methods(
     tmp_path: Path,
 ) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
@@ -37156,7 +37427,13 @@ def test_generated_algorithm_feedback_names_forbidden_method_calls(
                 "def run_sandbox(seed: int, replicates: int) -> dict:\n"
                 "    values = [int(seed), int(replicates)]\n"
                 "    dropped = values.pop()\n"
-                "    return {'sandbox_failed': False, 'dropped': dropped}\n"
+                "    selected = set()\n"
+                "    selected.add(dropped)\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'dropped': dropped,\n"
+                "        'n_selected': len(selected),\n"
+                "    }\n"
             )
         },
         n_runs=10,
@@ -37164,30 +37441,90 @@ def test_generated_algorithm_feedback_names_forbidden_method_calls(
         timeout_s=5,
     )
 
-    assert tool_call.exit_status == "rejected"
-    assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
-    assert "forbidden generated-code method call: values.pop" in prototype[
-        "safety_errors"
-    ]
+    assert tool_call.exit_status == "0"
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["safety_errors"] == []
+    assert prototype["metrics"]["n_selected"] == 1
+
+
+def test_generated_algorithm_sandbox_uses_ast_not_forbidden_substrings(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="ratio_identifier_probe",
+        spec={"id": "ratio_identifier_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    conservativeness_ratios = []\n"
+                "    conservativeness_ratios.append(float(seed % 3))\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'mean_ratio': sum(conservativeness_ratios),\n"
+                "        'replicates': int(replicates),\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert tool_call.exit_status == "0"
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["safety_errors"] == []
+
+
+def test_generated_algorithm_execution_failure_preserves_final_exception(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="json_key_probe",
+        spec={"id": "json_key_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        ('scenario', int(seed)): float(replicates),\n"
+                "    }\n"
+            )
+        },
+        n_runs=10,
+        seed=20260713,
+        timeout_s=5,
+    )
+
+    assert tool_call.exit_status == "1"
+    assert prototype["prototype_status"] == "FAILED"
+    assert prototype["metrics"] == {}
+    assert prototype["result_parse_error"] == ""
+    assert "TypeError" in prototype["stderr_summary"]
+    assert "str" in prototype["stderr_summary"]
+    assert "tuple" in prototype["stderr_summary"]
+
     feedback = _algorithm_sandbox_revision_feedback(
         manifest={
-            "manifest_id": "algorithm_sandbox_manifest:forbidden_method_probe",
+            "manifest_id": "algorithm_sandbox_manifest:json_key_probe",
             "prototypes": [prototype],
             "n_prototypes": 1,
             "n_executed": 0,
             "n_passed": 0,
             "n_metric_gate_failed": 0,
             "n_generated_code_executed": 0,
-            "n_unsafe_generated_code_rejected": 1,
+            "n_generated_code_execution_attempted": 1,
+            "n_generated_code_execution_failed": 1,
+            "n_unsafe_generated_code_rejected": 0,
         },
         boundary="algorithm sandbox is not proof evidence",
-        failure_classification="generated_algorithm_sandbox_required_not_executed",
+        failure_classification="generated_algorithm_sandbox_execution_failed",
     )
 
-    assert feedback["forbidden_generated_code_calls"] == ["values.pop"]
-    assert feedback["prototypes"][0]["forbidden_generated_code_calls"] == [
-        "values.pop"
-    ]
+    assert feedback["n_generated_code_execution_attempted"] == 1
+    assert feedback["n_generated_code_execution_failed"] == 1
+    assert "TypeError" in feedback["prototypes"][0]["stderr_summary"]
 
 
 def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> None:
@@ -37487,8 +37824,46 @@ def test_generated_metric_gate_policy_owns_domain_trigger_vocabulary() -> None:
     assert "generated_simulation_oracle_truth_names()" in oracle_source
     assert "generated_simulation_oracle_truth_hardcoded_error()" in oracle_source
     assert runtime_module._generated_sandbox_requires_coverage_metric(
-        {"question": {"tags": ["conformal", "coverage"]}}
+        {
+            "next_actions": [
+                {
+                    "acceptance_gate": (
+                        "Empirical coverage >= 0.93 while preserving interval width"
+                    )
+                }
+            ]
+        }
     ) is True
+    assert runtime_module._generated_sandbox_requires_coverage_metric(
+        {
+            "question": {"tags": ["conformal", "coverage"]},
+            "objective": "review simulation evidence and assumption coverage",
+            "formal_source_rows": [{"coverage_status": "bridge_needed"}],
+            "simulation_targets": ["report empirical FDR and discovery power"],
+        }
+    ) is False
+
+
+def test_generated_metric_gate_does_not_invent_coverage_for_fdr_contract() -> None:
+    errors = _generated_sandbox_metric_gate_errors(
+        {
+            "bh_fdr_results": {
+                "pi0_0.9_mu_3.0": {
+                    "q_0.05": {"empirical_fdr": 0.043, "power": 0.50}
+                }
+            },
+            "sandbox_failed": False,
+        },
+        context={
+            "objective": "review all artifacts and assumption coverage",
+            "formal_source_rows": [{"coverage_status": "bridge_needed"}],
+            "simulation_targets": [
+                "report empirical FDR and power over independent z-tests"
+            ],
+        },
+    )
+
+    assert "coverage metric required by generated sandbox metric policy" not in errors
 
 
 def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> None:
@@ -37835,10 +38210,10 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
     assert '"any"' in prompt
     assert '"all"' in prompt
     assert "random.Random" in prompt
-    assert "rng.shuffle" in prompt
-    assert "list.extend" in prompt
+    assert "public methods on sandbox-local" in prompt
+    assert "JSON-serializable dict" in prompt
     assert "global/nonlocal" in prompt
-    assert "method calls or attribute access outside math/statistics/random" in prompt
+    assert "private/dunder method calls or attribute access" in prompt
     assert "leave sandbox_code_drafts empty" in prompt
 
 
@@ -37899,7 +38274,8 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert "forbidden_generated_code_calls" in prompt
     assert "from statistics import mean, stdev" in prompt
     assert "Capability-eval mode is active" in prompt
-    assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert "for every ID in canonical_implementation_gap_ids" in prompt
+    assert '"canonical_implementation_gap_ids":["custom"]' in prompt
     assert "Do not call bare helpers" in prompt
     assert "sum(values) / len(values)" in prompt
     assert "do not reuse those names as bare calls" in prompt
@@ -37965,7 +38341,8 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
 
     assert "Runtime metric-gate repair is active" in prompt
     assert "Capability-eval mode is active" in prompt
-    assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert "for every ID in canonical_implementation_gap_ids" in prompt
+    assert '"canonical_implementation_gap_ids":["custom"]' in prompt
     assert 'entrypoint exactly "run_sandbox"' in prompt
     assert '"entrypoint":"run_sandbox"' in prompt
     assert '"function_signature":"def run_sandbox(seed: int, replicates: int) -> dict"' in prompt
@@ -38213,7 +38590,11 @@ def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompt
 
     assert "Coding-agent component-gate feedback is active" in algorithm_prompt
     assert "not as current-run execution evidence" in algorithm_prompt
-    assert "include exactly one safe sandbox_code_drafts entry" in algorithm_prompt
+    assert "for every ID in canonical_implementation_gap_ids" in algorithm_prompt
+    assert (
+        '"canonical_implementation_gap_ids":["custom_conformal"]'
+        in algorithm_prompt
+    )
     assert "live_attempt_failed_then_passed" in algorithm_prompt
     assert "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE" in (
         algorithm_prompt
@@ -40784,6 +41165,119 @@ def test_simulation_evaluator_capability_eval_revises_when_draft_omitted(
     assert result.failure_classification == "generated_simulation_sandbox_no_executable_draft"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "SimulationEvaluator"
+
+
+def test_simulation_evaluator_returns_execution_exception_to_same_agent(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-json-result-failure"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [],
+                "simulation_ademp_spec": {"aim": "exercise runtime diagnostics"},
+            }
+        },
+    )
+
+    class NonSerializableSimulationEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "packet_id": "simulation_engineer_proposal:json_result_failure",
+                "simulation_targets": [
+                    {"procedure_id": "custom_stress", "estimand": "diagnostic"}
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260713,
+                },
+                "critic_findings": [],
+                "next_actions": [
+                    {
+                        "owner_agent": "SimulationEvaluator",
+                        "action": "repair runtime exception",
+                        "acceptance_gate": "generated simulation executes",
+                    }
+                ],
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "json_result_failure",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        ('scenario', int(seed)): float(replicates),\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=NonSerializableSimulationEngineer(),
+        sandbox_root=tmp_path / "generated_simulation_sandbox",
+    ).run(
+        AgentTask(
+            task_id="simulation:json-result-failure",
+            owner_subsystem="SimulationEvaluator",
+            objective="Return the concrete execution exception for repair.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "theory_packet_id": theory_packet_id,
+                "n_runs": 12,
+                "seed": 20260713,
+                "architect_context": {
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_simulation_code": True,
+                    }
+                },
+            },
+            expected_artifacts=("simulation_manifest",),
+        ),
+        blackboard,
+    )
+    manifest = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("simulation_manifest:")
+    )
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "generated_simulation_sandbox_execution_failed"
+    )
+    assert manifest["n_generated_simulation_sandbox_execution_attempted"] == 1
+    assert manifest["n_generated_simulation_sandbox_execution_failed"] == 1
+    assert manifest["n_generated_simulation_sandbox_metric_gate_failed"] == 0
+    assert manifest["generated_simulation_sandbox_prototypes"][0][
+        "metric_gate_errors"
+    ] == []
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["failure_classification"] == (
+        "generated_simulation_sandbox_execution_failed"
+    )
+    assert "TypeError" in feedback["generated_simulation_prototypes"][0][
+        "stderr_summary"
+    ]
 
 
 def test_simulation_runtime_enforces_generated_code_required_from_learning_memory(
@@ -80406,7 +80900,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert algorithm_proposal["sandbox_executed"] is False
     assert algorithm_manifest["llm_algorithm_engineer_proposal_id"] == algorithm_proposal["packet_id"]
     assert algorithm_manifest["n_executed"] == 2
-    assert algorithm_manifest["n_passed"] == 1
+    assert algorithm_manifest["n_passed"] == 2
     assert algorithm_manifest["n_generated_code_executed"] == 1
     assert algorithm_manifest["n_unsafe_generated_code_rejected"] == 0
     assert algorithm_manifest["promotion_ready"] is False
@@ -80415,8 +80909,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert crossfit_prototype["metrics"]["n_success"] > 0
     assert crossfit_prototype["llm_algorithm_engineer_target"]["registered_template_hint"] == "crossfit_aipw"
     assert generated_prototype["executor"] == "generated_python_sandbox"
-    assert generated_prototype["prototype_status"] == "FAILED_METRIC_GATE"
-    assert generated_prototype["smoke_passed"] is False
+    assert generated_prototype["prototype_status"] == "EXECUTED"
+    assert generated_prototype["smoke_passed"] is True
     assert generated_prototype["promotion_ready"] is False
     assert generated_prototype["metrics"]["n_runs"] == 80
     assert "mean_bias_probe" in generated_prototype["metrics"]

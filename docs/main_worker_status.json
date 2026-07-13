@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-13T13:46:43Z",
+  "updated_at": "2026-07-13T20:07:52Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "The route planner is now a four-stage LLM protocol instead of one overloaded route-core packet: route decision/cost graph, formal realization/alignment, residual interpretation, and prover queue/standalone route are generated and semantically validated incrementally. Stage output uses the configured provider ceiling, exact cost/evidence/declaration inventories survive prompt compaction, and accepted fragments remain immutable and reusable across the bounded two-revision Architect loop. Runtime declaration candidates now carry supported_target_primitives, while every kernel-verified support subclaim emits a separately scoped typed declaration-hit row so exact-reuse costs and declaration validators consume the same evidence lineage. The formal stage receives a declaration index keyed by primitive and an explicit all-pairs informal-to-formal DAG dependency contract. No generated Lean answer, Lean grammar/tactic rule, theorem-name exception, or validator relaxation was added.",
-  "latest_main_worker_live_probe": "V9 FDR live replay at runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split used Claude Opus with the same persisted request, RAG/resource context, and historical feedback. The monolithic request correctly failed the 30k prompt preflight and entered staged planning. route_core_compaction returned at end_turn with 10,044 output tokens and passed its semantic contract; formal_realization_and_alignment returned at end_turn with 9,924 output tokens and was rejected on exactly four semantic errors: two primitive-scoped declaration mismatches and two missing all-pairs DAG dependency paths. There were zero provider failures, zero JSON truncations in these two stages, zero assembled routes, and zero target-prover replay candidates. This proves the prior capacity bottleneck was removed and exposes the next protocol/evidence defects; it is not route closure or theorem proof. Because V9 used a persisted pre-fix runtime seed, no post-fix fresh live closure is claimed.",
-  "latest_main_worker_design_issue": "V9 exposed a system-produced evidence contradiction rather than merely a bad model answer: AgentRuntime marked kernel-verified support-subclaim primitives exact_exists but did not emit declaration evidence scoped to those same primitives, while the strict planner validator correctly consumed a different scoped use of the same declaration and rejected reuse. The runtime lineage now records both the support subclaim's own declaration scope and any upper-level primitive it supports. Remaining end-to-end deviations are unchanged and material: the late post-runtime bridge/executor plane is not fully Architect-owned; the FDR simulation failure can bypass AlgorithmEngineer; TheoryDeveloper lacks a serious long-equation/lemma-DAG mode; there is no production R coding/execution lane; scientific Python breadth is limited; arbitrary-paper ingest is weak; and no fresh exact source theorem has closed in either unrelated family. S14 remains false and honest readiness remains about 45-55 percent.",
+  "latest_main_worker_patch": "Generated Python coding agents now receive an execution contract instead of raw substring/method-name corner cases: AST capability validation, protected-binding and frame-reflection isolation, secret-free subprocess environments, a complete untruncated list of canonical Architect gap IDs with one target/draft required per gap, single-gap-only identity normalization, serialize-before-publish results, preserved final exceptions, and distinct execution versus metric-gate failure feedback. Coverage requirements now come only from explicit metric-contract/acceptance fields, never whole-blackboard keywords such as assumption coverage or formal-source coverage_status. No generated task output, statistical formula, Lean grammar/tactic rule, theorem-name exception, or validator relaxation was added.",
+  "latest_main_worker_live_probe": "The fresh two-family v2 run at runs/main_worker_fresh_cross_family_full_live_20260713_v2_generated_feedback_patch scored 94/112 with one BLOCKED and one MAX_ITERATIONS_REACHED result, one live generated algorithm pass, three live generated simulation executions, one simulation pass, 30 kernel-verified support subclaims, eight formal gaps, and zero exact theorem closures. It exposed a generic false coverage gate on the FDR task. After replacing whole-context keyword inference with explicit metric contracts, fresh FDR v3 at runs/main_worker_fdr_full_live_20260713_v3_explicit_metric_contract executed and passed its first generated simulation and generated algorithm with return code zero, empty parse errors, and empty metric-gate errors. V3 still ended MAX_ITERATIONS_REACHED at 91/112 with four formal gaps and zero exact theorem closure.",
+  "latest_main_worker_design_issue": "Executable generated-code feedback is now materially stronger, but sandbox execution success is still not equivalent to satisfying every statistical acceptance condition: many Simulator/Algorithm gates remain natural-language prose instead of typed metric-path/operator/threshold/tolerance/aggregation contracts. V2 also confirmed bounded simulation failure can starve AlgorithmEngineer; the false coverage fix removed that instance in fresh FDR v3, but scheduling fairness still needs an explicit Architect invariant. The late post-runtime proof plane is not fully Architect-owned, TheoryDeveloper lacks serious long-equation/lemma-DAG mode, R execution is missing, scientific Python breadth and arbitrary-paper ingest remain limited, and no fresh exact source theorem has closed. S14 remains false.",
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",
     "task_family": "multiple_testing/multiple_testing_fdr_bh",
@@ -28,6 +28,58 @@
     "source_theorem_kernel_verified": false,
     "full_frontier_theorem_proved": false,
     "s14_satisfied": false
+  },
+  "latest_generated_code_feedback_and_metric_contract_probe": {
+    "two_family_v2_runtime_manifest": "runs/main_worker_fresh_cross_family_full_live_20260713_v2_generated_feedback_patch/research_agent_runtime_manifest.json",
+    "two_family_v2_audit_manifest": "runs/main_worker_fresh_cross_family_full_live_20260713_v2_generated_feedback_patch/runtime_capability_audit/research_agent_runtime_audit_manifest.json",
+    "two_family_v2_scorecard": "94/112",
+    "two_family_v2_status_counts": {
+      "BLOCKED": 1,
+      "MAX_ITERATIONS_REACHED": 1
+    },
+    "two_family_v2_live_generated_algorithm_executed": 1,
+    "two_family_v2_live_generated_algorithm_passed": 1,
+    "two_family_v2_live_generated_simulation_executed": 3,
+    "two_family_v2_live_generated_simulation_passed": 1,
+    "two_family_v2_false_coverage_gate_failures": 2,
+    "two_family_v2_kernel_verified_support_subclaims": 30,
+    "two_family_v2_formal_gaps": 8,
+    "fdr_v3_runtime_manifest": "runs/main_worker_fdr_full_live_20260713_v3_explicit_metric_contract/research_agent_runtime_manifest.json",
+    "fdr_v3_audit_manifest": "runs/main_worker_fdr_full_live_20260713_v3_explicit_metric_contract/runtime_capability_audit/research_agent_runtime_audit_manifest.json",
+    "fdr_v3_scorecard": "91/112",
+    "fdr_v3_status": "MAX_ITERATIONS_REACHED",
+    "fdr_v3_live_generated_simulation_executed": 1,
+    "fdr_v3_live_generated_simulation_passed": 1,
+    "fdr_v3_live_generated_simulation_metric_gate_failed": 0,
+    "fdr_v3_live_generated_algorithm_executed": 1,
+    "fdr_v3_live_generated_algorithm_passed": 1,
+    "fdr_v3_generated_execution_returncodes": [
+      0,
+      0
+    ],
+    "fdr_v3_generated_result_parse_errors": 0,
+    "fdr_v3_kernel_verified_support_subclaims": 30,
+    "fdr_v3_formal_gaps": 4,
+    "source_theorem_kernel_verified": false,
+    "full_frontier_theorem_proved": false,
+    "remaining_metric_contract_gap": "Sandbox execution and absence of a false gate do not check every natural-language statistical acceptance inequality. Add typed metric path/operator/threshold/tolerance/aggregation contracts and preserve execution-versus-statistical-acceptance evidence classes.",
+    "s14_satisfied": false
+  },
+  "latest_paper_and_open_source_reuse_audit": {
+    "audit_path": "docs/paper_and_open_source_runtime_reuse_audit_20260713.md",
+    "attachment_url_occurrences": 243,
+    "raw_unique_attachment_urls": 189,
+    "normalized_explicit_attachment_github_repositories": 29,
+    "source_inventory_references_ok": "33/33",
+    "source_inventory_local_ready": "33/33",
+    "source_inventory_clone_required": 0,
+    "source_inventory_missing_required": 0,
+    "restored_statistical_lean_source_files": 903,
+    "leandojo_v2_commit": "936ea0dd32ffc2305fe7855db7fbc5bc8557dcf6",
+    "lean4_skills_commit": "5a331e22c7f9416ef40594e2f076f91306c78b16",
+    "goedel_prover_v2_commit": "2e9036e118464aa96a8bebaf9f5b9d091aa3585c",
+    "kimina_lean_server_commit": "fb2393de3461db35eda4c714e3fd21187e92ec90",
+    "reuse_boundary": "Source checkout and review are not runtime capability evidence. Admit only typed Architect-owned adapters with pinned source/license, immutable lineage, matched held-out evaluation, and local kernel authority."
   },
   "main_objective": "Drive AI-Statistician to a genuinely live autonomous end-to-end AI Statistical Theory Lab. Own one Architect-controlled AgentRuntime; integrate the strongest reusable OpenProver, EmpericalProcessLEAN, CodexProver, proof-bank, and prior Mac Pro mechanisms; require LLM/coding agents to generate rigorous theory, Python/R algorithms and simulations, and exact Lean candidates; iterate through execution, compiler/LSP/proof-state, retrieval, critic, and worker feedback; eliminate runtime-generated Lean tactics, theorem-specific grammar rewrites, duplicate orchestration planes, and capability-attribution shortcuts; preserve immutable lineage and strict evidence boundaries; and do not claim completion until two unrelated fresh statistical task families each close an exact source theorem under local Lean/AXLE with no acceptance-gating formal gaps and honest S14 evidence.",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -239,7 +291,7 @@
   "latest_external_codexprover_coordination": {
     "checkout": "/Users/yukangzengcmac/.codex/external/CodexProver",
     "branch": "codex/evaluator-shard-no-workflow-push",
-    "commit": "99314ffd72810e102d74b255605a03c59307ad69",
+    "commit": "d09e38d32ad85fcb2cd52de02308927408f5eed5",
     "new_reusable_components": [
       "append-only adaptive subsystem episode controller",
       "hash-bound routed context digest",
@@ -250,7 +302,7 @@
       "statement/type/hash-bound exact-check contracts",
       "pre-registered held-out MCP policy evaluation"
     ],
-    "latest_episode_capability_outcome": "blocked",
+    "latest_episode_capability_outcome": "one valid no-MCP screening failure is eligible for matched retry; no paired MCP result exists",
     "latest_episode_steps": 9,
     "latest_episode_codex_cli_runtimes": 8,
     "latest_episode_human_interventions": 0,
@@ -259,8 +311,13 @@
     "latest_episode_retrieval_hits_used": 4,
     "latest_episode_lean_checks": 2,
     "latest_secure_stdio_capability_selection": "passed",
-    "latest_heldout_escalation_policy_suite": "failed_and_policy_not_admitted",
+    "latest_heldout_escalation_policy_suite": "MCP effect remains unidentified because screen_moment_001 has no paired MCP retry",
     "latest_heldout_safe_default": "no_mcp_first",
+    "latest_screen_moment_id": "screen_moment_001",
+    "latest_screen_no_mcp_episode_valid": true,
+    "latest_screen_no_mcp_exact_proof_passed": false,
+    "latest_screen_no_mcp_statement_preserved": false,
+    "latest_screen_paired_mcp_retry_present": false,
     "integration_decision": "Adapt the packet-bound episode controller, routed-context digest, capability profile, runtime-read audit, scoped-path/secret-free MCP transport, and exact target binding into the one Architect-controlled AgentRuntime or its existing OpenProver typed provider. Do not copy its committed run corpus and do not create a second orchestration plane. The latest held-out escalation suite did not admit its experimental policy, so no_mcp_first remains the external safe default and local Lean/AXLE remains final proof authority.",
     "proof_evidence_status": "External coding-agent control-plane evaluation and reusable implementation evidence only; not AI-Statistician theorem proof or end-to-end completion."
   },
@@ -297,13 +354,13 @@
   "original_end_to_end_target_gap_audit_20260712": {
     "unified_architect_control_plane": "PARTIAL_IMPROVED: theorem-reduction closure, primary exact source-theorem compilation, primary Formalizer-produced source-semantic support, primary structured source-theorem promotion planning, exact-semantic lookup/grounded-authoring/materialization/Lean feedback, and exact-semantic environment/typechecked-review/verifier/proof continuation now run as Architect-visible children with immutable replay; late-derived semantic/promotion, adapter/premise, and later same-run proof-body stages still form a second orchestration plane",
     "rigorous_llm_theory_development": "PARTIAL: Claude theory generation and critic handoffs are live, but the default packet remains too compact for long equation-chain derivation, lemma DAG construction, assumption audit, and iterative theorem revision",
-    "python_coding_agent": "PARTIAL_LIVE: generated algorithm and simulation sandboxes execute and can repair from feedback, but first-pass executable-draft reliability and arbitrary scientific-library breadth remain limited",
+    "python_coding_agent": "PARTIAL_LIVE_IMPROVED: fresh v2/v3 generated algorithm and simulation sandboxes execute under a secret-free AST capability boundary with canonical IDs and exact stderr/parse feedback. FDR v3 achieved first-pass live simulation plus algorithm execution after removing a false whole-context coverage gate. Statistical acceptance is still partly natural-language rather than a typed metric contract, and arbitrary scientific-library breadth remains limited.",
     "r_coding_agent": "MISSING: no production R generation, sandbox execution, package environment, or R-specific repair evaluation exists",
     "formalizer_and_prover": "PARTIAL_LIVE: exact typed prover, OpenProver HLM, local Lean/LSP feedback, proof bank, and kernel gates are integrated. Four-stage planning now avoids the observed 16k route-core truncation and validates each fragment semantically, but the newest FDR replay stopped on four formal-alignment errors before assembly; no fresh statistical exact source theorem has closed in either family.",
     "formal_rag": "PARTIAL_LIVE_SIGNED: proof bank plus a clean EmpericalProcessLEAN graph are canonical runtime providers. The current external checkout binds commit 4a3b2856cee2 with 26,378 declarations and 75,497 declaration edges; strict runtime rejects dirty/changed/unknown signatures. Retrieval remains non-proof evidence and natural-language ranking is still weak/high-fanout.",
-    "coding_agent_feedback_fidelity": "ACTIVE_PATH_READY: same-owner retries bypass Architect plan repair; signature/exact-semantic/exact-source/generic materializer/adapter/premise feedback preserves generated candidates; missing candidates become typed LLM work; legacy static templates are explicit calibration only",
+    "coding_agent_feedback_fidelity": "ACTIVE_PATH_READY_WITH_METRIC_CONTRACT_GAP: generated execution attempts preserve final exceptions, parse failures, return codes, exact code, and immutable feedback IDs; stale/partial results cannot satisfy the gate. Coverage requirements consume explicit acceptance fields instead of whole-blackboard keywords. Typed general metric-path/operator/threshold contracts and an Architect scheduling-fairness invariant remain missing.",
     "worker_communication": "PARTIAL_IMPROVED: typed tasks, blackboard artifacts, immutable handoffs, cumulative validator feedback, accepted-fragment reuse, and critic feedback exist. Route planning now separates route decision, realization, residual interpretation, and execution queue while preserving upstream IDs. Kernel support-subclaim declarations now carry explicit primitive scope. Theorem closure, primary proof-body feedback, and exact-semantic review return inside AgentRuntime, but late-derived semantic/promotion and adapter/premise work remain incompletely plan-visible.",
-    "cross_task_evaluation": "NOT_READY_BUT_DEEPER: fresh experimental-design and multiple-testing V5 lineages reached all six live Claude agents, generated execution, LLM Formalizer, local Lean/LSP feedback, ProofEngineer, clean formal RAG, and bounded live route revision. Both ended BLOCKED; scorecard=92/111, integrated=87/105, support subclaims=66, formal gaps=8, exact source/frontier theorem closure=0, and fresh complete E2E tasks=0/2. A later FDR-only V9 replay proved the four-stage split removes route-core truncation and exposed four exact formal-alignment errors, but it reused a pre-fix seed and is not a fresh cross-family closure. S14 remains false.",
+    "cross_task_evaluation": "NOT_READY_BUT_DEEPER: fresh two-family v2 reached live theory, generated execution, Formalizer, local Lean feedback, and bounded repair with scorecard=94/112, one BLOCKED plus one MAX_ITERATIONS_REACHED result, generated algorithm=1/1, generated simulations=3 executed/1 passed, support subclaims=30, formal gaps=8, and exact source/frontier theorem closure=0. It exposed a false coverage policy. Fresh FDR v3 verified the generic fix with first-pass generated simulation and algorithm execution, no metric-gate/parse errors, but still ended MAX_ITERATIONS_REACHED with four formal gaps and no exact theorem. Fresh complete E2E tasks remain 0/2 and S14 remains false.",
     "completion_gate": "Do not declare the system end-to-end until two unrelated fresh task families each complete Architect, rigorous theory, generated Python/R implementation and simulation, formal RAG, zero-shot Lean/OpenProver generation, compiler/LSP feedback revision, Critic review, and exact source-theorem local Lean/AXLE kernel closure with no acceptance-gating formal gaps."
   },
   "latest_typed_exact_semantic_definition_runtime_migration": {
@@ -3092,7 +3149,11 @@
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # final combined tree 1068 passed in 1405.92s after immutable repair-target identity, compiler-feedback compaction, and typed staged-route communication patches",
     "uvx ruff check ai_statistician/formalizer_candidate_identity.py ai_statistician/formalizer_llm.py ai_statistician/formalization_gap_planner_llm_route_planner.py tests/test_formalization_gap_planner_llm_route_planner.py # passed",
     ".venv/bin/python -m py_compile ai_statistician/formalizer_candidate_identity.py ai_statistician/formalizer_llm.py ai_statistician/research_agent_runtime.py tests/test_research_agent_runtime.py # passed",
-    "jq empty docs/main_worker_status.json && git diff --check # passed"
+    "jq empty docs/main_worker_status.json && git diff --check # passed",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'algorithm_engineer_prompt or algorithm_engineer_capability_eval or algorithm_engineer_exposes_and_requires_every_canonical_gap_id or coding_component_gate_memory_replays_to_algorithm_and_simulation_prompts or research_agent_runtime_records_theory_to_simulation_loop' # 12 passed, 1068 deselected after all-gap canonical coding-agent prompt/validator alignment",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # final tree 1080 passed in 1571.15s after canonical artifact lineage, generated-code execution feedback, sandbox capability isolation, and explicit coverage-contract fixes",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py::SystemTests::test_research_knowledge_audit_checks_sources_and_problem_retrieval # 1 passed in 8.43s with 33/33 source references locally ready",
+    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_research_agent_runtime.py # passed"
   ],
   "current_blockers": [
     "The four-stage planner removes the observed route-core output truncation, but the newest live FDR replay stopped at formal realization with two declaration-scope mismatches and two missing all-pairs DAG paths. The declaration lineage and prompt contract are patched, but a fresh current-code runtime seed has not yet completed all four stages, full assembly, or target-prover replay.",
@@ -3100,7 +3161,7 @@
     "Exact-semantic review/verifier/proof continuation is now typed, but semantic or promotion work discovered after proof-body/postprocessing plus proof-body adapter/premise derivation and later same-run proof-body rechecks still execute in the legacy post-runtime plane.",
     "Fresh experimental-design and multiple-testing V4 lineages both reached all six live Claude agents, generated execution, Formalizer, local Lean/LSP feedback, ProofEngineer, clean formal RAG, and bounded live route revision. Both ended BLOCKED; scorecard=90/111, integrated scorecard=86/105, kernel-verified support subclaims=66, formal gaps=8, exact source/frontier theorem closure=0, fresh complete E2E tasks=0/2, and S14=false.",
     "Both V4 route-planner lineages produced structured revision feedback with zero provider failures, and each final revision had 3/3 individually valid stage envelopes, but the final formal_attempt_queue invented IDs absent from the accepted route-core fragment. The post-probe planner now sends accepted upstream fragments, canonical nested schemas, and dependency fingerprints to downstream stages; no fresh V5 live run has yet demonstrated a contract-valid assembled route or target-prover replay.",
-    "Shared Formalizer target-shape and generated-metric policies still infer coverage/probability/ATE contracts from vocabulary. Replace those heuristics with task/theory/RAG-derived typed semantic and evaluation contracts instead of adding keyword exceptions.",
+    "Generated-metric requirements no longer scan whole-blackboard vocabulary, but explicit acceptance fields are still natural-language and are not yet artifact-bound metric path/operator/threshold/tolerance/aggregation contracts. Formalizer target-shape policy also retains semantic vocabulary inference. Replace both with task/theory/RAG-derived typed contracts instead of adding keyword exceptions.",
     "The generated scientific sandbox remains limited to math/statistics/random pure Python and has no production R executor; it cannot yet support arbitrary modern statistical algorithms or simulations.",
     "The 26,378-declaration, 75,497-edge EmpericalProcessLEAN graph and proof bank are connected to default RAG, but broad natural-language retrieval still has weak ranking/high fanout; retrieval quality must improve through query/context/reranking feedback rather than theorem-specific aliases.",
     "Independent local Lean recheck passed 5/6 selected cross-family proof-bank assets; randomization_variance_decomposition_bridge has a real type mismatch that must be repaired by the generated whole-proof loop, not by a human patch.",
@@ -3928,6 +3989,10 @@
     "PYTHONPATH=. .venv/bin/pytest -q tests/test_research_agent_runtime.py # 1054 passed and 15 local-Lean tests timed out only while elan cold-downloaded Lean v4.32.0; after installation the exact 15-test set passed in 85.56s",
     "PYTHONPATH=. .venv/bin/pytest -q --tb=short <the 15 failed local-Lean selectors> # 15 passed after Lean v4.32.0 toolchain prewarm; no timeout, validator, or proof-evidence gate was relaxed",
     "PYTHONPATH=. .venv/bin/pytest -q tests/test_formalization_gap_planner_llm_route_planner.py tests/test_source_theorem_semantic_primitive_bridge.py <8 focused AgentRuntime selectors> # 275 passed in 4.50s after final four-stage, task-scope, cumulative revision, prompt-budget, and kernel-declaration-lineage review",
-    ".venv/bin/python -m py_compile ai_statistician/cli.py ai_statistician/formalization_gap_planner_llm_route_planner.py ai_statistician/formalization_gap_planner_runtime_contract_revision.py ai_statistician/research_agent_runtime.py ai_statistician/source_theorem_semantic_primitive_proofengineer_bridge.py; jq empty docs/main_worker_status.json; git diff --check # passed before commit"
+    ".venv/bin/python -m py_compile ai_statistician/cli.py ai_statistician/formalization_gap_planner_llm_route_planner.py ai_statistician/formalization_gap_planner_runtime_contract_revision.py ai_statistician/research_agent_runtime.py ai_statistician/source_theorem_semantic_primitive_proofengineer_bridge.py; jq empty docs/main_worker_status.json; git diff --check # passed before commit",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'algorithm_engineer_prompt or algorithm_engineer_capability_eval or algorithm_engineer_exposes_and_requires_every_canonical_gap_id or coding_component_gate_memory_replays_to_algorithm_and_simulation_prompts or research_agent_runtime_records_theory_to_simulation_loop' # 12 passed, 1068 deselected after all-gap canonical coding-agent prompt/validator alignment",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # final tree 1080 passed in 1571.15s",
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py::SystemTests::test_research_knowledge_audit_checks_sources_and_problem_retrieval # 1 passed in 8.43s; source inventory references_ok=33/33 local_ready=33/33 missing_required=0",
+    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_research_agent_runtime.py # passed"
   ]
 }
