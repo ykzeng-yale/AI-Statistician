@@ -19,7 +19,6 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
-    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
     PROMPT_CONTEXT_MAX_DECLARATION_ROWS,
@@ -34,6 +33,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _generator_model_for_request,
     _prior_staged_followup_stage_dependencies_match,
     _route_adoption_readiness,
+    _staged_followup_stage_prompt_context_packet,
     _target_compatible_formal_declaration_rows,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
@@ -925,6 +925,28 @@ def _make_rank_uniformity_omitted_response(
     response["standalone_route"]["theorem_statement"] = (
         "A distribution-free rank bound follows from exchangeability."
     )
+    return response
+
+
+def _make_rank_uniformity_opaque_baseline_response(
+    *,
+    baseline_route_cost: int = 4,
+) -> dict[str, object]:
+    response = _make_rank_uniformity_omitted_response(
+        include_baseline_route_option=True,
+        baseline_route_cost=baseline_route_cost,
+    )
+    response["lean_realization_dag_nodes"] = response[
+        "lean_realization_dag_nodes"
+    ][:1]
+    response["formal_realization_dag_edges"] = []
+    response["standalone_route"]["primitives"] = response[
+        "standalone_route"
+    ]["primitives"][:1]
+    response["formal_attempt_queue"] = response["formal_attempt_queue"][:1]
+    response["minimal_delta_plan"]["primitive_costs"] = response[
+        "minimal_delta_plan"
+    ]["primitive_costs"][:1]
     return response
 
 
@@ -6986,7 +7008,9 @@ def test_llm_route_planner_accepts_batched_residual_interpretation_indices() -> 
     ]
     response["residual_interpretations"] = [
         {
-            "residual_goal": "batch: proof-state finite tie-breaking",
+            "residual_goal": (
+                "Requires new statistics formalization: finite tie-breaking"
+            ),
             "covered_residual_goal_indices": [0],
             "interpretation": "The proof-state residual requires deterministic tie handling.",
             "route_repair": "Add a tie-breaking side condition before replay.",
@@ -12941,6 +12965,7 @@ def test_llm_route_planner_records_staged_followup_for_max_token_truncation() ->
     assert followup["provider_stop_reason"] == "max_tokens"
     assert [stage["stage_id"] for stage in followup["stage_sequence"]] == [
         "route_core_compaction",
+        "formal_realization_and_alignment",
         "residual_batch_interpretation",
         "formal_attempt_queue_and_standalone_route",
     ]
@@ -13011,13 +13036,14 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
 
     def stage_fragment(stage_id: str) -> dict[str, object]:
         if stage_id == "route_core_compaction":
+            return {"minimal_delta_plan": {}}
+        if stage_id == "formal_realization_and_alignment":
             return {
                 "informal_knowledge_dag_nodes": [],
                 "informal_knowledge_dag_edges": [],
                 "formal_realization_dag_nodes": [],
                 "formal_realization_dag_edges": [],
                 "route_alignment_edges": [],
-                "minimal_delta_plan": {},
             }
         if stage_id == "residual_batch_interpretation":
             return {
@@ -13094,53 +13120,53 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
         max_staged_followup_stage_calls=2,
     )
 
-    assert len(calls) == 3
+    assert len(calls) == 2
     assert payload["n_staged_followups_required"] == 1
-    assert payload["n_staged_followup_stage_attempt_rows"] == 2
+    assert payload["n_staged_followup_stage_attempt_rows"] == 1
     assert payload["n_staged_followups_with_stage_attempts"] == 1
-    assert payload["n_staged_followup_stage_responses_present"] == 2
-    assert payload["n_staged_followup_stage_response_contract_ok"] == 2
+    assert payload["n_staged_followup_stage_responses_present"] == 1
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 0
     assert payload["n_staged_followup_stage_provider_failures"] == 0
-    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 1
+    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 3
     assert payload["n_staged_followup_assembly_rows"] == 1
     assert payload["n_staged_followup_assembled_responses"] == 0
     assert payload["n_staged_followup_assembled_response_contract_ok"] == 0
     assert payload["n_staged_followup_assembly_incomplete"] == 1
     assert payload["n_staged_followup_target_prover_replay_rows"] == 0
-    assert payload["total_staged_followup_stage_provider_total_tokens"] == 70
+    assert payload["total_staged_followup_stage_provider_total_tokens"] == 34
     assert (
         payload["total_provider_total_tokens_including_staged_followups"]
-        == payload["total_provider_total_tokens"] + 70
+        == payload["total_provider_total_tokens"] + 34
     )
     assert calls[1].metadata["staged_followup_stage_call"] is True
     assert calls[1].metadata["stage_id"] == "route_core_compaction"
-    assert calls[1].max_tokens == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS
+    assert calls[1].max_tokens == LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     route_core_prompt = json.loads(calls[1].user_prompt)
-    assert route_core_prompt["required_output_contract"][
-        "canonical_field_contracts"
-    ]["formal_realization_dag_nodes"][0]["formalization_action"] == (
-        "reuse|compose|write_wrapper|prove_bridge|source_port|define_new"
-    )
+    assert set(
+        route_core_prompt["required_output_contract"][
+            "canonical_field_contracts"
+        ]
+    ) == {"minimal_delta_plan"}
     route_core_fragment_schema = calls[1].schema["properties"]["fragment"]
     assert route_core_fragment_schema["additionalProperties"] is False
     assert route_core_fragment_schema["properties"]["minimal_delta_plan"] == {
         "$ref": "#/$defs/minimal_delta_plan"
     }
     assert "minimal_delta_plan" in calls[1].schema["$defs"]
-    assert calls[2].metadata["stage_id"] == "residual_batch_interpretation"
-    residual_prompt = json.loads(calls[2].user_prompt)
-    assert [
-        row["stage_id"]
-        for row in residual_prompt["accepted_prior_stage_fragments"]
-    ] == ["route_core_compaction"]
-    assert calls[2].metadata["n_prior_stage_fragments"] == 1
     stage_rows = payload["staged_followup_stage_attempt_rows"]
-    assert [row["stage_id"] for row in stage_rows] == [
-        "route_core_compaction",
-        "residual_batch_interpretation",
-    ]
-    assert all(row["response_contract_ok"] for row in stage_rows)
-    assert [row["n_prior_stage_fragments"] for row in stage_rows] == [0, 1]
+    assert [row["stage_id"] for row in stage_rows] == ["route_core_compaction"]
+    assert stage_rows[0]["response_contract_ok"] is False
+    assert stage_rows[0]["n_prior_stage_fragments"] == 0
+    assert any(
+        "minimal_delta_plan.selected_primitives must be non-empty" in error
+        for error in stage_rows[0]["errors"]
+    )
+    assembly_errors = payload["staged_followup_assembly_rows"][0]["errors"]
+    assert any(
+        "staged_followup_stage[route_core_compaction]" in error
+        and "minimal_delta_plan.selected_primitives must be non-empty" in error
+        for error in assembly_errors
+    )
     staged_attempts_jsonl = (
         out_dir
         / "formalization_gap_planner_llm_route_planner_staged_followup_stage_attempts.jsonl"
@@ -13155,7 +13181,7 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
     report = (
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
-    assert "Staged followup stage attempts: 2 ok=2 budget-blocked=1" in report
+    assert "Staged followup stage attempts: 1 ok=0 budget-blocked=3" in report
     assert "Staged followup assemblies: 1 full-contract-ok=0 route-ready=0" in report
 
 
@@ -13177,6 +13203,10 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     def stage_fragment(stage_id: str) -> dict[str, object]:
         if stage_id == "route_core_compaction":
             return {
+                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+            }
+        if stage_id == "formal_realization_and_alignment":
+            return {
                 "informal_knowledge_dag_nodes": deepcopy(
                     valid_payload["informal_knowledge_dag_nodes"]
                 ),
@@ -13192,7 +13222,6 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
                 "route_alignment_edges": deepcopy(
                     valid_payload["route_alignment_edges"]
                 ),
-                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
             }
         if stage_id == "residual_batch_interpretation":
             return {
@@ -13272,15 +13301,15 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         invoke_provider=True,
         generator_backend=AssemblingAnthropicBackend(),
         max_repair_attempts=0,
-        max_staged_followup_stage_calls=3,
+        max_staged_followup_stage_calls=4,
     )
 
-    assert len(calls) == 4
+    assert len(calls) == 5
     assert not payload["all_ok"]
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 0
-    assert payload["n_staged_followup_stage_attempt_rows"] == 3
-    assert payload["n_staged_followup_stage_response_contract_ok"] == 3
+    assert payload["n_staged_followup_stage_attempt_rows"] == 4
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 4
     assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 0
     assert payload["n_staged_followup_assembly_rows"] == 1
     assert payload["n_staged_followup_assembled_responses"] == 1
@@ -13297,20 +13326,24 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert payload["standalone_replay_gate_ok"] is True
     assert payload["n_standalone_replay_route_candidates"] == 1
     assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
-    final_stage_prompt = json.loads(calls[3].user_prompt)
+    final_stage_prompt = json.loads(calls[4].user_prompt)
     assert [
         row["stage_id"]
         for row in final_stage_prompt["accepted_prior_stage_fragments"]
-    ] == ["route_core_compaction", "residual_batch_interpretation"]
-    prior_core_fragment = final_stage_prompt["accepted_prior_stage_fragments"][0][
+    ] == [
+        "route_core_compaction",
+        "formal_realization_and_alignment",
+        "residual_batch_interpretation",
+    ]
+    prior_core_fragment = final_stage_prompt["accepted_prior_stage_fragments"][1][
         "fragment"
     ]
     assert [
         row["node_id"]
         for row in prior_core_fragment["formal_realization_dag_nodes"]
     ] == ["formal:exchangeability", "formal:rank_uniformity_bridge"]
-    assert calls[3].metadata["n_prior_stage_fragments"] == 2
-    final_fragment_schema = calls[3].schema["properties"]["fragment"]
+    assert calls[4].metadata["n_prior_stage_fragments"] == 3
+    final_fragment_schema = calls[4].schema["properties"]["fragment"]
     formal_attempt_schema = final_fragment_schema["properties"][
         "formal_attempt_queue"
     ]["items"]
@@ -13465,6 +13498,10 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     def stage_fragment(stage_id: str) -> dict[str, object]:
         if stage_id == "route_core_compaction":
             return {
+                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+            }
+        if stage_id == "formal_realization_and_alignment":
+            return {
                 "informal_knowledge_dag_nodes": deepcopy(
                     valid_payload["informal_knowledge_dag_nodes"]
                 ),
@@ -13480,7 +13517,6 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
                 "route_alignment_edges": deepcopy(
                     valid_payload["route_alignment_edges"]
                 ),
-                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
             }
         if stage_id == "residual_batch_interpretation":
             return {
@@ -13551,9 +13587,9 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
         invoke_provider=True,
         generator_backend=initial_backend,
         max_repair_attempts=0,
-        max_staged_followup_stage_calls=2,
+        max_staged_followup_stage_calls=3,
     )
-    assert initial["n_staged_followup_stage_response_contract_ok"] == 2
+    assert initial["n_staged_followup_stage_response_contract_ok"] == 3
     assert initial["n_staged_followup_assembly_incomplete"] == 1
     prior_attempts = (
         initial_out
@@ -13620,10 +13656,10 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     )
 
     assert len(revision_backend.calls) == 2
-    assert revision["n_prior_staged_followup_stage_attempt_rows"] == 2
-    assert revision["n_staged_followup_stage_attempts_reused"] == 2
+    assert revision["n_prior_staged_followup_stage_attempt_rows"] == 3
+    assert revision["n_staged_followup_stage_attempts_reused"] == 3
     assert revision["n_staged_followup_stage_provider_calls"] == 1
-    assert revision["n_staged_followup_stage_response_contract_ok"] == 3
+    assert revision["n_staged_followup_stage_response_contract_ok"] == 4
     assert revision["n_staged_followup_stage_calls_blocked_by_budget"] == 0
     assert revision["n_staged_followup_assembled_response_contract_ok"] == 1
     current_followup_id = revision["staged_followup_rows"][0]["staged_followup_id"]
@@ -13635,6 +13671,7 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     ]
     assert {row["stage_id"] for row in reused_rows} == {
         "route_core_compaction",
+        "formal_realization_and_alignment",
         "residual_batch_interpretation",
     }
     assert all(row["staged_followup_id"] == current_followup_id for row in reused_rows)
@@ -13669,6 +13706,7 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
             stage_id = str(request.metadata["stage_id"])
             assert stage_id in {
                 "route_core_compaction",
+                "residual_batch_interpretation",
                 "formal_attempt_queue_and_standalone_route",
             }
             response = {
@@ -13706,17 +13744,17 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
         invoke_provider=True,
         generator_backend=feedback_backend,
         max_repair_attempts=0,
-        max_staged_followup_stage_calls=2,
+        max_staged_followup_stage_calls=3,
         prior_staged_followup_stage_attempts_jsonl=prior_attempts,
         formalization_gap_planner_route_contract_feedback_jsonl=feedback_path,
     )
     assert len(feedback_backend.calls) == 3
-    assert feedback_revision["n_staged_followup_stage_attempts_reused"] == 1
+    assert feedback_revision["n_staged_followup_stage_attempts_reused"] == 2
     assert feedback_revision[
         "n_staged_followup_stage_reuse_blocked_by_contract_feedback"
     ] == 1
     assert feedback_revision["n_staged_followup_stage_provider_calls"] == 2
-    assert feedback_revision["n_staged_followup_stage_response_contract_ok"] == 3
+    assert feedback_revision["n_staged_followup_stage_response_contract_ok"] == 4
     assert feedback_revision[
         "n_staged_followup_assembled_response_contract_ok"
     ] == 1
@@ -13726,7 +13764,8 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
         if row.get("prior_stage_attempt_reused") is True
     ]
     assert [row["stage_id"] for row in feedback_reused_rows] == [
-        "residual_batch_interpretation"
+        "formal_realization_and_alignment",
+        "residual_batch_interpretation",
     ]
     feedback_blocked_rows = [
         row
@@ -13739,6 +13778,33 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     assert feedback_blocked_rows[0][
         "prior_stage_attempt_reuse_blocking_output_fields"
     ] == ["minimal_delta_plan"]
+    feedback_stage_requests = {
+        str(request.metadata.get("stage_id", "")): request
+        for request in feedback_backend.calls
+        if request.metadata.get("staged_followup_stage_call") is True
+    }
+    route_core_prompt = json.loads(
+        feedback_stage_requests["route_core_compaction"].user_prompt
+    )
+    assert route_core_prompt["route_contract_feedback"]["present"] is True
+    assert route_core_prompt["route_contract_feedback"][
+        "blocking_output_fields_for_stage"
+    ] == ["minimal_delta_plan"]
+    assert route_core_prompt["route_contract_feedback"][
+        "validator_errors_for_stage"
+    ] == ["minimal_delta_plan.route_cost must equal selected primitive costs"]
+    queue_prompt = json.loads(
+        feedback_stage_requests[
+            "formal_attempt_queue_and_standalone_route"
+        ].user_prompt
+    )
+    assert queue_prompt["route_contract_feedback"][
+        "blocking_output_fields_for_stage"
+    ] == ["formal_attempt_queue"]
+    assert queue_prompt["cross_stage_reference_contract"]["formal_node_ids"]
+    assert queue_prompt["cross_stage_reference_contract"][
+        "selected_primitives"
+    ]
     assert validate_llm_route_planner_manifest(feedback_revision) == []
 
     cross_family_path = tmp_path / "cross_family_attempts.jsonl"
@@ -13795,7 +13861,7 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     assert len(cross_family_backend.calls) == 2
     assert cross_family["n_staged_followup_stage_attempts_reused"] == 0
     assert cross_family["n_staged_followup_stage_provider_calls"] == 1
-    assert cross_family["n_staged_followup_stage_calls_blocked_by_budget"] == 2
+    assert cross_family["n_staged_followup_stage_calls_blocked_by_budget"] == 3
 
 
 def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget_error() -> None:
@@ -13803,9 +13869,11 @@ def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget
         "runs/test_formalization_gap_planner_llm_route_planner_prompt_budget_staged_assembly"
     )
     out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
     valid_payload = _llm_response_payload()
     valid_payload["search_requests"] = []
     valid_payload["planner_next_actions"] = []
@@ -13815,6 +13883,10 @@ def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget
 
     def stage_fragment(stage_id: str) -> dict[str, object]:
         if stage_id == "route_core_compaction":
+            return {
+                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+            }
+        if stage_id == "formal_realization_and_alignment":
             return {
                 "informal_knowledge_dag_nodes": deepcopy(
                     valid_payload["informal_knowledge_dag_nodes"]
@@ -13831,7 +13903,6 @@ def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget
                 "route_alignment_edges": deepcopy(
                     valid_payload["route_alignment_edges"]
                 ),
-                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
             }
         if stage_id == "residual_batch_interpretation":
             return {
@@ -13897,10 +13968,11 @@ def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget
         invoke_provider=True,
         generator_backend=PromptBudgetAssemblingBackend(),
         max_estimated_prompt_input_tokens=1,
-        max_staged_followup_stage_calls=3,
+        max_staged_followup_stage_calls=4,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
     )
 
-    assert len(calls) == 3
+    assert len(calls) == 4
     assert payload["n_raw_responses"] == 0
     assert payload["total_provider_total_tokens"] == 0
     assert payload["n_prompt_token_budget_preflight_blocked"] == 1
@@ -13908,10 +13980,114 @@ def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget
         payload["n_staged_followups_due_to_prompt_token_budget_preflight"]
         == 1
     )
-    assert payload["n_staged_followup_stage_response_contract_ok"] == 3
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 4
     assert payload["n_staged_followup_assembled_response_contract_ok"] == 1
     assert payload["n_staged_followup_assembled_route_adoption_ready"] == 1
     assert payload["n_staged_followup_target_prover_replay_candidates"] == 2
+    route_core_stage_prompt = json.loads(calls[0].user_prompt)
+    assert route_core_stage_prompt["output_budget"] == {
+        "max_output_tokens": LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
+        "budget_is_provider_hard_ceiling": True,
+    }
+    assert not any(
+        "1800 output tokens" in requirement
+        for requirement in route_core_stage_prompt["hard_requirements"]
+    )
+    route_core_context = route_core_stage_prompt["request_context"][
+        "prompt_context_packet"
+    ]
+    assert route_core_context[
+        "route_decision_critical_inventories_complete"
+    ] is True
+    cost_inventory = route_core_context["minimal_delta_cost_hints"]
+    assert len(cost_inventory["primitive_cost_hints"]) == cost_inventory[
+        "primitive_cost_hint_count"
+    ]
+    brief_inventory = route_core_context["route_planning_brief"]
+    assert len(brief_inventory["primitive_evidence_matrix"]) == brief_inventory[
+        "primitive_evidence_matrix_count"
+    ]
+    formal_context = json.loads(calls[1].user_prompt)["request_context"][
+        "prompt_context_packet"
+    ]
+    assert formal_context[
+        "formal_realization_critical_inventories_complete"
+    ] is True
+    assert all(
+        "[truncated;" not in row["declaration"]
+        for row in formal_context["available_formal_declaration_rows"]
+    )
+    declaration_support = formal_context[
+        "formal_declaration_support_by_primitive"
+    ]
+    assert isinstance(declaration_support, dict)
+    assert all(
+        row["declaration"]
+        for rows in declaration_support.values()
+        for row in rows
+    )
+    assert formal_context["formal_dependency_projection_contract"] == {
+        "quantifier": "all_aligned_formal_node_pairs",
+        "informal_edge": "u -> v",
+        "required_formal_relation": (
+            "for every a in align(u) and b in align(v), a ->* b"
+        ),
+        "path_kind": "directed_path_in_formal_realization_dag_edges",
+    }
+    formal_stage_prompt = json.loads(calls[1].user_prompt)
+    assert any(
+        "align(u) x align(v)" in requirement
+        for requirement in formal_stage_prompt["required_output_contract"][
+            "cross_stage_consistency_requirements"
+        ]
+    )
+    baseline_cost_floors = route_core_stage_prompt["stage"][
+        "baseline_route_option_cost_floors"
+    ]
+    assert baseline_cost_floors[0]["route_option_id"] == (
+        "route_option:current_route_min_delta_baseline"
+    )
+    assert baseline_cost_floors[0]["minimum_route_base_cost"] == 4.0
+    assert baseline_cost_floors[0]["selected_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert baseline_cost_floors[0][
+        "opaque_request_baseline_allowed_when_unselected"
+    ] is True
+    assert not any(
+        "3 formal nodes" in rule or "at most 8" in rule
+        for rule in route_core_stage_prompt["stage"]["size_policy"]
+    )
+    final_stage_prompt = json.loads(calls[-1].user_prompt)
+    registry_inventory = final_stage_prompt["request_context"][
+        "prompt_context_packet"
+    ]["component_resource_registry_inventory"]
+    assert {
+        "lean_lsp_mcp",
+        "source_theorem_semantic_primitive_bridge",
+        "source_theorem_formal_environment_bridge",
+        "exact_source_theorem_proof_body_executor",
+    }.issubset(set(registry_inventory["resource_ids"]))
+    contract_ids_by_resource_id = registry_inventory[
+        "resource_contract_ids_by_resource_id"
+    ]
+    assert contract_ids_by_resource_id["lean_lsp_mcp"]
+    assert all(
+        contract_id.startswith(
+            "formalization_gap_planner_component_resource_contract:"
+        )
+        for contract_id in contract_ids_by_resource_id["lean_lsp_mcp"]
+    )
+    assert set(contract_ids_by_resource_id["lean_lsp_mcp"]).issubset(
+        set(registry_inventory["resource_contract_ids"])
+    )
+    assert final_stage_prompt["cross_stage_reference_contract"][
+        "formal_node_ids"
+    ]
+    assert final_stage_prompt["cross_stage_reference_contract"][
+        "formal_node_immediate_predecessors"
+    ]
     assembly = payload["staged_followup_assembly_rows"][0]
     assert assembly["assembly_suppressed_request_errors"]
     assert all(
@@ -14777,13 +14953,14 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
 
     def stage_fragment(stage_id: str) -> dict[str, object]:
         if stage_id == "route_core_compaction":
+            return {"minimal_delta_plan": {}}
+        if stage_id == "formal_realization_and_alignment":
             return {
                 "informal_knowledge_dag_nodes": [],
                 "informal_knowledge_dag_edges": [],
                 "formal_realization_dag_nodes": [],
                 "formal_realization_dag_edges": [],
                 "route_alignment_edges": [],
-                "minimal_delta_plan": {},
             }
         return {
             "residual_interpretations": [],
@@ -14835,11 +15012,12 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
         model_tier="sonnet",
         invoke_provider=True,
         generator_backend=CompactStagedBackend(),
+        max_tokens=7300,
         max_estimated_prompt_input_tokens=1,
         max_staged_followup_stage_calls=2,
     )
 
-    assert len(calls) == 2
+    assert len(calls) == 1
     assert payload["n_prompt_token_budget_preflight_blocked"] == 1
     assert payload["n_generation_preflight_blocked"] == 1
     assert payload["n_raw_responses"] == 0
@@ -14851,9 +15029,9 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
     assert payload["staged_followup_rows"][0]["followup_reason"] == (
         "prompt_token_budget_preflight_blocked"
     )
-    assert payload["n_staged_followup_stage_attempt_rows"] == 2
-    assert payload["n_staged_followup_stage_response_contract_ok"] == 2
-    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 1
+    assert payload["n_staged_followup_stage_attempt_rows"] == 1
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 0
+    assert payload["n_staged_followup_stage_calls_blocked_by_budget"] == 3
     assert all(
         row["stage_status"] == "completed_fragment"
         for row in payload["staged_followup_stage_attempt_rows"]
@@ -14876,21 +15054,20 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
         for row in payload["staged_followup_stage_attempt_rows"]
     )
     assert payload["total_provider_total_tokens"] == 0
-    assert payload["total_staged_followup_stage_provider_total_tokens"] == 66
-    assert payload["total_provider_total_tokens_including_staged_followups"] == 66
+    assert payload["total_staged_followup_stage_provider_total_tokens"] == 32
+    assert payload["total_provider_total_tokens_including_staged_followups"] == 32
     assert [call.metadata["stage_id"] for call in calls] == [
         "route_core_compaction",
-        "residual_batch_interpretation",
     ]
     assert all(
-        call.max_tokens == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS
+        call.max_tokens == 7300
         for call in calls
     )
     report = (
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
     assert "- Prompt token budget preflight blocks: 1 cap=1" in report
-    assert "Staged followup stage attempts: 2 ok=2 budget-blocked=1" in report
+    assert "Staged followup stage attempts: 1 ok=0 budget-blocked=3" in report
     assert validate_llm_route_planner_manifest(payload) == []
 
 
@@ -17027,10 +17204,7 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
-    response = _make_rank_uniformity_omitted_response(
-        include_baseline_route_option=True,
-        baseline_route_cost=4,
-    )
+    response = _make_rank_uniformity_opaque_baseline_response()
     response["search_requests"] = []
     response["planner_next_actions"] = []
     response["uncertainty_flags"] = []
@@ -17073,6 +17247,16 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     ]
     assert witness["omitted_cost_hint_primitives"] == ["rank_uniformity"]
     assert witness["cost_hint_baseline_coverage_complete"] is False
+    assert witness["opaque_request_baseline_route_option_ids"] == [
+        "route_option:current_route_min_delta_baseline"
+    ]
+    assert witness["opaque_request_baseline_only_primitives"] == [
+        "rank_uniformity"
+    ]
+    assert witness["route_option_representation_required_primitives"] == [
+        "exchangeability"
+    ]
+    assert witness["realization_coverage_complete"] is True
     seed_route = payload["standalone_seed"]["routes"][0]
     assert seed_route["realization_coverage_witness"][
         "omitted_cost_hint_primitives"
@@ -17139,6 +17323,65 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     ]
     assert trace_witness["omitted_cost_hint_primitives"] == ["rank_uniformity"]
     assert trace_witness["cost_hint_baseline_coverage_complete"] is False
+
+
+def test_llm_route_planner_rejects_opaque_request_baseline_primitive_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_opaque_baseline_primitive_drift"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _make_rank_uniformity_opaque_baseline_response()
+    graph = response["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["route_options"][1]["selected_primitives"] = ["exchangeability"]
+    graph["and_edges"][1]["requires"] = ["exchangeability"]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is False
+    assert any(
+        "selected_primitives must exactly match request" in error
+        and "current_route_min_delta_baseline" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_opaque_request_baseline_cost_inflation() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_opaque_baseline_cost_inflation"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response_json.write_text(
+        json.dumps(
+            _make_rank_uniformity_opaque_baseline_response(
+                baseline_route_cost=5,
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is False
+    assert any(
+        "opaque request baseline must equal its conservative "
+        "minimum_route_base_cost=4" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_rejects_missing_primitive_cost_dimensions() -> None:
@@ -18381,6 +18624,54 @@ def test_llm_route_planner_keeps_legacy_lean_declaration_hits_lean_scoped() -> N
     assert {
         row["declaration"] for row in compatible
     } == {"Rocq.Probability.exchangeable"}
+
+
+def test_staged_formal_prompt_indexes_declarations_by_supported_primitive() -> None:
+    context = _staged_followup_stage_prompt_context_packet(
+        {
+            "target_prover_family": "lean4",
+            "minimal_delta_cost_hints": {
+                "primitive_cost_hints": [
+                    {
+                        "primitive": "support_bridge",
+                        "minimum_coverage_bucket": "exact_exists",
+                        "minimum_base_cost": 0.0,
+                    }
+                ]
+            },
+            "route_planning_brief": {
+                "primitive_evidence_matrix": [
+                    {
+                        "primitive": "support_bridge",
+                        "formal_support_status": "existing_library_reuse_ready",
+                    }
+                ]
+            },
+            "available_formal_declaration_rows": [
+                {
+                    "declaration": "support_bridge",
+                    "target_prover_family": "lean4",
+                    "supported_target_primitives": ["support_bridge"],
+                    "source_fields": [
+                        "runtime_kernel_verified_declaration_hits"
+                    ],
+                }
+            ],
+        },
+        stage_id="formal_realization_and_alignment",
+    )
+
+    assert context["formal_declaration_support_by_primitive"] == {
+        "support_bridge": [
+            {
+                "declaration": "support_bridge",
+                "target_prover_family": "lean4",
+                "source_fields": [
+                    "runtime_kernel_verified_declaration_hits"
+                ],
+            }
+        ]
+    }
 
 
 def test_llm_route_planner_uses_route_level_targets_without_top_level_target() -> None:

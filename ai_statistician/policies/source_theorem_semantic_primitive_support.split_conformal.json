@@ -2,6 +2,18 @@
   "schema_version": 1,
   "policy_id": "split_conformal_registered_semantic_support_v1",
   "scope": "task_family:split_conformal_finite_sample_coverage",
+  "task_families": [
+    "conformal",
+    "conformal_prediction",
+    "split_conformal_finite_sample_coverage"
+  ],
+  "question_ids": [
+    "conformal_prediction_coverage"
+  ],
+  "theorem_target_ids": [
+    "split_conformal_coverage",
+    "split_conformal_finite_sample_coverage"
+  ],
   "description": "Registered support obligations for the current split-conformal source-theorem semantic primitive frontier. This policy is routing/support metadata only; kernel proof status still comes from proof audit manifests.",
   "primitive_to_registered_support": {
     "probability_measure_semantics": [

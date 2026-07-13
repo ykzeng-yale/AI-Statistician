@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 from .fingerprint import stable_hash
 from .proof_audit import audit_proof_bank
 from .proof_bank import FORMAL_OBLIGATIONS
+from .task_family import compact_string_list, primary_task_family_from_mapping
 from .verifier import LocalLeanProofVerifier
 
 
@@ -78,6 +79,21 @@ def _bool_like(value: Any, *, default: bool = False) -> bool:
 def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     path = Path(policy_path) if policy_path else DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH
     payload = json.loads(path.read_text(encoding="utf-8"))
+    scope = str(payload.get("scope", "") or "").strip()
+    scope_task_family = (
+        scope.split(":", 1)[1].strip()
+        if scope.lower().startswith("task_family:") and ":" in scope
+        else ""
+    )
+    task_families = _normalize_policy_selector_values(
+        [*compact_string_list(payload.get("task_families", [])), scope_task_family]
+    )
+    question_ids = _normalize_policy_selector_values(
+        payload.get("question_ids", [])
+    )
+    theorem_target_ids = _normalize_policy_selector_values(
+        payload.get("theorem_target_ids", [])
+    )
     primitive_support = _normalize_policy_support_map(
         payload.get("primitive_to_registered_support", {})
     )
@@ -126,8 +142,11 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
     return {
         "policy_id": str(payload.get("policy_id", path.stem) or path.stem),
         "schema_version": int(payload.get("schema_version", 1) or 1),
-        "scope": str(payload.get("scope", "") or ""),
+        "scope": scope,
         "path": str(path),
+        "task_families": task_families,
+        "question_ids": question_ids,
+        "theorem_target_ids": theorem_target_ids,
         "primitive_to_registered_support": primitive_support,
         "semantic_primitive_text_to_registered_support": primitive_text_support,
         "placeholder_symbol_to_registered_support": placeholder_support,
@@ -146,6 +165,16 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
             exact_goal_shape_feedback_rules
         ),
     }
+
+
+def _normalize_policy_selector_values(value: Any) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            text.strip()
+            for text in compact_string_list(value)
+            if text.strip()
+        )
+    )
 
 
 def _normalize_policy_support_map(value: Any) -> dict[str, tuple[str, ...]]:
@@ -505,6 +534,9 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
         "schema_version": policy["schema_version"],
         "scope": policy["scope"],
         "path": policy["path"],
+        "task_families": list(policy["task_families"]),
+        "question_ids": list(policy["question_ids"]),
+        "theorem_target_ids": list(policy["theorem_target_ids"]),
         "n_primitive_support_routes": len(primitive_support),
         "n_semantic_primitive_text_support_routes": len(primitive_text_support),
         "n_semantic_primitive_id_text_rules": len(semantic_primitive_id_text_rules),
@@ -532,6 +564,102 @@ def _semantic_support_policy_summary() -> dict[str, Any]:
             "theorem-closure strategies to registered support obligations. It is "
             "routing metadata only; proof evidence still requires "
             "kernel_verified=true rows in the proof audit manifest."
+        ),
+    }
+
+
+def _semantic_support_policy_applicability(
+    policy: Mapping[str, Any],
+    row: Mapping[str, Any],
+    *,
+    fallback_question_id: str = "",
+) -> dict[str, Any]:
+    policy_selectors = {
+        "task_family": {
+            str(value).strip().lower()
+            for value in policy.get("task_families", ()) or ()
+            if str(value).strip()
+        },
+        "question_id": {
+            str(value).strip().lower()
+            for value in policy.get("question_ids", ()) or ()
+            if str(value).strip()
+        },
+        "theorem_target_id": {
+            str(value).strip().lower()
+            for value in policy.get("theorem_target_ids", ()) or ()
+            if str(value).strip()
+        },
+    }
+    row_task_family = str(
+        row.get("task_family", "")
+        or row.get("primary_task_family", "")
+        or primary_task_family_from_mapping(row)
+        or ""
+    ).strip()
+    explicit_row_question_ids = {
+        str(value).strip().lower()
+        for value in compact_string_list(row.get("question_id", ""))
+        if str(value).strip()
+    }
+    fallback_question = str(fallback_question_id).strip().lower()
+    row_question_ids = explicit_row_question_ids or (
+        {fallback_question} if fallback_question else set()
+    )
+    provenance = (
+        row.get("source_theorem_target_provenance", {})
+        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+        else {}
+    )
+    row_theorem_target_ids = {
+        str(value).strip().lower()
+        for value in [
+            *compact_string_list(row.get("target_theorem_goal_ids", [])),
+            *compact_string_list(row.get("source_formal_target_ids", [])),
+            str(row.get("target_theorem_name", "") or ""),
+            str(row.get("source_theorem_id", "") or ""),
+            str(row.get("source_theorem_goal_id", "") or ""),
+            str(provenance.get("target_lean_declaration", "") or ""),
+            str(provenance.get("source_theorem_goal_id", "") or ""),
+        ]
+        if str(value).strip()
+    }
+    row_selectors = {
+        "task_family": {row_task_family.lower()} if row_task_family else set(),
+        "question_id": row_question_ids,
+        "theorem_target_id": row_theorem_target_ids,
+    }
+    matched_selector_kinds: list[str] = []
+    conflicting_selector_kinds: list[str] = []
+    for selector_kind, allowed_values in policy_selectors.items():
+        observed_values = row_selectors[selector_kind]
+        if not allowed_values or not observed_values:
+            continue
+        if allowed_values & observed_values:
+            matched_selector_kinds.append(selector_kind)
+        else:
+            conflicting_selector_kinds.append(selector_kind)
+    applicable = bool(matched_selector_kinds) and not conflicting_selector_kinds
+    return {
+        "policy_id": str(policy.get("policy_id", "") or ""),
+        "work_order_id": _work_order_id(row),
+        "applicable": applicable,
+        "status": (
+            "TASK_SCOPED_POLICY_APPLICABLE"
+            if applicable
+            else "TASK_SCOPED_POLICY_CONFLICT"
+            if conflicting_selector_kinds
+            else "TASK_SCOPED_POLICY_SELECTOR_MISSING"
+        ),
+        "matched_selector_kinds": matched_selector_kinds,
+        "conflicting_selector_kinds": conflicting_selector_kinds,
+        "task_family": row_task_family,
+        "question_ids": sorted(row_question_ids),
+        "theorem_target_ids": sorted(row_theorem_target_ids),
+        "boundary": (
+            "Policy-derived registered support is eligible only when explicit "
+            "task, question, or theorem selectors match and no supplied selector "
+            "conflicts. Nonmatching work orders return to generic discovery."
         ),
     }
 
@@ -1545,8 +1673,24 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         out_dir=out_dir,
     )
     rows = _read_jsonl(queue_path)
+    semantic_support_policy = _semantic_support_policy()
+    policy_applicability_by_work_order = {
+        _work_order_id(row): _semantic_support_policy_applicability(
+            semantic_support_policy,
+            row,
+            fallback_question_id=question_id,
+        )
+        for row in rows
+    }
     candidate_ids_by_work_order = {
-        _work_order_id(row): _candidate_registered_obligation_ids(row)
+        _work_order_id(row): _candidate_registered_obligation_ids(
+            row,
+            policy=semantic_support_policy,
+            policy_applicability=policy_applicability_by_work_order.get(
+                _work_order_id(row),
+                {},
+            ),
+        )
         for row in rows
     }
     candidate_ids = sorted(
@@ -1582,6 +1726,10 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
             candidate_ids_by_work_order.get(_work_order_id(row), ()),
             verified_ids,
             audit_manifest_path=audit_manifest_path,
+            policy_applicability=policy_applicability_by_work_order.get(
+                _work_order_id(row),
+                {},
+            ),
         )
         for row in rows
     ]
@@ -1690,6 +1838,19 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         ),
         "n_registered_candidate_obligations": len(candidate_ids),
         "registered_candidate_obligation_ids": candidate_ids,
+        "n_semantic_support_policy_applicable_work_orders": sum(
+            1
+            for applicability in policy_applicability_by_work_order.values()
+            if applicability.get("applicable") is True
+        ),
+        "n_semantic_support_policy_inapplicable_work_orders": sum(
+            1
+            for applicability in policy_applicability_by_work_order.values()
+            if applicability.get("applicable") is not True
+        ),
+        "semantic_support_policy_applicability": list(
+            policy_applicability_by_work_order.values()
+        ),
         "n_kernel_verified_registered_candidate_obligations": len(
             kernel_verified_candidate_ids
         ),
@@ -1756,6 +1917,7 @@ def _bridge_check(
     verified_ids: tuple[str, ...],
     *,
     audit_manifest_path: Path | None,
+    policy_applicability: Mapping[str, Any],
 ) -> dict[str, Any]:
     kernel_verified_support = [row for row in candidate_ids if row in set(verified_ids)]
     exact_goal_shape_obligation_id = str(
@@ -1767,6 +1929,8 @@ def _bridge_check(
         if kernel_verified_support
         else "REGISTERED_SEMANTIC_BRIDGE_SUPPORT_NOT_KERNEL_VERIFIED"
         if candidate_ids
+        else "TASK_SCOPED_POLICY_NOT_APPLICABLE_GENERIC_DISCOVERY_REQUIRED"
+        if policy_applicability.get("applicable") is not True
         else "OPEN_EXACT_GOAL_SHAPE_OBLIGATION_NO_REGISTERED_SUPPORT"
         if is_exact_goal_shape_obligation
         else "FORMAL_BLOCKED_NO_REGISTERED_SEMANTIC_PRIMITIVE_SUPPORT"
@@ -1865,6 +2029,10 @@ def _bridge_check(
         ),
         "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
         "registered_candidate_obligation_ids": list(candidate_ids),
+        "semantic_support_policy_applicability": dict(policy_applicability),
+        "semantic_support_policy_applicable": (
+            policy_applicability.get("applicable") is True
+        ),
         "exact_goal_shape_registered_support_present": bool(
             is_exact_goal_shape_obligation and candidate_ids
         ),
@@ -1875,6 +2043,8 @@ def _bridge_check(
         "registered_support_level": (
             "registered_partial_semantic_bridge"
             if candidate_ids
+            else "task_scoped_policy_not_applicable"
+            if policy_applicability.get("applicable") is not True
             else "unregistered_exact_goal_shape_obligation"
             if is_exact_goal_shape_obligation
             else "missing_registered_semantic_primitive"
@@ -2243,7 +2413,19 @@ def _export_exact_goal_shape_adapter_instantiation_queue(
     }
 
 
-def _candidate_registered_obligation_ids(row: Mapping[str, Any]) -> tuple[str, ...]:
+def _candidate_registered_obligation_ids(
+    row: Mapping[str, Any],
+    *,
+    policy: Mapping[str, Any] | None = None,
+    policy_applicability: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    selected_policy = policy or _semantic_support_policy()
+    applicability = policy_applicability or _semantic_support_policy_applicability(
+        selected_policy,
+        row,
+    )
+    if applicability.get("applicable") is not True:
+        return ()
     primitive_id = str(row.get("semantic_primitive_id", "") or "").strip()
     gap_kind = str(row.get("semantic_primitive_gap_kind", "") or "").strip()
     if gap_kind == "source_to_bridge_premise_semantic_gap":

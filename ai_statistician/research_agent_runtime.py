@@ -108,6 +108,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
     LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
+    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS,
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
     export_formalization_gap_planner_llm_route_planner,
@@ -254,7 +255,10 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_BOUNDARY,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
-from .task_family import primary_task_family_from_question
+from .task_family import (
+    primary_task_family_from_mapping,
+    primary_task_family_from_question,
+)
 from .theory_derivation_trace import (
     THEORY_TRACE_ALIGNMENT_BOUNDARY,
     THEORY_TRACE_CONSUMPTION_BOUNDARY,
@@ -7271,10 +7275,16 @@ class ResearchAgentRuntimeConfig:
     formalization_gap_planner_live_model: str = ""
     formalization_gap_planner_live_model_tier: str = "auto"
     formalization_gap_planner_live_max_tokens: int = LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
+    formalization_gap_planner_live_max_estimated_prompt_input_tokens: int = (
+        RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
+    )
     formalization_gap_planner_live_temperature: float = 0.1
     formalization_gap_planner_live_max_repair_attempts: int = 1
+    formalization_gap_planner_live_max_contract_revisions: int = (
+        RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS
+    )
     formalization_gap_planner_live_max_staged_followup_stage_calls: int = max(
-        3,
+        len(LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS),
         LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
     )
     formalization_gap_planner_live_timeout_seconds: float = (
@@ -27059,6 +27069,24 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 int(self.runtime_config.formalization_gap_planner_live_max_tokens),
             )
 
+    def _live_route_planner_max_estimated_prompt_input_tokens(
+        self,
+        task: AgentTask,
+    ) -> int:
+        raw = task.inputs.get(
+            "max_estimated_prompt_input_tokens",
+            self.runtime_config.formalization_gap_planner_live_max_estimated_prompt_input_tokens,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(
+                    self.runtime_config.formalization_gap_planner_live_max_estimated_prompt_input_tokens
+                ),
+            )
+
     def _live_route_planner_temperature(self, task: AgentTask) -> float:
         raw = task.inputs.get(
             "temperature",
@@ -27083,6 +27111,21 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 0,
                 int(
                     self.runtime_config.formalization_gap_planner_live_max_repair_attempts
+                ),
+            )
+
+    def _live_route_planner_max_contract_revisions(self, task: AgentTask) -> int:
+        raw = task.inputs.get(
+            "max_contract_revisions",
+            self.runtime_config.formalization_gap_planner_live_max_contract_revisions,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(
+                    self.runtime_config.formalization_gap_planner_live_max_contract_revisions
                 ),
             )
 
@@ -27327,6 +27370,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
         model: str,
         model_tier: str,
         max_tokens: int,
+        max_estimated_prompt_input_tokens: int,
         temperature: float,
         max_route_requests_per_handoff: int,
         max_repair_attempts: int,
@@ -27357,7 +27401,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "--temperature",
             str(float(temperature)),
             "--max-estimated-prompt-input-tokens",
-            str(RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS),
+            str(max_estimated_prompt_input_tokens),
             "--max-route-requests",
             str(max_route_requests_per_handoff),
             "--max-repair-attempts",
@@ -27909,6 +27953,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
         model = self._live_route_planner_model(task)
         model_tier = self._live_route_planner_model_tier(task)
         max_tokens = self._live_route_planner_max_tokens(task)
+        max_estimated_prompt_input_tokens = (
+            self._live_route_planner_max_estimated_prompt_input_tokens(task)
+        )
         temperature = self._live_route_planner_temperature(task)
         max_repair_attempts = self._live_route_planner_max_repair_attempts(task)
         max_staged_followup_stage_calls = (
@@ -28009,6 +28056,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         model=model,
                         model_tier=model_tier,
                         max_tokens=max_tokens,
+                        max_estimated_prompt_input_tokens=(
+                            max_estimated_prompt_input_tokens
+                        ),
                         temperature=temperature,
                         max_route_requests_per_handoff=(
                             max_route_requests_per_handoff
@@ -28045,7 +28095,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         max_tokens=max_tokens,
                         temperature=temperature,
                         max_estimated_prompt_input_tokens=(
-                            RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
+                            max_estimated_prompt_input_tokens
                         ),
                         max_route_requests=max_route_requests_per_handoff,
                         max_repair_attempts=max_repair_attempts,
@@ -29075,6 +29125,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "model": model,
             "model_tier": model_tier,
             "max_tokens": max_tokens,
+            "max_estimated_prompt_input_tokens": (
+                max_estimated_prompt_input_tokens
+            ),
             "temperature": temperature,
             "max_repair_attempts": max_repair_attempts,
             "max_staged_followup_stage_calls": max_staged_followup_stage_calls,
@@ -29085,9 +29138,6 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 float(row.get("outer_execution_timeout_seconds", 0.0) or 0.0)
                 for row in rows
             ],
-            "max_estimated_prompt_input_tokens": (
-                RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
-            ),
             "live_llm_invoked": counts["selected_handoffs"] > 0,
             "all_live_route_planner_responses_recorded": all_responses_recorded,
             "target_prover_replay_complete": target_prover_replay_complete,
@@ -29422,7 +29472,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
         if (
             live_route_planner_contract_feedback_rows
             and current_contract_revision_attempt
-            < RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS
+            < self._live_route_planner_max_contract_revisions(task)
         ):
             next_contract_revision_attempt = current_contract_revision_attempt + 1
             (
@@ -29435,6 +29485,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 contract_feedback_rows=live_route_planner_contract_feedback_rows,
                 out_dir=planner_root,
                 revision_attempt=next_contract_revision_attempt,
+                max_same_run_contract_revisions=(
+                    self._live_route_planner_max_contract_revisions(task)
+                ),
             )
             revision_artifact_id = str(
                 contract_revision_artifact_for_step.get("revision_artifact_id", "")
@@ -29479,9 +29532,17 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "model": self._live_route_planner_model(task),
                         "model_tier": self._live_route_planner_model_tier(task),
                         "max_tokens": self._live_route_planner_max_tokens(task),
+                        "max_estimated_prompt_input_tokens": (
+                            self._live_route_planner_max_estimated_prompt_input_tokens(
+                                task
+                            )
+                        ),
                         "temperature": self._live_route_planner_temperature(task),
                         "max_repair_attempts": (
                             self._live_route_planner_max_repair_attempts(task)
+                        ),
+                        "max_contract_revisions": (
+                            self._live_route_planner_max_contract_revisions(task)
                         ),
                         "max_staged_followup_stage_calls": (
                             self._live_route_planner_max_staged_followup_stage_calls(
@@ -29549,9 +29610,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             selected_handoff_ids,
                             max_handoffs,
                             self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff,
+                            self.runtime_config.formalization_gap_planner_live_max_estimated_prompt_input_tokens,
                             self.runtime_config.formalization_gap_planner_live_provider,
                             self.runtime_config.formalization_gap_planner_live_model,
                             self.runtime_config.formalization_gap_planner_live_model_tier,
+                            self.runtime_config.formalization_gap_planner_live_max_contract_revisions,
                             self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls,
                         ]
                     )[:12]
@@ -29575,9 +29638,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     "model": self.runtime_config.formalization_gap_planner_live_model,
                     "model_tier": self.runtime_config.formalization_gap_planner_live_model_tier,
                     "max_tokens": self.runtime_config.formalization_gap_planner_live_max_tokens,
+                    "max_estimated_prompt_input_tokens": (
+                        self.runtime_config.formalization_gap_planner_live_max_estimated_prompt_input_tokens
+                    ),
                     "temperature": self.runtime_config.formalization_gap_planner_live_temperature,
                     "max_repair_attempts": (
                         self.runtime_config.formalization_gap_planner_live_max_repair_attempts
+                    ),
+                    "max_contract_revisions": (
+                        self.runtime_config.formalization_gap_planner_live_max_contract_revisions
                     ),
                     "max_staged_followup_stage_calls": (
                         self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls
@@ -29595,6 +29664,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     "max_handoffs": max_handoffs,
                     "max_route_requests_per_handoff": (
                         self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff
+                    ),
+                    "max_estimated_prompt_input_tokens": (
+                        self.runtime_config.formalization_gap_planner_live_max_estimated_prompt_input_tokens
                     ),
                     "live_llm_invocation_required": True,
                 },
@@ -29766,6 +29838,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "live_route_planner_max_route_requests_per_handoff": int(
                 self.runtime_config.formalization_gap_planner_live_max_route_requests_per_handoff
+            ),
+            "live_route_planner_max_contract_revisions": (
+                self._live_route_planner_max_contract_revisions(task)
             ),
             "live_route_planner_manifest_id": str(
                 live_route_planner_manifest.get("manifest_id", "") or ""
@@ -75730,6 +75805,9 @@ def _formalization_gap_planner_live_route_planner_row_target_ids(
     return list(dict.fromkeys(value for value in target_ids if str(value).strip()))
 
 
+RUNTIME_FORMALIZATION_GAP_PLANNER_CONTRACT_ERROR_FEEDBACK_LIMIT = 64
+
+
 def _formalization_gap_planner_live_route_planner_contract_failure_classification(
     artifact: Mapping[str, Any],
     live_row: Mapping[str, Any],
@@ -75817,7 +75895,9 @@ def _formalization_gap_planner_live_route_planner_staged_assembly_error_summary(
                 )[:8],
                 "suppressed_request_errors": suppressed_errors[:8],
                 "error_count": len(errors),
-                "error_preview": errors[:20],
+                "error_preview": errors[
+                    :RUNTIME_FORMALIZATION_GAP_PLANNER_CONTRACT_ERROR_FEEDBACK_LIMIT
+                ],
             }
         )
     return summaries[:4]
@@ -75832,7 +75912,9 @@ def _formalization_gap_planner_live_route_planner_staged_assembly_error_preview(
             text = str(error).strip()
             if text:
                 preview.append(text)
-    return list(dict.fromkeys(preview))[:24]
+    return list(dict.fromkeys(preview))[
+        :RUNTIME_FORMALIZATION_GAP_PLANNER_CONTRACT_ERROR_FEEDBACK_LIMIT
+    ]
 
 
 def _formalization_gap_planner_live_route_planner_contract_feedback_learning_rows(
@@ -77366,6 +77448,7 @@ def _runtime_theorem_reduction_closure_work_order_rows(
                 )
                 row["question_id"] = str(question.get("id", "") or "")
                 row["question_title"] = str(question.get("title", "") or "")
+                row["task_family"] = primary_task_family_from_mapping(question)
                 row["runtime_queue_status"] = "PENDING_LEAN_PROOF_ATTEMPT"
                 row["runtime_queue_boundary"] = (
                     "This queue row is a proof task exported from live runtime. "
@@ -77976,6 +78059,10 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                 )
                 row["question_id"] = str(question.get("id", "") or "")
                 row["question_title"] = str(question.get("title", "") or "")
+                row["task_family"] = str(
+                    row.get("task_family", "")
+                    or primary_task_family_from_mapping(question)
+                )
                 row["runtime_queue_status"] = str(
                     row.get("runtime_queue_status", "")
                     or "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
@@ -78058,6 +78145,10 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                     row.get("question_title", "")
                     or question.get("title", "")
                     or ""
+                )
+                row["task_family"] = str(
+                    row.get("task_family", "")
+                    or primary_task_family_from_mapping(question)
                 )
                 row["runtime_queue_status"] = str(
                     row.get("runtime_queue_status", "")
@@ -89716,6 +89807,7 @@ def _runtime_gap_route_primitives(
                     fallback_declarations=candidate_declarations,
                     target_prover_family=target_prover_family,
                     source_field="runtime_primitive_formal_source_hits",
+                    supported_target_primitives=(primitive,),
                 ),
                 "source_refs": list(source_refs),
                 "expected_premises": list(_str_tuple(theorem_goal.proof_obligations)),
@@ -89748,6 +89840,7 @@ def _runtime_gap_route_primitives(
                         if subclaim.formal_source_hits
                         else "runtime_proof_obligation_id"
                     ),
+                    supported_target_primitives=(primitive,),
                 ),
                 "source_refs": list(source_refs),
                 "side_conditions": list(_str_tuple([*subclaim.errors[:3], subclaim.gap_reason or ""])),
@@ -89860,6 +89953,22 @@ def _runtime_gap_formal_declaration_hits(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for subclaim in subclaims:
+        subclaim_primitive = str(
+            subclaim.proof_obligation_id or subclaim.id.split(":")[-1]
+        ).strip()
+        if subclaim.kernel_verified and subclaim_primitive:
+            rows.append(
+                {
+                    "primitive": subclaim_primitive,
+                    "supported_target_primitives": [subclaim_primitive],
+                    "declaration": subclaim_primitive,
+                    "target_prover_family": target_prover_family,
+                    "source_field": "runtime_kernel_verified_declaration_hits",
+                    "kernel_verified": True,
+                    "verification_strength": subclaim.verification_strength,
+                    "subclaim_id": subclaim.id,
+                }
+            )
         for hit in subclaim.formal_source_hits:
             rows.append(
                 _runtime_gap_formal_declaration_hit_row(
@@ -89922,7 +90031,9 @@ def _runtime_declaration_rows(
     fallback_declarations: list[str],
     target_prover_family: str,
     source_field: str,
+    supported_target_primitives: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
+    supported_primitives = list(_str_tuple(supported_target_primitives))
     rows: list[dict[str, Any]] = []
     for hit in hits:
         declaration = ""
@@ -89941,6 +90052,11 @@ def _runtime_declaration_rows(
                     or target_prover_family
                 ).strip(),
                 "source_field": str(hit.get("source_field", "") or source_field),
+                **(
+                    {"supported_target_primitives": supported_primitives}
+                    if supported_primitives
+                    else {}
+                ),
             }
         )
     if not rows:
@@ -89949,6 +90065,11 @@ def _runtime_declaration_rows(
                 "declaration": declaration,
                 "target_prover_family": target_prover_family,
                 "source_field": source_field,
+                **(
+                    {"supported_target_primitives": supported_primitives}
+                    if supported_primitives
+                    else {}
+                ),
             }
             for declaration in _str_tuple(fallback_declarations)
         )
@@ -89967,6 +90088,11 @@ def _runtime_declaration_rows(
                 "target_prover_family": prover,
                 "source_field": str(row.get("source_field", "")).strip()
                 or source_field,
+                **(
+                    {"supported_target_primitives": supported_primitives}
+                    if supported_primitives
+                    else {}
+                ),
             }
         )
     return compact[:12]

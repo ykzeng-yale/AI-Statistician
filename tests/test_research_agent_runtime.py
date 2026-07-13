@@ -2524,6 +2524,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "model": "",
             "model_tier": "auto",
             "max_tokens": 9000,
+            "max_estimated_prompt_input_tokens": 30000,
             "temperature": 0.1,
             "max_repair_attempts": 1,
             "max_staged_followup_stage_calls": 3,
@@ -2624,6 +2625,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert calls[0]["model_tier"] == "auto"
     assert calls[0]["max_route_requests"] == 1
     assert calls[0]["max_staged_followup_stage_calls"] == 3
+    assert calls[0]["max_estimated_prompt_input_tokens"] == 30000
     assert Path(str(calls[0]["formalization_gap_planner_target_intake_dir"])).exists()
     manifest = next(
         artifact
@@ -3464,8 +3466,10 @@ def test_formalization_gap_planner_contract_revision_scopes_handoffs_and_memory(
                 "model": "",
                 "model_tier": "auto",
                 "max_tokens": 9000,
+                "max_estimated_prompt_input_tokens": 30000,
                 "temperature": 0.1,
                 "max_repair_attempts": 0,
+                "max_contract_revisions": 99,
                 "max_staged_followup_stage_calls": 3,
                 "timeout_seconds": 3.0,
             },
@@ -3476,6 +3480,11 @@ def test_formalization_gap_planner_contract_revision_scopes_handoffs_and_memory(
     assert {
         row["runtime_learning_row_id"] for row in revision_memory["rows"]
     } == {"learning:contract", "learning:source-context"}
+    assert artifact["max_same_run_contract_revisions"] == 2
+    assert revision_task.inputs["max_contract_revisions"] == 2
+    assert revision_task.inputs["max_estimated_prompt_input_tokens"] == 30000
+    assert revision_task.budget["max_estimated_prompt_input_tokens"] == 30000
+    assert revision_task.budget["same_run_contract_revision_limit"] == 2
 
 
 def test_formalization_gap_planner_contract_revision_tamper_fails_before_provider(
@@ -3584,7 +3593,7 @@ def test_formalization_gap_planner_contract_revision_budget_exhaustion_fails_clo
     task = AgentTask(
         task_id="gap-planner-live-route:revision-budget",
         owner_subsystem="FormalizationGapPlanner",
-        objective="Fail closed after one contract revision.",
+        objective="Fail closed after the configured contract revisions.",
         inputs={
             "question": runtime_module._question_to_payload(question),
             "invoke_live_route_planner": True,
@@ -3592,6 +3601,7 @@ def test_formalization_gap_planner_contract_revision_budget_exhaustion_fails_clo
             "max_route_requests_per_handoff": 1,
             "provider": "anthropic",
             "max_repair_attempts": 0,
+            "max_contract_revisions": 2,
             "max_staged_followup_stage_calls": 0,
             "architect_context": {},
             "environment_feedback": {},
@@ -3651,14 +3661,36 @@ def test_formalization_gap_planner_contract_revision_budget_exhaustion_fails_clo
         },
         blackboard=blackboard,
     )
-    result = runtime.run(task, max_iterations=3)
+    result = runtime.run(task, max_iterations=4)
 
     assert result.status == "BLOCKED"
-    assert [trace.status for trace in result.traces] == ["REVISE", "BLOCKED"]
+    assert [trace.status for trace in result.traces] == [
+        "REVISE",
+        "REVISE",
+        "BLOCKED",
+    ]
     assert result.traces[-1].failure_classification == (
         "formalization_gap_planner_live_route_planner_contract_repair_exhausted"
     )
-    assert len(calls) == 2
+    assert len(calls) == 3
+    cumulative_feedback_path = Path(
+        str(
+            calls[-1][
+                "formalization_gap_planner_route_contract_feedback_jsonl"
+            ]
+        )
+    )
+    cumulative_feedback_rows = [
+        json.loads(line)
+        for line in cumulative_feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(
+        {
+            row["route_planner_contract_feedback_id"]
+            for row in cumulative_feedback_rows
+        }
+    ) == 2
     assert not result.traces[-1].next_task_id
 
 
@@ -3984,6 +4016,7 @@ def test_formalization_gap_planner_subprocess_consumes_nonzero_contract_manifest
         model="",
         model_tier="auto",
         max_tokens=9000,
+        max_estimated_prompt_input_tokens=30000,
         temperature=0.1,
         max_route_requests_per_handoff=1,
         max_repair_attempts=1,
@@ -4004,6 +4037,9 @@ def test_formalization_gap_planner_subprocess_consumes_nonzero_contract_manifest
     assert payload["runtime_subprocess_manifest_consumed"] is True
     assert payload["runtime_subprocess_nonzero_result_consumed"] is True
     assert calls[0]["kwargs"]["timeout"] == 40.0
+    assert calls[0]["cmd"][
+        calls[0]["cmd"].index("--max-estimated-prompt-input-tokens") + 1
+    ] == "30000"
     assert (
         calls[0]["kwargs"]["env"]["AI_STATISTICIAN_LLM_TIMEOUT_SECONDS"]
         == "7"
@@ -70219,6 +70255,7 @@ def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
         "question": {
             "id": "conformal_prediction_coverage",
             "title": "Split conformal prediction interval coverage",
+            "task_family": "conformal",
         },
         "llm_formalizer_proof_engineer_proposal_id": "formalizer_proposal:source_primitives",
         "deterministic_theorem_goals": [
@@ -70271,6 +70308,7 @@ def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
     assert len(rows) == 1
     assert rows[0]["artifact_kind"] == "SourceTheoremSemanticPrimitiveWorkOrder"
     assert rows[0]["question_id"] == "conformal_prediction_coverage"
+    assert rows[0]["task_family"] == "conformal"
     assert rows[0]["runtime_queue_status"] == (
         "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
     )
@@ -96363,10 +96401,100 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
             "declaration": "Rocq.Probability.exchangeable",
             "target_prover_family": "rocq",
             "source_field": "runtime_primitive_formal_source_hits",
+            "supported_target_primitives": ["exchangeability_bridge"],
         }
     ]
     assert bridge["counts"]["candidate_declaration_rows"] == 2
     assert bridge["counts"]["primitives_with_candidate_declaration_rows"] == 2
+
+
+def test_runtime_gap_planner_scopes_kernel_verified_subclaim_declaration() -> None:
+    bridge = _runtime_formalization_gap_planner_bridge(
+        question=OpenResearchQuestion(
+            id="q_kernel_scope",
+            title="Kernel support scope",
+            description="Preserve typed support-subclaim declaration scope.",
+        ),
+        problem=ResearchProblemSpec(
+            question_id="q_kernel_scope",
+            problem_class="generic statistical theorem",
+            dgp="iid observations",
+            estimand="target functional",
+            assumptions=("regularity",),
+            asymptotic_regime="finite sample",
+            diagnostics=(),
+        ),
+        theorem_goals=[
+            TheoremGoal(
+                id="target_theorem",
+                title="Target theorem",
+                informal_statement="The target follows from a reusable support lemma.",
+                proof_strategy="Compose the kernel-verified support lemma.",
+                status="FORMAL_GAP",
+                required_primitives=("semantic_target",),
+                proof_obligations=("support_bridge",),
+            )
+        ],
+        subclaims=[
+            FormalSubclaim(
+                id="subclaim:support_bridge",
+                title="Reusable support bridge",
+                status="PROVED",
+                claim="A support bridge has passed target-prover kernel replay.",
+                proof_obligation_id="support_bridge",
+                verifier="Lean4",
+                verification_strength="kernel",
+                kernel_verified=True,
+                primitive_formal_source_hits={
+                    "semantic_target": [
+                        {
+                            "source_id": "local_proof_bank",
+                            "source_type": "lean4_library",
+                            "declaration": "support_bridge",
+                        }
+                    ]
+                },
+            )
+        ],
+        proof_state_rows=[],
+        retrieval_context={
+            "target_prover_family": "lean4",
+            "paper_sources": [],
+            "knowledge_cards": [],
+        },
+        formalization_manifest_id="formalization_manifest:kernel_scope",
+        proof_state_feedback_manifest_id="proof_state_feedback:kernel_scope",
+    )
+
+    route = bridge["standalone_seed"]["routes"][0]
+    primitives = {row["primitive"]: row for row in route["primitives"]}
+    assert primitives["support_bridge"]["coverage_status"] == "exact_exists"
+    assert primitives["support_bridge"]["candidate_declaration_rows"] == [
+        {
+            "declaration": "support_bridge",
+            "target_prover_family": "lean4",
+            "source_field": "runtime_proof_obligation_id",
+            "supported_target_primitives": ["support_bridge"],
+        }
+    ]
+    declaration_hits = route["replan_metadata"]["formal_declaration_hits"]
+    scoped_hits = [
+        row
+        for row in declaration_hits
+        if row.get("declaration") == "support_bridge"
+    ]
+    assert {row["primitive"] for row in scoped_hits} == {
+        "semantic_target",
+        "support_bridge",
+    }
+    kernel_hit = next(
+        row for row in scoped_hits if row["primitive"] == "support_bridge"
+    )
+    assert kernel_hit["kernel_verified"] is True
+    assert kernel_hit["supported_target_primitives"] == ["support_bridge"]
+    assert kernel_hit["source_field"] == (
+        "runtime_kernel_verified_declaration_hits"
+    )
 
 
 def test_runtime_target_intake_payload_preserves_mixed_route_targets() -> None:

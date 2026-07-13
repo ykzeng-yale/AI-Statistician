@@ -10,7 +10,7 @@ from .agent_runtime import AgentTask
 from .fingerprint import stable_hash
 
 
-MAX_SAME_RUN_CONTRACT_REVISIONS = 1
+MAX_SAME_RUN_CONTRACT_REVISIONS = 2
 CONTRACT_FEEDBACK_STATUS = (
     "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_"
     "CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -46,7 +46,9 @@ def build_contract_revision_artifact(
     contract_feedback_rows: Sequence[Mapping[str, Any]],
     out_dir: Path,
     revision_attempt: int,
+    max_same_run_contract_revisions: int = MAX_SAME_RUN_CONTRACT_REVISIONS,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    revision_limit = max(0, int(max_same_run_contract_revisions))
     source_manifest_id = str(live_manifest.get("manifest_id", "") or "")
     source_manifest_hash = stable_hash(dict(live_manifest))
     question = _mapping(live_manifest.get("question", {}))
@@ -129,7 +131,7 @@ def build_contract_revision_artifact(
         "source_manifest_id": source_manifest_id,
         "source_manifest_hash": source_manifest_hash,
         "revision_attempt": revision_attempt,
-        "max_same_run_contract_revisions": MAX_SAME_RUN_CONTRACT_REVISIONS,
+        "max_same_run_contract_revisions": revision_limit,
         "contract_feedback_handoff_ids": contract_feedback_handoff_ids,
         "selected_handoff_ids": list(rows_by_handoff),
         "selected_bridge_ids": list(
@@ -190,7 +192,15 @@ def validate_contract_revision_artifact(
     revision_attempt = int(context.get("revision_attempt", 0) or 0)
     if revision_attempt != int(artifact.get("revision_attempt", 0) or 0):
         errors.append("contract revision attempt mismatch")
-    if not 1 <= revision_attempt <= MAX_SAME_RUN_CONTRACT_REVISIONS:
+    context_revision_limit = int(
+        context.get("max_same_run_contract_revisions", 0) or 0
+    )
+    artifact_revision_limit = int(
+        artifact.get("max_same_run_contract_revisions", 0) or 0
+    )
+    if context_revision_limit != artifact_revision_limit:
+        errors.append("contract revision limit binding mismatch")
+    if not 1 <= revision_attempt <= artifact_revision_limit:
         errors.append("contract revision attempt exceeds same-run budget")
     source_manifest_id = str(artifact.get("source_manifest_id", "") or "")
     source_manifest = artifacts.get(source_manifest_id)
@@ -242,6 +252,13 @@ def build_contract_revision_task(
 ) -> AgentTask:
     revision_artifact_id = str(revision_artifact.get("revision_artifact_id", "") or "")
     revision_attempt = int(revision_artifact.get("revision_attempt", 0) or 0)
+    revision_limit = int(
+        revision_artifact.get(
+            "max_same_run_contract_revisions",
+            MAX_SAME_RUN_CONTRACT_REVISIONS,
+        )
+        or 0
+    )
     selected_handoff_ids = list(revision_artifact.get("selected_handoff_ids", []) or [])
     selected_bridge_ids = list(revision_artifact.get("selected_bridge_ids", []) or [])
     revision_environment_feedback = {
@@ -275,7 +292,7 @@ def build_contract_revision_task(
             revision_artifact.get("source_manifest_hash", "") or ""
         ),
         "revision_attempt": revision_attempt,
-        "max_same_run_contract_revisions": MAX_SAME_RUN_CONTRACT_REVISIONS,
+        "max_same_run_contract_revisions": revision_limit,
     }
     max_handoffs = int(settings.get("max_handoffs", 0) or 0)
     max_route_requests = int(settings.get("max_route_requests_per_handoff", 0) or 0)
@@ -314,8 +331,12 @@ def build_contract_revision_task(
             "model": str(settings.get("model", "") or ""),
             "model_tier": str(settings.get("model_tier", "") or ""),
             "max_tokens": int(settings.get("max_tokens", 0) or 0),
+            "max_estimated_prompt_input_tokens": int(
+                settings.get("max_estimated_prompt_input_tokens", 0) or 0
+            ),
             "temperature": float(settings.get("temperature", 0.0) or 0.0),
             "max_repair_attempts": int(settings.get("max_repair_attempts", 0) or 0),
+            "max_contract_revisions": revision_limit,
             "max_staged_followup_stage_calls": int(
                 settings.get("max_staged_followup_stage_calls", 0) or 0
             ),
@@ -330,8 +351,11 @@ def build_contract_revision_task(
         budget={
             "max_handoffs": max_handoffs,
             "max_route_requests_per_handoff": max_route_requests,
+            "max_estimated_prompt_input_tokens": int(
+                settings.get("max_estimated_prompt_input_tokens", 0) or 0
+            ),
             "same_run_contract_revision_attempt": revision_attempt,
-            "same_run_contract_revision_limit": MAX_SAME_RUN_CONTRACT_REVISIONS,
+            "same_run_contract_revision_limit": revision_limit,
         },
         expected_artifacts=(
             "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
@@ -343,8 +367,8 @@ def build_contract_revision_task(
             "from target-prover and kernel evidence."
         ),
         stop_condition=(
-            "Stop after this single source-bound revision attempt succeeds or "
-            "fails closed; do not create an unbounded provider loop."
+            "Stop after this source-bound revision succeeds, or fail closed "
+            "when the configured same-run revision limit is exhausted."
         ),
     )
 

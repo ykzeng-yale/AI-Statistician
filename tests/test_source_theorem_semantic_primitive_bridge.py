@@ -134,6 +134,51 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     assert check["formal_environment_typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
 
 
+def test_source_semantic_bridge_rejects_cross_task_policy_text_matches(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
+    _write_jsonl(
+        queue,
+        [
+            {
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "source_theorem_semantic_primitive_work_order:fdr",
+                "question_id": "multiple_testing_fdr_bh",
+                "task_family": "multiple_testing",
+                "semantic_primitive_id": "OrderStatistic of Finset p-values",
+                "semantic_primitive_gap": (
+                    "Formalize ordered p-values and an alpha-dependent BH threshold."
+                ),
+                "target_theorem_goal_ids": ["bh_fdr_control_independence"],
+            }
+        ],
+    )
+
+    manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue,
+        question_id="conformal_prediction_coverage",
+        local_lean=False,
+    )
+
+    assert manifest["n_semantic_support_policy_applicable_work_orders"] == 0
+    assert manifest["n_semantic_support_policy_inapplicable_work_orders"] == 1
+    assert manifest["n_registered_candidate_obligations"] == 0
+    assert manifest["registered_candidate_obligation_ids"] == []
+    check = manifest["checks"][0]
+    assert check["semantic_support_policy_applicable"] is False
+    assert check["semantic_support_policy_applicability"]["status"] == (
+        "TASK_SCOPED_POLICY_CONFLICT"
+    )
+    assert check["registered_support_level"] == (
+        "task_scoped_policy_not_applicable"
+    )
+    assert check["status"] == (
+        "TASK_SCOPED_POLICY_NOT_APPLICABLE_GENERIC_DISCOVERY_REQUIRED"
+    )
+
+
 def test_semantic_placeholder_text_signals_are_policy_driven() -> None:
     assert placeholder_symbols_from_semantic_alignment_feedback(
         semantic_alignment_blockers=[

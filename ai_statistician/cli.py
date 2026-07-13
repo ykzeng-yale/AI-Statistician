@@ -463,6 +463,7 @@ from .research_agent_runtime import (
     RUNTIME_FORMAL_GAP_TARGET_PROVER_REPLAY_FEEDBACK_LEARNING_TASKS,
     RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_LEARNING_TASKS,
     RUNTIME_LEARNING_MEMORY_ROUTE_CRITICAL_TRIGGERS,
+    RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS,
     RUNTIME_SCHEMA_VERSION,
     _runtime_coding_agent_component_gate_learning_rows,
     _runtime_coding_agent_capability_learning_rows,
@@ -12091,6 +12092,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
                 )
             ),
+            formalization_gap_planner_live_max_estimated_prompt_input_tokens=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_estimated_prompt_input_tokens",
+                    RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS,
+                )
+            ),
             formalization_gap_planner_live_temperature=float(
                 getattr(
                     args,
@@ -12103,6 +12111,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "formalization_gap_planner_live_max_repair_attempts",
                     1,
+                )
+            ),
+            formalization_gap_planner_live_max_contract_revisions=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_contract_revisions",
+                    2,
                 )
             ),
             formalization_gap_planner_live_timeout_seconds=float(
@@ -21772,6 +21787,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum output tokens for each live gap-planner route-planner call",
     )
     research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-estimated-prompt-input-tokens",
+        type=int,
+        default=RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS,
+        help=(
+            "preflight cap for integrated live gap-planner monolithic prompts; "
+            "lower caps route oversized requests through compact staged calls"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-temperature",
         type=float,
         default=0.1,
@@ -21782,6 +21806,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="maximum JSON repair attempts for live gap-planner route-planner responses",
+    )
+    research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-contract-revisions",
+        type=int,
+        default=2,
+        help=(
+            "maximum same-run Architect contract-revision tasks after a live "
+            "staged route assembly fails validation; 0 disables revision"
+        ),
     )
     research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-timeout-seconds",

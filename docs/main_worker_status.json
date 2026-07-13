@@ -1,13 +1,34 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-13T10:09:34Z",
+  "updated_at": "2026-07-13T13:46:43Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Two live V4 failures exposed generic contract defects, so the patch improves the system rather than generated outputs. First, ProofEngineer repair tasks now carry an immutable parent-candidate identity contract containing parent candidate/artifact/source hash, expected Lean declaration, target IDs, and source-theorem provenance. Persisted artifacts are re-evaluated from the manifest-owned parent contract rather than trusting candidate self-reports; declaration drift or an unbound/ambiguous parent identity disables source-theorem eligibility, and an empty historical parent contract cannot bootstrap itself from the emitted helper on the next retry. Explicit diagnostic/support candidates remain candidate-only evidence and do not create false source-theorem failures. Compiler stdout/stderr and identity diagnostics now have a dedicated compact prompt packet so added lineage context cannot evict the exact feedback needed by the LLM. Second, staged FormalizationGapPlanner calls now consume accepted upstream fragments as typed, fingerprinted context; downstream stages must reuse upstream node/primitive/route IDs, stale downstream reuse is rejected when the upstream fingerprint changes, and each stage receives the existing canonical field contract plus the corresponding nested JSON schema. No generated Lean was edited, no Lean grammar/tactic/theorem rule was added, and proof validators were not relaxed.",
-  "latest_main_worker_live_probe": "Fresh V4 required-formal-verification lineages used two unrelated task families, all six live Claude agents, the clean EmpericalProcessLEAN 26,378-declaration RAG index, configured OpenProver HLM, local Lean/LSP feedback, and bounded same-owner route revision. Both questions ended BLOCKED; scorecard=90/111, fresh complete E2E tasks=0/2, kernel-verified support subclaims=66, formal gaps=8, exact source/frontier theorem kernel closures=0, live generated simulations executed=2 and passed=1, live generated algorithms executed=1. Four route-planner invocations had zero provider failures and two structured revision-feedback paths, but 0 contract-valid assembled responses and 0 adopted routes. In both families all three stage envelopes validated while the independently generated final queue referenced node IDs absent from the route-core fragment; this directly motivated typed upstream-fragment communication. OpenProver was correctly not promoted as proof evidence because no contract-valid exact whole-theorem candidate reached its gate.",
-  "latest_main_worker_design_issue": "V4 exposed two protocol defects rather than isolated bad model outputs. Independent staged generation caused cross-stage route identity drift, so downstream stages now receive accepted upstream typed fragments, canonical nested schemas, and dependency fingerprints. Separately, a repaired Lean helper could compile without proving that it still represented the immutable parent theorem; parent-target identity is now manifest-owned, revalidated on persisted artifacts, and carried through LLM/compiler feedback without allowing stale artifacts to bootstrap themselves. Remaining central gaps are still substantial: no fresh source theorem closure, no same-question fail-then-pass algorithm repair, one simulation metric/unsafe repair lineage failed, no proof-body result lane reached local Lean, and the duplicate post-runtime orchestration plane still owns late semantic/promotion and adapter/premise work. Shared target-shape and generated-metric policies remain too vocabulary-driven, the scientific sandbox has no production R lane, and serious theory mode is still too compact. S14 remains false.",
+  "latest_main_worker_patch": "The route planner is now a four-stage LLM protocol instead of one overloaded route-core packet: route decision/cost graph, formal realization/alignment, residual interpretation, and prover queue/standalone route are generated and semantically validated incrementally. Stage output uses the configured provider ceiling, exact cost/evidence/declaration inventories survive prompt compaction, and accepted fragments remain immutable and reusable across the bounded two-revision Architect loop. Runtime declaration candidates now carry supported_target_primitives, while every kernel-verified support subclaim emits a separately scoped typed declaration-hit row so exact-reuse costs and declaration validators consume the same evidence lineage. The formal stage receives a declaration index keyed by primitive and an explicit all-pairs informal-to-formal DAG dependency contract. No generated Lean answer, Lean grammar/tactic rule, theorem-name exception, or validator relaxation was added.",
+  "latest_main_worker_live_probe": "V9 FDR live replay at runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split used Claude Opus with the same persisted request, RAG/resource context, and historical feedback. The monolithic request correctly failed the 30k prompt preflight and entered staged planning. route_core_compaction returned at end_turn with 10,044 output tokens and passed its semantic contract; formal_realization_and_alignment returned at end_turn with 9,924 output tokens and was rejected on exactly four semantic errors: two primitive-scoped declaration mismatches and two missing all-pairs DAG dependency paths. There were zero provider failures, zero JSON truncations in these two stages, zero assembled routes, and zero target-prover replay candidates. This proves the prior capacity bottleneck was removed and exposes the next protocol/evidence defects; it is not route closure or theorem proof. Because V9 used a persisted pre-fix runtime seed, no post-fix fresh live closure is claimed.",
+  "latest_main_worker_design_issue": "V9 exposed a system-produced evidence contradiction rather than merely a bad model answer: AgentRuntime marked kernel-verified support-subclaim primitives exact_exists but did not emit declaration evidence scoped to those same primitives, while the strict planner validator correctly consumed a different scoped use of the same declaration and rejected reuse. The runtime lineage now records both the support subclaim's own declaration scope and any upper-level primitive it supports. Remaining end-to-end deviations are unchanged and material: the late post-runtime bridge/executor plane is not fully Architect-owned; the FDR simulation failure can bypass AlgorithmEngineer; TheoryDeveloper lacks a serious long-equation/lemma-DAG mode; there is no production R coding/execution lane; scientific Python breadth is limited; arbitrary-paper ingest is weak; and no fresh exact source theorem has closed in either unrelated family. S14 remains false and honest readiness remains about 45-55 percent.",
+  "latest_four_stage_route_planner_live_probe": {
+    "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",
+    "task_family": "multiple_testing/multiple_testing_fdr_bh",
+    "provider": "anthropic",
+    "model": "claude-opus-4-8",
+    "configured_stage_count": 4,
+    "attempted_stage_count": 2,
+    "route_core_contract_ok": true,
+    "route_core_stop_reason": "end_turn",
+    "route_core_output_tokens": 10044,
+    "formal_realization_contract_ok": false,
+    "formal_realization_stop_reason": "end_turn",
+    "formal_realization_output_tokens": 9924,
+    "formal_realization_semantic_error_count": 4,
+    "provider_failures": 0,
+    "assembled_response_contract_ok": 0,
+    "target_prover_replay_candidates": 0,
+    "source_theorem_kernel_verified": false,
+    "full_frontier_theorem_proved": false,
+    "s14_satisfied": false
+  },
   "main_objective": "Drive AI-Statistician to a genuinely live autonomous end-to-end AI Statistical Theory Lab. Own one Architect-controlled AgentRuntime; integrate the strongest reusable OpenProver, EmpericalProcessLEAN, CodexProver, proof-bank, and prior Mac Pro mechanisms; require LLM/coding agents to generate rigorous theory, Python/R algorithms and simulations, and exact Lean candidates; iterate through execution, compiler/LSP/proof-state, retrieval, critic, and worker feedback; eliminate runtime-generated Lean tactics, theorem-specific grammar rewrites, duplicate orchestration planes, and capability-attribution shortcuts; preserve immutable lineage and strict evidence boundaries; and do not claim completion until two unrelated fresh statistical task families each close an exact source theorem under local Lean/AXLE with no acceptance-gating formal gaps and honest S14 evidence.",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "hard_work_commitment": [
@@ -168,6 +189,53 @@
     "proof_evidence_status": "Live cross-family orchestration and subsystem feedback evidence only; support-lemma kernel checks are not exact source-theorem proof.",
     "s14_satisfied": false
   },
+  "latest_s14_required_openprover_rag_fresh_v5_probe": {
+    "runtime_manifest": "runs/main_worker_s14_required_openprover_rag_fresh_live_20260713_v5/research_agent_runtime_manifest.json",
+    "audit_manifest": "runs/main_worker_s14_required_openprover_rag_fresh_live_20260713_v5/runtime_capability_audit/research_agent_runtime_audit_manifest.json",
+    "task_families": [
+      "experimental_design/design_based_variance_bound",
+      "multiple_testing/multiple_testing_fdr_bh"
+    ],
+    "question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "scorecard": "92/111",
+    "integrated_scorecard": "87/105",
+    "fresh_complete_e2e_tasks": "0/2",
+    "kernel_verified_support_subclaims": 66,
+    "formal_gaps": 8,
+    "exact_source_theorem_kernel_verified": 0,
+    "full_frontier_theorem_proved": 0,
+    "live_lean_lsp_calls": 4,
+    "source_theorem_proof_body_local_lean_rows": 0,
+    "design_simulation_failed_then_passed": true,
+    "multiple_testing_simulation_metric_gate_passed": false,
+    "multiple_testing_algorithm_engineer_bypassed_after_simulation_failure": true,
+    "route_stage_contract_valid_per_family": 3,
+    "route_assembled_contract_valid_per_family": 0,
+    "route_target_prover_replay_candidates_per_family": 0,
+    "post_patch_fdr_live_replay_error_progression": [
+      14,
+      12,
+      2
+    ],
+    "post_patch_fdr_live_replay_latest_errors": [
+      "baseline route option cost 18 below request floor 24"
+    ],
+    "post_patch_baseline_cost_floor_prompt_live_rechecked": false,
+    "v5_policy_scope_replay": "runs/main_worker_s14_v5_policy_scope_replay/source_theorem_semantic_primitive_proofengineer_bridge_manifest.json",
+    "v5_policy_scope_replay_work_orders": 8,
+    "v5_policy_scope_replay_applicable_split_conformal_work_orders": 0,
+    "v5_policy_scope_replay_registered_candidates": 0,
+    "contract_feedback_error_retention_limit": 64,
+    "same_run_contract_revision_default_limit": 2,
+    "same_run_contract_revision_memory": "cumulative immutable feedback rows plus source-bound accepted staged fragments",
+    "openprover_hlm_invocation_gate_reached": false,
+    "proof_evidence_status": "Live planning, coding, simulation, local Lean support-subclaim, and feedback-loop evidence only; no exact source theorem or frontier theorem proof.",
+    "capability_ready_for_full_ai_statistician": false,
+    "s14_satisfied": false
+  },
   "latest_external_codexprover_coordination": {
     "checkout": "/Users/yukangzengcmac/.codex/external/CodexProver",
     "branch": "codex/evaluator-shard-no-workflow-push",
@@ -195,11 +263,11 @@
     "rigorous_llm_theory_development": "PARTIAL: Claude theory generation and critic handoffs are live, but the default packet remains too compact for long equation-chain derivation, lemma DAG construction, assumption audit, and iterative theorem revision",
     "python_coding_agent": "PARTIAL_LIVE: generated algorithm and simulation sandboxes execute and can repair from feedback, but first-pass executable-draft reliability and arbitrary scientific-library breadth remain limited",
     "r_coding_agent": "MISSING: no production R generation, sandbox execution, package environment, or R-specific repair evaluation exists",
-    "formalizer_and_prover": "PARTIAL_LIVE: exact typed prover, OpenProver HLM, local Lean/LSP feedback, proof bank, and kernel gates are integrated; no fresh statistical exact source theorem has closed in the two-family probe",
+    "formalizer_and_prover": "PARTIAL_LIVE: exact typed prover, OpenProver HLM, local Lean/LSP feedback, proof bank, and kernel gates are integrated. Four-stage planning now avoids the observed 16k route-core truncation and validates each fragment semantically, but the newest FDR replay stopped on four formal-alignment errors before assembly; no fresh statistical exact source theorem has closed in either family.",
     "formal_rag": "PARTIAL_LIVE_SIGNED: proof bank plus a clean EmpericalProcessLEAN graph are canonical runtime providers. The current external checkout binds commit 4a3b2856cee2 with 26,378 declarations and 75,497 declaration edges; strict runtime rejects dirty/changed/unknown signatures. Retrieval remains non-proof evidence and natural-language ranking is still weak/high-fanout.",
     "coding_agent_feedback_fidelity": "ACTIVE_PATH_READY: same-owner retries bypass Architect plan repair; signature/exact-semantic/exact-source/generic materializer/adapter/premise feedback preserves generated candidates; missing candidates become typed LLM work; legacy static templates are explicit calibration only",
-    "worker_communication": "PARTIAL_IMPROVED: typed tasks, blackboard artifacts, immutable handoffs, and critic feedback exist; theorem closure, primary exact proof body, primary source-semantic definition/proof feedback, and exact-semantic review/verifier feedback now return inside AgentRuntime, but late-derived semantic/promotion and adapter/premise feedback are not yet fully plan-visible",
-    "cross_task_evaluation": "NOT_READY_BUT_DEEPER: fresh experimental-design and multiple-testing V4 lineages both reached all six live Claude agents, generated execution, LLM Formalizer, local Lean/LSP feedback, ProofEngineer, clean formal RAG, and bounded live route revision. Both ended BLOCKED; scorecard=90/111, support subclaims=66, formal gaps=8, exact source/frontier theorem closure=0, and fresh complete E2E tasks=0/2. Their shared staged identity-drift root cause now has typed upstream-fragment communication and dependency fingerprints, but no post-patch fresh live route or exact theorem has closed; S14 remains false.",
+    "worker_communication": "PARTIAL_IMPROVED: typed tasks, blackboard artifacts, immutable handoffs, cumulative validator feedback, accepted-fragment reuse, and critic feedback exist. Route planning now separates route decision, realization, residual interpretation, and execution queue while preserving upstream IDs. Kernel support-subclaim declarations now carry explicit primitive scope. Theorem closure, primary proof-body feedback, and exact-semantic review return inside AgentRuntime, but late-derived semantic/promotion and adapter/premise work remain incompletely plan-visible.",
+    "cross_task_evaluation": "NOT_READY_BUT_DEEPER: fresh experimental-design and multiple-testing V5 lineages reached all six live Claude agents, generated execution, LLM Formalizer, local Lean/LSP feedback, ProofEngineer, clean formal RAG, and bounded live route revision. Both ended BLOCKED; scorecard=92/111, integrated=87/105, support subclaims=66, formal gaps=8, exact source/frontier theorem closure=0, and fresh complete E2E tasks=0/2. A later FDR-only V9 replay proved the four-stage split removes route-core truncation and exposed four exact formal-alignment errors, but it reused a pre-fix seed and is not a fresh cross-family closure. S14 remains false.",
     "completion_gate": "Do not declare the system end-to-end until two unrelated fresh task families each complete Architect, rigorous theory, generated Python/R implementation and simulation, formal RAG, zero-shot Lean/OpenProver generation, compiler/LSP feedback revision, Critic review, and exact source-theorem local Lean/AXLE kernel closure with no acceptance-gating formal gaps."
   },
   "latest_typed_exact_semantic_definition_runtime_migration": {
@@ -290,7 +358,7 @@
   "latest_bounded_route_planner_contract_revision": {
     "runtime_owner": "FormalizationGapPlanner",
     "same_owner_agent_runtime_continuation": true,
-    "maximum_same_run_revision_attempts": 1,
+    "maximum_same_run_revision_attempts": 2,
     "structured_contract_rejection_routes_to_revise": true,
     "provider_failure_or_timeout_routes_to_revise": false,
     "second_contract_rejection_fails_closed": true,
@@ -322,9 +390,9 @@
     "persisted_v3_initial_replay_summary": "runs/main_worker_s14_v3_contract_revision_replay_20260713/replay_summary.json",
     "persisted_v3_feedback_aware_replay_summary": "runs/main_worker_s14_v3_contract_revision_feedback_replay_20260713/replay_summary.json",
     "persisted_v3_feedback_aware_result_per_family": "3 source rows; 24 real assembly errors; residual stage reused; core reuse invalidated; core and final stages regenerated; 3/3 stage contracts valid; full assembly still contract-rejected",
-    "route_planner_module_tests": "241 passed in 5.45s",
-    "runtime_revision_targeted_tests": "5 passed, 1059 deselected",
-    "full_runtime_tests": "1064 passed in 1443.22s",
+    "route_planner_module_tests": "247 passed in 4.54s",
+    "runtime_revision_and_semantic_bridge_targeted_tests": "30 passed in 0.72s",
+    "full_runtime_tests": "1054 passed before a cold Lean v4.32.0 download caused 15 local-Lean timeouts; after toolchain installation the exact 15-test failure set passed in 85.56s, covering all 1069 runtime tests without relaxing timeouts or evidence gates",
     "proof_evidence_status": "AgentRuntime control-flow, contract-feedback, and artifact-lineage evidence only; not theorem proof evidence",
     "source_theorem_kernel_verified": false,
     "full_frontier_theorem_proved": false,
@@ -2991,6 +3059,8 @@
     "jq empty docs/main_worker_status.json && git diff --check # passed"
   ],
   "current_blockers": [
+    "The four-stage planner removes the observed route-core output truncation, but the newest live FDR replay stopped at formal realization with two declaration-scope mismatches and two missing all-pairs DAG paths. The declaration lineage and prompt contract are patched, but a fresh current-code runtime seed has not yet completed all four stages, full assembly, or target-prover replay.",
+    "The latest live route evidence is FDR-only and reuses a pre-fix persisted seed; it cannot satisfy the required two-family fresh-start generalization gate. Exact source theorem closure remains 0/2 and S14 remains false.",
     "Exact-semantic review/verifier/proof continuation is now typed, but semantic or promotion work discovered after proof-body/postprocessing plus proof-body adapter/premise derivation and later same-run proof-body rechecks still execute in the legacy post-runtime plane.",
     "Fresh experimental-design and multiple-testing V4 lineages both reached all six live Claude agents, generated execution, Formalizer, local Lean/LSP feedback, ProofEngineer, clean formal RAG, and bounded live route revision. Both ended BLOCKED; scorecard=90/111, integrated scorecard=86/105, kernel-verified support subclaims=66, formal gaps=8, exact source/frontier theorem closure=0, fresh complete E2E tasks=0/2, and S14=false.",
     "Both V4 route-planner lineages produced structured revision feedback with zero provider failures, and each final revision had 3/3 individually valid stage envelopes, but the final formal_attempt_queue invented IDs absent from the accepted route-core fragment. The post-probe planner now sends accepted upstream fragments, canonical nested schemas, and dependency fingerprints to downstream stages; no fresh V5 live run has yet demonstrated a contract-valid assembled route or target-prover replay.",
@@ -3022,6 +3092,8 @@
     "Design bug found in the live probe tail: the main AgentRuntime manifest was already written, but the CLI could still hang in optional Formalizer Lean-candidate repair calibration while building a formal source retriever. This was post-run calibration, not integrated theorem proof progress; it is now bounded by a runtime watchdog and converted to an attached failure manifest on timeout/exception."
   ],
   "next_main_worker_actions": [
+    "run a fresh current-code experimental-design plus multiple-testing runtime so kernel-verified support-subclaim declaration scopes are generated at source, then require all four LLM route stages, full semantic assembly, and target-prover replay without editing generated route or Lean output",
+    "feed any fresh formal-realization validator errors through the bounded two-revision Architect loop, reuse only source-bound contract-valid fragments, and fail closed after the configured budget rather than adding theorem-specific repair rules",
     "migrate source-semantic work discovered after proof-body/postprocessing plus source-theorem promotion into typed Architect-visible AgentRuntime children, chaining into the exact proof-body child when the immutable target/candidate contract is satisfied; remove the labeled legacy_post_runtime_derived_execution fallback",
     "migrate proof-body adapter/premise derivation and later same-run proof-body recheck queues into AgentRuntime; keep generated candidate bytes unchanged and return compiler/LSP diagnostics to the responsible LLM coding agent",
     "adapt CodexProver 33832f47's packet-bound adaptive episode controller, routed-context digest, runtime capability profile, and actual runtime-read audit into the one Architect-controlled AgentRuntime or a typed worker backend; do not create a second orchestration plane or import its committed run corpus",
@@ -3814,6 +3886,12 @@
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'formalization_gap_planner_runtime_subsystem_executes_live_followup_task or formalization_gap_planner_agent_runtime_executes_bound_contract_revision or formalization_gap_planner_contract_revision_scopes_handoffs_and_memory or formalization_gap_planner_contract_revision_tamper_fails_before_provider or formalization_gap_planner_contract_revision_budget_exhaustion_fails_closed' # 5 passed, 1059 deselected",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # 1064 passed in 1443.22s after final rejected-handoff scoping and runtime-memory preservation patch",
     "runs/main_worker_s14_v3_contract_revision_replay_20260713/replay_summary.json # both persisted V3 families read 3 prior rows, reused exactly 2 valid fragments, regenerated the rejected final stage, validated 3/3 stage contracts and the manifest, but full assembly remained 0",
-    "runs/main_worker_s14_v3_contract_revision_feedback_replay_20260713/replay_summary.json # each family fed 24 actual assembly errors into typed feedback, invalidated route-core reuse by declared output fields, reused only residual interpretation, regenerated core/final, validated 3/3 stage contracts and the manifest, and retained full assembly=0/non-proof status"
+    "runs/main_worker_s14_v3_contract_revision_feedback_replay_20260713/replay_summary.json # each family fed 24 actual assembly errors into typed feedback, invalidated route-core reuse by declared output fields, reused only residual interpretation, regenerated core/final, validated 3/3 stage contracts and the manifest, and retained full assembly=0/non-proof status",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_formalization_gap_planner_llm_route_planner.py tests/test_research_agent_runtime.py::test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target tests/test_research_agent_runtime.py::test_runtime_gap_planner_scopes_kernel_verified_subclaim_declaration # 247 passed after four-stage planning and kernel-support declaration-scope lineage patch",
+    "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split # route core end_turn/contract-ok with 10044 output tokens; formal realization end_turn/contract-rejected on four semantic errors; zero provider failures, assembly contracts, or prover candidates",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_research_agent_runtime.py # 1054 passed and 15 local-Lean tests timed out only while elan cold-downloaded Lean v4.32.0; after installation the exact 15-test set passed in 85.56s",
+    "PYTHONPATH=. .venv/bin/pytest -q --tb=short <the 15 failed local-Lean selectors> # 15 passed after Lean v4.32.0 toolchain prewarm; no timeout, validator, or proof-evidence gate was relaxed",
+    "PYTHONPATH=. .venv/bin/pytest -q tests/test_formalization_gap_planner_llm_route_planner.py tests/test_source_theorem_semantic_primitive_bridge.py <8 focused AgentRuntime selectors> # 275 passed in 4.50s after final four-stage, task-scope, cumulative revision, prompt-budget, and kernel-declaration-lineage review",
+    ".venv/bin/python -m py_compile ai_statistician/cli.py ai_statistician/formalization_gap_planner_llm_route_planner.py ai_statistician/formalization_gap_planner_runtime_contract_revision.py ai_statistician/research_agent_runtime.py ai_statistician/source_theorem_semantic_primitive_proofengineer_bridge.py; jq empty docs/main_worker_status.json; git diff --check # passed before commit"
   ]
 }
