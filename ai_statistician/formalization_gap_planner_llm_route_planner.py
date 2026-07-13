@@ -14986,11 +14986,18 @@ def _generate_staged_followup_stage_attempts(
         for stage_index, stage in enumerate(
             _dict_tuple(followup.get("stage_sequence", []))
         ):
+            prior_stage_fragments = _staged_followup_prior_stage_fragments(
+                attempts,
+                staged_followup_id=str(
+                    followup.get("staged_followup_id", "") or ""
+                ),
+            )
             reusable_candidates = (
                 _matching_reusable_prior_staged_followup_stage_attempts(
                     prior_stage_attempts,
                     request,
                     stage,
+                    prior_stage_fragments=prior_stage_fragments,
                     used_prior_attempt_ids=used_prior_attempt_ids,
                 )
             )
@@ -15011,6 +15018,7 @@ def _generate_staged_followup_stage_attempts(
                     request,
                     stage,
                     stage_index=stage_index,
+                    prior_stage_fragments=prior_stage_fragments,
                     used_prior_attempt_ids=used_prior_attempt_ids,
                     candidates=reusable_candidates,
                     errors=errors,
@@ -15028,6 +15036,7 @@ def _generate_staged_followup_stage_attempts(
                 request,
                 stage,
                 stage_index=stage_index,
+                prior_stage_fragments=prior_stage_fragments,
                 generator_backend=generator_backend,
                 model=model,
                 max_tokens=max_tokens,
@@ -15049,11 +15058,30 @@ def _generate_staged_followup_stage_attempts(
     return tuple(attempts)
 
 
+def _staged_followup_prior_stage_fragments(
+    attempts: list[dict[str, object]],
+    *,
+    staged_followup_id: str,
+) -> tuple[dict[str, object], ...]:
+    return tuple(
+        {
+            "stage_id": str(row.get("stage_id", "") or ""),
+            "fragment": deepcopy(_dict_value(row, "fragment")),
+            "fragment_fingerprint": stable_hash(_dict_value(row, "fragment")),
+        }
+        for row in attempts
+        if str(row.get("staged_followup_id", "") or "") == staged_followup_id
+        and row.get("response_contract_ok") is True
+        and isinstance(row.get("fragment", {}), Mapping)
+    )
+
+
 def _matching_reusable_prior_staged_followup_stage_attempts(
     prior_stage_attempts: tuple[dict[str, Any], ...],
     request: Mapping[str, Any],
     stage: Mapping[str, object],
     *,
+    prior_stage_fragments: tuple[dict[str, object], ...] = tuple(),
     used_prior_attempt_ids: set[str],
 ) -> tuple[dict[str, Any], ...]:
     route_id = str(request.get("route_id", "") or "")
@@ -15073,7 +15101,21 @@ def _matching_reusable_prior_staged_followup_stage_attempts(
         and str(row.get("stage_attempt_id", "") or "")
         not in used_prior_attempt_ids
         and _prior_staged_followup_stage_attempt_reusable(row)
+        and _prior_staged_followup_stage_dependencies_match(
+            row,
+            prior_stage_fragments,
+        )
     )
+
+
+def _prior_staged_followup_stage_dependencies_match(
+    row: Mapping[str, Any],
+    prior_stage_fragments: tuple[dict[str, object], ...],
+) -> bool:
+    expected = str(row.get("prior_stage_fragment_fingerprint", "") or "")
+    if not prior_stage_fragments:
+        return not expected or expected == stable_hash([])
+    return bool(expected and expected == stable_hash(list(prior_stage_fragments)))
 
 
 def _staged_followup_stage_contract_feedback_reuse_block(
@@ -15158,6 +15200,7 @@ def _rebound_prior_staged_followup_stage_attempt(
     stage: Mapping[str, object],
     *,
     stage_index: int,
+    prior_stage_fragments: tuple[dict[str, object], ...] = tuple(),
     used_prior_attempt_ids: set[str],
     candidates: tuple[dict[str, Any], ...] | None = None,
     errors: list[str],
@@ -15173,6 +15216,7 @@ def _rebound_prior_staged_followup_stage_attempt(
         prior_stage_attempts,
         request,
         stage,
+        prior_stage_fragments=prior_stage_fragments,
         used_prior_attempt_ids=used_prior_attempt_ids,
     )
     if not candidates:
@@ -15232,7 +15276,12 @@ def _rebound_prior_staged_followup_stage_attempt(
         return None
 
     system_prompt = _staged_followup_stage_system_prompt()
-    user_prompt = _staged_followup_stage_user_prompt(followup, request, stage)
+    user_prompt = _staged_followup_stage_user_prompt(
+        followup,
+        request,
+        stage,
+        prior_stage_fragments=prior_stage_fragments,
+    )
     raw_response_text = json.dumps(response_payload, sort_keys=True)
     runtime_source_metadata = {
         key: value
@@ -15268,6 +15317,19 @@ def _rebound_prior_staged_followup_stage_attempt(
         "max_tokens": 0,
         "temperature": 0.0,
         "prompt_fingerprint": stable_hash([system_prompt, user_prompt]),
+        "n_prior_stage_fragments": len(prior_stage_fragments),
+        "prior_stage_fragment_fingerprint": stable_hash(
+            list(prior_stage_fragments)
+        ),
+        "prior_stage_fragment_refs": [
+            {
+                "stage_id": str(row.get("stage_id", "") or ""),
+                "fragment_fingerprint": str(
+                    row.get("fragment_fingerprint", "") or ""
+                ),
+            }
+            for row in prior_stage_fragments
+        ],
         "response_present": True,
         "response_contract_ok": True,
         "provider_failure": False,
@@ -15331,6 +15393,7 @@ def _generate_staged_followup_stage_attempt(
     stage: Mapping[str, object],
     *,
     stage_index: int,
+    prior_stage_fragments: tuple[dict[str, object], ...] = tuple(),
     generator_backend: GeneratorBackend,
     model: str,
     max_tokens: int,
@@ -15350,7 +15413,12 @@ def _generate_staged_followup_stage_attempt(
         attempt_model_tier=model_tier,
     )
     system_prompt = _staged_followup_stage_system_prompt()
-    user_prompt = _staged_followup_stage_user_prompt(followup, request, stage)
+    user_prompt = _staged_followup_stage_user_prompt(
+        followup,
+        request,
+        stage,
+        prior_stage_fragments=prior_stage_fragments,
+    )
     prompt_fingerprint = stable_hash([system_prompt, user_prompt])
     stage_max_tokens = max(
         1,
@@ -15383,6 +15451,19 @@ def _generate_staged_followup_stage_attempt(
         "max_tokens": stage_max_tokens,
         "temperature": float(temperature),
         "prompt_fingerprint": prompt_fingerprint,
+        "n_prior_stage_fragments": len(prior_stage_fragments),
+        "prior_stage_fragment_fingerprint": stable_hash(
+            list(prior_stage_fragments)
+        ),
+        "prior_stage_fragment_refs": [
+            {
+                "stage_id": str(row.get("stage_id", "") or ""),
+                "fragment_fingerprint": str(
+                    row.get("fragment_fingerprint", "") or ""
+                ),
+            }
+            for row in prior_stage_fragments
+        ],
         "response_present": False,
         "response_contract_ok": False,
         "provider_failure": False,
@@ -15422,6 +15503,10 @@ def _generate_staged_followup_stage_attempt(
                     "stage_id": stage_id,
                     "stage_index": max(0, int(stage_index)),
                     "staged_followup_stage_call": True,
+                    "n_prior_stage_fragments": len(prior_stage_fragments),
+                    "prior_stage_fragment_fingerprint": stable_hash(
+                        list(prior_stage_fragments)
+                    ),
                     "requested_model_tier": model_tier,
                     "model_tier": model_tier,
                     "max_stage_calls_boundary": (
@@ -15529,6 +15614,8 @@ def _staged_followup_stage_user_prompt(
     followup: Mapping[str, object],
     request: Mapping[str, Any],
     stage: Mapping[str, object],
+    *,
+    prior_stage_fragments: tuple[dict[str, object], ...] = tuple(),
 ) -> str:
     stage_id = str(stage.get("stage_id", "") or "")
     prompt_context_packet = _dict_value(request, "prompt_context_packet")
@@ -15559,9 +15646,13 @@ def _staged_followup_stage_user_prompt(
             "stage_fragment_contract": _staged_followup_stage_fragment_contract(
                 stage_id
             ),
+            "canonical_field_contracts": (
+                _staged_followup_stage_canonical_field_contracts(stage_id)
+            ),
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         },
         "stage": dict(stage),
+        "accepted_prior_stage_fragments": list(prior_stage_fragments),
         "staged_followup": {
             "staged_followup_id": str(
                 followup.get("staged_followup_id", "") or ""
@@ -15604,6 +15695,12 @@ def _staged_followup_stage_user_prompt(
             "Put stage-specific content under fragment, not as top-level prose.",
             "Keep the complete JSON response under 1800 output tokens.",
             "Keep lists compact; do not copy long prover diagnostics.",
+            (
+                "Treat accepted_prior_stage_fragments as authoritative typed "
+                "upstream output. Reuse their node IDs, primitive IDs, selected "
+                "route option IDs, and target identities verbatim wherever this "
+                "stage references them."
+            ),
             "If the stage cannot fit, return required fields with shorter rows or empty arrays plus assembler_notes.",
             "Do not invent source refs, formal declarations, or tool calls.",
             "If evidence is missing, use empty arrays plus assembler_notes or planner_next_actions.",
@@ -15783,6 +15880,16 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
     return {}
 
 
+def _staged_followup_stage_canonical_field_contracts(
+    stage_id: str,
+) -> dict[str, object]:
+    return {
+        field_name: deepcopy(LLM_ROUTE_PLANNER_OUTPUT_CONTRACT[field_name])
+        for field_name in _staged_followup_stage_required_fragment_fields(stage_id)
+        if field_name in LLM_ROUTE_PLANNER_OUTPUT_CONTRACT
+    }
+
+
 def _staged_followup_stage_prompt_context_packet(
     prompt_context_packet: Mapping[str, Any],
     *,
@@ -15854,6 +15961,13 @@ def llm_route_planner_staged_followup_stage_response_schema(
 ) -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     fragment_required = list(_staged_followup_stage_required_fragment_fields(stage_id))
+    full_payload_schema = llm_route_planner_response_payload_schema()
+    full_payload_properties = _dict_value(full_payload_schema, "properties")
+    fragment_properties = {
+        field_name: deepcopy(full_payload_properties[field_name])
+        for field_name in fragment_required
+        if field_name in full_payload_properties
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_SCHEMA_ID,
@@ -15884,8 +15998,9 @@ def llm_route_planner_staged_followup_stage_response_schema(
             "stage_status": {"type": "string", "minLength": 1},
             "fragment": {
                 "type": "object",
-                "additionalProperties": True,
+                "additionalProperties": False,
                 "required": fragment_required,
+                "properties": fragment_properties,
             },
             "assembler_notes": string_array,
             "proof_evidence_status": {"type": "string"},
@@ -15894,6 +16009,7 @@ def llm_route_planner_staged_followup_stage_response_schema(
                 "pattern": "not theorem proof evidence",
             },
         },
+        "$defs": deepcopy(_dict_value(full_payload_schema, "$defs")),
     }
 
 

@@ -32,6 +32,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
+    _prior_staged_followup_stage_dependencies_match,
     _route_adoption_readiness,
     _target_compatible_formal_declaration_rows,
     export_formalization_gap_planner_llm_route_planner,
@@ -85,6 +86,7 @@ from ai_statistician.formalization_gap_planner_target_intake import (
     normalize_formalization_gap_planner_target_intake,
 )
 from ai_statistician.model_backend import GeneratorResponse
+from ai_statistician.fingerprint import stable_hash
 
 
 def _write_input(root: Path) -> Path:
@@ -12962,6 +12964,41 @@ def test_llm_route_planner_records_staged_followup_for_max_token_truncation() ->
     assert "Staged followups required: 1 max-token=1" in report
 
 
+def test_staged_followup_reuse_requires_unchanged_upstream_fragment_identity() -> None:
+    original_upstream = (
+        {
+            "stage_id": "route_core_compaction",
+            "fragment": {
+                "formal_realization_dag_nodes": [
+                    {"node_id": "formal:source_target", "primitive": "source_target"}
+                ]
+            },
+            "fragment_fingerprint": "core-v1",
+        },
+    )
+    downstream_attempt = {
+        "prior_stage_fragment_fingerprint": stable_hash(list(original_upstream))
+    }
+    revised_upstream = deepcopy(original_upstream)
+    revised_upstream[0]["fragment"]["formal_realization_dag_nodes"][0][
+        "node_id"
+    ] = "formal:revised_source_target"
+    revised_upstream[0]["fragment_fingerprint"] = "core-v2"
+
+    assert _prior_staged_followup_stage_dependencies_match(
+        downstream_attempt,
+        original_upstream,
+    )
+    assert not _prior_staged_followup_stage_dependencies_match(
+        downstream_attempt,
+        revised_upstream,
+    )
+    assert not _prior_staged_followup_stage_dependencies_match(
+        {},
+        original_upstream,
+    )
+
+
 def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_staged_stage_calls"
@@ -13078,13 +13115,32 @@ def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> Non
     assert calls[1].metadata["staged_followup_stage_call"] is True
     assert calls[1].metadata["stage_id"] == "route_core_compaction"
     assert calls[1].max_tokens == LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_MAX_TOKENS
+    route_core_prompt = json.loads(calls[1].user_prompt)
+    assert route_core_prompt["required_output_contract"][
+        "canonical_field_contracts"
+    ]["formal_realization_dag_nodes"][0]["formalization_action"] == (
+        "reuse|compose|write_wrapper|prove_bridge|source_port|define_new"
+    )
+    route_core_fragment_schema = calls[1].schema["properties"]["fragment"]
+    assert route_core_fragment_schema["additionalProperties"] is False
+    assert route_core_fragment_schema["properties"]["minimal_delta_plan"] == {
+        "$ref": "#/$defs/minimal_delta_plan"
+    }
+    assert "minimal_delta_plan" in calls[1].schema["$defs"]
     assert calls[2].metadata["stage_id"] == "residual_batch_interpretation"
+    residual_prompt = json.loads(calls[2].user_prompt)
+    assert [
+        row["stage_id"]
+        for row in residual_prompt["accepted_prior_stage_fragments"]
+    ] == ["route_core_compaction"]
+    assert calls[2].metadata["n_prior_stage_fragments"] == 1
     stage_rows = payload["staged_followup_stage_attempt_rows"]
     assert [row["stage_id"] for row in stage_rows] == [
         "route_core_compaction",
         "residual_batch_interpretation",
     ]
     assert all(row["response_contract_ok"] for row in stage_rows)
+    assert [row["n_prior_stage_fragments"] for row in stage_rows] == [0, 1]
     staged_attempts_jsonl = (
         out_dir
         / "formalization_gap_planner_llm_route_planner_staged_followup_stage_attempts.jsonl"
@@ -13241,6 +13297,26 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert payload["standalone_replay_gate_ok"] is True
     assert payload["n_standalone_replay_route_candidates"] == 1
     assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
+    final_stage_prompt = json.loads(calls[3].user_prompt)
+    assert [
+        row["stage_id"]
+        for row in final_stage_prompt["accepted_prior_stage_fragments"]
+    ] == ["route_core_compaction", "residual_batch_interpretation"]
+    prior_core_fragment = final_stage_prompt["accepted_prior_stage_fragments"][0][
+        "fragment"
+    ]
+    assert [
+        row["node_id"]
+        for row in prior_core_fragment["formal_realization_dag_nodes"]
+    ] == ["formal:exchangeability", "formal:rank_uniformity_bridge"]
+    assert calls[3].metadata["n_prior_stage_fragments"] == 2
+    final_fragment_schema = calls[3].schema["properties"]["fragment"]
+    formal_attempt_schema = final_fragment_schema["properties"][
+        "formal_attempt_queue"
+    ]["items"]
+    assert formal_attempt_schema["properties"]["expected_feedback"]["type"] == (
+        "array"
+    )
     assembly = payload["staged_followup_assembly_rows"][0]
     assert assembly["assembly_status"] == "ASSEMBLED_FULL_ROUTE_CONTRACT_OK"
     assert assembly["assembled_response_contract_ok"] is True
