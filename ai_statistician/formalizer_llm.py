@@ -6592,6 +6592,20 @@ def _formalizer_mode_specific_instructions(
         "proofengineer_repair_context",
         {},
     )
+    source_theorem_promotion_generation_request = (
+        runtime_environment_feedback.get(
+            "source_theorem_promotion_generation_request",
+            {},
+        )
+        if isinstance(
+            runtime_environment_feedback.get(
+                "source_theorem_promotion_generation_request",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
     feedback_input_summary = (
         runtime_environment_feedback.get("input_summary", {})
         if isinstance(runtime_environment_feedback.get("input_summary", {}), Mapping)
@@ -6600,6 +6614,57 @@ def _formalizer_mode_specific_instructions(
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
+    if source_theorem_promotion_generation_request:
+        promotion_target_rows = [
+            row
+            for row in source_theorem_promotion_generation_request.get(
+                "target_rows",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ]
+        promotion_targets = [
+            {
+                "source_formal_target_id": str(
+                    row.get("source_formal_target_id", "") or ""
+                ),
+                "target_lean_declaration": str(
+                    row.get("target_lean_declaration", "") or ""
+                ),
+                "target_ids": [
+                    str(value)
+                    for value in row.get("target_ids", []) or []
+                    if str(value)
+                ],
+                "source_theorem_target_provenance": dict(
+                    row.get("source_theorem_target_provenance", {}) or {}
+                )
+                if isinstance(
+                    row.get("source_theorem_target_provenance", {}), Mapping
+                )
+                else {},
+            }
+            for row in promotion_target_rows
+        ]
+        instructions.append(
+            "Typed source-theorem promotion generation is active. Emit exactly one "
+            "executable formal_targets entry for every row in "
+            "runtime_environment_feedback.source_theorem_promotion_generation_request."
+            "target_rows. Preserve each source_formal_target_id as formal_targets.id, "
+            "preserve target_lean_declaration in both the target and "
+            "source_theorem_target_provenance, preserve the requested target ids in "
+            "source_theorem_target_provenance.source_theorem_goal_id when a single "
+            "goal is supplied, set source_theorem_target_known=true and "
+            "expected_status=NEEDS_KERNEL_CHECK, and emit a complete nonempty exact "
+            "Lean declaration in lean_statement_sketch. Use signed formal RAG and the "
+            "available model/prover reasoning. Do not emit a route probe, weaken the "
+            "target, rename the declaration, substitute a helper theorem, or treat "
+            "this generation request as proof evidence. The unchanged candidate will "
+            "be passed to ExactSourceTheoremProofBodyExecutor and local Lean/AXLE. "
+            "Requested target contract: "
+            + json.dumps(promotion_targets, sort_keys=True, default=str)
+        )
     if any(
         shortcut.get("premise_candidate_artifact_path")
             or shortcut.get("premise_derivation_candidate_skeleton_lean_source_excerpt")
@@ -9189,6 +9254,40 @@ def _compact_formalizer_environment_feedback(
             or feedback.get("proof_evidence_boundary", "")
         ),
     }
+    promotion_generation_fields = {
+        "source_theorem_promotion_execution_id": (
+            feedback.get("source_theorem_promotion_execution_id", "")
+            or input_summary.get("source_theorem_promotion_execution_id", "")
+        ),
+        "source_theorem_promotion_generation_request_id": (
+            feedback.get("source_theorem_promotion_generation_request_id", "")
+            or input_summary.get(
+                "source_theorem_promotion_generation_request_id",
+                "",
+            )
+        ),
+        "source_theorem_promotion_generation_request_hash": (
+            feedback.get("source_theorem_promotion_generation_request_hash", "")
+            or input_summary.get(
+                "source_theorem_promotion_generation_request_hash",
+                "",
+            )
+        ),
+        "source_theorem_promotion_generation_request": (
+            feedback.get("source_theorem_promotion_generation_request", {})
+            or input_summary.get(
+                "source_theorem_promotion_generation_request",
+                {},
+            )
+        ),
+    }
+    if any(promotion_generation_fields.values()):
+        payload.update(
+            {
+                key: _compact_value(value)
+                for key, value in promotion_generation_fields.items()
+            }
+        )
     if theory_trace_downstream_alignment_feedback:
         payload["theory_trace_downstream_alignment_feedback"] = _compact_value(
             theory_trace_downstream_alignment_feedback

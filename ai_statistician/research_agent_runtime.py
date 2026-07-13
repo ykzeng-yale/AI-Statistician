@@ -325,6 +325,9 @@ from .source_theorem_promotion_runtime_worker import (
     SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND,
     SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
     SourceTheoremPromotionRuntimeWorker,
+    bind_generation_response as _runtime_source_theorem_promotion_generation_response_binding,
+    bound_generation_request as _runtime_bound_source_theorem_promotion_generation_request,
+    generation_lineage_failure_result as _runtime_source_theorem_promotion_generation_lineage_failure_result,
 )
 from .verifier import ProofVerifier
 
@@ -14894,6 +14897,45 @@ class FormalizationEvaluatorRuntimeSubsystem:
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
             else {}
         )
+        (
+            source_theorem_promotion_generation_request,
+            source_theorem_promotion_generation_lineage_errors,
+        ) = _runtime_bound_source_theorem_promotion_generation_request(
+            task=task,
+            blackboard=blackboard,
+        )
+        if source_theorem_promotion_generation_lineage_errors:
+            return _runtime_source_theorem_promotion_generation_lineage_failure_result(
+                task=task,
+                errors=source_theorem_promotion_generation_lineage_errors,
+            )
+        if source_theorem_promotion_generation_request:
+            environment_feedback = dict(environment_feedback)
+            environment_feedback.update(
+                {
+                    "repair_owner_agent": "ProofEngineer",
+                    "source_theorem_promotion_execution_id": str(
+                        task.inputs.get(
+                            "source_theorem_promotion_execution_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                    "source_theorem_promotion_generation_request_id": str(
+                        source_theorem_promotion_generation_request.get(
+                            "request_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                    "source_theorem_promotion_generation_request_hash": stable_hash(
+                        source_theorem_promotion_generation_request
+                    ),
+                    "source_theorem_promotion_generation_request": dict(
+                        source_theorem_promotion_generation_request
+                    ),
+                }
+            )
         environment_feedback = (
             _runtime_environment_feedback_with_theory_trace_downstream_alignment(
                 environment_feedback,
@@ -15011,6 +15053,10 @@ class FormalizationEvaluatorRuntimeSubsystem:
             memory_prioritized_proof_obligation_ids=memory_prioritized_proof_obligation_ids,
         )
         produced_artifacts: dict[str, Any] = {}
+        source_theorem_promotion_generation_response_binding: dict[str, Any] = {}
+        source_theorem_promotion_generation_response_binding_evidence: (
+            EvidenceLedgerEntry | None
+        ) = None
         observations: list[EnvironmentObservation] = []
         external_proof_search_artifacts: dict[str, Any] = {}
         external_proof_search_observations: list[EnvironmentObservation] = []
@@ -15751,6 +15797,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             proof_bank_runtime_memory_summary
                         ),
                         exc=exc,
+                        environment_feedback=environment_feedback,
                         formal_source_retriever=self.formal_source_retriever,
                     )
                 )
@@ -15771,6 +15818,163 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
+            if source_theorem_promotion_generation_request:
+                (
+                    promotion_response_rows,
+                    promotion_response_errors,
+                ) = _runtime_source_theorem_promotion_generation_response_binding(
+                    proposal_packet=proposal_packet,
+                    generation_request=(
+                        source_theorem_promotion_generation_request
+                    ),
+                )
+                if promotion_response_errors:
+                    return preserve_external_proof_search(
+                        _formalizer_packet_validation_failure_result(
+                            task=task,
+                            question=question,
+                            theory_packet_id=packet_id,
+                            simulation_manifest_id=simulation_manifest_id,
+                            algorithm_sandbox_manifest_id=(
+                                algorithm_sandbox_manifest_id
+                            ),
+                            proof_bank_runtime_memory_summary=(
+                                proof_bank_runtime_memory_summary
+                            ),
+                            exc=PacketValidationError(
+                                validation_label=(
+                                    "Source theorem promotion generation response"
+                                ),
+                                attempts=1,
+                                errors=list(promotion_response_errors),
+                                history=[
+                                    {
+                                        "source_theorem_promotion_generation_request_id": str(
+                                            source_theorem_promotion_generation_request.get(
+                                                "request_id",
+                                                "",
+                                            )
+                                            or ""
+                                        ),
+                                        "formalizer_packet_id": str(
+                                            proposal_packet.get("packet_id", "") or ""
+                                        ),
+                                        "n_requested_targets": len(
+                                            source_theorem_promotion_generation_request.get(
+                                                "target_rows",
+                                                [],
+                                            )
+                                            or []
+                                        ),
+                                    }
+                                ],
+                            ),
+                            environment_feedback=environment_feedback,
+                            formal_source_retriever=(
+                                self.formal_source_retriever
+                            ),
+                        )
+                    )
+                promotion_response_binding_id = (
+                    "runtime_source_theorem_promotion_generation_response_binding:"
+                    + stable_hash(
+                        [
+                            source_theorem_promotion_generation_request.get(
+                                "request_id",
+                                "",
+                            ),
+                            proposal_packet.get("packet_id", ""),
+                            promotion_response_rows,
+                        ]
+                    )[:20]
+                )
+                source_theorem_promotion_generation_response_binding = {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": (
+                        "RuntimeSourceTheoremPromotionGenerationResponseBinding"
+                    ),
+                    "binding_id": promotion_response_binding_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "question_id": question.id,
+                    "task_id": task.task_id,
+                    "source_theorem_promotion_generation_request_id": str(
+                        source_theorem_promotion_generation_request.get(
+                            "request_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                    "source_theorem_promotion_generation_request_hash": stable_hash(
+                        source_theorem_promotion_generation_request
+                    ),
+                    "formalizer_packet_id": str(
+                        proposal_packet.get("packet_id", "") or ""
+                    ),
+                    "formalizer_packet_hash_before_runtime_control": stable_hash(
+                        proposal_packet
+                    ),
+                    "target_bindings": promotion_response_rows,
+                    "n_requested_targets": len(
+                        source_theorem_promotion_generation_request.get(
+                            "target_rows",
+                            [],
+                        )
+                        or []
+                    ),
+                    "n_bound_response_targets": len(promotion_response_rows),
+                    "response_contract_satisfied": True,
+                    "next_compiler_subsystem": (
+                        EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+                    ),
+                    "proof_evidence_status": (
+                        "PROMOTION_GENERATION_RESPONSE_BOUND_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+                source_theorem_promotion_generation_response_binding = (
+                    _runtime_artifact_with_architect_control(
+                        promotion_response_binding_id,
+                        source_theorem_promotion_generation_response_binding,
+                        formalization_control_seed,
+                        subsystem_override=subsystem_name,
+                    )
+                )
+                produced_artifacts[promotion_response_binding_id] = (
+                    source_theorem_promotion_generation_response_binding
+                )
+                source_theorem_promotion_generation_response_binding_evidence = (
+                    EvidenceLedgerEntry(
+                        evidence_id="evidence:"
+                        + stable_hash(
+                            [task.task_id, promotion_response_binding_id]
+                        )[:20],
+                        task_id=task.task_id,
+                        artifact_id=promotion_response_binding_id,
+                        evidence_type=(
+                            "source_theorem_promotion_generation_response_binding"
+                        ),
+                        status=(
+                            "PROMOTION_GENERATION_RESPONSE_BOUND_NOT_PROOF_EVIDENCE"
+                        ),
+                        boundary=KERNEL_PROOF_BOUNDARY,
+                        payload={
+                            "generation_request_id": str(
+                                source_theorem_promotion_generation_request.get(
+                                    "request_id",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "n_bound_response_targets": len(
+                                promotion_response_rows
+                            ),
+                            "next_compiler_subsystem": (
+                                EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+                            ),
+                            "source_theorem_kernel_verified": False,
+                        },
+                    )
+                )
             (
                 llm_requested_proof_obligation_ids,
                 llm_off_catalog_proof_obligation_ids,
@@ -15904,6 +16108,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                                 }
                             ],
                         ),
+                        environment_feedback=environment_feedback,
                         formal_source_retriever=self.formal_source_retriever,
                     )
                 )
@@ -16539,6 +16744,40 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_formalizer_proof_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
+            ),
+            "source_theorem_promotion_generation_request_id": str(
+                source_theorem_promotion_generation_request.get("request_id", "")
+                if source_theorem_promotion_generation_request
+                else ""
+            ),
+            "source_theorem_promotion_generation_response_binding_id": str(
+                source_theorem_promotion_generation_response_binding.get(
+                    "binding_id",
+                    "",
+                )
+                if source_theorem_promotion_generation_response_binding
+                else ""
+            ),
+            "source_theorem_promotion_generation_response_contract_satisfied": bool(
+                source_theorem_promotion_generation_response_binding.get(
+                    "response_contract_satisfied",
+                    False,
+                )
+                if source_theorem_promotion_generation_response_binding
+                else False
+            ),
+            "source_theorem_promotion_generation_response_n_bound_targets": int(
+                source_theorem_promotion_generation_response_binding.get(
+                    "n_bound_response_targets",
+                    0,
+                )
+                if source_theorem_promotion_generation_response_binding
+                else 0
+            ),
+            "source_theorem_promotion_generation_response_boundary": (
+                "This manifest binds a model-generated response to the immutable "
+                "promotion request and structured targets. It is not proof evidence; "
+                "the materialized exact candidate must pass the typed local Lean gate."
             ),
             "llm_formalizer_proof_engineer_theory_trace_consumption_contract": (
                 formalizer_theory_trace_contract
@@ -17854,6 +18093,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     exact_source_proof_body_dispatch_evidence,
                     source_semantic_dispatch_evidence,
                     source_theorem_promotion_dispatch_evidence,
+                    source_theorem_promotion_generation_response_binding_evidence,
                 )
                 if row is not None
             ),
@@ -18933,6 +19173,7 @@ def _formalizer_packet_validation_failure_result(
     algorithm_sandbox_manifest_id: str,
     proof_bank_runtime_memory_summary: Mapping[str, Any],
     exc: PacketValidationError,
+    environment_feedback: Mapping[str, Any] | None = None,
     formal_source_retriever: Any | None = None,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
@@ -18962,8 +19203,67 @@ def _formalizer_packet_validation_failure_result(
         )
     )
     prior_environment_feedback = (
-        task.inputs.get("environment_feedback", {})
-        if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+        environment_feedback
+        if isinstance(environment_feedback, Mapping)
+        else (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+    )
+    active_source_theorem_promotion_generation_request = (
+        dict(
+            prior_environment_feedback.get(
+                "source_theorem_promotion_generation_request",
+                {},
+            )
+            or {}
+        )
+        if isinstance(
+            prior_environment_feedback.get(
+                "source_theorem_promotion_generation_request",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
+    source_theorem_promotion_generation_repair = bool(
+        active_source_theorem_promotion_generation_request
+    )
+    source_theorem_promotion_generation_feedback_fields = (
+        {
+            "repair_owner_agent": "ProofEngineer",
+            "source_theorem_promotion_execution_id": str(
+                prior_environment_feedback.get(
+                    "source_theorem_promotion_execution_id",
+                    "",
+                )
+                or ""
+            ),
+            "source_theorem_promotion_generation_request_id": str(
+                prior_environment_feedback.get(
+                    "source_theorem_promotion_generation_request_id",
+                    "",
+                )
+                or active_source_theorem_promotion_generation_request.get(
+                    "request_id",
+                    "",
+                )
+                or ""
+            ),
+            "source_theorem_promotion_generation_request_hash": str(
+                prior_environment_feedback.get(
+                    "source_theorem_promotion_generation_request_hash",
+                    "",
+                )
+                or ""
+            ),
+            "source_theorem_promotion_generation_request": (
+                active_source_theorem_promotion_generation_request
+            ),
+        }
+        if source_theorem_promotion_generation_repair
         else {}
     )
     pseudo_formalization_required = _feedback_requires_pseudo_formalization(
@@ -19422,6 +19722,7 @@ def _formalizer_packet_validation_failure_result(
             "source_theorem_candidate_materialization_contract": (
                 source_theorem_candidate_materialization_contract
             ),
+            **source_theorem_promotion_generation_feedback_fields,
             **pseudo_formalization_feedback_fields,
             **structural_response_validation_feedback_fields,
             "local_lean_repair_contract": active_local_lean_repair_contract,
@@ -19487,6 +19788,16 @@ def _formalizer_packet_validation_failure_result(
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    if source_theorem_promotion_generation_repair:
+        learning_row["target_behavior"] = (
+            "Repair the exact typed promotion response while preserving every "
+            "requested formal target id, declaration, target id, and provenance; "
+            "emit a complete candidate for the exact compiler child."
+        )
+        learning_row["acceptance_gate"] = (
+            "the response is hash-bound to the promotion request and every requested "
+            "target materializes unchanged before ExactSourceTheoremProofBodyExecutor"
+        )
     failure_artifact = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFormalizerValidationFailure",
@@ -19511,6 +19822,7 @@ def _formalizer_packet_validation_failure_result(
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
+        **source_theorem_promotion_generation_feedback_fields,
         **pseudo_formalization_feedback_fields,
         **structural_response_validation_feedback_fields,
         "local_lean_repair_contract": active_local_lean_repair_contract,
@@ -19550,6 +19862,7 @@ def _formalizer_packet_validation_failure_result(
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
+        **source_theorem_promotion_generation_feedback_fields,
         **pseudo_formalization_feedback_fields,
         **structural_response_validation_feedback_fields,
         "local_lean_repair_contract": active_local_lean_repair_contract,
@@ -19629,7 +19942,14 @@ def _formalizer_packet_validation_failure_result(
             or ""
         ).strip()
     )
-    if pseudo_formalization_required_missing_work_order_rows:
+    if source_theorem_promotion_generation_repair:
+        next_task_objective = (
+            "Repair the lineage-bound source-theorem promotion response, preserve "
+            "the exact requested targets, and route the materialized candidate to "
+            "ExactSourceTheoremProofBodyExecutor in this AgentRuntime."
+        )
+        next_task_acceptance_gate = learning_row["acceptance_gate"]
+    elif pseudo_formalization_required_missing_work_order_rows:
         next_task_objective = (
             "Repair the Formalizer/ProofEngineer packet by emitting routed PF/BV "
             "pseudo-formal proof packets before direct Lean/prover work."
@@ -19681,14 +20001,22 @@ def _formalizer_packet_validation_failure_result(
         )
     next_task = AgentTask(
         task_id=(
-            f"proofengineer-whole-proof:{question.id}:"
+            f"proofengineer-source-promotion:{question.id}:"
+            f"{stable_hash([failure_id, repair_feedback])[:8]}"
+            if source_theorem_promotion_generation_repair
+            else f"proofengineer-whole-proof:{question.id}:"
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
             if whole_proof_agent_repair
             else f"formalize-repair:{question.id}:"
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
         ),
         owner_subsystem=(
-            "ProofEngineer" if whole_proof_agent_repair else "FormalizationEvaluator"
+            "ProofEngineer"
+            if (
+                source_theorem_promotion_generation_repair
+                or whole_proof_agent_repair
+            )
+            else "FormalizationEvaluator"
         ),
         objective=next_task_objective,
         inputs=next_inputs,
@@ -19705,12 +20033,19 @@ def _formalizer_packet_validation_failure_result(
                     )
                 )
             )
-            if whole_proof_agent_repair
+            if (
+                source_theorem_promotion_generation_repair
+                or whole_proof_agent_repair
+            )
             else task.allowed_tools
         ),
         expected_artifacts=task.expected_artifacts,
         acceptance_gate=next_task_acceptance_gate,
         stop_condition=(
+            "promotion response rematerialized for the exact compiler or an explicit "
+            "typed blocker recorded"
+            if source_theorem_promotion_generation_repair
+            else
             "exact whole-proof candidate rerun or typed dependency blocker recorded"
             if whole_proof_agent_repair
             else "repaired formalizer packet or explicit formal blocker recorded"
@@ -19741,6 +20076,11 @@ def _formalizer_packet_validation_failure_result(
     return AgentStepResult(
         status="REVISE",
         rationale=(
+            "LLM ProofEngineer promotion response failed its request-bound target "
+            "contract; structured feedback was preserved and routed back to the "
+            "same promotion ProofEngineer loop."
+            if source_theorem_promotion_generation_repair
+            else
             "LLM Formalizer/ProofEngineer packet failed local validation; structured "
             "feedback was recorded and routed to the lineage-bound whole-proof "
             "ProofEngineer loop."
@@ -29871,6 +30211,11 @@ def run_research_agent_runtime(
         "n_source_theorem_promotion_agent_runtime_generation_requests": (
             evidence_summary["proof"][
                 "n_source_theorem_promotion_agent_runtime_generation_requests"
+            ]
+        ),
+        "n_source_theorem_promotion_agent_runtime_response_bindings": (
+            evidence_summary["proof"][
+                "n_source_theorem_promotion_agent_runtime_response_bindings"
             ]
         ),
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -89089,6 +89434,7 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_source_theorem_promotion_agent_runtime_work_orders": 0,
         "n_source_theorem_promotion_agent_runtime_executions": 0,
         "n_source_theorem_promotion_agent_runtime_generation_requests": 0,
+        "n_source_theorem_promotion_agent_runtime_response_bindings": 0,
         "n_full_frontier_raw_theorem_proved_claims": 0,
         "n_full_frontier_target_bound_kernel_verified": 0,
         "n_full_frontier_theorem_proved": 0,
@@ -89722,6 +90068,11 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof[
                     "n_source_theorem_promotion_agent_runtime_generation_requests"
                 ] += 1
+            elif kind == "RuntimeSourceTheoremPromotionGenerationResponseBinding":
+                if _bool_like(artifact.get("response_contract_satisfied", False)):
+                    proof[
+                        "n_source_theorem_promotion_agent_runtime_response_bindings"
+                    ] += 1
             elif kind == "FormalizerProofEngineerProposalPacket":
                 proposal_id = str(artifact.get("packet_id", "") or "").strip()
                 if proposal_id:

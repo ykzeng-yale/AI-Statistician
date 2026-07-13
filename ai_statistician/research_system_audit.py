@@ -3988,6 +3988,10 @@ async def run_research_system_audit(
                 "n_source_theorem_promotion_agent_runtime_generation_requests",
                 0,
             ),
+            "research_agent_runtime_n_source_theorem_promotion_agent_runtime_response_bindings": research_agent_runtime_audit_manifest.get(
+                "n_source_theorem_promotion_agent_runtime_response_bindings",
+                0,
+            ),
             "research_agent_runtime_source_theorem_promotion_legacy_post_runtime_fallback_used": research_agent_runtime_audit_manifest.get(
                 "source_theorem_promotion_legacy_post_runtime_fallback_used",
                 False,
@@ -11891,6 +11895,7 @@ def _research_agent_runtime_audit_overlay(
         "n_source_theorem_promotion_agent_runtime_work_orders": 0,
         "n_source_theorem_promotion_agent_runtime_executions": 0,
         "n_source_theorem_promotion_agent_runtime_generation_requests": 0,
+        "n_source_theorem_promotion_agent_runtime_response_bindings": 0,
         "source_theorem_promotion_legacy_post_runtime_fallback_used": False,
         "n_runtime_formal_gap_planner_handoff_rows": 0,
         "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 0,

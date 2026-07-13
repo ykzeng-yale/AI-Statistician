@@ -13,6 +13,9 @@ from .agent_runtime import (
     EvidenceLedgerEntry,
 )
 from .fingerprint import stable_hash
+from .exact_source_theorem_proof_body_runtime_worker import (
+    EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+)
 from .research_architect import KERNEL_PROOF_BOUNDARY
 
 
@@ -24,6 +27,333 @@ SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND = (
 SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND = (
     "RuntimeSourceTheoremPromotionProofEngineerExecutionManifest"
 )
+
+
+def _bool_like(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def bound_generation_request(
+    *,
+    task: AgentTask,
+    blackboard: BlackboardState,
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    """Load and verify the immutable promotion request before model execution."""
+
+    feedback = (
+        task.inputs.get("environment_feedback", {})
+        if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    copied_request = (
+        dict(feedback.get("source_theorem_promotion_generation_request", {}) or {})
+        if isinstance(
+            feedback.get("source_theorem_promotion_generation_request", {}),
+            Mapping,
+        )
+        else {}
+    )
+    request_id = str(
+        task.inputs.get("source_theorem_promotion_generation_request_id", "")
+        or feedback.get("source_theorem_promotion_generation_request_id", "")
+        or copied_request.get("request_id", "")
+        or ""
+    )
+    expected_request_hash = str(
+        task.inputs.get("source_theorem_promotion_generation_request_hash", "")
+        or feedback.get("source_theorem_promotion_generation_request_hash", "")
+        or ""
+    )
+    execution_id = str(
+        task.inputs.get("source_theorem_promotion_execution_id", "")
+        or feedback.get("source_theorem_promotion_execution_id", "")
+        or ""
+    )
+    if not copied_request and not request_id and not execution_id:
+        return {}, ()
+
+    errors: list[str] = []
+    if task.owner_subsystem != "ProofEngineer":
+        errors.append("promotion generation request is not ProofEngineer-owned")
+    if not request_id:
+        errors.append("promotion generation request id missing")
+    if not expected_request_hash:
+        errors.append("promotion generation request hash missing")
+    if not execution_id:
+        errors.append("promotion execution id missing")
+    raw_request = blackboard.artifacts.get(request_id, {})
+    request = dict(raw_request) if isinstance(raw_request, Mapping) else {}
+    if not request:
+        errors.append("promotion generation request missing from blackboard")
+    request_copy_contract_keys = (
+        "artifact_kind",
+        "request_id",
+        "question_id",
+        "source_promotion_work_order_id",
+        "source_formalization_manifest_id",
+        "target_rows",
+        "target_ids",
+        "target_declarations",
+        "generation_contract",
+        "next_compiler_subsystem",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    request_copy_mismatch_keys = [
+        key
+        for key in request_copy_contract_keys
+        if copied_request.get(key) != request.get(key)
+    ]
+    if copied_request and request_copy_mismatch_keys:
+        errors.append(
+            "promotion generation request feedback contract mismatch: "
+            + ", ".join(request_copy_mismatch_keys)
+        )
+    if str(request.get("artifact_kind", "") or "") != (
+        "RuntimeExactSourceCandidateGenerationRequest"
+    ):
+        errors.append("promotion generation request artifact_kind mismatch")
+    if str(request.get("request_id", "") or "") != request_id:
+        errors.append("promotion generation request identity mismatch")
+    if not expected_request_hash or stable_hash(request) != expected_request_hash:
+        errors.append("promotion generation request immutable hash mismatch")
+
+    raw_execution = blackboard.artifacts.get(execution_id, {})
+    execution = dict(raw_execution) if isinstance(raw_execution, Mapping) else {}
+    if not execution:
+        errors.append("promotion execution manifest missing from blackboard")
+    if str(execution.get("artifact_kind", "") or "") != (
+        SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND
+    ):
+        errors.append("promotion execution artifact_kind mismatch")
+    if str(execution.get("manifest_id", "") or "") != execution_id:
+        errors.append("promotion execution identity mismatch")
+    if str(execution.get("generation_request_id", "") or "") != request_id:
+        errors.append("promotion execution request identity mismatch")
+    if str(execution.get("generation_request_hash", "") or "") != (
+        expected_request_hash
+    ):
+        errors.append("promotion execution request hash mismatch")
+
+    source_work_order_id = str(
+        request.get("source_promotion_work_order_id", "") or ""
+    )
+    raw_work_order = blackboard.artifacts.get(source_work_order_id, {})
+    work_order = dict(raw_work_order) if isinstance(raw_work_order, Mapping) else {}
+    if not source_work_order_id or not work_order:
+        errors.append("promotion source work order missing from blackboard")
+    if str(work_order.get("artifact_kind", "") or "") != (
+        SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND
+    ):
+        errors.append("promotion source work-order artifact_kind mismatch")
+    if str(execution.get("work_order_id", "") or "") != source_work_order_id:
+        errors.append("promotion execution source work-order identity mismatch")
+    if work_order and stable_hash(work_order) != str(
+        execution.get("work_order_hash", "") or ""
+    ):
+        errors.append("promotion source work-order immutable hash mismatch")
+
+    question_payload = task.inputs.get("question", {})
+    question_id = str(
+        question_payload.get("id", "")
+        if isinstance(question_payload, Mapping)
+        else ""
+    )
+    if str(request.get("question_id", "") or "") != question_id:
+        errors.append("promotion generation request question mismatch")
+    if str(request.get("next_compiler_subsystem", "") or "") != (
+        EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+    ):
+        errors.append("promotion generation request compiler route mismatch")
+    target_rows = [
+        dict(row)
+        for row in request.get("target_rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not target_rows:
+        errors.append("promotion generation request has no target rows")
+    if work_order and target_rows != list(work_order.get("work_order_rows", []) or []):
+        errors.append("promotion generation request rows differ from work order")
+    for row in target_rows:
+        if not str(row.get("source_formal_target_id", "") or ""):
+            errors.append("promotion request source formal target id missing")
+        if not str(row.get("target_lean_declaration", "") or ""):
+            errors.append("promotion request target declaration missing")
+        if str(row.get("target_lean_declaration_source", "") or "") != (
+            "formalizer_structured_source_theorem_target_provenance"
+        ):
+            errors.append("promotion request target declaration was inferred")
+        if str(row.get("candidate_artifact_path", "") or "") or str(
+            row.get("candidate_source_hash", "") or ""
+        ):
+            errors.append("promotion request row already carries candidate lineage")
+    return request, tuple(dict.fromkeys(errors))
+
+
+def bind_generation_response(
+    *,
+    proposal_packet: Mapping[str, Any],
+    generation_request: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
+    """Bind model output to request identities without parsing or rewriting Lean."""
+
+    requested_rows = [
+        dict(row)
+        for row in generation_request.get("target_rows", []) or []
+        if isinstance(row, Mapping)
+    ]
+    formal_targets = [
+        dict(row)
+        for row in proposal_packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+    ]
+    requested_ids = [
+        str(row.get("source_formal_target_id", "") or "")
+        for row in requested_rows
+    ]
+    response_ids = [str(row.get("id", "") or "") for row in formal_targets]
+    errors: list[str] = []
+    if len(formal_targets) != len(requested_rows) or sorted(response_ids) != sorted(
+        requested_ids
+    ):
+        errors.append(
+            "promotion response formal target set differs from the requested target set"
+        )
+    bindings: list[dict[str, Any]] = []
+    for requested in requested_rows:
+        requested_id = str(requested.get("source_formal_target_id", "") or "")
+        requested_declaration = str(
+            requested.get("target_lean_declaration", "") or ""
+        )
+        requested_target_ids = [
+            str(value)
+            for value in requested.get("target_ids", []) or []
+            if str(value)
+        ]
+        matches = [row for row in formal_targets if str(row.get("id", "") or "") == requested_id]
+        if len(matches) != 1:
+            errors.append(
+                f"promotion response target {requested_id} must occur exactly once"
+            )
+            continue
+        target = matches[0]
+        provenance = (
+            dict(target.get("source_theorem_target_provenance", {}) or {})
+            if isinstance(target.get("source_theorem_target_provenance", {}), Mapping)
+            else {}
+        )
+        response_declaration = str(
+            target.get("target_lean_declaration", "")
+            or provenance.get("target_lean_declaration", "")
+            or ""
+        )
+        if response_declaration != requested_declaration:
+            errors.append(
+                f"promotion response target {requested_id} changed declaration"
+            )
+        if str(provenance.get("target_lean_declaration", "") or "") != (
+            requested_declaration
+        ):
+            errors.append(
+                f"promotion response target {requested_id} provenance declaration mismatch"
+            )
+        if not _bool_like(provenance.get("source_theorem_target_known", False)):
+            errors.append(
+                f"promotion response target {requested_id} is not marked known"
+            )
+        if str(target.get("expected_status", "") or "") != "NEEDS_KERNEL_CHECK":
+            errors.append(
+                f"promotion response target {requested_id} must require kernel check"
+            )
+        candidate_source = str(target.get("lean_statement_sketch", "") or "")
+        if not candidate_source.strip():
+            errors.append(
+                f"promotion response target {requested_id} has no candidate source"
+            )
+        source_goal_id = str(provenance.get("source_theorem_goal_id", "") or "")
+        if requested_target_ids and source_goal_id not in requested_target_ids:
+            errors.append(
+                f"promotion response target {requested_id} changed target ids"
+            )
+        bindings.append(
+            {
+                "source_formal_target_id": requested_id,
+                "target_lean_declaration": requested_declaration,
+                "target_ids": requested_target_ids,
+                "source_theorem_goal_id": source_goal_id,
+                "candidate_source_hash": stable_hash(candidate_source),
+                "candidate_source_present": bool(candidate_source.strip()),
+                "expected_status": str(target.get("expected_status", "") or ""),
+                "source_theorem_target_known": _bool_like(
+                    provenance.get("source_theorem_target_known", False)
+                ),
+                "proof_evidence_status": (
+                    "PROMOTION_GENERATION_RESPONSE_BINDING_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+    return bindings, tuple(dict.fromkeys(errors))
+
+
+def generation_lineage_failure_result(
+    *,
+    task: AgentTask,
+    errors: Sequence[str],
+) -> AgentStepResult:
+    failure_id = "source_theorem_promotion_generation_lineage_failure:" + stable_hash(
+        [task.task_id, list(errors)]
+    )[:20]
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeSourceTheoremPromotionGenerationLineageFailure",
+        "failure_id": failure_id,
+        "task_id": task.task_id,
+        "validation_errors": list(errors),
+        "proof_evidence_status": (
+            "PROMOTION_GENERATION_LINEAGE_REJECTED_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "ProofEngineer rejected a missing, changed, or unbound source-theorem "
+            "promotion generation request before any model or prover call."
+        ),
+        produced_artifacts={failure_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "source_theorem_promotion_generation_lineage_rejected"
+                ),
+                summary="; ".join(str(value) for value in errors)[:500],
+                payload={
+                    "failure_id": failure_id,
+                    "validation_errors": list(errors),
+                    "proof_evidence_status": artifact["proof_evidence_status"],
+                },
+            ),
+        ),
+        evidence_entries=(
+            EvidenceLedgerEntry(
+                evidence_id="evidence:"
+                + stable_hash([task.task_id, failure_id])[:20],
+                task_id=task.task_id,
+                artifact_id=failure_id,
+                evidence_type="source_theorem_promotion_generation_lineage_failure",
+                status=artifact["proof_evidence_status"],
+                boundary=KERNEL_PROOF_BOUNDARY,
+                payload={"validation_errors": list(errors)},
+            ),
+        ),
+        failure_classification=(
+            "source_theorem_promotion_generation_lineage_invalid"
+        ),
+    )
 
 
 def _task_from_payload(payload: Mapping[str, Any]) -> AgentTask:
@@ -506,6 +836,14 @@ class SourceTheoremPromotionRuntimeWorker:
                 "failure_classification": (
                     "source_theorem_exact_candidate_generation_required"
                 ),
+                "repair_owner_agent": "ProofEngineer",
+                "source_theorem_promotion_execution_id": execution_id,
+                "source_theorem_promotion_generation_request_id": str(
+                    generation_request.get("request_id", "") or ""
+                ),
+                "source_theorem_promotion_generation_request_hash": stable_hash(
+                    dict(generation_request)
+                ),
                 "source_theorem_promotion_generation_request": dict(
                     generation_request
                 ),
@@ -518,6 +856,13 @@ class SourceTheoremPromotionRuntimeWorker:
             }
         )
         inputs["environment_feedback"] = feedback
+        inputs["source_theorem_promotion_execution_id"] = execution_id
+        inputs["source_theorem_promotion_generation_request_id"] = str(
+            generation_request.get("request_id", "") or ""
+        )
+        inputs["source_theorem_promotion_generation_request_hash"] = stable_hash(
+            dict(generation_request)
+        )
         context = (
             dict(inputs.get("architect_context", {}) or {})
             if isinstance(inputs.get("architect_context", {}), Mapping)

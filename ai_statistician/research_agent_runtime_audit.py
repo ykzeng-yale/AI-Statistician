@@ -7199,6 +7199,12 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_source_theorem_promotion_agent_runtime_response_bindings": int(
+            manifest.get(
+                "n_source_theorem_promotion_agent_runtime_response_bindings", 0
+            )
+            or 0
+        ),
         "n_source_theorem_promotion_agent_runtime_pending_work_orders": int(
             manifest.get(
                 "n_source_theorem_promotion_agent_runtime_pending_work_orders", 0
@@ -22315,10 +22321,17 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    source_theorem_promotion_typed_planning_complete = bool(
+    source_theorem_promotion_agent_runtime_response_bindings = int(
+        payload.get(
+            "n_source_theorem_promotion_agent_runtime_response_bindings", 0
+        )
+        or 0
+    )
+    source_theorem_promotion_typed_generation_loop_complete = bool(
         source_theorem_promotion_agent_runtime_work_orders > 0
         and source_theorem_promotion_agent_runtime_executions > 0
         and source_theorem_promotion_agent_runtime_generation_requests > 0
+        and source_theorem_promotion_agent_runtime_response_bindings > 0
     )
     source_theorem_formal_environment_bridge_repair_packets = sum(
         int(payload.get(key, 0) or 0)
@@ -25408,7 +25421,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_theorem_promotion_proofengineer_bridge_ran",
             payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True
             and (
-                source_theorem_promotion_typed_planning_complete
+                source_theorem_promotion_typed_generation_loop_complete
                 or
                 source_theorem_promotion_bridge_formal_environment_work_orders > 0
                 or source_theorem_promotion_bridge_kernel_verified > 0
@@ -25424,6 +25437,8 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{source_theorem_promotion_agent_runtime_executions} "
                 "typed_generation_requests="
                 f"{source_theorem_promotion_agent_runtime_generation_requests} "
+                "typed_response_bindings="
+                f"{source_theorem_promotion_agent_runtime_response_bindings} "
                 "formal_environment_work_orders="
                 f"{source_theorem_promotion_bridge_formal_environment_work_orders} "
                 "source_theorem_kernel_verified="
@@ -25432,9 +25447,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_promotion_proofengineer_bridge_skipped_reason')}"
             ),
             (
-                "source-theorem promotion did not execute as a typed AgentRuntime "
-                "planning child with an LLM generation request, and the legacy "
-                "path produced neither formal-environment rows nor kernel evidence"
+                "source-theorem promotion did not complete the typed AgentRuntime "
+                "request-bound generation loop, and the legacy path produced neither "
+                "formal-environment rows nor kernel evidence"
             ),
         ),
         _scorecard_row(

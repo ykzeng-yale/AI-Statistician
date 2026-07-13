@@ -10,6 +10,7 @@ from ai_statistician.agent_runtime import (
     BlackboardState,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.research_agent_runtime import ProofEngineerRuntimeSubsystem
 from ai_statistician.source_theorem_promotion_runtime_worker import (
     SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND,
     SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND,
@@ -72,7 +73,12 @@ def _runtime_fixture(tmp_path: Path):
         task_id="formalize:fixture",
         owner_subsystem="FormalizationEvaluator",
         objective="Formalize the fixture",
-        inputs={"question": {"id": "fixture_question"}},
+        inputs={
+            "question": {
+                "id": "fixture_question",
+                "description": "Prove the exact fixture source theorem.",
+            }
+        },
     )
     return_task = AgentTask(
         task_id="critic:fixture",
@@ -273,3 +279,50 @@ def test_promotion_worker_is_agent_runtime_child_before_llm(
         SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
         "ProofEngineer",
     ]
+
+
+def test_proofengineer_rejects_tampered_generation_request_before_model_call(
+    tmp_path: Path,
+) -> None:
+    worker, task, blackboard = _runtime_fixture(tmp_path)
+    promotion = worker.run(task, blackboard)
+    assert promotion.next_task is not None
+    blackboard.artifacts.update(promotion.produced_artifacts)
+    request_id = str(
+        promotion.next_task.inputs[
+            "source_theorem_promotion_generation_request_id"
+        ]
+    )
+    blackboard.artifacts[request_id]["target_declarations"] = [
+        "changed_after_request_binding"
+    ]
+
+    class ExplodingProposalAgent:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs):
+            self.calls += 1
+            raise AssertionError("model call must not run after lineage tampering")
+
+    proposal_agent = ExplodingProposalAgent()
+    proofengineer = ProofEngineerRuntimeSubsystem(
+        proposal_agent=proposal_agent,
+        lean_candidate_root=tmp_path / "candidates",
+    )
+
+    result = proofengineer.run(promotion.next_task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "source_theorem_promotion_generation_lineage_invalid"
+    )
+    assert proposal_agent.calls == 0
+    failure = next(iter(result.produced_artifacts.values()))
+    assert failure["artifact_kind"] == (
+        "RuntimeSourceTheoremPromotionGenerationLineageFailure"
+    )
+    assert "immutable hash mismatch" in " ".join(failure["validation_errors"])
+    assert failure["proof_evidence_status"] == (
+        "PROMOTION_GENERATION_LINEAGE_REJECTED_NOT_PROOF_EVIDENCE"
+    )

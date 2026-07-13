@@ -18856,7 +18856,9 @@ def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> 
     )
 
 
-def test_formalization_routes_missing_exact_candidate_to_typed_promotion_child() -> None:
+def test_promotion_generation_returns_candidate_to_exact_compiler_child(
+    tmp_path: Path,
+) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     question_payload = {
         "id": question.id,
@@ -18888,10 +18890,7 @@ def test_formalization_routes_missing_exact_candidate_to_typed_promotion_child()
                             "id": "split_conformal_coverage_source_target",
                             "informal_source": "exact finite-sample coverage theorem",
                             "target_lean_declaration": "split_conformal_coverage",
-                            "lean_statement_sketch": (
-                                "theorem split_conformal_coverage : True := by\n"
-                                "  trivial\n"
-                            ),
+                            "lean_statement_sketch": "",
                             "source_theorem_target_provenance": {
                                 "source_theorem_target_known": True,
                                 "source_theorem_question_id": question.id,
@@ -18996,6 +18995,313 @@ def test_formalization_routes_missing_exact_candidate_to_typed_promotion_child()
         "legacy_route_probe_materialization"
     ] is False
     assert work_order["execution_policy"]["python_lean_parsing_or_rewrite"] is False
+
+    blackboard.artifacts.update(result.produced_artifacts)
+
+    class PromotionRepairFormalizer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            feedback = kwargs["environment_feedback"]
+            assert isinstance(feedback, dict)
+            request = feedback["source_theorem_promotion_generation_request"]
+            target_row = request["target_rows"][0]
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:typed_promotion_response",
+                    "source_agent": "PromotionRepairFormalizer",
+                    "proof_evidence_status": (
+                        "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                    ),
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                    "formal_targets": [
+                        {
+                            "id": target_row["source_formal_target_id"],
+                            "informal_source": "exact requested coverage theorem",
+                            "target_lean_declaration": (
+                                target_row["target_lean_declaration"]
+                            ),
+                            "lean_statement_sketch": (
+                                "theorem split_conformal_coverage "
+                                "{Omega : Type} (P : Set Omega -> Real) "
+                                "(coverageEvent : Set Omega) (alpha : Real) "
+                                "(hNoncoverage : 1 - P coverageEvent <= alpha) : "
+                                "1 - alpha <= P coverageEvent := by\n"
+                                "  linarith\n"
+                            ),
+                            "source_theorem_target_provenance": {
+                                "source_theorem_target_known": True,
+                                "source_theorem_question_id": question.id,
+                                "source_theorem_goal_id": target_row["target_ids"][0],
+                                "target_lean_declaration": (
+                                    target_row["target_lean_declaration"]
+                                ),
+                            },
+                            "semantic_alignment_constraints": [
+                                "preserve exact requested target identity"
+                            ],
+                            "expected_status": "NEEDS_KERNEL_CHECK",
+                        }
+                    ],
+                    "proof_bank_obligation_requests": [],
+                }
+            )
+            return packet
+
+    repair_formalizer = PromotionRepairFormalizer()
+    proofengineer = ProofEngineerRuntimeSubsystem(
+        proposal_agent=repair_formalizer,
+        proof_verifier=MockProofVerifier(),
+        lean_candidate_root=tmp_path / "promotion_candidates",
+        runtime_config=ResearchAgentRuntimeConfig(
+            source_theorem_promotion_proofengineer_bridge=True,
+            source_theorem_formal_environment_proofengineer_bridge=True,
+            source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+        ),
+    )
+
+    class ExactCompilerChild:
+        name = runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+
+        def run(self, exact_task, exact_blackboard):
+            exact_work_order_id = exact_task.inputs[
+                "exact_source_theorem_proof_body_work_order_id"
+            ]
+            exact_work_order = exact_blackboard.artifacts[exact_work_order_id]
+            exact_row = exact_work_order["work_order_rows"][0]
+            candidate_path = Path(exact_row["candidate_artifact_path"])
+            candidate_source = candidate_path.read_text(encoding="utf-8")
+            assert exact_row["target_lean_declaration"] == (
+                "split_conformal_coverage"
+            )
+            assert exact_row["candidate_source_hash"] == runtime_module.stable_hash(
+                candidate_source
+            )
+            assert "theorem split_conformal_coverage" in candidate_source
+            binding = next(
+                artifact
+                for artifact in exact_blackboard.artifacts.values()
+                if isinstance(artifact, dict)
+                and artifact.get("artifact_kind")
+                == "RuntimeSourceTheoremPromotionGenerationResponseBinding"
+            )
+            assert binding["response_contract_satisfied"] is True
+            assert binding["n_bound_response_targets"] == 1
+            assert binding["proof_evidence_status"] == (
+                "PROMOTION_GENERATION_RESPONSE_BOUND_NOT_PROOF_EVIDENCE"
+            )
+            return AgentStepResult(
+                status="COMPLETED",
+                rationale=(
+                    "Exact compiler child received the hash-bound generated candidate."
+                ),
+            )
+
+    same_run = AgentRuntime(
+        subsystems={
+            runtime_module.SOURCE_THEOREM_PROMOTION_SUBSYSTEM: (
+                runtime_module.SourceTheoremPromotionRuntimeWorker(
+                    out_root=tmp_path / "promotion_runtime",
+                    repair_available=True,
+                )
+            ),
+            "ProofEngineer": proofengineer,
+            runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM: (
+                ExactCompilerChild()
+            ),
+        },
+        blackboard=blackboard,
+    ).run(result.next_task, max_iterations=3)
+
+    lineage_failure_errors = [
+        artifact.get("validation_errors", [])
+        for artifact in same_run.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeSourceTheoremPromotionGenerationLineageFailure"
+    ]
+    trace_summary = [
+        (trace.subsystem, trace.status, trace.failure_classification)
+        for trace in same_run.traces
+    ]
+    assert same_run.status == "COMPLETED", {
+        "lineage_failure_errors": lineage_failure_errors,
+        "traces": trace_summary,
+        "candidate_diagnostics": [
+            {
+                key: row.get(key)
+                for key in (
+                    "candidate_id",
+                    "candidate_kind",
+                    "precheck_status",
+                    "precheck_errors",
+                    "blocking_precheck_errors",
+                    "diagnostic_helper_not_source_theorem",
+                    "source_theorem_target_known",
+                    "target_lean_declaration",
+                )
+            }
+            for artifact in same_run.blackboard.artifacts.values()
+            if isinstance(artifact, dict)
+            and artifact.get("artifact_kind")
+            == "RuntimeFormalizerLeanCandidateMaterialization"
+            for row in artifact.get("candidate_rows", [])
+        ],
+    }
+    assert [trace.subsystem for trace in same_run.traces] == [
+        runtime_module.SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+        "ProofEngineer",
+        runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+    ]
+    assert repair_formalizer.calls == 1
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": same_run.blackboard.artifacts}}]
+    )
+    assert evidence_summary["proof"][
+        "n_source_theorem_promotion_agent_runtime_response_bindings"
+    ] == 1
+
+
+def test_promotion_generation_prompt_and_invalid_response_preserve_retry_lineage() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    request = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeExactSourceCandidateGenerationRequest",
+        "request_id": "source-theorem-promotion-generation-request:retry",
+        "question_id": question.id,
+        "source_promotion_work_order_id": "promotion-work-order:retry",
+        "source_formalization_manifest_id": "formalization-manifest:retry",
+        "target_rows": [
+            {
+                "source_formal_target_id": "coverage-source-target",
+                "target_lean_declaration": "split_conformal_coverage",
+                "target_ids": ["split_conformal_finite_sample_coverage"],
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+            }
+        ],
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_declarations": ["split_conformal_coverage"],
+        "generation_contract": "LLM/prover generation with compiler feedback",
+        "next_compiler_subsystem": (
+            runtime_module.EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM
+        ),
+        "proof_evidence_status": (
+            "EXACT_SOURCE_CANDIDATE_GENERATION_REQUEST_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": runtime_module.KERNEL_PROOF_BOUNDARY,
+    }
+    request_hash = runtime_module.stable_hash(request)
+    environment_feedback = {
+        "repair_owner_agent": "ProofEngineer",
+        "source_theorem_promotion_execution_id": "promotion-execution:retry",
+        "source_theorem_promotion_generation_request_id": request["request_id"],
+        "source_theorem_promotion_generation_request_hash": request_hash,
+        "source_theorem_promotion_generation_request": request,
+    }
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:retry", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:retry"},
+        algorithm_manifest={"manifest_id": "algorithm:retry"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=environment_feedback,
+    )
+
+    assert "Typed source-theorem promotion generation is active" in prompt
+    assert "coverage-source-target" in prompt
+    assert "split_conformal_coverage" in prompt
+    assert "ExactSourceTheoremProofBodyExecutor" in prompt
+
+    malformed_response = {
+        "formal_targets": [
+            {
+                "id": "coverage-source-target",
+                "target_lean_declaration": "weakened_helper",
+                "lean_statement_sketch": (
+                    "theorem weakened_helper : True := by trivial"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "source_theorem_goal_id": "different-goal",
+                    "target_lean_declaration": "weakened_helper",
+                },
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            }
+        ]
+    }
+    _bindings, binding_errors = (
+        runtime_module._runtime_source_theorem_promotion_generation_response_binding(
+            proposal_packet=malformed_response,
+            generation_request=request,
+        )
+    )
+    assert "changed declaration" in " ".join(binding_errors)
+    assert "changed target ids" in " ".join(binding_errors)
+
+    task = AgentTask(
+        task_id="proofengineer-source-promotion:retry",
+        owner_subsystem="ProofEngineer",
+        objective="repair the bound promotion response",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "source_theorem_promotion_execution_id": (
+                "promotion-execution:retry"
+            ),
+            "source_theorem_promotion_generation_request_id": request["request_id"],
+            "source_theorem_promotion_generation_request_hash": request_hash,
+            "environment_feedback": environment_feedback,
+        },
+    )
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory:retry",
+        simulation_manifest_id="simulation:retry",
+        algorithm_sandbox_manifest_id="algorithm:retry",
+        proof_bank_runtime_memory_summary={},
+        exc=PacketValidationError(
+            validation_label="Source theorem promotion generation response",
+            attempts=1,
+            errors=list(binding_errors),
+            history=[{"packet_id": "malformed-response"}],
+        ),
+        environment_feedback=environment_feedback,
+    )
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.task_id.startswith("proofengineer-source-promotion:")
+    retry_feedback = result.next_task.inputs["environment_feedback"]
+    assert retry_feedback["source_theorem_promotion_generation_request"] == request
+    assert retry_feedback["source_theorem_promotion_generation_request_hash"] == (
+        request_hash
+    )
+    assert result.next_task.inputs[
+        "source_theorem_promotion_generation_request_id"
+    ] == request["request_id"]
+    assert "exact requested targets" in result.next_task.objective
 
 
 def test_architect_coordinator_validator_requires_capability_worker_graph() -> None:
@@ -88658,7 +88964,7 @@ def test_runtime_capability_scorecard_accepts_source_theorem_promotion_bridge_wo
     ] is True
 
 
-def test_runtime_capability_scorecard_accepts_typed_promotion_planning() -> None:
+def test_runtime_capability_scorecard_rejects_typed_promotion_planning_only() -> None:
     payload = {
         "runtime_evaluation_mode": "debug",
         "n_results": 1,
@@ -88686,10 +88992,45 @@ def test_runtime_capability_scorecard_accepts_typed_promotion_planning() -> None
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     row = rows["source_theorem_promotion_proofengineer_bridge_ran"]
 
-    assert row["passed"] is True
+    assert row["passed"] is False
     assert "execution_mode=agent_runtime_typed_worker" in row["evidence"]
     assert "typed_generation_requests=1" in row["evidence"]
+    assert "typed_response_bindings=0" in row["evidence"]
     assert "source_theorem_kernel_verified=0" in row["evidence"]
+
+
+def test_runtime_capability_scorecard_accepts_typed_promotion_generation_loop() -> None:
+    payload = {
+        "runtime_evaluation_mode": "debug",
+        "n_results": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_results_with_problem_analysis": 1,
+        "n_results_with_stat_knowledge_bank_plan": 1,
+        "n_results_with_literature_fair_comparison_plan": 1,
+        "n_algorithm_sandbox_executed": 1,
+        "n_unsafe_generated_code_rejected": 0,
+        "n_runtime_progress_events": 12,
+        "n_runtime_traces": 9,
+        "source_theorem_promotion_proofengineer_bridge_ran": True,
+        "source_theorem_promotion_proofengineer_execution_mode": (
+            "agent_runtime_typed_worker"
+        ),
+        "n_source_theorem_promotion_agent_runtime_work_orders": 1,
+        "n_source_theorem_promotion_agent_runtime_executions": 1,
+        "n_source_theorem_promotion_agent_runtime_generation_requests": 1,
+        "n_source_theorem_promotion_agent_runtime_response_bindings": 1,
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders": 0,
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified": 0,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+    row = rows["source_theorem_promotion_proofengineer_bridge_ran"]
+
+    assert row["passed"] is True
+    assert "typed_generation_requests=1" in row["evidence"]
+    assert "typed_response_bindings=1" in row["evidence"]
 
 
 def test_runtime_capability_scorecard_flags_empty_source_theorem_formal_environment_bridge_outputs() -> None:

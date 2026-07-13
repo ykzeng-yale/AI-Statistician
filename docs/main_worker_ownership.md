@@ -1245,19 +1245,38 @@ ProofEngineer feedback, so semantic and compiler discoveries no longer have to
 wait for postprocessing to influence the coding agent. Deterministic execution
 ids make promotion replay side-effect free. Runtime and system audits report
 typed work orders, typed executions, generation requests, pending work, and
-legacy fallback separately; a planning request is capability evidence but not
-proof evidence.
+legacy fallback separately.
 
-The migration is not the full proof loop yet. Promotion-derived work discovered
-only after proof-body execution or postprocessing may still use the explicitly
-labeled `legacy_post_runtime_derived_execution` compatibility path. A live
-LLM-generated candidate must also be shown re-entering
-`ExactSourceTheoremProofBodyExecutor` and iterating through local Lean to exact
-source-theorem closure in the same AgentRuntime. Exact-semantic authoring,
-adapter/premise derivation, and later same-run proof-body rechecks remain in the
-second orchestration plane. No fresh statistical source theorem or S14
-completion is claimed. The full runtime suite passes 1050 tests; the core suite
-passes 289 tests with 5 skips and 6 passing subtests.
+The request now remains bound through the next `ProofEngineer` execution. Before
+calling a model or prover, the promotion contract reopens the authoritative
+blackboard request, execution manifest, and source work order and verifies their
+ids, hashes, structured target rows, question, and exact-compiler route. Missing
+or changed lineage fails closed before model execution. Formalizer prompt
+compaction preserves the request only while this mode is active, and the model
+is asked to generate the candidate using signed formal RAG plus compiler/prover
+feedback rather than a runtime-authored Lean grammar or tactic recipe.
+
+The response gate requires exactly the requested formal-target set, unchanged
+formal target ids, declaration identities, target-goal provenance, known-target
+status, a nonempty candidate, and `NEEDS_KERNEL_CHECK`. A malformed response is
+routed back to the same `ProofEngineer` with the immutable request still
+attached. An accepted response emits a non-proof response-binding artifact and
+the materialized candidate re-enters the typed
+`ExactSourceTheoremProofBodyExecutor` child in the same AgentRuntime. Capability
+scorecards no longer pass when only a work order, execution, and generation
+request exist; at least one request-bound response is required.
+
+This closes the primary promotion control-plane loop, not the theorem. The
+regression uses the real promotion worker and `ProofEngineer` candidate
+materializer with an exact-compiler contract probe; it does not claim a live
+external-model candidate passed the real local Lean/AXLE kernel gate.
+Promotion-derived work discovered only after proof-body execution or
+postprocessing may still use the explicitly labeled
+`legacy_post_runtime_derived_execution` compatibility path. Exact-semantic
+authoring, adapter/premise derivation, and later same-run proof-body rechecks
+remain in the second orchestration plane. No fresh statistical source theorem
+or S14 completion is claimed. The full runtime suite passes 1052 tests; the
+core suite passes 289 tests with 5 skips and 6 passing subtests.
 
 ## Whole-Proof Agent Correction
 
