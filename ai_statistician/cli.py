@@ -12104,6 +12104,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "formalization_gap_planner_live_timeout_seconds",
+                    None,
+                )
+                or getattr(
+                    args,
+                    "llm_timeout_seconds",
                     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
                 )
             ),
@@ -13859,18 +13864,24 @@ def _apply_research_agent_runtime_capability_eval_preset(
         ):
             args.formalization_gap_planner_live_max_route_requests_per_handoff = 1
         if (
-            float(
-                getattr(
-                    args,
-                    "formalization_gap_planner_live_timeout_seconds",
-                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-                )
-                or 0
+            getattr(
+                args,
+                "formalization_gap_planner_live_timeout_seconds",
+                None,
             )
-            <= 0
+            is None
+            or float(args.formalization_gap_planner_live_timeout_seconds) <= 0
         ):
-            args.formalization_gap_planner_live_timeout_seconds = (
-                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+            args.formalization_gap_planner_live_timeout_seconds = max(
+                1.0,
+                float(
+                    getattr(
+                        args,
+                        "llm_timeout_seconds",
+                        DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                    )
+                    or DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+                ),
             )
         if str(
             getattr(args, "formalization_gap_planner_live_provider", "same")
@@ -21762,8 +21773,11 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-timeout-seconds",
         type=float,
-        default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-        help="wall-clock timeout for each live gap-planner route-planner provider call",
+        default=None,
+        help=(
+            "wall-clock timeout for each live gap-planner route-planner provider "
+            "call; defaults to --llm-timeout-seconds"
+        ),
     )
     research_agent_runtime.add_argument(
         "--capability-eval",

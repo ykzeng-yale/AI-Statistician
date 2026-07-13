@@ -4,6 +4,7 @@ import asyncio
 import ast
 import json
 import math
+import os
 import re
 import shlex
 import subprocess
@@ -74,6 +75,7 @@ from .formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
 from .exact_source_theorem_proof_body_executor import (
+    SOURCE_KERNEL_STATUS,
     _exact_target_statement_span as _external_exact_target_statement_span,
     _external_candidate_source_evidence_blockers as _external_exact_source_evidence_blockers,
     _external_exact_target_statement as _external_exact_candidate_statement,
@@ -334,6 +336,12 @@ from .exact_semantic_definition_runtime_worker import (
     EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND,
     EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
     ExactSemanticDefinitionRuntimeWorker,
+)
+from .exact_semantic_definition_review_runtime_worker import (
+    EXACT_SEMANTIC_DEFINITION_REVIEW_EXECUTION_KIND,
+    EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM,
+    EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND,
+    ExactSemanticDefinitionReviewRuntimeWorker,
 )
 from .verifier import ProofVerifier
 
@@ -9055,6 +9063,8 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "leanprover": "ProofEngineer",
         "theoremreductionclosureproofengineer": "ProofEngineer",
         "theoremclosureproofengineer": "ProofEngineer",
+        "exactsemanticdefinitionproofengineer": "ProofEngineer",
+        "exactsemanticdefinitionreviewproofengineer": "ProofEngineer",
         "exactsourcetheoremproofbodyexecutor": "ProofEngineer",
         "exactsourceproofbodyexecutor": "ProofEngineer",
         "exactsourcetheoremprover": "ProofEngineer",
@@ -14284,13 +14294,16 @@ def _runtime_exact_source_candidate_bindings(
         path = Path(path_text)
         try:
             source = path.read_text(encoding="utf-8")
+            present = True
         except OSError:
             source = ""
+            present = False
         bindings.append(
             {
                 "path": path_text,
-                "content_hash": stable_hash(source) if source else "",
-                "utf8_bytes": len(source.encode("utf-8")) if source else 0,
+                "present": present,
+                "content_hash": stable_hash(source) if present else "",
+                "utf8_bytes": len(source.encode("utf-8")),
             }
         )
     return bindings
@@ -14920,6 +14933,57 @@ def _runtime_exact_semantic_definition_candidate_artifact_bindings(
     return bindings
 
 
+def _runtime_exact_semantic_definition_review_execution_policy(
+    runtime_config: ResearchAgentRuntimeConfig,
+) -> dict[str, Any]:
+    authoring_config = _exact_semantic_definition_authoring_worker_config(
+        runtime_config
+    )
+    materializer_config = AuthoringCandidateMaterializerConfig()
+    return {
+        "environment_preflight_enabled": bool(
+            runtime_config.source_theorem_exact_semantic_definition_lean_environment_repair_executor
+        ),
+        "authoring_enabled": bool(
+            runtime_config.source_theorem_exact_semantic_definition_authoring_worker
+        ),
+        "authoring_config_fingerprint": stable_hash(asdict(authoring_config)),
+        "materializer_config_fingerprint": stable_hash(
+            asdict(materializer_config)
+        ),
+        "local_lean": bool(
+            runtime_config.source_theorem_exact_semantic_definition_lean_repair_executor_local_lean
+        ),
+        "lean_project": str(
+            _exact_semantic_definition_lean_repair_executor_project(
+                runtime_config
+            )
+            or ""
+        ),
+        "lean_timeout": int(
+            runtime_config.source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout
+        ),
+        "proof_body_execute": bool(
+            runtime_config.source_theorem_formal_environment_proofengineer_execute_proof_body
+        ),
+        "proof_body_local_lean": bool(
+            runtime_config.source_theorem_formal_environment_proofengineer_proof_body_local_lean
+        ),
+        "proof_body_lean_project": str(
+            runtime_config.source_theorem_formal_environment_proofengineer_lean_project
+            or ""
+        ),
+        "proof_body_lean_timeout": int(
+            runtime_config.source_theorem_formal_environment_proofengineer_lean_timeout
+        ),
+        "proof_body_overwrite": bool(
+            runtime_config.source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts
+        ),
+        "runtime_generated_lean": False,
+        "python_lean_grammar_generation_or_repair": False,
+    }
+
+
 def _runtime_exact_semantic_definition_work_order(
     *,
     source_task: AgentTask,
@@ -14965,6 +15029,19 @@ def _runtime_exact_semantic_definition_work_order(
         ),
         "python_lean_grammar_generation_or_repair": False,
     }
+    source_proof_body_rows = (
+        _runtime_exact_source_theorem_proof_body_rows_from_manifest(
+            formalization_manifest
+        )
+    )
+    source_proof_body_candidate_bindings = (
+        _runtime_exact_source_candidate_bindings(source_proof_body_rows)
+    )
+    review_execution_policy = (
+        _runtime_exact_semantic_definition_review_execution_policy(
+            runtime_config
+        )
+    )
     source_manifest_id = str(
         formalization_manifest.get("manifest_id", "") or ""
     )
@@ -14974,7 +15051,10 @@ def _runtime_exact_semantic_definition_work_order(
             question.id,
             source_manifest_id,
             [stable_hash(row) for row in rows],
+            [stable_hash(row) for row in source_proof_body_rows],
+            source_proof_body_candidate_bindings,
             execution_policy,
+            review_execution_policy,
         ]
     )[:20]
     control_seed = _runtime_architect_control_seed_from_context(
@@ -14999,8 +15079,19 @@ def _runtime_exact_semantic_definition_work_order(
         "candidate_artifact_bindings": (
             _runtime_exact_semantic_definition_candidate_artifact_bindings(rows)
         ),
+        "source_proof_body_rows": source_proof_body_rows,
+        "source_proof_body_row_hashes": [
+            stable_hash(row) for row in source_proof_body_rows
+        ],
+        "source_proof_body_candidate_bindings": (
+            source_proof_body_candidate_bindings
+        ),
         "execution_policy": execution_policy,
         "execution_policy_fingerprint": stable_hash(execution_policy),
+        "review_execution_policy": review_execution_policy,
+        "review_execution_policy_fingerprint": stable_hash(
+            review_execution_policy
+        ),
         "source_task": asdict(source_task),
         "return_task": asdict(return_task),
         "proof_evidence_status": (
@@ -25945,6 +26036,8 @@ def _formalizer_source_theorem_target_drift_errors(
     ) else []
     source_text = str(source or "")
     semantic_text = " ".join([informal_source, *constraints]).lower()
+    # Constraints can mention evaluation concepts without changing the source claim.
+    source_claim_text = informal_source.lower()
     errors: list[str] = []
     drift_phrases = (
         "not a measure-theoretic claim",
@@ -25977,7 +26070,7 @@ def _formalizer_source_theorem_target_drift_errors(
         or re.search(r"\bP\s*(?:\{|\(|:)", source_text) is not None
     )
     if (
-        any(marker in semantic_text for marker in probability_claim_markers)
+        any(marker in source_claim_text for marker in probability_claim_markers)
         and not source_probability_shape
     ):
         errors.append(
@@ -26540,6 +26633,68 @@ class FormalizationGapPlannerRuntimeSubsystem:
             task_timeout = config_timeout
         return min(task_timeout, config_timeout)
 
+    @staticmethod
+    def _live_route_planner_execution_budget(
+        *,
+        standalone_seed_path: Path,
+        max_route_requests_per_handoff: int,
+        max_repair_attempts: int,
+        max_staged_followup_stage_calls: int,
+        provider_call_timeout_seconds: float,
+    ) -> dict[str, int | float]:
+        route_cap = max(0, int(max_route_requests_per_handoff))
+        available_routes = 0
+        try:
+            seed_payload = json.loads(
+                standalone_seed_path.read_text(encoding="utf-8")
+            )
+            raw_routes = (
+                seed_payload.get("routes", [])
+                if isinstance(seed_payload, Mapping)
+                else []
+            )
+            if isinstance(raw_routes, Sequence) and not isinstance(
+                raw_routes,
+                (str, bytes, bytearray),
+            ):
+                available_routes = sum(
+                    1 for route in raw_routes if isinstance(route, Mapping)
+                )
+        except (OSError, json.JSONDecodeError):
+            # The child validates malformed/missing seeds. Reserve one call slot so
+            # its structured failure can still be materialized before the watchdog.
+            available_routes = max(1, route_cap)
+        route_requests = (
+            min(available_routes, route_cap) if route_cap > 0 else available_routes
+        )
+        repair_attempts = max(0, int(max_repair_attempts))
+        primary_provider_call_slots = route_requests * (1 + repair_attempts)
+        staged_provider_call_slots = (
+            max(0, int(max_staged_followup_stage_calls))
+            if route_requests > 0
+            else 0
+        )
+        provider_call_slots = (
+            primary_provider_call_slots + staged_provider_call_slots
+        )
+        per_call_timeout = max(1.0, float(provider_call_timeout_seconds))
+        startup_grace_seconds = max(5.0, min(30.0, per_call_timeout * 0.25))
+        outer_timeout_seconds = (
+            per_call_timeout * max(1, provider_call_slots)
+            + startup_grace_seconds
+        )
+        return {
+            "available_routes": available_routes,
+            "route_requests": route_requests,
+            "repair_attempts_per_route": repair_attempts,
+            "primary_provider_call_slots": primary_provider_call_slots,
+            "staged_provider_call_slots": staged_provider_call_slots,
+            "provider_call_slots": provider_call_slots,
+            "provider_call_timeout_seconds": per_call_timeout,
+            "startup_grace_seconds": startup_grace_seconds,
+            "outer_execution_timeout_seconds": outer_timeout_seconds,
+        }
+
     def _live_route_planner_replay_lean_project(self, task: AgentTask) -> Path | None:
         for raw in (
             task.inputs.get("lean_project", ""),
@@ -26693,7 +26848,8 @@ class FormalizationGapPlannerRuntimeSubsystem:
         max_route_requests_per_handoff: int,
         max_repair_attempts: int,
         max_staged_followup_stage_calls: int,
-        timeout_seconds: float,
+        provider_call_timeout_seconds: float,
+        outer_execution_timeout_seconds: float,
         target_intake_dir: Path | None,
         standalone_plan_dir: Path | None,
         component_resource_registry_dir: Path | None,
@@ -26756,12 +26912,17 @@ class FormalizationGapPlannerRuntimeSubsystem:
             route_revision_overlay_dir,
         )
         try:
+            subprocess_env = dict(os.environ)
+            subprocess_env["AI_STATISTICIAN_LLM_TIMEOUT_SECONDS"] = (
+                f"{max(1.0, float(provider_call_timeout_seconds)):g}"
+            )
             completed = subprocess.run(
                 cmd,
                 cwd=Path.cwd(),
                 text=True,
                 capture_output=True,
-                timeout=max(1.0, float(timeout_seconds)),
+                timeout=max(1.0, float(outer_execution_timeout_seconds)),
+                env=subprocess_env,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
@@ -26774,23 +26935,44 @@ class FormalizationGapPlannerRuntimeSubsystem:
             )
             raise TimeoutError(
                 "formalization gap planner live route-planner subprocess "
-                f"exceeded {timeout_seconds:g}s{detail}"
+                "exceeded derived outer execution timeout "
+                f"{outer_execution_timeout_seconds:g}s "
+                "with per-provider-call timeout "
+                f"{provider_call_timeout_seconds:g}s{detail}"
             ) from exc
-        if completed.returncode != 0:
-            raise RuntimeError(
-                "formalization gap planner live route-planner subprocess exited "
-                f"{completed.returncode}; stdout_tail={completed.stdout[-1000:]!r}; "
-                f"stderr_tail={completed.stderr[-1000:]!r}"
-            )
         manifest_path = (
             out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
         )
         if not manifest_path.exists():
+            exit_detail = (
+                f"; subprocess exited {completed.returncode}; "
+                f"stdout_tail={completed.stdout[-1000:]!r}; "
+                f"stderr_tail={completed.stderr[-1000:]!r}"
+                if completed.returncode != 0
+                else ""
+            )
             raise RuntimeError(
                 "formalization gap planner live route-planner subprocess did not "
-                f"write manifest: {manifest_path}"
+                f"write manifest: {manifest_path}{exit_detail}"
             )
-        return dict(json.loads(manifest_path.read_text(encoding="utf-8")))
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                "formalization gap planner live route-planner subprocess wrote "
+                f"an unreadable manifest: {manifest_path}: {type(exc).__name__}: {exc}"
+            ) from exc
+        if not isinstance(manifest_payload, Mapping):
+            raise RuntimeError(
+                "formalization gap planner live route-planner subprocess manifest "
+                f"must be a JSON object: {manifest_path}"
+            )
+        return {
+            **dict(manifest_payload),
+            "runtime_subprocess_exit_status": str(completed.returncode),
+            "runtime_subprocess_manifest_consumed": True,
+            "runtime_subprocess_nonzero_result_consumed": completed.returncode != 0,
+        }
 
     def _materialize_live_route_planner_context(
         self,
@@ -27309,6 +27491,18 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 handoff,
                 "route_revision_overlay_dir",
             )
+            execution_budget = self._live_route_planner_execution_budget(
+                standalone_seed_path=standalone_seed_path,
+                max_route_requests_per_handoff=max_route_requests_per_handoff,
+                max_repair_attempts=max_repair_attempts,
+                max_staged_followup_stage_calls=(
+                    max_staged_followup_stage_calls
+                ),
+                provider_call_timeout_seconds=timeout_seconds,
+            )
+            outer_execution_timeout_seconds = float(
+                execution_budget["outer_execution_timeout_seconds"]
+            )
             try:
                 if self._live_route_planner_use_subprocess_export(
                     provider=provider,
@@ -27329,7 +27523,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         max_staged_followup_stage_calls=(
                             max_staged_followup_stage_calls
                         ),
-                        timeout_seconds=timeout_seconds,
+                        provider_call_timeout_seconds=timeout_seconds,
+                        outer_execution_timeout_seconds=(
+                            outer_execution_timeout_seconds
+                        ),
                         target_intake_dir=target_intake_dir,
                         standalone_plan_dir=standalone_plan_dir,
                         component_resource_registry_dir=(
@@ -27376,7 +27573,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             route_revision_overlay_dir
                         ),
                         ),
-                        timeout_s=timeout_seconds,
+                        timeout_s=outer_execution_timeout_seconds,
                         provider_name=provider,
                         model=model or "formalization_gap_planner_live_route_planner",
                     )
@@ -27434,6 +27631,27 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             handoff_execution_plan_stage_ids
                         ),
                         "context_materialization": context_materialization,
+                        "timeout_seconds": timeout_seconds,
+                        "provider_call_timeout_seconds": timeout_seconds,
+                        "outer_execution_timeout_seconds": (
+                            outer_execution_timeout_seconds
+                        ),
+                        "execution_budget": execution_budget,
+                        "runtime_subprocess_exit_status": str(
+                            payload.get("runtime_subprocess_exit_status", "") or ""
+                        ),
+                        "runtime_subprocess_manifest_consumed": bool(
+                            payload.get(
+                                "runtime_subprocess_manifest_consumed",
+                                False,
+                            )
+                        ),
+                        "runtime_subprocess_nonzero_result_consumed": bool(
+                            payload.get(
+                                "runtime_subprocess_nonzero_result_consumed",
+                                False,
+                            )
+                        ),
                         "target_prover_replay": target_prover_replay,
                         "target_prover_replay_all_ok": bool(
                             target_prover_replay.get("all_ok", False)
@@ -27801,6 +28019,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "context_materialization": context_materialization,
                         "failure_classification": failure_classification,
                         "timeout_seconds": timeout_seconds,
+                        "provider_call_timeout_seconds": timeout_seconds,
+                        "outer_execution_timeout_seconds": (
+                            outer_execution_timeout_seconds
+                        ),
+                        "execution_budget": execution_budget,
                         "provider_name": provider,
                         "model": model,
                         "model_tier": model_tier,
@@ -28297,6 +28520,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "max_staged_followup_stage_calls": max_staged_followup_stage_calls,
             "max_route_requests_per_handoff": max_route_requests_per_handoff,
             "timeout_seconds": timeout_seconds,
+            "provider_call_timeout_seconds": timeout_seconds,
+            "outer_execution_timeout_seconds_by_handoff": [
+                float(row.get("outer_execution_timeout_seconds", 0.0) or 0.0)
+                for row in rows
+            ],
             "max_estimated_prompt_input_tokens": (
                 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
             ),
@@ -28348,6 +28576,13 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "max_repair_attempts": max_repair_attempts,
                 "max_route_requests_per_handoff": max_route_requests_per_handoff,
                 "timeout_seconds": timeout_seconds,
+                "provider_call_timeout_seconds": timeout_seconds,
+                "outer_execution_timeout_seconds_by_handoff": [
+                    float(
+                        row.get("outer_execution_timeout_seconds", 0.0) or 0.0
+                    )
+                    for row in rows
+                ],
             },
             output_paths=tuple(output_paths),
             input_hash=stable_hash([task.task_id, selected]),
@@ -29974,6 +30209,15 @@ def run_research_agent_runtime(
             if config.source_theorem_exact_semantic_definition_authoring_worker
             else None
         )
+        exact_semantic_authoring_config = (
+            _exact_semantic_definition_authoring_worker_config(config)
+        )
+        exact_semantic_materializer_config = (
+            AuthoringCandidateMaterializerConfig()
+        )
+        exact_semantic_review_execution_policy = (
+            _runtime_exact_semantic_definition_review_execution_policy(config)
+        )
         subsystems: dict[str, Any] = {
             "RetrievalMemory": RetrievalMemoryRuntimeSubsystem(
                 formal_source_retriever=shared_formal_source_retriever,
@@ -30001,6 +30245,9 @@ def run_research_agent_runtime(
                     source_rows_resolver=(
                         _runtime_exact_semantic_definition_rows_from_manifest
                     ),
+                    source_proof_body_rows_resolver=(
+                        _runtime_exact_source_theorem_proof_body_rows_from_manifest
+                    ),
                     source_roots=[
                         Path(value)
                         for value in (
@@ -30024,8 +30271,47 @@ def run_research_agent_runtime(
                     authoring_enabled=bool(
                         config.source_theorem_exact_semantic_definition_authoring_worker
                     ),
-                    authoring_config=(
-                        _exact_semantic_definition_authoring_worker_config(config)
+                    authoring_config=exact_semantic_authoring_config,
+                    materializer_config=exact_semantic_materializer_config,
+                    review_worker_available=True,
+                    review_execution_policy=(
+                        exact_semantic_review_execution_policy
+                    ),
+                    repair_available=formalizer is not None,
+                )
+            ),
+            EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM: (
+                ExactSemanticDefinitionReviewRuntimeWorker(
+                    out_root=out_dir,
+                    source_proof_body_rows_resolver=(
+                        _runtime_exact_source_theorem_proof_body_rows_from_manifest
+                    ),
+                    source_roots=[
+                        Path(value)
+                        for value in (
+                            config.source_theorem_exact_semantic_definition_source_roots
+                        )
+                        if str(value).strip()
+                    ],
+                    local_lean=bool(
+                        config.source_theorem_exact_semantic_definition_lean_repair_executor_local_lean
+                    ),
+                    lean_project=(
+                        _exact_semantic_definition_lean_repair_executor_project(
+                            config
+                        )
+                    ),
+                    lean_timeout=int(
+                        config.source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout
+                    ),
+                    authoring_provider=exact_semantic_authoring_provider,
+                    authoring_enabled=bool(
+                        config.source_theorem_exact_semantic_definition_authoring_worker
+                    ),
+                    authoring_config=exact_semantic_authoring_config,
+                    materializer_config=exact_semantic_materializer_config,
+                    review_execution_policy=(
+                        exact_semantic_review_execution_policy
                     ),
                     repair_available=formalizer is not None,
                 )
@@ -30623,6 +30909,36 @@ def run_research_agent_runtime(
         "n_exact_semantic_definition_agent_runtime_local_lean_compiled": (
             evidence_summary["proof"][
                 "n_exact_semantic_definition_agent_runtime_local_lean_compiled"
+            ]
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_work_orders": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_review_agent_runtime_work_orders"
+            ]
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_executions": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_review_agent_runtime_executions"
+            ]
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_contract_satisfied": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_review_agent_runtime_contract_satisfied"
+            ]
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked"
+            ]
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_review_agent_runtime_verifier_approved"
+            ]
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified"
             ]
         ),
         "n_source_semantic_agent_runtime_work_orders": evidence_summary["proof"][
@@ -31413,11 +31729,26 @@ def run_research_agent_runtime(
         exact_semantic_definition_agent_runtime_work_orders,
         exact_semantic_definition_agent_runtime_executions,
     ) = _runtime_exact_semantic_definition_agent_runtime_artifacts(results)
+    (
+        exact_semantic_definition_review_agent_runtime_work_orders,
+        exact_semantic_definition_review_agent_runtime_executions,
+    ) = _runtime_exact_semantic_definition_review_agent_runtime_artifacts(
+        results
+    )
     exact_semantic_definition_execution_mode = (
-        "agent_runtime_typed_worker"
+        "agent_runtime_typed_worker_with_review_continuation"
+        if exact_semantic_definition_review_agent_runtime_executions
+        else "agent_runtime_typed_worker"
         if exact_semantic_definition_agent_runtime_executions
         else "agent_runtime_work_order_pending"
         if exact_semantic_definition_agent_runtime_work_orders
+        else "not_run"
+    )
+    exact_semantic_definition_review_execution_mode = (
+        "agent_runtime_typed_review_worker"
+        if exact_semantic_definition_review_agent_runtime_executions
+        else "agent_runtime_review_work_order_pending"
+        if exact_semantic_definition_review_agent_runtime_work_orders
         else "not_run"
     )
     exact_semantic_definition_legacy_post_runtime_fallback_used = False
@@ -39013,6 +39344,20 @@ def run_research_agent_runtime(
             str(row.get("manifest_id", "") or "")
             for row in exact_semantic_definition_agent_runtime_executions
         ]
+    if exact_semantic_definition_review_agent_runtime_work_orders:
+        manifest["artifacts"][
+            "runtime_exact_semantic_definition_review_agent_runtime_work_orders"
+        ] = [
+            str(row.get("work_order_id", "") or "")
+            for row in exact_semantic_definition_review_agent_runtime_work_orders
+        ]
+    if exact_semantic_definition_review_agent_runtime_executions:
+        manifest["artifacts"][
+            "runtime_exact_semantic_definition_review_agent_runtime_executions"
+        ] = [
+            str(row.get("manifest_id", "") or "")
+            for row in exact_semantic_definition_review_agent_runtime_executions
+        ]
     if source_theorem_formal_environment_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_formal_environment_proofengineer_bridge_manifest"
@@ -40931,15 +41276,58 @@ def run_research_agent_runtime(
     manifest[
         "n_exact_semantic_definition_agent_runtime_source_theorem_kernel_verified"
     ] = 0
+    manifest["exact_semantic_definition_review_execution_mode"] = (
+        exact_semantic_definition_review_execution_mode
+    )
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_work_orders"
+    ] = len(exact_semantic_definition_review_agent_runtime_work_orders)
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_executions"
+    ] = len(exact_semantic_definition_review_agent_runtime_executions)
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_pending_work_orders"
+    ] = max(
+        0,
+        len(exact_semantic_definition_review_agent_runtime_work_orders)
+        - len(exact_semantic_definition_review_agent_runtime_executions),
+    )
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_contract_satisfied"
+    ] = sum(
+        1
+        for row in exact_semantic_definition_review_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked"
+    ] = sum(
+        1
+        for row in exact_semantic_definition_review_agent_runtime_executions
+        if _bool_like(row.get("authoring_model_invoked", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved"
+    ] = sum(
+        int(row.get("n_verifier_approved", 0) or 0)
+        for row in exact_semantic_definition_review_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified"
+    ] = sum(
+        _runtime_exact_semantic_definition_review_kernel_count(row)
+        for row in exact_semantic_definition_review_agent_runtime_executions
+    )
     manifest[
         "exact_semantic_definition_legacy_post_runtime_fallback_used"
     ] = exact_semantic_definition_legacy_post_runtime_fallback_used
     manifest["exact_semantic_definition_agent_runtime_boundary"] = (
-        "Typed AgentRuntime execution binds source lookup, authoring handoff, "
-        "candidate materialization, and Lean feedback to one immutable work order. "
-        "These artifacts are not source-theorem proof; only a later exact target "
-        "kernel verifier may promote theorem evidence. Legacy post-runtime fields "
-        "remain separate and cannot satisfy this integrated execution count."
+        "Typed AgentRuntime execution binds source lookup, LLM authoring, semantic "
+        "review, verifier feedback, and exact proof-body execution to immutable work "
+        "orders. Initial and verifier-gate artifacts remain non-proof evidence; only "
+        "the review child's bound exact-target local Lean/kernel executor may promote "
+        "source-theorem evidence. Legacy post-runtime fields remain separate."
     )
     manifest["source_theorem_exact_semantic_definition_source_lookup_required"] = bool(
         source_theorem_exact_semantic_definition_work_order_rows
@@ -76403,6 +76791,74 @@ def _runtime_exact_semantic_definition_agent_runtime_artifacts(
     return work_orders, executions
 
 
+def _runtime_exact_semantic_definition_review_agent_runtime_artifacts(
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    work_orders: list[dict[str, Any]] = []
+    executions: list[dict[str, Any]] = []
+    seen_work_orders: set[str] = set()
+    seen_executions: set[str] = set()
+    for result in results:
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind == EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND:
+                artifact_id = str(artifact.get("work_order_id", "") or "")
+                if artifact_id and artifact_id not in seen_work_orders:
+                    seen_work_orders.add(artifact_id)
+                    work_orders.append(dict(artifact))
+            elif kind == EXACT_SEMANTIC_DEFINITION_REVIEW_EXECUTION_KIND:
+                artifact_id = str(artifact.get("manifest_id", "") or "")
+                if artifact_id and artifact_id not in seen_executions:
+                    seen_executions.add(artifact_id)
+                    executions.append(dict(artifact))
+    return work_orders, executions
+
+
+def _runtime_exact_semantic_definition_review_kernel_count(
+    execution: Mapping[str, Any],
+) -> int:
+    count = int(execution.get("n_source_theorem_kernel_verified", 0) or 0)
+    verifier_approved = int(execution.get("n_verifier_approved", 0) or 0)
+    stage_hashes = execution.get("stage_artifact_hashes", {})
+    exact_executor_stage_bound = bool(
+        isinstance(stage_hashes, Mapping)
+        and any(
+            str(artifact_id).startswith(
+                "runtime_exact_semantic_definition_review_"
+                "exact_source_proof_body_executor:"
+            )
+            for artifact_id in stage_hashes
+        )
+    )
+    if not (
+        count > 0
+        and _bool_like(execution.get("execution_contract_satisfied", False))
+        and _bool_like(execution.get("source_theorem_kernel_verified", False))
+        and str(execution.get("proof_evidence_status", "") or "")
+        == SOURCE_KERNEL_STATUS
+        and verifier_approved >= count
+        and exact_executor_stage_bound
+        and not _bool_like(execution.get("runtime_generated_lean", False))
+        and not _bool_like(
+            execution.get("python_lean_grammar_generation_or_repair", False)
+        )
+    ):
+        return 0
+    return count
+
+
 def _runtime_source_theorem_promotion_agent_runtime_artifacts(
     results: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -90029,6 +90485,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_exact_semantic_definition_agent_runtime_authoring_model_invoked": 0,
         "n_exact_semantic_definition_agent_runtime_local_lean_checked": 0,
         "n_exact_semantic_definition_agent_runtime_local_lean_compiled": 0,
+        "n_exact_semantic_definition_review_agent_runtime_work_orders": 0,
+        "n_exact_semantic_definition_review_agent_runtime_executions": 0,
+        "n_exact_semantic_definition_review_agent_runtime_contract_satisfied": 0,
+        "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked": 0,
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved": 0,
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified": 0,
         "n_source_semantic_agent_runtime_work_orders": 0,
         "n_source_semantic_agent_runtime_executions": 0,
         "n_source_semantic_agent_runtime_kernel_verified_support": 0,
@@ -90661,6 +91123,40 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     proof[
                         "n_exact_semantic_definition_agent_runtime_local_lean_compiled"
                     ] += int(artifact.get("n_local_lean_compiled", 0) or 0)
+            elif kind == EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND:
+                proof[
+                    "n_exact_semantic_definition_review_agent_runtime_work_orders"
+                ] += 1
+            elif kind == EXACT_SEMANTIC_DEFINITION_REVIEW_EXECUTION_KIND:
+                proof[
+                    "n_exact_semantic_definition_review_agent_runtime_executions"
+                ] += 1
+                if _bool_like(
+                    artifact.get("execution_contract_satisfied", False)
+                ):
+                    proof[
+                        "n_exact_semantic_definition_review_agent_runtime_contract_satisfied"
+                    ] += 1
+                    proof[
+                        "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked"
+                    ] += int(
+                        _bool_like(artifact.get("authoring_model_invoked", False))
+                    )
+                    proof[
+                        "n_exact_semantic_definition_review_agent_runtime_verifier_approved"
+                    ] += int(artifact.get("n_verifier_approved", 0) or 0)
+                    review_kernel_count = (
+                        _runtime_exact_semantic_definition_review_kernel_count(
+                            artifact
+                        )
+                    )
+                    if review_kernel_count > 0:
+                        proof[
+                            "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified"
+                        ] += review_kernel_count
+                        verifier_names.add(
+                            "local.exact_semantic_definition_review_agent_runtime"
+                        )
             elif kind == SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND:
                 proof["n_source_semantic_agent_runtime_work_orders"] += 1
             elif kind == SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND:

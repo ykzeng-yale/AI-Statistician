@@ -14945,6 +14945,7 @@ def _generate_staged_followup_stage_attempt(
         "provider_failure": False,
         "stage_status": "",
         "stage_status_inferred": False,
+        "proof_evidence_metadata_inferred": False,
         "fragment": {},
         "assembler_notes": [],
         "raw_response_text": "",
@@ -14992,7 +14993,11 @@ def _generate_staged_followup_stage_attempt(
             generation_errors.append(
                 f"JSON extraction failed: {type(exc).__name__}: {exc}"
             )
-        payload, stage_status_inferred = (
+        (
+            payload,
+            stage_status_inferred,
+            proof_evidence_metadata_inferred,
+        ) = (
             _normalized_staged_followup_stage_response_payload(
                 payload,
                 stage_id=stage_id,
@@ -15022,6 +15027,9 @@ def _generate_staged_followup_stage_attempt(
             "response_contract_ok": not validation_errors,
             "stage_status": str(payload.get("stage_status", "") or ""),
             "stage_status_inferred": stage_status_inferred,
+            "proof_evidence_metadata_inferred": (
+                proof_evidence_metadata_inferred
+            ),
             "fragment": _dict_value(payload, "fragment"),
             "assembler_notes": list(_str_tuple(payload.get("assembler_notes", []))),
             "raw_response_text": generated.text,
@@ -15162,9 +15170,9 @@ def _normalized_staged_followup_stage_response_payload(
     payload: Mapping[str, Any],
     *,
     stage_id: str,
-) -> tuple[Mapping[str, Any], bool]:
+) -> tuple[Mapping[str, Any], bool, bool]:
     if not isinstance(payload, Mapping) or not payload:
-        return payload, False
+        return payload, False, False
     normalized: dict[str, Any] = dict(payload)
     fragment = normalized.get("fragment", {})
     fragment_has_required_fields = (
@@ -15189,7 +15197,20 @@ def _normalized_staged_followup_stage_response_payload(
         fragment_notes = fragment.get("assembler_notes")
         if fragment_notes:
             normalized["assembler_notes"] = list(_str_tuple(fragment_notes))
-    return normalized, stage_status_inferred
+    proof_evidence_metadata_inferred = False
+    if not str(normalized.get("proof_evidence_status", "") or "").strip():
+        normalized["proof_evidence_status"] = PROOF_EVIDENCE_STATUS
+        proof_evidence_metadata_inferred = True
+    if not str(normalized.get("proof_evidence_boundary", "") or "").strip():
+        # Evidence classification is a runtime-owned invariant, not mathematical
+        # content that the route-planning model must reproduce verbatim.
+        normalized["proof_evidence_boundary"] = PROOF_EVIDENCE_BOUNDARY
+        proof_evidence_metadata_inferred = True
+    return (
+        normalized,
+        stage_status_inferred,
+        proof_evidence_metadata_inferred,
+    )
 
 
 def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]:

@@ -14389,8 +14389,6 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
                 "route_id": request.metadata["route_id"],
                 "stage_id": stage_id,
                 "fragment": fragment,
-                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
-                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
             }
             return GeneratorResponse(
                 text=json.dumps(payload),
@@ -14440,6 +14438,15 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
     )
     assert all(
         row["stage_status_inferred"] is True
+        for row in payload["staged_followup_stage_attempt_rows"]
+    )
+    assert all(
+        row["proof_evidence_metadata_inferred"] is True
+        for row in payload["staged_followup_stage_attempt_rows"]
+    )
+    assert all(
+        row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+        and row["proof_evidence_boundary"] == PROOF_EVIDENCE_BOUNDARY
         for row in payload["staged_followup_stage_attempt_rows"]
     )
     assert all(

@@ -13,6 +13,8 @@ from ai_statistician.agent_runtime import (
     BlackboardState,
 )
 from ai_statistician.exact_semantic_definition_runtime_worker import (
+    EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM,
+    EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND,
     EXACT_SEMANTIC_DEFINITION_RUNTIME_EXECUTION_KIND,
     EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND,
     EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
@@ -372,6 +374,104 @@ def test_exact_semantic_worker_is_typed_agent_runtime_child_before_llm_repair(
     assert execution["source_theorem_kernel_verified"] is False
     assert execution["runtime_generated_lean"] is False
     assert execution["python_lean_grammar_generation_or_repair"] is False
+
+
+def test_exact_semantic_worker_dispatches_hash_bound_review_continuation(
+    tmp_path: Path,
+) -> None:
+    worker, task, blackboard, calls, _candidate = _runtime_fixture(
+        tmp_path,
+        authoring_enabled=True,
+        emit_authoring_task=True,
+    )
+    review_policy = {
+        "authoring_enabled": True,
+        "runtime_generated_lean": False,
+        "python_lean_grammar_generation_or_repair": False,
+    }
+    work_order_id = task.inputs["exact_semantic_definition_work_order_id"]
+    work_order = blackboard.artifacts[work_order_id]
+    work_order["review_execution_policy"] = review_policy
+    work_order["review_execution_policy_fingerprint"] = stable_hash(
+        review_policy
+    )
+    task = AgentTask(
+        task_id=task.task_id,
+        owner_subsystem=task.owner_subsystem,
+        objective=task.objective,
+        inputs={
+            **task.inputs,
+            "exact_semantic_definition_work_order_hash": stable_hash(work_order),
+        },
+    )
+    worker.review_worker_available = True
+    worker.review_execution_policy = review_policy
+
+    result = worker.run(task, blackboard)
+    execution = _execution(result)
+    review_work_order = next(
+        dict(artifact)
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM
+    )
+    assert calls["authoring"] == 1
+    assert calls["repair"] == 2
+    assert review_work_order["parent_work_order_id"] == work_order_id
+    assert review_work_order["source_repair_manifest_id"]
+    assert review_work_order["source_repair_manifest_hash"]
+    assert review_work_order["input_file_bindings"][0]["present"] is True
+    assert execution["review_continuation_dispatched"] is True
+    assert execution["review_continuation_work_order_id"] == (
+        review_work_order["work_order_id"]
+    )
+
+
+def test_exact_semantic_worker_replay_rejects_review_work_order_swap(
+    tmp_path: Path,
+) -> None:
+    worker, task, blackboard, calls, _candidate = _runtime_fixture(
+        tmp_path,
+        authoring_enabled=True,
+        emit_authoring_task=True,
+    )
+    review_policy = {"authoring_enabled": True}
+    work_order_id = task.inputs["exact_semantic_definition_work_order_id"]
+    work_order = blackboard.artifacts[work_order_id]
+    work_order["review_execution_policy"] = review_policy
+    work_order["review_execution_policy_fingerprint"] = stable_hash(
+        review_policy
+    )
+    task = AgentTask(
+        task_id=task.task_id,
+        owner_subsystem=task.owner_subsystem,
+        objective=task.objective,
+        inputs={
+            **task.inputs,
+            "exact_semantic_definition_work_order_hash": stable_hash(work_order),
+        },
+    )
+    worker.review_worker_available = True
+    worker.review_execution_policy = review_policy
+    first = worker.run(task, blackboard)
+    blackboard.artifacts.update(first.produced_artifacts)
+    first_counts = dict(calls)
+    review_id = _execution(first)["review_continuation_work_order_id"]
+    blackboard.artifacts[review_id]["question_id"] = "changed_question"
+
+    replay = worker.run(task, blackboard)
+
+    assert replay.status == "BLOCKED"
+    assert replay.failure_classification == (
+        "exact_semantic_definition_execution_replay_invalid"
+    )
+    assert calls == first_counts
 
 
 def test_exact_semantic_worker_rejects_work_order_tamper_before_lookup(

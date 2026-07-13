@@ -3145,7 +3145,7 @@ def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
     )
     assert timeout_calls == [
         {
-            "timeout_s": 2.5,
+            "timeout_s": 17.5,
             "provider_name": "anthropic",
             "model": "formalization_gap_planner_live_route_planner",
         }
@@ -3170,6 +3170,9 @@ def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
     assert live_manifest["counts"]["request_packets"] == 0
     assert live_manifest["errors"] == ["TimeoutError: outer route planner deadline"]
     live_row = live_manifest["rows"][0]
+    assert live_row["provider_call_timeout_seconds"] == 2.5
+    assert live_row["outer_execution_timeout_seconds"] == 17.5
+    assert live_row["execution_budget"]["provider_call_slots"] == 5
     assert live_row["failure_classification"] == (
         "formalization_gap_planner_live_route_planner_timeout"
     )
@@ -3211,6 +3214,52 @@ def test_formalization_gap_planner_live_route_planner_timeout_uses_runtime_cap()
     )
 
     assert subsystem._live_route_planner_timeout_seconds(shorter_task) == 2.5
+
+
+def test_formalization_gap_planner_live_route_planner_execution_budget_scales(
+    tmp_path: Path,
+) -> None:
+    seed_path = tmp_path / "seed.json"
+    seed_path.write_text(
+        json.dumps({"routes": [{"route_id": str(index)} for index in range(3)]}),
+        encoding="utf-8",
+    )
+
+    capped = (
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem
+        ._live_route_planner_execution_budget(
+            standalone_seed_path=seed_path,
+            max_route_requests_per_handoff=2,
+            max_repair_attempts=2,
+            max_staged_followup_stage_calls=4,
+            provider_call_timeout_seconds=8.0,
+        )
+    )
+    unlimited = (
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem
+        ._live_route_planner_execution_budget(
+            standalone_seed_path=seed_path,
+            max_route_requests_per_handoff=0,
+            max_repair_attempts=2,
+            max_staged_followup_stage_calls=4,
+            provider_call_timeout_seconds=8.0,
+        )
+    )
+
+    assert capped == {
+        "available_routes": 3,
+        "route_requests": 2,
+        "repair_attempts_per_route": 2,
+        "primary_provider_call_slots": 6,
+        "staged_provider_call_slots": 4,
+        "provider_call_slots": 10,
+        "provider_call_timeout_seconds": 8.0,
+        "startup_grace_seconds": 5.0,
+        "outer_execution_timeout_seconds": 85.0,
+    }
+    assert unlimited["route_requests"] == 3
+    assert unlimited["provider_call_slots"] == 13
+    assert unlimited["outer_execution_timeout_seconds"] == 109.0
 
 
 def test_formalization_gap_planner_live_route_planner_subprocess_timeout_fails_closed(
@@ -3269,7 +3318,8 @@ def test_formalization_gap_planner_live_route_planner_subprocess_timeout_fails_c
     assert subprocess_calls
     cmd = subprocess_calls[0]["cmd"]
     kwargs = subprocess_calls[0]["kwargs"]
-    assert kwargs["timeout"] == 3.0
+    assert kwargs["timeout"] == 20.0
+    assert kwargs["env"]["AI_STATISTICIAN_LLM_TIMEOUT_SECONDS"] == "3"
     assert "formalization-gap-planner-llm-route-planner" in cmd
     assert "--invoke-provider" in cmd
     assert cmd[cmd.index("--max-route-requests") + 1] == "1"
@@ -3288,10 +3338,87 @@ def test_formalization_gap_planner_live_route_planner_subprocess_timeout_fails_c
     assert live_manifest["rows"][0]["failure_classification"] == (
         "formalization_gap_planner_live_route_planner_timeout"
     )
+    assert live_manifest["rows"][0]["provider_call_timeout_seconds"] == 3.0
+    assert live_manifest["rows"][0]["outer_execution_timeout_seconds"] == 20.0
     assert any(
         tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
         and tool.exit_status == "failed"
         for tool in result.tool_calls
+    )
+
+
+def test_formalization_gap_planner_subprocess_consumes_nonzero_contract_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_path = tmp_path / "seed.json"
+    seed_path.write_text(
+        json.dumps({"routes": [{"route_id": "route-1"}]}),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "route-planner"
+    calls: list[dict[str, object]] = []
+
+    def fake_subprocess_run(cmd, **kwargs):
+        calls.append({"cmd": cmd, "kwargs": kwargs})
+        manifest_path = (
+            Path(cmd[cmd.index("--out") + 1])
+            / "formalization_gap_planner_llm_route_planner_manifest.json"
+        )
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "all_ok": False,
+                    "n_request_packets": 1,
+                    "n_response_present": 1,
+                    "n_response_contract_ok": 0,
+                    "n_provider_failures": 0,
+                    "errors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return runtime_module.subprocess.CompletedProcess(
+            cmd,
+            1,
+            stdout="responses=1 accepted=0 all_ok=False",
+            stderr="",
+        )
+
+    monkeypatch.setattr(runtime_module.subprocess, "run", fake_subprocess_run)
+
+    payload = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    )._export_live_route_planner_subprocess(
+        standalone_seed_path=seed_path,
+        out_dir=out_dir,
+        provider="anthropic",
+        model="",
+        model_tier="auto",
+        max_tokens=9000,
+        temperature=0.1,
+        max_route_requests_per_handoff=1,
+        max_repair_attempts=1,
+        max_staged_followup_stage_calls=3,
+        provider_call_timeout_seconds=7.0,
+        outer_execution_timeout_seconds=40.0,
+        target_intake_dir=None,
+        standalone_plan_dir=None,
+        component_resource_registry_dir=None,
+        route_contract_feedback_jsonl=None,
+        route_revision_overlay_dir=None,
+    )
+
+    assert payload["all_ok"] is False
+    assert payload["n_response_present"] == 1
+    assert payload["runtime_subprocess_exit_status"] == "1"
+    assert payload["runtime_subprocess_manifest_consumed"] is True
+    assert payload["runtime_subprocess_nonzero_result_consumed"] is True
+    assert calls[0]["kwargs"]["timeout"] == 40.0
+    assert (
+        calls[0]["kwargs"]["env"]["AI_STATISTICIAN_LLM_TIMEOUT_SECONDS"]
+        == "7"
     )
 
 
@@ -26945,6 +27072,39 @@ def test_formalizer_candidate_materialization_rejects_source_theorem_target_drif
         "required_conclusion_shape"
     ]
     assert "support lemma" in feedback["candidate_reroute_options"][0]
+
+
+def test_formalizer_target_family_ignores_constraint_metavocabulary() -> None:
+    errors = runtime_module._formalizer_source_theorem_target_drift_errors(
+        (
+            "theorem neyman_variance_conservative "
+            "(estimated trueVariance : Real) "
+            "(h : trueVariance <= estimated) : "
+            "trueVariance <= estimated := h"
+        ),
+        {
+            "informal_source": (
+                "Neyman conservativeness: E_W[V_hat] is at least "
+                "Var_W(tau_hat)."
+            ),
+            "semantic_alignment_constraints": [
+                (
+                    "The coverage conclusion must be stated as "
+                    "E_W[V_hat] >= Var_W(tau_hat)."
+                ),
+                "No superpopulation probability model may be introduced.",
+            ],
+            "source_theorem_target_provenance": {
+                "source_theorem_target_known": True,
+                "target_lean_declaration": "neyman_variance_conservative",
+                "source_theorem_goal_id": (
+                    "neyman_variance_conservative_validity"
+                ),
+            },
+        },
+    )
+
+    assert errors == []
 
 
 def test_formalizer_candidate_materialization_allows_string_false_helper_target(
@@ -87960,6 +88120,137 @@ def test_runtime_capability_scorecard_requires_typed_exact_semantic_loop() -> No
     ]["evidence"]
 
 
+def test_runtime_capability_scorecard_requires_typed_exact_semantic_review_continuation() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_exact_semantic_definition_review_agent_runtime_work_orders": 1,
+        "n_exact_semantic_definition_review_agent_runtime_executions": 0,
+        "n_exact_semantic_definition_review_agent_runtime_contract_satisfied": 0,
+        "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked": 0,
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved": 0,
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified": 0,
+        "exact_semantic_definition_review_execution_mode": (
+            "agent_runtime_review_work_order_pending"
+        ),
+    }
+
+    pending = _runtime_capability_scorecard(payload)
+    pending_rows = {row["requirement_id"]: row for row in pending["rows"]}
+
+    assert pending_rows[
+        "exact_semantic_definition_review_agent_runtime_continuation_completed"
+    ]["passed"] is False
+    assert pending_rows[
+        "exact_semantic_definition_review_kernel_boundary_preserved"
+    ]["passed"] is True
+
+    complete_payload = dict(payload)
+    complete_payload.update(
+        {
+            "n_exact_semantic_definition_review_agent_runtime_executions": 1,
+            "n_exact_semantic_definition_review_agent_runtime_contract_satisfied": 1,
+            "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked": 1,
+            "n_exact_semantic_definition_review_agent_runtime_verifier_approved": 1,
+            "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified": 1,
+            "exact_semantic_definition_review_execution_mode": (
+                "agent_runtime_typed_review_worker"
+            ),
+        }
+    )
+    complete = _runtime_capability_scorecard(complete_payload)
+    complete_rows = {row["requirement_id"]: row for row in complete["rows"]}
+    assert complete_rows[
+        "exact_semantic_definition_review_agent_runtime_continuation_completed"
+    ]["passed"] is True
+    assert complete_rows[
+        "exact_semantic_definition_review_kernel_boundary_preserved"
+    ]["passed"] is True
+
+    forged_payload = dict(complete_payload)
+    forged_payload[
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved"
+    ] = 0
+    forged = _runtime_capability_scorecard(forged_payload)
+    forged_rows = {row["requirement_id"]: row for row in forged["rows"]}
+    assert forged_rows[
+        "exact_semantic_definition_review_kernel_boundary_preserved"
+    ]["passed"] is False
+
+
+def test_runtime_evidence_summary_counts_only_contract_valid_review_kernel_evidence() -> None:
+    work_order = {
+        "artifact_kind": (
+            runtime_module.EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND
+        ),
+        "work_order_id": "review-work-order:survival",
+    }
+    execution = {
+        "artifact_kind": (
+            runtime_module.EXACT_SEMANTIC_DEFINITION_REVIEW_EXECUTION_KIND
+        ),
+        "manifest_id": "review-execution:survival",
+        "execution_contract_satisfied": True,
+        "authoring_model_invoked": True,
+        "n_verifier_approved": 1,
+        "source_theorem_kernel_verified": True,
+        "n_source_theorem_kernel_verified": 1,
+        "proof_evidence_status": runtime_module.SOURCE_KERNEL_STATUS,
+        "stage_artifact_hashes": {
+            "runtime_exact_semantic_definition_review_"
+            "exact_source_proof_body_executor:abc": "bound-hash"
+        },
+        "runtime_generated_lean": False,
+        "python_lean_grammar_generation_or_repair": False,
+    }
+    summary = runtime_module._runtime_evidence_summary(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        work_order["work_order_id"]: work_order,
+                        execution["manifest_id"]: execution,
+                    }
+                }
+            }
+        ]
+    )
+
+    proof = summary["proof"]
+    assert proof[
+        "n_exact_semantic_definition_review_agent_runtime_work_orders"
+    ] == 1
+    assert proof[
+        "n_exact_semantic_definition_review_agent_runtime_executions"
+    ] == 1
+    assert proof[
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved"
+    ] == 1
+    assert proof[
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified"
+    ] == 1
+    assert (
+        "local.exact_semantic_definition_review_agent_runtime"
+        in proof["verifiers"]
+    )
+
+    execution["execution_contract_satisfied"] = False
+    invalid = runtime_module._runtime_evidence_summary(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        work_order["work_order_id"]: work_order,
+                        execution["manifest_id"]: execution,
+                    }
+                }
+            }
+        ]
+    )
+    assert invalid["proof"][
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified"
+    ] == 0
+
+
 @pytest.mark.parametrize(
     (
         "required_key",
@@ -96445,6 +96736,8 @@ def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -
 
 def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> None:
     args = _capability_eval_preset_args("full-live")
+    args.llm_timeout_seconds = 240.0
+    args.formalization_gap_planner_live_timeout_seconds = None
 
     _apply_research_agent_runtime_capability_eval_preset(args)
 
@@ -96459,7 +96752,7 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
     assert args.formalization_gap_planner_live_provider == "same"
-    assert args.formalization_gap_planner_live_timeout_seconds > 0
+    assert args.formalization_gap_planner_live_timeout_seconds == 240.0
     assert (
         args.algorithm_engineer_generated_code_repair_yield_after_attempts
         == 1
@@ -96543,6 +96836,16 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         "Formalizer proof-state repair turn; set "
         "--max-formalizer-proof-state-repair-rounds > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
+
+
+def test_capability_eval_full_live_preserves_explicit_gap_planner_timeout() -> None:
+    args = _capability_eval_preset_args("full-live")
+    args.llm_timeout_seconds = 240.0
+    args.formalization_gap_planner_live_timeout_seconds = 45.0
+
+    _apply_research_agent_runtime_capability_eval_preset(args)
+
+    assert args.formalization_gap_planner_live_timeout_seconds == 45.0
 
 
 def test_capability_eval_rejects_static_component_repair_gate_provider() -> None:

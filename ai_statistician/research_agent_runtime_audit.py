@@ -7229,6 +7229,55 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "exact_semantic_definition_review_execution_mode": str(
+            manifest.get(
+                "exact_semantic_definition_review_execution_mode",
+                "",
+            )
+            or ""
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_work_orders": int(
+            manifest.get(
+                "n_exact_semantic_definition_review_agent_runtime_work_orders",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_executions": int(
+            manifest.get(
+                "n_exact_semantic_definition_review_agent_runtime_executions",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_contract_satisfied": int(
+            manifest.get(
+                "n_exact_semantic_definition_review_agent_runtime_contract_satisfied",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked": int(
+            manifest.get(
+                "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_verifier_approved": int(
+            manifest.get(
+                "n_exact_semantic_definition_review_agent_runtime_verifier_approved",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified": int(
+            manifest.get(
+                "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified",
+                0,
+            )
+            or 0
+        ),
         "exact_semantic_definition_legacy_post_runtime_fallback_used": bool(
             manifest.get(
                 "exact_semantic_definition_legacy_post_runtime_fallback_used",
@@ -20890,6 +20939,66 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         and exact_semantic_agent_runtime_authoring_complete
         and exact_semantic_agent_runtime_local_lean_checked > 0
     )
+    exact_semantic_review_agent_runtime_work_orders = int(
+        payload.get(
+            "n_exact_semantic_definition_review_agent_runtime_work_orders",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_review_agent_runtime_executions = int(
+        payload.get(
+            "n_exact_semantic_definition_review_agent_runtime_executions",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_review_agent_runtime_contract_satisfied = int(
+        payload.get(
+            "n_exact_semantic_definition_review_agent_runtime_contract_satisfied",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_review_agent_runtime_authoring_model_invoked = int(
+        payload.get(
+            "n_exact_semantic_definition_review_agent_runtime_authoring_model_invoked",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_review_agent_runtime_verifier_approved = int(
+        payload.get(
+            "n_exact_semantic_definition_review_agent_runtime_verifier_approved",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_review_agent_runtime_source_kernel_verified = int(
+        payload.get(
+            "n_exact_semantic_definition_review_agent_runtime_source_theorem_kernel_verified",
+            0,
+        )
+        or 0
+    )
+    exact_semantic_review_agent_runtime_required = bool(
+        exact_semantic_review_agent_runtime_work_orders > 0
+    )
+    exact_semantic_review_agent_runtime_complete = bool(
+        exact_semantic_review_agent_runtime_required
+        and exact_semantic_review_agent_runtime_executions
+        == exact_semantic_review_agent_runtime_work_orders
+        and exact_semantic_review_agent_runtime_contract_satisfied
+        == exact_semantic_review_agent_runtime_executions
+    )
+    exact_semantic_review_kernel_boundary_preserved = bool(
+        exact_semantic_review_agent_runtime_source_kernel_verified <= 0
+        or (
+            exact_semantic_review_agent_runtime_complete
+            and exact_semantic_review_agent_runtime_verifier_approved
+            >= exact_semantic_review_agent_runtime_source_kernel_verified
+        )
+    )
     authoring_retry_typechecked_review_verifier_approved_recheck_rows = int(
         payload.get(
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows",
@@ -26311,6 +26420,50 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "exact semantic-definition work exists, but source lookup, LLM "
                 "authoring when requested, materialization, and Lean compiler "
                 "feedback did not complete as one typed AgentRuntime child"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_review_agent_runtime_continuation_completed",
+            (not exact_semantic_review_agent_runtime_required)
+            or exact_semantic_review_agent_runtime_complete,
+            (
+                "execution_mode="
+                f"{payload.get('exact_semantic_definition_review_execution_mode')} "
+                "typed_review_work_orders="
+                f"{exact_semantic_review_agent_runtime_work_orders} "
+                "typed_review_executions="
+                f"{exact_semantic_review_agent_runtime_executions} "
+                "contract_satisfied="
+                f"{exact_semantic_review_agent_runtime_contract_satisfied} "
+                "authoring_model_invoked="
+                f"{exact_semantic_review_agent_runtime_authoring_model_invoked} "
+                "verifier_approved="
+                f"{exact_semantic_review_agent_runtime_verifier_approved} "
+                "source_kernel_verified="
+                f"{exact_semantic_review_agent_runtime_source_kernel_verified}"
+            ),
+            (
+                "the typed exact-semantic worker emitted a review continuation, "
+                "but the LLM review, verifier, and proof-body feedback were not "
+                "consumed by a contract-valid child in the same AgentRuntime"
+            ),
+        ),
+        _scorecard_row(
+            "exact_semantic_definition_review_kernel_boundary_preserved",
+            exact_semantic_review_kernel_boundary_preserved,
+            (
+                "typed_review_executions="
+                f"{exact_semantic_review_agent_runtime_executions} "
+                "contract_satisfied="
+                f"{exact_semantic_review_agent_runtime_contract_satisfied} "
+                "verifier_approved="
+                f"{exact_semantic_review_agent_runtime_verifier_approved} "
+                "source_kernel_verified="
+                f"{exact_semantic_review_agent_runtime_source_kernel_verified}"
+            ),
+            (
+                "source-theorem kernel evidence was reported without a complete "
+                "typed review execution and verifier-approved semantic candidate"
             ),
         ),
         _scorecard_row(

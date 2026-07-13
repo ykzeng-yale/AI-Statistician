@@ -47,6 +47,15 @@ EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND = (
 EXACT_SEMANTIC_DEFINITION_RUNTIME_EXECUTION_KIND = (
     "RuntimeExactSemanticDefinitionProofEngineerExecutionManifest"
 )
+EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM = (
+    "ExactSemanticDefinitionReviewProofEngineer"
+)
+EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND = (
+    "RuntimeExactSemanticDefinitionReviewWorkOrder"
+)
+EXACT_SEMANTIC_DEFINITION_REVIEW_EXECUTION_KIND = (
+    "RuntimeExactSemanticDefinitionReviewExecutionManifest"
+)
 SOURCE_GROUNDED_AUTHORING_COUNT_KEY = (
     "n_prompt_packets_with_source_grounded_authoring_handoff"
 )
@@ -130,14 +139,79 @@ def _same_path(left: Any, right: Any) -> bool:
 def _with_architect_control(
     artifact: Mapping[str, Any],
     work_order: Mapping[str, Any],
+    *,
+    subsystem: str = EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
 ) -> dict[str, Any]:
     payload = dict(artifact)
     raw_control = work_order.get("runtime_architect_control", {})
     if isinstance(raw_control, Mapping) and raw_control:
         control = dict(raw_control)
-        control["subsystem"] = EXACT_SEMANTIC_DEFINITION_SUBSYSTEM
+        control["subsystem"] = subsystem
         payload["runtime_architect_control"] = control
     return payload
+
+
+def _bound_text_file(path_value: Any, *, role: str) -> dict[str, Any]:
+    path_text = str(path_value or "").strip()
+    if not path_text:
+        return {
+            "role": role,
+            "path": "",
+            "present": False,
+            "content_hash": "",
+            "utf8_bytes": 0,
+        }
+    path = Path(path_text)
+    try:
+        source = path.read_bytes()
+        present = True
+    except OSError:
+        source = b""
+        present = False
+    return {
+        "role": role,
+        "path": path_text,
+        "present": present,
+        "content_hash": (
+            stable_hash(source.decode("utf-8", errors="replace"))
+            if present
+            else ""
+        ),
+        "utf8_bytes": len(source),
+    }
+
+
+def _candidate_file_bindings_from_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    path_keys = (
+        "candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+        "candidate_source_file",
+        "signature_probe_artifact_path",
+        "source_theorem_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_path",
+    )
+    bindings: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        containers = [row]
+        for key in (
+            "candidate_definition_request",
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+        ):
+            value = row.get(key, {})
+            if isinstance(value, Mapping):
+                containers.append(value)
+        for container in containers:
+            for key in path_keys:
+                path_text = str(container.get(key, "") or "").strip()
+                marker = (key, path_text)
+                if not path_text or marker in seen:
+                    continue
+                seen.add(marker)
+                bindings.append(_bound_text_file(path_text, role=key))
+    return bindings
 
 
 def _stage_artifact_id(stage: str, manifest: Mapping[str, Any]) -> str:
@@ -167,6 +241,8 @@ def _execution_replay_fingerprint(manifest: Mapping[str, Any]) -> str:
                 "candidate_materializer_manifest_hash",
                 "materialized_lean_repair_manifest_hash",
                 "stage_artifact_hashes",
+                "review_continuation_work_order_id",
+                "review_continuation_work_order_hash",
                 "n_work_orders",
                 "n_source_lookup_rows",
                 "n_authoring_tasks",
@@ -176,6 +252,10 @@ def _execution_replay_fingerprint(manifest: Mapping[str, Any]) -> str:
                 "n_authoring_candidate_packets",
                 "n_materialization_rows",
                 "n_materialized_candidates",
+                "n_followup_authoring_tasks",
+                "n_environment_repair_tasks",
+                "n_typechecked_review_packets",
+                "review_continuation_dispatched",
                 "n_local_lean_checked",
                 "n_local_lean_compiled",
                 "source_theorem_kernel_verified",
@@ -192,6 +272,195 @@ def _execution_replay_fingerprint(manifest: Mapping[str, Any]) -> str:
     )
 
 
+def _review_continuation_work_order(
+    *,
+    question_id: str,
+    parent_work_order: Mapping[str, Any],
+    stage_manifests: Mapping[str, Mapping[str, Any]],
+    latest_repair_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    path_fields = {
+        "followup_authoring_tasks": (
+            "exact_semantic_definition_authoring_tasks_jsonl"
+        ),
+        "environment_repair_tasks": "lean_environment_repair_tasks_jsonl",
+        "typechecked_review_packets": (
+            "typechecked_candidate_review_packets_jsonl"
+        ),
+    }
+    input_bindings = [
+        _bound_text_file(
+            latest_repair_manifest.get(source_key, ""),
+            role=role,
+        )
+        for role, source_key in path_fields.items()
+        if str(latest_repair_manifest.get(source_key, "") or "").strip()
+    ]
+    input_rows = [
+        row
+        for binding in input_bindings
+        for row in _read_jsonl(binding.get("path", ""))
+    ]
+    candidate_bindings = _candidate_file_bindings_from_rows(input_rows)
+    source_stage_artifact_hashes = {
+        str(artifact_id): stable_hash(dict(artifact))
+        for artifact_id, artifact in stage_manifests.items()
+    }
+    latest_repair_manifest_path = str(
+        latest_repair_manifest.get("manifest_path", "") or ""
+    )
+    source_repair_manifest_id = next(
+        (
+            str(artifact_id)
+            for artifact_id, artifact in stage_manifests.items()
+            if _same_path(
+                artifact.get("manifest_path", ""),
+                latest_repair_manifest_path,
+            )
+        ),
+        "",
+    )
+    source_repair_manifest_hash = source_stage_artifact_hashes.get(
+        source_repair_manifest_id,
+        "",
+    )
+    review_policy = dict(
+        parent_work_order.get("review_execution_policy", {}) or {}
+    )
+    source_task_payload = parent_work_order.get("source_task", {})
+    return_task_payload = parent_work_order.get("return_task", {})
+    work_order_id = "runtime_exact_semantic_definition_review_work_order:" + stable_hash(
+        [
+            parent_work_order.get("work_order_id", ""),
+            source_stage_artifact_hashes,
+            source_repair_manifest_id,
+            source_repair_manifest_hash,
+            input_bindings,
+            candidate_bindings,
+            parent_work_order.get("source_proof_body_row_hashes", []),
+            review_policy,
+        ]
+    )[:20]
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question_id,
+        "source_subsystem": EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
+        "target_subsystem": EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM,
+        "parent_work_order_id": str(
+            parent_work_order.get("work_order_id", "") or ""
+        ),
+        "parent_work_order_hash": stable_hash(dict(parent_work_order)),
+        "source_formalization_manifest_id": str(
+            parent_work_order.get("source_formalization_manifest_id", "") or ""
+        ),
+        "source_formalization_manifest_hash": str(
+            parent_work_order.get("source_formalization_manifest_hash", "") or ""
+        ),
+        "source_stage_artifact_ids": list(source_stage_artifact_hashes),
+        "source_stage_artifact_hashes": source_stage_artifact_hashes,
+        "source_repair_manifest_id": source_repair_manifest_id,
+        "source_repair_manifest_hash": source_repair_manifest_hash,
+        "input_file_bindings": input_bindings,
+        "candidate_artifact_bindings": candidate_bindings,
+        "source_proof_body_rows": [
+            dict(row)
+            for row in parent_work_order.get("source_proof_body_rows", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "source_proof_body_row_hashes": list(
+            parent_work_order.get("source_proof_body_row_hashes", []) or []
+        ),
+        "source_proof_body_candidate_bindings": [
+            dict(binding)
+            for binding in parent_work_order.get(
+                "source_proof_body_candidate_bindings",
+                [],
+            )
+            or []
+            if isinstance(binding, Mapping)
+        ],
+        "review_execution_policy": review_policy,
+        "review_execution_policy_fingerprint": stable_hash(review_policy),
+        "source_task": (
+            dict(source_task_payload)
+            if isinstance(source_task_payload, Mapping)
+            else {}
+        ),
+        "return_task": (
+            dict(return_task_payload)
+            if isinstance(return_task_payload, Mapping)
+            else {}
+        ),
+        "runtime_generated_lean": False,
+        "python_lean_grammar_generation_or_repair": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return _with_architect_control(
+        work_order,
+        parent_work_order,
+        subsystem=EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM,
+    )
+
+
+def _review_continuation_dispatch_task(
+    *,
+    question: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    question_id = str(question.get("id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"exact-semantic-review:{question_id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=EXACT_SEMANTIC_DEFINITION_REVIEW_SUBSYSTEM,
+        objective=(
+            "Consume compiler-emitted exact-semantic follow-up tasks. Run the "
+            "LLM semantic reviewer, environment preflight, verifier gate, and only "
+            "then an exact-source proof-body recheck."
+        ),
+        inputs={
+            "question": dict(question),
+            "architect_context": dict(architect_context),
+            "exact_semantic_definition_review_work_order_id": work_order_id,
+            "exact_semantic_definition_review_work_order_hash": stable_hash(
+                dict(work_order)
+            ),
+        },
+        allowed_tools=(
+            "blackboard",
+            "model_backend",
+            "formal_source_retrieval",
+            "local_lean",
+            "lean_lsp_mcp",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "exact_semantic_definition_review_execution",
+            "verifier_gate_execution",
+            "exact_source_theorem_proof_body_recheck",
+        ),
+        acceptance_gate=(
+            "LLM semantic approval remains non-proof evidence until the bound "
+            "candidate passes the verifier gate; source theorem proof requires the "
+            "exact preserved target to pass local Lean/kernel verification"
+        ),
+        stop_condition=(
+            "the exact source theorem is kernel verified, or immutable semantic, "
+            "environment, verifier, or compiler feedback returns to ProofEngineer"
+        ),
+    )
+
+
 class ExactSemanticDefinitionRuntimeWorker:
     """Run the existing exact-semantic coding-agent/compiler loop as one typed child."""
 
@@ -202,6 +471,7 @@ class ExactSemanticDefinitionRuntimeWorker:
         *,
         out_root: Path,
         source_rows_resolver: SourceRowsResolver,
+        source_proof_body_rows_resolver: SourceRowsResolver | None = None,
         source_roots: Sequence[Path] = (),
         max_hits_per_work_order: int = 8,
         local_lean: bool = False,
@@ -213,6 +483,8 @@ class ExactSemanticDefinitionRuntimeWorker:
         materializer_config: AuthoringCandidateMaterializerConfig = (
             AuthoringCandidateMaterializerConfig()
         ),
+        review_worker_available: bool = False,
+        review_execution_policy: Mapping[str, Any] | None = None,
         repair_available: bool = False,
         source_lookup_runner: SourceLookupRunner = (
             run_source_theorem_exact_semantic_definition_source_lookup
@@ -232,6 +504,7 @@ class ExactSemanticDefinitionRuntimeWorker:
     ) -> None:
         self.out_root = out_root
         self.source_rows_resolver = source_rows_resolver
+        self.source_proof_body_rows_resolver = source_proof_body_rows_resolver
         self.source_roots = tuple(Path(value) for value in source_roots)
         self.max_hits_per_work_order = max(0, int(max_hits_per_work_order))
         self.local_lean = bool(local_lean)
@@ -241,6 +514,8 @@ class ExactSemanticDefinitionRuntimeWorker:
         self.authoring_enabled = bool(authoring_enabled)
         self.authoring_config = authoring_config
         self.materializer_config = materializer_config
+        self.review_worker_available = bool(review_worker_available)
+        self.review_execution_policy = dict(review_execution_policy or {})
         self.repair_available = bool(repair_available)
         self.source_lookup_runner = source_lookup_runner
         self.bridge_runner = bridge_runner
@@ -291,7 +566,6 @@ class ExactSemanticDefinitionRuntimeWorker:
         ]
         row_hashes = [stable_hash(row) for row in rows]
         row_ids = [str(row.get("work_order_id", "") or "") for row in rows]
-        execution_policy = dict(work_order.get("execution_policy", {}) or {})
         policy_fingerprint = str(
             work_order.get("execution_policy_fingerprint", "") or ""
         )
@@ -556,11 +830,48 @@ class ExactSemanticDefinitionRuntimeWorker:
             )
             for row in _read_jsonl(manifest.get("runtime_learning_rows_jsonl", ""))
         ]
-        execution_results = _read_jsonl(
-            (
-                materialized_repair_manifest or initial_repair_manifest
-            ).get("execution_results_jsonl", "")
+        latest_repair_manifest = (
+            materialized_repair_manifest or initial_repair_manifest
         )
+        execution_results = _read_jsonl(
+            latest_repair_manifest.get("execution_results_jsonl", "")
+        )
+        followup_authoring_tasks = _read_jsonl(
+            latest_repair_manifest.get(
+                "exact_semantic_definition_authoring_tasks_jsonl",
+                "",
+            )
+        )
+        environment_repair_tasks = _read_jsonl(
+            latest_repair_manifest.get(
+                "lean_environment_repair_tasks_jsonl",
+                "",
+            )
+        )
+        typechecked_review_packets = _read_jsonl(
+            latest_repair_manifest.get(
+                "typechecked_candidate_review_packets_jsonl",
+                "",
+            )
+        )
+        review_continuation_needed = bool(
+            followup_authoring_tasks
+            or environment_repair_tasks
+            or typechecked_review_packets
+        )
+        review_work_order: dict[str, Any] = {}
+        if (
+            self.review_worker_available
+            and review_continuation_needed
+            and latest_repair_manifest
+            and not contract_errors
+        ):
+            review_work_order = _review_continuation_work_order(
+                question_id=question_id,
+                parent_work_order=work_order,
+                stage_manifests=stage_manifests,
+                latest_repair_manifest=latest_repair_manifest,
+            )
         try:
             return_task = _task_from_payload(
                 work_order.get("return_task", {})
@@ -586,6 +897,26 @@ class ExactSemanticDefinitionRuntimeWorker:
             result_status = "REROUTE"
             failure_classification = (
                 "exact_semantic_definition_runtime_contract_invalid"
+            )
+        elif review_work_order:
+            question = (
+                dict(question_payload)
+                if isinstance(question_payload, Mapping)
+                else {"id": question_id}
+            )
+            architect_context = (
+                dict(task.inputs.get("architect_context", {}) or {})
+                if isinstance(task.inputs.get("architect_context", {}), Mapping)
+                else {}
+            )
+            next_task = _review_continuation_dispatch_task(
+                question=question,
+                architect_context=architect_context,
+                work_order=review_work_order,
+            )
+            result_status = "REROUTE"
+            failure_classification = (
+                "exact_semantic_definition_review_continuation_ready"
             )
         elif self.repair_available:
             next_task = self._repair_task(
@@ -691,6 +1022,12 @@ class ExactSemanticDefinitionRuntimeWorker:
                 "authoring_worker_manifest_hash": authoring_hash,
                 "candidate_materializer_manifest_hash": materializer_hash,
                 "materialized_lean_repair_manifest_hash": materialized_repair_hash,
+                "review_continuation_work_order_id": str(
+                    review_work_order.get("work_order_id", "") or ""
+                ),
+                "review_continuation_work_order_hash": (
+                    stable_hash(review_work_order) if review_work_order else ""
+                ),
                 "stage_artifact_ids": list(stage_manifests),
                 "stage_artifact_hashes": {
                     artifact_id: stable_hash(artifact)
@@ -719,6 +1056,10 @@ class ExactSemanticDefinitionRuntimeWorker:
                     )
                     or 0
                 ),
+                "n_followup_authoring_tasks": len(followup_authoring_tasks),
+                "n_environment_repair_tasks": len(environment_repair_tasks),
+                "n_typechecked_review_packets": len(typechecked_review_packets),
+                "review_continuation_dispatched": bool(review_work_order),
                 "n_local_lean_checked": int(
                     (materialized_repair_manifest or initial_repair_manifest).get(
                         "n_local_lean_checked",
@@ -768,13 +1109,20 @@ class ExactSemanticDefinitionRuntimeWorker:
                 "authoring_live_model_invoked": authoring_live_model_invoked,
                 "n_local_lean_checked": execution_manifest["n_local_lean_checked"],
                 "n_local_lean_compiled": execution_manifest["n_local_lean_compiled"],
+                "review_continuation_work_order_id": str(
+                    review_work_order.get("work_order_id", "") or ""
+                ),
                 "source_theorem_kernel_verified": False,
             },
         )
         return AgentStepResult(
             status=result_status,
             rationale=(
-                "The typed exact-semantic child returned source lookup, LLM "
+                "The typed exact-semantic child emitted an immutable review "
+                "continuation for compiler-produced semantic, environment, and "
+                "verifier feedback without claiming source-theorem proof."
+                if review_work_order
+                else "The typed exact-semantic child returned source lookup, LLM "
                 "authoring, and compiler feedback to ProofEngineer without "
                 "claiming source-theorem proof."
                 if result_status == "REVISE"
@@ -784,6 +1132,13 @@ class ExactSemanticDefinitionRuntimeWorker:
             produced_artifacts={
                 execution_id: execution_manifest,
                 **stage_manifests,
+                **(
+                    {
+                        str(review_work_order["work_order_id"]): review_work_order,
+                    }
+                    if review_work_order
+                    else {}
+                ),
             },
             observations=(
                 EnvironmentObservation(
@@ -803,6 +1158,10 @@ class ExactSemanticDefinitionRuntimeWorker:
                         ],
                         "source_theorem_kernel_verified": False,
                         "repair_routed": result_status == "REVISE",
+                        "review_continuation_dispatched": bool(review_work_order),
+                        "review_continuation_work_order_id": str(
+                            review_work_order.get("work_order_id", "") or ""
+                        ),
                     },
                 ),
             ),
@@ -884,6 +1243,57 @@ class ExactSemanticDefinitionRuntimeWorker:
                 errors.append("exact-semantic placeholder symbol missing")
             if _bool_value(row.get("source_theorem_kernel_verified", False)):
                 errors.append("already verified source theorem must not enter repair")
+        source_proof_body_rows = [
+            dict(row)
+            for row in work_order.get("source_proof_body_rows", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if self.source_proof_body_rows_resolver is not None:
+            expected_source_proof_body_rows = (
+                self.source_proof_body_rows_resolver(source_manifest)
+                if source_manifest
+                else []
+            )
+            if source_proof_body_rows != expected_source_proof_body_rows:
+                errors.append(
+                    "source proof-body rows differ from source manifest projection"
+                )
+            if list(
+                work_order.get("source_proof_body_row_hashes", []) or []
+            ) != [stable_hash(row) for row in source_proof_body_rows]:
+                errors.append("source proof-body row hashes mismatch")
+            expected_source_paths = sorted(
+                {
+                    str(row.get("candidate_artifact_path", "") or "")
+                    for row in source_proof_body_rows
+                    if str(row.get("candidate_artifact_path", "") or "")
+                }
+            )
+            source_bindings = [
+                dict(binding)
+                for binding in work_order.get(
+                    "source_proof_body_candidate_bindings",
+                    [],
+                )
+                or []
+                if isinstance(binding, Mapping)
+            ]
+            if sorted(
+                str(binding.get("path", "") or "")
+                for binding in source_bindings
+            ) != expected_source_paths:
+                errors.append("source proof-body candidate binding coverage mismatch")
+            for binding in source_bindings:
+                path = Path(str(binding.get("path", "") or ""))
+                try:
+                    source = path.read_text(encoding="utf-8")
+                except OSError:
+                    errors.append("source proof-body candidate artifact missing")
+                    continue
+                if stable_hash(source) != str(
+                    binding.get("content_hash", "") or ""
+                ):
+                    errors.append("source proof-body candidate artifact hash mismatch")
         for binding in work_order.get("candidate_artifact_bindings", []) or []:
             if not isinstance(binding, Mapping):
                 errors.append("candidate artifact binding is not an object")
@@ -943,6 +1353,22 @@ class ExactSemanticDefinitionRuntimeWorker:
         }
         if execution_policy != configured_policy:
             errors.append("execution policy differs from registered worker configuration")
+        review_policy = (
+            dict(work_order.get("review_execution_policy", {}))
+            if isinstance(work_order.get("review_execution_policy", {}), Mapping)
+            else {}
+        )
+        if self.review_worker_available:
+            if not review_policy:
+                errors.append("review execution policy missing")
+            if stable_hash(review_policy) != str(
+                work_order.get("review_execution_policy_fingerprint", "") or ""
+            ):
+                errors.append("review execution policy fingerprint mismatch")
+            if review_policy != self.review_execution_policy:
+                errors.append(
+                    "review execution policy differs from registered worker configuration"
+                )
         return_payload = work_order.get("return_task", {})
         if not isinstance(return_payload, Mapping) or str(
             return_payload.get("owner_subsystem", "") or ""
@@ -1274,6 +1700,29 @@ class ExactSemanticDefinitionRuntimeWorker:
                     continue
                 if stable_hash(dict(raw_stage)) != str(expected_hash or ""):
                     errors.append("existing execution stage artifact hash mismatch")
+        review_work_order_id = str(
+            execution.get("review_continuation_work_order_id", "") or ""
+        )
+        review_work_order_hash = str(
+            execution.get("review_continuation_work_order_hash", "") or ""
+        )
+        if review_work_order_id or review_work_order_hash:
+            raw_review_work_order = blackboard.artifacts.get(
+                review_work_order_id,
+                {},
+            )
+            if not review_work_order_id or not review_work_order_hash:
+                errors.append(
+                    "existing execution review continuation binding incomplete"
+                )
+            elif not isinstance(raw_review_work_order, Mapping):
+                errors.append(
+                    "existing execution review continuation artifact missing"
+                )
+            elif stable_hash(dict(raw_review_work_order)) != review_work_order_hash:
+                errors.append(
+                    "existing execution review continuation artifact hash mismatch"
+                )
         next_payload = execution.get("resume_next_task", {})
         try:
             next_task = _task_from_payload(
