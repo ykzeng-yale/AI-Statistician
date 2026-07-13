@@ -1300,6 +1300,44 @@ The mature EmpericalProcessLEAN retrieval and OpenProver HLM controller should
 be integrated as typed providers under this contract rather than reimplemented
 as theorem-specific runtime rules.
 
+## Typed Exact-Semantic Coding-Agent Loop
+
+The primary exact semantic-definition recovery path now runs as the
+Architect-visible `ExactSemanticDefinitionProofEngineer` AgentRuntime child.
+When unresolved semantic definitions coexist with theorem-closure or exact
+proof-body work, this prerequisite runs first so the prover does not waste a
+round compiling a theorem against known placeholder semantics.
+
+Its immutable work order binds the Formalizer manifest, every projected row,
+execution policy, candidate file content or bound absence, source task, and
+Critic return task. The child reuses the mature source lookup, ProofEngineer
+bridge, dedicated LLM authoring worker, candidate materializer, and Lean repair
+executor. It adds no runtime-authored Lean grammar, declarations, tactics, or
+statistical placeholder definitions. Source lookup and model/compiler failures
+return to ProofEngineer in the same AgentRuntime execution.
+
+Authoring success is derived from the worker manifest's actual model-attempt
+counts, not from provider configuration. Every accepted prompt handoff must
+carry source theorem binders, exact binders, source anchors, complete required
+anchor bindings, and the Lean environment contract. Candidate files are
+content-bound; a stale missing path may proceed to source recovery only while
+it remains missing, while same-path replacement fails closed before lookup or
+model execution. Replay also revalidates every persisted stage artifact hash.
+
+Runtime and audit manifests now distinguish typed work orders, executions,
+contract satisfaction, authoring attempts, materialized candidates, local Lean
+feedback, pending work, and legacy post-runtime fallback. A post-runtime lookup
+or authoring run cannot satisfy the integrated AgentRuntime capability row, and
+the primary rows are not executed twice by the two orchestration planes.
+
+This is still a partial migration. Lean environment preflight, typechecked
+semantic-faithfulness review, verifier-approved recheck, and final exact
+source-theorem proof-body execution remain separate or post-runtime stages.
+They must become typed AgentRuntime children with the same immutable lineage
+before the exact-semantic subsystem or full AI Statistician can be called
+end-to-end complete. No semantic definition or statistical source theorem is
+claimed kernel verified by this coding-agent feedback loop.
+
 ## Optional Future Delegation
 
 No other Codex worker is currently active. The main worker owns the commit

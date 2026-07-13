@@ -7164,6 +7164,77 @@ def audit_research_agent_runtime(
         "n_integrated_lean_lsp_mcp_live_calls": sum(
             row.n_lean_lsp_mcp_live_calls for row in rows
         ),
+        "exact_semantic_definition_execution_mode": str(
+            manifest.get("exact_semantic_definition_execution_mode", "") or ""
+        ),
+        "n_exact_semantic_definition_agent_runtime_work_orders": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_work_orders", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_executions": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_executions", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_contract_satisfied": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_contract_satisfied", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_source_lookup_rows": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_source_lookup_rows", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_authoring_tasks": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_authoring_tasks", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_authoring_worker_ran": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_authoring_worker_ran", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_authoring_model_invoked": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_authoring_model_invoked",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_materialized_candidates": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_materialized_candidates",
+                0,
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_local_lean_checked": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_local_lean_checked", 0
+            )
+            or 0
+        ),
+        "n_exact_semantic_definition_agent_runtime_local_lean_compiled": int(
+            manifest.get(
+                "n_exact_semantic_definition_agent_runtime_local_lean_compiled", 0
+            )
+            or 0
+        ),
+        "exact_semantic_definition_legacy_post_runtime_fallback_used": bool(
+            manifest.get(
+                "exact_semantic_definition_legacy_post_runtime_fallback_used",
+                False,
+            )
+        ),
         "n_attached_formalizer_prior_feedback_lean_lsp_mcp_tool_calls": (
             attached_formalizer_prior_feedback_live_lsp_calls
         ),
@@ -20743,6 +20814,82 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     exact_semantic_definition_authoring_candidate_verifier_ready = bool(
         exact_semantic_definition_authoring["candidate_verifier_ready"]
     )
+    exact_semantic_agent_runtime_work_orders = int(
+        payload.get("n_exact_semantic_definition_agent_runtime_work_orders", 0)
+        or 0
+    )
+    exact_semantic_agent_runtime_executions = int(
+        payload.get("n_exact_semantic_definition_agent_runtime_executions", 0)
+        or 0
+    )
+    exact_semantic_agent_runtime_contract_satisfied = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_contract_satisfied", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_source_lookup_rows = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_source_lookup_rows", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_authoring_tasks = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_authoring_tasks", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_authoring_worker_ran = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_authoring_worker_ran", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_authoring_model_invoked = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_authoring_model_invoked", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_materialized_candidates = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_materialized_candidates", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_local_lean_checked = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_local_lean_checked", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_local_lean_compiled = int(
+        payload.get(
+            "n_exact_semantic_definition_agent_runtime_local_lean_compiled", 0
+        )
+        or 0
+    )
+    exact_semantic_agent_runtime_loop_complete = bool(
+        exact_semantic_agent_runtime_work_orders > 0
+        and exact_semantic_agent_runtime_executions > 0
+        and exact_semantic_agent_runtime_contract_satisfied
+        == exact_semantic_agent_runtime_executions
+        and exact_semantic_agent_runtime_source_lookup_rows > 0
+    )
+    exact_semantic_agent_runtime_authoring_complete = bool(
+        exact_semantic_agent_runtime_authoring_tasks <= 0
+        or (
+            exact_semantic_agent_runtime_authoring_worker_ran > 0
+            and exact_semantic_agent_runtime_authoring_model_invoked > 0
+            and exact_semantic_agent_runtime_materialized_candidates > 0
+        )
+    )
+    exact_semantic_agent_runtime_compiler_feedback_complete = bool(
+        exact_semantic_agent_runtime_loop_complete
+        and exact_semantic_agent_runtime_authoring_complete
+        and exact_semantic_agent_runtime_local_lean_checked > 0
+    )
     authoring_retry_typechecked_review_verifier_approved_recheck_rows = int(
         payload.get(
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows",
@@ -26131,8 +26278,45 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "exact_semantic_definition_agent_runtime_loop_completed",
+            (not exact_semantic_source_lookup_handoff_required)
+            or exact_semantic_agent_runtime_compiler_feedback_complete,
+            (
+                "execution_mode="
+                f"{payload.get('exact_semantic_definition_execution_mode')} "
+                "typed_work_orders="
+                f"{exact_semantic_agent_runtime_work_orders} "
+                "typed_executions="
+                f"{exact_semantic_agent_runtime_executions} "
+                "contract_satisfied="
+                f"{exact_semantic_agent_runtime_contract_satisfied} "
+                "lookup_rows="
+                f"{exact_semantic_agent_runtime_source_lookup_rows} "
+                "authoring_tasks="
+                f"{exact_semantic_agent_runtime_authoring_tasks} "
+                "authoring_worker_ran="
+                f"{exact_semantic_agent_runtime_authoring_worker_ran} "
+                "authoring_model_invoked="
+                f"{exact_semantic_agent_runtime_authoring_model_invoked} "
+                "materialized_candidates="
+                f"{exact_semantic_agent_runtime_materialized_candidates} "
+                "local_lean_checked="
+                f"{exact_semantic_agent_runtime_local_lean_checked} "
+                "local_lean_compiled="
+                f"{exact_semantic_agent_runtime_local_lean_compiled} "
+                "legacy_post_runtime_fallback="
+                f"{payload.get('exact_semantic_definition_legacy_post_runtime_fallback_used')}"
+            ),
+            (
+                "exact semantic-definition work exists, but source lookup, LLM "
+                "authoring when requested, materialization, and Lean compiler "
+                "feedback did not complete as one typed AgentRuntime child"
+            ),
+        ),
+        _scorecard_row(
             "exact_semantic_definition_source_lookup_handoff_not_dropped",
             (not exact_semantic_source_lookup_handoff_required)
+            or exact_semantic_agent_runtime_loop_complete
             or (
                 exact_semantic_source_lookup_required_present
                 and exact_semantic_source_lookup_required
@@ -26181,6 +26365,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped",
             (not exact_semantic_bridge_handoff_required)
+            or exact_semantic_agent_runtime_loop_complete
             or (
                 exact_semantic_bridge_required_present
                 and exact_semantic_bridge_required
@@ -26258,6 +26443,7 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         _scorecard_row(
             "exact_semantic_definition_lean_repair_executor_handoff_not_dropped",
             (not exact_semantic_lean_repair_handoff_required)
+            or exact_semantic_agent_runtime_compiler_feedback_complete
             or (
                 exact_semantic_lean_repair_required_present
                 and exact_semantic_lean_repair_required

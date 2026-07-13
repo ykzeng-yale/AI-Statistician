@@ -329,6 +329,12 @@ from .source_theorem_promotion_runtime_worker import (
     bound_generation_request as _runtime_bound_source_theorem_promotion_generation_request,
     generation_lineage_failure_result as _runtime_source_theorem_promotion_generation_lineage_failure_result,
 )
+from .exact_semantic_definition_runtime_worker import (
+    EXACT_SEMANTIC_DEFINITION_RUNTIME_EXECUTION_KIND,
+    EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND,
+    EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
+    ExactSemanticDefinitionRuntimeWorker,
+)
 from .verifier import ProofVerifier
 
 
@@ -14841,6 +14847,220 @@ def _runtime_source_theorem_promotion_dispatch_task(
     )
 
 
+def _runtime_exact_semantic_definition_rows_from_manifest(
+    manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    if str(manifest.get("artifact_kind", "") or "") != (
+        "RuntimeFormalizationManifest"
+    ):
+        return []
+    return [
+        dict(row)
+        for row in manifest.get(
+            "runtime_exact_semantic_definition_work_orders",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+
+
+def _runtime_exact_semantic_definition_candidate_artifact_bindings(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    path_keys = (
+        "candidate_artifact_path",
+        "definition_only_candidate_artifact_path",
+        "signature_probe_artifact_path",
+        "source_theorem_signature_probe_artifact_path",
+        "proof_body_signature_probe_artifact_path",
+    )
+    bindings: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        containers = [row]
+        for key in (
+            "candidate_definition_request",
+            "source_theorem_exact_semantic_definition_typechecked_candidate",
+        ):
+            value = row.get(key, {})
+            if isinstance(value, Mapping):
+                containers.append(value)
+        for container in containers:
+            for key in path_keys:
+                path_text = str(container.get(key, "") or "").strip()
+                if not path_text or (key, path_text) in seen:
+                    continue
+                seen.add((key, path_text))
+                path = Path(path_text)
+                try:
+                    source = path.read_bytes()
+                    artifact_present = True
+                except OSError:
+                    source = b""
+                    artifact_present = False
+                bindings.append(
+                    {
+                        "source_field": key,
+                        "artifact_path": path_text,
+                        "artifact_present": artifact_present,
+                        "artifact_content_hash": (
+                            stable_hash(
+                                source.decode("utf-8", errors="replace")
+                            )
+                            if artifact_present
+                            else ""
+                        ),
+                        "artifact_utf8_bytes": len(source),
+                        "proof_evidence_status": (
+                            "EXACT_SEMANTIC_CANDIDATE_BINDING_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                )
+    return bindings
+
+
+def _runtime_exact_semantic_definition_work_order(
+    *,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    return_task: AgentTask,
+    runtime_config: ResearchAgentRuntimeConfig,
+) -> dict[str, Any]:
+    rows = _runtime_exact_semantic_definition_rows_from_manifest(
+        formalization_manifest
+    )
+    execution_policy = {
+        "source_roots": [
+            str(value)
+            for value in runtime_config.source_theorem_exact_semantic_definition_source_roots
+            if str(value).strip()
+        ],
+        "max_hits_per_work_order": int(
+            runtime_config.source_theorem_exact_semantic_definition_source_lookup_max_hits
+        ),
+        "proofengineer_bridge_enabled": bool(
+            runtime_config.source_theorem_exact_semantic_definition_proofengineer_bridge
+        ),
+        "lean_repair_executor_enabled": bool(
+            runtime_config.source_theorem_exact_semantic_definition_lean_repair_executor
+        ),
+        "local_lean": bool(
+            runtime_config.source_theorem_exact_semantic_definition_lean_repair_executor_local_lean
+        ),
+        "lean_project": str(
+            _exact_semantic_definition_lean_repair_executor_project(runtime_config)
+            or ""
+        ),
+        "lean_timeout": int(
+            runtime_config.source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout
+        ),
+        "authoring_worker_enabled": bool(
+            runtime_config.source_theorem_exact_semantic_definition_authoring_worker
+        ),
+        "generation_policy": (
+            "dedicated LLM authoring worker with source lookup and compiler feedback"
+        ),
+        "python_lean_grammar_generation_or_repair": False,
+    }
+    source_manifest_id = str(
+        formalization_manifest.get("manifest_id", "") or ""
+    )
+    work_order_id = "runtime_exact_semantic_definition_work_order:" + stable_hash(
+        [
+            source_task.task_id,
+            question.id,
+            source_manifest_id,
+            [stable_hash(row) for row in rows],
+            execution_policy,
+        ]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem=EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": source_task.owner_subsystem,
+        "target_subsystem": EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
+        "source_formalization_manifest_id": source_manifest_id,
+        "source_formalization_manifest_hash": stable_hash(
+            formalization_manifest
+        ),
+        "work_order_rows": rows,
+        "work_order_row_hashes": [stable_hash(row) for row in rows],
+        "candidate_artifact_bindings": (
+            _runtime_exact_semantic_definition_candidate_artifact_bindings(rows)
+        ),
+        "execution_policy": execution_policy,
+        "execution_policy_fingerprint": stable_hash(execution_policy),
+        "source_task": asdict(source_task),
+        "return_task": asdict(return_task),
+        "proof_evidence_status": (
+            "EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override=EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
+    )
+
+
+def _runtime_exact_semantic_definition_dispatch_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"exact-semantic-definition:{question.id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=EXACT_SEMANTIC_DEFINITION_SUBSYSTEM,
+        objective=(
+            "Run source lookup, exact semantic-definition LLM authoring, and "
+            "Lean feedback for the immutable semantic work order."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "exact_semantic_definition_work_order_id": work_order_id,
+            "exact_semantic_definition_work_order_hash": stable_hash(work_order),
+        },
+        allowed_tools=(
+            "blackboard",
+            "formal_source_retrieval",
+            "model_backend",
+            "local_lean",
+            "lean_lsp_mcp",
+        ),
+        expected_artifacts=(
+            "exact_semantic_definition_runtime_execution",
+            "runtime_learning_rows",
+        ),
+        acceptance_gate=(
+            "all stage artifacts preserve immutable work-order and candidate "
+            "lineage, and generated definitions return through local Lean feedback"
+        ),
+        stop_condition=(
+            "exact semantic feedback returned to ProofEngineer or a typed "
+            "lineage/verifier blocker recorded"
+        ),
+    )
+
+
 class FormalizationEvaluatorRuntimeSubsystem:
     name = "FormalizationEvaluator"
 
@@ -16643,6 +16863,44 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 if isinstance(row, Mapping)
             }.values()
         )
+        exact_semantic_definition_work_orders: list[dict[str, Any]] = []
+        if isinstance(proposal_packet, Mapping):
+            exact_semantic_definition_work_orders.extend(
+                _formalizer_source_theorem_exact_semantic_definition_work_orders(
+                    proposal_packet=proposal_packet,
+                    proof_bank_runtime_memory_summary=(
+                        proof_bank_runtime_memory_summary
+                    ),
+                    theorem_goals=theorem_goals,
+                )
+            )
+        exact_semantic_definition_work_orders.extend(
+            _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders(
+                source_semantic_work_orders
+            )
+        )
+        exact_semantic_definition_work_orders.extend(
+            _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_pseudo_formal_work_orders(
+                pseudo_formal_work_order_rows
+            )
+        )
+        exact_semantic_definition_work_orders = list(
+            {
+                str(row.get("work_order_id", "") or stable_hash(row)): {
+                    **dict(row),
+                    "question_id": str(
+                        row.get("question_id", "") or question.id
+                    ),
+                    "question_title": str(
+                        row.get("question_title", "") or question.title
+                    ),
+                }
+                for row in exact_semantic_definition_work_orders
+                if isinstance(row, Mapping)
+                and str(row.get("target_theorem_name", "") or "").strip()
+                and str(row.get("placeholder_symbol", "") or "").strip()
+            }.values()
+        )
         pseudo_formal_effective_work_order_rows = (
             pseudo_formal_routable_work_order_rows(pseudo_formal_work_order_rows)
         )
@@ -16967,6 +17225,15 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "is retrieval/calibration evidence only and never proves the source "
                 "theorem; unresolved definitions and proofs return to the LLM worker."
             ),
+            "runtime_exact_semantic_definition_work_orders": (
+                exact_semantic_definition_work_orders
+            ),
+            "runtime_exact_semantic_definition_work_order_boundary": (
+                "Exact semantic-definition work orders are immutable inputs to "
+                "the typed ExactSemanticDefinitionProofEngineer child. Source "
+                "lookup, LLM authoring, definition materialization, and local Lean "
+                "remain feedback only; none proves the source theorem."
+            ),
             "source_to_bridge_premise_derivation_work_orders": (
                 source_to_bridge_premise_derivation_work_orders
             ),
@@ -17020,6 +17287,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ),
                 "runtime_source_semantic_work_orders": len(
                     source_semantic_work_orders
+                ),
+                "runtime_exact_semantic_definition_work_orders": len(
+                    exact_semantic_definition_work_orders
                 ),
                 "pseudo_formal_work_order_rows": len(pseudo_formal_work_order_rows),
                 "pseudo_formal_routable_work_order_rows": len(
@@ -17393,6 +17663,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
         theorem_closure_dispatch_evidence: EvidenceLedgerEntry | None = None
         exact_source_proof_body_dispatch_evidence: EvidenceLedgerEntry | None = None
+        exact_semantic_definition_dispatch_evidence: EvidenceLedgerEntry | None = None
         source_semantic_dispatch_evidence: EvidenceLedgerEntry | None = None
         source_theorem_promotion_dispatch_evidence: EvidenceLedgerEntry | None = None
         if lean_candidate_repair_feedback is not None:
@@ -17749,9 +18020,20 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ),
                 stop_condition="critic agenda and learning rows recorded",
             )
+            exact_semantic_definition_runtime_dispatch_ready = bool(
+                exact_semantic_definition_work_orders
+                and self.runtime_config.source_theorem_exact_semantic_definition_proofengineer_bridge
+                and self.runtime_config.source_theorem_exact_semantic_definition_lean_repair_executor
+                and (
+                    self.runtime_config.source_theorem_exact_semantic_definition_source_lookup
+                    or str(self.runtime_config.evaluation_mode or "").strip()
+                    == "capability_eval"
+                )
+            )
             if (
                 self.runtime_config.theorem_closure_proofengineer_bridge
                 and theorem_reduction_closure_work_orders
+                and not exact_semantic_definition_runtime_dispatch_ready
             ):
                 theorem_closure_work_order = (
                     _runtime_theorem_reduction_closure_work_order(
@@ -17839,6 +18121,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 self.runtime_config.source_theorem_formal_environment_proofengineer_bridge
                 and self.runtime_config.source_theorem_formal_environment_proofengineer_execute_proof_body
                 and exact_source_rows
+                and not exact_semantic_definition_runtime_dispatch_ready
             ):
                 exact_work_order = (
                     _runtime_exact_source_theorem_proof_body_work_order(
@@ -17906,6 +18189,90 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "Runtime recorded formalization/proof feedback and routed the "
                     "hash-bound exact source-theorem candidate to the typed "
                     "compiler child before CriticEvaluator."
+                )
+            elif exact_semantic_definition_runtime_dispatch_ready:
+                exact_semantic_work_order = (
+                    _runtime_exact_semantic_definition_work_order(
+                        source_task=task,
+                        question=question,
+                        architect_context=context,
+                        formalization_manifest=manifest,
+                        return_task=critic_task,
+                        runtime_config=self.runtime_config,
+                    )
+                )
+                exact_semantic_work_order_id = str(
+                    exact_semantic_work_order.get("work_order_id", "") or ""
+                )
+                produced_artifacts[exact_semantic_work_order_id] = (
+                    exact_semantic_work_order
+                )
+                next_task = _runtime_exact_semantic_definition_dispatch_task(
+                    question=question,
+                    architect_context=context,
+                    work_order=exact_semantic_work_order,
+                )
+                exact_semantic_definition_dispatch_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash(
+                        [task.task_id, exact_semantic_work_order_id]
+                    )[:20],
+                    task_id=task.task_id,
+                    artifact_id=exact_semantic_work_order_id,
+                    evidence_type=(
+                        "exact_semantic_definition_proofengineer_work_order"
+                    ),
+                    status=(
+                        "EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_RECORDED_"
+                        "NOT_PROOF_EVIDENCE"
+                    ),
+                    boundary=KERNEL_PROOF_BOUNDARY,
+                    payload={
+                        "source_formalization_manifest_id": manifest_id,
+                        "n_work_order_rows": len(
+                            exact_semantic_definition_work_orders
+                        ),
+                        "next_owner_subsystem": (
+                            EXACT_SEMANTIC_DEFINITION_SUBSYSTEM
+                        ),
+                        "candidate_artifact_bindings": len(
+                            exact_semantic_work_order.get(
+                                "candidate_artifact_bindings",
+                                [],
+                            )
+                            or []
+                        ),
+                        "runtime_generated_lean": False,
+                    },
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "exact_semantic_definition_proofengineer_work_order"
+                        ),
+                        summary=(
+                            "immutable exact-semantic work order routed to the "
+                            "AgentRuntime coding-agent/compiler child"
+                        ),
+                        payload={
+                            "work_order_id": exact_semantic_work_order_id,
+                            "n_work_order_rows": len(
+                                exact_semantic_definition_work_orders
+                            ),
+                            "next_owner_subsystem": (
+                                EXACT_SEMANTIC_DEFINITION_SUBSYSTEM
+                            ),
+                            "proof_evidence_status": (
+                                "EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_"
+                                "NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    )
+                )
+                result_rationale = (
+                    "Runtime routed exact semantic-definition source lookup, "
+                    "LLM authoring, and Lean feedback to a typed child before "
+                    "CriticEvaluator."
                 )
             elif (
                 self.runtime_config.source_semantic_proofengineer_bridge
@@ -18091,6 +18458,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     gap_planner_evidence,
                     theorem_closure_dispatch_evidence,
                     exact_source_proof_body_dispatch_evidence,
+                    exact_semantic_definition_dispatch_evidence,
                     source_semantic_dispatch_evidence,
                     source_theorem_promotion_dispatch_evidence,
                     source_theorem_promotion_generation_response_binding_evidence,
@@ -29601,6 +29969,11 @@ def run_research_agent_runtime(
             architect_coordinator_available=architect_coordinator is not None,
             runtime_config=config,
         )
+        exact_semantic_authoring_provider = (
+            _exact_semantic_definition_authoring_worker_provider(config)
+            if config.source_theorem_exact_semantic_definition_authoring_worker
+            else None
+        )
         subsystems: dict[str, Any] = {
             "RetrievalMemory": RetrievalMemoryRuntimeSubsystem(
                 formal_source_retriever=shared_formal_source_retriever,
@@ -29622,6 +29995,41 @@ def run_research_agent_runtime(
             ),
             "FormalizationEvaluator": formalization_subsystem,
             "ProofEngineer": proofengineer_subsystem,
+            EXACT_SEMANTIC_DEFINITION_SUBSYSTEM: (
+                ExactSemanticDefinitionRuntimeWorker(
+                    out_root=out_dir,
+                    source_rows_resolver=(
+                        _runtime_exact_semantic_definition_rows_from_manifest
+                    ),
+                    source_roots=[
+                        Path(value)
+                        for value in (
+                            config.source_theorem_exact_semantic_definition_source_roots
+                        )
+                        if str(value).strip()
+                    ],
+                    max_hits_per_work_order=(
+                        config.source_theorem_exact_semantic_definition_source_lookup_max_hits
+                    ),
+                    local_lean=bool(
+                        config.source_theorem_exact_semantic_definition_lean_repair_executor_local_lean
+                    ),
+                    lean_project=(
+                        _exact_semantic_definition_lean_repair_executor_project(config)
+                    ),
+                    lean_timeout=int(
+                        config.source_theorem_exact_semantic_definition_lean_repair_executor_lean_timeout
+                    ),
+                    authoring_provider=exact_semantic_authoring_provider,
+                    authoring_enabled=bool(
+                        config.source_theorem_exact_semantic_definition_authoring_worker
+                    ),
+                    authoring_config=(
+                        _exact_semantic_definition_authoring_worker_config(config)
+                    ),
+                    repair_available=formalizer is not None,
+                )
+            ),
             THEOREM_REDUCTION_CLOSURE_PROOFENGINEER_SUBSYSTEM: (
                 TheoremReductionClosureProofEngineerRuntimeSubsystem(
                     out_root=out_dir,
@@ -30185,6 +30593,36 @@ def run_research_agent_runtime(
         "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified": (
             evidence_summary["proof"][
                 "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified"
+            ]
+        ),
+        "n_exact_semantic_definition_agent_runtime_work_orders": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_agent_runtime_work_orders"
+            ]
+        ),
+        "n_exact_semantic_definition_agent_runtime_executions": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_agent_runtime_executions"
+            ]
+        ),
+        "n_exact_semantic_definition_agent_runtime_contract_satisfied": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_agent_runtime_contract_satisfied"
+            ]
+        ),
+        "n_exact_semantic_definition_agent_runtime_authoring_model_invoked": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_agent_runtime_authoring_model_invoked"
+            ]
+        ),
+        "n_exact_semantic_definition_agent_runtime_local_lean_checked": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_agent_runtime_local_lean_checked"
+            ]
+        ),
+        "n_exact_semantic_definition_agent_runtime_local_lean_compiled": (
+            evidence_summary["proof"][
+                "n_exact_semantic_definition_agent_runtime_local_lean_compiled"
             ]
         ),
         "n_source_semantic_agent_runtime_work_orders": evidence_summary["proof"][
@@ -30971,6 +31409,18 @@ def run_research_agent_runtime(
         else "not_run"
     )
     exact_source_proof_body_legacy_post_runtime_fallback_used = False
+    (
+        exact_semantic_definition_agent_runtime_work_orders,
+        exact_semantic_definition_agent_runtime_executions,
+    ) = _runtime_exact_semantic_definition_agent_runtime_artifacts(results)
+    exact_semantic_definition_execution_mode = (
+        "agent_runtime_typed_worker"
+        if exact_semantic_definition_agent_runtime_executions
+        else "agent_runtime_work_order_pending"
+        if exact_semantic_definition_agent_runtime_work_orders
+        else "not_run"
+    )
+    exact_semantic_definition_legacy_post_runtime_fallback_used = False
     (
         source_semantic_agent_runtime_work_orders,
         source_semantic_agent_runtime_executions,
@@ -34010,10 +34460,13 @@ def run_research_agent_runtime(
         dict[str, Any]
     ] = []
     source_theorem_exact_semantic_definition_source_lookup_enabled = bool(
-        config.source_theorem_exact_semantic_definition_source_lookup
-        or (
-            str(config.evaluation_mode or "").strip() == "capability_eval"
-            and bool(source_theorem_exact_semantic_definition_work_order_rows)
+        not exact_semantic_definition_agent_runtime_work_orders
+        and (
+            config.source_theorem_exact_semantic_definition_source_lookup
+            or (
+                str(config.evaluation_mode or "").strip() == "capability_eval"
+                and bool(source_theorem_exact_semantic_definition_work_order_rows)
+            )
         )
     )
     if (
@@ -34035,6 +34488,10 @@ def run_research_agent_runtime(
                 ),
             )
         )
+        exact_semantic_definition_execution_mode = (
+            "legacy_post_runtime_derived_execution"
+        )
+        exact_semantic_definition_legacy_post_runtime_fallback_used = True
         lookup_learning_path_value = str(
             source_theorem_exact_semantic_definition_source_lookup_manifest.get(
                 "runtime_learning_rows_jsonl",
@@ -38542,6 +38999,20 @@ def run_research_agent_runtime(
             str(row.get("manifest_id", "") or "")
             for row in exact_source_proof_body_agent_runtime_executions
         ]
+    if exact_semantic_definition_agent_runtime_work_orders:
+        manifest["artifacts"][
+            "runtime_exact_semantic_definition_agent_runtime_work_orders"
+        ] = [
+            str(row.get("work_order_id", "") or "")
+            for row in exact_semantic_definition_agent_runtime_work_orders
+        ]
+    if exact_semantic_definition_agent_runtime_executions:
+        manifest["artifacts"][
+            "runtime_exact_semantic_definition_agent_runtime_executions"
+        ] = [
+            str(row.get("manifest_id", "") or "")
+            for row in exact_semantic_definition_agent_runtime_executions
+        ]
     if source_theorem_formal_environment_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_formal_environment_proofengineer_bridge_manifest"
@@ -40384,6 +40855,92 @@ def run_research_agent_runtime(
             + _safe_identifier(queue_name)[:96]
             + "_jsonl"
         ] = path
+    manifest["exact_semantic_definition_execution_mode"] = (
+        exact_semantic_definition_execution_mode
+    )
+    manifest["n_exact_semantic_definition_agent_runtime_work_orders"] = len(
+        exact_semantic_definition_agent_runtime_work_orders
+    )
+    manifest["n_exact_semantic_definition_agent_runtime_executions"] = len(
+        exact_semantic_definition_agent_runtime_executions
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_pending_work_orders"
+    ] = max(
+        0,
+        len(exact_semantic_definition_agent_runtime_work_orders)
+        - len(exact_semantic_definition_agent_runtime_executions),
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_contract_satisfied"
+    ] = sum(
+        1
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_authoring_model_invoked"
+    ] = sum(
+        1
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("authoring_model_invoked", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_source_lookup_rows"
+    ] = sum(
+        int(row.get("n_source_lookup_rows", 0) or 0)
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_authoring_tasks"
+    ] = sum(
+        int(row.get("n_authoring_tasks", 0) or 0)
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_authoring_worker_ran"
+    ] = sum(
+        1
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+        and _bool_like(row.get("authoring_worker_ran", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_materialized_candidates"
+    ] = sum(
+        int(row.get("n_materialized_candidates", 0) or 0)
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_local_lean_checked"
+    ] = sum(
+        int(row.get("n_local_lean_checked", 0) or 0)
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_local_lean_compiled"
+    ] = sum(
+        int(row.get("n_local_lean_compiled", 0) or 0)
+        for row in exact_semantic_definition_agent_runtime_executions
+        if _bool_like(row.get("execution_contract_satisfied", False))
+    )
+    manifest[
+        "n_exact_semantic_definition_agent_runtime_source_theorem_kernel_verified"
+    ] = 0
+    manifest[
+        "exact_semantic_definition_legacy_post_runtime_fallback_used"
+    ] = exact_semantic_definition_legacy_post_runtime_fallback_used
+    manifest["exact_semantic_definition_agent_runtime_boundary"] = (
+        "Typed AgentRuntime execution binds source lookup, authoring handoff, "
+        "candidate materialization, and Lean feedback to one immutable work order. "
+        "These artifacts are not source-theorem proof; only a later exact target "
+        "kernel verifier may promote theorem evidence. Legacy post-runtime fields "
+        "remain separate and cannot satisfy this integrated execution count."
+    )
     manifest["source_theorem_exact_semantic_definition_source_lookup_required"] = bool(
         source_theorem_exact_semantic_definition_work_order_rows
     )
@@ -40397,6 +40954,9 @@ def run_research_agent_runtime(
         ""
         if source_theorem_exact_semantic_definition_source_lookup_manifest is not None
         else (
+            "agent_runtime_typed_worker"
+            if exact_semantic_definition_agent_runtime_work_orders
+            else
             "source_lookup_required_but_disabled"
             if (
                 source_theorem_exact_semantic_definition_work_order_rows
@@ -75808,6 +76368,41 @@ def _runtime_source_semantic_agent_runtime_artifacts(
     return work_orders, executions
 
 
+def _runtime_exact_semantic_definition_agent_runtime_artifacts(
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    work_orders: list[dict[str, Any]] = []
+    executions: list[dict[str, Any]] = []
+    seen_work_orders: set[str] = set()
+    seen_executions: set[str] = set()
+    for result in results:
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind == EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND:
+                artifact_id = str(artifact.get("work_order_id", "") or "")
+                if artifact_id and artifact_id not in seen_work_orders:
+                    seen_work_orders.add(artifact_id)
+                    work_orders.append(dict(artifact))
+            elif kind == EXACT_SEMANTIC_DEFINITION_RUNTIME_EXECUTION_KIND:
+                artifact_id = str(artifact.get("manifest_id", "") or "")
+                if artifact_id and artifact_id not in seen_executions:
+                    seen_executions.add(artifact_id)
+                    executions.append(dict(artifact))
+    return work_orders, executions
+
+
 def _runtime_source_theorem_promotion_agent_runtime_artifacts(
     results: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -89428,6 +90023,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_exact_source_theorem_proof_body_agent_runtime_work_orders": 0,
         "n_exact_source_theorem_proof_body_agent_runtime_executions": 0,
         "n_exact_source_theorem_proof_body_agent_runtime_kernel_verified": 0,
+        "n_exact_semantic_definition_agent_runtime_work_orders": 0,
+        "n_exact_semantic_definition_agent_runtime_executions": 0,
+        "n_exact_semantic_definition_agent_runtime_contract_satisfied": 0,
+        "n_exact_semantic_definition_agent_runtime_authoring_model_invoked": 0,
+        "n_exact_semantic_definition_agent_runtime_local_lean_checked": 0,
+        "n_exact_semantic_definition_agent_runtime_local_lean_compiled": 0,
         "n_source_semantic_agent_runtime_work_orders": 0,
         "n_source_semantic_agent_runtime_executions": 0,
         "n_source_semantic_agent_runtime_kernel_verified_support": 0,
@@ -90035,6 +90636,31 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     verifier_names.add(
                         "local.exact_source_theorem_proof_body_agent_runtime"
                     )
+            elif kind == EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND:
+                proof[
+                    "n_exact_semantic_definition_agent_runtime_work_orders"
+                ] += 1
+            elif kind == EXACT_SEMANTIC_DEFINITION_RUNTIME_EXECUTION_KIND:
+                proof[
+                    "n_exact_semantic_definition_agent_runtime_executions"
+                ] += 1
+                if _bool_like(
+                    artifact.get("execution_contract_satisfied", False)
+                ):
+                    proof[
+                        "n_exact_semantic_definition_agent_runtime_contract_satisfied"
+                    ] += 1
+                    proof[
+                        "n_exact_semantic_definition_agent_runtime_authoring_model_invoked"
+                    ] += int(
+                        _bool_like(artifact.get("authoring_model_invoked", False))
+                    )
+                    proof[
+                        "n_exact_semantic_definition_agent_runtime_local_lean_checked"
+                    ] += int(artifact.get("n_local_lean_checked", 0) or 0)
+                    proof[
+                        "n_exact_semantic_definition_agent_runtime_local_lean_compiled"
+                    ] += int(artifact.get("n_local_lean_compiled", 0) or 0)
             elif kind == SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND:
                 proof["n_source_semantic_agent_runtime_work_orders"] += 1
             elif kind == SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND:

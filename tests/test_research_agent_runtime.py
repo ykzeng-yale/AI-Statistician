@@ -70214,6 +70214,167 @@ def test_formalization_dispatches_hash_bound_exact_source_candidate_to_typed_chi
     )
 
 
+def test_formalization_dispatches_exact_semantic_loop_to_typed_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    response = _formalizer_sample_response()
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(
+            provider_name="static",
+            model="static-formalizer-model",
+        ),
+    )
+    exact_row = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder"
+        ),
+        "work_order_id": "exact-semantic:survival:baseline-hazard",
+        "question_id": question.id,
+        "target_theorem_name": "cox_partial_likelihood_consistency",
+        "placeholder_symbol": "baselineHazard",
+        "candidate_definition_request": {
+            "semantic_intent": (
+                "Recover the source baseline-hazard definition from theorem "
+                "binders and cited local declarations."
+            )
+        },
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    monkeypatch.setattr(
+        runtime_module,
+        "_formalizer_source_theorem_exact_semantic_definition_work_orders",
+        lambda **_kwargs: [dict(exact_row)],
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_formalizer_theorem_reduction_closure_work_orders",
+        lambda **_kwargs: [
+            {
+                "work_order_id": "closure:must-wait-for-semantic-definition",
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            }
+        ],
+    )
+    exact_source_candidate = tmp_path / "exact_source_candidate.lean"
+    exact_source_candidate.write_text(
+        "theorem cox_partial_likelihood_consistency : True := by trivial\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_targets",
+        lambda **_kwargs: [
+            {
+                "candidate_artifact_path": str(exact_source_candidate),
+                "candidate_source_hash": runtime_module.stable_hash(
+                    exact_source_candidate.read_text(encoding="utf-8")
+                ),
+                "target_lean_declaration": (
+                    "cox_partial_likelihood_consistency"
+                ),
+                "target_lean_declaration_source": (
+                    "formalizer_structured_source_theorem_target_provenance"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            }
+        ],
+    )
+    config = ResearchAgentRuntimeConfig(
+        theorem_closure_proofengineer_bridge=True,
+        source_theorem_formal_environment_proofengineer_bridge=True,
+        source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+        source_theorem_exact_semantic_definition_source_lookup=True,
+        source_theorem_exact_semantic_definition_proofengineer_bridge=True,
+        source_theorem_exact_semantic_definition_lean_repair_executor=True,
+        source_theorem_exact_semantic_definition_lean_repair_executor_local_lean=False,
+    )
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=formalizer,
+        proof_verifier=MockProofVerifier(),
+        lean_candidate_root=tmp_path / "candidates",
+        runtime_config=config,
+    )
+    theory_packet = _runtime_sample_response()
+    theory_packet_id = str(theory_packet["packet_id"])
+    blackboard = BlackboardState(
+        project_id="typed-exact-semantic-dispatch",
+        artifacts={
+            theory_packet_id: theory_packet,
+            "simulation_manifest:typed_exact_semantic": {
+                "manifest_id": "simulation_manifest:typed_exact_semantic",
+                "simulation_passed": True,
+            },
+            "algorithm_sandbox_manifest:typed_exact_semantic": {
+                "manifest_id": "algorithm_sandbox_manifest:typed_exact_semantic",
+                "sandbox_passed": True,
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="formalize:typed_exact_semantic_dispatch",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Dispatch an exact semantic-definition compiler loop.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": (
+                "simulation_manifest:typed_exact_semantic"
+            ),
+            "algorithm_sandbox_manifest_id": (
+                "algorithm_sandbox_manifest:typed_exact_semantic"
+            ),
+            "architect_context": {},
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        runtime_module.EXACT_SEMANTIC_DEFINITION_SUBSYSTEM
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+    )
+    assert len(manifest["runtime_exact_semantic_definition_work_orders"]) == 1
+    routed_row = manifest["runtime_exact_semantic_definition_work_orders"][0]
+    assert routed_row["work_order_id"] == exact_row["work_order_id"]
+    assert routed_row["target_theorem_name"] == exact_row["target_theorem_name"]
+    assert routed_row["placeholder_symbol"] == exact_row["placeholder_symbol"]
+    assert routed_row["question_title"] == question.title
+    work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == runtime_module.EXACT_SEMANTIC_DEFINITION_RUNTIME_WORK_ORDER_KIND
+    )
+    assert work_order["source_formalization_manifest_hash"] == (
+        runtime_module.stable_hash(manifest)
+    )
+    assert work_order["execution_policy"]["proofengineer_bridge_enabled"] is True
+    assert work_order["execution_policy"]["lean_repair_executor_enabled"] is True
+    assert work_order["execution_policy_fingerprint"] == runtime_module.stable_hash(
+        work_order["execution_policy"]
+    )
+    assert work_order["candidate_artifact_bindings"] == []
+    dispatch_evidence = next(
+        row
+        for row in result.evidence_entries
+        if row.evidence_type
+        == "exact_semantic_definition_proofengineer_work_order"
+    )
+    assert dispatch_evidence.status.endswith("NOT_PROOF_EVIDENCE")
+
+
 def test_theorem_closure_typed_worker_requests_llm_candidate_and_replays_once(
     tmp_path: Path,
 ) -> None:
@@ -87733,6 +87894,70 @@ def test_runtime_capability_scorecard_flags_dropped_exact_semantic_definition_ha
             "exact_semantic_definition_proofengineer_bridge_handoff_not_dropped"
         ]["blocker"]
     )
+
+
+def test_runtime_capability_scorecard_requires_typed_exact_semantic_loop() -> None:
+    payload = {
+        "runtime_evaluation_mode": "capability_eval",
+        "n_runtime_source_theorem_exact_semantic_definition_work_orders": 1,
+        "source_theorem_exact_semantic_definition_source_lookup_required": True,
+        "exact_semantic_definition_execution_mode": "agent_runtime_typed_worker",
+        "n_exact_semantic_definition_agent_runtime_work_orders": 1,
+        "n_exact_semantic_definition_agent_runtime_executions": 1,
+        "n_exact_semantic_definition_agent_runtime_contract_satisfied": 1,
+        "n_exact_semantic_definition_agent_runtime_source_lookup_rows": 1,
+        "n_exact_semantic_definition_agent_runtime_authoring_tasks": 1,
+        "n_exact_semantic_definition_agent_runtime_authoring_worker_ran": 1,
+        "n_exact_semantic_definition_agent_runtime_authoring_model_invoked": 1,
+        "n_exact_semantic_definition_agent_runtime_materialized_candidates": 1,
+        "n_exact_semantic_definition_agent_runtime_local_lean_checked": 1,
+        "n_exact_semantic_definition_agent_runtime_local_lean_compiled": 1,
+        "exact_semantic_definition_legacy_post_runtime_fallback_used": False,
+    }
+
+    scorecard = _runtime_capability_scorecard(payload)
+    rows = {row["requirement_id"]: row for row in scorecard["rows"]}
+
+    assert rows[
+        "exact_semantic_definition_agent_runtime_loop_completed"
+    ]["passed"] is True
+    assert rows[
+        "exact_semantic_definition_source_lookup_handoff_not_dropped"
+    ]["passed"] is True
+
+    legacy_only = dict(payload)
+    legacy_only.update(
+        {
+            "exact_semantic_definition_execution_mode": (
+                "legacy_post_runtime_derived_execution"
+            ),
+            "n_exact_semantic_definition_agent_runtime_work_orders": 0,
+            "n_exact_semantic_definition_agent_runtime_executions": 0,
+            "n_exact_semantic_definition_agent_runtime_contract_satisfied": 0,
+            "n_exact_semantic_definition_agent_runtime_source_lookup_rows": 0,
+            "n_exact_semantic_definition_agent_runtime_authoring_tasks": 0,
+            "n_exact_semantic_definition_agent_runtime_authoring_worker_ran": 0,
+            "n_exact_semantic_definition_agent_runtime_authoring_model_invoked": 0,
+            "n_exact_semantic_definition_agent_runtime_materialized_candidates": 0,
+            "n_exact_semantic_definition_agent_runtime_local_lean_checked": 0,
+            "n_exact_semantic_definition_agent_runtime_local_lean_compiled": 0,
+            "exact_semantic_definition_legacy_post_runtime_fallback_used": True,
+            "source_theorem_exact_semantic_definition_source_lookup_requested": True,
+            "source_theorem_exact_semantic_definition_source_lookup_effective": True,
+            "source_theorem_exact_semantic_definition_source_lookup_ran": True,
+            "source_theorem_exact_semantic_definition_source_lookup_n_runtime_learning_rows": 1,
+        }
+    )
+    legacy_scorecard = _runtime_capability_scorecard(legacy_only)
+    legacy_rows = {
+        row["requirement_id"]: row for row in legacy_scorecard["rows"]
+    }
+    assert legacy_rows[
+        "exact_semantic_definition_agent_runtime_loop_completed"
+    ]["passed"] is False
+    assert "legacy_post_runtime_fallback=True" in legacy_rows[
+        "exact_semantic_definition_agent_runtime_loop_completed"
+    ]["evidence"]
 
 
 @pytest.mark.parametrize(
