@@ -9,6 +9,7 @@ import shlex
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -3003,6 +3004,46 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "n_staged_followups_due_to_max_tokens": 1,
             "n_staged_followup_stage_attempt_rows": 3,
             "n_staged_followup_stage_response_contract_ok": 1,
+            "staged_followup_stage_attempt_rows": [
+                {
+                    "attempt_kind": (
+                        "formalization_gap_planner_llm_route_planner_"
+                        "staged_followup_stage_attempt"
+                    ),
+                    "stage_attempt_id": "stage-attempt:accepted-before-revision",
+                    "staged_followup_id": "staged-followup:rejected",
+                    "request_id": "request:rejected",
+                    "route_id": bridge["target_ids"][0],
+                    "stage_id": "route_core_compaction",
+                    "stage_index": 0,
+                    "stage_owner": (
+                        "formalization_gap_planner.llm_route_planner"
+                    ),
+                    "target_prover_family": bridge["target_prover_family"],
+                    "provider_name": "anthropic",
+                    "model": "claude",
+                    "model_tier": "sonnet",
+                    "response_present": True,
+                    "response_contract_ok": True,
+                    "provider_failure": False,
+                    "fragment": {
+                        "informal_knowledge_dag_nodes": [],
+                        "informal_knowledge_dag_edges": [],
+                        "formal_realization_dag_nodes": [],
+                        "formal_realization_dag_edges": [],
+                        "route_alignment_edges": [],
+                        "minimal_delta_plan": {},
+                    },
+                    "assembler_notes": [],
+                    "proof_evidence_status": (
+                        runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+                    ),
+                    "proof_evidence_boundary": (
+                        runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+                    ),
+                    "ok": True,
+                }
+            ],
             "n_staged_followup_stage_provider_failures": 0,
             "n_staged_followup_stage_calls_blocked_by_budget": 0,
             "n_staged_followup_assembly_rows": 1,
@@ -3040,8 +3081,17 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         out_dir=tmp_path / "contract_invalid_live",
     ).run(task, blackboard)
 
-    assert contract_invalid_result.status == "ACCEPTED"
-    assert contract_invalid_result.failure_classification == ""
+    assert contract_invalid_result.status == "REVISE"
+    assert contract_invalid_result.failure_classification == (
+        "formalization_gap_planner_live_route_planner_contract_repair_requested"
+    )
+    assert contract_invalid_result.next_task is not None
+    assert contract_invalid_result.next_task.owner_subsystem == (
+        "FormalizationGapPlanner"
+    )
+    assert contract_invalid_result.next_task.task_id.startswith(
+        "gap-planner-live-route-revise:"
+    )
     assert len(contract_invalid_calls) == 1
     contract_invalid_live_manifest = next(
         artifact
@@ -3062,17 +3112,554 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         ]
         >= 1
     )
-    assert any(
-        tool.tool_name == "formalization_gap_planner.llm_route_planner_live"
-        and tool.exit_status == "passed"
-        for tool in contract_invalid_result.tool_calls
+    revision_artifact = next(
+        artifact
+        for artifact in contract_invalid_result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerContractRevision"
+    )
+    assert revision_artifact["source_manifest_id"] == (
+        contract_invalid_live_manifest["manifest_id"]
+    )
+    assert revision_artifact["revision_attempt"] == 1
+    assert revision_artifact["n_accepted_staged_followup_stage_attempts"] == 1
+    assert revision_artifact["revision_artifact_hash"]
+    assert Path(
+        revision_artifact["reuse_bundles"][0][
+            "accepted_staged_followup_stage_attempts_jsonl"
+        ]
+    ).exists()
+    revision_context = contract_invalid_result.next_task.inputs[
+        "route_planner_contract_revision"
+    ]
+    assert revision_context["revision_artifact_id"] == (
+        revision_artifact["revision_artifact_id"]
+    )
+    assert revision_context["revision_artifact_hash"] == (
+        revision_artifact["revision_artifact_hash"]
+    )
+    assert contract_invalid_result.next_task.inputs["runtime_learning_memory"][
+        "rows"
+    ][0]["learning_task"] == (
+        "formalization_gap_planner_live_route_planner_contract_feedback"
     )
     assert any(
         row.evidence_type == "formalization_gap_planner_runtime_execution"
         and row.status
-        == "LIVE_ROUTE_PLANNER_ROUTE_REVISION_FEEDBACK_RECORDED_NOT_PROOF_EVIDENCE"
+        == "LIVE_ROUTE_PLANNER_CONTRACT_REVISION_SCHEDULED_NOT_PROOF_EVIDENCE"
         for row in contract_invalid_result.evidence_entries
     )
+
+
+def test_formalization_gap_planner_agent_runtime_executes_bound_contract_revision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-bound-revision-runtime")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-live-route:bound-revision-runtime",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Execute a bounded route-planner contract revision.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "max_route_requests_per_handoff": 1,
+            "provider": "anthropic",
+            "model": "",
+            "model_tier": "auto",
+            "max_tokens": 9000,
+            "temperature": 0.1,
+            "max_repair_attempts": 0,
+            "max_staged_followup_stage_calls": 3,
+            "timeout_seconds": 3.0,
+            "architect_context": {},
+            "environment_feedback": {
+                "failure_classification": (
+                    "formalization_gap_planner_live_route_planner_requested"
+                ),
+                "formalization_gap_planner_bridge_ids": [bridge["bridge_id"]],
+            },
+        },
+    )
+    export_calls: list[dict[str, object]] = []
+
+    def rejected_payload() -> dict[str, object]:
+        return {
+            "all_ok": False,
+            "max_route_requests": 1,
+            "n_input_routes": 1,
+            "route_request_cap_applied": True,
+            "n_routes_omitted_by_max_route_requests": 0,
+            "omitted_route_ids_by_max_route_requests": [],
+            "n_request_packets": 1,
+            "n_response_present": 1,
+            "n_response_contract_ok": 0,
+            "n_provider_failures": 0,
+            "n_staged_followups_required": 1,
+            "n_staged_followups_due_to_max_tokens": 1,
+            "n_staged_followup_stage_attempt_rows": 1,
+            "n_staged_followup_stage_response_contract_ok": 1,
+            "n_prior_staged_followup_stage_attempt_rows": 0,
+            "n_staged_followup_stage_attempts_reused": 0,
+            "n_staged_followup_stage_provider_calls": 1,
+            "n_staged_followup_stage_provider_failures": 0,
+            "n_staged_followup_stage_calls_blocked_by_budget": 2,
+            "staged_followup_stage_attempt_rows": [
+                {
+                    "attempt_kind": (
+                        "formalization_gap_planner_llm_route_planner_"
+                        "staged_followup_stage_attempt"
+                    ),
+                    "stage_attempt_id": "stage-attempt:bound-revision",
+                    "staged_followup_id": "followup:bound-revision",
+                    "request_id": "request:bound-revision",
+                    "route_id": bridge["target_ids"][0],
+                    "stage_id": "route_core_compaction",
+                    "stage_index": 0,
+                    "stage_owner": "formalization_gap_planner.llm_route_planner",
+                    "target_prover_family": bridge["target_prover_family"],
+                    "provider_name": "anthropic",
+                    "model": "claude",
+                    "model_tier": "sonnet",
+                    "response_present": True,
+                    "response_contract_ok": True,
+                    "provider_failure": False,
+                    "fragment": {
+                        "informal_knowledge_dag_nodes": [],
+                        "informal_knowledge_dag_edges": [],
+                        "formal_realization_dag_nodes": [],
+                        "formal_realization_dag_edges": [],
+                        "route_alignment_edges": [],
+                        "minimal_delta_plan": {},
+                    },
+                    "assembler_notes": [],
+                    "proof_evidence_status": (
+                        runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+                    ),
+                    "proof_evidence_boundary": (
+                        runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+                    ),
+                    "ok": True,
+                }
+            ],
+            "n_staged_followup_assembly_rows": 1,
+            "n_staged_followup_assembled_responses": 0,
+            "n_staged_followup_assembled_response_contract_ok": 0,
+            "n_staged_followup_assembled_route_adoption_ready": 0,
+            "n_staged_followup_assembly_incomplete": 1,
+            "staged_followup_assembly_rows": [
+                {
+                    "staged_followup_id": "followup:bound-revision",
+                    "assembly_status": "AWAITING_STAGED_FOLLOWUP_STAGE_ATTEMPTS",
+                    "errors": ["two required stage fragments are missing"],
+                }
+            ],
+            "n_staged_followup_target_prover_replay_rows": 0,
+            "n_staged_followup_target_prover_replay_candidates": 0,
+            "n_staged_followup_target_prover_replay_route_blocked": 0,
+            "n_staged_followup_target_prover_replay_rejected": 0,
+            "n_staged_followup_assembled_seed_rows": 0,
+            "n_standalone_seed_source_rows": 1,
+            "n_standalone_seed_direct_source_rows": 1,
+            "n_standalone_seed_staged_assembled_source_rows": 0,
+            "n_awaiting_llm_response": 0,
+            "n_route_adoption_ready": 0,
+            "n_route_adoption_pending_refinement": 0,
+            "n_route_adoption_awaiting_llm_response": 0,
+            "total_provider_input_tokens": 100,
+            "total_provider_output_tokens": 100,
+            "total_provider_total_tokens": 200,
+            "total_staged_followup_stage_provider_total_tokens": 50,
+            "total_provider_total_tokens_including_staged_followups": 250,
+            "errors": [],
+        }
+
+    def accepted_payload() -> dict[str, object]:
+        payload = rejected_payload()
+        payload.update(
+            {
+                "all_ok": True,
+                "n_response_contract_ok": 1,
+                "n_staged_followups_required": 0,
+                "n_staged_followups_due_to_max_tokens": 0,
+                "n_staged_followup_stage_attempt_rows": 0,
+                "n_staged_followup_stage_response_contract_ok": 0,
+                "n_prior_staged_followup_stage_attempt_rows": 1,
+                "n_staged_followup_stage_attempts_reused": 0,
+                "n_staged_followup_stage_provider_calls": 0,
+                "n_staged_followup_stage_calls_blocked_by_budget": 0,
+                "staged_followup_stage_attempt_rows": [],
+                "n_staged_followup_assembly_rows": 0,
+                "n_staged_followup_assembly_incomplete": 0,
+                "staged_followup_assembly_rows": [],
+                "n_route_adoption_ready": 1,
+            }
+        )
+        return payload
+
+    def fake_export(
+        standalone_input_json: Path,
+        out_dir: Path | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        export_calls.append(
+            {
+                "standalone_input_json": standalone_input_json,
+                "out_dir": out_dir,
+                **kwargs,
+            }
+        )
+        assert out_dir is not None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).write_text("{}", encoding="utf-8")
+        if kwargs.get("prior_staged_followup_stage_attempts_jsonl"):
+            return accepted_payload()
+        return rejected_payload()
+
+    monkeypatch.setattr(
+        runtime_module,
+        "export_formalization_gap_planner_llm_route_planner",
+        fake_export,
+    )
+    monkeypatch.setattr(
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem,
+        "_materialize_live_route_planner_target_prover_replay",
+        lambda self, **kwargs: {
+            "attempted": False,
+            "all_ok": False,
+            "errors": [],
+            "output_paths": [],
+        },
+    )
+    subsystem = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    )
+    runtime = AgentRuntime(
+        subsystems={"FormalizationGapPlanner": subsystem},
+        blackboard=blackboard,
+    )
+    result = runtime.run(task, max_iterations=3)
+
+    assert result.status == "ACCEPTED"
+    assert [trace.status for trace in result.traces] == ["REVISE", "ACCEPTED"]
+    assert len(export_calls) == 2
+    assert export_calls[0]["prior_staged_followup_stage_attempts_jsonl"] is None
+    prior_path = Path(
+        str(export_calls[1]["prior_staged_followup_stage_attempts_jsonl"])
+    )
+    assert prior_path.exists()
+    assert export_calls[1][
+        "formalization_gap_planner_route_contract_feedback_jsonl"
+    ]
+    assert result.blackboard.handoff_ledger[0].from_subsystem == (
+        "FormalizationGapPlanner"
+    )
+    assert result.blackboard.handoff_ledger[0].to_subsystem == (
+        "FormalizationGapPlanner"
+    )
+    assert any(
+        artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerContractRevision"
+        for artifact in result.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+    )
+
+
+def test_formalization_gap_planner_contract_revision_scopes_handoffs_and_memory(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    accepted_attempt = {
+        "attempt_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "staged_followup_stage_attempt"
+        ),
+        "stage_attempt_id": "stage-attempt:scoped",
+        "route_id": "route:scoped",
+        "stage_id": "route_core_compaction",
+        "target_prover_family": "lean4",
+        "response_present": True,
+        "response_contract_ok": True,
+        "provider_failure": False,
+        "fragment": {"minimal_delta_plan": {}},
+        "proof_evidence_status": (
+            runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS
+        ),
+        "proof_evidence_boundary": (
+            runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+        ),
+        "ok": True,
+    }
+    live_manifest = {
+        "manifest_id": "live-route-manifest:scoped",
+        "question": runtime_module._question_to_payload(question),
+        "rows": [
+            {
+                "handoff_id": "handoff:rejected",
+                "bridge_id": "bridge:rejected",
+                "staged_followup_stage_attempt_rows": [accepted_attempt],
+            },
+            {
+                "handoff_id": "handoff:accepted",
+                "bridge_id": "bridge:accepted",
+                "staged_followup_stage_attempt_rows": [accepted_attempt],
+            },
+        ],
+    }
+    contract_feedback = {
+        "runtime_learning_row_id": "learning:contract",
+        "route_planner_contract_feedback_id": "feedback:rejected",
+        "learning_task": (
+            "formalization_gap_planner_live_route_planner_contract_feedback"
+        ),
+        "formalization_gap_planner_handoff_id": "handoff:rejected",
+    }
+
+    artifact, enhanced_feedback = (
+        runtime_module._runtime_formalization_gap_planner_contract_revision_artifact(
+            schema_version=runtime_module.RUNTIME_SCHEMA_VERSION,
+            task_id="gap-planner-live-route:scoped",
+            live_manifest=live_manifest,
+            contract_feedback_rows=[contract_feedback],
+            out_dir=tmp_path,
+            revision_attempt=1,
+        )
+    )
+
+    assert artifact["contract_feedback_handoff_ids"] == ["handoff:rejected"]
+    assert artifact["selected_handoff_ids"] == ["handoff:rejected"]
+    assert artifact["selected_bridge_ids"] == ["bridge:rejected"]
+    assert [bundle["handoff_id"] for bundle in artifact["reuse_bundles"]] == [
+        "handoff:rejected"
+    ]
+    existing_memory = {
+        "runtime_learning_row_id": "learning:source-context",
+        "learning_task": "source_theorem_semantic_feedback",
+    }
+    current_task = AgentTask(
+        task_id="gap-planner-live-route:scoped",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Create a scoped contract revision.",
+        inputs={"question": runtime_module._question_to_payload(question)},
+    )
+    revision_task = (
+        runtime_module._runtime_formalization_gap_planner_contract_revision_task(
+            current_task=current_task,
+            question_id=question.id,
+            question_payload=runtime_module._question_to_payload(question),
+            revision_artifact=artifact,
+            runtime_learning_rows=[*enhanced_feedback, existing_memory],
+            architect_context={},
+            base_environment_feedback={},
+            settings={
+                "max_handoffs": 1,
+                "max_route_requests_per_handoff": 1,
+                "provider": "anthropic",
+                "model": "",
+                "model_tier": "auto",
+                "max_tokens": 9000,
+                "temperature": 0.1,
+                "max_repair_attempts": 0,
+                "max_staged_followup_stage_calls": 3,
+                "timeout_seconds": 3.0,
+            },
+        )
+    )
+    revision_memory = revision_task.inputs["runtime_learning_memory"]
+    assert revision_memory["counts"]["rows_loaded"] == 2
+    assert {
+        row["runtime_learning_row_id"] for row in revision_memory["rows"]
+    } == {"learning:contract", "learning:source-context"}
+
+
+def test_formalization_gap_planner_contract_revision_tamper_fails_before_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-revision-tamper")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-live-route:revision-tamper",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Create a contract revision artifact.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "max_route_requests_per_handoff": 1,
+            "provider": "anthropic",
+            "max_repair_attempts": 0,
+            "max_staged_followup_stage_calls": 0,
+            "architect_context": {},
+            "environment_feedback": {},
+        },
+    )
+    calls = 0
+
+    def fake_export(
+        standalone_input_json: Path,
+        out_dir: Path | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        assert out_dir is not None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).write_text("{}", encoding="utf-8")
+        return {
+            "all_ok": False,
+            "n_input_routes": 1,
+            "n_request_packets": 1,
+            "n_response_present": 1,
+            "n_response_contract_ok": 0,
+            "n_provider_failures": 0,
+            "n_staged_followups_required": 1,
+            "n_staged_followup_assembly_incomplete": 1,
+            "n_staged_followup_assembled_responses": 0,
+            "n_staged_followup_assembled_response_contract_ok": 0,
+            "n_route_adoption_ready": 0,
+            "n_awaiting_llm_response": 0,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "export_formalization_gap_planner_llm_route_planner",
+        fake_export,
+    )
+    monkeypatch.setattr(
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem,
+        "_materialize_live_route_planner_target_prover_replay",
+        lambda self, **kwargs: {
+            "attempted": False,
+            "all_ok": False,
+            "errors": [],
+            "output_paths": [],
+        },
+    )
+    subsystem = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    )
+    first = subsystem.run(task, blackboard)
+    assert first.status == "REVISE"
+    assert first.next_task is not None
+    blackboard.artifacts.update(first.produced_artifacts)
+    revision_id = first.next_task.inputs["route_planner_contract_revision"][
+        "revision_artifact_id"
+    ]
+    blackboard.artifacts[revision_id]["revision_attempt"] = 99
+
+    second = subsystem.run(first.next_task, blackboard)
+
+    assert second.status == "BLOCKED"
+    assert second.failure_classification == (
+        "formalization_gap_planner_contract_revision_binding_invalid"
+    )
+    assert calls == 1
+    assert any(
+        "content hash mismatch" in error
+        for artifact in second.produced_artifacts.values()
+        for error in artifact.get("errors", [])
+    )
+
+
+def test_formalization_gap_planner_contract_revision_budget_exhaustion_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-revision-budget")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id="gap-planner-live-route:revision-budget",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Fail closed after one contract revision.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "max_route_requests_per_handoff": 1,
+            "provider": "anthropic",
+            "max_repair_attempts": 0,
+            "max_staged_followup_stage_calls": 0,
+            "architect_context": {},
+            "environment_feedback": {},
+        },
+    )
+    calls: list[object] = []
+
+    def always_rejected(
+        standalone_input_json: Path,
+        out_dir: Path | None = None,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        calls.append(kwargs)
+        assert out_dir is not None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (
+            out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).write_text("{}", encoding="utf-8")
+        return {
+            "all_ok": False,
+            "n_input_routes": 1,
+            "n_request_packets": 1,
+            "n_response_present": 1,
+            "n_response_contract_ok": 0,
+            "n_provider_failures": 0,
+            "n_staged_followups_required": 1,
+            "n_staged_followup_assembly_incomplete": 1,
+            "n_staged_followup_assembled_responses": 0,
+            "n_staged_followup_assembled_response_contract_ok": 0,
+            "n_route_adoption_ready": 0,
+            "n_awaiting_llm_response": 0,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "export_formalization_gap_planner_llm_route_planner",
+        always_rejected,
+    )
+    monkeypatch.setattr(
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem,
+        "_materialize_live_route_planner_target_prover_replay",
+        lambda self, **kwargs: {
+            "attempted": False,
+            "all_ok": False,
+            "errors": [],
+            "output_paths": [],
+        },
+    )
+    runtime = AgentRuntime(
+        subsystems={
+            "FormalizationGapPlanner": (
+                runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+                    out_dir=tmp_path,
+                )
+            )
+        },
+        blackboard=blackboard,
+    )
+    result = runtime.run(task, max_iterations=3)
+
+    assert result.status == "BLOCKED"
+    assert [trace.status for trace in result.traces] == ["REVISE", "BLOCKED"]
+    assert result.traces[-1].failure_classification == (
+        "formalization_gap_planner_live_route_planner_contract_repair_exhausted"
+    )
+    assert len(calls) == 2
+    assert not result.traces[-1].next_task_id
 
 
 def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
@@ -3407,6 +3994,7 @@ def test_formalization_gap_planner_subprocess_consumes_nonzero_contract_manifest
         standalone_plan_dir=None,
         component_resource_registry_dir=None,
         route_contract_feedback_jsonl=None,
+        prior_staged_followup_stage_attempts_jsonl=None,
         route_revision_overlay_dir=None,
     )
 

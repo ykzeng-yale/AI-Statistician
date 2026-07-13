@@ -7519,6 +7519,11 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.formalization_gap_planner_route_contract_feedback_jsonl
             else None
         ),
+        prior_staged_followup_stage_attempts_jsonl=(
+            Path(args.prior_staged_followup_stage_attempts_jsonl)
+            if args.prior_staged_followup_stage_attempts_jsonl
+            else None
+        ),
         formalization_gap_planner_route_revision_overlay_dir=(
             Path(args.formalization_gap_planner_route_revision_overlay_dir)
             if args.formalization_gap_planner_route_revision_overlay_dir
@@ -17529,6 +17534,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional JSONL or rows manifest carrying live route-planner "
             "contract feedback rows to force contract-aware replanning"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--prior-staged-followup-stage-attempts-jsonl",
+        help=(
+            "optional JSONL carrying previously contract-valid staged planning "
+            "fragments; matching route/stage/prover-family fragments are rebound "
+            "and revalidated before reuse"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(

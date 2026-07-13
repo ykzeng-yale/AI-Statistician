@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-13T06:30:40Z",
+  "updated_at": "2026-07-13T08:26:23Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Primary exact semantic-definition recovery and its environment/review/verifier/proof continuation now execute as two immutable, Architect-visible AgentRuntime children. The first binds the Formalizer manifest, projected rows, execution policy, exact source proof rows, and candidate content or bound absence; the review child reuses mature environment preflight, source-grounded LLM authoring, candidate materialization, local Lean repair/recheck, semantic verifier, approved recheck, and exact proof-body executor stages. Python emits no Lean grammar or tactics, replay reruns no model/compiler, and only the bound exact local Lean/kernel executor may emit source-theorem proof evidence. The live route-planner now separates per-provider timeout from derived outer process lifetime, inherits the global timeout when unset, consumes a structured child manifest even when the child exits nonzero for contract rejection, and preserves that rejection instead of relabeling it provider failure. Missing staged-response evidence metadata is filled from the trusted runtime's canonical non-proof boundary with an explicit inferred flag; nonempty conflicting model metadata remains validator-rejected and raw model text remains preserved. No semantic definition or statistical source theorem was proved by this patch.",
-  "latest_main_worker_live_probe": "Fresh V3 strict-Claude lineages covered experimental_design/design_based_variance_bound and multiple_testing/multiple_testing_fdr_bh. The final scorecard is 95/111 with ready=false; both tasks ended BLOCKED at FormalizationGapPlanner, with 48 kernel-verified support subclaims, 8 formal gaps, 4 live Formalizer/ProofEngineer proposals, and zero exact source-theorem closure. Both child route planners survived beyond the old 120-second parent deadline, recorded one primary response plus one validator repair and three staged calls with zero provider failures, and achieved 2/3 staged contracts. The final stage omitted runtime-owned non-proof metadata, so no assembled route or target-prover replay was admitted. The parent process was started before the nonzero-manifest patch and therefore misreported those valid rejected manifests as provider failures; the committed path now preserves them. This is stronger live feedback-loop evidence, not S14 or theorem completion.",
-  "latest_main_worker_design_issue": "Theorem reduction, primary exact source compilation, primary source-semantic support, primary promotion planning, exact-semantic lookup/authoring/compiler feedback, and exact-semantic environment/review/verifier/proof continuation are typed AgentRuntime children. The duplicate plane still owns semantic or promotion work discovered after proof-body/postprocessing plus proof-body adapter/premise derivation and later same-run rechecks. Shared Formalizer target-shape and generated-metric policies still infer domain contracts from coverage/probability/ATE vocabulary; these must move to task-provided or RAG/LLM-derived typed contracts instead of accumulating keyword exceptions. The generated scientific sandbox remains pure-Python and narrow, with no production R lane. Formalizer repair attribution still has question-scoped aggregates needing immutable parent/child lineage. No fresh statistical source theorem has closed, serious theory mode is incomplete, and S14 remains false.",
+  "latest_main_worker_patch": "A provider-successful but validator-rejected FormalizationGapPlanner result now becomes one bounded same-owner AgentRuntime REVISE child instead of terminating the lineage or being accepted merely because target-prover feedback exists. The immutable revision artifact binds the source live-manifest hash, task/question/family/prover/handoff identity, feedback ids, revision budget, accepted staged-fragment bundle paths, content hashes, and row hashes; tampering blocks before provider or prover execution, and a second structured rejection fails closed as repair exhausted. Validator feedback is carried in runtime learning memory. Prior staged fragments are rebound to current request/followup ids and revalidated, but exact assembly-feedback field paths now invalidate reuse for any stage whose declared required_output_fields are implicated, so the LLM regenerates the affected stage while preserving unaffected work. Provider failures and timeouts are not converted into revisions. No Lean grammar, tactic, theorem, or statistical-domain rule was added, validators were not relaxed, and all revision/reuse artifacts remain non-proof planning evidence.",
+  "latest_main_worker_live_probe": "Fresh V3 strict-Claude lineages still provide the latest live capability result: experimental_design/design_based_variance_bound and multiple_testing/multiple_testing_fdr_bh both ended BLOCKED at FormalizationGapPlanner with scorecard 95/111, 48 kernel-verified support subclaims, 8 formal gaps, and zero exact source-theorem closure. Post-patch deterministic replay over both persisted live staged-attempt bundles read 3 rows per family, admitted the 2 stage-valid rows, rejected the bad row, and made one missing-stage call. Feeding each family's actual 24 assembly-error previews through the normal contract-feedback input then invalidated route-core reuse by declared field ownership, retained only residual_batch_interpretation, and regenerated two stages. All 3 stage envelopes validated and both manifests validated, but assembled_contract_ok remained 0 because the deterministic backend deliberately re-emitted the old substantively invalid content. No model or prover was called in replay, and this is orchestration/feedback evidence rather than S14 or theorem completion.",
+  "latest_main_worker_design_issue": "The structured route-planner contract-repair gap is now inside AgentRuntime, including bounded retry, immutable lineage, feedback-aware fragment reuse, and fail-closed exhaustion. The immediate live blocker has moved from dead-end control flow to LLM route quality: a fresh provider revision must satisfy the full assembled-route validator before target-prover replay. Theorem reduction, primary exact source compilation, primary source-semantic support, primary promotion planning, and exact-semantic lookup/review/proof continuation are typed children, but the duplicate plane still owns late semantic/promotion work, proof-body adapter/premise derivation, and later same-run rechecks. Shared Formalizer target-shape and generated-metric policies still infer domain contracts from coverage/probability/ATE vocabulary; these must become task/theory/RAG-derived typed contracts. The scientific sandbox remains narrow Python with no production R lane, serious theory mode remains incomplete, no fresh statistical source theorem has closed, and S14 remains false.",
   "main_objective": "Drive AI-Statistician to a genuinely live autonomous end-to-end AI Statistical Theory Lab. Own one Architect-controlled AgentRuntime; integrate the strongest reusable OpenProver, EmpericalProcessLEAN, CodexProver, proof-bank, and prior Mac Pro mechanisms; require LLM/coding agents to generate rigorous theory, Python/R algorithms and simulations, and exact Lean candidates; iterate through execution, compiler/LSP/proof-state, retrieval, critic, and worker feedback; eliminate runtime-generated Lean tactics, theorem-specific grammar rewrites, duplicate orchestration planes, and capability-attribution shortcuts; preserve immutable lineage and strict evidence boundaries; and do not claim completion until two unrelated fresh statistical task families each close an exact source theorem under local Lean/AXLE with no acceptance-gating formal gaps and honest S14 evidence.",
   "hard_work_commitment": [
     "prioritize AgentRuntime integration over broad static audits",
@@ -101,6 +101,17 @@
     "missing_system_evidence_metadata_inferred_by_runtime": true,
     "explicit_conflicting_evidence_metadata_still_rejected": true,
     "raw_model_response_preserved": true,
+    "bounded_same_run_contract_revision_implemented_after_probe": true,
+    "same_run_contract_revision_attempt_budget": 1,
+    "persisted_v3_fragment_replay_summary": "runs/main_worker_s14_v3_contract_revision_replay_20260713/replay_summary.json",
+    "persisted_v3_feedback_aware_replay_summary": "runs/main_worker_s14_v3_contract_revision_feedback_replay_20260713/replay_summary.json",
+    "replay_source_stage_rows_per_family": 3,
+    "replay_initial_stage_valid_rows_per_family": 2,
+    "replay_feedback_aware_reused_stage_per_family": "residual_batch_interpretation",
+    "replay_feedback_invalidated_stage_per_family": "route_core_compaction",
+    "replay_stage_contract_ok_per_family": 3,
+    "replay_assembled_contract_ok_per_family": 0,
+    "replay_model_or_prover_called": false,
     "proof_evidence_status": "Live orchestration, generation, execution, and compiler-feedback evidence only; no exact source theorem or frontier theorem proof.",
     "s14_satisfied": false
   },
@@ -113,7 +124,7 @@
     "formal_rag": "PARTIAL_LIVE_SIGNED: proof bank plus a clean signed EmpericalProcessLEAN graph are canonical runtime providers. The current shard binds commit 779604a9f30e, 444 Lean files, 26,373 declarations, 956 import edges, and 75,479 declaration edges; strict runtime rejects dirty/changed/unknown signatures. Retrieval remains non-proof evidence and natural-language ranking is still weak/high-fanout.",
     "coding_agent_feedback_fidelity": "ACTIVE_PATH_READY: same-owner retries bypass Architect plan repair; signature/exact-semantic/exact-source/generic materializer/adapter/premise feedback preserves generated candidates; missing candidates become typed LLM work; legacy static templates are explicit calibration only",
     "worker_communication": "PARTIAL_IMPROVED: typed tasks, blackboard artifacts, immutable handoffs, and critic feedback exist; theorem closure, primary exact proof body, primary source-semantic definition/proof feedback, and exact-semantic review/verifier feedback now return inside AgentRuntime, but late-derived semantic/promotion and adapter/premise feedback are not yet fully plan-visible",
-    "cross_task_evaluation": "NOT_READY_BUT_DEEPER: fresh experimental-design and multiple-testing V3 lineages both reached generated execution, LLM Formalizer, local Lean feedback, ProofEngineer, and bounded live route planning. Both ended BLOCKED with 48 support subclaims, 8 formal gaps, no target-prover replay candidate, and zero exact source-theorem closure; S14 remains false.",
+    "cross_task_evaluation": "NOT_READY_BUT_DEEPER: fresh experimental-design and multiple-testing V3 lineages both reached generated execution, LLM Formalizer, local Lean feedback, ProofEngineer, and bounded live route planning. Both ended BLOCKED with 48 support subclaims, 8 formal gaps, no target-prover replay candidate, and zero exact source-theorem closure. Their persisted route-planner failures now replay through a bounded same-run AgentRuntime revision with field-scoped feedback-aware fragment reuse, but no fresh live revised packet or exact source theorem has closed; S14 remains false.",
     "completion_gate": "Do not declare the system end-to-end until two unrelated fresh task families each complete Architect, rigorous theory, generated Python/R implementation and simulation, formal RAG, zero-shot Lean/OpenProver generation, compiler/LSP feedback revision, Critic review, and exact source-theorem local Lean/AXLE kernel closure with no acceptance-gating formal gaps."
   },
   "latest_typed_exact_semantic_definition_runtime_migration": {
@@ -200,6 +211,49 @@
     "v2_pre_patch_observation": "both unrelated fresh families were parent-killed at exactly 120 seconds before a structured provider/repair result could return",
     "v3_observation": "both unrelated route-planner children ran for about six minutes under a 240-second per-call and 1230-second outer budget, returned structured contract-rejected manifests with zero provider failures, and exposed the old parent's nonzero-result misattribution",
     "proof_evidence_status": "control-plane liveness evidence only; not theorem proof evidence"
+  },
+  "latest_bounded_route_planner_contract_revision": {
+    "runtime_owner": "FormalizationGapPlanner",
+    "same_owner_agent_runtime_continuation": true,
+    "maximum_same_run_revision_attempts": 1,
+    "structured_contract_rejection_routes_to_revise": true,
+    "provider_failure_or_timeout_routes_to_revise": false,
+    "second_contract_rejection_fails_closed": true,
+    "immutable_source_live_manifest_binding": true,
+    "immutable_feedback_id_binding": true,
+    "immutable_task_family_and_target_prover_binding": true,
+    "immutable_fragment_bundle_path_hash_and_row_binding": true,
+    "tampered_revision_blocks_before_provider_or_prover": true,
+    "accepted_fragment_reuse_rebinds_current_request_and_followup_ids": true,
+    "cross_prover_fragment_reuse_rejected": true,
+    "contract_feedback_field_scoped_reuse_invalidation": true,
+    "reuse_invalidation_basis": "validator error field paths intersect each stage's declared required_output_fields",
+    "runtime_generated_lean": false,
+    "python_lean_grammar_or_tactic_generation": false,
+    "validator_relaxed": false,
+    "synthetic_agent_runtime_trace": [
+      "REVISE",
+      "ACCEPTED"
+    ],
+    "tamper_trace": "REVISE then BLOCKED before second provider call",
+    "budget_exhaustion_trace": [
+      "REVISE",
+      "BLOCKED"
+    ],
+    "persisted_v3_source_task_families": [
+      "experimental_design/design_based_variance_bound",
+      "multiple_testing/multiple_testing_fdr_bh"
+    ],
+    "persisted_v3_initial_replay_summary": "runs/main_worker_s14_v3_contract_revision_replay_20260713/replay_summary.json",
+    "persisted_v3_feedback_aware_replay_summary": "runs/main_worker_s14_v3_contract_revision_feedback_replay_20260713/replay_summary.json",
+    "persisted_v3_feedback_aware_result_per_family": "3 source rows; 24 real assembly errors; residual stage reused; core reuse invalidated; core and final stages regenerated; 3/3 stage contracts valid; full assembly still contract-rejected",
+    "route_planner_module_tests": "241 passed in 5.45s",
+    "runtime_revision_targeted_tests": "5 passed, 1059 deselected",
+    "full_runtime_tests": "1064 passed in 1443.22s",
+    "proof_evidence_status": "AgentRuntime control-flow, contract-feedback, and artifact-lineage evidence only; not theorem proof evidence",
+    "source_theorem_kernel_verified": false,
+    "full_frontier_theorem_proved": false,
+    "s14_satisfied": false
   },
   "previous_mac_pro_foundation_reconciliation_20260712": {
     "snapshot_path": "AI Statistician before 0710 on main MacPro",
@@ -2854,8 +2908,8 @@
   ],
   "current_blockers": [
     "Exact-semantic review/verifier/proof continuation is now typed, but semantic or promotion work discovered after proof-body/postprocessing plus proof-body adapter/premise derivation and later same-run proof-body rechecks still execute in the legacy post-runtime plane.",
-    "Fresh experimental-design and multiple-testing V3 lineages both reached real LLM theory, generated execution, Formalizer, local Lean feedback, ProofEngineer, and bounded live route planning. Both ended BLOCKED; scorecard=95/111, kernel-verified support subclaims=48, formal gaps=8, exact source theorem closure=0, S14=false.",
-    "Both V3 route-planner children returned one response, one validator repair, and 2/3 contract-valid staged fragments with zero provider failures, but no assembled route or target-prover replay. Runtime-owned evidence metadata omission is now normalized generically and nonzero rejected manifests are now preserved; the next integration run must turn remaining contract feedback into a same-run typed REVISE task instead of ending the AgentRuntime lineage.",
+    "Fresh experimental-design and multiple-testing V3 lineages both reached real LLM theory, generated execution, Formalizer, local Lean feedback, ProofEngineer, and bounded live route planning. Both ended BLOCKED; scorecard=95/111, kernel-verified support subclaims=48, formal gaps=8, exact source theorem closure=0, S14=false. The dead-end contract-rejection control path is fixed after this probe, but no fresh live revision run has changed those capability counts.",
+    "Both V3 route-planner children returned one response, one validator repair, and 2/3 contract-valid staged fragments with zero provider failures, but no assembled route or target-prover replay. Their persisted artifacts now execute one typed same-run REVISE continuation with immutable feedback and field-scoped fragment invalidation. Deterministic replay reaches 3/3 stage contracts but intentionally re-emits old invalid route content, so full assembly remains 0; the next blocker is a fresh LLM revision satisfying the full validator, not more envelope exceptions.",
     "Shared Formalizer target-shape and generated-metric policies still infer coverage/probability/ATE contracts from vocabulary. Replace those heuristics with task/theory/RAG-derived typed semantic and evaluation contracts instead of adding keyword exceptions.",
     "The generated scientific sandbox remains limited to math/statistics/random pure Python and has no production R executor; it cannot yet support arbitrary modern statistical algorithms or simulations.",
     "The 18,724-declaration external graph and proof bank are connected to default RAG, but broad natural-language retrieval still has weak ranking/high fanout; retrieval quality must improve through query/context/reranking feedback rather than theorem-specific aliases.",
@@ -2886,8 +2940,8 @@
   "next_main_worker_actions": [
     "migrate source-semantic work discovered after proof-body/postprocessing plus source-theorem promotion into typed Architect-visible AgentRuntime children, chaining into the exact proof-body child when the immutable target/candidate contract is satisfied; remove the labeled legacy_post_runtime_derived_execution fallback",
     "migrate proof-body adapter/premise derivation and later same-run proof-body recheck queues into AgentRuntime; keep generated candidate bytes unchanged and return compiler/LSP diagnostics to the responsible LLM coding agent",
-    "convert a contract-rejected but structured FormalizationGapPlanner child manifest into a bounded same-run typed REVISE continuation carrying validator errors and accepted staged fragments; let Architect or the responsible planner agent revise it without relabeling contract failure as provider failure or restarting from a side harness",
-    "rerun both unrelated S14 task families from fresh state after the same-run planner revision path is integrated; require target-prover replay and exact source-theorem kernel closure rather than support-lemma counts",
+    "run both unrelated S14 task families from fresh state through the new bounded same-run FormalizationGapPlanner revision path; require the responsible LLM to repair feedback-implicated stages and satisfy the complete assembled-route contract without relaxing validators",
+    "after each full-contract-valid revised route, execute target-prover replay and continue the typed ProofEngineer/exact-source-theorem loop; require exact source-theorem kernel closure rather than support-lemma or stage-contract counts",
     "replace coverage/probability/ATE keyword inference in shared Formalizer and generated-metric policy with typed contracts produced by question intake, TheoryDeveloper, evaluator schemas, and source/RAG grounding; validators should check the contract rather than rediscover the domain",
     "build production scientific Python and R coding-agent sandboxes with declared package environments, resource limits, immutable artifacts, executable feedback, and task-supplied metric contracts; keep empirical execution distinct from theorem evidence",
     "improve formal-source retrieval through task-aware LLM query generation, proof-state context, provider provenance, and reranking feedback over the proof bank plus 18,724-declaration graph; do not add theorem-specific alias or Lean-grammar rules",
@@ -3670,6 +3724,11 @@
     ".venv/bin/python -m pytest -q tests/test_exact_semantic_definition_runtime_worker.py # 11 passed after typed exact-semantic migration and persisted-manifest mismatch guard",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'exact_semantic' # 145 passed, 909 deselected after typed exact-semantic migration",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py tests/test_exact_semantic_definition_runtime_worker.py # 1064 passed in 1641.68s after typed exact-semantic migration",
-    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py # 289 passed, 5 skipped, 6 subtests passed in 830.88s after typed exact-semantic migration"
+    "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py # 289 passed, 5 skipped, 6 subtests passed in 830.88s after typed exact-semantic migration",
+    ".venv/bin/python -m pytest -q tests/test_formalization_gap_planner_llm_route_planner.py # 241 passed in 5.45s after bounded contract revision and feedback-aware fragment reuse",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'formalization_gap_planner_runtime_subsystem_executes_live_followup_task or formalization_gap_planner_agent_runtime_executes_bound_contract_revision or formalization_gap_planner_contract_revision_scopes_handoffs_and_memory or formalization_gap_planner_contract_revision_tamper_fails_before_provider or formalization_gap_planner_contract_revision_budget_exhaustion_fails_closed' # 5 passed, 1059 deselected",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # 1064 passed in 1443.22s after final rejected-handoff scoping and runtime-memory preservation patch",
+    "runs/main_worker_s14_v3_contract_revision_replay_20260713/replay_summary.json # both persisted V3 families read 3 prior rows, reused exactly 2 valid fragments, regenerated the rejected final stage, validated 3/3 stage contracts and the manifest, but full assembly remained 0",
+    "runs/main_worker_s14_v3_contract_revision_feedback_replay_20260713/replay_summary.json # each family fed 24 actual assembly errors into typed feedback, invalidated route-core reuse by declared output fields, reused only residual interpretation, regenerated core/final, validated 3/3 stage contracts and the manifest, and retained full assembly=0/non-proof status"
   ]
 }

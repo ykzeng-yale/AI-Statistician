@@ -13376,6 +13376,352 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert "Standalone seed source rows: 2 direct=1 staged-assembled=1" in report
 
 
+def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
+    tmp_path: Path,
+) -> None:
+    input_json = _write_input(tmp_path)
+    valid_payload = _llm_response_payload()
+    valid_payload["search_requests"] = []
+    valid_payload["planner_next_actions"] = []
+    valid_payload["uncertainty_flags"] = []
+    valid_payload["semantic_alignment_risks"] = []
+
+    def stage_fragment(stage_id: str) -> dict[str, object]:
+        if stage_id == "route_core_compaction":
+            return {
+                "informal_knowledge_dag_nodes": deepcopy(
+                    valid_payload["informal_knowledge_dag_nodes"]
+                ),
+                "informal_knowledge_dag_edges": deepcopy(
+                    valid_payload["informal_knowledge_dag_edges"]
+                ),
+                "formal_realization_dag_nodes": deepcopy(
+                    valid_payload["lean_realization_dag_nodes"]
+                ),
+                "formal_realization_dag_edges": deepcopy(
+                    valid_payload["formal_realization_dag_edges"]
+                ),
+                "route_alignment_edges": deepcopy(
+                    valid_payload["route_alignment_edges"]
+                ),
+                "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+            }
+        if stage_id == "residual_batch_interpretation":
+            return {
+                "residual_interpretations": deepcopy(
+                    valid_payload["residual_interpretations"]
+                ),
+                "search_requests": [],
+                "planner_next_actions": [],
+            }
+        return {
+            "formal_attempt_queue": deepcopy(valid_payload["formal_attempt_queue"]),
+            "standalone_route": deepcopy(valid_payload["standalone_route"]),
+            "uncertainty_flags": [],
+            "semantic_alignment_risks": [],
+        }
+
+    class InitialBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def generate(self, request):
+            self.calls.append(request)
+            if len(self.calls) == 1:
+                return GeneratorResponse(
+                    text='{"proof_evidence_boundary":"not theorem proof evidence",',
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={
+                        "generator_only": True,
+                        "tools_available": False,
+                        "provider_stop_reason": "max_tokens",
+                    },
+                )
+            stage_id = str(request.metadata["stage_id"])
+            response = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": ["accepted for bounded revision reuse"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_stop_reason": "end_turn",
+                },
+            )
+
+    initial_backend = InitialBackend()
+    initial_out = tmp_path / "initial"
+    initial = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        initial_out,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=initial_backend,
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=2,
+    )
+    assert initial["n_staged_followup_stage_response_contract_ok"] == 2
+    assert initial["n_staged_followup_assembly_incomplete"] == 1
+    prior_attempts = (
+        initial_out
+        / "formalization_gap_planner_llm_route_planner_staged_followup_stage_attempts.jsonl"
+    )
+    source_followup_id = initial["staged_followup_rows"][0]["staged_followup_id"]
+
+    class RevisionBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def generate(self, request):
+            self.calls.append(request)
+            if len(self.calls) == 1:
+                return GeneratorResponse(
+                    text='{"proof_evidence_boundary":"not theorem proof evidence","revision":',
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={
+                        "generator_only": True,
+                        "tools_available": False,
+                        "provider_stop_reason": "max_tokens",
+                    },
+                )
+            stage_id = str(request.metadata["stage_id"])
+            assert stage_id == "formal_attempt_queue_and_standalone_route"
+            response = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": ["missing stage regenerated"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_stop_reason": "end_turn",
+                },
+            )
+
+    revision_backend = RevisionBackend()
+    revision = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        tmp_path / "revision",
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=revision_backend,
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=1,
+        prior_staged_followup_stage_attempts_jsonl=prior_attempts,
+    )
+
+    assert len(revision_backend.calls) == 2
+    assert revision["n_prior_staged_followup_stage_attempt_rows"] == 2
+    assert revision["n_staged_followup_stage_attempts_reused"] == 2
+    assert revision["n_staged_followup_stage_provider_calls"] == 1
+    assert revision["n_staged_followup_stage_response_contract_ok"] == 3
+    assert revision["n_staged_followup_stage_calls_blocked_by_budget"] == 0
+    assert revision["n_staged_followup_assembled_response_contract_ok"] == 1
+    current_followup_id = revision["staged_followup_rows"][0]["staged_followup_id"]
+    assert current_followup_id != source_followup_id
+    reused_rows = [
+        row
+        for row in revision["staged_followup_stage_attempt_rows"]
+        if row.get("prior_stage_attempt_reused") is True
+    ]
+    assert {row["stage_id"] for row in reused_rows} == {
+        "route_core_compaction",
+        "residual_batch_interpretation",
+    }
+    assert all(row["staged_followup_id"] == current_followup_id for row in reused_rows)
+    assert all(
+        row["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+        and "not theorem proof evidence" in row["proof_evidence_boundary"]
+        for row in reused_rows
+    )
+    assert validate_llm_route_planner_manifest(revision) == []
+
+    feedback_path = tmp_path / "route_contract_feedback.jsonl"
+    feedback_path.write_text(
+        json.dumps(
+            {
+                "route_planner_contract_feedback_id": "feedback:field-scoped",
+                "target_ids": [revision["staged_followup_rows"][0]["route_id"]],
+                "staged_followup_assembly_error_preview": [
+                    "minimal_delta_plan.route_cost must equal selected primitive costs",
+                    "formal_attempt_queue missing selected-route formal DAG nodes",
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class FeedbackAwareRevisionBackend(RevisionBackend):
+        def generate(self, request):
+            if not self.calls:
+                return super().generate(request)
+            self.calls.append(request)
+            stage_id = str(request.metadata["stage_id"])
+            assert stage_id in {
+                "route_core_compaction",
+                "formal_attempt_queue_and_standalone_route",
+            }
+            response = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": [
+                    "regenerated because assembly feedback implicated this stage"
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_stop_reason": "end_turn",
+                },
+            )
+
+    feedback_backend = FeedbackAwareRevisionBackend()
+    feedback_revision = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        tmp_path / "feedback_revision",
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=feedback_backend,
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=2,
+        prior_staged_followup_stage_attempts_jsonl=prior_attempts,
+        formalization_gap_planner_route_contract_feedback_jsonl=feedback_path,
+    )
+    assert len(feedback_backend.calls) == 3
+    assert feedback_revision["n_staged_followup_stage_attempts_reused"] == 1
+    assert feedback_revision[
+        "n_staged_followup_stage_reuse_blocked_by_contract_feedback"
+    ] == 1
+    assert feedback_revision["n_staged_followup_stage_provider_calls"] == 2
+    assert feedback_revision["n_staged_followup_stage_response_contract_ok"] == 3
+    assert feedback_revision[
+        "n_staged_followup_assembled_response_contract_ok"
+    ] == 1
+    feedback_reused_rows = [
+        row
+        for row in feedback_revision["staged_followup_stage_attempt_rows"]
+        if row.get("prior_stage_attempt_reused") is True
+    ]
+    assert [row["stage_id"] for row in feedback_reused_rows] == [
+        "residual_batch_interpretation"
+    ]
+    feedback_blocked_rows = [
+        row
+        for row in feedback_revision["staged_followup_stage_attempt_rows"]
+        if row.get("prior_stage_attempt_reuse_blocked_by_contract_feedback") is True
+    ]
+    assert [row["stage_id"] for row in feedback_blocked_rows] == [
+        "route_core_compaction"
+    ]
+    assert feedback_blocked_rows[0][
+        "prior_stage_attempt_reuse_blocking_output_fields"
+    ] == ["minimal_delta_plan"]
+    assert validate_llm_route_planner_manifest(feedback_revision) == []
+
+    cross_family_path = tmp_path / "cross_family_attempts.jsonl"
+    cross_family_rows = deepcopy(initial["staged_followup_stage_attempt_rows"])
+    for row in cross_family_rows:
+        row["target_prover_family"] = "coq"
+    cross_family_path.write_text(
+        "\n".join(json.dumps(row) for row in cross_family_rows) + "\n",
+        encoding="utf-8",
+    )
+
+    class CrossFamilyBackend(RevisionBackend):
+        def generate(self, request):
+            if not self.calls:
+                return super().generate(request)
+            self.calls.append(request)
+            stage_id = str(request.metadata["stage_id"])
+            response = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": ["generated because cross-family reuse was rejected"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_stop_reason": "end_turn",
+                },
+            )
+
+    cross_family_backend = CrossFamilyBackend()
+    cross_family = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        tmp_path / "cross_family",
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=cross_family_backend,
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=1,
+        prior_staged_followup_stage_attempts_jsonl=cross_family_path,
+    )
+    assert len(cross_family_backend.calls) == 2
+    assert cross_family["n_staged_followup_stage_attempts_reused"] == 0
+    assert cross_family["n_staged_followup_stage_provider_calls"] == 1
+    assert cross_family["n_staged_followup_stage_calls_blocked_by_budget"] == 2
+
+
 def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget_error() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_prompt_budget_staged_assembly"

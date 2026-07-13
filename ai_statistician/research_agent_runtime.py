@@ -112,6 +112,17 @@ from .formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
     export_formalization_gap_planner_llm_route_planner,
 )
+from .formalization_gap_planner_runtime_contract_revision import (
+    CONTRACT_FEEDBACK_STATUS as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS,
+    CONTRACT_REPAIR_BOUNDARY as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY,
+    CONTRACT_REPAIR_QUEUE_STATUS as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS,
+    CONTRACT_REPAIR_TRIGGER as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER,
+    MAX_SAME_RUN_CONTRACT_REVISIONS as RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS,
+    build_contract_revision_artifact as _runtime_formalization_gap_planner_contract_revision_artifact,
+    build_contract_revision_task as _runtime_formalization_gap_planner_contract_revision_task,
+    contract_revision_handoff_errors as _runtime_formalization_gap_planner_contract_revision_handoff_errors,
+    validate_contract_revision_artifact,
+)
 from .formalization_gap_planner_refinement_queue import (
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_STATUS,
@@ -433,21 +444,6 @@ RUNTIME_FORMALIZATION_GAP_PLANNER_TARGET_PROVER_REPLAY_BOUNDARY = (
     "artifacts. These artifacts are feedback-loop diagnostics only; they are "
     "not theorem proof evidence unless a separate target-prover kernel verifier "
     "accepts the intended theorem or bridge lemma."
-)
-RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS = (
-    "RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_NOT_PROOF_EVIDENCE"
-)
-RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER = (
-    "FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
-)
-RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS = (
-    "PENDING_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR"
-)
-RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY = (
-    "Runtime live route-planner contract-repair rows are orchestration feedback "
-    "for rerunning a failed LLM route-planning response with a compact staged "
-    "schema-validation gate. They are not theorem proof evidence and cannot "
-    "close a formal gap without later target-prover replay and kernel evidence."
 )
 FORMAL_VERIFICATION_POLICIES = ("required", "optional", "advisory")
 RECOMMENDED_RESEARCH_PATHS = ("simulation_first", "proof_first", "dual_track")
@@ -26471,6 +26467,100 @@ def _runtime_formalization_gap_planner_followup_architect_context(
     return architect_context
 
 
+def _runtime_formalization_gap_planner_validated_contract_revision_artifact(
+    task: AgentTask,
+    blackboard: BlackboardState,
+    *,
+    question_id: str,
+) -> tuple[dict[str, Any], list[str]]:
+    context = (
+        task.inputs.get("route_planner_contract_revision", {})
+        if isinstance(task.inputs.get("route_planner_contract_revision", {}), Mapping)
+        else {}
+    )
+    environment_feedback = (
+        task.inputs.get("environment_feedback", {})
+        if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    learning_feedback_ids = {
+        str(row.get("route_planner_contract_feedback_id", "") or "")
+        for row in _runtime_formalization_gap_planner_task_runtime_learning_rows(
+            task.inputs
+        )
+        if str(row.get("route_planner_contract_feedback_id", "") or "").strip()
+    }
+    return validate_contract_revision_artifact(
+        context=context,
+        artifacts=blackboard.artifacts,
+        question_id=question_id,
+        environment_feedback=environment_feedback,
+        learning_feedback_ids=learning_feedback_ids,
+    )
+
+
+def _runtime_formalization_gap_planner_contract_revision_binding_failure(
+    task: AgentTask,
+    *,
+    question: OpenResearchQuestion,
+    errors: Sequence[str],
+) -> AgentStepResult:
+    failure_id = (
+        "runtime_formalization_gap_planner_contract_revision_binding_failure:"
+        + stable_hash([task.task_id, question.id, list(errors)])[:20]
+    )
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizationGapPlannerContractRevisionBindingFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "task_id": task.task_id,
+        "question": _question_to_payload(question),
+        "errors": list(errors),
+        "proof_evidence_status": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_FEEDBACK_STATUS
+        ),
+        "proof_evidence_boundary": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+        ),
+    }
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "FormalizationGapPlanner rejected an unbound or modified same-run "
+            "contract-revision artifact before any provider or prover call."
+        ),
+        produced_artifacts={failure_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "formalization_gap_planner_contract_revision_binding_failure"
+                ),
+                summary="; ".join(str(error) for error in errors[:4]),
+                payload={"errors": list(errors)},
+            ),
+        ),
+        evidence_entries=(
+            EvidenceLedgerEntry(
+                evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+                task_id=task.task_id,
+                artifact_id=failure_id,
+                evidence_type=(
+                    "formalization_gap_planner_contract_revision_binding"
+                ),
+                status="CONTRACT_REVISION_BINDING_REJECTED_NOT_PROOF_EVIDENCE",
+                boundary=(
+                    RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY
+                ),
+                payload={"errors": list(errors)},
+            ),
+        ),
+        failure_classification=(
+            "formalization_gap_planner_contract_revision_binding_invalid"
+        ),
+    )
+
+
 def _critic_agenda_has_formalization_gap_planner_handoff(
     agenda: Sequence[Mapping[str, Any]],
 ) -> bool:
@@ -26854,6 +26944,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
         standalone_plan_dir: Path | None,
         component_resource_registry_dir: Path | None,
         route_contract_feedback_jsonl: Path | None,
+        prior_staged_followup_stage_attempts_jsonl: Path | None,
         route_revision_overlay_dir: Path | None,
     ) -> dict[str, Any]:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -26906,6 +26997,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
         _add_path(
             "--formalization-gap-planner-route-contract-feedback-jsonl",
             route_contract_feedback_jsonl,
+        )
+        _add_path(
+            "--prior-staged-followup-stage-attempts-jsonl",
+            prior_staged_followup_stage_attempts_jsonl,
         )
         _add_path(
             "--formalization-gap-planner-route-revision-overlay-dir",
@@ -27487,6 +27582,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 handoff,
                 "route_contract_feedback_jsonl",
             )
+            prior_staged_followup_stage_attempts_jsonl = (
+                self._optional_handoff_path(
+                    handoff,
+                    "prior_staged_followup_stage_attempts_jsonl",
+                )
+            )
             route_revision_overlay_dir = self._optional_handoff_path(
                 handoff,
                 "route_revision_overlay_dir",
@@ -27535,6 +27636,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         route_contract_feedback_jsonl=(
                             route_contract_feedback_jsonl
                         ),
+                        prior_staged_followup_stage_attempts_jsonl=(
+                            prior_staged_followup_stage_attempts_jsonl
+                        ),
                         route_revision_overlay_dir=route_revision_overlay_dir,
                     )
                 else:
@@ -27568,6 +27672,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         ),
                         formalization_gap_planner_route_contract_feedback_jsonl=(
                             route_contract_feedback_jsonl
+                        ),
+                        prior_staged_followup_stage_attempts_jsonl=(
+                            prior_staged_followup_stage_attempts_jsonl
                         ),
                         formalization_gap_planner_route_revision_overlay_dir=(
                             route_revision_overlay_dir
@@ -27724,6 +27831,34 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_staged_followup_stage_response_contract_ok": int(
                             payload.get(
                                 "n_staged_followup_stage_response_contract_ok",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_prior_staged_followup_stage_attempt_rows": int(
+                            payload.get(
+                                "n_prior_staged_followup_stage_attempt_rows",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_stage_attempts_reused": int(
+                            payload.get(
+                                "n_staged_followup_stage_attempts_reused",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_stage_reuse_blocked_by_contract_feedback": int(
+                            payload.get(
+                                "n_staged_followup_stage_reuse_blocked_by_contract_feedback",
+                                0,
+                            )
+                            or 0
+                        ),
+                        "n_staged_followup_stage_provider_calls": int(
+                            payload.get(
+                                "n_staged_followup_stage_provider_calls",
                                 0,
                             )
                             or 0
@@ -28061,6 +28196,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "staged_followup_rows": [],
                         "n_staged_followup_stage_attempt_rows": 0,
                         "n_staged_followup_stage_response_contract_ok": 0,
+                        "n_prior_staged_followup_stage_attempt_rows": 0,
+                        "n_staged_followup_stage_attempts_reused": 0,
+                        "n_staged_followup_stage_reuse_blocked_by_contract_feedback": 0,
+                        "n_staged_followup_stage_provider_calls": 0,
                         "n_staged_followup_stage_provider_failures": 0,
                         "n_staged_followup_stage_calls_blocked_by_budget": 0,
                         "staged_followup_stage_attempt_rows": [],
@@ -28176,6 +28315,34 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     )
                     or 0
                 )
+                for row in rows
+            ),
+            "prior_staged_followup_stage_attempt_rows": sum(
+                int(
+                    row.get(
+                        "n_prior_staged_followup_stage_attempt_rows",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_stage_attempts_reused": sum(
+                int(row.get("n_staged_followup_stage_attempts_reused", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_stage_reuse_blocked_by_contract_feedback": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_stage_reuse_blocked_by_contract_feedback",
+                        0,
+                    )
+                    or 0
+                )
+                for row in rows
+            ),
+            "staged_followup_stage_provider_calls": sum(
+                int(row.get("n_staged_followup_stage_provider_calls", 0) or 0)
                 for row in rows
             ),
             "staged_followup_stage_provider_failures": sum(
@@ -28605,6 +28772,19 @@ class FormalizationGapPlannerRuntimeSubsystem:
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
+        contract_revision_artifact, contract_revision_binding_errors = (
+            _runtime_formalization_gap_planner_validated_contract_revision_artifact(
+                task,
+                blackboard,
+                question_id=question.id,
+            )
+        )
+        if contract_revision_binding_errors:
+            return _runtime_formalization_gap_planner_contract_revision_binding_failure(
+                task,
+                question=question,
+                errors=contract_revision_binding_errors,
+            )
         environment_feedback = (
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -28676,6 +28856,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 bridge_rows,
                 runtime_out_dir=planner_root,
                 runtime_learning_rows=runtime_learning_rows,
+                contract_revision_artifact=contract_revision_artifact,
             )
             if architect_control_seed:
                 handoff_rows = [
@@ -28693,6 +28874,18 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     task,
                     handoff_rows,
                     environment_feedback,
+                )
+            contract_revision_handoff_errors = (
+                _runtime_formalization_gap_planner_contract_revision_handoff_errors(
+                    contract_revision_artifact,
+                    handoff_rows,
+                )
+            )
+            if contract_revision_handoff_errors:
+                return _runtime_formalization_gap_planner_contract_revision_binding_failure(
+                    task,
+                    question=question,
+                    errors=contract_revision_handoff_errors,
                 )
             _write_jsonl(handoffs_path, handoff_rows)
             audit_payload = dict(
@@ -28814,6 +29007,100 @@ class FormalizationGapPlannerRuntimeSubsystem:
             or live_route_planner_route_revision_feedback_recorded
             or live_route_planner_manifest.get("feedback_loop_recorded", False)
         )
+        live_route_planner_contract_feedback_rows = (
+            _formalization_gap_planner_live_route_planner_contract_feedback_learning_rows(
+                live_route_planner_manifest
+            )
+            if live_route_planner_manifest
+            else []
+        )
+        current_contract_revision_attempt = int(
+            contract_revision_artifact.get("revision_attempt", 0) or 0
+        )
+        contract_revision_task: AgentTask | None = None
+        contract_revision_artifact_for_step: dict[str, Any] = {}
+        if live_route_planner_contract_feedback_rows:
+            for feedback_row in live_route_planner_contract_feedback_rows:
+                learning_row_id = str(
+                    feedback_row.get("runtime_learning_row_id", "") or ""
+                )
+                if learning_row_id:
+                    produced_artifacts[learning_row_id] = dict(feedback_row)
+        if (
+            live_route_planner_contract_feedback_rows
+            and current_contract_revision_attempt
+            < RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS
+        ):
+            next_contract_revision_attempt = current_contract_revision_attempt + 1
+            (
+                contract_revision_artifact_for_step,
+                live_route_planner_contract_feedback_rows,
+            ) = _runtime_formalization_gap_planner_contract_revision_artifact(
+                schema_version=RUNTIME_SCHEMA_VERSION,
+                task_id=task.task_id,
+                live_manifest=live_route_planner_manifest,
+                contract_feedback_rows=live_route_planner_contract_feedback_rows,
+                out_dir=planner_root,
+                revision_attempt=next_contract_revision_attempt,
+            )
+            revision_artifact_id = str(
+                contract_revision_artifact_for_step.get("revision_artifact_id", "")
+                or ""
+            )
+            produced_artifacts[revision_artifact_id] = (
+                contract_revision_artifact_for_step
+            )
+            for feedback_row in live_route_planner_contract_feedback_rows:
+                learning_row_id = str(
+                    feedback_row.get("runtime_learning_row_id", "") or ""
+                )
+                if learning_row_id:
+                    produced_artifacts[learning_row_id] = dict(feedback_row)
+            revision_learning_rows = [
+                *live_route_planner_contract_feedback_rows,
+                *runtime_learning_rows,
+            ]
+            revision_architect_context = (
+                _runtime_formalization_gap_planner_followup_architect_context(
+                    task.inputs,
+                    revision_learning_rows,
+                )
+            )
+            contract_revision_task = (
+                _runtime_formalization_gap_planner_contract_revision_task(
+                    current_task=task,
+                    question_id=question.id,
+                    question_payload=_question_to_payload(question),
+                    revision_artifact=contract_revision_artifact_for_step,
+                    runtime_learning_rows=revision_learning_rows,
+                    architect_context=revision_architect_context,
+                    base_environment_feedback=environment_feedback,
+                    settings={
+                        "max_handoffs": self._live_route_planner_max_handoffs(task),
+                        "max_route_requests_per_handoff": (
+                            self._live_route_planner_max_route_requests_per_handoff(
+                                task
+                            )
+                        ),
+                        "provider": self._live_route_planner_provider(task),
+                        "model": self._live_route_planner_model(task),
+                        "model_tier": self._live_route_planner_model_tier(task),
+                        "max_tokens": self._live_route_planner_max_tokens(task),
+                        "temperature": self._live_route_planner_temperature(task),
+                        "max_repair_attempts": (
+                            self._live_route_planner_max_repair_attempts(task)
+                        ),
+                        "max_staged_followup_stage_calls": (
+                            self._live_route_planner_max_staged_followup_stage_calls(
+                                task
+                            )
+                        ),
+                        "timeout_seconds": (
+                            self._live_route_planner_timeout_seconds(task)
+                        ),
+                    },
+                )
+            )
         live_route_planner_followup_required = (
             all_ok
             and not invoke_live_route_planner
@@ -29053,6 +29340,34 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 if live_route_planner_followup_task is not None
                 else ""
             ),
+            "live_route_planner_contract_feedback_rows": len(
+                live_route_planner_contract_feedback_rows
+            ),
+            "live_route_planner_contract_revision_required": bool(
+                live_route_planner_contract_feedback_rows
+            ),
+            "live_route_planner_contract_revision_scheduled": (
+                contract_revision_task is not None
+            ),
+            "live_route_planner_contract_revision_task_id": (
+                contract_revision_task.task_id
+                if contract_revision_task is not None
+                else ""
+            ),
+            "live_route_planner_contract_revision_attempt": int(
+                contract_revision_artifact_for_step.get("revision_attempt", 0) or 0
+            ),
+            "live_route_planner_contract_revision_artifact_id": str(
+                contract_revision_artifact_for_step.get("revision_artifact_id", "")
+                or ""
+            ),
+            "live_route_planner_contract_revision_reusable_stage_attempts": int(
+                contract_revision_artifact_for_step.get(
+                    "n_accepted_staged_followup_stage_attempts",
+                    0,
+                )
+                or 0
+            ),
             "live_route_planner_max_handoffs": int(
                 self.runtime_config.formalization_gap_planner_live_max_handoffs
             ),
@@ -29108,7 +29423,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             artifact_id=manifest_id,
             evidence_type="formalization_gap_planner_runtime_execution",
             status=(
-                "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
+                "LIVE_ROUTE_PLANNER_CONTRACT_REVISION_SCHEDULED_NOT_PROOF_EVIDENCE"
+                if contract_revision_task is not None
+                else "LIVE_ROUTE_PLANNER_CONTRACT_REVISION_EXHAUSTED_NOT_PROOF_EVIDENCE"
+                if live_route_planner_contract_feedback_rows
+                else "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
                 if invoke_live_route_planner
                 and live_route_planner_all_responses_recorded
                 else "LIVE_ROUTE_PLANNER_ROUTE_REVISION_FEEDBACK_RECORDED_NOT_PROOF_EVIDENCE"
@@ -29142,6 +29461,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "live_route_planner_feedback_loop_recorded": (
                     live_route_planner_feedback_loop_recorded
                 ),
+                "live_route_planner_contract_feedback_rows": len(
+                    live_route_planner_contract_feedback_rows
+                ),
+                "live_route_planner_contract_revision_scheduled": (
+                    contract_revision_task is not None
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
@@ -29163,7 +29488,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "target_prover_replay_ok="
                 f"{live_counts.get('target_prover_replay_all_ok', 0)} "
                 "route_revision_feedback="
-                f"{int(live_route_planner_route_revision_feedback_recorded)}"
+                f"{int(live_route_planner_route_revision_feedback_recorded)} "
+                "contract_revision_scheduled="
+                f"{int(contract_revision_task is not None)}"
             ),
             payload={
                 **manifest["counts"],
@@ -29181,16 +29508,45 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "live_route_planner_feedback_loop_recorded": (
                     live_route_planner_feedback_loop_recorded
                 ),
+                "live_route_planner_contract_feedback_rows": len(
+                    live_route_planner_contract_feedback_rows
+                ),
+                "live_route_planner_contract_revision_scheduled": (
+                    contract_revision_task is not None
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
             },
         )
         if invoke_live_route_planner:
-            status = (
-                "ACCEPTED" if live_route_planner_feedback_loop_recorded else "BLOCKED"
-            )
-            rationale = (
+            if contract_revision_task is not None:
+                status = "REVISE"
+                rationale = (
+                    "FormalizationGapPlanner converted the structured contract "
+                    "rejection into one source-bound same-run revision carrying "
+                    "validator feedback and reusable accepted staged fragments."
+                )
+                failure_classification = (
+                    "formalization_gap_planner_live_route_planner_contract_repair_requested"
+                )
+            elif live_route_planner_contract_feedback_rows:
+                status = "BLOCKED"
+                rationale = (
+                    "FormalizationGapPlanner preserved the structured contract "
+                    "rejection, but the bounded same-run revision budget is "
+                    "exhausted; no invalid route packet was promoted."
+                )
+                failure_classification = (
+                    "formalization_gap_planner_live_route_planner_contract_repair_exhausted"
+                )
+            else:
+                status = (
+                    "ACCEPTED"
+                    if live_route_planner_feedback_loop_recorded
+                    else "BLOCKED"
+                )
+                rationale = (
                 "FormalizationGapPlanner invoked the bounded live route planner "
                 "and recorded contract-valid LLM route-planner responses as "
                 "non-proof planning evidence."
@@ -29203,12 +29559,12 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 else "FormalizationGapPlanner could not record contract-valid "
                 "bounded live route-planner responses or target-prover replay "
                 "route-revision feedback for the staged handoffs."
-            )
-            failure_classification = (
-                ""
-                if live_route_planner_feedback_loop_recorded
-                else "formalization_gap_planner_live_route_planner_blocked"
-            )
+                )
+                failure_classification = (
+                    ""
+                    if live_route_planner_feedback_loop_recorded
+                    else "formalization_gap_planner_live_route_planner_blocked"
+                )
         elif live_route_planner_followup_required:
             status = "REVISE"
             rationale = (
@@ -29238,7 +29594,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             observations=(observation,),
             tool_calls=tuple(tool_calls),
             evidence_entries=(evidence,),
-            next_task=live_route_planner_followup_task,
+            next_task=contract_revision_task or live_route_planner_followup_task,
             failure_classification=failure_classification,
         )
 
@@ -88302,6 +88658,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
     *,
     runtime_out_dir: Path,
     runtime_learning_rows: Sequence[Mapping[str, Any]] = (),
+    contract_revision_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     handoff_root = runtime_out_dir / "runtime_formalization_gap_planner_handoffs"
@@ -88349,6 +88706,49 @@ def _runtime_formalization_gap_planner_handoff_rows(
                 runtime_learning_rows,
             )
         )
+        revision_bundles = (
+            contract_revision_artifact.get("reuse_bundles", [])
+            if isinstance(contract_revision_artifact, Mapping)
+            else []
+        )
+        matching_revision_bundles = [
+            dict(bundle)
+            for bundle in revision_bundles or []
+            if isinstance(bundle, Mapping)
+            and str(bundle.get("bridge_id", "") or "") == bridge_id
+        ]
+        prior_staged_followup_stage_attempts_jsonl_text = ""
+        prior_staged_followup_stage_attempts_hash = ""
+        n_prior_staged_followup_stage_attempts = 0
+        prior_staged_followup_stage_attempts_cli_arg = ""
+        if len(matching_revision_bundles) == 1:
+            revision_bundle = matching_revision_bundles[0]
+            prior_staged_followup_stage_attempts_jsonl_text = str(
+                revision_bundle.get(
+                    "accepted_staged_followup_stage_attempts_jsonl",
+                    "",
+                )
+                or ""
+            )
+            prior_staged_followup_stage_attempts_hash = str(
+                revision_bundle.get(
+                    "accepted_staged_followup_stage_attempts_hash",
+                    "",
+                )
+                or ""
+            )
+            n_prior_staged_followup_stage_attempts = int(
+                revision_bundle.get(
+                    "n_accepted_staged_followup_stage_attempts",
+                    0,
+                )
+                or 0
+            )
+            if prior_staged_followup_stage_attempts_jsonl_text:
+                prior_staged_followup_stage_attempts_cli_arg = (
+                    "--prior-staged-followup-stage-attempts-jsonl "
+                    f"{shlex.quote(prior_staged_followup_stage_attempts_jsonl_text)} "
+                )
         route_revision_overlay_rows = (
             _runtime_formalization_gap_planner_route_revision_overlay_rows_for_bridge(
                 bridge,
@@ -88483,6 +88883,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
             f"{route_contract_feedback_cli_arg}"
+            f"{prior_staged_followup_stage_attempts_cli_arg}"
             f"{route_revision_overlay_cli_arg}"
             f"--out {shlex.quote(str(llm_prompt_out))}"
         )
@@ -88497,6 +88898,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
             f"{route_contract_feedback_cli_arg}"
+            f"{prior_staged_followup_stage_attempts_cli_arg}"
             f"{route_revision_overlay_cli_arg}"
             f"--invoke-provider --out {shlex.quote(str(llm_live_out))}"
         )
@@ -88567,6 +88969,15 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "component_resource_registry_cli": component_resource_registry_cli,
             "route_contract_feedback_jsonl": route_contract_feedback_jsonl_text,
             "n_route_contract_feedback_rows": len(route_contract_feedback_rows),
+            "prior_staged_followup_stage_attempts_jsonl": (
+                prior_staged_followup_stage_attempts_jsonl_text
+            ),
+            "prior_staged_followup_stage_attempts_hash": (
+                prior_staged_followup_stage_attempts_hash
+            ),
+            "n_prior_staged_followup_stage_attempts": (
+                n_prior_staged_followup_stage_attempts
+            ),
             "route_revision_overlay_dir": route_revision_overlay_dir_text,
             "route_revision_overlay_manifest": route_revision_overlay_manifest_text,
             "n_route_revision_overlay_rows": route_revision_overlay_row_count,
@@ -88611,6 +89022,15 @@ def _runtime_formalization_gap_planner_handoff_rows(
         bridge["component_resource_registry_cli"] = component_resource_registry_cli
         bridge["route_contract_feedback_jsonl"] = route_contract_feedback_jsonl_text
         bridge["n_route_contract_feedback_rows"] = len(route_contract_feedback_rows)
+        bridge["prior_staged_followup_stage_attempts_jsonl"] = (
+            prior_staged_followup_stage_attempts_jsonl_text
+        )
+        bridge["prior_staged_followup_stage_attempts_hash"] = (
+            prior_staged_followup_stage_attempts_hash
+        )
+        bridge["n_prior_staged_followup_stage_attempts"] = (
+            n_prior_staged_followup_stage_attempts
+        )
         bridge["route_revision_overlay_dir"] = route_revision_overlay_dir_text
         bridge["route_revision_overlay_manifest"] = route_revision_overlay_manifest_text
         bridge["n_route_revision_overlay_rows"] = route_revision_overlay_row_count
