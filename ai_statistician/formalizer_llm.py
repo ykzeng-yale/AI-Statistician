@@ -9190,7 +9190,7 @@ def _compact_formalizer_environment_feedback(
             feedback.get("parent_formalizer_proof_state_feedback", {})
             or input_summary.get("parent_formalizer_proof_state_feedback", {})
         ),
-        "candidate_diagnostics": _compact_value(
+        "candidate_diagnostics": _compact_formalizer_candidate_diagnostics(
             feedback.get("candidate_diagnostics", [])
             or input_summary.get("candidate_diagnostics", [])
         ),
@@ -9364,6 +9364,50 @@ def _compact_formalizer_environment_feedback(
             source_theorem_proof_body_adapter_feedback
         )
     return payload
+
+
+def _compact_formalizer_candidate_diagnostics(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list | tuple):
+        return []
+    return _compact_rows(
+        [row for row in value if isinstance(row, Mapping)],
+        keys=(
+            "candidate_id",
+            "candidate_kind",
+            "source_field",
+            "artifact_path",
+            "target_lean_file",
+            "target_lean_line",
+            "target_lean_column",
+            "target_lean_declaration",
+            "source_hash",
+            "target_ids",
+            "target_theorem_goal_ids",
+            "target_theorem_name",
+            "repair_target_identity_required",
+            "repair_target_identity_binding_status",
+            "repair_target_identity_binding_id",
+            "repair_parent_candidate_id",
+            "expected_target_lean_declaration",
+            "actual_target_lean_declaration",
+            "target_identity_mismatch_not_source_theorem",
+            "target_identity_unbound_not_source_theorem",
+            "target_identity_errors",
+            "lean_source_excerpt",
+            "precheck_status",
+            "precheck_errors",
+            "local_lean_attempted",
+            "local_lean_compiled",
+            "local_lean_exit_status",
+            "local_lean_stdout_excerpt",
+            "local_lean_stderr_excerpt",
+            "local_lean_command",
+            "local_lean_project",
+            "local_lean_timeout",
+            "local_lean_skipped_reason",
+        ),
+        limit=3,
+    )
 
 
 def _theory_trace_downstream_alignment_feedback(
@@ -11273,6 +11317,7 @@ def _compact_value(value: Any) -> Any:
             "semantic_alignment_blockers",
             "external_proof_search_result",
             "proof_search_result_use",
+            "repair_target_identity_contract",
             "feedback_kind",
             "contract_kind",
             "required_output_key",

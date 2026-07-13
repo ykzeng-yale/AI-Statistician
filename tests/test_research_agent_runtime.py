@@ -25868,6 +25868,263 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     )
 
 
+def test_formalizer_repair_compiled_helper_cannot_close_parent_source_theorem(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    source_goal_id = "source_goal:variance_bound"
+    parent_declaration = "variance_bound_source_theorem"
+    task = AgentTask(
+        task_id="formalize-lean-repair:variance_bound:identity_drift",
+        owner_subsystem="ProofEngineer",
+        objective="repair the exact parent source theorem",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "proofengineer_repair_context": {
+                    "candidate_rerun_specs": [
+                        {
+                            "candidate_id": "variance_bound_parent",
+                            "source_hash": "parent-source-hash",
+                            "artifact_path": "runs/parent/variance_bound.lean",
+                            "target_lean_declaration": parent_declaration,
+                            "target_ids": [source_goal_id],
+                            "target_theorem_goal_ids": [source_goal_id],
+                            "target_theorem_name": source_goal_id,
+                        }
+                    ]
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:compiled_helper_identity_drift",
+            "formal_targets": [
+                {
+                    "id": "variance_bound_parent_repaired",
+                    "lean_statement_sketch": (
+                        "theorem variance_term_nonnegative "
+                        "(x : Nat) : 0 <= x := by\n"
+                        "  exact Nat.zero_le x\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "variance_term_nonnegative",
+                        "source_theorem_goal_id": source_goal_id,
+                    },
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["local_lean_compiled"] is True
+    assert row["candidate_kernel_verified"] is True
+    assert row["repair_parent_candidate_id"] == "variance_bound_parent"
+    assert row["repair_parent_source_hash"] == "parent-source-hash"
+    assert row["expected_target_lean_declaration"] == parent_declaration
+    assert row["actual_target_lean_declaration"] == "variance_term_nonnegative"
+    assert row["target_identity_mismatch_not_source_theorem"] is True
+    assert row["target_identity_unbound_not_source_theorem"] is False
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert row["source_theorem_proof_evidence_status"] == (
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
+    )
+    assert manifest["n_local_lean_compiled"] == 1
+    assert manifest["n_local_lean_compiled_target_identity_drift_candidates"] == 1
+    assert manifest["n_local_lean_compiled_source_theorem_candidates"] == 0
+    assert manifest["source_theorem_kernel_verified"] is False
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+    assert feedback is not None
+    assert feedback["failure_classification"] == (
+        "formalizer_lean_candidate_target_identity_mismatch"
+    )
+    assert feedback["proofengineer_repair_context"][
+        "repair_target_identity_contract"
+    ]["bindings"][0]["expected_target_lean_declaration"] == parent_declaration
+
+    learning_row = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": {manifest["manifest_id"]: manifest}}}]
+    )[0]
+    assert learning_row["candidate_kernel_verified"] is True
+    assert learning_row["target_identity_mismatch_not_source_theorem"] is True
+    assert learning_row["source_theorem_candidate_evidence_eligible"] is False
+    assert learning_row["memory_status"] == (
+        "REPAIR_TARGET_IDENTITY_DRIFT_KERNEL_VERIFIED_CANDIDATE_ONLY_"
+        "NOT_SOURCE_THEOREM"
+    )
+
+
+def test_formalizer_repair_preserving_parent_declaration_remains_candidate_eligible(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    parent_declaration = "variance_bound_source_theorem"
+    source_goal_id = "source_goal:variance_bound"
+    task = AgentTask(
+        task_id="formalize-lean-repair:variance_bound:identity_preserved",
+        owner_subsystem="ProofEngineer",
+        objective="repair the exact parent source theorem",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "proofengineer_repair_context": {
+                    "candidate_rerun_specs": [
+                        {
+                            "candidate_id": "variance_bound_parent",
+                            "source_hash": "parent-source-hash",
+                            "artifact_path": "runs/parent/variance_bound.lean",
+                            "target_lean_declaration": parent_declaration,
+                            "target_ids": [source_goal_id],
+                            "target_theorem_goal_ids": [source_goal_id],
+                        }
+                    ]
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:identity_preserved",
+            "formal_targets": [
+                {
+                    "id": "variance_bound_parent_repaired",
+                    "lean_statement_sketch": (
+                        f"theorem {parent_declaration} "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": parent_declaration,
+                        "source_theorem_goal_id": source_goal_id,
+                    },
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["local_lean_compiled"] is True
+    assert row["target_identity_matches_expected"] is True
+    assert row["target_identity_mismatch_not_source_theorem"] is False
+    assert row["target_identity_unbound_not_source_theorem"] is False
+    assert row["repair_target_identity_required"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is True
+    assert manifest["n_local_lean_compiled_source_theorem_candidates"] == 1
+
+
+def test_runtime_stale_repair_materialization_without_parent_binding_fails_closed() -> None:
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:stale_repair",
+        "task_id": "formalize-lean-repair:variance_bound:stale",
+        "candidate_rows": [
+            {
+                "candidate_id": "compiled_helper",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "target_lean_declaration": "compiled_helper",
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "source_theorem_target_known": True,
+                "source_theorem_candidate_evidence_eligible": True,
+            }
+        ],
+    }
+
+    normalized = runtime_module._normalize_runtime_blackboard_artifacts(
+        {manifest["manifest_id"]: manifest}
+    )[manifest["manifest_id"]]
+    row = normalized["candidate_rows"][0]
+
+    assert row["candidate_kernel_verified"] is True
+    assert row["repair_target_identity_required"] is True
+    assert row["target_identity_unbound_not_source_theorem"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert normalized["n_local_lean_compiled_source_theorem_candidates"] == 0
+    assert normalized["source_theorem_kernel_verified"] is False
+    feedback = _formalizer_lean_candidate_repair_feedback(normalized)
+    assert feedback is not None
+    assert feedback["proofengineer_repair_context"][
+        "repair_target_identity_contract"
+    ]["bindings"] == []
+
+
+def test_runtime_repair_candidate_cannot_self_report_parent_identity_binding() -> None:
+    parent_declaration = "variance_bound_source_theorem"
+    helper_declaration = "compiled_helper"
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
+        "manifest_id": "formalizer_lean_candidate_materialization:self_reported",
+        "task_id": "formalize-lean-repair:variance_bound:self_reported",
+        "repair_target_identity_contract": {
+            "required": True,
+            "bindings": [
+                {
+                    "binding_id": "repair_target_identity_binding:parent",
+                    "parent_candidate_id": "variance_bound_parent",
+                    "parent_source_hash": "parent-source-hash",
+                    "expected_target_lean_declaration": parent_declaration,
+                    "expected_target_ids": ["source_goal:variance_bound"],
+                    "expected_target_theorem_goal_ids": [
+                        "source_goal:variance_bound"
+                    ],
+                }
+            ],
+        },
+        "candidate_rows": [
+            {
+                "candidate_id": "compiled_helper",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "target_lean_declaration": helper_declaration,
+                "actual_target_lean_declaration": helper_declaration,
+                "expected_target_lean_declaration": helper_declaration,
+                "repair_target_identity_binding_status": "BOUND",
+                "target_identity_matches_expected": True,
+                "target_identity_mismatch_not_source_theorem": False,
+                "target_identity_unbound_not_source_theorem": False,
+                "local_lean_attempted": True,
+                "local_lean_compiled": True,
+                "source_theorem_target_known": True,
+                "source_theorem_candidate_evidence_eligible": True,
+            }
+        ],
+    }
+
+    normalized = runtime_module._normalize_runtime_blackboard_artifacts(
+        {manifest["manifest_id"]: manifest}
+    )[manifest["manifest_id"]]
+    row = normalized["candidate_rows"][0]
+
+    assert row["candidate_kernel_verified"] is True
+    assert row["repair_target_identity_binding_status"] == "BOUND"
+    assert row["expected_target_lean_declaration"] == parent_declaration
+    assert row["actual_target_lean_declaration"] == helper_declaration
+    assert row["target_identity_matches_expected"] is False
+    assert row["target_identity_mismatch_not_source_theorem"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert normalized["n_local_lean_compiled_source_theorem_candidates"] == 0
+    assert normalized["source_theorem_kernel_verified"] is False
+
+
 def test_formalizer_source_to_bridge_candidate_is_support_not_source_theorem(
     tmp_path: Path,
 ) -> None:
@@ -26101,12 +26358,14 @@ def test_runtime_normalizes_string_false_formalizer_candidate_kernel_flags() -> 
     assert row["local_lean_compiled_observed"] is False
     assert row["support_candidate_not_source_theorem"] is False
     assert row["diagnostic_helper_not_source_theorem"] is False
-    assert row["source_theorem_candidate_evidence_eligible"] is True
+    assert row["repair_target_identity_required"] is True
+    assert row["target_identity_unbound_not_source_theorem"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is False
     assert row["proof_evidence_status"] == (
         "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
     )
     assert row["source_theorem_proof_evidence_status"] == (
-        "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
     )
     assert normalized["n_local_lean_checked"] == 0
     assert normalized["n_local_lean_compiled"] == 0
@@ -26125,9 +26384,10 @@ def test_runtime_normalizes_string_false_formalizer_candidate_kernel_flags() -> 
     assert learning_rows[0]["local_lean_compiled"] is False
     assert learning_rows[0]["kernel_verified"] is False
     assert learning_rows[0]["candidate_kernel_verified"] is False
-    assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is True
+    assert learning_rows[0]["target_identity_unbound_not_source_theorem"] is True
+    assert learning_rows[0]["source_theorem_candidate_evidence_eligible"] is False
     assert learning_rows[0]["source_theorem_proof_evidence_status"] == (
-        "NOT_KERNEL_VERIFIED_SOURCE_THEOREM_PROOF_EVIDENCE"
+        "NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
     )
     assert learning_rows[0]["memory_status"] == (
         "FORMALIZER_CANDIDATE_NEEDS_REPAIR_OR_KERNEL_CHECK"

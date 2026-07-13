@@ -149,6 +149,11 @@ from .formalizer_repair_policy import (
     formalizer_validation_repair_directives,
     formalizer_validation_repair_policy,
 )
+from .formalizer_candidate_identity import (
+    build_repair_target_identity_contract,
+    evaluate_repair_target_identity,
+    repair_target_identity_binding_from_diagnostic,
+)
 from .llm_json_repair import PacketValidationError
 from .model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
@@ -21521,6 +21526,13 @@ def _materialize_formalizer_lean_candidate_artifacts(
         if isinstance(environment_feedback.get("local_lean_repair_contract", {}), Mapping)
         else {}
     )
+    repair_target_identity_contract = build_repair_target_identity_contract(
+        task_id=task.task_id,
+        owner_subsystem=task.owner_subsystem,
+        environment_feedback=environment_feedback,
+        schema_version=RUNTIME_SCHEMA_VERSION,
+        proof_evidence_boundary=KERNEL_PROOF_BOUNDARY,
+    )
     manifest_id = (
         "formalizer_lean_candidate_materialization:"
         + stable_hash([task.task_id, proposal_packet.get("packet_id", ""), candidate_sources])[:20]
@@ -21622,6 +21634,14 @@ def _materialize_formalizer_lean_candidate_artifacts(
         target_context = _formalizer_lean_candidate_target_context(
             candidate_target_source
         )
+        repair_target_identity = evaluate_repair_target_identity(
+            contract=repair_target_identity_contract,
+            candidate_id=candidate_id,
+            actual_target_lean_declaration=str(
+                target_location.get("target_lean_declaration", "") or ""
+            ),
+            target_context=target_context,
+        )
         if live_proof_state_request:
             live_proof_state_request = dict(live_proof_state_request)
             live_proof_state_request["target_ids"] = list(
@@ -21638,9 +21658,20 @@ def _materialize_formalizer_lean_candidate_artifacts(
             _formalizer_candidate_support_not_source_theorem(candidate_kind)
         )
         diagnostic_helper_not_source_theorem = source_theorem_target_known is False
+        target_identity_not_source_theorem = bool(
+            repair_target_identity.get(
+                "target_identity_mismatch_not_source_theorem",
+                False,
+            )
+            or repair_target_identity.get(
+                "target_identity_unbound_not_source_theorem",
+                False,
+            )
+        )
         source_theorem_candidate_evidence_eligible = (
             not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
+            and not target_identity_not_source_theorem
         )
         local_lean_compiled = _bool_like(
             local_lean_result.get("local_lean_compiled", False)
@@ -21653,6 +21684,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
             support_candidate_not_source_theorem=(
                 support_candidate_not_source_theorem
             ),
+            target_identity_not_source_theorem=target_identity_not_source_theorem,
         )
         rows.append(
             {
@@ -21741,6 +21773,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "source_theorem_candidate_evidence_eligible": (
                     source_theorem_candidate_evidence_eligible
                 ),
+                **repair_target_identity,
                 "proof_evidence_status": proof_evidence_status,
                 "source_theorem_proof_evidence_status": (
                     _formalizer_candidate_source_theorem_proof_evidence_status(
@@ -21757,6 +21790,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
                         ),
                         support_candidate_not_source_theorem=(
                             support_candidate_not_source_theorem
+                        ),
+                        target_identity_not_source_theorem=(
+                            target_identity_not_source_theorem
                         ),
                     )
                 ),
@@ -21811,7 +21847,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
         "manifest_path": str(manifest_path or ""),
         "question": question_payload,
         "task_id": task.task_id,
+        "task_owner_subsystem": task.owner_subsystem,
         "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "") or ""),
+        "repair_target_identity_contract": repair_target_identity_contract,
         "candidate_rows": rows,
     }
     learning_rows = _formalizer_lean_candidate_materialization_learning_rows(
@@ -21824,7 +21862,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question": question_payload,
         "task_id": task.task_id,
+        "task_owner_subsystem": task.owner_subsystem,
         "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "") or ""),
+        "repair_target_identity_contract": repair_target_identity_contract,
         "candidate_rows": rows,
         "learning_rows": learning_rows,
         "n_learning_rows": len(learning_rows),
@@ -21950,6 +21990,7 @@ def _formalizer_candidate_proof_evidence_status(
     local_lean_compiled: bool,
     diagnostic_helper_not_source_theorem: bool,
     support_candidate_not_source_theorem: bool = False,
+    target_identity_not_source_theorem: bool = False,
 ) -> str:
     if not local_lean_compiled:
         return "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
@@ -21962,6 +22003,11 @@ def _formalizer_candidate_proof_evidence_status(
         return (
             "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
             "NOT_SOURCE_THEOREM_PROOF"
+        )
+    if target_identity_not_source_theorem:
+        return (
+            "FORMALIZER_REPAIR_TARGET_IDENTITY_DRIFT_LOCAL_LEAN_KERNEL_VERIFIED_"
+            "CANDIDATE_ONLY"
         )
     return "FORMALIZER_LEAN_CANDIDATE_LOCAL_LEAN_KERNEL_VERIFIED"
 
@@ -21983,6 +22029,7 @@ def _formalizer_candidate_memory_status(
     local_lean_compiled: bool,
     diagnostic_helper_not_source_theorem: bool,
     support_candidate_not_source_theorem: bool = False,
+    target_identity_not_source_theorem: bool = False,
 ) -> str:
     if not local_lean_compiled:
         return "FORMALIZER_CANDIDATE_NEEDS_REPAIR_OR_KERNEL_CHECK"
@@ -21995,6 +22042,11 @@ def _formalizer_candidate_memory_status(
         return (
             "DIAGNOSTIC_HELPER_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
         )
+    if target_identity_not_source_theorem:
+        return (
+            "REPAIR_TARGET_IDENTITY_DRIFT_KERNEL_VERIFIED_CANDIDATE_ONLY_"
+            "NOT_SOURCE_THEOREM"
+        )
     return "EXACT_FORMALIZER_CANDIDATE_KERNEL_VERIFIED"
 
 
@@ -22002,6 +22054,7 @@ def _formalizer_candidate_proof_boundary(
     *,
     diagnostic_helper_not_source_theorem: bool,
     support_candidate_not_source_theorem: bool = False,
+    target_identity_not_source_theorem: bool = False,
 ) -> str:
     if support_candidate_not_source_theorem:
         return (
@@ -22018,6 +22071,13 @@ def _formalizer_candidate_proof_boundary(
             "verifies only this helper artifact; it is not proof evidence for the "
             "source theorem, the probability/measure coverage claim, or any full "
             "frontier theorem."
+        )
+    if target_identity_not_source_theorem:
+        return (
+            "This row materializes an LLM-generated repair whose declaration does "
+            "not match, or cannot be uniquely bound to, the immutable parent target "
+            "identity. A local Lean compile verifies only the emitted candidate "
+            "artifact; it is not proof evidence for the parent source theorem."
         )
     return (
         "This row materializes an LLM-generated Lean candidate. It is proof "
@@ -22050,6 +22110,22 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
     artifact: Mapping[str, Any],
 ) -> dict[str, Any]:
     normalized = dict(artifact)
+    manifest_repair_target_identity_contract = (
+        dict(normalized.get("repair_target_identity_contract", {}) or {})
+        if isinstance(
+            normalized.get("repair_target_identity_contract", {}), Mapping
+        )
+        else {}
+    )
+    manifest_repair_target_identity_required = bool(
+        _bool_like(normalized.get("repair_target_identity_required", False))
+        or _bool_like(
+            manifest_repair_target_identity_contract.get("required", False)
+        )
+        or str(normalized.get("task_id", "") or "").startswith(
+            "formalize-lean-repair:"
+        )
+    )
     candidate_rows = [
         row
         for row in normalized.get("candidate_rows", []) or []
@@ -22081,9 +22157,46 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         diagnostic_helper_not_source_theorem = _bool_like(
             candidate.get("diagnostic_helper_not_source_theorem", False)
         ) or source_theorem_target_known is False
+        repair_target_identity_required = bool(
+            _bool_like(candidate.get("repair_target_identity_required", False))
+            or manifest_repair_target_identity_required
+        )
+        actual_target_lean_declaration = str(
+            candidate.get("target_lean_declaration", "")
+            or candidate.get("actual_target_lean_declaration", "")
+            or ""
+        ).strip()
+        identity_contract = dict(manifest_repair_target_identity_contract)
+        identity_contract["required"] = repair_target_identity_required
+        repair_target_identity = evaluate_repair_target_identity(
+            contract=identity_contract,
+            candidate_id=str(candidate.get("candidate_id", "") or ""),
+            actual_target_lean_declaration=actual_target_lean_declaration,
+            target_context=_formalizer_lean_candidate_target_context(candidate),
+        )
+        expected_target_lean_declaration = str(
+            repair_target_identity.get("expected_target_lean_declaration", "") or ""
+        ).strip()
+        target_identity_mismatch_not_source_theorem = _bool_like(
+            repair_target_identity.get(
+                "target_identity_mismatch_not_source_theorem",
+                False,
+            )
+        )
+        target_identity_unbound_not_source_theorem = _bool_like(
+            repair_target_identity.get(
+                "target_identity_unbound_not_source_theorem",
+                False,
+            )
+        )
+        target_identity_not_source_theorem = bool(
+            target_identity_mismatch_not_source_theorem
+            or target_identity_unbound_not_source_theorem
+        )
         source_theorem_candidate_evidence_eligible = (
             not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
+            and not target_identity_not_source_theorem
         )
         local_lean_attempted = _bool_like(
             candidate.get("local_lean_attempted", False)
@@ -22097,6 +22210,19 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         )
         candidate["support_candidate_not_source_theorem"] = (
             support_candidate_not_source_theorem
+        )
+        candidate.update(repair_target_identity)
+        candidate["expected_target_lean_declaration"] = (
+            expected_target_lean_declaration
+        )
+        candidate["actual_target_lean_declaration"] = (
+            actual_target_lean_declaration
+        )
+        candidate["target_identity_mismatch_not_source_theorem"] = (
+            target_identity_mismatch_not_source_theorem
+        )
+        candidate["target_identity_unbound_not_source_theorem"] = (
+            target_identity_unbound_not_source_theorem
         )
         candidate["source_theorem_candidate_evidence_eligible"] = (
             source_theorem_candidate_evidence_eligible
@@ -22113,6 +22239,7 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
                 diagnostic_helper_not_source_theorem
             ),
             support_candidate_not_source_theorem=support_candidate_not_source_theorem,
+            target_identity_not_source_theorem=target_identity_not_source_theorem,
         )
         candidate["source_theorem_proof_evidence_status"] = (
             _formalizer_candidate_source_theorem_proof_evidence_status(
@@ -22125,6 +22252,7 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         candidate["boundary"] = _formalizer_candidate_proof_boundary(
             diagnostic_helper_not_source_theorem=diagnostic_helper_not_source_theorem,
             support_candidate_not_source_theorem=support_candidate_not_source_theorem,
+            target_identity_not_source_theorem=target_identity_not_source_theorem,
         )
         rows.append(candidate)
 
@@ -22148,6 +22276,16 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         row
         for row in local_compiled_rows
         if _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
+    ]
+    compiled_target_identity_drift_rows = [
+        row
+        for row in local_compiled_rows
+        if _bool_like(
+            row.get("target_identity_mismatch_not_source_theorem", False)
+        )
+        or _bool_like(
+            row.get("target_identity_unbound_not_source_theorem", False)
+        )
     ]
     live_proof_state_request_rows = [
         row
@@ -22187,6 +22325,12 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
     normalized["n_local_lean_compiled_source_theorem_candidates"] = len(
         compiled_source_candidate_rows
     )
+    normalized["n_local_lean_compiled_target_identity_drift_candidates"] = len(
+        compiled_target_identity_drift_rows
+    )
+    normalized["repair_target_identity_required"] = (
+        manifest_repair_target_identity_required
+    )
     normalized["n_live_proof_state_requests"] = max(
         int(normalized.get("n_live_proof_state_requests", 0) or 0),
         len(live_proof_state_request_rows),
@@ -22209,10 +22353,15 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             "NOT_SOURCE_THEOREM_PROOF"
             if compiled_support_candidate_rows
             else (
-                "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
-                "NOT_SOURCE_THEOREM_PROOF"
-                if compiled_diagnostic_helper_rows
-                else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+                "FORMALIZER_REPAIR_TARGET_IDENTITY_DRIFT_LOCAL_LEAN_KERNEL_"
+                "VERIFIED_CANDIDATE_ONLY"
+                if compiled_target_identity_drift_rows
+                else (
+                    "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_"
+                    "NOT_SOURCE_THEOREM_PROOF"
+                    if compiled_diagnostic_helper_rows
+                    else "FORMALIZER_LEAN_CANDIDATE_MATERIALIZATION_NOT_PROOF_EVIDENCE"
+                )
             )
         )
     )
@@ -22230,8 +22379,9 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         "ProofEngineer consumption. It is only kernel proof evidence for the "
         "exact candidate artifact. Rows with source_theorem_target_known=false "
         "are diagnostic/helper evidence only; source-to-bridge premise "
-        "derivation candidates are support evidence only. Neither category "
-        "proves the source theorem."
+        "derivation candidates and repair declarations that drift from an "
+        "immutable parent target are support evidence only. None of these "
+        "categories proves the source theorem."
     )
     return normalized
 
@@ -22735,14 +22885,32 @@ def _formalizer_lean_candidate_materialization_learning_rows(
         support_candidate_not_source_theorem = _bool_like(
             candidate.get("support_candidate_not_source_theorem", False)
         ) or _formalizer_candidate_support_not_source_theorem(candidate_kind)
-        source_theorem_candidate_evidence_eligible = _bool_like(
+        target_identity_mismatch_not_source_theorem = _bool_like(
             candidate.get(
-                "source_theorem_candidate_evidence_eligible",
-                (
-                    not diagnostic_helper_not_source_theorem
-                    and not support_candidate_not_source_theorem
-                ),
+                "target_identity_mismatch_not_source_theorem",
+                False,
             )
+        )
+        target_identity_unbound_not_source_theorem = _bool_like(
+            candidate.get(
+                "target_identity_unbound_not_source_theorem",
+                False,
+            )
+        )
+        target_identity_not_source_theorem = bool(
+            target_identity_mismatch_not_source_theorem
+            or target_identity_unbound_not_source_theorem
+        )
+        source_theorem_candidate_evidence_eligible = bool(
+            _bool_like(
+                candidate.get(
+                    "source_theorem_candidate_evidence_eligible",
+                    True,
+                )
+            )
+            and not diagnostic_helper_not_source_theorem
+            and not support_candidate_not_source_theorem
+            and not target_identity_not_source_theorem
         )
         source_theorem_target_known = candidate.get(
             "source_theorem_target_known",
@@ -22866,6 +23034,45 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "support_candidate_not_source_theorem": (
                     support_candidate_not_source_theorem
                 ),
+                "repair_target_identity_required": _bool_like(
+                    candidate.get("repair_target_identity_required", False)
+                ),
+                "repair_target_identity_binding_status": str(
+                    candidate.get("repair_target_identity_binding_status", "")
+                    or ""
+                ),
+                "repair_target_identity_binding_id": str(
+                    candidate.get("repair_target_identity_binding_id", "") or ""
+                ),
+                "repair_parent_candidate_id": str(
+                    candidate.get("repair_parent_candidate_id", "") or ""
+                ),
+                "repair_parent_source_hash": str(
+                    candidate.get("repair_parent_source_hash", "") or ""
+                ),
+                "repair_parent_artifact_path": str(
+                    candidate.get("repair_parent_artifact_path", "") or ""
+                ),
+                "expected_target_lean_declaration": str(
+                    candidate.get("expected_target_lean_declaration", "") or ""
+                ),
+                "actual_target_lean_declaration": str(
+                    candidate.get("actual_target_lean_declaration", "")
+                    or candidate.get("target_lean_declaration", "")
+                    or ""
+                ),
+                "target_identity_matches_expected": _bool_like(
+                    candidate.get("target_identity_matches_expected", False)
+                ),
+                "target_identity_mismatch_not_source_theorem": (
+                    target_identity_mismatch_not_source_theorem
+                ),
+                "target_identity_unbound_not_source_theorem": (
+                    target_identity_unbound_not_source_theorem
+                ),
+                "target_identity_errors": list(
+                    candidate.get("target_identity_errors", []) or []
+                ),
                 "source_theorem_candidate_evidence_eligible": (
                     source_theorem_candidate_evidence_eligible
                 ),
@@ -22902,6 +23109,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                         support_candidate_not_source_theorem=(
                             support_candidate_not_source_theorem
                         ),
+                        target_identity_not_source_theorem=(
+                            target_identity_not_source_theorem
+                        ),
                     )
                 ),
                 "source_theorem_proof_evidence_status": (
@@ -22923,6 +23133,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                         support_candidate_not_source_theorem=(
                             support_candidate_not_source_theorem
                         ),
+                        target_identity_not_source_theorem=(
+                            target_identity_not_source_theorem
+                        ),
                     )
                 ),
                 "next_owner_agent": (
@@ -22931,11 +23144,15 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     else "FormalizationEvaluator"
                 ),
                 "next_action": (
-                    "reuse exact materialized candidate only as a checked helper"
-                    if local_lean_compiled
+                    "regenerate the immutable parent target with this exact identity feedback"
+                    if target_identity_not_source_theorem
                     else (
-                        "route the materialized Lean candidate through the internal "
-                        "ProofEngineer proof-state repair loop"
+                        "reuse exact materialized candidate only as a checked helper"
+                        if local_lean_compiled
+                        else (
+                            "route the materialized Lean candidate through the internal "
+                            "ProofEngineer proof-state repair loop"
+                        )
                     )
                 ),
                 "proof_evidence_boundary": (
@@ -22945,6 +23162,9 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                         ),
                         support_candidate_not_source_theorem=(
                             support_candidate_not_source_theorem
+                        ),
+                        target_identity_not_source_theorem=(
+                            target_identity_not_source_theorem
                         ),
                     )
                 ),
@@ -23729,13 +23949,40 @@ def _formalizer_lean_candidate_repair_feedback(
         ) and not _bool_like(
             row.get("local_lean_compiled", False)
         )
+        target_identity_failed = bool(
+            not _bool_like(
+                row.get("diagnostic_helper_not_source_theorem", False)
+            )
+            and not _bool_like(
+                row.get("support_candidate_not_source_theorem", False)
+            )
+            and (
+                _bool_like(
+                    row.get(
+                        "target_identity_mismatch_not_source_theorem",
+                        False,
+                    )
+                )
+                or _bool_like(
+                    row.get(
+                        "target_identity_unbound_not_source_theorem",
+                        False,
+                    )
+                )
+            )
+        )
         if (
             _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
             and compiled_non_diagnostic_rows
             and (precheck_failed or precheck_diagnostic_failed or local_lean_failed)
         ):
             continue
-        if precheck_failed or precheck_diagnostic_failed or local_lean_failed:
+        if (
+            precheck_failed
+            or precheck_diagnostic_failed
+            or local_lean_failed
+            or target_identity_failed
+        ):
             failed_rows.append(row)
     if not failed_rows:
         return None
@@ -23756,6 +24003,69 @@ def _formalizer_lean_candidate_repair_feedback(
                 "target_lean_declaration": str(
                     row.get("target_lean_declaration", "") or ""
                 ),
+                "source_hash": str(row.get("source_hash", "") or ""),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    row.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    row.get("source_theorem_target_provenance", {}) or {}
+                )
+                if isinstance(
+                    row.get("source_theorem_target_provenance", {}), Mapping
+                )
+                else {},
+                "repair_target_identity_required": _bool_like(
+                    row.get("repair_target_identity_required", False)
+                ),
+                "repair_target_identity_binding_status": str(
+                    row.get("repair_target_identity_binding_status", "") or ""
+                ),
+                "repair_target_identity_binding_id": str(
+                    row.get("repair_target_identity_binding_id", "") or ""
+                ),
+                "repair_parent_candidate_id": str(
+                    row.get("repair_parent_candidate_id", "") or ""
+                ),
+                "repair_parent_source_hash": str(
+                    row.get("repair_parent_source_hash", "") or ""
+                ),
+                "repair_parent_artifact_path": str(
+                    row.get("repair_parent_artifact_path", "") or ""
+                ),
+                "expected_target_lean_declaration": str(
+                    row.get("expected_target_lean_declaration", "") or ""
+                ),
+                "actual_target_lean_declaration": str(
+                    row.get("actual_target_lean_declaration", "")
+                    or row.get("target_lean_declaration", "")
+                    or ""
+                ),
+                "target_identity_mismatch_not_source_theorem": _bool_like(
+                    row.get(
+                        "target_identity_mismatch_not_source_theorem",
+                        False,
+                    )
+                ),
+                "target_identity_unbound_not_source_theorem": _bool_like(
+                    row.get(
+                        "target_identity_unbound_not_source_theorem",
+                        False,
+                    )
+                ),
+                "target_identity_errors": list(
+                    row.get("target_identity_errors", []) or []
+                ),
+                "repair_target_identity_contract": dict(
+                    row.get("repair_target_identity_contract", {}) or {}
+                )
+                if isinstance(
+                    row.get("repair_target_identity_contract", {}), Mapping
+                )
+                else {},
                 "live_proof_state_request": dict(
                     row.get("live_proof_state_request", {}) or {}
                 )
@@ -23809,18 +24119,35 @@ def _formalizer_lean_candidate_repair_feedback(
     local_lean_repair_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
         diagnostics
     )
-    failure_classification = (
-        "formalizer_lean_candidate_precheck_rejected"
-        if precheck_rejected > 0 and local_checked <= 0
-        else (
-            "formalizer_lean_candidate_precheck_diagnostics"
-            if any(
-                str(row.get("precheck_status", "") or "")
-                == "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
-                for row in failed_rows
+    target_identity_failed = any(
+        not _bool_like(row.get("diagnostic_helper_not_source_theorem", False))
+        and not _bool_like(row.get("support_candidate_not_source_theorem", False))
+        and (
+            _bool_like(
+                row.get("target_identity_mismatch_not_source_theorem", False)
             )
-            and local_checked <= 0
-            else "formalizer_lean_candidate_local_lean_failed"
+            or _bool_like(
+                row.get("target_identity_unbound_not_source_theorem", False)
+            )
+        )
+        for row in failed_rows
+    )
+    failure_classification = (
+        "formalizer_lean_candidate_target_identity_mismatch"
+        if target_identity_failed
+        else (
+            "formalizer_lean_candidate_precheck_rejected"
+            if precheck_rejected > 0 and local_checked <= 0
+            else (
+                "formalizer_lean_candidate_precheck_diagnostics"
+                if any(
+                    str(row.get("precheck_status", "") or "")
+                    == "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                    for row in failed_rows
+                )
+                and local_checked <= 0
+                else "formalizer_lean_candidate_local_lean_failed"
+            )
         )
     )
     proofengineer_repair_context = _proofengineer_repair_context_from_diagnostics(
@@ -23889,6 +24216,7 @@ def _formalizer_lean_candidate_repair_feedback(
             "semantic_alignment_blockers",
             "external_proof_search_result",
             "proof_search_result_use",
+            "repair_target_identity_contract",
         )
         for key in exact_lineage_keys:
             value = prior_proofengineer_repair_context.get(key)
@@ -23934,11 +24262,20 @@ def _formalizer_lean_candidate_repair_feedback(
         "repair_owner_agent": "ProofEngineer",
         "proofengineer_repair_context": proofengineer_repair_context,
         "required_repair": (
-            "Return a repaired non-vacuous Lean candidate that compiles in the "
-            "configured Lean project. Use the exact local Lean diagnostics below; "
-            "do not repeat rejected precheck patterns, unknown namespaces, "
-            "`True := trivial` targets, or claims that are not tied to the "
-            "statistical theorem/subclaim."
+            (
+                "Regenerate the exact immutable parent target declaration named in "
+                "repair_target_identity_contract. The emitted helper may be kept as "
+                "support, but its successful kernel check cannot close the parent "
+                "source theorem. Preserve the parent target IDs and rerun local Lean."
+            )
+            if target_identity_failed
+            else (
+                "Return a repaired non-vacuous Lean candidate that compiles in the "
+                "configured Lean project. Use the exact local Lean diagnostics below; "
+                "do not repeat rejected precheck patterns, unknown namespaces, "
+                "`True := trivial` targets, or claims that are not tied to the "
+                "statistical theorem/subclaim."
+            )
         ),
         "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
@@ -24143,6 +24480,33 @@ def _proofengineer_repair_context_from_diagnostics(
         for seed in dict.fromkeys(part.strip() for part in query_seed_parts)
         if seed
     ][:10]
+    manifest_repair_target_identity_contract = (
+        dict(manifest.get("repair_target_identity_contract", {}) or {})
+        if isinstance(manifest.get("repair_target_identity_contract", {}), Mapping)
+        else {}
+    )
+    manifest_repair_target_identity_required = bool(
+        _bool_like(manifest.get("repair_target_identity_required", False))
+        or _bool_like(
+            manifest_repair_target_identity_contract.get("required", False)
+        )
+        or str(manifest.get("task_id", "") or "").startswith(
+            "formalize-lean-repair:"
+        )
+    )
+    if manifest_repair_target_identity_required:
+        repair_target_identity_bindings = [
+            dict(row)
+            for row in manifest_repair_target_identity_contract.get("bindings", [])
+            or []
+            if isinstance(row, Mapping)
+        ]
+    else:
+        repair_target_identity_bindings = [
+            repair_target_identity_binding_from_diagnostic(row)
+            for row in diagnostics[:3]
+            if str(row.get("candidate_id", "") or "")
+        ]
     context = {
         "repair_loop": (
             "LeanDojo/ReProver-style bounded loop: inspect exact materialized Lean "
@@ -24180,6 +24544,22 @@ def _proofengineer_repair_context_from_diagnostics(
                 "target_lean_declaration": str(
                     row.get("target_lean_declaration", "") or ""
                 ),
+                "source_hash": str(row.get("source_hash", "") or ""),
+                "target_ids": list(row.get("target_ids", []) or []),
+                "target_theorem_goal_ids": list(
+                    row.get("target_theorem_goal_ids", []) or []
+                ),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "source_theorem_target_provenance": dict(
+                    row.get("source_theorem_target_provenance", {}) or {}
+                )
+                if isinstance(
+                    row.get("source_theorem_target_provenance", {}), Mapping
+                )
+                else {},
+                **repair_target_identity_binding_from_diagnostic(row),
                 "local_lean_command": list(
                     row.get("local_lean_command", []) or []
                 ),
@@ -24202,9 +24582,22 @@ def _proofengineer_repair_context_from_diagnostics(
             "local_lean_command_project_timeout",
             "local_lean_repair_contract",
             "target_shape_contract",
+            "immutable_repair_target_identity",
             "live_proof_state_request",
             "project_local_proof_state_artifact",
         ],
+        "repair_target_identity_contract": {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "contract_kind": "immutable_parent_candidate_target_identity",
+            "required": True,
+            "bindings": repair_target_identity_bindings,
+            "binding_policy": (
+                "Each repaired candidate must remain bound to exactly one parent "
+                "candidate and emit that parent's expected target declaration. "
+                "A compiled helper remains candidate-only evidence."
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        },
         "proof_state_workflow": {
             "style": "lean_dojo_reprover_compatible",
             "preferred_tool_order": [
