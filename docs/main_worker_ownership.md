@@ -1338,6 +1338,49 @@ before the exact-semantic subsystem or full AI Statistician can be called
 end-to-end complete. No semantic definition or statistical source theorem is
 claimed kernel verified by this coding-agent feedback loop.
 
+## Typed Pseudo-Formal Block Verification Runtime Migration
+
+The primary pseudo-formal block-verification lane now runs as the
+Architect-visible `PseudoFormalBlockVerifier` AgentRuntime child. The
+FormalizationEvaluator projects only pending PF/BV rows from its own immutable
+manifest, binds every row and the provider/model execution policy into a typed
+work order, and dispatches a fresh independent verifier prompt inside the same
+runtime. The verifier receives explicit premises, inherited scope, dependency
+statements, conclusion, and local proof text, but no hidden dependency proof
+bodies.
+
+Schema-valid verifier feedback returns directly to `ProofEngineer` as bounded
+runtime learning memory and environment feedback. Provider failures and invalid
+responses return exact diagnostics to `CriticEvaluator`; they do not terminate
+the whole research loop or promote a block. Execution manifests support
+immutable replay without another model call. Static fixtures establish wiring
+only, while live provider calls are required for capability evidence.
+
+The runtime audit now recomputes this path from blackboard artifacts and traces:
+source-manifest/work-order/request-row hashes, execution policy and independence
+contract, runtime-turn/provider lineage, verifier tool-call safety boundary, and
+the immediately consumed `ProofEngineer` or `CriticEvaluator` task. It reports
+the historical attached PF/BV component gate separately, so a standalone
+calibration run cannot satisfy the typed AgentRuntime scorecard row.
+
+This integrates the reusable decomposition/faithfulness/independent-verifier
+pattern from *Pseudo-Formalization for Automatic Proof Verification* and its
+official `Slim205/pseudo-formalization` repository without pretending that
+pseudo-formal acceptance is a Lean proof. Every work order, feedback row, and
+execution manifest fixes `kernel_verified=false` and
+`source_theorem_kernel_verified=false`; exact source-theorem promotion still
+requires the existing target-bound local Lean/AXLE gate.
+
+The historical AI-for-math paper registry now includes the paper and official
+repository, so `RetrievalMemory` sees them through the live paper-source index.
+The source inventory also tracks the current CodexProver, OpenProver,
+EmpericalProcessLEAN, and pseudo-formalization checkouts. The latest CodexProver
+branch contributes a secure stdio MCP and held-out target-binding design, but
+its held-out escalation policy remains explicitly unadmitted; the next provider
+hardening should reuse its scoped-path and secret-free environment contracts
+under the existing OpenProver typed provider rather than create another
+orchestration plane.
+
 ## Optional Future Delegation
 
 No other Codex worker is currently active. The main worker owns the commit

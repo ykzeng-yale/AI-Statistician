@@ -57,6 +57,7 @@ Session files: Session_13423036634184563, Tabs_13423027819855839, Session_134230
 
 2. Autoformalization / datasets / formal benchmarks
 
+- Pseudo-Formalization for Automatic Proof Verification — https://arxiv.org/abs/2605.20531 (first seen 2026-07-13, last seen 2026-07-13)
 - Autoformalization with Large Language Models — https://arxiv.org/abs/2205.12615 (first seen 2026-05-10, last seen 2026-05-12)
 - Autoformalizing Euclidean Geometry — https://arxiv.org/abs/2405.17216 (first seen 2026-05-10, last seen 2026-05-10)
 - Construction-Verification: A Benchmark for Applied Mathematics in Lean 4 — https://arxiv.org/abs/2602.01291 (first seen 2026-05-10, last seen 2026-05-10)
@@ -146,5 +147,6 @@ Session files: Session_13423036634184563, Tabs_13423027819855839, Session_134230
 
 7. Code / project pages / datasets
 
+- Pseudo-Formalization official implementation and benchmarks — https://github.com/Slim205/pseudo-formalization (first seen 2026-07-13, last seen 2026-07-13)
 - CombiBench GitHub repository — https://github.com/MoonshotAI/CombiBench (first seen 2026-05-10, last seen 2026-05-10)
 - CombiBench: Benchmarking LLM Capability for Combinatorial Mathematics — https://arxiv.org/abs/2505.03171 (first seen 2026-05-10, last seen 2026-05-10)

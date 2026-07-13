@@ -342,6 +342,16 @@ from .source_semantic_proofengineer_runtime_worker import (
     SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND,
     SourceSemanticProofEngineerRuntimeWorker,
 )
+from .pseudo_formal_block_verifier_runtime_worker import (
+    PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_KIND,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+    PseudoFormalBlockVerifierRuntimeWorker,
+)
+from .pseudo_formal_block_verifier_worker import (
+    pseudo_formal_block_verifier_request_rows,
+)
 from .source_theorem_promotion_runtime_worker import (
     SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND,
     SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND,
@@ -7213,6 +7223,13 @@ class ResearchAgentRuntimeConfig:
     formalizer_candidate_lean_lsp_mcp: bool = False
     formalizer_candidate_lean_project: str = ""
     formalizer_candidate_lean_timeout: int = 30
+    pseudo_formal_block_verifier_runtime: bool = False
+    pseudo_formal_block_verifier_runtime_model: str = ""
+    pseudo_formal_block_verifier_runtime_model_tier: str = "sonnet"
+    pseudo_formal_block_verifier_runtime_max_packets: int = 8
+    pseudo_formal_block_verifier_runtime_max_tokens: int = 2000
+    pseudo_formal_block_verifier_runtime_temperature: float = 0.0
+    pseudo_formal_block_verifier_runtime_max_repair_attempts: int = 1
     theorem_closure_proofengineer_bridge: bool = False
     theorem_closure_proofengineer_local_lean: bool = False
     theorem_closure_proofengineer_lean_project: str = ""
@@ -14133,6 +14150,158 @@ def _agent_step_result_with_external_proof_search(
     )
 
 
+def _runtime_pseudo_formal_block_verifier_rows_from_manifest(
+    formalization_manifest: Mapping[str, Any],
+    *,
+    max_packets: int = 8,
+) -> list[dict[str, Any]]:
+    rows = [
+        dict(row)
+        for row in formalization_manifest.get("pseudo_formal_work_order_rows", [])
+        or []
+        if isinstance(row, Mapping)
+    ]
+    return pseudo_formal_block_verifier_request_rows(
+        rows,
+        max_packets=max_packets,
+    )
+
+
+def _runtime_pseudo_formal_block_verifier_work_order(
+    *,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    return_task: AgentTask,
+    runtime_config: ResearchAgentRuntimeConfig,
+    provider_name: str,
+    model: str,
+) -> dict[str, Any]:
+    max_packets = max(
+        1,
+        int(runtime_config.pseudo_formal_block_verifier_runtime_max_packets),
+    )
+    rows = _runtime_pseudo_formal_block_verifier_rows_from_manifest(
+        formalization_manifest,
+        max_packets=max_packets,
+    )
+    source_manifest_id = str(
+        formalization_manifest.get("manifest_id", "") or ""
+    )
+    source_manifest_hash = stable_hash(dict(formalization_manifest))
+    execution_policy = {
+        "provider_name": str(provider_name or ""),
+        "model": str(model or ""),
+        "model_tier": str(
+            runtime_config.pseudo_formal_block_verifier_runtime_model_tier
+            or "sonnet"
+        ),
+        "max_packets": max_packets,
+        "max_tokens": max(
+            1,
+            int(runtime_config.pseudo_formal_block_verifier_runtime_max_tokens),
+        ),
+        "temperature": float(
+            runtime_config.pseudo_formal_block_verifier_runtime_temperature
+        ),
+        "max_repair_attempts": max(
+            0,
+            int(
+                runtime_config.pseudo_formal_block_verifier_runtime_max_repair_attempts
+            ),
+        ),
+        "independence_contract": (
+            PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT
+        ),
+    }
+    work_order_id = "runtime_pseudo_formal_block_verifier_work_order:" + stable_hash(
+        [
+            source_task.task_id,
+            source_manifest_id,
+            source_manifest_hash,
+            rows,
+            execution_policy,
+        ]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem=PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": str(source_task.owner_subsystem or ""),
+        "target_subsystem": PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+        "source_formalization_manifest_id": source_manifest_id,
+        "source_formalization_manifest_hash": source_manifest_hash,
+        "work_order_rows": rows,
+        "work_order_row_hashes": [stable_hash(row) for row in rows],
+        "execution_policy": execution_policy,
+        "execution_policy_fingerprint": stable_hash(execution_policy),
+        "source_task": asdict(source_task),
+        "return_task": asdict(return_task),
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override=PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+    )
+
+
+def _runtime_pseudo_formal_block_verifier_dispatch_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"pseudo-formal-block-verifier:{question.id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+        objective=(
+            "Independently verify each immutable pseudo-formal block using only "
+            "its explicit bounded context, then return validated non-proof "
+            "feedback to ProofEngineer in the same AgentRuntime."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "pseudo_formal_block_verifier_work_order_id": work_order_id,
+            "pseudo_formal_block_verifier_work_order_hash": stable_hash(
+                dict(work_order)
+            ),
+        },
+        allowed_tools=("blackboard", "model_backend", "evidence_ledger"),
+        expected_artifacts=(
+            "pseudo_formal_block_verifier_runtime_turn",
+            "pseudo_formal_block_verifier_runtime_learning_rows",
+        ),
+        acceptance_gate=(
+            "every verifier response is independently prompted, schema-valid, "
+            "lineage-bound, and explicitly marked non-proof evidence"
+        ),
+        stop_condition=(
+            "validated PF/BV feedback returns to ProofEngineer, or exact response "
+            "contract diagnostics return to CriticEvaluator"
+        ),
+    )
+
+
 def _runtime_theorem_reduction_closure_queue_rows_from_manifest(
     formalization_manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
@@ -15185,6 +15354,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         lean_candidate_lean_project: Path | None = None,
         lean_candidate_lean_timeout: int = 30,
         architect_coordinator_available: bool = False,
+        pseudo_formal_block_verifier_available: bool = False,
         runtime_config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
     ) -> None:
         self.proposal_agent = proposal_agent
@@ -15194,6 +15364,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.lean_candidate_lean_project = lean_candidate_lean_project
         self.lean_candidate_lean_timeout = lean_candidate_lean_timeout
         self.architect_coordinator_available = architect_coordinator_available
+        self.pseudo_formal_block_verifier_available = bool(
+            pseudo_formal_block_verifier_available
+        )
         self.runtime_config = runtime_config
         self.formal_source_retriever = formal_source_retriever
         self.proof_search_provider = proof_search_provider
@@ -17764,6 +17937,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
         )
         theorem_closure_dispatch_evidence: EvidenceLedgerEntry | None = None
+        pseudo_formal_block_verifier_dispatch_evidence: (
+            EvidenceLedgerEntry | None
+        ) = None
         exact_source_proof_body_dispatch_evidence: EvidenceLedgerEntry | None = None
         exact_semantic_definition_dispatch_evidence: EvidenceLedgerEntry | None = None
         source_semantic_dispatch_evidence: EvidenceLedgerEntry | None = None
@@ -18132,7 +18308,128 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     == "capability_eval"
                 )
             )
-            if (
+            pending_pseudo_formal_block_verifier_rows = (
+                _runtime_pseudo_formal_block_verifier_rows_from_manifest(
+                    manifest,
+                    max_packets=max(
+                        1,
+                        int(
+                            self.runtime_config.pseudo_formal_block_verifier_runtime_max_packets
+                        ),
+                    ),
+                )
+            )
+            pseudo_formal_block_verifier_runtime_dispatch_ready = bool(
+                self.runtime_config.pseudo_formal_block_verifier_runtime
+                and self.pseudo_formal_block_verifier_available
+                and self.proposal_agent is not None
+                and pending_pseudo_formal_block_verifier_rows
+            )
+            if pseudo_formal_block_verifier_runtime_dispatch_ready:
+                formalizer_config = getattr(self.proposal_agent, "config", None)
+                verifier_provider_name = str(
+                    getattr(formalizer_config, "provider_name", "") or ""
+                )
+                verifier_model = str(
+                    self.runtime_config.pseudo_formal_block_verifier_runtime_model
+                    or getattr(formalizer_config, "model", "")
+                    or ""
+                )
+                pseudo_formal_block_verifier_work_order = (
+                    _runtime_pseudo_formal_block_verifier_work_order(
+                        source_task=task,
+                        question=question,
+                        architect_context=context,
+                        formalization_manifest=manifest,
+                        return_task=critic_task,
+                        runtime_config=self.runtime_config,
+                        provider_name=verifier_provider_name,
+                        model=verifier_model,
+                    )
+                )
+                pseudo_formal_block_verifier_work_order_id = str(
+                    pseudo_formal_block_verifier_work_order.get(
+                        "work_order_id", ""
+                    )
+                    or ""
+                )
+                produced_artifacts[
+                    pseudo_formal_block_verifier_work_order_id
+                ] = pseudo_formal_block_verifier_work_order
+                next_task = _runtime_pseudo_formal_block_verifier_dispatch_task(
+                    question=question,
+                    architect_context=context,
+                    work_order=pseudo_formal_block_verifier_work_order,
+                )
+                pseudo_formal_block_verifier_dispatch_evidence = (
+                    EvidenceLedgerEntry(
+                        evidence_id="evidence:"
+                        + stable_hash(
+                            [
+                                task.task_id,
+                                pseudo_formal_block_verifier_work_order_id,
+                            ]
+                        )[:20],
+                        task_id=task.task_id,
+                        artifact_id=(
+                            pseudo_formal_block_verifier_work_order_id
+                        ),
+                        evidence_type=(
+                            "pseudo_formal_block_verifier_runtime_work_order"
+                        ),
+                        status=(
+                            "PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_"
+                            "RECORDED_NOT_PROOF_EVIDENCE"
+                        ),
+                        boundary=PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                        payload={
+                            "source_formalization_manifest_id": manifest_id,
+                            "n_work_order_rows": len(
+                                pending_pseudo_formal_block_verifier_rows
+                            ),
+                            "next_owner_subsystem": (
+                                PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM
+                            ),
+                            "independent_prompt_context": True,
+                            "hidden_dependency_proof_bodies_available": False,
+                            "kernel_verified": False,
+                            "source_theorem_kernel_verified": False,
+                        },
+                    )
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "pseudo_formal_block_verifier_runtime_work_order"
+                        ),
+                        summary=(
+                            "immutable PF/BV request rows routed to an "
+                            "independent AgentRuntime verifier before other "
+                            "formal closure lanes"
+                        ),
+                        payload={
+                            "work_order_id": (
+                                pseudo_formal_block_verifier_work_order_id
+                            ),
+                            "n_work_order_rows": len(
+                                pending_pseudo_formal_block_verifier_rows
+                            ),
+                            "next_owner_subsystem": (
+                                PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM
+                            ),
+                            "proof_evidence_status": (
+                                "PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_"
+                                "NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    )
+                )
+                result_rationale = (
+                    "Runtime routed pending pseudo-formal blocks to the typed "
+                    "independent BlockVerifier and will return validated "
+                    "feedback to ProofEngineer in the same AgentRuntime."
+                )
+            elif (
                 self.runtime_config.theorem_closure_proofengineer_bridge
                 and theorem_reduction_closure_work_orders
                 and not exact_semantic_definition_runtime_dispatch_ready
@@ -18558,6 +18855,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     candidate_proof_state_evidence,
                     proof_state_routing_evidence,
                     gap_planner_evidence,
+                    pseudo_formal_block_verifier_dispatch_evidence,
                     theorem_closure_dispatch_evidence,
                     exact_source_proof_body_dispatch_evidence,
                     exact_semantic_definition_dispatch_evidence,
@@ -31001,6 +31299,10 @@ def run_research_agent_runtime(
             ),
             lean_candidate_lean_timeout=config.formalizer_candidate_lean_timeout,
             architect_coordinator_available=architect_coordinator is not None,
+            pseudo_formal_block_verifier_available=bool(
+                config.pseudo_formal_block_verifier_runtime
+                and formalizer is not None
+            ),
             runtime_config=config,
         )
         proofengineer_subsystem = ProofEngineerRuntimeSubsystem(
@@ -31026,6 +31328,10 @@ def run_research_agent_runtime(
             ),
             lean_candidate_lean_timeout=config.formalizer_candidate_lean_timeout,
             architect_coordinator_available=architect_coordinator is not None,
+            pseudo_formal_block_verifier_available=bool(
+                config.pseudo_formal_block_verifier_runtime
+                and formalizer is not None
+            ),
             runtime_config=config,
         )
         exact_semantic_authoring_provider = (
@@ -31182,6 +31488,54 @@ def run_research_agent_runtime(
                 runtime_config=config,
             ),
         }
+        if config.pseudo_formal_block_verifier_runtime and formalizer is not None:
+            formalizer_config = getattr(formalizer, "config", None)
+            pseudo_formal_block_verifier_max_packets = max(
+                1,
+                int(config.pseudo_formal_block_verifier_runtime_max_packets),
+            )
+            subsystems[PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM] = (
+                PseudoFormalBlockVerifierRuntimeWorker(
+                    out_root=out_dir,
+                    source_rows_resolver=lambda manifest: (
+                        _runtime_pseudo_formal_block_verifier_rows_from_manifest(
+                            manifest,
+                            max_packets=(
+                                pseudo_formal_block_verifier_max_packets
+                            ),
+                        )
+                    ),
+                    provider=formalizer.provider,
+                    provider_name=str(
+                        getattr(formalizer_config, "provider_name", "") or ""
+                    ),
+                    model=str(
+                        config.pseudo_formal_block_verifier_runtime_model
+                        or getattr(formalizer_config, "model", "")
+                        or ""
+                    ),
+                    model_tier=str(
+                        config.pseudo_formal_block_verifier_runtime_model_tier
+                        or "sonnet"
+                    ),
+                    max_packets=pseudo_formal_block_verifier_max_packets,
+                    max_tokens=max(
+                        1,
+                        int(
+                            config.pseudo_formal_block_verifier_runtime_max_tokens
+                        ),
+                    ),
+                    temperature=float(
+                        config.pseudo_formal_block_verifier_runtime_temperature
+                    ),
+                    max_repair_attempts=max(
+                        0,
+                        int(
+                            config.pseudo_formal_block_verifier_runtime_max_repair_attempts
+                        ),
+                    ),
+                )
+            )
         if proof_search_provider is not None:
             subsystems[EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM] = (
                 ExactSourceTheoremProverRuntimeSubsystem(

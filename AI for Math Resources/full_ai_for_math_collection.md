@@ -31,6 +31,7 @@ Useful sources:
 - DeepSeek-Prover series: proof assistant feedback, RL, MCTS, subgoal decomposition.
 - STP: self-play theorem proving with iterative conjecturing and proving.
 - Axiom Putnam 2025 repo/report: public artifact for a generation-verification style system in Lean.
+- Pseudo-Formalization for Automatic Proof Verification: bounded informal proof blocks, faithfulness checks, and independent block-verifier feedback before any formal-kernel claim.
 
 Status: verified as a real research direction. The exact private Axiom training stack is not public.
 
@@ -292,6 +293,7 @@ Covered benchmark families:
 - MathVerse.
 - MathVista.
 - PolyMATH.
+- Hard2Verify and ArxivMathGradingBench from the Pseudo-Formalization evaluation.
 
 Status: verified. `Mini-CTX v2` as a math benchmark was not verified under that exact name.
 

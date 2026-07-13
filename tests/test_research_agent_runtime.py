@@ -96842,6 +96842,7 @@ def test_capability_eval_requires_formalizer_candidate_local_lean() -> None:
         real_lean=False,
         proof_obligation_id=[],
         recommended_research_path="",
+        pseudo_formal_block_verifier_runtime=True,
         formalizer_candidate_local_lean=False,
         formalizer_candidate_lean_project="",
         lean_project="",
@@ -97583,6 +97584,7 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.lean_project == "legacy_sources/emperical_process_lean"
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_project == args.lean_project
+    assert args.pseudo_formal_block_verifier_runtime is True
     assert args.source_theorem_exact_semantic_definition_source_root == [
         "legacy_sources/ai_statistician"
     ]
@@ -97746,6 +97748,7 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.run_formalizer_lean_candidate_repair_eval is True
     assert args.run_formalizer_pseudo_formal_packet_eval is True
     assert args.run_pseudo_formal_block_verifier_eval is True
+    assert args.pseudo_formal_block_verifier_runtime is True
     assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
     assert args.formalizer_pseudo_formal_packet_eval_provider == "same"
@@ -97766,6 +97769,13 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         == "full"
     )
     assert _research_agent_runtime_capability_config_errors(args) == []
+
+    args.pseudo_formal_block_verifier_runtime = False
+    assert (
+        "capability eval requires the internal ProofEngineer proof path; "
+        "missing --pseudo-formal-block-verifier-runtime"
+    ) in _research_agent_runtime_capability_config_errors(args)
+    args.pseudo_formal_block_verifier_runtime = True
 
     args.formalizer_candidate_lean_lsp_mcp = False
     assert (

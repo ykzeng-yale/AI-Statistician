@@ -42,6 +42,18 @@ from .pseudo_formalization import (
     VALID_CALIBRATION_STRICTNESS,
     VALID_DEPENDENCY_SCOPES,
 )
+from .pseudo_formal_block_verifier_runtime_worker import (
+    PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_EXECUTION_KIND,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_KIND,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE,
+    PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+)
+from .pseudo_formal_block_verifier_worker import (
+    PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE,
+    pseudo_formal_block_verifier_request_rows,
+)
 from .proof_bank import FORMAL_OBLIGATIONS
 from .research_agent_runtime import (
     EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS,
@@ -127,7 +139,11 @@ REQUIRED_SUBSYSTEMS = (
     "CriticEvaluator",
 )
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
-ROUTEABLE_RUNTIME_SUBSYSTEMS = (*REQUIRED_ARCHITECT_SUBSYSTEMS, "ProofEngineer")
+ROUTEABLE_RUNTIME_SUBSYSTEMS = (
+    *REQUIRED_ARCHITECT_SUBSYSTEMS,
+    "ProofEngineer",
+    "PseudoFormalBlockVerifier",
+)
 EXACT_PROOF_BODY_NON_SOURCE_STATUSES = frozenset(
     {
         EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
@@ -3971,6 +3987,12 @@ def audit_research_agent_runtime(
             errors=errors,
         )
     )
+    runtime_typed_pseudo_formal_block_verifier_summary = (
+        _runtime_typed_pseudo_formal_block_verifier_audit_summary(
+            result_paths=result_paths,
+            errors=errors,
+        )
+    )
     runtime_pseudo_formal_block_routing_contract_summary = (
         _runtime_pseudo_formal_block_routing_contract_audit_summary(
             pending_memory_rows=(
@@ -5456,6 +5478,10 @@ def audit_research_agent_runtime(
                 "runtime_formalizer_pseudo_formal_packet_component_gate_learning_failure_copy_target_lanes"
             ]
         ),
+        "runtime_typed_pseudo_formal_block_verifier_audit_summary": (
+            runtime_typed_pseudo_formal_block_verifier_summary
+        ),
+        **runtime_typed_pseudo_formal_block_verifier_summary,
         "runtime_pseudo_formal_block_routing_contract_audit_summary": (
             runtime_pseudo_formal_block_routing_contract_summary
         ),
@@ -17394,6 +17420,478 @@ def _runtime_formalization_manifest_rows_from_result_paths(
     return rows
 
 
+def _runtime_typed_pseudo_formal_block_verifier_audit_summary(
+    *,
+    result_paths: list[Path],
+    errors: list[str],
+) -> dict[str, Any]:
+    n_work_orders = 0
+    n_valid_work_orders = 0
+    n_executions = 0
+    n_valid_executions = 0
+    n_contract_satisfied_executions = 0
+    n_response_contract_failed_executions = 0
+    n_live_executions = 0
+    n_static_or_fixture_executions = 0
+    n_capability_evidence_executions = 0
+    n_nonproof_boundary_valid_executions = 0
+    n_work_order_lineage_valid_executions = 0
+    n_runtime_turn_lineage_valid_executions = 0
+    n_same_run_feedback_transitions = 0
+    n_same_run_feedback_to_proofengineer = 0
+    n_same_run_feedback_to_critic = 0
+    n_work_orders_without_execution = 0
+    n_executions_without_work_order = 0
+    work_order_ids: list[str] = []
+    execution_ids: list[str] = []
+    contract_issues: list[str] = []
+
+    def issue(path: Path, artifact_id: str, message: str) -> None:
+        contract_issues.append(f"{path.name}:{artifact_id}:{message}")
+
+    for path in result_paths:
+        payload = _load_json(path, errors)
+        blackboard = (
+            payload.get("blackboard", {})
+            if isinstance(payload.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        traces = (
+            list(payload.get("traces", []))
+            if isinstance(payload.get("traces", []), list)
+            else []
+        )
+        work_orders = {
+            str(artifact_id): dict(artifact)
+            for artifact_id, artifact in artifacts.items()
+            if isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind")
+            == PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_KIND
+        }
+        executions = {
+            str(artifact_id): dict(artifact)
+            for artifact_id, artifact in artifacts.items()
+            if isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind")
+            == PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_EXECUTION_KIND
+        }
+        referenced_work_order_ids = {
+            str(execution.get("work_order_id", "") or "")
+            for execution in executions.values()
+            if str(execution.get("work_order_id", "") or "")
+        }
+        n_work_orders_without_execution += len(
+            set(work_orders) - referenced_work_order_ids
+        )
+
+        for artifact_id, work_order in work_orders.items():
+            n_work_orders += 1
+            work_order_id = str(work_order.get("work_order_id", "") or "")
+            work_order_ids.append(work_order_id or artifact_id)
+            row_issues: list[str] = []
+            if not work_order_id or work_order_id != artifact_id:
+                row_issues.append("work-order artifact identity mismatch")
+            if work_order.get("target_subsystem") != (
+                PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM
+            ):
+                row_issues.append("work-order target subsystem mismatch")
+            rows = [
+                dict(row)
+                for row in work_order.get("work_order_rows", []) or []
+                if isinstance(row, Mapping)
+            ]
+            row_hashes = [stable_hash(row) for row in rows]
+            if not rows:
+                row_issues.append("work-order request rows missing")
+            if list(work_order.get("work_order_row_hashes", []) or []) != row_hashes:
+                row_issues.append("work-order row hashes mismatch")
+            if pseudo_formal_block_verifier_request_rows(
+                rows,
+                max_packets=max(len(rows), 1),
+            ) != rows:
+                row_issues.append("work-order rows are not pending PF/BV requests")
+            execution_policy = (
+                dict(work_order.get("execution_policy", {}))
+                if isinstance(work_order.get("execution_policy", {}), Mapping)
+                else {}
+            )
+            if not execution_policy or stable_hash(execution_policy) != str(
+                work_order.get("execution_policy_fingerprint", "") or ""
+            ):
+                row_issues.append("work-order execution policy fingerprint mismatch")
+            if execution_policy.get("independence_contract") != (
+                PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT
+            ):
+                row_issues.append("work-order independence contract mismatch")
+            source_manifest_id = str(
+                work_order.get("source_formalization_manifest_id", "") or ""
+            )
+            source_manifest = artifacts.get(source_manifest_id, {})
+            if not source_manifest_id or not isinstance(source_manifest, Mapping):
+                row_issues.append("source formalization manifest missing")
+            elif stable_hash(dict(source_manifest)) != str(
+                work_order.get("source_formalization_manifest_hash", "") or ""
+            ):
+                row_issues.append("source formalization manifest hash mismatch")
+            if work_order.get("kernel_verified") is not False or work_order.get(
+                "source_theorem_kernel_verified"
+            ) is not False:
+                row_issues.append("work-order kernel evidence boundary violated")
+            if work_order.get("proof_evidence_status") != (
+                PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE
+            ):
+                row_issues.append("work-order proof evidence status mismatch")
+            if work_order.get("proof_evidence_boundary") != (
+                PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+            ):
+                row_issues.append("work-order proof evidence boundary mismatch")
+            if row_issues:
+                for message in row_issues:
+                    issue(path, artifact_id, message)
+            else:
+                n_valid_work_orders += 1
+
+        for artifact_id, execution in executions.items():
+            n_executions += 1
+            execution_id = str(execution.get("manifest_id", "") or "")
+            execution_ids.append(execution_id or artifact_id)
+            row_issues: list[str] = []
+            if not execution_id or execution_id != artifact_id:
+                row_issues.append("execution artifact identity mismatch")
+            work_order_id = str(execution.get("work_order_id", "") or "")
+            work_order = work_orders.get(work_order_id)
+            work_order_lineage_ok = isinstance(work_order, Mapping)
+            if not work_order_lineage_ok:
+                n_executions_without_work_order += 1
+                row_issues.append("execution source work order missing")
+            else:
+                if str(execution.get("work_order_hash", "") or "") != stable_hash(
+                    dict(work_order)
+                ):
+                    work_order_lineage_ok = False
+                    row_issues.append("execution work-order hash mismatch")
+                for key in (
+                    "question_id",
+                    "source_formalization_manifest_id",
+                    "source_formalization_manifest_hash",
+                    "execution_policy_fingerprint",
+                ):
+                    if execution.get(key) != work_order.get(key):
+                        work_order_lineage_ok = False
+                        row_issues.append(f"execution {key} lineage mismatch")
+                if list(
+                    execution.get("source_work_order_row_hashes", []) or []
+                ) != list(work_order.get("work_order_row_hashes", []) or []):
+                    work_order_lineage_ok = False
+                    row_issues.append("execution request-row lineage mismatch")
+            if work_order_lineage_ok:
+                n_work_order_lineage_valid_executions += 1
+
+            runtime_turn_id = str(execution.get("runtime_turn_id", "") or "")
+            runtime_turn = artifacts.get(runtime_turn_id, {})
+            runtime_turn_lineage_ok = isinstance(runtime_turn, Mapping) and bool(
+                runtime_turn
+            )
+            if not runtime_turn_lineage_ok:
+                row_issues.append("execution runtime-turn artifact missing")
+            else:
+                runtime_turn = dict(runtime_turn)
+                if str(runtime_turn.get("manifest_id", "") or "") != runtime_turn_id:
+                    runtime_turn_lineage_ok = False
+                    row_issues.append("runtime-turn artifact identity mismatch")
+                if stable_hash(runtime_turn) != str(
+                    execution.get("runtime_turn_hash", "") or ""
+                ):
+                    runtime_turn_lineage_ok = False
+                    row_issues.append("runtime-turn hash mismatch")
+                if isinstance(work_order, Mapping) and list(
+                    runtime_turn.get("request_row_hashes", []) or []
+                ) != list(work_order.get("work_order_row_hashes", []) or []):
+                    runtime_turn_lineage_ok = False
+                    row_issues.append("runtime-turn request-row lineage mismatch")
+                for key in (
+                    "n_request_rows",
+                    "n_valid_responses",
+                    "n_runtime_learning_rows",
+                    "n_accepted_blocks",
+                    "n_failed_blocks",
+                ):
+                    if _safe_int(execution.get(key)) != _safe_int(
+                        runtime_turn.get(key)
+                    ):
+                        runtime_turn_lineage_ok = False
+                        row_issues.append(f"runtime-turn {key} count mismatch")
+                if list(execution.get("runtime_learning_rows", []) or []) != list(
+                    runtime_turn.get("runtime_learning_rows", []) or []
+                ):
+                    runtime_turn_lineage_ok = False
+                    row_issues.append("runtime-turn learning-row lineage mismatch")
+            if runtime_turn_lineage_ok:
+                n_runtime_turn_lineage_valid_executions += 1
+
+            contract_satisfied = execution.get("execution_contract_satisfied") is True
+            if contract_satisfied:
+                n_contract_satisfied_executions += 1
+            else:
+                n_response_contract_failed_executions += 1
+            if isinstance(runtime_turn, Mapping):
+                if bool(runtime_turn.get("all_ok", False)) != contract_satisfied:
+                    row_issues.append("execution/runtime-turn contract status mismatch")
+                provider_name = str(runtime_turn.get("provider_name", "") or "")
+                backend_names = [
+                    str(value).strip()
+                    for value in runtime_turn.get("backend_provider_names", []) or []
+                    if str(value).strip()
+                ]
+                recomputed_live = bool(provider_name and backend_names) and all(
+                    is_live_generator_backend(provider_name, backend_name)
+                    for backend_name in backend_names
+                )
+            else:
+                recomputed_live = False
+            if recomputed_live:
+                n_live_executions += 1
+            else:
+                n_static_or_fixture_executions += 1
+            if execution.get("live_generator") is not recomputed_live:
+                row_issues.append("live generator provenance mismatch")
+            if execution.get("static_or_fixture_only") is not (not recomputed_live):
+                row_issues.append("static/fixture provenance mismatch")
+            expected_capability_evidence = contract_satisfied and recomputed_live
+            if execution.get("capability_evidence_ok") is not (
+                expected_capability_evidence
+            ):
+                row_issues.append("capability evidence claim mismatch")
+            elif expected_capability_evidence:
+                n_capability_evidence_executions += 1
+
+            nonproof_boundary_ok = bool(
+                execution.get("kernel_verified") is False
+                and execution.get("source_theorem_kernel_verified") is False
+                and execution.get("proof_evidence_status")
+                == PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_NOT_PROOF_EVIDENCE
+                and execution.get("proof_evidence_boundary")
+                == PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+            )
+            if isinstance(runtime_turn, Mapping):
+                nonproof_boundary_ok = bool(
+                    nonproof_boundary_ok
+                    and runtime_turn.get("proof_evidence_status")
+                    == PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE
+                    and runtime_turn.get("proof_evidence_boundary")
+                    == PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+                    and runtime_turn.get("kernel_verified", False) is False
+                    and runtime_turn.get("source_theorem_kernel_verified", False)
+                    is False
+                )
+            if nonproof_boundary_ok:
+                n_nonproof_boundary_valid_executions += 1
+            else:
+                row_issues.append("typed PF/BV non-proof boundary mismatch")
+
+            expected_owner = (
+                "ProofEngineer" if contract_satisfied else "CriticEvaluator"
+            )
+            expected_status = "REVISE" if contract_satisfied else "REROUTE"
+            resume_task = (
+                execution.get("resume_next_task", {})
+                if isinstance(execution.get("resume_next_task", {}), Mapping)
+                else {}
+            )
+            resume_task_id = str(resume_task.get("task_id", "") or "")
+            if (
+                not resume_task_id
+                or resume_task.get("owner_subsystem") != expected_owner
+                or execution.get("execution_result_status") != expected_status
+            ):
+                row_issues.append("execution feedback route mismatch")
+
+            trace_index = next(
+                (
+                    index
+                    for index, trace in enumerate(traces)
+                    if isinstance(trace, Mapping)
+                    and trace.get("subsystem")
+                    == PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM
+                    and str(
+                        (
+                            trace.get("task", {})
+                            if isinstance(trace.get("task", {}), Mapping)
+                            else {}
+                        ).get("task_id", "")
+                        or ""
+                    )
+                    == str(execution.get("task_id", "") or "")
+                    and artifact_id
+                    in {
+                        str(value)
+                        for value in trace.get("produced_artifact_ids", []) or []
+                    }
+                ),
+                -1,
+            )
+            same_run_transition = False
+            if trace_index < 0:
+                row_issues.append("typed PF/BV execution trace missing")
+            else:
+                trace = traces[trace_index]
+                verifier_tool_calls = [
+                    call
+                    for call in trace.get("tool_calls", []) or []
+                    if isinstance(call, Mapping)
+                    and call.get("tool_name")
+                    == "LLMPseudoFormalBlockVerifier.verify_blocks"
+                ]
+                if len(verifier_tool_calls) != 1:
+                    row_issues.append("typed PF/BV verifier tool call missing or duplicated")
+                else:
+                    verifier_tool_call = verifier_tool_calls[0]
+                    verifier_inputs = (
+                        verifier_tool_call.get("inputs", {})
+                        if isinstance(verifier_tool_call.get("inputs", {}), Mapping)
+                        else {}
+                    )
+                    if verifier_inputs.get(
+                        "hidden_dependency_proof_bodies_available"
+                    ) is not False or verifier_tool_call.get(
+                        "safety_boundary"
+                    ) != PSEUDO_FORMALIZATION_PROOF_BOUNDARY:
+                        row_issues.append("typed PF/BV verifier tool safety boundary mismatch")
+                trace_next = (
+                    trace.get("next_task", {})
+                    if isinstance(trace.get("next_task", {}), Mapping)
+                    else {}
+                )
+                if (
+                    trace.get("status") != expected_status
+                    or str(trace_next.get("task_id", "") or "") != resume_task_id
+                    or trace_next.get("owner_subsystem") != expected_owner
+                ):
+                    row_issues.append("typed PF/BV trace handoff mismatch")
+                elif trace_index + 1 >= len(traces):
+                    row_issues.append("typed PF/BV feedback was not consumed in same run")
+                else:
+                    following_trace = traces[trace_index + 1]
+                    following_task = (
+                        following_trace.get("task", {})
+                        if isinstance(following_trace, Mapping)
+                        and isinstance(following_trace.get("task", {}), Mapping)
+                        else {}
+                    )
+                    same_run_transition = bool(
+                        str(following_task.get("task_id", "") or "")
+                        == resume_task_id
+                        and following_task.get("owner_subsystem") == expected_owner
+                        and following_trace.get("subsystem") == expected_owner
+                    )
+                    if not same_run_transition:
+                        row_issues.append("typed PF/BV next trace did not consume feedback")
+            if same_run_transition:
+                n_same_run_feedback_transitions += 1
+                if expected_owner == "ProofEngineer":
+                    n_same_run_feedback_to_proofengineer += 1
+                else:
+                    n_same_run_feedback_to_critic += 1
+
+            if row_issues:
+                for message in row_issues:
+                    issue(path, artifact_id, message)
+            else:
+                n_valid_executions += 1
+
+    observed = n_work_orders > 0 or n_executions > 0
+    contract_complete = bool(
+        not contract_issues
+        and n_work_orders == n_valid_work_orders == n_executions
+        and n_executions == n_valid_executions
+        and n_work_orders_without_execution == 0
+        and n_executions_without_work_order == 0
+        and n_same_run_feedback_transitions == n_executions
+    )
+    capability_evidence_complete = bool(
+        observed
+        and contract_complete
+        and n_live_executions == n_executions
+        and n_static_or_fixture_executions == 0
+        and n_capability_evidence_executions == n_executions
+        and n_contract_satisfied_executions == n_executions
+    )
+    return {
+        "runtime_typed_pseudo_formal_block_verifier_observed": observed,
+        "runtime_typed_pseudo_formal_block_verifier_contract_complete": (
+            contract_complete
+        ),
+        "runtime_typed_pseudo_formal_block_verifier_capability_evidence_complete": (
+            capability_evidence_complete
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_work_orders": n_work_orders,
+        "n_runtime_typed_pseudo_formal_block_verifier_valid_work_orders": (
+            n_valid_work_orders
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_executions": n_executions,
+        "n_runtime_typed_pseudo_formal_block_verifier_valid_executions": (
+            n_valid_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_contract_satisfied_executions": (
+            n_contract_satisfied_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_response_contract_failed_executions": (
+            n_response_contract_failed_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_live_executions": (
+            n_live_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_static_or_fixture_executions": (
+            n_static_or_fixture_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_capability_evidence_executions": (
+            n_capability_evidence_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_nonproof_boundary_valid_executions": (
+            n_nonproof_boundary_valid_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_work_order_lineage_valid_executions": (
+            n_work_order_lineage_valid_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_runtime_turn_lineage_valid_executions": (
+            n_runtime_turn_lineage_valid_executions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_transitions": (
+            n_same_run_feedback_transitions
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_to_proofengineer": (
+            n_same_run_feedback_to_proofengineer
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_to_critic": (
+            n_same_run_feedback_to_critic
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_work_orders_without_execution": (
+            n_work_orders_without_execution
+        ),
+        "n_runtime_typed_pseudo_formal_block_verifier_executions_without_work_order": (
+            n_executions_without_work_order
+        ),
+        "runtime_typed_pseudo_formal_block_verifier_work_order_ids": sorted(
+            set(work_order_ids)
+        ),
+        "runtime_typed_pseudo_formal_block_verifier_execution_ids": sorted(
+            set(execution_ids)
+        ),
+        "runtime_typed_pseudo_formal_block_verifier_contract_issues": sorted(
+            set(contract_issues)
+        ),
+        "runtime_typed_pseudo_formal_block_verifier_boundary": (
+            "Typed PF/BV feedback is in-AgentRuntime calibration feedback only. "
+            "It is never Lean/AXLE proof evidence or source-theorem evidence."
+        ),
+    }
+
+
 def _runtime_pseudo_formal_block_routing_contract_audit_summary(
     *,
     agenda_rows: list[Any],
@@ -20163,6 +20661,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     runtime_pseudo_formal_block_routing_contract_complete = (
         _runtime_pseudo_formal_block_routing_contract_scorecard_passed(payload)
+    )
+    runtime_typed_pseudo_formal_block_verifier_capability_complete = (
+        _runtime_typed_pseudo_formal_block_verifier_scorecard_passed(payload)
     )
     runtime_progress_export_complete = (
         _runtime_progress_export_scorecard_passed(payload)
@@ -25205,6 +25706,72 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "typed_pseudo_formal_block_verifier_agent_runtime_feedback",
+            runtime_typed_pseudo_formal_block_verifier_capability_complete,
+            (
+                "observed="
+                f"{payload.get('runtime_typed_pseudo_formal_block_verifier_observed')} "
+                "contract_complete="
+                f"{payload.get('runtime_typed_pseudo_formal_block_verifier_contract_complete')} "
+                "capability_evidence_complete="
+                f"{payload.get('runtime_typed_pseudo_formal_block_verifier_capability_evidence_complete')} "
+                "work_orders="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_work_orders')} "
+                "valid_work_orders="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_valid_work_orders')} "
+                "executions="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_executions')} "
+                "valid_executions="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_valid_executions')} "
+                "live_executions="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_live_executions')} "
+                "static_executions="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_static_or_fixture_executions')} "
+                "capability_executions="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_capability_evidence_executions')} "
+                "nonproof_boundary_valid="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_nonproof_boundary_valid_executions')} "
+                "work_order_lineage_valid="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_work_order_lineage_valid_executions')} "
+                "runtime_turn_lineage_valid="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_runtime_turn_lineage_valid_executions')} "
+                "same_run_feedback="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_transitions')} "
+                "to_proofengineer="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_to_proofengineer')} "
+                "to_critic="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_to_critic')} "
+                "work_orders_without_execution="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_work_orders_without_execution')} "
+                "executions_without_work_order="
+                f"{payload.get('n_runtime_typed_pseudo_formal_block_verifier_executions_without_work_order')} "
+                "issues="
+                f"{payload.get('runtime_typed_pseudo_formal_block_verifier_contract_issues')}"
+            ),
+            (
+                "typed PF/BV work was observed but did not complete a live, "
+                "immutable work-order -> verifier turn -> validated non-proof "
+                "feedback -> same-AgentRuntime ProofEngineer/Critic transition; "
+                "the older attached component gate cannot substitute for this path"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner=PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
+                target_behavior=(
+                    "Replay the typed PF/BV work order inside AgentRuntime with "
+                    "a live provider, preserve work-order/runtime-turn hashes and "
+                    "the strict non-proof boundary, and execute the returned "
+                    "ProofEngineer or CriticEvaluator task in the same run."
+                ),
+                success_metric=(
+                    "runtime_typed_pseudo_formal_block_verifier_capability_evidence_complete=true "
+                    "with every observed work order executed live, every lineage "
+                    "and non-proof boundary check valid, and same-run feedback "
+                    "transitions equal to typed executions"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "pseudo_formal_block_verifier_component_gate",
             attached_pseudo_formal_live_gate_passed,
             (
@@ -28512,6 +29079,105 @@ def _runtime_pseudo_formal_block_routing_contract_scorecard_passed(
     return all(
         _safe_int(payload.get(key)) == 0
         for key in count_keys[6:]
+    )
+
+
+def _runtime_typed_pseudo_formal_block_verifier_scorecard_passed(
+    payload: Mapping[str, Any],
+) -> bool:
+    count_keys = (
+        "n_runtime_typed_pseudo_formal_block_verifier_work_orders",
+        "n_runtime_typed_pseudo_formal_block_verifier_valid_work_orders",
+        "n_runtime_typed_pseudo_formal_block_verifier_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_valid_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_contract_satisfied_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_response_contract_failed_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_live_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_static_or_fixture_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_capability_evidence_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_nonproof_boundary_valid_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_work_order_lineage_valid_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_runtime_turn_lineage_valid_executions",
+        "n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_transitions",
+        "n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_to_proofengineer",
+        "n_runtime_typed_pseudo_formal_block_verifier_same_run_feedback_to_critic",
+        "n_runtime_typed_pseudo_formal_block_verifier_work_orders_without_execution",
+        "n_runtime_typed_pseudo_formal_block_verifier_executions_without_work_order",
+    )
+    telemetry_keys = (
+        "runtime_typed_pseudo_formal_block_verifier_observed",
+        "runtime_typed_pseudo_formal_block_verifier_contract_complete",
+        "runtime_typed_pseudo_formal_block_verifier_capability_evidence_complete",
+        "runtime_typed_pseudo_formal_block_verifier_contract_issues",
+        *count_keys,
+    )
+    if not any(key in payload for key in telemetry_keys):
+        return True
+    if not _scorecard_telemetry_keys_present(payload, telemetry_keys):
+        return False
+    if not _scorecard_issue_list_empty(
+        payload,
+        "runtime_typed_pseudo_formal_block_verifier_contract_issues",
+    ):
+        return False
+    observed = payload.get(
+        "runtime_typed_pseudo_formal_block_verifier_observed"
+    )
+    if observed not in {True, False}:
+        return False
+    work_orders = _safe_int(payload.get(count_keys[0]))
+    valid_work_orders = _safe_int(payload.get(count_keys[1]))
+    executions = _safe_int(payload.get(count_keys[2]))
+    valid_executions = _safe_int(payload.get(count_keys[3]))
+    if observed is False:
+        return bool(
+            payload.get(
+                "runtime_typed_pseudo_formal_block_verifier_contract_complete"
+            )
+            is True
+            and payload.get(
+                "runtime_typed_pseudo_formal_block_verifier_capability_evidence_complete"
+            )
+            is False
+            and all(_safe_int(payload.get(key)) == 0 for key in count_keys)
+        )
+    if payload.get(
+        "runtime_typed_pseudo_formal_block_verifier_contract_complete"
+    ) is not True or payload.get(
+        "runtime_typed_pseudo_formal_block_verifier_capability_evidence_complete"
+    ) is not True:
+        return False
+    if work_orders <= 0 or not (
+        work_orders == valid_work_orders == executions == valid_executions
+    ):
+        return False
+    if any(
+        _safe_int(payload.get(key)) != executions
+        for key in (
+            count_keys[4],
+            count_keys[6],
+            count_keys[8],
+            count_keys[9],
+            count_keys[10],
+            count_keys[11],
+            count_keys[12],
+        )
+    ):
+        return False
+    if any(
+        _safe_int(payload.get(key)) != 0
+        for key in (
+            count_keys[5],
+            count_keys[7],
+            count_keys[15],
+            count_keys[16],
+        )
+    ):
+        return False
+    return (
+        _safe_int(payload.get(count_keys[13]))
+        + _safe_int(payload.get(count_keys[14]))
+        == executions
     )
 
 

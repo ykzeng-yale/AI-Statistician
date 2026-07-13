@@ -239,13 +239,16 @@
   "latest_external_codexprover_coordination": {
     "checkout": "/Users/yukangzengcmac/.codex/external/CodexProver",
     "branch": "codex/evaluator-shard-no-workflow-push",
-    "commit": "33832f47c9551bd7fb377427988496c3e22a4861",
+    "commit": "99314ffd72810e102d74b255605a03c59307ad69",
     "new_reusable_components": [
       "append-only adaptive subsystem episode controller",
       "hash-bound routed context digest",
       "instruction context digest",
       "runtime capability profile",
-      "artifact-domain isolation and actual runtime-read audit"
+      "artifact-domain isolation and actual runtime-read audit",
+      "allowlisted secret-free Lean MCP stdio bridge with project-path scope",
+      "statement/type/hash-bound exact-check contracts",
+      "pre-registered held-out MCP policy evaluation"
     ],
     "latest_episode_capability_outcome": "blocked",
     "latest_episode_steps": 9,
@@ -255,8 +258,41 @@
     "latest_episode_retrieval_hits": 21,
     "latest_episode_retrieval_hits_used": 4,
     "latest_episode_lean_checks": 2,
-    "integration_decision": "Adapt the packet-bound episode controller, routed-context digest, capability profile, and runtime-read audit into the one Architect-controlled AgentRuntime or a typed worker backend. Do not copy its committed run corpus and do not create a second orchestration plane. Local Lean/AXLE remains the final proof authority.",
+    "latest_secure_stdio_capability_selection": "passed",
+    "latest_heldout_escalation_policy_suite": "failed_and_policy_not_admitted",
+    "latest_heldout_safe_default": "no_mcp_first",
+    "integration_decision": "Adapt the packet-bound episode controller, routed-context digest, capability profile, runtime-read audit, scoped-path/secret-free MCP transport, and exact target binding into the one Architect-controlled AgentRuntime or its existing OpenProver typed provider. Do not copy its committed run corpus and do not create a second orchestration plane. The latest held-out escalation suite did not admit its experimental policy, so no_mcp_first remains the external safe default and local Lean/AXLE remains final proof authority.",
     "proof_evidence_status": "External coding-agent control-plane evaluation and reusable implementation evidence only; not AI-Statistician theorem proof or end-to-end completion."
+  },
+  "latest_typed_pseudo_formal_block_verifier_runtime_migration": {
+    "runtime_subsystem": "PseudoFormalBlockVerifier",
+    "execution_position": "FormalizationEvaluator -> PseudoFormalBlockVerifier -> ProofEngineer or CriticEvaluator",
+    "official_method_source": "https://arxiv.org/abs/2605.20531",
+    "official_code_source": "https://github.com/Slim205/pseudo-formalization",
+    "source_checkout_commit": "0aa51d2",
+    "typed_contract": "immutable Formalizer manifest and PF/BV row projection, row hashes, provider/model policy fingerprint, fresh bounded verifier prompt, validated runtime learning rows, and replay-bound next task",
+    "provider_failure_behavior": "route exact provider/response diagnostics to CriticEvaluator without crashing AgentRuntime or promoting proof",
+    "same_runtime_feedback": true,
+    "standalone_component_gate_is_primary_orchestrator": false,
+    "live_paper_index_contains_method_and_repo": true,
+    "live_probe_summary": "runs/main_worker_typed_pf_bv_live_probe_20260713/typed_pf_bv_live_probe_summary.json",
+    "live_probe_trace": [
+      "PseudoFormalBlockVerifier:REVISE",
+      "ProofEngineer:COMPLETED"
+    ],
+    "live_probe_execution_contract_satisfied": true,
+    "live_probe_capability_evidence_ok": true,
+    "live_probe_valid_responses": 1,
+    "live_probe_runtime_learning_rows": 1,
+    "typed_runtime_audit_contract": "Recompute immutable work-order, source-manifest, request-row, execution-policy, runtime-turn, provider, tool-call, non-proof-boundary, and same-run trace lineage. The historical attached PF/BV component gate remains component calibration and cannot satisfy this integrated row.",
+    "typed_runtime_audit_regression": "11 typed PF/BV worker/audit tests passed; 177 existing capability-scorecard tests passed",
+    "historical_runtime_audit_check": "Existing runtime without typed artifacts remains explicitly observed=false while the old attached component gate is reported separately",
+    "full_runtime_regression": "1069 passed in 1464.34s",
+    "focused_regression": "78 PF/BV/Architect/model tests passed; 45 related runtime tests passed; 2 paper/source inventory tests passed",
+    "kernel_verified": false,
+    "source_theorem_kernel_verified": false,
+    "capability_ready_for_full_ai_statistician": false,
+    "s14_satisfied": false
   },
   "original_end_to_end_target_gap_audit_20260712": {
     "unified_architect_control_plane": "PARTIAL_IMPROVED: theorem-reduction closure, primary exact source-theorem compilation, primary Formalizer-produced source-semantic support, primary structured source-theorem promotion planning, exact-semantic lookup/grounded-authoring/materialization/Lean feedback, and exact-semantic environment/typechecked-review/verifier/proof continuation now run as Architect-visible children with immutable replay; late-derived semantic/promotion, adapter/premise, and later same-run proof-body stages still form a second orchestration plane",

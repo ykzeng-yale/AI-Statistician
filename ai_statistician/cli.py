@@ -11683,6 +11683,53 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             formalizer_candidate_lean_timeout=int(
                 getattr(args, "formalizer_candidate_lean_timeout", 30)
             ),
+            pseudo_formal_block_verifier_runtime=bool(
+                getattr(args, "pseudo_formal_block_verifier_runtime", False)
+            ),
+            pseudo_formal_block_verifier_runtime_model=str(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_runtime_model",
+                    "",
+                )
+                or ""
+            ),
+            pseudo_formal_block_verifier_runtime_model_tier=str(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_runtime_model_tier",
+                    "sonnet",
+                )
+                or "sonnet"
+            ),
+            pseudo_formal_block_verifier_runtime_max_packets=int(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_runtime_max_packets",
+                    8,
+                )
+            ),
+            pseudo_formal_block_verifier_runtime_max_tokens=int(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_runtime_max_tokens",
+                    2000,
+                )
+            ),
+            pseudo_formal_block_verifier_runtime_temperature=float(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_runtime_temperature",
+                    0.0,
+                )
+            ),
+            pseudo_formal_block_verifier_runtime_max_repair_attempts=int(
+                getattr(
+                    args,
+                    "pseudo_formal_block_verifier_runtime_max_repair_attempts",
+                    1,
+                )
+            ),
             theorem_closure_proofengineer_bridge=bool(
                 getattr(args, "theorem_closure_proofengineer_bridge", False)
             ),
@@ -13759,6 +13806,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
 
     for field_name in (
         "formalizer_candidate_local_lean",
+        "pseudo_formal_block_verifier_runtime",
         "theorem_closure_proofengineer_bridge",
         "theorem_closure_proofengineer_local_lean",
         "source_semantic_proofengineer_bridge",
@@ -14243,6 +14291,10 @@ def _research_agent_runtime_capability_config_errors(
             "stand in for live Architect path selection"
         )
     proofengineer_required_flags = (
+        (
+            "pseudo_formal_block_verifier_runtime",
+            "--pseudo-formal-block-verifier-runtime",
+        ),
         (
             "formalizer_candidate_local_lean",
             "--formalizer-candidate-local-lean",
@@ -21081,6 +21133,48 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=30,
         help="timeout seconds for each materialized Formalizer candidate local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime",
+        action="store_true",
+        help=(
+            "register the independent PseudoFormalBlockVerifier as a typed "
+            "AgentRuntime subsystem and route pending PF/BV rows through it "
+            "before other formal closure lanes"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-model",
+        default="",
+        help=(
+            "optional model override for the in-loop PF/BV worker; otherwise "
+            "reuse the Formalizer provider/model binding with a fresh verifier prompt"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-model-tier",
+        choices=list(CLAUDE_MODEL_TIERS),
+        default="sonnet",
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-max-packets",
+        type=int,
+        default=8,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-max-tokens",
+        type=int,
+        default=2000,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-temperature",
+        type=float,
+        default=0.0,
+    )
+    research_agent_runtime.add_argument(
+        "--pseudo-formal-block-verifier-runtime-max-repair-attempts",
+        type=int,
+        default=1,
     )
     research_agent_runtime.add_argument(
         "--emperical-process-lean-rag-root",

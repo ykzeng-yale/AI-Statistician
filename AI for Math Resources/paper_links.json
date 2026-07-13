@@ -14,8 +14,8 @@
       "Tabs_13422739495371719"
     ],
     "current_url_count": 73,
-    "cumulative_url_count": 156,
-    "output_url_count": 120,
+    "cumulative_url_count": 158,
+    "output_url_count": 122,
     "state_path": "/Users/yukang/Documents/Codex/chrome-paper-log/history.json"
   },
   "groups": {
@@ -698,6 +698,25 @@
       }
     ],
     "2. Autoformalization / datasets / formal benchmarks": [
+      {
+        "url": "https://arxiv.org/abs/2605.20531",
+        "title": "Pseudo-Formalization for Automatic Proof Verification",
+        "registry_category": "0. Recently Seen Papers / 待读",
+        "last_seen": "2026-07-13T00:00:00+00:00",
+        "seen_count": 1,
+        "source": "user-provided and verified from the public arXiv record",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "block-verification",
+          "proof-verification",
+          "pseudo-formalization",
+          "verifier-feedback"
+        ],
+        "first_seen": "2026-07-13T00:00:00+00:00",
+        "category": "2. Autoformalization / datasets / formal benchmarks"
+      },
       {
         "url": "https://arxiv.org/abs/2205.12615",
         "title": "Autoformalization with Large Language Models",
@@ -2019,6 +2038,25 @@
       }
     ],
     "7. Code / project pages / datasets": [
+      {
+        "url": "https://github.com/Slim205/pseudo-formalization",
+        "title": "Pseudo-Formalization official implementation and benchmarks",
+        "registry_category": "1. Code / Datasets / Tools",
+        "last_seen": "2026-07-13T00:00:00+00:00",
+        "seen_count": 1,
+        "source": "user-provided official paper repository",
+        "collections": [
+          "ai-math-discovery-systems"
+        ],
+        "tags": [
+          "block-verifier",
+          "code",
+          "proof-grading",
+          "pseudo-formalization"
+        ],
+        "first_seen": "2026-07-13T00:00:00+00:00",
+        "category": "7. Code / project pages / datasets"
+      },
       {
         "url": "https://github.com/MoonshotAI/CombiBench",
         "title": "CombiBench GitHub repository",

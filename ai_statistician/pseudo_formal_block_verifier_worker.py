@@ -311,6 +311,215 @@ def export_pseudo_formal_block_verifier_llm_responses(
     return payload
 
 
+def pseudo_formal_block_verifier_request_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    max_packets: int = 20,
+) -> list[dict[str, Any]]:
+    """Select pending, structurally bound PF/BV requests for a verifier turn."""
+
+    return [
+        dict(row)
+        for row in rows
+        if isinstance(row, Mapping) and _is_independent_bv_request_row(row)
+    ][: max(0, int(max_packets))]
+
+
+def run_pseudo_formal_block_verifier_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    provider: GeneratorBackend,
+    provider_name: str = "anthropic",
+    model: str = "",
+    model_tier: str = "sonnet",
+    max_packets: int = 20,
+    max_tokens: int = 2000,
+    temperature: float = 0.0,
+    max_repair_attempts: int = 1,
+    question_id: str = "",
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Run an in-memory PF/BV turn for a typed AgentRuntime worker.
+
+    This is the same prompt, JSON-repair, and validation path used by the
+    standalone component gate. It accepts already lineage-bound runtime rows so
+    an AgentRuntime subsystem does not need to export and re-import a second
+    orchestration queue.
+    """
+
+    request_rows = pseudo_formal_block_verifier_request_rows(
+        rows,
+        max_packets=max_packets,
+    )
+    prompt_packets = [_prompt_packet_from_request(row) for row in request_rows]
+    ok_packets = [packet for packet in prompt_packets if packet.get("ok") is True]
+    resolved_model = resolve_generator_model(
+        provider_name=provider_name,
+        requested_model=model,
+        model_tier=model_tier,
+    )
+    response_rows = [
+        _llm_response_for_prompt_packet(
+            packet,
+            provider=provider,
+            provider_name=provider_name,
+            model=resolved_model,
+            model_tier=model_tier,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            max_repair_attempts=max_repair_attempts,
+        )
+        for packet in ok_packets
+    ]
+    responses = [
+        dict(row["response"])
+        for row in response_rows
+        if row.get("ok") is True and isinstance(row.get("response"), Mapping)
+    ]
+    packets_by_id = {
+        str(packet.get("prompt_packet_id", "") or ""): packet
+        for packet in ok_packets
+    }
+    validation_rows = [
+        _validate_response_row(response, packets_by_id) for response in responses
+    ]
+    runtime_learning_rows = [
+        dict(row["runtime_learning_row"])
+        for row in validation_rows
+        if row.get("ok") is True
+        and isinstance(row.get("runtime_learning_row"), Mapping)
+    ]
+    if str(question_id or "").strip():
+        runtime_learning_rows = [
+            {**row, "question_id": str(question_id).strip()}
+            for row in runtime_learning_rows
+        ]
+    backend_provider_names = _component_backend_provider_names(
+        {"rows": response_rows}
+    )
+    normalized_provider_name = normalize_generator_provider_name(provider_name)
+    live_generator = bool(normalized_provider_name and backend_provider_names) and all(
+        is_live_generator_backend(normalized_provider_name, backend_provider_name)
+        for backend_provider_name in backend_provider_names
+    )
+    prompt_errors = [
+        str(error)
+        for packet in prompt_packets
+        for error in packet.get("errors", []) or []
+    ]
+    response_errors = [
+        str(error)
+        for row in response_rows
+        for error in row.get("errors", []) or []
+    ]
+    validation_errors = [
+        str(error)
+        for row in validation_rows
+        for error in row.get("errors", []) or []
+    ]
+    verdict_counts = Counter(
+        str(
+            (
+                row.get("block_verification", {})
+                if isinstance(row.get("block_verification", {}), Mapping)
+                else {}
+            ).get("verdict", "")
+            or ""
+        )
+        for row in validation_rows
+    )
+    all_ok = bool(request_rows) and (
+        len(ok_packets)
+        == len(response_rows)
+        == len(validation_rows)
+        == len(runtime_learning_rows)
+        == len(request_rows)
+    ) and not (prompt_errors or response_errors or validation_errors)
+    payload: dict[str, Any] = {
+        "schema_version": PSEUDO_FORMAL_BLOCK_VERIFIER_WORKER_SCHEMA_VERSION,
+        "artifact_kind": "PseudoFormalBlockVerifierRuntimeTurnManifest",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "provider_name": normalized_provider_name,
+        "backend_provider_names": backend_provider_names,
+        "model": resolved_model,
+        "model_tier": model_tier,
+        "live_generator": live_generator,
+        "static_or_fixture_only": not live_generator,
+        "n_source_rows": len(rows),
+        "n_request_rows": len(request_rows),
+        "n_prompt_packets": len(prompt_packets),
+        "n_ok_prompt_packets": len(ok_packets),
+        "n_response_rows": len(response_rows),
+        "n_valid_responses": sum(
+            1 for row in validation_rows if row.get("ok") is True
+        ),
+        "n_runtime_learning_rows": len(runtime_learning_rows),
+        "n_accepted_blocks": int(verdict_counts.get("accepted", 0) or 0),
+        "n_failed_blocks": int(verdict_counts.get("failed", 0) or 0),
+        "all_ok": all_ok,
+        "errors": [*prompt_errors, *response_errors, *validation_errors],
+        "request_row_hashes": [stable_hash(row) for row in request_rows],
+        "prompt_packets": prompt_packets,
+        "response_rows": response_rows,
+        "validation_rows": validation_rows,
+        "runtime_learning_rows": runtime_learning_rows,
+        "proof_evidence_status": (
+            PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        "boundary": (
+            "This runtime turn is independent pseudo-formal block-verifier "
+            "feedback. It is not Lean/AXLE proof evidence and cannot promote a "
+            "theorem without target-prover kernel replay."
+        ),
+    }
+    payload["manifest_id"] = "pseudo_formal_block_verifier_runtime_turn:" + stable_hash(
+        {
+            "provider_name": normalized_provider_name,
+            "model": resolved_model,
+            "model_tier": model_tier,
+            "request_row_hashes": payload["request_row_hashes"],
+            "response_rows": response_rows,
+            "validation_rows": validation_rows,
+            "runtime_learning_rows": runtime_learning_rows,
+        }
+    )[:20]
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = out_dir / "pseudo_formal_block_verifier_runtime_turn.json"
+        prompt_path = out_dir / "prompt_packets.jsonl"
+        response_path = out_dir / "response_rows.jsonl"
+        validation_path = out_dir / "validation_rows.jsonl"
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        payload.update(
+            {
+                "manifest_path": str(manifest_path),
+                "prompt_packets_jsonl": str(prompt_path),
+                "response_rows_jsonl": str(response_path),
+                "validation_rows_jsonl": str(validation_path),
+                "runtime_learning_rows_jsonl": str(learning_path),
+            }
+        )
+        manifest_path.write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+        for path, output_rows in (
+            (prompt_path, prompt_packets),
+            (response_path, response_rows),
+            (validation_path, validation_rows),
+            (learning_path, runtime_learning_rows),
+        ):
+            path.write_text(
+                "".join(
+                    json.dumps(dict(row), sort_keys=True, default=str) + "\n"
+                    for row in output_rows
+                ),
+                encoding="utf-8",
+            )
+    return payload
+
+
 def run_pseudo_formal_block_verifier_component_gate(
     runtime_learning_jsonl_paths: Sequence[Path],
     out_dir: Path,
@@ -555,6 +764,24 @@ def _llm_response_for_prompt_packet(
             "llm_json_repair_history": list(exc.history),
             "response": {},
             "proof_evidence_status": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE,
+            "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        }
+    except Exception as exc:
+        return {
+            "schema_version": PSEUDO_FORMAL_BLOCK_VERIFIER_WORKER_SCHEMA_VERSION,
+            "artifact_kind": "PseudoFormalBlockVerifierLlmResponseRow",
+            "prompt_packet_id": prompt_packet_id,
+            "source_pseudo_formal_work_order_id": str(
+                packet.get("source_pseudo_formal_work_order_id", "") or ""
+            ),
+            "ok": False,
+            "llm_response_status": "provider_failed",
+            "errors": [f"{type(exc).__name__}: {exc}"],
+            "llm_json_repair_history": [],
+            "response": {},
+            "proof_evidence_status": (
+                PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE
+            ),
             "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
         }
     return {

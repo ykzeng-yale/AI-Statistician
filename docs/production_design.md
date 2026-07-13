@@ -109,6 +109,15 @@ implementation traces are supporting evidence. They are not substitutes for a
 live coding-agent environment loop, deductive theory development, executable
 simulation/algorithm feedback, or kernel-verified theorem proving.
 
+Pseudo-formal verification is an in-loop support lane, not a fallback proof
+authority. When a Formalizer emits pending PF/BV blocks, the Architect may
+dispatch the typed `PseudoFormalBlockVerifier` child. It runs a fresh LLM call
+over bounded explicit block context, validates the response contract, and
+returns the result to `ProofEngineer` in the same AgentRuntime. Neither an
+accepted block nor the standalone component calibration can satisfy Lean/AXLE
+or source-theorem proof gates. Provider and schema failures become Critic
+feedback so the system can revise its own output on the next turn.
+
 ## Current Implemented Architecture
 
 ```text

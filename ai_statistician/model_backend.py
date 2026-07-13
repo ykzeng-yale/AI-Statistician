@@ -45,6 +45,7 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "ArchitectCoordinator": "sonnet",
     "TheoryDeveloper": "sonnet",
     "FormalizerProofEngineer": "sonnet",
+    "PseudoFormalBlockVerifier": "sonnet",
     "formalization_gap_planner_route_synthesis": "auto",
     "TheoryIntake": "haiku",
     "SimulationEngineer": "haiku",
@@ -176,6 +177,7 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
             "ArchitectCoordinator",
             "TheoryDeveloper",
             "FormalizerProofEngineer",
+            "PseudoFormalBlockVerifier",
             "formalization_gap_planner_route_synthesis",
         ],
         "haiku": [

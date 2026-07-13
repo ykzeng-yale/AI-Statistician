@@ -35,6 +35,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "TheoremReductionClosureProofEngineer",
     "ExactSourceTheoremProofBodyExecutor",
     "SourceSemanticProofEngineer",
+    "PseudoFormalBlockVerifier",
     "SourceTheoremPromotionProofEngineer",
     "ProofEngineer",
     "ExactSourceTheoremProver",
@@ -254,6 +255,11 @@ def build_architect_coordinator_prompt(
         "and support evidence only; unresolved definitions and proof obligations "
         "must return to the LLM ProofEngineer, and this child must not generate "
         "Lean or claim that helper support proves the source theorem. "
+        "Treat PseudoFormalBlockVerifier as a typed independent calibration child "
+        "only after FormalizationEvaluator emits immutable pending PF/BV request "
+        "rows. It sees explicit bounded block context but no hidden dependency "
+        "proof bodies; its validated verdict returns to ProofEngineer in the same "
+        "runtime and never substitutes for Lean/kernel evidence. "
         "Treat SourceTheoremPromotionProofEngineer as the typed exact-candidate "
         "planning child after structured source target identity and semantic "
         "support are available but no candidate artifact exists. It must route "
@@ -829,6 +835,9 @@ def _architect_runtime_capability_eval_contract(
         "source_semantic_proofengineer_required": bool(
             runtime_config.get("source_semantic_proofengineer_bridge", False)
         ),
+        "pseudo_formal_block_verifier_required": bool(
+            runtime_config.get("pseudo_formal_block_verifier_runtime", False)
+        ),
         "source_theorem_promotion_proofengineer_required": bool(
             runtime_config.get(
                 "source_theorem_promotion_proofengineer_bridge", False
@@ -884,6 +893,8 @@ def _required_architect_plan_subsystems(
         required.add("ExactSourceTheoremProofBodyExecutor")
     if evidence_contract.get("source_semantic_proofengineer_required") is True:
         required.add("SourceSemanticProofEngineer")
+    if evidence_contract.get("pseudo_formal_block_verifier_required") is True:
+        required.add("PseudoFormalBlockVerifier")
     if (
         evidence_contract.get(
             "source_theorem_promotion_proofengineer_required"

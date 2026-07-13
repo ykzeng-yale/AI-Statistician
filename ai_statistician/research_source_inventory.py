@@ -33,6 +33,9 @@ KOLMOGOROV_EXTENSION_URL = "https://github.com/RemyDegenne/kolmogorov_extension4
 SCILEAN_URL = "https://github.com/lecopivo/SciLean"
 LEAN_BLUEPRINT_URL = "https://github.com/PatrickMassot/leanblueprint"
 LEAN_STAT_LEARNING_THEORY_URL = "https://github.com/YuanheZ/lean-stat-learning-theory"
+CODEXPROVER_URL = "https://github.com/ykzeng-yale/CodexProver"
+EMPIRICAL_PROCESS_LEAN_URL = "https://github.com/ykzeng-yale/EmpericalProcessLEAN"
+PSEUDO_FORMALIZATION_URL = "https://github.com/Slim205/pseudo-formalization"
 
 
 def _env_path(*env_vars: str) -> Path | None:
@@ -103,6 +106,29 @@ LEANDOJO_V2_ROOT = _resolve_source_root(
     ),
 )
 OPENPROVER_ROOT = _resolve_openprover_root()
+CODEXPROVER_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_CODEXPROVER_ROOT",
+    (
+        PROJECT_EXTERNAL_ROOT / "CodexProver",
+        EXTERNAL_ROOT / "CodexProver",
+    ),
+)
+EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_EMPIRICAL_PROCESS_LEAN_EXTERNAL_ROOT",
+    (
+        PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
+        EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
+        PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
+        EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
+    ),
+)
+PSEUDO_FORMALIZATION_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_PSEUDO_FORMALIZATION_ROOT",
+    (
+        PROJECT_EXTERNAL_ROOT / "pseudo-formalization",
+        EXTERNAL_ROOT / "pseudo-formalization",
+    ),
+)
 ATLAS_LEAN_ROOT = _resolve_source_root(
     "AI_STATISTICIAN_ATLAS_LEAN_ROOT",
     (
@@ -230,6 +256,52 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         location=str(PROJECT_ROOT / "AI for Math Resources"),
         required_extensions=(".md", ".html", ".json", ".txt"),
         keywords=("formal", "verification", "lean", "reprover", "alpha", "math"),
+    ),
+    SourceInventoryTarget(
+        id="codexprover_agent_runtime",
+        source_type="prover_agent_pipeline",
+        location=str(CODEXPROVER_ROOT),
+        required_extensions=(".py", ".md"),
+        keywords=(
+            "lean_mcp",
+            "capability",
+            "controller",
+            "proof",
+            "runtime",
+            "verifier",
+        ),
+        remote_url=CODEXPROVER_URL,
+        local_required=False,
+    ),
+    SourceInventoryTarget(
+        id="emperical_process_lean_external",
+        source_type="signed_formal_source_and_rag_pipeline",
+        location=str(EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT),
+        required_extensions=(".lean", ".py"),
+        keywords=(
+            "lean_rag",
+            "StatInference",
+            "shared_proof_retrieval",
+            "source_registry",
+            "dependency",
+        ),
+        remote_url=EMPIRICAL_PROCESS_LEAN_URL,
+        local_required=False,
+    ),
+    SourceInventoryTarget(
+        id="pseudo_formalization_reference",
+        source_type="proof_verification_pipeline",
+        location=str(PSEUDO_FORMALIZATION_ROOT),
+        required_extensions=(".py", ".md", ".json"),
+        keywords=(
+            "verifier",
+            "pseudo",
+            "hard2verify",
+            "arxiv_grading",
+            "faithfulness",
+        ),
+        remote_url=PSEUDO_FORMALIZATION_URL,
+        local_required=False,
     ),
     SourceInventoryTarget(
         id="mathlib_probability",
