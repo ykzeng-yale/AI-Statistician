@@ -199,6 +199,20 @@ def _runtime_fixture(
                 else "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
             ),
         }
+        learning_path = Path(queue_dir) / "runtime_learning_rows.jsonl"
+        learning_path.write_text(
+            json.dumps(
+                {
+                    "learning_task": "exact_source_compiler_feedback",
+                    "target_ids": ["exact_source_target"],
+                    "source_work_order_id": source_row["work_order_id"],
+                    "compiler_diagnostics": row["diagnostics"],
+                    "proof_evidence_status": "LEARNING_ROW_NOT_PROOF_EVIDENCE",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         return {
             "artifact_kind": "ExactSourceTheoremProofBodyExecutionResultManifest",
             "exact_source_theorem_proof_body_execution_queue_manifest": str(
@@ -207,7 +221,9 @@ def _runtime_fixture(
             "n_execution_result_rows": 1,
             "n_source_theorem_kernel_verified": int(kernel_verified),
             "rows": [row],
-            "runtime_learning_export": {},
+            "runtime_learning_export": {
+                "runtime_learning_rows_jsonl": str(learning_path)
+            },
         }
 
     worker = ExactSourceTheoremProofBodyRuntimeWorker(
@@ -242,6 +258,12 @@ def test_exact_source_runtime_routes_compiler_feedback_to_llm(
     assert result.next_task.owner_subsystem == "ProofEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["compiler_diagnostics"] == [["unsolved goals\n⊢ p"]]
+    assert feedback["runtime_learning_rows"][0]["learning_task"] == (
+        "exact_source_compiler_feedback"
+    )
+    assert feedback["runtime_learning_rows"][0]["target_ids"] == [
+        "exact_source_target"
+    ]
     assert "Python must not synthesize Lean grammar" in feedback[
         "candidate_generation_contract"
     ]

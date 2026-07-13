@@ -320,6 +320,12 @@ from .source_semantic_proofengineer_runtime_worker import (
     SOURCE_SEMANTIC_RUNTIME_WORK_ORDER_KIND,
     SourceSemanticProofEngineerRuntimeWorker,
 )
+from .source_theorem_promotion_runtime_worker import (
+    SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND,
+    SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND,
+    SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+    SourceTheoremPromotionRuntimeWorker,
+)
 from .verifier import ProofVerifier
 
 
@@ -14588,6 +14594,250 @@ def _runtime_source_semantic_dispatch_task(
 
 
 
+def _runtime_source_theorem_promotion_planning_rows(
+    formal_environment_rows: Sequence[Mapping[str, Any]],
+    *,
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    promotion_mode = str(
+        proof_bank_runtime_memory_summary.get(
+            "recommended_formalizer_target_mode", ""
+        )
+        or ""
+    )
+    if promotion_mode not in {
+        "source_theorem_exact_semantics_or_theorem_promotion",
+        "source_theorem_exact_proof_body_repair",
+        "source_theorem_proof_body_adapter_required",
+    }:
+        return []
+    if (
+        promotion_mode == "source_theorem_exact_semantics_or_theorem_promotion"
+        and not _bool_like(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_semantic_primitive_support_already_kernel_verified",
+                False,
+            )
+        )
+    ):
+        return []
+    semantic_context = {
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
+                proof_bank_runtime_memory_summary.get(
+                    "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                    [],
+                ),
+            )
+            or []
+        ),
+        "kernel_verified_source_theorem_semantic_definition_ids": list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_definition_ids",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_semantic_support_only": _bool_like(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_semantic_support_only", False
+            )
+        ),
+        "semantic_closure_status": str(
+            proof_bank_runtime_memory_summary.get("semantic_closure_status", "")
+            or ""
+        ),
+        "placeholder_definition_status": str(
+            proof_bank_runtime_memory_summary.get(
+                "placeholder_definition_status", ""
+            )
+            or ""
+        ),
+        "source_theorem_ready_for_exact_proof_body": _bool_like(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_ready_for_exact_proof_body", False
+            )
+        ),
+        "missing_source_theorem_semantic_primitive_support_ids": list(
+            proof_bank_runtime_memory_summary.get(
+                "missing_source_theorem_semantic_primitive_support_ids", []
+            )
+            or []
+        ),
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols": list(
+            proof_bank_runtime_memory_summary.get(
+                "unresolved_source_theorem_semantic_primitive_placeholder_symbols",
+                [],
+            )
+            or []
+        ),
+    }
+    rows: list[dict[str, Any]] = []
+    for source_row in formal_environment_rows:
+        if not isinstance(source_row, Mapping):
+            continue
+        if str(
+            source_row.get("target_lean_declaration_source", "") or ""
+        ) != "formalizer_structured_source_theorem_target_provenance":
+            continue
+        if not _bool_like(source_row.get("source_theorem_target_known", False)):
+            continue
+        if not str(source_row.get("target_lean_declaration", "") or ""):
+            continue
+        if str(source_row.get("candidate_artifact_path", "") or "") or str(
+            source_row.get("candidate_source_hash", "") or ""
+        ):
+            continue
+        row = dict(source_row)
+        source_work_order_id = str(row.get("work_order_id", "") or "")
+        row["source_formal_environment_work_order_id"] = source_work_order_id
+        row["work_order_id"] = "source_theorem_promotion_planning_row:" + stable_hash(
+            [source_work_order_id, promotion_mode, semantic_context]
+        )[:20]
+        row["artifact_kind"] = "RuntimeSourceTheoremPromotionPlanningRow"
+        row["promotion_mode"] = promotion_mode
+        row.update(semantic_context)
+        row["runtime_queue_status"] = (
+            "PENDING_LLM_EXACT_SOURCE_CANDIDATE_GENERATION"
+        )
+        row["runtime_queue_boundary"] = (
+            "This row requests an exact source candidate from the LLM/prover. "
+            "It is not proof evidence and cannot be materialized as a route probe "
+            "or promoted until the typed exact compiler child accepts it."
+        )
+        row["proof_evidence_status"] = (
+            "SOURCE_THEOREM_PROMOTION_PLANNING_ROW_NOT_PROOF_EVIDENCE"
+        )
+        row["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
+        rows.append(row)
+    return rows
+
+
+def _runtime_source_theorem_promotion_work_order(
+    *,
+    source_task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    return_task: AgentTask,
+) -> dict[str, Any]:
+    rows = [
+        dict(row)
+        for row in formalization_manifest.get(
+            "runtime_source_theorem_promotion_planning_rows", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    source_manifest_id = str(
+        formalization_manifest.get("manifest_id", "") or ""
+    )
+    source_manifest_hash = stable_hash(dict(formalization_manifest))
+    execution_policy = {
+        "legacy_route_probe_materialization": False,
+        "legacy_source_theorem_integrator": False,
+        "python_lean_parsing_or_rewrite": False,
+        "next_compiler_subsystem": EXACT_SOURCE_THEOREM_PROOF_BODY_SUBSYSTEM,
+        "candidate_generation_policy": (
+            "Use the configured LLM/prover coding agent, signed formal RAG, and "
+            "compiler/LSP feedback. Preserve the structured exact declaration and "
+            "target ids. Do not generate a route probe or synthesize Lean in Python."
+        ),
+    }
+    work_order_id = "runtime_source_theorem_promotion_work_order:" + stable_hash(
+        [
+            source_task.task_id,
+            source_manifest_id,
+            source_manifest_hash,
+            rows,
+            execution_policy,
+        ]
+    )[:20]
+    control_seed = _runtime_architect_control_seed_from_context(
+        architect_context,
+        subsystem=SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+    )
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND,
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": source_task.task_id,
+        "source_subsystem": str(source_task.owner_subsystem or ""),
+        "target_subsystem": SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+        "source_formalization_manifest_id": source_manifest_id,
+        "source_formalization_manifest_hash": source_manifest_hash,
+        "work_order_rows": rows,
+        "work_order_row_hashes": [stable_hash(row) for row in rows],
+        "execution_policy": execution_policy,
+        "execution_policy_fingerprint": stable_hash(execution_policy),
+        "source_task": asdict(source_task),
+        "return_task": asdict(return_task),
+        "proof_evidence_status": (
+            "SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    return _runtime_artifact_with_architect_control(
+        work_order_id,
+        work_order,
+        control_seed,
+        subsystem_override=SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+    )
+
+
+def _runtime_source_theorem_promotion_dispatch_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+) -> AgentTask:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    return AgentTask(
+        task_id=(
+            f"source-theorem-promotion-proofengineer:{question.id}:"
+            f"{stable_hash(work_order_id)[:8]}"
+        ),
+        owner_subsystem=SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+        objective=(
+            "Consume the immutable source-theorem promotion-planning work order "
+            "inside AgentRuntime and route structured exact-candidate generation "
+            "to the LLM/prover without route-probe synthesis or Python Lean parsing."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "source_theorem_promotion_work_order_id": work_order_id,
+            "source_theorem_promotion_work_order_hash": stable_hash(
+                dict(work_order)
+            ),
+        },
+        allowed_tools=(
+            "blackboard",
+            "model_backend",
+            "formal_source_retrieval",
+            "proof_search",
+            "proof_bank_memory",
+            "lean_lsp_mcp",
+            "evidence_ledger",
+        ),
+        expected_artifacts=(
+            "exact_source_candidate_generation_request",
+            "source_theorem_promotion_planning_execution_manifest",
+        ),
+        acceptance_gate=(
+            "a structured exact-candidate request reaches the LLM/prover and only "
+            "the typed exact compiler child can promote later kernel evidence"
+        ),
+        stop_condition=(
+            "exact candidate generation is routed to ProofEngineer, or a changed "
+            "or inferred target fails closed"
+        ),
+    )
+
+
 class FormalizationEvaluatorRuntimeSubsystem:
     name = "FormalizationEvaluator"
 
@@ -16589,6 +16839,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         }
         exact_source_rows: list[dict[str, Any]] = []
+        source_theorem_promotion_planning_rows: list[dict[str, Any]] = []
         if isinstance(proposal_packet, Mapping):
             materialization_artifacts = {
                 str(lean_candidate_materialization.get("manifest_id", "") or ""):
@@ -16619,6 +16870,14 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 )
                 == "formalizer_structured_source_theorem_target_provenance"
             ]
+            source_theorem_promotion_planning_rows = (
+                _runtime_source_theorem_promotion_planning_rows(
+                    all_exact_source_rows,
+                    proof_bank_runtime_memory_summary=(
+                        proof_bank_runtime_memory_summary
+                    ),
+                )
+            )
             manifest["source_theorem_formal_environment_work_orders"] = (
                 all_exact_source_rows
             )
@@ -16631,6 +16890,17 @@ class FormalizationEvaluatorRuntimeSubsystem:
             manifest["counts"][
                 "runtime_exact_source_theorem_proof_body_rows"
             ] = len(exact_source_rows)
+            manifest[
+                "runtime_source_theorem_promotion_planning_rows"
+            ] = source_theorem_promotion_planning_rows
+            manifest["counts"][
+                "runtime_source_theorem_promotion_planning_rows"
+            ] = len(source_theorem_promotion_planning_rows)
+            manifest["source_theorem_promotion_runtime_boundary"] = (
+                "Structured exact source targets without candidate artifacts are "
+                "routed to the typed promotion-planning child. It requests LLM/prover "
+                "generation and never materializes a route probe or parses Lean in Python."
+            )
             manifest["exact_source_theorem_proof_body_runtime_boundary"] = (
                 "Only hash-bound candidates with a Formalizer-provided source "
                 "theorem declaration enter the typed exact-source compiler child. "
@@ -16885,6 +17155,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
         theorem_closure_dispatch_evidence: EvidenceLedgerEntry | None = None
         exact_source_proof_body_dispatch_evidence: EvidenceLedgerEntry | None = None
         source_semantic_dispatch_evidence: EvidenceLedgerEntry | None = None
+        source_theorem_promotion_dispatch_evidence: EvidenceLedgerEntry | None = None
         if lean_candidate_repair_feedback is not None:
             observations.append(
                 EnvironmentObservation(
@@ -17473,6 +17744,85 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "immutable source-semantic work order to the typed support "
                     "evaluator before CriticEvaluator."
                 )
+            elif (
+                self.runtime_config.source_theorem_promotion_proofengineer_bridge
+                and source_theorem_promotion_planning_rows
+            ):
+                promotion_work_order = (
+                    _runtime_source_theorem_promotion_work_order(
+                        source_task=task,
+                        question=question,
+                        architect_context=context,
+                        formalization_manifest=manifest,
+                        return_task=critic_task,
+                    )
+                )
+                promotion_work_order_id = str(
+                    promotion_work_order.get("work_order_id", "") or ""
+                )
+                produced_artifacts[promotion_work_order_id] = (
+                    promotion_work_order
+                )
+                next_task = _runtime_source_theorem_promotion_dispatch_task(
+                    question=question,
+                    architect_context=context,
+                    work_order=promotion_work_order,
+                )
+                source_theorem_promotion_dispatch_evidence = EvidenceLedgerEntry(
+                    evidence_id="evidence:"
+                    + stable_hash([task.task_id, promotion_work_order_id])[:20],
+                    task_id=task.task_id,
+                    artifact_id=promotion_work_order_id,
+                    evidence_type=(
+                        "source_theorem_promotion_proofengineer_work_order"
+                    ),
+                    status=(
+                        "SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_RECORDED_"
+                        "NOT_PROOF_EVIDENCE"
+                    ),
+                    boundary=KERNEL_PROOF_BOUNDARY,
+                    payload={
+                        "source_formalization_manifest_id": manifest_id,
+                        "n_work_order_rows": len(
+                            source_theorem_promotion_planning_rows
+                        ),
+                        "next_owner_subsystem": (
+                            SOURCE_THEOREM_PROMOTION_SUBSYSTEM
+                        ),
+                        "legacy_route_probe_materialization": False,
+                        "runtime_generated_lean": False,
+                    },
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "source_theorem_promotion_proofengineer_work_order"
+                        ),
+                        summary=(
+                            "immutable promotion-planning work order routed to "
+                            "an AgentRuntime LLM/prover child before CriticEvaluator"
+                        ),
+                        payload={
+                            "work_order_id": promotion_work_order_id,
+                            "n_work_order_rows": len(
+                                source_theorem_promotion_planning_rows
+                            ),
+                            "next_owner_subsystem": (
+                                SOURCE_THEOREM_PROMOTION_SUBSYSTEM
+                            ),
+                            "legacy_route_probe_materialization": False,
+                            "proof_evidence_status": (
+                                "SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_"
+                                "NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    )
+                )
+                result_rationale = (
+                    "Runtime routed structured exact-source candidate generation "
+                    "to the typed promotion ProofEngineer child without route-probe "
+                    "materialization or Python Lean parsing."
+                )
             else:
                 next_task = critic_task
                 result_rationale = (
@@ -17503,6 +17853,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     theorem_closure_dispatch_evidence,
                     exact_source_proof_body_dispatch_evidence,
                     source_semantic_dispatch_evidence,
+                    source_theorem_promotion_dispatch_evidence,
                 )
                 if row is not None
             ),
@@ -21288,6 +21639,12 @@ def _runtime_architect_control_subsystem_for_artifact(
         SOURCE_SEMANTIC_RUNTIME_EXECUTION_KIND: (
             SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM
         ),
+        SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND: (
+            SOURCE_THEOREM_PROMOTION_SUBSYSTEM
+        ),
+        SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND: (
+            SOURCE_THEOREM_PROMOTION_SUBSYSTEM
+        ),
         "RuntimeExactSourceTheoremProverExecutionManifest": (
             EXACT_SOURCE_THEOREM_PROVER_SUBSYSTEM
         ),
@@ -21352,6 +21709,14 @@ def _runtime_architect_control_subsystem_for_artifact(
         (
             "runtime_source_semantic_execution:",
             SOURCE_SEMANTIC_PROOFENGINEER_SUBSYSTEM,
+        ),
+        (
+            "runtime_source_theorem_promotion_work_order:",
+            SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
+        ),
+        (
+            "runtime_source_theorem_promotion_execution:",
+            SOURCE_THEOREM_PROMOTION_SUBSYSTEM,
         ),
         (
             "exact_source_theorem_prover_execution:",
@@ -28944,6 +29309,12 @@ def run_research_agent_runtime(
                     repair_available=formalizer is not None,
                 )
             ),
+            SOURCE_THEOREM_PROMOTION_SUBSYSTEM: (
+                SourceTheoremPromotionRuntimeWorker(
+                    out_root=out_dir,
+                    repair_available=formalizer is not None,
+                )
+            ),
             "FormalizationGapPlanner": FormalizationGapPlannerRuntimeSubsystem(
                 out_dir=out_dir,
                 runtime_config=config,
@@ -29485,6 +29856,21 @@ def run_research_agent_runtime(
         "n_source_semantic_agent_runtime_kernel_verified_support": (
             evidence_summary["proof"][
                 "n_source_semantic_agent_runtime_kernel_verified_support"
+            ]
+        ),
+        "n_source_theorem_promotion_agent_runtime_work_orders": (
+            evidence_summary["proof"][
+                "n_source_theorem_promotion_agent_runtime_work_orders"
+            ]
+        ),
+        "n_source_theorem_promotion_agent_runtime_executions": (
+            evidence_summary["proof"][
+                "n_source_theorem_promotion_agent_runtime_executions"
+            ]
+        ),
+        "n_source_theorem_promotion_agent_runtime_generation_requests": (
+            evidence_summary["proof"][
+                "n_source_theorem_promotion_agent_runtime_generation_requests"
             ]
         ),
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -30279,10 +30665,24 @@ def run_research_agent_runtime(
         )
         source_semantic_execution_mode = "legacy_post_runtime_derived_execution"
         source_semantic_legacy_post_runtime_fallback_used = True
+    (
+        source_theorem_promotion_agent_runtime_work_orders,
+        source_theorem_promotion_agent_runtime_executions,
+    ) = _runtime_source_theorem_promotion_agent_runtime_artifacts(results)
+    source_theorem_promotion_execution_mode = (
+        "agent_runtime_typed_worker"
+        if source_theorem_promotion_agent_runtime_executions
+        else "agent_runtime_work_order_pending"
+        if source_theorem_promotion_agent_runtime_work_orders
+        else "not_run"
+    )
+    source_theorem_promotion_legacy_post_runtime_fallback_used = False
     source_theorem_promotion_bridge_manifest: dict[str, Any] | None = None
     if (
         config.source_theorem_promotion_proofengineer_bridge
         and source_theorem_promotion_materialization_seed_rows
+        and not source_theorem_promotion_agent_runtime_work_orders
+        and not exact_source_proof_body_agent_runtime_work_orders
     ):
         source_theorem_promotion_bridge_manifest = (
             _run_runtime_source_theorem_promotion_proofengineer_bridge(
@@ -30301,6 +30701,10 @@ def run_research_agent_runtime(
                 lean_timeout=config.source_theorem_promotion_proofengineer_lean_timeout,
             )
         )
+        source_theorem_promotion_execution_mode = (
+            "legacy_post_runtime_derived_execution"
+        )
+        source_theorem_promotion_legacy_post_runtime_fallback_used = True
     source_theorem_promotion_bridge_learning_rows = (
         _runtime_source_theorem_promotion_bridge_learning_rows(
             source_theorem_promotion_bridge_manifest
@@ -45159,8 +45563,28 @@ def run_research_agent_runtime(
     manifest["source_theorem_promotion_proofengineer_bridge_requested"] = bool(
         config.source_theorem_promotion_proofengineer_bridge
     )
+    manifest["source_theorem_promotion_proofengineer_execution_mode"] = (
+        source_theorem_promotion_execution_mode
+    )
+    manifest["n_source_theorem_promotion_agent_runtime_work_orders"] = len(
+        source_theorem_promotion_agent_runtime_work_orders
+    )
+    manifest["n_source_theorem_promotion_agent_runtime_executions"] = len(
+        source_theorem_promotion_agent_runtime_executions
+    )
+    manifest[
+        "n_source_theorem_promotion_agent_runtime_pending_work_orders"
+    ] = max(
+        0,
+        len(source_theorem_promotion_agent_runtime_work_orders)
+        - len(source_theorem_promotion_agent_runtime_executions),
+    )
+    manifest["source_theorem_promotion_legacy_post_runtime_fallback_used"] = (
+        source_theorem_promotion_legacy_post_runtime_fallback_used
+    )
     manifest["source_theorem_promotion_proofengineer_bridge_ran"] = (
-        source_theorem_promotion_bridge_manifest is not None
+        bool(source_theorem_promotion_agent_runtime_executions)
+        or source_theorem_promotion_bridge_manifest is not None
     )
     manifest["source_theorem_promotion_proofengineer_bridge_skipped_reason"] = (
         ""
@@ -45168,6 +45592,10 @@ def run_research_agent_runtime(
         else (
             "bridge_disabled"
             if not config.source_theorem_promotion_proofengineer_bridge
+            else "agent_runtime_work_order_pending"
+            if source_theorem_promotion_agent_runtime_work_orders
+            else "typed_exact_source_proof_body_work_order_pending"
+            if exact_source_proof_body_agent_runtime_work_orders
             else "no_source_theorem_promotion_materialization_seeds"
         )
     )
@@ -45247,11 +45675,14 @@ def run_research_agent_runtime(
         else ""
     )
     manifest["source_theorem_promotion_proofengineer_bridge_boundary"] = (
-        "The runtime source-theorem promotion ProofEngineer bridge consumes "
-        "materialization seeds after the current runtime loop. Materialized "
-        "route probes and artifact-kernel checks are not source theorem proof; "
-        "source theorem proof requires source_theorem_kernel_verified=true for "
-        "the exact source target."
+        "The primary source-theorem promotion path is an Architect-visible typed "
+        "AgentRuntime child. It projects only structured source targets without a "
+        "candidate, routes exact-candidate generation to the LLM/prover, and does "
+        "not parse Lean or materialize route probes. A legacy post-runtime path may "
+        "run only for late-derived compatibility rows and is labeled explicitly. "
+        "Neither planning nor route-probe artifact checks are proof evidence; the "
+        "exact source target requires source_theorem_kernel_verified=true from the "
+        "typed compiler gate."
     )
     manifest["source_theorem_promotion_proofengineer_bridge_n_learning_rows"] = len(
         source_theorem_promotion_bridge_learning_rows
@@ -75032,6 +75463,41 @@ def _runtime_source_semantic_agent_runtime_artifacts(
     return work_orders, executions
 
 
+def _runtime_source_theorem_promotion_agent_runtime_artifacts(
+    results: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    work_orders: list[dict[str, Any]] = []
+    executions: list[dict[str, Any]] = []
+    seen_work_orders: set[str] = set()
+    seen_executions: set[str] = set()
+    for result in results:
+        blackboard = (
+            result.get("blackboard", {})
+            if isinstance(result.get("blackboard", {}), Mapping)
+            else {}
+        )
+        artifacts = (
+            blackboard.get("artifacts", {})
+            if isinstance(blackboard.get("artifacts", {}), Mapping)
+            else {}
+        )
+        for artifact in artifacts.values():
+            if not isinstance(artifact, Mapping):
+                continue
+            kind = str(artifact.get("artifact_kind", "") or "")
+            if kind == SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND:
+                artifact_id = str(artifact.get("work_order_id", "") or "")
+                if artifact_id and artifact_id not in seen_work_orders:
+                    seen_work_orders.add(artifact_id)
+                    work_orders.append(dict(artifact))
+            elif kind == SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND:
+                artifact_id = str(artifact.get("manifest_id", "") or "")
+                if artifact_id and artifact_id not in seen_executions:
+                    seen_executions.add(artifact_id)
+                    executions.append(dict(artifact))
+    return work_orders, executions
+
+
 def _runtime_aggregate_source_semantic_executions(
     executions: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any] | None:
@@ -88620,6 +89086,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_source_semantic_agent_runtime_work_orders": 0,
         "n_source_semantic_agent_runtime_executions": 0,
         "n_source_semantic_agent_runtime_kernel_verified_support": 0,
+        "n_source_theorem_promotion_agent_runtime_work_orders": 0,
+        "n_source_theorem_promotion_agent_runtime_executions": 0,
+        "n_source_theorem_promotion_agent_runtime_generation_requests": 0,
         "n_full_frontier_raw_theorem_proved_claims": 0,
         "n_full_frontier_target_bound_kernel_verified": 0,
         "n_full_frontier_theorem_proved": 0,
@@ -89238,6 +89707,21 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         verifier_names.add(
                             "local.source_semantic_support_agent_runtime"
                         )
+            elif kind == SOURCE_THEOREM_PROMOTION_RUNTIME_WORK_ORDER_KIND:
+                proof[
+                    "n_source_theorem_promotion_agent_runtime_work_orders"
+                ] += 1
+            elif kind == SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND:
+                proof[
+                    "n_source_theorem_promotion_agent_runtime_executions"
+                ] += 1
+            elif (
+                kind == "RuntimeExactSourceCandidateGenerationRequest"
+                and str(artifact.get("source_promotion_work_order_id", "") or "")
+            ):
+                proof[
+                    "n_source_theorem_promotion_agent_runtime_generation_requests"
+                ] += 1
             elif kind == "FormalizerProofEngineerProposalPacket":
                 proposal_id = str(artifact.get("packet_id", "") or "").strip()
                 if proposal_id:

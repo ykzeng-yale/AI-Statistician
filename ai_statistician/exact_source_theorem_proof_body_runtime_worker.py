@@ -482,6 +482,7 @@ class ExactSourceTheoremProofBodyRuntimeWorker:
         all_kernel_verified = bool(executor_rows) and len(kernel_rows) == len(
             executor_rows
         )
+        learning_rows = self._learning_rows(bridge_manifest, executor_manifest)
 
         try:
             return_task = _task_from_payload(return_task_payload)
@@ -529,6 +530,7 @@ class ExactSourceTheoremProofBodyRuntimeWorker:
                         for row in repair_rows[:4]
                         if isinstance(row.get("proofengineer_repair_context", {}), Mapping)
                     ],
+                    "runtime_learning_rows": learning_rows[:16],
                     "candidate_generation_contract": (
                         "Generate or repair Lean through the LLM/prover coding agent; "
                         "preserve the structured target identity and rerun this exact "
@@ -555,7 +557,6 @@ class ExactSourceTheoremProofBodyRuntimeWorker:
             "runtime_exact_source_theorem_proof_body_executor_result:"
             + stable_hash(executor_manifest)[:20]
         )
-        learning_rows = self._learning_rows(bridge_manifest, executor_manifest)
         proof_status = (
             "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
             if all_kernel_verified and not contract_errors

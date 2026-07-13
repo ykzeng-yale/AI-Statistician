@@ -35,6 +35,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "TheoremReductionClosureProofEngineer",
     "ExactSourceTheoremProofBodyExecutor",
     "SourceSemanticProofEngineer",
+    "SourceTheoremPromotionProofEngineer",
     "ProofEngineer",
     "ExactSourceTheoremProver",
     "FormalizationGapPlanner",
@@ -253,6 +254,11 @@ def build_architect_coordinator_prompt(
         "and support evidence only; unresolved definitions and proof obligations "
         "must return to the LLM ProofEngineer, and this child must not generate "
         "Lean or claim that helper support proves the source theorem. "
+        "Treat SourceTheoremPromotionProofEngineer as the typed exact-candidate "
+        "planning child after structured source target identity and semantic "
+        "support are available but no candidate artifact exists. It must route "
+        "generation to the LLM/prover and then ExactSourceTheoremProofBodyExecutor; "
+        "it must not synthesize route probes, parse Lean, or claim proof. "
         "If runtime learning memory reports concrete source-to-bridge premise targets with "
         "premise_derivation_gap_kind=concrete_premise_target_lacks_nonvacuous_derivation_candidate, "
         "route upstream to TheoryDeveloper/Formalizer for semantic-assumption or lemma repair before "
@@ -823,6 +829,11 @@ def _architect_runtime_capability_eval_contract(
         "source_semantic_proofengineer_required": bool(
             runtime_config.get("source_semantic_proofengineer_bridge", False)
         ),
+        "source_theorem_promotion_proofengineer_required": bool(
+            runtime_config.get(
+                "source_theorem_promotion_proofengineer_bridge", False
+            )
+        ),
     }
 
 
@@ -873,6 +884,13 @@ def _required_architect_plan_subsystems(
         required.add("ExactSourceTheoremProofBodyExecutor")
     if evidence_contract.get("source_semantic_proofengineer_required") is True:
         required.add("SourceSemanticProofEngineer")
+    if (
+        evidence_contract.get(
+            "source_theorem_promotion_proofengineer_required"
+        )
+        is True
+    ):
+        required.add("SourceTheoremPromotionProofEngineer")
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

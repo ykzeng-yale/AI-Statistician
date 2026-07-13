@@ -7170,6 +7170,47 @@ def audit_research_agent_runtime(
         "n_lean_lsp_mcp_live_calls": sum(
             row.n_lean_lsp_mcp_live_calls for row in rows
         ),
+        "source_theorem_promotion_proofengineer_bridge_requested": bool(
+            manifest.get(
+                "source_theorem_promotion_proofengineer_bridge_requested", False
+            )
+        ),
+        "source_theorem_promotion_proofengineer_execution_mode": str(
+            manifest.get(
+                "source_theorem_promotion_proofengineer_execution_mode", ""
+            )
+            or ""
+        ),
+        "n_source_theorem_promotion_agent_runtime_work_orders": int(
+            manifest.get(
+                "n_source_theorem_promotion_agent_runtime_work_orders", 0
+            )
+            or 0
+        ),
+        "n_source_theorem_promotion_agent_runtime_executions": int(
+            manifest.get(
+                "n_source_theorem_promotion_agent_runtime_executions", 0
+            )
+            or 0
+        ),
+        "n_source_theorem_promotion_agent_runtime_generation_requests": int(
+            manifest.get(
+                "n_source_theorem_promotion_agent_runtime_generation_requests", 0
+            )
+            or 0
+        ),
+        "n_source_theorem_promotion_agent_runtime_pending_work_orders": int(
+            manifest.get(
+                "n_source_theorem_promotion_agent_runtime_pending_work_orders", 0
+            )
+            or 0
+        ),
+        "source_theorem_promotion_legacy_post_runtime_fallback_used": bool(
+            manifest.get(
+                "source_theorem_promotion_legacy_post_runtime_fallback_used",
+                False,
+            )
+        ),
         "source_theorem_promotion_proofengineer_bridge_ran": bool(
             manifest.get("source_theorem_promotion_proofengineer_bridge_ran", False)
         ),
@@ -14448,9 +14489,10 @@ def _runtime_capability_gap_default_target_behavior(
             "events for every subsystem iteration."
         ),
         "source_theorem_promotion_proofengineer_bridge_ran": (
-            "Run the source-theorem promotion ProofEngineer bridge in the same "
-            "runtime and produce formal-environment work orders or source-theorem "
-            "kernel evidence when source theorem promotion work orders exist."
+            "Run source-theorem promotion as a typed AgentRuntime planning child "
+            "that emits an LLM exact-candidate generation request, then route the "
+            "result to the exact compiler gate. Legacy formal-environment rows are "
+            "accepted only as explicitly labeled compatibility evidence."
         ),
         "source_theorem_formal_environment_bridge_ran": (
             "Run the source-theorem formal-environment ProofEngineer bridge so "
@@ -22259,6 +22301,25 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_theorem_promotion_post_executor_proofengineer_bridge_n_formal_environment_work_orders",
         )
     )
+    source_theorem_promotion_agent_runtime_work_orders = int(
+        payload.get("n_source_theorem_promotion_agent_runtime_work_orders", 0)
+        or 0
+    )
+    source_theorem_promotion_agent_runtime_executions = int(
+        payload.get("n_source_theorem_promotion_agent_runtime_executions", 0)
+        or 0
+    )
+    source_theorem_promotion_agent_runtime_generation_requests = int(
+        payload.get(
+            "n_source_theorem_promotion_agent_runtime_generation_requests", 0
+        )
+        or 0
+    )
+    source_theorem_promotion_typed_planning_complete = bool(
+        source_theorem_promotion_agent_runtime_work_orders > 0
+        and source_theorem_promotion_agent_runtime_executions > 0
+        and source_theorem_promotion_agent_runtime_generation_requests > 0
+    )
     source_theorem_formal_environment_bridge_repair_packets = sum(
         int(payload.get(key, 0) or 0)
         for key in (
@@ -25347,12 +25408,22 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_theorem_promotion_proofengineer_bridge_ran",
             payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True
             and (
+                source_theorem_promotion_typed_planning_complete
+                or
                 source_theorem_promotion_bridge_formal_environment_work_orders > 0
                 or source_theorem_promotion_bridge_kernel_verified > 0
             ),
             (
                 "ran="
                 f"{payload.get('source_theorem_promotion_proofengineer_bridge_ran')} "
+                "execution_mode="
+                f"{payload.get('source_theorem_promotion_proofengineer_execution_mode')} "
+                "typed_work_orders="
+                f"{source_theorem_promotion_agent_runtime_work_orders} "
+                "typed_executions="
+                f"{source_theorem_promotion_agent_runtime_executions} "
+                "typed_generation_requests="
+                f"{source_theorem_promotion_agent_runtime_generation_requests} "
                 "formal_environment_work_orders="
                 f"{source_theorem_promotion_bridge_formal_environment_work_orders} "
                 "source_theorem_kernel_verified="
@@ -25361,9 +25432,9 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"{payload.get('source_theorem_promotion_proofengineer_bridge_skipped_reason')}"
             ),
             (
-                "source-theorem promotion ProofEngineer bridge did not run inside "
-                "the runtime with formal-environment work-order rows or "
-                "source-theorem kernel evidence"
+                "source-theorem promotion did not execute as a typed AgentRuntime "
+                "planning child with an LLM generation request, and the legacy "
+                "path produced neither formal-environment rows nor kernel evidence"
             ),
         ),
         _scorecard_row(

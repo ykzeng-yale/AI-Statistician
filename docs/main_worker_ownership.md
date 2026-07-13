@@ -1217,10 +1217,47 @@ This is still a partial control-plane migration. Semantic work discovered only
 after proof-body execution or postprocessing remains an explicitly reported
 `legacy_post_runtime_derived_execution` fallback so the existing
 adapter/premise cascade is not silently dropped. Source-theorem promotion also
-remains outside AgentRuntime. Those two linked paths are the next central
-migration. The full runtime suite passes 1047 tests and the core suite passes
-289 tests with 5 skips and 6 passing subtests. No statistical source theorem or
-S14 completion is claimed.
+has since moved into the typed primary path described below. The full runtime
+suite passes 1047 tests and the core suite passes 289 tests with 5 skips and 6
+passing subtests. No statistical source theorem or S14 completion is claimed.
+
+## Typed Source-Theorem Promotion Runtime Migration
+
+Primary source-theorem promotion planning now runs as the Architect-visible
+`SourceTheoremPromotionProofEngineer` AgentRuntime child. FormalizationEvaluator
+projects only source targets whose declaration identity was supplied through
+the Formalizer packet's structured source-theorem provenance and that do not
+already have a candidate artifact. Candidate-bearing rows go to
+`ExactSourceTheoremProofBodyExecutor`; inferred declarations fail closed.
+
+The immutable work order binds the source formalization manifest, projected
+rows and hashes, execution policy, source task, and Critic return task. The
+child emits a `RuntimeExactSourceCandidateGenerationRequest` to the configured
+LLM/prover with exact target ids, structured declaration identity, semantic
+support context, signed formal RAG, and compiler/LSP feedback requirements. It
+does not parse Lean, rewrite declarations, synthesize tactics, materialize a
+route probe, or invoke the legacy source-theorem integrator. Its execution
+manifest always records `source_theorem_kernel_verified=false`; only the typed
+exact compiler gate may promote a later exact artifact.
+
+The exact proof-body worker now includes its runtime learning rows in same-run
+ProofEngineer feedback, so semantic and compiler discoveries no longer have to
+wait for postprocessing to influence the coding agent. Deterministic execution
+ids make promotion replay side-effect free. Runtime and system audits report
+typed work orders, typed executions, generation requests, pending work, and
+legacy fallback separately; a planning request is capability evidence but not
+proof evidence.
+
+The migration is not the full proof loop yet. Promotion-derived work discovered
+only after proof-body execution or postprocessing may still use the explicitly
+labeled `legacy_post_runtime_derived_execution` compatibility path. A live
+LLM-generated candidate must also be shown re-entering
+`ExactSourceTheoremProofBodyExecutor` and iterating through local Lean to exact
+source-theorem closure in the same AgentRuntime. Exact-semantic authoring,
+adapter/premise derivation, and later same-run proof-body rechecks remain in the
+second orchestration plane. No fresh statistical source theorem or S14
+completion is claimed. The full runtime suite passes 1050 tests; the core suite
+passes 289 tests with 5 skips and 6 passing subtests.
 
 ## Whole-Proof Agent Correction
 

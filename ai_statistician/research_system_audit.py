@@ -3964,6 +3964,34 @@ async def run_research_system_audit(
                 "source_semantic_proofengineer_bridge_proof_evidence_status",
                 "",
             ),
+            "research_agent_runtime_source_theorem_promotion_proofengineer_bridge_requested": research_agent_runtime_audit_manifest.get(
+                "source_theorem_promotion_proofengineer_bridge_requested",
+                False,
+            ),
+            "research_agent_runtime_source_theorem_promotion_proofengineer_bridge_ran": research_agent_runtime_audit_manifest.get(
+                "source_theorem_promotion_proofengineer_bridge_ran",
+                False,
+            ),
+            "research_agent_runtime_source_theorem_promotion_execution_mode": research_agent_runtime_audit_manifest.get(
+                "source_theorem_promotion_proofengineer_execution_mode",
+                "",
+            ),
+            "research_agent_runtime_n_source_theorem_promotion_agent_runtime_work_orders": research_agent_runtime_audit_manifest.get(
+                "n_source_theorem_promotion_agent_runtime_work_orders",
+                0,
+            ),
+            "research_agent_runtime_n_source_theorem_promotion_agent_runtime_executions": research_agent_runtime_audit_manifest.get(
+                "n_source_theorem_promotion_agent_runtime_executions",
+                0,
+            ),
+            "research_agent_runtime_n_source_theorem_promotion_agent_runtime_generation_requests": research_agent_runtime_audit_manifest.get(
+                "n_source_theorem_promotion_agent_runtime_generation_requests",
+                0,
+            ),
+            "research_agent_runtime_source_theorem_promotion_legacy_post_runtime_fallback_used": research_agent_runtime_audit_manifest.get(
+                "source_theorem_promotion_legacy_post_runtime_fallback_used",
+                False,
+            ),
             "research_agent_runtime_source_theorem_formal_environment_proof_body_executor_ran": research_agent_runtime_audit_manifest.get(
                 "source_theorem_formal_environment_proof_body_executor_ran",
                 False,
@@ -11857,6 +11885,13 @@ def _research_agent_runtime_audit_overlay(
         "source_semantic_proofengineer_bridge_requested": False,
         "source_semantic_proofengineer_bridge_ran": False,
         "source_semantic_proofengineer_bridge_proof_evidence_status": "",
+        "source_theorem_promotion_proofengineer_bridge_requested": False,
+        "source_theorem_promotion_proofengineer_bridge_ran": False,
+        "source_theorem_promotion_proofengineer_execution_mode": "",
+        "n_source_theorem_promotion_agent_runtime_work_orders": 0,
+        "n_source_theorem_promotion_agent_runtime_executions": 0,
+        "n_source_theorem_promotion_agent_runtime_generation_requests": 0,
+        "source_theorem_promotion_legacy_post_runtime_fallback_used": False,
         "n_runtime_formal_gap_planner_handoff_rows": 0,
         "n_runtime_formal_gap_planner_handoff_rows_missing_execution_context": 0,
         "n_runtime_formalization_gap_planner_live_route_planner_invocations": 0,
