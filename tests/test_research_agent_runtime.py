@@ -20503,6 +20503,11 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "empirical_metric_requirements"
     ]
     assert "provider_structured_output" not in architect_request.metadata
+    metric_prompt = json.loads(metric_request.user_prompt)
+    hard_requirements = " ".join(metric_prompt["hard_requirements"])
+    assert "exactly one independently compared scalar quantity" in hard_requirements
+    assert "split them into separate requirement rows" in hard_requirements
+    assert "Return exactly one required empirical metric row" not in hard_requirements
     assert packet["evidence_contract"]["empirical_metric_requirements"] == (
         metric_rows
     )
@@ -21923,7 +21928,7 @@ def test_simulation_engineer_capability_eval_prompt_requires_generated_code() ->
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe simulation_code_drafts entry" in prompt
     assert "required for capability-eval simulation coding-agent evidence" in prompt
-    assert "typed metric_contracts row" in prompt
+    assert "metric_contracts binding" in prompt
     assert '"typed_metric_contract_schema"' in prompt
     assert "Do not ask AgentRuntime to infer a metric" in prompt
 
@@ -21961,6 +21966,219 @@ def test_simulation_engineer_prompt_uses_runtime_requested_capability_contract()
     ] is True
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe simulation_code_drafts entry" in prompt
+
+
+def test_algorithm_engineer_uses_structured_binding_envelope_for_anthropic() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    requirement = _typed_metric_requirement_fixture(
+        "AlgorithmEngineer",
+        required_runtime_replicates=12,
+    )
+    payload = {
+        "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
+        "implementation_targets": [
+            {"estimator_id": "candidate", "registered_template_hint": "none"}
+        ],
+        "sandbox_code_drafts": [
+            {
+                "estimator_id": "candidate",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    return {'empirical_coverage': 1.0}\n"
+                ),
+            }
+        ],
+        "metric_contracts": [
+            {
+                "contract_id": "candidate-coverage",
+                "requirement_id": "architect:empirical-coverage",
+                "artifact_id": "candidate",
+                "metric_path": ["empirical_coverage"],
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime",
+                "action": "execute candidate",
+                "acceptance_gate": "frozen metric contract passes",
+            }
+        ],
+    }
+
+    class CaptureAnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={},
+            )
+
+    backend = CaptureAnthropicBackend()
+    packet = LLMAlgorithmEngineerAgent(
+        provider=backend,
+        config=AlgorithmEngineerConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+        ),
+    ).propose(
+        question=question,
+        theory_packet=_structured_theory_packet_fixture(),
+        simulation_manifest={"manifest_id": "simulation:accepted"},
+        implementation_gaps=[{"estimator_id": "candidate"}],
+        environment_feedback={
+            "architect_evidence_contract": {
+                "capability_eval_requires_generated_algorithm_code": True,
+                "generated_metric_requirement_authority_policy": (
+                    "architect_authored_coding_agent_bound_required"
+                ),
+                "empirical_metric_requirements": [requirement],
+            }
+        },
+    )
+
+    request = backend.requests[0]
+    assert request.metadata["provider_structured_output"] is True
+    binding_schema = request.schema["properties"]["metric_contracts"]["items"]
+    assert set(binding_schema["properties"]) == {
+        "contract_id",
+        "requirement_id",
+        "artifact_id",
+        "metric_path",
+    }
+    contract = packet["metric_contracts"][0]
+    assert contract["authority_binding_mode"] == (
+        "runtime_joined_frozen_requirement"
+    )
+    assert contract["threshold"] == requirement["threshold"]
+    assert contract["authority_requirement_fingerprint"]
+    assert _validate_capability_eval_generated_algorithm_packet(
+        packet,
+        implementation_gaps=[{"estimator_id": "candidate"}],
+        authoritative_metric_requirements=[requirement],
+        require_authoritative_requirements=True,
+    ) == []
+
+
+def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    requirement = _typed_metric_requirement_fixture(
+        "SimulationEngineer",
+        required_runtime_replicates=12,
+    )
+    payload = {
+        "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
+        "simulation_targets": [
+            {"procedure_id": "generated-stress", "estimand": "question target"}
+        ],
+        "runtime_execution_plan": {
+            "registered_simulator": "ResearchSimulator.run",
+            "n_runs": 12,
+            "seed": 7,
+        },
+        "critic_findings": [
+            {
+                "critic": "evidence",
+                "finding": "execution remains empirical evidence",
+                "reroute_if_confirmed": "TheoryDeveloper",
+            }
+        ],
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "generated-stress",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    return {'empirical_coverage': 1.0}\n"
+                ),
+            }
+        ],
+        "metric_contracts": [
+            {
+                "contract_id": "stress-coverage",
+                "requirement_id": "architect:empirical-coverage",
+                "artifact_id": "generated-stress",
+                "metric_path": ["empirical_coverage"],
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime",
+                "action": "execute stress simulation",
+                "acceptance_gate": "frozen metric contract passes",
+            }
+        ],
+    }
+
+    class CaptureAnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={},
+            )
+
+    backend = CaptureAnthropicBackend()
+    packet = LLMSimulationEngineerAgent(
+        provider=backend,
+        config=SimulationEngineerConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+        ),
+    ).propose(
+        question=question,
+        theory_packet=_structured_theory_packet_fixture(),
+        registered_problem={"problem_class": "unregistered"},
+        registered_procedures=[],
+        n_runs=12,
+        seed=7,
+        environment_feedback={
+            "architect_evidence_contract": {
+                "capability_eval_requires_generated_simulation_code": True,
+                "generated_metric_requirement_authority_policy": (
+                    "architect_authored_coding_agent_bound_required"
+                ),
+                "empirical_metric_requirements": [requirement],
+            }
+        },
+    )
+
+    request = backend.requests[0]
+    assert request.metadata["provider_structured_output"] is True
+    binding_schema = request.schema["properties"]["metric_contracts"]["items"]
+    assert set(binding_schema["properties"]) == {
+        "contract_id",
+        "requirement_id",
+        "artifact_id",
+        "metric_path",
+    }
+    contract = packet["metric_contracts"][0]
+    assert contract["authority_binding_mode"] == (
+        "runtime_joined_frozen_requirement"
+    )
+    assert contract["threshold"] == requirement["threshold"]
+    assert contract["authority_requirement_fingerprint"]
+    assert _validate_capability_eval_generated_simulation_packet(
+        packet,
+        authoritative_metric_requirements=[requirement],
+        require_authoritative_requirements=True,
+    ) == []
 
 
 def test_algorithm_engineer_prompt_compacts_theory_and_simulation_context() -> None:
@@ -40939,6 +41157,13 @@ def test_coding_packet_validation_feedback_is_scoped_and_routes_to_architect() -
                 "tags": list(question.tags),
             },
             "theory_packet_id": "theory:scoped",
+            "simulation_manifest_id": "simulation:accepted",
+            "implementation_gaps": [
+                {
+                    "estimator_id": "candidate:accepted-lineage",
+                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                }
+            ],
             "architect_context": {},
         },
     )
@@ -40964,8 +41189,33 @@ def test_coding_packet_validation_feedback_is_scoped_and_routes_to_architect() -
     replan = result.next_task.inputs["architect_context"][
         "runtime_packet_validation_replan"
     ]
+    replan_context = result.next_task.inputs["architect_context"]
     assert replan["source_subsystem"] == "SimulationEvaluator"
     assert replan["validation_errors"] == [validation_error]
+    assert replan["pending_artifact_ids"] == {
+        "theory_packet_id": "theory:scoped",
+        "simulation_manifest_id": "simulation:accepted",
+    }
+    assert replan_context["theory_packet_id"] == "theory:scoped"
+    assert replan_context["simulation_manifest_id"] == "simulation:accepted"
+    assert replan_context["implementation_gaps"] == [
+        {
+            "estimator_id": "candidate:accepted-lineage",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+        }
+    ]
+    lineage_blackboard = BlackboardState(
+        project_id="packet-replan-lineage",
+        artifacts={
+            "theory:scoped": {"packet_id": "theory:scoped"},
+            "simulation:accepted": {"manifest_id": "simulation:accepted"},
+        },
+    )
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "AlgorithmEngineer",
+        architect_context=replan_context,
+        blackboard=lineage_blackboard,
+    ) == "AlgorithmEngineer"
     assert replan["proof_evidence_status"] == (
         "CODING_AGENT_PACKET_VALIDATION_REPLAN_NOT_PROOF_EVIDENCE"
     )
@@ -41439,7 +41689,7 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert "estimator_id" in feedback["required_repair"]
     assert "registered_template_hint=\"none\"" in feedback["required_repair"]
     assert "metric_contracts" in feedback["required_repair"]
-    assert "source anchors" in feedback["required_repair"]
+    assert "frozen Architect requirement" in feedback["required_repair"]
     assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
     assert "draft estimator_id" in feedback["target_behavior"]
 
@@ -100802,7 +101052,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.formalization_gap_planner_live_max_provider_retries == 1
     assert args.formalization_gap_planner_live_provider == "same"
     assert args.formalization_gap_planner_live_timeout_seconds == 240.0
-    assert args.coding_agent_packet_validation_replan_after_attempts == 1
+    assert args.coding_agent_packet_validation_replan_after_attempts == 2
     assert (
         args.algorithm_engineer_generated_code_repair_yield_after_attempts
         == 1

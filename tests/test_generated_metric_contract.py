@@ -11,12 +11,14 @@ from ai_statistician.generated_metric_contract import (
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
     generated_metric_authority_repair_context,
+    generated_metric_contract_binding_json_schema,
     generated_metric_contract_set_id,
     generated_metric_contracts_for_artifact,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
+    materialize_generated_metric_contract_bindings,
     validate_generated_metric_requirements,
     validate_generated_metric_contracts,
 )
@@ -177,9 +179,137 @@ def test_metric_authority_repair_context_is_complete_and_subsystem_scoped() -> N
     ]
     assert context["coding_agent_may_author_only"] == [
         "contract_id",
+        "requirement_id",
         "artifact_id",
         "metric_path",
     ]
+    assert context["authority_materialization_mode"] == (
+        "runtime_joined_frozen_requirement"
+    )
+
+
+def test_metric_binding_schema_exposes_only_foreign_keys_and_result_path() -> None:
+    schema = generated_metric_contract_binding_json_schema(
+        requirement_ids=("architect:criterion-control",),
+        artifact_ids=("artifact:generated-candidate",),
+    )
+
+    assert schema["additionalProperties"] is False
+    assert schema["required"] == [
+        "contract_id",
+        "requirement_id",
+        "artifact_id",
+        "metric_path",
+    ]
+    assert set(schema["properties"]) == set(schema["required"])
+    assert schema["properties"]["requirement_id"]["enum"] == [
+        "architect:criterion-control"
+    ]
+    assert schema["properties"]["artifact_id"]["enum"] == [
+        "artifact:generated-candidate"
+    ]
+
+
+def test_binding_only_contract_materializes_frozen_architect_authority() -> None:
+    requirement = _requirement()
+    contracts = materialize_generated_metric_contract_bindings(
+        [
+            {
+                "contract_id": "criterion-excess-quorum",
+                "requirement_id": "architect:criterion-control",
+                "artifact_id": "artifact:generated-candidate",
+                "metric_path": ["criterion_excess", "*"],
+            }
+        ],
+        authoritative_requirements=[requirement],
+        target_subsystem="AlgorithmEngineer",
+    )
+
+    contract = contracts[0]
+    assert contract["operator"] == requirement["operator"]
+    assert contract["threshold"] == requirement["threshold"]
+    assert contract["aggregation"] == requirement["aggregation"]
+    assert contract["minimum_pass_count"] == requirement["minimum_pass_count"]
+    assert contract["source_anchors"] == requirement["source_anchors"]
+    assert contract["authority_binding_mode"] == (
+        "runtime_joined_frozen_requirement"
+    )
+    assert contract["authority_requirement_fingerprint"]
+    assert validate_generated_metric_contracts(
+        contracts,
+        expected_artifact_ids=("artifact:generated-candidate",),
+        required_artifact_ids=("artifact:generated-candidate",),
+        authoritative_requirements=[requirement],
+        target_subsystem="AlgorithmEngineer",
+        require_authoritative_requirements=True,
+    ) == []
+
+
+def test_runtime_join_discards_attempted_coding_agent_gate_weakening() -> None:
+    requirement = _requirement()
+    contracts = materialize_generated_metric_contract_bindings(
+        [
+            {
+                "contract_id": "attempted-weakened-gate",
+                "requirement_id": "architect:criterion-control",
+                "artifact_id": "artifact:generated-candidate",
+                "metric_path": ["criterion_excess", "*"],
+                "operator": "<=",
+                "threshold": 999.0,
+                "aggregation": "any",
+                "required": False,
+            }
+        ],
+        authoritative_requirements=[requirement],
+        target_subsystem="AlgorithmEngineer",
+    )
+
+    contract = contracts[0]
+    assert contract["threshold"] == 0.02
+    assert contract["aggregation"] == "at_least_count"
+    assert contract["required"] is True
+    assert set(contract["discarded_authority_override_fields"]) == {
+        "threshold",
+        "aggregation",
+        "required",
+    }
+    evaluation = evaluate_generated_metric_contracts(
+        {"criterion_excess": [0.03] * 12},
+        contracts=contracts,
+        artifact_id="artifact:generated-candidate",
+        runtime_replicates=80,
+        authoritative_requirements=[requirement],
+        target_subsystem="AlgorithmEngineer",
+        require_authoritative_requirements=True,
+    )
+    assert evaluation["metric_requirement_authority_validated"] is True
+    assert evaluation["all_required_passed"] is False
+
+
+def test_unknown_requirement_binding_still_fails_closed() -> None:
+    requirement = _requirement()
+    contracts = materialize_generated_metric_contract_bindings(
+        [
+            {
+                "contract_id": "unknown-binding",
+                "requirement_id": "architect:unknown",
+                "artifact_id": "artifact:generated-candidate",
+                "metric_path": ["criterion_excess"],
+            }
+        ],
+        authoritative_requirements=[requirement],
+        target_subsystem="AlgorithmEngineer",
+    )
+
+    errors = validate_generated_metric_contracts(
+        contracts,
+        expected_artifact_ids=("artifact:generated-candidate",),
+        required_artifact_ids=("artifact:generated-candidate",),
+        authoritative_requirements=[requirement],
+        target_subsystem="AlgorithmEngineer",
+        require_authoritative_requirements=True,
+    )
+    assert any("not an authoritative requirement" in error for error in errors)
 
 
 def test_generated_metric_contract_validator_rejects_invalid_contract_shape() -> None:

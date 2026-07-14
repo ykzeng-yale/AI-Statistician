@@ -215,7 +215,7 @@ def _author_architect_metric_requirements(
         "properties": {
             "empirical_metric_requirements": {
                 "type": "array",
-                "minItems": len(GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS),
+                "minItems": 1,
                 "items": generated_metric_requirement_json_schema(),
             }
         },
@@ -239,7 +239,21 @@ def _author_architect_metric_requirements(
             for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
         ],
         "hard_requirements": [
-            "Return exactly one required empirical metric row for each generated-code author subsystem unless one row explicitly and correctly targets both.",
+            (
+                "Return at least one required empirical metric row for each "
+                "generated-code author subsystem; a row may correctly target both."
+            ),
+            (
+                "Each row must represent exactly one independently compared scalar "
+                "quantity, or one homogeneous collection whose members share this "
+                "row's one operator, bounds, tolerance, aggregation, and quorum."
+            ),
+            (
+                "When acceptance requires multiple quantities or different "
+                "operators, thresholds, bounds, aggregations, or quorums, split them "
+                "into separate requirement rows; never bundle independent gates in "
+                "prose inside one row."
+            ),
             "Use only operator and aggregation enum values from requirement_schema.",
             "Copy runtime_owned_replicates into every required_runtime_replicates field and state that exact count in each measurement_protocol.",
             "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",
@@ -594,10 +608,14 @@ def build_architect_coordinator_prompt(
         "orchestration input, not proof evidence. "
         "If architect_context.runtime_packet_validation_replan is present, treat its "
         "exact validation_errors and fingerprints as the current coding-agent blocker. "
-        "Choose whether upstream theory/artifact interfaces need repair or whether a "
-        "better-context coding-agent retry is feasible; do not blindly resume the failed "
-        "task, weaken its validator, or invent code, statistical results, Lean, or proof "
-        "evidence in the Architect packet. "
+        "Preserve every accepted pending_artifact_ids entry and implementation_gaps as "
+        "immutable lineage. Packet-shape, foreign-key, or authority-binding failures "
+        "should normally route back to runtime_packet_validation_replan.source_subsystem "
+        "with better context. Route to RetrievalMemory or TheoryDeveloper only when an "
+        "exact validation error identifies a substantive upstream semantic blocker; state "
+        "that blocker explicitly. Do not rerun accepted upstream work merely to repair a "
+        "coding-agent envelope, weaken its validator, or invent code, statistical "
+        "results, Lean, or proof evidence in the Architect packet. "
         "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
         "is true, author empirical_metric_requirements before either coding agent "
         "runs. Include at least one required row targeting AlgorithmEngineer and "
@@ -607,7 +625,10 @@ def build_architect_coordinator_prompt(
         "executes SimulationEngineer output but is not a valid target_subsystems "
         "value. Give every row an immutable requirement "
         "id, precise metric semantics and measurement protocol, numeric comparison, "
-        "aggregation/quorum, and source anchors. Copy "
+        "aggregation/quorum, and source anchors. Every required row must encode one "
+        "independent scalar comparison or one homogeneous collection comparison. Split "
+        "different quantities, operators, bounds, aggregations, or quorums into separate "
+        "rows instead of bundling them in metric_semantics. Copy "
         "requested_evidence_contract.generated_sandbox_runtime_replicates exactly "
         "into every row as required_runtime_replicates, and describe that same "
         "executed replicate count in the measurement protocol. If the runtime-owned "
@@ -616,9 +637,11 @@ def build_architect_coordinator_prompt(
         "repair the theory, DGP, measurement implementation, or generated code rather "
         "than rewriting a failed gate. If a target varies by scenario, "
         "require a returned deviation or ratio to that scenario-specific target so "
-        "the comparison remains explicit. Coding agents may bind only artifact IDs "
-        "and metric paths; they must copy all requirement fields unchanged and may "
-        "add only optional diagnostics. AgentRuntime must reject invented or weakened "
+        "the comparison remains explicit. Coding agents may author only contract IDs, "
+        "exact requirement IDs, artifact IDs, and metric paths. AgentRuntime joins the "
+        "frozen requirement fields deterministically and must reject unknown requirements "
+        "or missing bindings rather than trusting coding-agent authority echoes. It must "
+        "reject invented or weakened "
         "required gates and must not infer a statistical gate from names or prose. "
         "These Architect requirements remain orchestration proposals, and passing "
         "their runtime contracts is empirical evidence only. "

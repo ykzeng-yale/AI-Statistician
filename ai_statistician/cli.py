@@ -14151,7 +14151,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.coding_agent_packet_validation_replan_after_attempts = 1
+            args.coding_agent_packet_validation_replan_after_attempts = 2
         if (
             int(
                 getattr(

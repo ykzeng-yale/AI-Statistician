@@ -15,14 +15,15 @@ from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
-    bind_generated_metric_contract_authority,
     generated_metric_authority_repair_context,
+    generated_metric_contract_binding_json_schema,
     generated_metric_contract_prompt_schema,
     generated_metric_contract_set_id,
     generated_metric_requirement_authority_policy_from_context,
     generated_metric_requirements_for_subsystem,
     generated_metric_requirement_set_id,
     generated_metric_requirements_from_context,
+    materialize_generated_metric_contract_bindings,
     validate_generated_metric_contracts,
 )
 from .algorithm_template_registry import (
@@ -115,19 +116,36 @@ class LLMAlgorithmEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        response_schema = _algorithm_engineer_response_schema(
+            implementation_gaps=implementation_gaps,
+            authoritative_metric_requirements=authoritative_metric_requirements,
+            requires_generated_code=requires_generated_code,
+        )
+        provider_name = str(
+            getattr(self.provider, "provider_name", self.config.provider_name)
+            or self.config.provider_name
+        ).lower()
+        use_provider_structured_output = bool(
+            requires_generated_code and provider_name == "anthropic"
+        )
         request = GeneratorRequest(
             system_prompt=ALGORITHM_ENGINEER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=ALGORITHM_ENGINEER_JSON_SCHEMA,
+            schema=response_schema,
             metadata={
                 "subsystem": "AlgorithmEngineer",
                 "agent": "LLMAlgorithmEngineerAgent",
                 "provider_name": self.config.provider_name,
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
+                **(
+                    {"provider_structured_output": True}
+                    if use_provider_structured_output
+                    else {}
+                ),
             },
         )
 
@@ -283,11 +301,10 @@ def build_algorithm_engineer_prompt(
         "implementation_targets row and one safe sandbox_code_drafts row with "
         "at least one metric_contracts row bound to the same artifact ID. "
         "For every row in authoritative_empirical_metric_requirements, emit a "
-        "contract for every generated artifact. Copy requirement_id, metric_semantics, "
-        "measurement_protocol, operator, numeric threshold/bounds, tolerance, "
-        "aggregation/quorum, required, and source_anchors exactly; add only the "
-        "artifact_id, metric_path, and a stable contract_id. Optional extra "
-        "diagnostics must use required=false and must not claim authority lineage. "
+        "binding for every generated artifact containing only contract_id, the exact "
+        "requirement_id, artifact_id, and metric_path. AgentRuntime deterministically "
+        "joins the immutable authority fields; do not repeat or rewrite thresholds, "
+        "operators, aggregation, quorum, semantics, or source anchors. "
         "Do not rely on metric-name or prose inference; AgentRuntime rejects invented "
         "or weakened required gates and evaluates only the typed contract. "
         "entrypoint exactly \"run_sandbox\" and code defining "
@@ -348,10 +365,10 @@ def build_algorithm_engineer_prompt(
         "Local packet-validator feedback is active: read every exact "
         "runtime_environment_feedback.validation_errors row and rebuild the full "
         "packet. Bind only the authoritative_empirical_metric_requirements rows "
-        "shown in this prompt for AlgorithmEngineer. Copy their authority fields "
-        "unchanged, including nulls, aggregation, quorum fields, and source_anchors; "
-        "author only contract_id, the canonical estimator_id artifact binding, and "
-        "a metric_path that resolves against run_sandbox output. Do not reuse a "
+        "shown in this prompt for AlgorithmEngineer. Author only contract_id, exact "
+        "requirement_id, the canonical estimator_id artifact binding, and a metric_path "
+        "that resolves against run_sandbox output. AgentRuntime materializes every "
+        "frozen authority field. Do not reuse a "
         "contract from another subsystem or prior attempt. "
         if str(
             payload["runtime_environment_feedback"].get("feedback_type", "") or ""
@@ -944,6 +961,149 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
     return contract
 
 
+def _algorithm_engineer_response_schema(
+    *,
+    implementation_gaps: list[Mapping[str, Any]],
+    authoritative_metric_requirements: list[Mapping[str, Any]],
+    requires_generated_code: bool,
+) -> dict[str, Any]:
+    """Build a compact provider-native envelope for generated-code mode."""
+
+    if not requires_generated_code:
+        return ALGORITHM_ENGINEER_JSON_SCHEMA
+    gap_ids = _canonical_implementation_gap_ids(implementation_gaps)
+    requirement_ids = [
+        str(row.get("requirement_id", "") or "").strip()
+        for row in authoritative_metric_requirements
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    ]
+    estimator_id_schema: dict[str, Any] = {"type": "string", "minLength": 1}
+    if gap_ids:
+        estimator_id_schema["enum"] = gap_ids
+    required_artifact_rows = max(1, len(gap_ids))
+    required_binding_rows = max(
+        1,
+        len(requirement_ids) * required_artifact_rows,
+    )
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "theory_trace_alignment",
+            "implementation_targets",
+            "sandbox_code_drafts",
+            "metric_contracts",
+            "next_actions",
+        ],
+        "properties": {
+            "theory_trace_alignment": _theory_trace_alignment_json_schema(),
+            "implementation_targets": {
+                "type": "array",
+                "minItems": required_artifact_rows,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["estimator_id", "registered_template_hint"],
+                    "properties": {
+                        "estimator_id": estimator_id_schema,
+                        "adapter_strategy": {"type": "string"},
+                        "registered_template_hint": {
+                            "type": "string",
+                            "enum": ["none"],
+                        },
+                        "data_contract": _string_array_json_schema(),
+                        "validation_metrics": _string_array_json_schema(),
+                        "risk_controls": _string_array_json_schema(),
+                    },
+                },
+            },
+            "sandbox_code_drafts": {
+                "type": "array",
+                "minItems": required_artifact_rows,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "estimator_id",
+                        "language",
+                        "entrypoint",
+                        "code",
+                    ],
+                    "properties": {
+                        "estimator_id": estimator_id_schema,
+                        "language": {"type": "string", "enum": ["python"]},
+                        "entrypoint": {
+                            "type": "string",
+                            "enum": ["run_sandbox"],
+                        },
+                        "code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 12000,
+                        },
+                    },
+                },
+            },
+            "metric_contracts": {
+                "type": "array",
+                "minItems": required_binding_rows,
+                "items": generated_metric_contract_binding_json_schema(
+                    requirement_ids=requirement_ids,
+                    artifact_ids=gap_ids,
+                ),
+            },
+            "next_actions": _next_actions_json_schema(),
+        },
+    }
+
+
+def _theory_trace_alignment_json_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "referenced_derivation_steps",
+            "referenced_equation_steps",
+            "referenced_assumptions",
+            "referenced_formalization_targets",
+            "rationale",
+        ],
+        "properties": {
+            "referenced_derivation_steps": _string_array_json_schema(),
+            "referenced_equation_steps": _string_array_json_schema(),
+            "referenced_assumptions": _string_array_json_schema(),
+            "referenced_formalization_targets": _string_array_json_schema(),
+            "rationale": {"type": "string"},
+        },
+    }
+
+
+def _next_actions_json_schema() -> dict[str, Any]:
+    return {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["owner_agent", "action", "acceptance_gate"],
+            "properties": {
+                "owner_agent": {"type": "string", "minLength": 1},
+                "action": {"type": "string", "minLength": 1},
+                "acceptance_gate": {"type": "string", "minLength": 1},
+            },
+        },
+    }
+
+
+def _string_array_json_schema() -> dict[str, Any]:
+    return {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+
+
 ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -1159,7 +1319,7 @@ def _normalize_algorithm_packet(
         for row in authoritative_metric_requirements or []
         if isinstance(row, Mapping)
     ]
-    metric_contract_rows = bind_generated_metric_contract_authority(
+    metric_contract_rows = materialize_generated_metric_contract_bindings(
         metric_contract_rows,
         authoritative_requirements=authority_rows,
         target_subsystem="AlgorithmEngineer",

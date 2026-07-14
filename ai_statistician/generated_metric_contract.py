@@ -67,6 +67,12 @@ GENERATED_METRIC_AUTHORITY_COPY_FIELDS: tuple[str, ...] = (
     "required",
     "source_anchors",
 )
+GENERATED_METRIC_BINDING_FIELDS: tuple[str, ...] = (
+    "contract_id",
+    "requirement_id",
+    "artifact_id",
+    "metric_path",
+)
 
 
 def generated_sandbox_runtime_replicates(n_runs: int) -> int:
@@ -198,11 +204,13 @@ def generated_metric_requirement_prompt_schema(
         "requirement_id": f"stable unique string for {target}",
         "target_subsystems": [target],
         "metric_semantics": (
-            "precise quantity the generated artifact must return; when a target "
-            "varies by scenario, define a scalar deviation or ratio to that target"
+            "exactly one independently compared scalar quantity, or one homogeneous "
+            "collection whose members all use this row's single comparison; when a "
+            "target varies by scenario, define a scalar deviation or ratio to it"
         ),
         "measurement_protocol": (
-            "how the quantity is computed across seeds, scenarios, or replicates"
+            "how this one comparison quantity is computed across seeds, scenarios, "
+            "or replicates; split quantities with different comparisons into rows"
         ),
         "required_runtime_replicates": (
             "positive integer copied from the runtime-owned generated sandbox budget"
@@ -230,45 +238,59 @@ def generated_metric_requirement_prompt_schema(
 
 
 def generated_metric_contract_prompt_schema(*, artifact_id_label: str) -> dict[str, Any]:
-    """Return the domain-neutral contract shape exposed to coding agents."""
+    """Return the minimal domain-neutral binding exposed to coding agents."""
 
     label = artifact_id_label.strip() or "artifact id"
     return {
         "contract_id": "stable unique string",
         "requirement_id": (
-            "exact upstream empirical_metric_requirements requirement_id; copy unchanged"
+            "exact upstream empirical_metric_requirements requirement_id"
         ),
         "artifact_id": f"exact {label}; copy unchanged",
         "metric_path": [
             "JSON object key, zero-based list index, or * wildcard",
         ],
-        "metric_semantics": "copy unchanged from the upstream requirement",
-        "measurement_protocol": "copy unchanged from the upstream requirement",
-        "required_runtime_replicates": (
-            "copy unchanged from the upstream requirement"
-        ),
-        "operator": "<=|<|>=|>|==|between",
-        "threshold": "finite number for non-between operators",
-        "lower": "finite number for between",
-        "upper": "finite number for between",
-        "tolerance": "finite nonnegative number; use 0 for an exact boundary",
-        "aggregation": (
-            "identity|mean|min|max|all|any|at_least_count|at_least_fraction"
-        ),
-        "minimum_pass_count": "copy for at_least_count",
-        "minimum_pass_fraction": "copy for at_least_fraction",
-        "required": True,
-        "source_anchors": [
-            "exact theory-trace, target, or Architect requirement id",
-        ],
-        "contract_semantics": (
-            "The runtime resolves metric_path against the returned metrics. A * "
-            "expands one mapping/list level. identity requires one numeric value; "
-            "mean/min/max aggregate all resolved values; all/any apply the "
-            "comparison to every/at-least-one resolved value; at_least_count and "
-            "at_least_fraction compare every value then enforce the copied quorum."
-        ),
-        "boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
+    }
+
+
+def generated_metric_contract_binding_json_schema(
+    *,
+    requirement_ids: Sequence[str] = (),
+    artifact_ids: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Return a strict schema for the coding-agent side of an authority join."""
+
+    requirement_values = list(
+        dict.fromkeys(str(value).strip() for value in requirement_ids if str(value).strip())
+    )
+    artifact_values = list(
+        dict.fromkeys(str(value).strip() for value in artifact_ids if str(value).strip())
+    )
+    requirement_schema: dict[str, Any] = {"type": "string", "minLength": 1}
+    artifact_schema: dict[str, Any] = {"type": "string", "minLength": 1}
+    if requirement_values:
+        requirement_schema["enum"] = requirement_values
+    if artifact_values:
+        artifact_schema["enum"] = artifact_values
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(GENERATED_METRIC_BINDING_FIELDS),
+        "properties": {
+            "contract_id": {"type": "string", "minLength": 1},
+            "requirement_id": requirement_schema,
+            "artifact_id": artifact_schema,
+            "metric_path": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "anyOf": [
+                        {"type": "string", "minLength": 1},
+                        {"type": "integer", "minimum": 0},
+                    ]
+                },
+            },
+        },
     }
 
 
@@ -278,7 +300,7 @@ def generated_metric_authority_repair_context(
     target_subsystem: str,
     artifact_id_label: str,
 ) -> dict[str, Any]:
-    """Build a complete, domain-neutral copy contract for LLM packet repair."""
+    """Build a complete, domain-neutral binding contract for LLM packet repair."""
 
     relevant = generated_metric_requirements_for_subsystem(
         list(requirements),
@@ -298,23 +320,25 @@ def generated_metric_authority_repair_context(
         ],
         "coding_agent_may_author_only": [
             "contract_id",
+            "requirement_id",
             "artifact_id",
             "metric_path",
         ],
         "authority_copy_fields": list(GENERATED_METRIC_AUTHORITY_COPY_FIELDS),
+        "authority_materialization_mode": "runtime_joined_frozen_requirement",
         "repair_prompt_priority_instructions": [
             (
                 "For every required_authority_binding_rows item and every generated "
                 "artifact, emit one metric_contracts row."
             ),
             (
-                "Copy every authority_copy_fields value exactly, including nulls, "
-                "arrays, aggregation, quorum fields, and source_anchors; do not use "
-                "a requirement assigned to another subsystem."
+                "For each row, select the exact requirement_id assigned to this "
+                "subsystem. Do not emit authority_copy_fields other than "
+                "requirement_id; AgentRuntime joins the frozen requirement."
             ),
             (
-                "Author only contract_id, artifact_id, and metric_path; the metric_path "
-                "must resolve against the generated run_sandbox result."
+                "Author only contract_id, requirement_id, artifact_id, and metric_path; "
+                "the metric_path must resolve against the generated run_sandbox result."
             ),
         ],
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
@@ -645,6 +669,64 @@ def bind_generated_metric_contract_authority(
             contract["authority_source_subsystem"] = "ArchitectCoordinator"
         bound.append(contract)
     return bound
+
+
+def materialize_generated_metric_contract_bindings(
+    bindings: Sequence[Mapping[str, Any]],
+    *,
+    authoritative_requirements: Sequence[Mapping[str, Any]],
+    target_subsystem: str,
+) -> list[dict[str, Any]]:
+    """Join coding-agent bindings to immutable Architect-authored requirements.
+
+    The coding agent chooses only a requirement foreign key, artifact foreign key,
+    and returned metric path. Any attempted authority-field echo is discarded and
+    audited before the normal strict authority validator runs.
+    """
+
+    requirements = generated_metric_requirements_for_subsystem(
+        list(authoritative_requirements),
+        target_subsystem=target_subsystem,
+    )
+    by_id = {
+        str(row.get("requirement_id", "") or "").strip(): row
+        for row in requirements
+        if str(row.get("requirement_id", "") or "").strip()
+    }
+    materialized: list[dict[str, Any]] = []
+    for raw_binding in bindings:
+        contract = dict(raw_binding)
+        requirement_id = str(contract.get("requirement_id", "") or "").strip()
+        requirement = by_id.get(requirement_id)
+        if requirement is None:
+            materialized.append(contract)
+            continue
+        submitted_authority_fields = [
+            field
+            for field in GENERATED_METRIC_AUTHORITY_COPY_FIELDS
+            if field != "requirement_id" and field in contract
+        ]
+        discarded_override_fields = [
+            field
+            for field in submitted_authority_fields
+            if contract.get(field) != requirement.get(field)
+        ]
+        for field in GENERATED_METRIC_AUTHORITY_COPY_FIELDS:
+            contract[field] = requirement.get(field)
+        contract["boundary"] = GENERATED_METRIC_CONTRACT_BOUNDARY
+        contract["authority_binding_mode"] = "runtime_joined_frozen_requirement"
+        contract["coding_agent_submitted_authority_fields"] = (
+            submitted_authority_fields
+        )
+        contract["discarded_authority_override_fields"] = (
+            discarded_override_fields
+        )
+        materialized.append(contract)
+    return bind_generated_metric_contract_authority(
+        materialized,
+        authoritative_requirements=requirements,
+        target_subsystem=target_subsystem,
+    )
 
 
 def generated_metric_contracts_for_artifact(

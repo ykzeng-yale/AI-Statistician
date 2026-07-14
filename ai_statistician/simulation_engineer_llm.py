@@ -15,14 +15,15 @@ from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
-    bind_generated_metric_contract_authority,
     generated_metric_authority_repair_context,
+    generated_metric_contract_binding_json_schema,
     generated_metric_contract_prompt_schema,
     generated_metric_contract_set_id,
     generated_metric_requirement_authority_policy_from_context,
     generated_metric_requirements_for_subsystem,
     generated_metric_requirement_set_id,
     generated_metric_requirements_from_context,
+    materialize_generated_metric_contract_bindings,
     validate_generated_metric_contracts,
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
@@ -110,19 +111,35 @@ class LLMSimulationEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        response_schema = _simulation_engineer_response_schema(
+            authoritative_metric_requirements=authoritative_metric_requirements,
+            requires_generated_code=requires_generated_code,
+        )
+        provider_name = str(
+            getattr(self.provider, "provider_name", self.config.provider_name)
+            or self.config.provider_name
+        ).lower()
+        use_provider_structured_output = bool(
+            requires_generated_code and provider_name == "anthropic"
+        )
         request = GeneratorRequest(
             system_prompt=SIMULATION_ENGINEER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=SIMULATION_ENGINEER_JSON_SCHEMA,
+            schema=response_schema,
             metadata={
                 "subsystem": "SimulatorEngineer",
                 "agent": "LLMSimulationEngineerAgent",
                 "provider_name": self.config.provider_name,
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
+                **(
+                    {"provider_structured_output": True}
+                    if use_provider_structured_output
+                    else {}
+                ),
             },
         )
 
@@ -272,12 +289,11 @@ def build_simulation_engineer_prompt(
         "simulation_code_drafts entry with entrypoint exactly \"run_sandbox\" and code "
         "defining def run_sandbox(seed: int, replicates: int) -> dict so AgentRuntime "
         "can execute and evaluate your custom stress-test code. For every row in "
-        "authoritative_empirical_metric_requirements, emit a typed metric_contracts row "
-        "bound to that exact simulation_id. Copy requirement_id, metric_semantics, "
-        "measurement_protocol, operator, numeric threshold/bounds, tolerance, "
-        "aggregation/quorum, required, and source_anchors exactly; add only "
-        "artifact_id, metric_path, and a stable contract_id. Optional extra "
-        "diagnostics must use required=false and must not claim authority lineage. "
+        "authoritative_empirical_metric_requirements, emit a metric_contracts binding "
+        "bound to that exact simulation_id containing only contract_id, the exact "
+        "requirement_id, artifact_id, and metric_path. AgentRuntime deterministically "
+        "joins immutable semantics, thresholds, operators, aggregation, quorum, and "
+        "source anchors; do not repeat or rewrite those authority fields. "
         "AgentRuntime rejects invented or weakened required gates. Do not ask "
         "AgentRuntime to infer a metric from prose or metric names. "
         if requires_generated_code
@@ -325,10 +341,10 @@ def build_simulation_engineer_prompt(
         "Local packet-validator feedback is active: read every exact "
         "runtime_environment_feedback.validation_errors row and rebuild the full "
         "packet. Bind only the authoritative_empirical_metric_requirements rows "
-        "shown in this prompt for SimulationEngineer. Copy their authority fields "
-        "unchanged, including nulls, aggregation, quorum fields, and source_anchors; "
-        "author only contract_id, the generated simulation_id artifact binding, and "
-        "a metric_path that resolves against run_sandbox output. Do not reuse a "
+        "shown in this prompt for SimulationEngineer. Author only contract_id, exact "
+        "requirement_id, the generated simulation_id artifact binding, and a metric_path "
+        "that resolves against run_sandbox output. AgentRuntime materializes every "
+        "frozen authority field. Do not reuse a "
         "contract from another subsystem or prior attempt. "
         if str(
             payload["runtime_environment_feedback"].get("feedback_type", "") or ""
@@ -862,6 +878,159 @@ def _simulation_engineer_output_contract(
     return contract
 
 
+def _simulation_engineer_response_schema(
+    *,
+    authoritative_metric_requirements: list[Mapping[str, Any]],
+    requires_generated_code: bool,
+) -> dict[str, Any]:
+    """Build a compact provider-native envelope for generated simulation code."""
+
+    if not requires_generated_code:
+        return SIMULATION_ENGINEER_JSON_SCHEMA
+    requirement_ids = [
+        str(row.get("requirement_id", "") or "").strip()
+        for row in authoritative_metric_requirements
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    ]
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "theory_trace_alignment",
+            "simulation_targets",
+            "runtime_execution_plan",
+            "critic_findings",
+            "simulation_code_drafts",
+            "metric_contracts",
+            "next_actions",
+        ],
+        "properties": {
+            "theory_trace_alignment": _simulation_trace_alignment_json_schema(),
+            "simulation_targets": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["procedure_id", "estimand"],
+                    "properties": {
+                        "procedure_id": {"type": "string", "minLength": 1},
+                        "estimand": {"type": "string"},
+                    },
+                },
+            },
+            "runtime_execution_plan": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["registered_simulator", "n_runs", "seed"],
+                "properties": {
+                    "registered_simulator": {"type": "string", "minLength": 1},
+                    "n_runs": {"type": "integer", "minimum": 1},
+                    "seed": {"type": "integer"},
+                },
+            },
+            "critic_findings": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "critic",
+                        "finding",
+                        "reroute_if_confirmed",
+                    ],
+                    "properties": {
+                        "critic": {"type": "string", "minLength": 1},
+                        "finding": {"type": "string", "minLength": 1},
+                        "reroute_if_confirmed": {"type": "string", "minLength": 1},
+                    },
+                },
+            },
+            "simulation_code_drafts": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "simulation_id",
+                        "language",
+                        "entrypoint",
+                        "code",
+                    ],
+                    "properties": {
+                        "simulation_id": {"type": "string", "minLength": 1},
+                        "language": {"type": "string", "enum": ["python"]},
+                        "entrypoint": {
+                            "type": "string",
+                            "enum": ["run_sandbox"],
+                        },
+                        "code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 12000,
+                        },
+                    },
+                },
+            },
+            "metric_contracts": {
+                "type": "array",
+                "minItems": max(1, len(requirement_ids)),
+                "items": generated_metric_contract_binding_json_schema(
+                    requirement_ids=requirement_ids,
+                ),
+            },
+            "next_actions": _simulation_next_actions_json_schema(),
+        },
+    }
+
+
+def _simulation_trace_alignment_json_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "referenced_derivation_steps",
+            "referenced_equation_steps",
+            "referenced_assumptions",
+            "referenced_formalization_targets",
+            "rationale",
+        ],
+        "properties": {
+            "referenced_derivation_steps": _simulation_string_array_schema(),
+            "referenced_equation_steps": _simulation_string_array_schema(),
+            "referenced_assumptions": _simulation_string_array_schema(),
+            "referenced_formalization_targets": _simulation_string_array_schema(),
+            "rationale": {"type": "string"},
+        },
+    }
+
+
+def _simulation_next_actions_json_schema() -> dict[str, Any]:
+    return {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["owner_agent", "action", "acceptance_gate"],
+            "properties": {
+                "owner_agent": {"type": "string", "minLength": 1},
+                "action": {"type": "string", "minLength": 1},
+                "acceptance_gate": {"type": "string", "minLength": 1},
+            },
+        },
+    }
+
+
+def _simulation_string_array_schema() -> dict[str, Any]:
+    return {"type": "array", "items": {"type": "string"}}
+
+
 SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -1057,7 +1226,7 @@ def _normalize_simulation_packet(
         for row in authoritative_metric_requirements or []
         if isinstance(row, Mapping)
     ]
-    metric_contract_rows = bind_generated_metric_contract_authority(
+    metric_contract_rows = materialize_generated_metric_contract_bindings(
         metric_contract_rows,
         authoritative_requirements=authority_rows,
         target_subsystem="SimulationEngineer",

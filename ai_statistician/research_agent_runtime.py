@@ -14440,6 +14440,41 @@ def _coding_agent_packet_validation_architect_task(
 ) -> AgentTask:
     replan_context = dict(context)
     replan_context["environment_feedback"] = dict(repair_feedback)
+    prior_replan = (
+        context.get("runtime_packet_validation_replan", {})
+        if isinstance(context.get("runtime_packet_validation_replan", {}), Mapping)
+        else {}
+    )
+    prior_pending_artifact_ids = prior_replan.get("pending_artifact_ids", {})
+    if not isinstance(prior_pending_artifact_ids, Mapping):
+        prior_pending_artifact_ids = {}
+    pending_artifact_ids: dict[str, str] = {
+        str(key): str(value)
+        for key, value in prior_pending_artifact_ids.items()
+        if str(key).endswith("_id")
+        and str(value).strip()
+    }
+    for source in (context, task.inputs):
+        pending_artifact_ids.update(
+            {
+                str(key): str(value)
+                for key, value in source.items()
+                if str(key).endswith("_id") and str(value).strip()
+            }
+        )
+    for key, value in pending_artifact_ids.items():
+        replan_context[key] = value
+    implementation_gaps = task.inputs.get(
+        "implementation_gaps",
+        context.get("implementation_gaps", []),
+    )
+    if isinstance(implementation_gaps, Sequence) and not isinstance(
+        implementation_gaps,
+        (str, bytes, bytearray),
+    ):
+        replan_context["implementation_gaps"] = [
+            dict(row) for row in implementation_gaps if isinstance(row, Mapping)
+        ]
     replan_context["runtime_packet_validation_replan"] = {
         "artifact_kind": "RuntimeCodingAgentPacketValidationReplanContext",
         "source_task_id": task.task_id,
@@ -14465,16 +14500,14 @@ def _coding_agent_packet_validation_architect_task(
         "consecutive_packet_validation_round": int(
             repair_feedback.get("consecutive_packet_validation_round", 0) or 0
         ),
-        "pending_artifact_ids": {
-            str(key): str(value)
-            for key, value in task.inputs.items()
-            if str(key).endswith("_id") and str(value).strip()
-        },
+        "pending_artifact_ids": pending_artifact_ids,
         "routing_contract": (
-            "ArchitectCoordinator must choose whether to amend upstream theory, "
-            "artifact interfaces, or the coding-agent retry. It must not declare "
-            "the invalid packet executed or synthesize statistical, code, Lean, "
-            "or proof evidence."
+            "Accepted pending artifacts and implementation gaps remain immutable. "
+            "Packet-shape, foreign-key, and authority-binding failures default to a "
+            "better-context retry by the source coding subsystem. Upstream retrieval "
+            "or theory repair requires an explicit semantic blocker in the exact "
+            "validation errors. ArchitectCoordinator must not declare the invalid "
+            "packet executed or synthesize statistical, code, Lean, or proof evidence."
         ),
         "proof_evidence_status": (
             "CODING_AGENT_PACKET_VALIDATION_REPLAN_NOT_PROOF_EVIDENCE"
@@ -14657,12 +14690,11 @@ def _simulation_engineer_packet_validation_failure_result(
             "Use the exact validator errors above. Each generated draft must use "
             "language=python, entrypoint=run_sandbox, and define "
             "run_sandbox(seed:int, replicates:int)->dict. Each metric_contracts "
-            "row must preserve a stable contract_id, copy the generated "
-            "simulation_id as artifact_id, name a nonempty result metric_path, "
-            "declare an operator, numeric threshold or between bounds, finite "
-            "nonnegative tolerance, aggregation, required boolean, and source "
-            "anchors. Do not replace a missing contract with prose or weaken a "
-            "reported failed contract."
+            "row must contain only a stable contract_id, the exact authoritative "
+            "requirement_id, the generated simulation_id as artifact_id, and a "
+            "nonempty result metric_path. AgentRuntime joins every immutable gate "
+            "field from the frozen Architect requirement. Do not replace a missing "
+            "binding with prose or rename a reported failed metric path."
         ),
         "execution_evidence_status": (
             "SIMULATION_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
@@ -14911,10 +14943,10 @@ def _algorithm_engineer_packet_validation_failure_result(
             "sandbox_code_drafts[0]={\"estimator_id\":\"<matching id>\","
             "\"language\":\"python\",\"entrypoint\":\"run_sandbox\","
             "\"code\":\"def run_sandbox(seed: int, replicates: int) -> dict: ...\"}. "
-            "Also include metric_contracts with the same estimator_id as "
-            "artifact_id, a stable contract_id, nonempty metric_path, operator, "
-            "numeric threshold or between bounds, finite nonnegative tolerance, "
-            "aggregation, required boolean, and source anchors."
+            "Also include metric_contracts bindings containing only a stable "
+            "contract_id, exact authoritative requirement_id, the same estimator_id "
+            "as artifact_id, and a nonempty metric_path. AgentRuntime joins all "
+            "immutable gate fields from the frozen Architect requirement."
         ),
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
