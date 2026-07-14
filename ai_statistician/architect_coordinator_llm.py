@@ -9,6 +9,7 @@ from .fingerprint import stable_hash
 from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_set_id,
@@ -105,15 +106,29 @@ class LLMArchitectCoordinatorAgent:
         architect_context: Mapping[str, Any],
         runtime_config: Mapping[str, Any],
     ) -> dict[str, Any]:
-        user_prompt = build_architect_coordinator_prompt(
-            question=question,
-            architect_context=architect_context,
-            runtime_config=runtime_config,
-        )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
+        )
+        metric_authoring_packet = _author_architect_metric_requirements(
+            provider=self.provider,
+            config=self.config,
+            request_model=request_model,
+            question=question,
+            architect_context=architect_context,
+            runtime_config=runtime_config,
+        )
+        effective_architect_context = (
+            _architect_context_with_metric_requirement_authoring(
+                architect_context,
+                metric_authoring_packet,
+            )
+        )
+        user_prompt = build_architect_coordinator_prompt(
+            question=question,
+            architect_context=effective_architect_context,
+            runtime_config=runtime_config,
         )
         request = GeneratorRequest(
             system_prompt=ARCHITECT_COORDINATOR_SYSTEM_PROMPT,
@@ -132,7 +147,7 @@ class LLMArchitectCoordinatorAgent:
         )
 
         def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
-            return _normalize_architect_packet(
+            packet = _normalize_architect_packet(
                 payload,
                 question=question,
                 model=response.model or request_model,
@@ -140,12 +155,19 @@ class LLMArchitectCoordinatorAgent:
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
                 runtime_config=runtime_config,
-                architect_context=architect_context,
+                architect_context=effective_architect_context,
             )
+            if metric_authoring_packet:
+                packet["metric_requirement_authoring"] = (
+                    _architect_metric_requirement_authoring_summary(
+                        metric_authoring_packet
+                    )
+                )
+            return packet
 
         def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
             return _architect_packet_repair_context(
-                architect_context=architect_context,
+                architect_context=effective_architect_context,
                 runtime_config=runtime_config,
             )
 
@@ -159,6 +181,223 @@ class LLMArchitectCoordinatorAgent:
             max_repair_attempts=self.config.max_repair_attempts,
             repair_context_builder=build_repair_context,
         )
+
+
+def _author_architect_metric_requirements(
+    *,
+    provider: GeneratorBackend,
+    config: ArchitectCoordinatorConfig,
+    request_model: str,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    runtime_config: Mapping[str, Any],
+) -> dict[str, Any]:
+    runtime_contract = _architect_runtime_owned_evidence_contract(
+        architect_context=architect_context,
+        runtime_config=runtime_config,
+    )
+    if (
+        runtime_contract.get("capability_eval_requires_typed_metric_contracts")
+        is not True
+        or runtime_contract.get("empirical_metric_requirements")
+        or str(getattr(provider, "provider_name", config.provider_name)).lower()
+        != "anthropic"
+    ):
+        return {}
+
+    runtime_replicates = int(
+        runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
+    )
+    response_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["empirical_metric_requirements"],
+        "properties": {
+            "empirical_metric_requirements": {
+                "type": "array",
+                "minItems": len(GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS),
+                "items": generated_metric_requirement_json_schema(),
+            }
+        },
+    }
+    prompt_payload = {
+        "task": (
+            "Author the pre-execution empirical acceptance requirements used by "
+            "the AI Statistician coding and simulation agents."
+        ),
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+        },
+        "runtime_owned_replicates": runtime_replicates,
+        "target_namespace": generated_metric_requirement_target_namespace_contract(),
+        "requirement_schema": generated_metric_requirement_prompt_schema(),
+        "required_target_rows": [
+            generated_metric_requirement_prompt_schema(target_subsystem=target)
+            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+        ],
+        "hard_requirements": [
+            "Return exactly one required empirical metric row for each generated-code author subsystem unless one row explicitly and correctly targets both.",
+            "Use only operator and aggregation enum values from requirement_schema.",
+            "Copy runtime_owned_replicates into every required_runtime_replicates field and state that exact count in each measurement_protocol.",
+            "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",
+            "Define measurable returned quantities, not prose-only success claims or task-specific runtime code.",
+            "These rows are empirical controls and never theorem proof evidence.",
+        ],
+        "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+    }
+    request = GeneratorRequest(
+        system_prompt=(
+            "You are the ArchitectMetricContractPlanner inside the AI Statistician. "
+            "Author domain-appropriate, executable empirical gates before either "
+            "coding agent sees the task. Return JSON only."
+        ),
+        user_prompt=json.dumps(prompt_payload, separators=(",", ":"), default=str),
+        model=request_model,
+        max_tokens=min(max(1, int(config.max_tokens)), 4000),
+        temperature=0.0,
+        schema=response_schema,
+        metadata={
+            "subsystem": "ArchitectMetricContractPlanner",
+            "agent": "LLMArchitectCoordinatorAgent",
+            "provider_name": config.provider_name,
+            "model_tier": config.model_tier,
+            "resolved_model": request_model,
+            "provider_structured_output": True,
+        },
+    )
+
+    def build_packet(
+        payload: Mapping[str, Any], response: Any, _raw_text: str
+    ) -> dict[str, Any]:
+        requirements = payload.get("empirical_metric_requirements", [])
+        requirement_rows = [
+            dict(row) for row in requirements if isinstance(row, Mapping)
+        ]
+        return {
+            "schema_version": ARCHITECT_COORDINATOR_SCHEMA_VERSION,
+            "artifact_kind": "ArchitectMetricRequirementAuthoringPacket",
+            "packet_id": (
+                "architect_metric_requirement_authoring:"
+                + stable_hash([question.id, requirement_rows])[:20]
+            ),
+            "question_id": question.id,
+            "provider_name": response.provider,
+            "model": response.model or request_model,
+            "model_tier": config.model_tier,
+            "empirical_metric_requirements": requirement_rows,
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id(requirement_rows)
+            ),
+            "proof_evidence_status": (
+                "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+        }
+
+    def validate_packet(packet: Mapping[str, Any]) -> list[str]:
+        return validate_generated_metric_requirements(
+            packet.get("empirical_metric_requirements", []),
+            required_target_subsystems=(
+                GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+            ),
+            expected_runtime_replicates=runtime_replicates,
+        )
+
+    return generate_validated_json_packet(
+        provider=provider,
+        request=request,
+        extract_payload=extract_json_object,
+        build_packet=build_packet,
+        validate_packet=validate_packet,
+        validation_label="LLM Architect metric-requirement packet",
+        max_repair_attempts=config.max_repair_attempts,
+        repair_context_builder=lambda **_kwargs: {
+            "runtime_owned_replicates": runtime_replicates,
+            "target_namespace": (
+                generated_metric_requirement_target_namespace_contract()
+            ),
+            "requirement_schema": generated_metric_requirement_prompt_schema(),
+            "required_target_rows": prompt_payload["required_target_rows"],
+            "repair_prompt_priority_instructions": prompt_payload[
+                "hard_requirements"
+            ],
+        },
+    )
+
+
+def _architect_context_with_metric_requirement_authoring(
+    architect_context: Mapping[str, Any],
+    metric_authoring_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    context = dict(architect_context)
+    if metric_authoring_packet:
+        context["architect_metric_requirement_authoring"] = {
+            "artifact_kind": str(
+                metric_authoring_packet.get("artifact_kind", "") or ""
+            ),
+            "packet_id": str(metric_authoring_packet.get("packet_id", "") or ""),
+            "empirical_metric_requirements": [
+                dict(row)
+                for row in metric_authoring_packet.get(
+                    "empirical_metric_requirements", []
+                )
+                if isinstance(row, Mapping)
+            ],
+            "empirical_metric_requirement_set_id": str(
+                metric_authoring_packet.get(
+                    "empirical_metric_requirement_set_id", ""
+                )
+                or ""
+            ),
+            "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+        }
+    return context
+
+
+def _architect_metric_requirement_authoring_summary(
+    packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    history = packet.get("llm_json_repair_history", [])
+    last_history = (
+        history[-1]
+        if isinstance(history, list)
+        and history
+        and isinstance(history[-1], Mapping)
+        else {}
+    )
+    response_metadata = (
+        last_history.get("response_metadata", {})
+        if isinstance(last_history, Mapping)
+        else {}
+    )
+    if not isinstance(response_metadata, Mapping):
+        response_metadata = {}
+    return {
+        "artifact_kind": str(packet.get("artifact_kind", "") or ""),
+        "packet_id": str(packet.get("packet_id", "") or ""),
+        "provider_name": str(packet.get("provider_name", "") or ""),
+        "model": str(packet.get("model", "") or ""),
+        "model_tier": str(packet.get("model_tier", "") or ""),
+        "empirical_metric_requirement_set_id": str(
+            packet.get("empirical_metric_requirement_set_id", "") or ""
+        ),
+        "llm_json_repair_attempts": int(
+            packet.get("llm_json_repair_attempts", 0) or 0
+        ),
+        "provider_structured_output_requested": bool(
+            response_metadata.get("provider_structured_output_requested")
+        ),
+        "provider_structured_output_applied": bool(
+            response_metadata.get("provider_structured_output_applied")
+        ),
+        "proof_evidence_status": str(
+            packet.get("proof_evidence_status", "") or ""
+        ),
+        "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+    }
 
 
 def build_architect_coordinator_prompt(
@@ -708,7 +947,7 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
 ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
-    "additionalProperties": True,
+    "additionalProperties": False,
     "required": [
         "intake_assessment",
         "problem_analysis",
@@ -723,15 +962,93 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "next_actions",
     ],
     "properties": {
-        "intake_assessment": {"type": "object"},
-        "problem_analysis": {"type": "object"},
-        "stat_knowledge_bank_plan": {"type": "object"},
+        "intake_assessment": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "problem_type",
+                "frontier_difficulty",
+                "primary_success_criteria",
+                "known_risks",
+            ],
+            "properties": {
+                "problem_type": {"type": "string"},
+                "frontier_difficulty": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high"],
+                },
+                "primary_success_criteria": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "known_risks": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+        },
+        "problem_analysis": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "theorem_family",
+                "statistical_objects",
+                "likely_analogy_classes",
+                "key_obstacles",
+                "missing_information",
+            ],
+            "properties": {
+                "theorem_family": {"type": "string"},
+                "statistical_objects": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "likely_analogy_classes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "key_obstacles": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "missing_information": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+        },
+        "stat_knowledge_bank_plan": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "source_families_to_collect",
+                "assumption_dimensions",
+                "proof_skeletons_to_track",
+                "failed_attempt_memory_policy",
+            ],
+            "properties": {
+                "source_families_to_collect": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "assumption_dimensions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "proof_skeletons_to_track": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "failed_attempt_memory_policy": {"type": "string"},
+            },
+        },
         "literature_fair_comparison_plan": {
             "type": "array",
             "minItems": 1,
             "maxItems": 2,
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": [
                     "candidate_source_family",
                     "must_match",
@@ -760,11 +1077,76 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         },
         "evidence_contract": {
             "type": "object",
+            "additionalProperties": False,
+            "required": list(
+                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT["evidence_contract"]
+            ),
             "properties": {
+                "formal_verification_policy": {
+                    "type": "string",
+                    "enum": ["required", "optional", "advisory"],
+                },
+                "recommended_research_path": {
+                    "type": "string",
+                    "enum": ["simulation_first", "proof_first", "dual_track"],
+                },
+                "formal_required_for_final": {"type": "boolean"},
+                "evaluation_mode": {
+                    "type": "string",
+                    "enum": ["debug", "capability_eval"],
+                },
+                "capability_eval_requires_generated_algorithm_code": {
+                    "type": "boolean"
+                },
+                "capability_eval_requires_generated_simulation_code": {
+                    "type": "boolean"
+                },
+                "capability_eval_requires_generated_code_semantic_review": {
+                    "type": "boolean"
+                },
+                "capability_eval_requires_typed_metric_contracts": {
+                    "type": "boolean"
+                },
+                "capability_eval_requires_formalizer_lean_candidate": {
+                    "type": "boolean"
+                },
+                "generated_sandbox_runtime_replicates": {
+                    "type": "integer"
+                },
+                "generated_metric_contract_policy": {
+                    "type": "string",
+                    "enum": [
+                        "typed_artifact_bound_required",
+                        "typed_artifact_bound_preferred",
+                    ],
+                },
+                "generated_metric_requirement_authority_policy": {
+                    "type": "string",
+                    "enum": [
+                        "architect_authored_coding_agent_bound_required",
+                        "architect_authored_coding_agent_bound_preferred",
+                    ],
+                },
                 "empirical_metric_requirements": {
                     "type": "array",
                     "items": generated_metric_requirement_json_schema(),
-                }
+                },
+                "formal_targets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "simulation_targets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "acceptance_modes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "disclosure_requirements": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
             },
         },
         "subsystem_execution_plan": {
@@ -772,6 +1154,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "minItems": 1,
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": [
                     "subsystem",
                     "objective",
@@ -794,13 +1177,55 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
             },
         },
-        "retrieval_strategy": {"type": "object"},
-        "iteration_policy": {"type": "object"},
+        "retrieval_strategy": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "paper_queries",
+                "formal_source_queries",
+                "lean_rag_priorities",
+            ],
+            "properties": {
+                "paper_queries": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "formal_source_queries": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "lean_rag_priorities": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+        },
+        "iteration_policy": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "reroute_triggers",
+                "max_repair_rounds",
+                "stop_conditions",
+            ],
+            "properties": {
+                "reroute_triggers": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "max_repair_rounds": {"type": "integer"},
+                "stop_conditions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+        },
         "evidence_gates": {
             "type": "array",
             "minItems": 1,
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": ["artifact_kind", "required_evidence", "not_evidence"],
                 "properties": {
                     "artifact_kind": {"type": "string"},
@@ -814,6 +1239,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "minItems": 1,
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": ["risk", "mitigation", "owner_subsystem"],
                 "properties": {
                     "risk": {"type": "string"},
@@ -827,6 +1253,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "minItems": 1,
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": ["owner_agent", "action", "acceptance_gate"],
                 "properties": {
                     "owner_agent": {"type": "string"},
@@ -1153,6 +1580,12 @@ def _architect_runtime_owned_evidence_contract(
     if not isinstance(prior_contract, Mapping):
         prior_contract = {}
     prior_requirements = prior_contract.get("empirical_metric_requirements", [])
+    metric_authoring = context.get("architect_metric_requirement_authoring", {})
+    authored_requirements = (
+        metric_authoring.get("empirical_metric_requirements", [])
+        if isinstance(metric_authoring, Mapping)
+        else []
+    )
     if isinstance(prior_requirements, list) and prior_requirements:
         contract["empirical_metric_requirements"] = [
             dict(row) if isinstance(row, Mapping) else row
@@ -1169,6 +1602,23 @@ def _architect_runtime_owned_evidence_contract(
         )
         contract[
             "empirical_metric_requirements_frozen_from_prior_architect_plan"
+        ] = True
+    elif isinstance(authored_requirements, list) and authored_requirements:
+        contract["empirical_metric_requirements"] = [
+            dict(row) if isinstance(row, Mapping) else row
+            for row in authored_requirements
+        ]
+        contract["empirical_metric_requirement_set_id"] = (
+            generated_metric_requirement_set_id(
+                [
+                    dict(row)
+                    for row in authored_requirements
+                    if isinstance(row, Mapping)
+                ]
+            )
+        )
+        contract[
+            "empirical_metric_requirements_frozen_from_metric_planner"
         ] = True
     policy = str(
         config.get("formal_verification_policy", "")

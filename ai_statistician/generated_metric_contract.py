@@ -117,10 +117,16 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
             "measurement_protocol",
             "required_runtime_replicates",
             "operator",
+            "threshold",
+            "lower",
+            "upper",
             "tolerance",
             "aggregation",
+            "minimum_pass_count",
+            "minimum_pass_fraction",
             "required",
             "source_anchors",
+            "boundary",
         ],
         "properties": {
             "requirement_id": {"type": "string", "minLength": 1},
@@ -145,19 +151,25 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
             },
-            "threshold": {"type": "number"},
-            "lower": {"type": "number"},
-            "upper": {"type": "number"},
+            "threshold": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+            },
+            "lower": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+            },
+            "upper": {
+                "anyOf": [{"type": "number"}, {"type": "null"}],
+            },
             "tolerance": {"type": "number", "minimum": 0},
             "aggregation": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_AGGREGATIONS),
             },
-            "minimum_pass_count": {"type": "integer", "minimum": 1},
+            "minimum_pass_count": {
+                "anyOf": [{"type": "integer"}, {"type": "null"}],
+            },
             "minimum_pass_fraction": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1,
+                "anyOf": [{"type": "number"}, {"type": "null"}],
             },
             "required": {"type": "boolean"},
             "source_anchors": {
@@ -165,6 +177,7 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
                 "minItems": 1,
                 "items": {"type": "string", "minLength": 1},
             },
+            "boundary": {"type": "string", "minLength": 1},
         },
     }
 
@@ -195,16 +208,18 @@ def generated_metric_requirement_prompt_schema(
             "positive integer copied from the runtime-owned generated sandbox budget"
         ),
         "operator": "<=|<|>=|>|==|between",
-        "threshold": "finite number for non-between operators",
-        "lower": "finite number for between",
-        "upper": "finite number for between",
+        "threshold": "finite number for non-between operators; null for between",
+        "lower": "finite number for between; null otherwise",
+        "upper": "finite number for between; null otherwise",
         "tolerance": "finite nonnegative number; use 0 for an exact boundary",
         "aggregation": (
             "identity|mean|min|max|all|any|at_least_count|at_least_fraction"
         ),
-        "minimum_pass_count": "positive integer for at_least_count",
+        "minimum_pass_count": (
+            "positive integer for at_least_count; null otherwise"
+        ),
         "minimum_pass_fraction": (
-            "number in [0,1] for at_least_fraction"
+            "number in [0,1] for at_least_fraction; null otherwise"
         ),
         "required": True,
         "source_anchors": [

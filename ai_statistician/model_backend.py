@@ -5,8 +5,11 @@ import os
 import signal
 import threading
 import time
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
+
+from .fingerprint import stable_hash
 
 
 SUPPORTED_LIVE_GENERATOR_PROVIDERS = ("anthropic", "openai")
@@ -31,6 +34,7 @@ DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL = "claude-mythos-5"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
 DEFAULT_STATIC_GENERATOR_MODEL = "static"
 DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS = 120.0
+PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY = "provider_structured_output"
 DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -621,6 +625,52 @@ class StaticJSONGeneratorBackend:
 _ANTHROPIC_NEGOTIABLE_OPTIONAL_PARAMETERS = frozenset({"temperature"})
 
 
+def _prune_unreferenced_json_schema_defs(
+    schema: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Keep only local ``$defs`` reachable from the response root."""
+
+    definitions = schema.get("$defs", {})
+    if not isinstance(definitions, Mapping) or not definitions:
+        return deepcopy(dict(schema))
+
+    def local_refs(value: Any, *, include_defs: bool) -> set[str]:
+        refs: set[str] = set()
+        if isinstance(value, Mapping):
+            ref = value.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                refs.add(ref.rsplit("/", 1)[-1])
+            for key, child in value.items():
+                if key == "$defs" and not include_defs:
+                    continue
+                refs.update(local_refs(child, include_defs=include_defs))
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                refs.update(local_refs(child, include_defs=include_defs))
+        return refs
+
+    root = {key: value for key, value in schema.items() if key != "$defs"}
+    pending = list(local_refs(root, include_defs=False))
+    reachable: set[str] = set()
+    while pending:
+        name = pending.pop()
+        if name in reachable or name not in definitions:
+            continue
+        reachable.add(name)
+        pending.extend(
+            local_refs(definitions[name], include_defs=True) - reachable
+        )
+
+    pruned = deepcopy(root)
+    if reachable:
+        pruned["$defs"] = {
+            str(name): deepcopy(definitions[name])
+            for name in definitions
+            if str(name) in reachable
+        }
+    return pruned
+
+
 def _anthropic_create_with_capability_fallback(
     messages_api: Any,
     *,
@@ -684,7 +734,29 @@ class AnthropicGeneratorBackend:
             timeout=timeout_s,
             max_retries=0,
         )
-        json_mode_hint = request.schema is not None
+        structured_output_requested = bool(
+            request.schema is not None
+            and request.metadata.get(PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY)
+            is True
+        )
+        structured_output_schema: dict[str, Any] = {}
+        if structured_output_requested:
+            transform_schema = getattr(anthropic, "transform_schema", None)
+            if not callable(transform_schema):
+                raise ValueError(
+                    "installed anthropic SDK does not expose transform_schema "
+                    "required for provider structured output"
+                )
+            try:
+                structured_output_schema = transform_schema(
+                    _prune_unreferenced_json_schema_defs(request.schema)
+                )
+            except Exception as exc:
+                raise ValueError(
+                    "failed to transform GeneratorRequest.schema for Anthropic "
+                    f"structured output: {type(exc).__name__}: {exc}"
+                ) from exc
+        json_mode_hint = request.schema is not None and not structured_output_requested
         user_prompt = request.user_prompt
         if json_mode_hint:
             user_prompt = (
@@ -700,6 +772,13 @@ class AnthropicGeneratorBackend:
             "system": request.system_prompt,
             "messages": messages,
         }
+        if structured_output_requested:
+            request_kwargs["output_config"] = {
+                "format": {
+                    "type": "json_schema",
+                    "schema": structured_output_schema,
+                }
+            }
         with self._capability_lock:
             cached_unsupported_parameters = set(
                 self._unsupported_optional_parameters_by_model.get(
@@ -744,6 +823,18 @@ class AnthropicGeneratorBackend:
                 "tools_available": False,
                 "schema_supplied": request.schema is not None,
                 "json_prompt_hint_used": json_mode_hint,
+                "provider_structured_output_requested": (
+                    structured_output_requested
+                ),
+                "provider_structured_output_applied": bool(
+                    structured_output_requested
+                    and "output_config" in request_kwargs
+                ),
+                "provider_structured_output_schema_fingerprint": (
+                    stable_hash(structured_output_schema)
+                    if structured_output_schema
+                    else ""
+                ),
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,
                 "provider_capability_fallback_count": capability_fallback_count,

@@ -97,10 +97,16 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
     } <= set(schema["required"])
     assert schema["properties"]["required_runtime_replicates"]["minimum"] == 1
     assert schema["properties"]["minimum_pass_fraction"] == {
-        "type": "number",
-        "minimum": 0,
-        "maximum": 1,
+        "anyOf": [{"type": "number"}, {"type": "null"}],
     }
+    assert {
+        "threshold",
+        "lower",
+        "upper",
+        "minimum_pass_count",
+        "minimum_pass_fraction",
+        "boundary",
+    } <= set(schema["required"])
     assert generated_metric_requirement_prompt_schema(
         target_subsystem="SimulationEngineer"
     )["target_subsystems"] == ["SimulationEngineer"]

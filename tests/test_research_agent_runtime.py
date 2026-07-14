@@ -312,6 +312,7 @@ from ai_statistician.research_agent_runtime_audit import (
 )
 from ai_statistician.model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
+    GeneratorResponse,
 )
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
 from ai_statistician.task_family import cross_task_generalization_family_pair
@@ -20391,6 +20392,10 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         "between",
     ]
     assert ArchitectCoordinatorConfig().max_repair_attempts == 2
+    assert ARCHITECT_COORDINATOR_JSON_SCHEMA["additionalProperties"] is False
+    assert set(
+        metric_requirement_schema["properties"]
+    ) == set(metric_requirement_schema["required"])
     assert repair_context[
         "empirical_metric_requirement_target_namespace"
     ]["allowed_exact_values"] == [
@@ -20405,6 +20410,112 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         "SimulationEvaluator is a runtime execution owner" in instruction
         for instruction in repair_context["repair_prompt_priority_instructions"]
     )
+
+
+def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
+    question = next(
+        question
+        for question in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if question.id == "sequential_anytime_bernoulli"
+    )
+    metric_rows = [
+        {
+            "requirement_id": f"sequential:{target.lower()}:gate",
+            "target_subsystems": [target],
+            "metric_semantics": "absolute deviation from the declared target",
+            "measurement_protocol": (
+                "compute the deviation over exactly 17 runtime replicates"
+            ),
+            "required_runtime_replicates": 17,
+            "operator": "<=",
+            "threshold": 0.1,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.0,
+            "aggregation": "mean",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": ["question:sequential_anytime_bernoulli"],
+            "boundary": "empirical acceptance control, not theorem proof evidence",
+        }
+        for target in ("AlgorithmEngineer", "SimulationEngineer")
+    ]
+
+    class SequencedAnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            if request.metadata.get("subsystem") == "ArchitectMetricContractPlanner":
+                payload = {"empirical_metric_requirements": metric_rows}
+                metadata = {
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                    "json_prompt_hint_used": False,
+                }
+            else:
+                payload = _architect_sample_response(
+                    required_runtime_replicates=17
+                )
+                metadata = {
+                    "provider_structured_output_requested": False,
+                    "provider_structured_output_applied": False,
+                    "json_prompt_hint_used": True,
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata=metadata,
+            )
+
+    backend = SequencedAnthropicBackend()
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+            model_tier="sonnet",
+            max_tokens=8000,
+        ),
+    ).propose(
+        question=question,
+        architect_context={},
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "required",
+            "recommended_research_path": "proof_first",
+            "n_runs": 17,
+            "exact_source_theorem_prover_available": True,
+        },
+    )
+
+    assert len(backend.requests) == 2
+    metric_request, architect_request = backend.requests
+    assert metric_request.metadata["provider_structured_output"] is True
+    assert metric_request.schema["required"] == [
+        "empirical_metric_requirements"
+    ]
+    assert "provider_structured_output" not in architect_request.metadata
+    assert packet["evidence_contract"]["empirical_metric_requirements"] == (
+        metric_rows
+    )
+    assert packet["evidence_contract"][
+        "empirical_metric_requirements_frozen_from_metric_planner"
+    ] is True
+    assert packet["metric_requirement_authoring"][
+        "provider_structured_output_applied"
+    ] is True
+    assert packet["metric_requirement_authoring"][
+        "llm_json_repair_attempts"
+    ] == 0
+    assert validate_architect_coordinator_packet(packet) == []
 
 
 def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> None:

@@ -27,6 +27,7 @@ from ai_statistician.model_backend import (
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
     _call_with_wall_clock_timeout,
+    _prune_unreferenced_json_schema_defs,
     claude_outside_cost_tier_family_for_model,
     claude_model_freshness_warnings,
     claude_model_tier_for_model,
@@ -121,6 +122,98 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
         "input_tokens": 11,
         "output_tokens": 5,
     }
+
+
+def test_anthropic_generator_backend_applies_opted_in_structured_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')],
+                stop_reason="end_turn",
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    def transform_schema(schema):
+        captured["source_schema"] = schema
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["ok"],
+            "properties": {"ok": {"type": "boolean"}},
+        }
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(
+            Anthropic=FakeAnthropicClient,
+            transform_schema=transform_schema,
+        ),
+    )
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "metadata": {"provider_structured_output": True},
+        }
+    )
+
+    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(
+        request
+    )
+
+    assert captured["source_schema"] == request.schema
+    kwargs = captured["kwargs"]
+    assert kwargs["messages"] == [
+        {"role": "user", "content": "Produce a theory packet."}
+    ]
+    assert kwargs["output_config"] == {
+        "format": {
+            "type": "json_schema",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["ok"],
+                "properties": {"ok": {"type": "boolean"}},
+            },
+        }
+    }
+    assert response.metadata["schema_supplied"] is True
+    assert response.metadata["json_prompt_hint_used"] is False
+    assert response.metadata["provider_structured_output_requested"] is True
+    assert response.metadata["provider_structured_output_applied"] is True
+    assert response.metadata[
+        "provider_structured_output_schema_fingerprint"
+    ]
+
+
+def test_structured_output_schema_prunes_only_unreachable_local_definitions() -> None:
+    schema = {
+        "type": "object",
+        "required": ["value"],
+        "properties": {"value": {"$ref": "#/$defs/used"}},
+        "$defs": {
+            "used": {
+                "type": "object",
+                "required": ["child"],
+                "properties": {"child": {"$ref": "#/$defs/transitive"}},
+            },
+            "transitive": {"type": "string"},
+            "unused": {"type": "number"},
+        },
+    }
+
+    pruned = _prune_unreferenced_json_schema_defs(schema)
+
+    assert set(pruned["$defs"]) == {"used", "transitive"}
+    assert "unused" in schema["$defs"]
 
 
 def test_anthropic_generator_backend_negotiates_rejected_optional_parameter(
