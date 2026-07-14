@@ -14952,6 +14952,16 @@ def _runtime_external_proof_search_request(
         )
         else {}
     )
+    if (
+        "external_proof_search_dispatch_eligible" in repair_context
+        and not _bool_like(
+            repair_context.get(
+                "external_proof_search_dispatch_eligible",
+                False,
+            )
+        )
+    ):
+        return {}
     target_statement = str(
         repair_context.get("target_theorem_statement", "") or ""
     ).strip()
@@ -26918,6 +26928,12 @@ def _formalizer_lean_candidate_repair_feedback(
         else {}
     )
     if prior_proofengineer_repair_context:
+        current_exact_search_eligible = _bool_like(
+            proofengineer_repair_context.get(
+                "formalizer_candidate_exact_search_eligible",
+                False,
+            )
+        )
         merged_repair_context = dict(proofengineer_repair_context)
         exact_lineage_keys = (
             "context_kind",
@@ -26956,6 +26972,16 @@ def _formalizer_lean_candidate_repair_feedback(
             value = prior_proofengineer_repair_context.get(key)
             if value not in (None, "", [], {}):
                 merged_repair_context[key] = value
+        if not current_exact_search_eligible:
+            merged_repair_context[
+                "external_proof_search_dispatch_eligible"
+            ] = False
+            merged_repair_context[
+                "external_proof_search_dispatch_blockers"
+            ] = [
+                "The current Formalizer turn did not materialize a hash-valid "
+                "exact target artifact; carried lineage is diagnostic context only."
+            ]
         proofengineer_repair_context = merged_repair_context
     parent_formalizer_proof_state_feedback = (
         _compact_parent_formalizer_proof_state_feedback(prior_feedback)
@@ -27590,6 +27616,7 @@ def _formalizer_candidate_exact_proof_search_context(
         return {
             **context,
             "formalizer_candidate_exact_search_eligible": True,
+            "external_proof_search_dispatch_eligible": True,
             "formalizer_candidate_semantic_review_status": (
                 "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED"
             ),

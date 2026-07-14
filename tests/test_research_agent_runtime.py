@@ -31068,6 +31068,7 @@ def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
         "theorem exact_source (p : Prop) (hp : p) : p"
     )
     assert context["formalizer_candidate_exact_search_eligible"] is True
+    assert context["external_proof_search_dispatch_eligible"] is True
     assert context["source_theorem_kernel_evidence_eligible"] is False
     assert context["formalizer_candidate_semantic_review_status"] == (
         "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED"
@@ -106121,9 +106122,32 @@ def test_formalizer_candidate_failure_keeps_external_exact_rerun_feedback() -> N
     assert feedback["proofengineer_repair_context"]["source_lineage_id"] == (
         "source_theorem_lineage:fixture"
     )
+    assert feedback["proofengineer_repair_context"][
+        "external_proof_search_dispatch_eligible"
+    ] is False
+    assert feedback["proofengineer_repair_context"][
+        "external_proof_search_dispatch_blockers"
+    ]
     assert rerun["candidate_feedback_rows"][0]["diagnostics"] == [
         "unknown identifier hp"
     ]
+    question = OpenResearchQuestion(
+        "generic_theorem_search",
+        "Generic exact theorem search",
+        "Ensure stale exact lineage remains diagnostic only.",
+        (),
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:generic_theorem_search",
+        owner_subsystem="ProofEngineer",
+        objective="consume the latest Formalizer result",
+        inputs={},
+    )
+    assert runtime_module._runtime_external_proof_search_request(
+        task=task,
+        question=question,
+        environment_feedback=feedback,
+    ) == {}
 
 
 def test_cli_compaction_preserves_external_exact_rerun_lineage_and_feedback() -> None:
