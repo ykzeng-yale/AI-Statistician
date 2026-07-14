@@ -2,6 +2,18 @@
   "schema_version": 1,
   "policy_pack_id": "split_conformal_exact_semantic_definition_placeholder_policies_v1",
   "scope": "task_family:split_conformal_finite_sample_coverage",
+  "task_families": [
+    "conformal",
+    "conformal_prediction",
+    "split_conformal_finite_sample_coverage"
+  ],
+  "question_ids": [
+    "conformal_prediction_coverage"
+  ],
+  "theorem_target_ids": [
+    "split_conformal_coverage",
+    "split_conformal_finite_sample_coverage"
+  ],
   "description": "Data-backed exact semantic-definition placeholder policies for the split-conformal source-theorem frontier. These policies guide source lookup, authoring, and semantic review only; they are not Lean proof evidence.",
   "default_source_anchor_role": "source_parameter",
   "source_anchor_role_fallback_rules": [

@@ -13,6 +13,7 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_placeholder_policy_for_context,
     exact_semantic_definition_proof_body_adapter_synthesis_instruction,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
@@ -109,6 +110,40 @@ def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:
     assert alpha_total.policy_id == "split_conformal_coverage.alpha_total"
     assert alpha_total.required_anchor_names == ("n2", "alpha", "halpha")
     assert alpha_total.required_adapter_object_names == ("BadRanks",)
+
+
+def test_placeholder_policy_requires_matching_task_context() -> None:
+    conformal, conformal_applicability = (
+        exact_semantic_definition_placeholder_policy_for_context(
+            "alpha",
+            task_family="conformal",
+            question_id="conformal_prediction_coverage",
+            theorem_target_ids=("split_conformal_coverage",),
+        )
+    )
+    survival, survival_applicability = (
+        exact_semantic_definition_placeholder_policy_for_context(
+            "alpha",
+            task_family="survival",
+            question_id="right_censored_survival_km",
+            theorem_target_ids=("km_fixed_time_coverage_lower_bound",),
+        )
+    )
+
+    assert conformal.policy_id == "split_conformal_coverage.alpha"
+    assert conformal_applicability["applicable"] is True
+    assert set(conformal_applicability["matched_selector_kinds"]) == {
+        "task_family",
+        "question_id",
+        "theorem_target_id",
+    }
+    assert survival.policy_id == "generic_exact_semantic_definition_placeholder"
+    assert survival_applicability["applicable"] is False
+    assert set(survival_applicability["conflicting_selector_kinds"]) == {
+        "task_family",
+        "question_id",
+        "theorem_target_id",
+    }
 
 
 def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:

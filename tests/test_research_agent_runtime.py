@@ -52489,13 +52489,49 @@ def test_placeholder_resolution_plan_uses_exact_semantic_policy_pack() -> None:
     )
     assert all(
         row["placeholder_resolution_source"] == (
-            "exact_semantic_definition_policy_pack"
+            "task_scoped_exact_semantic_definition_policy_pack"
         )
         for row in rows
     )
     assert all(
         row["proof_evidence_status"]
         == "PLACEHOLDER_RESOLUTION_PLAN_NOT_PROOF_EVIDENCE"
+        for row in rows
+    )
+
+
+def test_placeholder_resolution_does_not_leak_conformal_aliases_across_tasks() -> None:
+    rows = runtime_module._source_theorem_placeholder_resolution_rows(
+        (
+            {
+                "question_id": "right_censored_survival_km",
+                "task_family": "survival",
+                "target_theorem_name": "km_fixed_time_coverage_lower_bound",
+                "target_ids": ["kaplan_meier_fixed_time_asymptotic_normality"],
+                "failure_classification": "formal_environment_placeholder_primitives",
+                "missing_formal_symbols": ["alpha", "rank", "covered"],
+            },
+        )
+    )
+
+    assert {row["placeholder_symbol"] for row in rows} == {
+        "alpha",
+        "rank",
+        "covered",
+    }
+    assert all(
+        row["placeholder_policy_id"]
+        == "generic_exact_semantic_definition_placeholder"
+        for row in rows
+    )
+    assert all(
+        row["placeholder_resolution_source"] == "generic_formal_source_discovery"
+        for row in rows
+    )
+    assert all(not row["candidate_registered_obligation_ids"] for row in rows)
+    assert all(
+        row["placeholder_policy_applicability"]["status"]
+        == "TASK_SCOPED_POLICY_CONFLICT"
         for row in rows
     )
 

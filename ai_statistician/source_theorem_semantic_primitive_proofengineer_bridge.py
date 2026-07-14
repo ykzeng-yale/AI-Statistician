@@ -737,8 +737,17 @@ def _semantic_primitive_text_support_rule_matches(
     )
 
 
-def registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
+def registered_support_for_placeholder_symbol(
+    symbol: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     policy = _semantic_support_policy()
+    if context is not None and not _semantic_support_policy_applicability(
+        policy,
+        context,
+    ).get("applicable", False):
+        return ()
     return policy["placeholder_symbol_to_registered_support"].get(symbol.strip(), ())
 
 

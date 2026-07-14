@@ -314,6 +314,7 @@ from .source_theorem_exact_semantic_definition_source_lookup import (
 from .exact_semantic_definition_policy import (
     exact_semantic_definition_contract,
     exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_placeholder_policy_for_context,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_premise_binder_aliases,
     exact_semantic_definition_source_to_bridge_semantic_terms,
@@ -65649,6 +65650,32 @@ def _source_theorem_placeholder_resolution_rows(
     seen: set[tuple[str, str]] = set()
     for repair in repairs:
         target = str(repair.get("target_theorem_name", "") or "")
+        task_family = primary_task_family_from_mapping(repair)
+        question_id = str(repair.get("question_id", "") or "").strip()
+        theorem_target_ids = tuple(
+            dict.fromkeys(
+                [
+                    target,
+                    *(
+                        str(value).strip()
+                        for key in (
+                            "target_ids",
+                            "target_theorem_goal_ids",
+                            "source_formal_target_ids",
+                        )
+                        for value in repair.get(key, []) or []
+                        if str(value).strip()
+                    ),
+                ]
+            )
+        )
+        policy_context = {
+            **dict(repair),
+            "task_family": task_family,
+            "question_id": question_id,
+            "target_theorem_name": target,
+            "target_theorem_goal_ids": list(theorem_target_ids),
+        }
         for symbol in repair.get("missing_formal_symbols", []) or []:
             symbol_value = str(symbol or "").strip()
             if not symbol_value:
@@ -65658,7 +65685,10 @@ def _source_theorem_placeholder_resolution_rows(
                 continue
             seen.add(key)
             policy_row = _source_theorem_placeholder_policy_resolution_row(
-                symbol_value
+                symbol_value,
+                task_family=task_family,
+                question_id=question_id,
+                theorem_target_ids=theorem_target_ids,
             )
             rows.append(
                 {
@@ -65669,7 +65699,10 @@ def _source_theorem_placeholder_resolution_rows(
                         repair.get("failure_classification", "") or ""
                     ),
                     "candidate_registered_obligation_ids": list(
-                        _registered_support_for_placeholder_symbol(symbol_value)
+                        _registered_support_for_placeholder_symbol(
+                            symbol_value,
+                            context=policy_context,
+                        )
                     ),
                     "proof_evidence_status": (
                         "PLACEHOLDER_RESOLUTION_PLAN_NOT_PROOF_EVIDENCE"
@@ -65679,13 +65712,34 @@ def _source_theorem_placeholder_resolution_rows(
     return rows
 
 
-def _source_theorem_placeholder_policy_resolution_row(symbol: str) -> dict[str, Any]:
+def _source_theorem_placeholder_policy_resolution_row(
+    symbol: str,
+    *,
+    task_family: str = "",
+    question_id: str = "",
+    theorem_target_ids: tuple[str, ...] = (),
+) -> dict[str, Any]:
     symbol_value = str(symbol or "").strip()
-    policy = exact_semantic_definition_placeholder_policy(symbol_value)
-    contract = exact_semantic_definition_contract(symbol_value)
+    policy, applicability = (
+        exact_semantic_definition_placeholder_policy_for_context(
+            symbol_value,
+            task_family=task_family,
+            question_id=question_id,
+            theorem_target_ids=theorem_target_ids,
+        )
+    )
+    contract = exact_semantic_definition_contract(
+        symbol_value,
+        policy=policy,
+    )
     policy_id = str(policy.policy_id or "").strip()
     semantic_goal = str(policy.semantic_goal or "").strip()
-    search_targets = list(exact_semantic_definition_source_lookup_aliases(symbol_value))
+    search_targets = list(
+        exact_semantic_definition_source_lookup_aliases(
+            symbol_value,
+            policy=policy,
+        )
+    )
     if not search_targets and symbol_value:
         search_targets = [symbol_value]
     forbidden_shortcuts = [
@@ -65713,12 +65767,17 @@ def _source_theorem_placeholder_policy_resolution_row(symbol: str) -> dict[str, 
     return {
         "placeholder_policy_id": policy_id,
         "placeholder_policy_scope": str(policy.policy_scope or "").strip(),
+        "placeholder_policy_applicability": applicability,
         "semantic_goal": semantic_goal,
         "definition_contract": dict(contract),
         "replacement_strategy": replacement_strategy,
         "search_targets": search_targets,
         "promotion_gate": promotion_gate,
-        "placeholder_resolution_source": "exact_semantic_definition_policy_pack",
+        "placeholder_resolution_source": (
+            "task_scoped_exact_semantic_definition_policy_pack"
+            if policy_known
+            else "generic_formal_source_discovery"
+        ),
     }
 
 
@@ -75004,7 +75063,15 @@ def _formalizer_source_theorem_exact_semantic_definition_work_orders(
     for symbol in placeholder_symbols:
         diagnostic = diagnostic_by_symbol.get(symbol, {})
         typechecked_candidate = typechecked_candidate_by_symbol.get(symbol, {})
-        support_ids = list(_registered_support_for_placeholder_symbol(symbol))
+        support_ids = list(
+            _registered_support_for_placeholder_symbol(
+                symbol,
+                context={
+                    "target_theorem_name": target_theorem_name,
+                    "target_theorem_goal_ids": target_goal_ids,
+                },
+            )
+        )
         semantic_risks = [
             str(value).strip()
             for value in diagnostic.get("semantic_definition_risks", []) or []
@@ -84565,7 +84632,19 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "exact_goal_shape_obligations": exact_goal_shape_obligations,
                     "target_theorem_goal_ids": target_goal_ids,
                     "candidate_registered_obligation_ids": (
-                        list(_registered_support_for_placeholder_symbol(symbol))
+                        list(
+                            _registered_support_for_placeholder_symbol(
+                                symbol,
+                                context={
+                                    **dict(input_summary),
+                                    **dict(row),
+                                    "question_id": question_id,
+                                    "target_theorem_name": target_theorem_name,
+                                    "target_ids": target_ids,
+                                    "target_theorem_goal_ids": target_goal_ids,
+                                },
+                            )
+                        )
                     ),
                     "proof_mode": "source_theorem_semantic_primitive_closure",
                     "runtime_queue_status": "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT",
@@ -84745,8 +84824,15 @@ def _semantic_primitive_gap_for_exact_goal_shape_obligation(
     )
 
 
-def _registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
-    return _policy_registered_support_for_placeholder_symbol(symbol)
+def _registered_support_for_placeholder_symbol(
+    symbol: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    return _policy_registered_support_for_placeholder_symbol(
+        symbol,
+        context=context,
+    )
 
 
 def _registered_support_for_exact_goal_shape_obligation(
@@ -90336,7 +90422,16 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
             dict.fromkeys(
                 support_id
                 for symbol in placeholder_symbols
-                for support_id in _registered_support_for_placeholder_symbol(symbol)
+                for support_id in _registered_support_for_placeholder_symbol(
+                    symbol,
+                    context={
+                        **dict(input_summary),
+                        **dict(row),
+                        "question_id": question_id,
+                        "target_theorem_name": target_theorem_name,
+                        "target_ids": target_ids,
+                    },
+                )
             )
         )
         typechecked_candidates = [
