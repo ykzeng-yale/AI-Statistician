@@ -42777,6 +42777,18 @@ def test_simulation_evaluator_revises_after_nonexecutable_generated_simulation_c
             "theory_packet_id": theory_packet_id,
             "n_runs": 12,
             "seed": 20260619,
+            "architect_context": {
+                "architect_coordinator_proposal_id": "architect:generated-simulation",
+                "architect_runtime_plan": {
+                    "problem_analysis": {
+                        "theorem_family": "generated simulation smoke target",
+                        "statistical_objects": ["generated scalar metric"],
+                    },
+                    "evidence_contract": {
+                        "simulation_targets": ["execute the generated draft"]
+                    },
+                },
+            },
         },
         expected_artifacts=("simulation_manifest",),
     )
@@ -42817,7 +42829,7 @@ def test_simulation_evaluator_revises_after_nonexecutable_generated_simulation_c
     )
 
 
-def test_simulation_evaluator_capability_eval_revises_when_draft_omitted(
+def test_simulation_evaluator_agentic_authority_revises_when_draft_omitted(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -42876,7 +42888,7 @@ def test_simulation_evaluator_capability_eval_revises_when_draft_omitted(
     task = AgentTask(
         task_id="simulation:required-generated",
         owner_subsystem="SimulationEvaluator",
-        objective="Capability eval must not accept registered simulator only.",
+        objective="Agentic runtime must not accept a registered simulator only.",
         inputs={
             "question": {
                 "id": question.id,
@@ -42888,9 +42900,15 @@ def test_simulation_evaluator_capability_eval_revises_when_draft_omitted(
             "n_runs": 12,
             "seed": 20260619,
             "architect_context": {
-                "runtime_requested_evidence_contract": {
-                    "capability_eval_requires_generated_simulation_code": True,
-                }
+                "architect_runtime_plan": {
+                    "problem_analysis": {
+                        "theorem_family": "generic generated simulation target",
+                        "statistical_objects": ["generic estimator"],
+                    },
+                    "evidence_contract": {
+                        "simulation_targets": ["execute a generated stress test"]
+                    },
+                },
             },
         },
         expected_artifacts=("simulation_manifest",),
@@ -42905,6 +42923,8 @@ def test_simulation_evaluator_capability_eval_revises_when_draft_omitted(
 
     assert manifest["n_generated_simulation_sandbox_prototypes"] == 1
     assert manifest["n_generated_simulation_sandbox_executed"] == 0
+    assert manifest["registered_baseline_execution_skipped"] is True
+    assert manifest["legacy_problem_formalizer_used"] is False
     assert manifest["generated_simulation_sandbox_prototypes"][0][
         "prototype_status"
     ] == "GENERATED_SIMULATION_CODE_REQUIRED_BUT_MISSING"
@@ -43250,6 +43270,18 @@ def test_simulation_evaluator_executes_safe_generated_simulation_code(tmp_path: 
             "theory_packet_id": theory_packet_id,
             "n_runs": 12,
             "seed": 20260619,
+            "architect_context": {
+                "architect_coordinator_proposal_id": "architect:generated-simulation",
+                "architect_runtime_plan": {
+                    "problem_analysis": {
+                        "theorem_family": "generated simulation smoke target",
+                        "statistical_objects": ["generated scalar metric"],
+                    },
+                    "evidence_contract": {
+                        "simulation_targets": ["execute the generated draft"]
+                    },
+                },
+            },
         },
         expected_artifacts=("simulation_manifest",),
     )
@@ -43268,6 +43300,14 @@ def test_simulation_evaluator_executes_safe_generated_simulation_code(tmp_path: 
     assert manifest["n_generated_simulation_sandbox_prototypes"] == 1
     assert manifest["n_generated_simulation_sandbox_executed"] == 1
     assert manifest["n_generated_simulation_sandbox_passed"] == 1
+    assert manifest["simulation_evidence_source"] == (
+        "generated_simulation_sandbox"
+    )
+    assert manifest["registered_baseline_execution_skipped"] is True
+    assert manifest["legacy_problem_formalizer_used"] is False
+    assert not [
+        call for call in result.tool_calls if call.tool_name == "ResearchSimulator.run"
+    ]
     assert prototype["executor"] == "generated_simulation_sandbox"
     assert prototype["metrics"]["sandbox_failed"] is False
     assert prototype["metrics"]["replicates"] == 12
@@ -73466,12 +73506,13 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
         objective="test theorem closure work-order export",
         inputs={
             "question": question_payload,
-                "architect_context": {
-                    "runtime_requested_evidence_contract": {
-                        "evaluation_mode": "capability_eval",
-                        "capability_eval_requires_formalizer_lean_candidate": True,
-                    },
-                    "runtime_learning_memory": {
+            "architect_context": {
+                "research_problem_authority_mode": "legacy_baseline",
+                "runtime_requested_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "capability_eval_requires_formalizer_lean_candidate": True,
+                },
+                "runtime_learning_memory": {
                     "artifact_kind": "RuntimeLearningMemoryContext",
                     "rows": [
                         {
@@ -74416,9 +74457,16 @@ def test_formalization_capability_eval_does_not_replace_live_formalizer_with_det
         "deterministic_theorem_closure_work_order_seed"
     )
     assert manifest["counts"]["theorem_reduction_closure_work_orders"] == 0
+    assert manifest["problem_formalization_source"] == (
+        "theory_developer_structured_packet"
+    )
+    assert manifest["legacy_problem_formalizer_used"] is False
+    assert manifest["proof_obligation_control"][
+        "n_candidate_proof_obligations"
+    ] == 0
     assert manifest["proof_obligation_control"][
         "theorem_reduction_closure_required"
-    ] is True
+    ] is False
 
 
 def test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without_kernel_claim(
@@ -82593,7 +82641,7 @@ def test_agent_runtime_does_not_retry_timeout_subsystem_exception() -> None:
     )
 
 
-def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
+def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_baseline() -> None:
     out_dir = Path("runs/test_research_agent_runtime")
     shutil.rmtree(out_dir, ignore_errors=True)
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
@@ -82634,6 +82682,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         formalizer=formalizer,
         critic_evaluator=critic_evaluator,
         proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
+        architect_context={
+            "research_problem_authority_mode": "legacy_baseline",
+        },
         config=ResearchAgentRuntimeConfig(n_runs=80, seed=20260528, max_iterations=12),
     )
 

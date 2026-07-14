@@ -278,6 +278,11 @@ from .research_schema import (
     ResearchSimulation,
     TheoremGoal,
 )
+from .runtime_research_problem_adapter import (
+    derive_runtime_research_problem,
+    legacy_runtime_research_problem_provenance,
+    runtime_llm_research_authority_required,
+)
 from .simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_BOUNDARY,
@@ -10187,7 +10192,11 @@ class RetrievalMemoryRuntimeSubsystem:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
         retrieval_control = _architect_control_payload(context, "RetrievalMemory")
-        problem, theorem_goals = _formalization_runtime_problem_and_goals(
+        (
+            problem,
+            theorem_goals,
+            problem_authority,
+        ) = _formalization_runtime_problem_and_goals(
             question,
             task.inputs,
         )
@@ -10215,6 +10224,8 @@ class RetrievalMemoryRuntimeSubsystem:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "question": _question_to_payload(question),
             "runtime_architect_control": retrieval_control,
+            "research_problem_authority": problem_authority,
+            **problem_authority,
             "problem": _problem_to_json(problem),
             "theorem_goals": [_theorem_goal_to_json(row) for row in theorem_goals],
             "knowledge_cards": [_knowledge_card_to_json(row) for row in knowledge],
@@ -10257,6 +10268,9 @@ class RetrievalMemoryRuntimeSubsystem:
             boundary=str(manifest["boundary"]),
             payload={
                 **manifest["counts"],
+                "problem_formalization_source": str(
+                    problem_authority.get("problem_formalization_source", "")
+                ),
                 "architect_acceptance_gate": retrieval_control.get("acceptance_gate", ""),
             },
         )
@@ -10267,6 +10281,7 @@ class RetrievalMemoryRuntimeSubsystem:
             "formal_source_hits": manifest["formal_source_hits"],
             "formal_source_provider_topology": formal_source_provider_topology,
             "formal_source_provider_diagnostics": formal_source_provider_diagnostics,
+            "research_problem_authority": problem_authority,
             "boundary": manifest["boundary"],
         }
         if return_owner == "TheoryDeveloper":
@@ -12317,8 +12332,24 @@ class SimulationEvaluatorRuntimeSubsystem:
             source_theory_packet_id=packet_id,
             theory_packet=packet if isinstance(packet, Mapping) else {},
         )
-        problem = ProblemFormalizer().formalize(question)
-        procedures, theorem_goals = TheoryPlanner().plan(problem)
+        llm_research_authority = runtime_llm_research_authority_required(
+            effective_context,
+            packet if isinstance(packet, Mapping) else {},
+        )
+        if llm_research_authority:
+            research_bundle = derive_runtime_research_problem(
+                question=question,
+                architect_context=effective_context,
+                theory_packet=packet if isinstance(packet, Mapping) else {},
+            )
+            problem = research_bundle.problem
+            theorem_goals = list(research_bundle.theorem_goals)
+            procedures: list[CandidateProcedure] = []
+            problem_authority = research_bundle.provenance()
+        else:
+            problem = ProblemFormalizer().formalize(question)
+            procedures, theorem_goals = TheoryPlanner().plan(problem)
+            problem_authority = legacy_runtime_research_problem_provenance()
         n_runs = int(task.inputs.get("n_runs", 100))
         seed = int(task.inputs.get("seed", 20260528))
         proposal_packet: dict[str, Any] | None = None
@@ -12328,12 +12359,20 @@ class SimulationEvaluatorRuntimeSubsystem:
         simulation_theory_trace_alignment_contract: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = [
             EnvironmentObservation(
-                observation_type="deterministic_problem_formalization",
-                summary=f"problem_class={problem.problem_class}",
+                observation_type="research_problem_authority",
+                summary=(
+                    "problem source="
+                    + str(
+                        problem_authority.get(
+                            "problem_formalization_source", ""
+                        )
+                    )
+                ),
                 payload={
                     "problem_class": problem.problem_class,
                     "estimand": problem.estimand,
                     "diagnostics": list(problem.diagnostics),
+                    **problem_authority,
                 },
             )
         ]
@@ -12446,22 +12485,57 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
                 },
             )
-        simulations = ResearchSimulator(n_runs=n_runs, seed=seed).run(problem, procedures)
+        requires_generated_simulation_code = bool(
+            llm_research_authority
+            or _runtime_requires_generated_simulation_code(
+                effective_context,
+                environment_feedback,
+            )
+        )
+        requires_typed_metric_contracts = _runtime_requires_typed_metric_contracts(
+            effective_context,
+            environment_feedback,
+            subsystem="SimulationEvaluator",
+        )
+        agentic_simulation_authority = bool(
+            llm_research_authority or requires_generated_simulation_code
+        )
+        if agentic_simulation_authority:
+            simulations: list[ResearchSimulation] = []
+            registered_baseline_skip_reason = (
+                "Agentic runs evaluate LLM-generated simulation code; registered "
+                "task-family simulators are optional legacy baselines and cannot "
+                "satisfy the agentic evidence gate."
+            )
+        else:
+            simulations = ResearchSimulator(n_runs=n_runs, seed=seed).run(
+                problem,
+                procedures,
+            )
+            registered_baseline_skip_reason = ""
+        registered_simulator_tool_calls = (
+            ()
+            if agentic_simulation_authority
+            else (
+                ToolCallRecord(
+                    tool_name="ResearchSimulator.run",
+                    inputs={
+                        "n_runs": n_runs,
+                        "seed": seed,
+                        "n_procedures": len(procedures),
+                    },
+                    exit_status="0",
+                    stdout_summary=f"{len(simulations)} simulation rows recorded",
+                    safety_boundary=SIMULATION_NOT_PROOF_BOUNDARY,
+                ),
+            )
+        )
         generated_simulation_rows: list[dict[str, Any]] = []
         generated_simulation_tool_calls: list[ToolCallRecord] = []
         generated_simulation_dir = (
             self.sandbox_root
             / _safe_identifier(question.id)
             / stable_hash([task.task_id, packet_id])[:12]
-        )
-        requires_generated_simulation_code = _runtime_requires_generated_simulation_code(
-            effective_context,
-            environment_feedback,
-        )
-        requires_typed_metric_contracts = _runtime_requires_typed_metric_contracts(
-            effective_context,
-            environment_feedback,
-            subsystem="SimulationEvaluator",
         )
         (
             simulation_metric_requirements,
@@ -12489,9 +12563,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                         "executor": "generated_simulation_sandbox",
                         "reason": (
-                            "Capability evaluation requires a Claude/OpenAI-generated "
+                            "Agentic simulation authority requires an LLM-generated "
                             "simulation_code_drafts entry. Registered simulators are "
-                            "baselines and were not accepted for this capability gate."
+                            "optional baselines and cannot satisfy this evidence gate."
                         ),
                         "smoke_passed": False,
                         "execution_smoke_passed": False,
@@ -12728,32 +12802,60 @@ class SimulationEvaluatorRuntimeSubsystem:
             _generated_metric_contract_evaluation_count(row, "n_failed")
             for row in generated_simulation_rows
         )
+        generated_simulation_rows_all_passed = bool(
+            generated_simulation_rows
+        ) and all(
+            row.get("smoke_passed") is True
+            for row in generated_simulation_rows
+        )
         generated_simulation_revision_required = bool(
             self.proposal_agent is not None
             and (
                 (
                     requires_generated_simulation_code
                     and (
-                        n_generated_simulation_executed == 0
-                        or n_generated_simulation_passed == 0
+                        not generated_simulation_rows_all_passed
                         or n_unsafe_generated_simulation_rejected > 0
                     )
                 )
                 or (
                     generated_simulation_rows
                     and not requires_generated_simulation_code
-                    and (
-                        n_generated_simulation_executed == 0
-                        or (
-                            n_generated_simulation_executed > 0
-                            and n_generated_simulation_passed == 0
-                        )
-                    )
+                    and not generated_simulation_rows_all_passed
                 )
             )
         )
-        simulation_passed = bool(simulations) and all(row.passed for row in simulations)
-        implementation_gaps = _implementation_gaps(packet, procedures)
+        registered_simulation_passed = bool(simulations) and all(
+            row.passed for row in simulations
+        )
+        generated_simulation_passed = bool(
+            n_generated_simulation_executed > 0
+            and n_generated_simulation_passed > 0
+            and generated_simulation_rows_all_passed
+            and not generated_simulation_revision_required
+        )
+        simulation_passed = (
+            generated_simulation_passed
+            if agentic_simulation_authority
+            else registered_simulation_passed
+        )
+        simulation_evidence_source = (
+            "generated_simulation_sandbox"
+            if agentic_simulation_authority
+            else "registered_research_simulator_baseline"
+        )
+        requires_generated_algorithm_code = bool(
+            llm_research_authority
+            or _runtime_requires_generated_algorithm_code(
+                effective_context,
+                environment_feedback,
+            )
+        )
+        implementation_gaps = _implementation_gaps(
+            packet,
+            procedures,
+            require_generated_adapter=requires_generated_algorithm_code,
+        )
         manifest_id = "simulation_manifest:" + stable_hash([task.task_id, packet_id, n_runs, seed])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -12763,6 +12865,8 @@ class SimulationEvaluatorRuntimeSubsystem:
             "question": _question_to_payload(question),
             "theory_packet_id": packet_id,
             "runtime_architect_control": simulation_control,
+            "research_problem_authority": problem_authority,
+            **problem_authority,
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_simulation_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
@@ -12775,6 +12879,12 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "problem": _problem_to_json(problem),
             "registered_procedures": [_procedure_to_json(row) for row in procedures],
+            "registered_baseline_execution_skipped": bool(
+                registered_baseline_skip_reason
+            ),
+            "registered_baseline_execution_skipped_reason": (
+                registered_baseline_skip_reason
+            ),
             "theorem_goals": [_theorem_goal_to_json(row) for row in theorem_goals],
             "simulations": [_simulation_to_json(row) for row in simulations],
             "generated_simulation_sandbox_prototypes": generated_simulation_rows,
@@ -12832,6 +12942,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
             ),
             "simulation_passed": simulation_passed,
+            "registered_simulation_passed": registered_simulation_passed,
+            "generated_simulation_passed": generated_simulation_passed,
+            "simulation_evidence_source": simulation_evidence_source,
             "implementation_gaps": implementation_gaps,
             "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
             "proof_evidence_boundary": SIMULATION_NOT_PROOF_BOUNDARY,
@@ -12840,10 +12953,17 @@ class SimulationEvaluatorRuntimeSubsystem:
         observations.append(
             EnvironmentObservation(
                 observation_type="simulation_result",
-                summary=f"simulations={len(simulations)} passed={simulation_passed}",
+                summary=(
+                    f"source={simulation_evidence_source} "
+                    f"passed={simulation_passed}"
+                ),
                 payload={
                     "n_simulations": len(simulations),
                     "simulation_passed": simulation_passed,
+                    "simulation_evidence_source": simulation_evidence_source,
+                    "registered_baseline_execution_skipped": bool(
+                        registered_baseline_skip_reason
+                    ),
                     "procedure_ids": [row.procedure_id for row in simulations],
                     "failed_procedure_ids": [row.procedure_id for row in simulations if not row.passed],
                     "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
@@ -12872,12 +12992,20 @@ class SimulationEvaluatorRuntimeSubsystem:
             task_id=task.task_id,
             artifact_id=manifest_id,
             evidence_type="simulation",
-            status="EXECUTED_REPRODUCIBLY" if simulations else "NO_EXECUTABLE_SIMULATION",
+            status=(
+                "EXECUTED_REPRODUCIBLY"
+                if simulations or n_generated_simulation_executed > 0
+                else "NO_EXECUTABLE_SIMULATION"
+            ),
             boundary=SIMULATION_NOT_PROOF_BOUNDARY,
             payload={
                 "n_runs": n_runs,
                 "seed": seed,
                 "simulation_passed": simulation_passed,
+                "simulation_evidence_source": simulation_evidence_source,
+                "problem_formalization_source": str(
+                    problem_authority.get("problem_formalization_source", "")
+                ),
                 "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
                 "n_generated_simulation_sandbox_execution_attempted": (
                     n_generated_simulation_execution_attempted
@@ -13135,13 +13263,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
                 tool_calls=(
-                    ToolCallRecord(
-                        tool_name="ResearchSimulator.run",
-                        inputs={"n_runs": n_runs, "seed": seed, "n_procedures": len(procedures)},
-                        exit_status="0",
-                        stdout_summary=f"{len(simulations)} simulation rows recorded",
-                        safety_boundary=SIMULATION_NOT_PROOF_BOUNDARY,
-                    ),
+                    *registered_simulator_tool_calls,
                     *generated_simulation_tool_calls,
                 ),
                 evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
@@ -13149,10 +13271,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 failure_classification=generated_simulation_failure_classification,
             )
         generated_algorithm_sandbox_manifest_id = ""
-        if implementation_gaps and _runtime_requires_generated_algorithm_code(
-            effective_context,
-            environment_feedback,
-        ):
+        if implementation_gaps and requires_generated_algorithm_code:
             generated_algorithm_sandbox_manifest_id = (
                 _runtime_generated_algorithm_sandbox_passed_manifest_id(
                     blackboard,
@@ -13276,13 +13395,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
                 tool_calls=(
-                    ToolCallRecord(
-                        tool_name="ResearchSimulator.run",
-                        inputs={"n_runs": n_runs, "seed": seed, "n_procedures": len(procedures)},
-                        exit_status="0",
-                        stdout_summary=f"{len(simulations)} simulation rows recorded",
-                        safety_boundary=SIMULATION_NOT_PROOF_BOUNDARY,
-                    ),
+                    *registered_simulator_tool_calls,
                     *generated_simulation_tool_calls,
                 ),
                 evidence_entries=tuple(
@@ -13328,13 +13441,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
             tool_calls=(
-                ToolCallRecord(
-                    tool_name="ResearchSimulator.run",
-                    inputs={"n_runs": n_runs, "seed": seed, "n_procedures": len(procedures)},
-                    exit_status="0",
-                    stdout_summary=f"{len(simulations)} simulation rows recorded",
-                    safety_boundary=SIMULATION_NOT_PROOF_BOUNDARY,
-                ),
+                *registered_simulator_tool_calls,
                 *generated_simulation_tool_calls,
             ),
             evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
@@ -18121,8 +18228,23 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
         if missing_algorithm_result is not None:
             return missing_algorithm_result
-        problem = ProblemFormalizer().formalize(question)
-        _procedures, theorem_goals = TheoryPlanner().plan(problem)
+        llm_research_authority = runtime_llm_research_authority_required(
+            context,
+            packet if isinstance(packet, Mapping) else {},
+        )
+        if llm_research_authority:
+            research_bundle = derive_runtime_research_problem(
+                question=question,
+                architect_context=context,
+                theory_packet=packet if isinstance(packet, Mapping) else {},
+            )
+            problem = research_bundle.problem
+            theorem_goals = list(research_bundle.theorem_goals)
+            problem_authority = research_bundle.provenance()
+        else:
+            problem = ProblemFormalizer().formalize(question)
+            _procedures, theorem_goals = TheoryPlanner().plan(problem)
+            problem_authority = legacy_runtime_research_problem_provenance()
         proof_bank_obligation_catalog = self.prover.proof_obligation_catalog(problem, theorem_goals)
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
@@ -18831,7 +18953,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "external_exact_source_theorem_candidate_kernel_rerun"
             )
             pseudo_formalization_required = False
-        elif _should_emit_deterministic_theorem_closure_packet(
+        elif not llm_research_authority and _should_emit_deterministic_theorem_closure_packet(
             proof_bank_runtime_memory_summary
         ) and not _runtime_context_requires_formalizer_lean_candidate(
             context
@@ -19887,6 +20009,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "simulation_manifest_id": simulation_manifest_id,
             "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
             "runtime_architect_control": formalization_control,
+            "research_problem_authority": problem_authority,
+            **problem_authority,
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_formalizer_proof_engineer_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
@@ -55937,7 +56061,12 @@ def _llm_agent_topology_row(
     }
 
 
-def _implementation_gaps(packet: Any, procedures: list[CandidateProcedure]) -> list[dict[str, Any]]:
+def _implementation_gaps(
+    packet: Any,
+    procedures: list[CandidateProcedure],
+    *,
+    require_generated_adapter: bool = False,
+) -> list[dict[str, Any]]:
     if not isinstance(packet, Mapping):
         return []
     registered_ids = {row.id for row in procedures}
@@ -55949,13 +56078,31 @@ def _implementation_gaps(packet: Any, procedures: list[CandidateProcedure]) -> l
         estimator_id = str(row.get("id") or row.get("name") or "").strip()
         if not estimator_id:
             continue
-        if estimator_id in registered_ids or estimator_id in registered_algorithms:
+        if (
+            not require_generated_adapter
+            and (
+                estimator_id in registered_ids
+                or estimator_id in registered_algorithms
+            )
+        ):
             continue
         gaps.append(
             {
                 "estimator_id": estimator_id,
-                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
-                "reason": "LLM estimator spec has no registered executable algorithm in this runtime slice.",
+                "status": (
+                    "REQUIRES_GENERATED_ALGORITHM_ENGINEER_ADAPTER"
+                    if require_generated_adapter
+                    else "REQUIRES_ALGORITHM_ENGINEER_ADAPTER"
+                ),
+                "reason": (
+                    "Agentic execution requires this LLM estimator spec to pass "
+                    "through generated code, sandbox execution, typed metric gates, "
+                    "and independent semantic review. A registered template cannot "
+                    "satisfy that evidence gate."
+                    if require_generated_adapter
+                    else "LLM estimator spec has no registered executable algorithm "
+                    "in this runtime slice."
+                ),
             }
         )
     return gaps
@@ -101049,7 +101196,7 @@ def _theorem_goal_from_payload(payload: Mapping[str, Any]) -> TheoremGoal:
 def _formalization_runtime_problem_and_goals(
     question: OpenResearchQuestion,
     task_inputs: Mapping[str, Any],
-) -> tuple[ResearchProblemSpec, list[TheoremGoal]]:
+) -> tuple[ResearchProblemSpec, list[TheoremGoal], dict[str, Any]]:
     problem_override = task_inputs.get("registered_problem_override", {})
     goals_override = task_inputs.get("theorem_goals_override", [])
     if isinstance(problem_override, Mapping) and isinstance(goals_override, list):
@@ -101065,10 +101212,33 @@ def _formalization_runtime_problem_and_goals(
                     **dict(problem_override),
                 }
             )
-            return problem, goals
+            return problem, goals, {
+                "problem_formalization_source": "explicit_runtime_override",
+                "theorem_goal_source": "explicit_runtime_override",
+                "legacy_problem_formalizer_used": False,
+                "legacy_theory_planner_used": False,
+                "legacy_baseline_skipped_reason": (
+                    "Explicit typed runtime overrides were supplied."
+                ),
+            }
+    architect_context = (
+        dict(task_inputs.get("architect_context", {}) or {})
+        if isinstance(task_inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    if runtime_llm_research_authority_required(architect_context):
+        bundle = derive_runtime_research_problem(
+            question=question,
+            architect_context=architect_context,
+        )
+        return bundle.problem, list(bundle.theorem_goals), bundle.provenance()
     problem = ProblemFormalizer().formalize(question)
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
-    return problem, theorem_goals
+    return (
+        problem,
+        theorem_goals,
+        legacy_runtime_research_problem_provenance(),
+    )
 
 
 def _problem_to_json(problem: ResearchProblemSpec) -> dict[str, Any]:
