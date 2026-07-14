@@ -13,6 +13,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
+    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_CONTRACT_REPAIR_EXHAUSTED,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -35,6 +36,8 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _prompt_token_budget_row,
     _prior_staged_followup_stage_dependencies_match,
     _route_adoption_readiness,
+    _row_requires_staged_followup,
+    _staged_followup_reason,
     _staged_followup_incremental_contract_errors,
     _staged_followup_stage_prompt_context_packet,
     _target_compatible_formal_declaration_rows,
@@ -13020,6 +13023,36 @@ def test_llm_route_planner_records_staged_followup_for_max_token_truncation() ->
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
     assert "Staged followups required: 1 max-token=1" in report
+
+
+def test_contract_invalid_monolithic_response_requires_staged_followup() -> None:
+    row = {
+        "response_present": True,
+        "response_contract_ok": False,
+        "provider_failure": False,
+        "raw_response_text": json.dumps(
+            {
+                "minimal_delta_plan": {"selected_primitives": ["generic_step"]},
+                "formal_attempt_queue": [],
+            }
+        ),
+        "generator_metadata": {"provider_stop_reason": "end_turn"},
+        "generation_errors": [
+            "formal_attempt_queue[0] expected_feedback must be array"
+        ],
+        "errors": [
+            "minimal_delta_plan.and_or_cost_graph.graph_kind must equal "
+            "AND_OR_ROUTE_COST_GRAPH"
+        ],
+    }
+
+    assert _row_requires_staged_followup(row)
+    assert _staged_followup_reason(row) == (
+        LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_CONTRACT_REPAIR_EXHAUSTED
+    )
+
+    provider_failure = dict(row, provider_failure=True)
+    assert not _row_requires_staged_followup(provider_failure)
 
 
 def test_staged_followup_reuse_requires_unchanged_upstream_fragment_identity() -> None:

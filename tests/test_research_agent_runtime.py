@@ -4681,6 +4681,46 @@ def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_a
     )
 
 
+def test_live_route_planner_payload_promotes_generic_target_identity() -> None:
+    payload = {
+        "request_packets": [
+            {
+                "request_id": "request:generic-functional-limit",
+                "route_id": "route:generic-functional-limit",
+                "target_route": {
+                    "route_id": "route:generic-functional-limit",
+                    "goal_plan_id": "goal:functional-limit",
+                },
+                "context_packet": {
+                    "target_theorem_context_packet": {
+                        "target_ids": ["theorem:functional-limit"],
+                        "route_id": "route:generic-functional-limit",
+                    },
+                    "target_intake_rows": [
+                        {
+                            "target_id": "intake:functional-limit",
+                            "goal_plan_id": "goal:functional-limit",
+                        }
+                    ],
+                },
+            }
+        ]
+    }
+
+    target_ids = (
+        runtime_module._formalization_gap_planner_live_route_planner_payload_target_ids(
+            payload
+        )
+    )
+
+    assert target_ids == [
+        "route:generic-functional-limit",
+        "goal:functional-limit",
+        "theorem:functional-limit",
+        "intake:functional-limit",
+    ]
+
+
 def test_runtime_gap_planner_nested_contract_feedback_routes_repair_agenda() -> None:
     feedback_row = {
         "schema_version": 1,

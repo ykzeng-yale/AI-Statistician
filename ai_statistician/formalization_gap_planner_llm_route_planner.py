@@ -81,6 +81,9 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS = (
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_PROMPT_BUDGET = (
     "prompt_token_budget_preflight_blocked"
 )
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_CONTRACT_REPAIR_EXHAUSTED = (
+    "monolithic_response_contract_repair_exhausted"
+)
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-staged-followup-stage-response:1"
@@ -14765,16 +14768,36 @@ def _row_requires_staged_followup(row: Mapping[str, Any]) -> bool:
         return False
     if bool(row.get("response_contract_ok", False)):
         return False
+    if bool(row.get("provider_failure", False)):
+        return False
     generator_metadata = _dict_value(row, "generator_metadata")
     stop_reason = str(generator_metadata.get("provider_stop_reason", "") or "")
     if stop_reason == "max_tokens":
         return True
     if not str(row.get("raw_response_text", "") or "").strip():
         return False
-    return any(
+    if any(
         "json extraction failed" in str(error).lower()
         for error in _str_tuple(row.get("generation_errors", []))
-    )
+    ):
+        return True
+    # A parsed monolithic response that remains invalid after its bounded
+    # repair loop should be decomposed into independently validated stages.
+    return bool(_str_tuple(row.get("errors", [])))
+
+
+def _staged_followup_reason(row: Mapping[str, Any]) -> str:
+    generator_metadata = _dict_value(row, "generator_metadata")
+    if str(generator_metadata.get("provider_stop_reason", "") or "") == (
+        "max_tokens"
+    ):
+        return LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS
+    if any(
+        "json extraction failed" in str(error).lower()
+        for error in _str_tuple(row.get("generation_errors", []))
+    ):
+        return "json_extraction_failed_with_partial_response"
+    return LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_CONTRACT_REPAIR_EXHAUSTED
 
 
 def _staged_followup_row(
@@ -14789,12 +14812,7 @@ def _staged_followup_row(
     raw_response_text = str(row.get("raw_response_text", "") or "")
     generator_metadata = _dict_value(row, "generator_metadata")
     provider_usage = _provider_usage_from_metadata(generator_metadata)
-    followup_reason = (
-        LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS
-        if str(generator_metadata.get("provider_stop_reason", "") or "")
-        == "max_tokens"
-        else "json_extraction_failed_with_partial_response"
-    )
+    followup_reason = _staged_followup_reason(row)
     return {
         "schema_version": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION,
         "followup_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_KIND,

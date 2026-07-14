@@ -31920,6 +31920,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         provider_name=provider,
                         model=model or "formalization_gap_planner_live_route_planner",
                     )
+                payload_target_ids = (
+                    _formalization_gap_planner_live_route_planner_payload_target_ids(
+                        payload
+                    )
+                )
                 target_prover_replay = (
                     self._materialize_live_route_planner_target_prover_replay(
                         task=task,
@@ -31945,6 +31950,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     {
                         "handoff_id": handoff_id,
                         "bridge_id": str(handoff.get("bridge_id", "") or ""),
+                        "target_ids": payload_target_ids,
                         "standalone_seed_path": str(standalone_seed_path),
                         "target_intake_path": str(
                             handoff.get("target_intake_path", "") or ""
@@ -32366,6 +32372,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     {
                         "handoff_id": handoff_id,
                         "bridge_id": str(handoff.get("bridge_id", "") or ""),
+                        "target_ids": list(
+                            _runtime_row_string_values(
+                                handoff,
+                                "target_ids",
+                                "target_id",
+                                "route_id",
+                                "goal_plan_id",
+                            )
+                        ),
                         "standalone_seed_path": str(standalone_seed_path),
                         "target_intake_path": str(
                             handoff.get("target_intake_path", "") or ""
@@ -80458,6 +80473,51 @@ def _formalization_gap_planner_live_route_planner_row_target_ids(
                     "selected_route_id",
                     "goal_plan_id",
                 )
+            )
+    return list(dict.fromkeys(value for value in target_ids if str(value).strip()))
+
+
+def _formalization_gap_planner_live_route_planner_payload_target_ids(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    target_ids: list[str] = []
+
+    def add(container: object, *keys: str) -> None:
+        if not isinstance(container, Mapping):
+            return
+        target_ids.extend(_runtime_row_string_values(container, *keys))
+
+    for request in payload.get("request_packets", []) or []:
+        if not isinstance(request, Mapping):
+            continue
+        add(request, "target_ids", "target_id", "route_id", "goal_plan_id")
+        add(
+            request.get("target_route", {}),
+            "target_ids",
+            "target_id",
+            "route_id",
+            "goal_plan_id",
+            "source_route_id",
+        )
+        context_packet = request.get("context_packet", {})
+        if not isinstance(context_packet, Mapping):
+            continue
+        add(
+            context_packet.get("target_theorem_context_packet", {}),
+            "target_ids",
+            "target_id",
+            "route_id",
+            "goal_plan_id",
+            "target_theorem_name",
+        )
+        for intake in context_packet.get("target_intake_rows", []) or []:
+            add(
+                intake,
+                "target_ids",
+                "target_id",
+                "route_id",
+                "goal_plan_id",
+                "target_theorem_name",
             )
     return list(dict.fromkeys(value for value in target_ids if str(value).strip()))
 
