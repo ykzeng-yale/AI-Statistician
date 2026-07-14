@@ -100,6 +100,7 @@ from .exact_source_theorem_proof_body_executor import (
     _extract_lean_declaration_block as _external_exact_declaration_block,
     _normalize_external_proof_body as _normalize_external_exact_proof_body,
     _normalized_lean_signature as _normalized_external_lean_signature,
+    _proofengineer_whole_proof_repair_context as _external_exact_whole_proof_repair_context,
     execute_external_exact_source_theorem_proof_candidates,
     export_exact_source_theorem_proof_body_execution_results,
     materialize_external_exact_source_candidate,
@@ -26731,6 +26732,22 @@ def _formalizer_lean_candidate_repair_feedback(
                     row.get("source_theorem_target_provenance", {}), Mapping
                 )
                 else {},
+                "source_theorem_target_known": row.get(
+                    "source_theorem_target_known",
+                    None,
+                ),
+                "source_theorem_candidate_evidence_eligible": _bool_like(
+                    row.get(
+                        "source_theorem_candidate_evidence_eligible",
+                        False,
+                    )
+                ),
+                "diagnostic_helper_not_source_theorem": _bool_like(
+                    row.get("diagnostic_helper_not_source_theorem", False)
+                ),
+                "support_candidate_not_source_theorem": _bool_like(
+                    row.get("support_candidate_not_source_theorem", False)
+                ),
                 "repair_target_identity_required": _bool_like(
                     row.get("repair_target_identity_required", False)
                 ),
@@ -26771,6 +26788,9 @@ def _formalizer_lean_candidate_repair_feedback(
                 ),
                 "target_identity_errors": list(
                     row.get("target_identity_errors", []) or []
+                ),
+                "target_identity_matches_expected": _bool_like(
+                    row.get("target_identity_matches_expected", False)
                 ),
                 "repair_target_identity_contract": dict(
                     row.get("repair_target_identity_contract", {}) or {}
@@ -27342,11 +27362,246 @@ def _proofengineer_repair_context_from_diagnostics(
         ],
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    exact_candidate_context = _formalizer_candidate_exact_proof_search_context(
+        manifest=manifest,
+        diagnostics=diagnostics,
+    )
+    if exact_candidate_context:
+        context.update(exact_candidate_context)
     return _proofengineer_repair_context_with_formal_source_grounding(
         context,
         formal_source_retriever=formal_source_retriever,
         unknown_identifiers=unknown_identifiers,
     )
+
+
+def _formalizer_candidate_exact_proof_search_context(
+    *,
+    manifest: Mapping[str, Any],
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Bind a failed exact Formalizer artifact to verifier-backed proof search.
+
+    The declaration parser and proof-body splitter come from the exact-source
+    executor. This function only validates runtime lineage and assembles the
+    typed handoff; it does not encode Lean grammar or propose a proof strategy.
+    """
+
+    question = (
+        manifest.get("question", {})
+        if isinstance(manifest.get("question", {}), Mapping)
+        else {}
+    )
+    question_id = str(question.get("id", "") or "").strip()
+    for diagnostic in diagnostics:
+        if (
+            _bool_like(
+                diagnostic.get("diagnostic_helper_not_source_theorem", False)
+            )
+            or _bool_like(
+                diagnostic.get("support_candidate_not_source_theorem", False)
+            )
+            or _bool_like(
+                diagnostic.get(
+                    "target_identity_mismatch_not_source_theorem",
+                    False,
+                )
+            )
+            or _bool_like(
+                diagnostic.get(
+                    "target_identity_unbound_not_source_theorem",
+                    False,
+                )
+            )
+            or not _bool_like(
+                diagnostic.get(
+                    "source_theorem_candidate_evidence_eligible",
+                    False,
+                )
+            )
+        ):
+            continue
+
+        provenance = (
+            dict(diagnostic.get("source_theorem_target_provenance", {}) or {})
+            if isinstance(
+                diagnostic.get("source_theorem_target_provenance", {}),
+                Mapping,
+            )
+            else {}
+        )
+        target_known = _source_theorem_target_known_value(diagnostic)
+        if target_known is not True:
+            target_known = _source_theorem_target_known_value(provenance)
+        if target_known is not True:
+            continue
+
+        target_declaration = str(
+            diagnostic.get("actual_target_lean_declaration", "")
+            or diagnostic.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        expected_declaration = str(
+            diagnostic.get("expected_target_lean_declaration", "")
+            or target_declaration
+        ).strip()
+        target_ids = tuple(
+            dict.fromkeys(
+                str(value).strip()
+                for value in diagnostic.get("target_ids", []) or []
+                if str(value).strip()
+            )
+        )
+        artifact_path_text = str(
+            diagnostic.get("artifact_path", "") or ""
+        ).strip()
+        expected_source_hash = str(
+            diagnostic.get("source_hash", "") or ""
+        ).strip()
+        identity_errors = tuple(
+            str(value).strip()
+            for value in diagnostic.get("target_identity_errors", []) or []
+            if str(value).strip()
+        )
+        if (
+            not target_declaration
+            or not expected_declaration
+            or expected_declaration != target_declaration
+            or not target_ids
+            or not artifact_path_text
+            or not expected_source_hash
+            or identity_errors
+        ):
+            continue
+        if (
+            _bool_like(diagnostic.get("repair_target_identity_required", False))
+            and str(
+                diagnostic.get("repair_target_identity_binding_status", "")
+                or ""
+            )
+            != "BOUND"
+        ):
+            continue
+
+        artifact_path = Path(artifact_path_text).expanduser()
+        try:
+            source = artifact_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if stable_hash(source) != expected_source_hash:
+            continue
+
+        lineage_seed = {
+            "manifest_id": str(manifest.get("manifest_id", "") or ""),
+            "task_id": str(manifest.get("task_id", "") or ""),
+            "question_id": question_id,
+            "candidate_id": str(diagnostic.get("candidate_id", "") or ""),
+            "source_hash": expected_source_hash,
+            "target_lean_declaration": target_declaration,
+            "target_ids": list(target_ids),
+        }
+        source_work_order_id = (
+            "runtime_formalizer_candidate_work_order:"
+            + stable_hash(lineage_seed)[:20]
+        )
+        execution_queue_id = (
+            "runtime_formalizer_candidate_proof_search_queue:"
+            + stable_hash([lineage_seed, source_work_order_id])[:20]
+        )
+        provenance.update(
+            {
+                "source_theorem_target_known": True,
+                "target_lean_declaration": target_declaration,
+                "target_ids": list(target_ids),
+                "source_work_order_id": source_work_order_id,
+                "execution_queue_id": execution_queue_id,
+            }
+        )
+        if question_id:
+            provenance["source_theorem_question_id"] = question_id
+
+        def string_tuple(value: Any) -> tuple[str, ...]:
+            values = value if isinstance(value, (list, tuple, set)) else [value]
+            return tuple(
+                dict.fromkeys(
+                    str(item).strip()
+                    for item in values
+                    if str(item or "").strip()
+                )
+            )
+
+        compiler_diagnostics = string_tuple(
+            [
+                *(diagnostic.get("precheck_errors", []) or []),
+                diagnostic.get("local_lean_stdout_excerpt", ""),
+                diagnostic.get("local_lean_stderr_excerpt", ""),
+            ]
+        )
+        exit_status = str(
+            diagnostic.get("local_lean_exit_status", "") or ""
+        ).strip()
+        try:
+            compiler_returncode = int(exit_status)
+        except ValueError:
+            compiler_returncode = -1
+        context = _external_exact_whole_proof_repair_context(
+            source=source,
+            target_declaration=target_declaration,
+            target_ids=target_ids,
+            candidate_artifact_path=artifact_path,
+            source_candidate_artifact_path=artifact_path_text,
+            proof_body_goal_excerpt=(),
+            proof_body_attempt_summaries=(
+                (
+                    "Formalizer candidate local Lean exit status="
+                    + (exit_status or "unavailable")
+                ),
+            ),
+            semantic_alignment_constraints=string_tuple(
+                provenance.get("semantic_alignment_constraints", [])
+            ),
+            semantic_alignment_blockers=string_tuple(
+                provenance.get("semantic_alignment_blockers", [])
+            ),
+            source_theorem_target_known=True,
+            source_theorem_target_identity_status=(
+                "SOURCE_THEOREM_TARGET_KNOWN"
+            ),
+            source_theorem_target_provenance=provenance,
+            expected_target_lean_declaration=expected_declaration,
+            source_work_order_id=source_work_order_id,
+            execution_queue_id=execution_queue_id,
+            signature_probe_artifact_path=artifact_path_text,
+            target_identity_status="TARGET_DECLARATION_MATCHED",
+            target_identity_errors=identity_errors,
+            target_identity_source=(
+                "runtime_formalizer_candidate_artifact_and_target_binding"
+            ),
+            source_theorem_kernel_evidence_eligible=False,
+            compiler_diagnostics=compiler_diagnostics,
+            compiler_returncode=compiler_returncode,
+            compiler_checked=_bool_like(
+                diagnostic.get("local_lean_attempted", False)
+            ),
+        )
+        if not context:
+            continue
+        return {
+            **context,
+            "formalizer_candidate_exact_search_eligible": True,
+            "formalizer_candidate_semantic_review_status": (
+                "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED"
+            ),
+            "source_theorem_promotion_blockers": [
+                "A Formalizer-generated declaration requires independent semantic "
+                "faithfulness review before it can be promoted as the source theorem."
+            ],
+            "proof_search_role": (
+                "Verifier-backed whole-proof proposal and compiler-feedback search; "
+                "not source-theorem proof evidence."
+            ),
+        }
+    return {}
 
 
 def _proofengineer_repair_context_with_route_feedback(

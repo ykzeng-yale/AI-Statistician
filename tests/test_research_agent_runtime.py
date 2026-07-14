@@ -30980,6 +30980,190 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
 
 
+def _generic_failed_exact_formalizer_manifest(
+    candidate: Path,
+) -> dict[str, Any]:
+    source = (
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact missing\n"
+    )
+    candidate.write_text(source, encoding="utf-8")
+    return {
+        "schema_version": 1,
+        "manifest_id": "formalizer_lean_candidate_materialization:generic_exact",
+        "manifest_path": str(candidate.parent / "manifest.json"),
+        "question": {
+            "id": "generic_theorem_search",
+            "title": "Generic exact theorem search",
+        },
+        "task_id": "formalize-lean:generic_theorem_search",
+        "source_formalizer_packet_id": "formalizer_proposal:generic_exact",
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 0,
+        "candidate_rows": [
+            {
+                "schema_version": 1,
+                "candidate_id": "generic_exact_source",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "source_hash": runtime_module.stable_hash(source),
+                "lean_source_excerpt": source,
+                "artifact_path": str(candidate),
+                "target_lean_declaration": "exact_source",
+                "actual_target_lean_declaration": "exact_source",
+                "expected_target_lean_declaration": "exact_source",
+                "target_ids": ["generic_exact_goal"],
+                "target_theorem_goal_ids": ["generic_exact_goal"],
+                "target_theorem_name": "generic_exact_goal",
+                "source_theorem_target_known": True,
+                "source_theorem_candidate_evidence_eligible": True,
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "source_theorem_question_id": "generic_theorem_search",
+                    "source_theorem_goal_id": "generic_exact_goal",
+                    "target_lean_declaration": "exact_source",
+                    "semantic_alignment_constraints": [
+                        "Preserve the exact proposition and hypotheses."
+                    ],
+                },
+                "diagnostic_helper_not_source_theorem": False,
+                "support_candidate_not_source_theorem": False,
+                "repair_target_identity_required": False,
+                "target_identity_matches_expected": True,
+                "target_identity_mismatch_not_source_theorem": False,
+                "target_identity_unbound_not_source_theorem": False,
+                "target_identity_errors": [],
+                "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": False,
+                "local_lean_exit_status": "1",
+                "local_lean_stdout": (
+                    "error(lean.unknownIdentifier): Unknown identifier `missing`"
+                ),
+                "local_lean_stderr": "",
+                "local_lean_project": "/tmp/generic-lean-project",
+                "local_lean_timeout": 30,
+                "local_lean_skipped_reason": "",
+            }
+        ],
+    }
+
+
+def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    manifest = _generic_failed_exact_formalizer_manifest(candidate)
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert feedback is not None
+    context = feedback["proofengineer_repair_context"]
+    assert context["context_kind"] == "exact_source_theorem_whole_proof_repair"
+    assert context["target_lean_declaration"] == "exact_source"
+    assert context["target_theorem_statement"] == (
+        "theorem exact_source (p : Prop) (hp : p) : p"
+    )
+    assert context["formalizer_candidate_exact_search_eligible"] is True
+    assert context["source_theorem_kernel_evidence_eligible"] is False
+    assert context["formalizer_candidate_semantic_review_status"] == (
+        "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED"
+    )
+    assert context["lineage_candidate_artifact_hash"] == (
+        runtime_module.stable_hash(candidate.read_text(encoding="utf-8"))
+    )
+    assert context["source_lineage_id"]
+
+    question = OpenResearchQuestion(
+        "generic_theorem_search",
+        "Generic exact theorem search",
+        "Exercise exact target routing without a statistical-family policy.",
+        (),
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:generic_theorem_search",
+        owner_subsystem="ProofEngineer",
+        objective="repair the exact theorem through verifier-backed search",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": feedback,
+            "architect_context": {},
+        },
+    )
+    request = runtime_module._runtime_external_proof_search_request(
+        task=task,
+        question=question,
+        environment_feedback=feedback,
+    )
+    assert request["target_lean_declaration"] == "exact_source"
+    assert request["source_theorem_kernel_evidence_eligible"] is False
+
+    class ProviderMustRunInDedicatedWorker:
+        name = "fixture_verifier_backed_search"
+
+        def run(self, _request):
+            raise AssertionError("ProofEngineer must dispatch before provider execution")
+
+    subsystem = ProofEngineerRuntimeSubsystem(
+        proof_search_provider=ProviderMustRunInDedicatedWorker(),
+        external_prover_task_owner="ExactSourceTheoremProver",
+        max_proof_obligations=0,
+    )
+    result = subsystem.run(
+        task,
+        BlackboardState(project_id="generic", artifacts={}),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ExactSourceTheoremProver"
+    work_order = next(iter(result.produced_artifacts.values()))
+    assert work_order["request"]["target_theorem_statement"] == (
+        context["target_theorem_statement"]
+    )
+    assert work_order["request"]["source_lineage_id"] == (
+        context["source_lineage_id"]
+    )
+
+
+def test_formalizer_exact_candidate_hash_drift_fails_closed(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "ExactSource.lean"
+    manifest = _generic_failed_exact_formalizer_manifest(candidate)
+    candidate.write_text(
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n  exact hp\n",
+        encoding="utf-8",
+    )
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert feedback is not None
+    context = feedback["proofengineer_repair_context"]
+    assert "formalizer_candidate_exact_search_eligible" not in context
+    assert "target_theorem_statement" not in context
+    question = OpenResearchQuestion(
+        "generic_theorem_search",
+        "Generic exact theorem search",
+        "Exercise exact target routing without a statistical-family policy.",
+        (),
+    )
+    task = AgentTask(
+        task_id="formalize-lean-repair:generic_theorem_search",
+        owner_subsystem="ProofEngineer",
+        objective="repair the exact theorem through verifier-backed search",
+        inputs={},
+    )
+    assert runtime_module._runtime_external_proof_search_request(
+        task=task,
+        question=question,
+        environment_feedback=feedback,
+    ) == {}
+
+
 def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding() -> None:
     class DummyFormalSourceRetriever:
         def __init__(self) -> None:
