@@ -9747,7 +9747,14 @@ def test_runtime_capability_gap_routing_loader_pins_deferred_meta_resolution(
     assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
-def test_capability_feedback_commands_keep_fresh_rerun_free_of_prior_memory() -> None:
+def test_capability_feedback_commands_keep_fresh_rerun_free_of_prior_memory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "_default_openprover_root",
+        lambda: "/tmp/source-controlled-openprover",
+    )
     payload = {
         "runtime_dir": "runs/current",
         "runtime_resumable_manifest_path": "runs/current/research_agent_runtime_manifest.json",
@@ -99833,6 +99840,8 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalizer_candidate_local_lean=False,
         formalizer_candidate_lean_lsp_mcp=False,
         formalizer_candidate_lean_project="",
+        openprover_hlm=False,
+        openprover_root="",
         theorem_closure_proofengineer_bridge=False,
         theorem_closure_proofengineer_local_lean=False,
         theorem_closure_proofengineer_lean_project="",
@@ -100157,6 +100166,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.generated_code_semantic_reviewer_provider == "same"
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_lsp_mcp is True
+    assert args.openprover_hlm is True
     assert args.openprover_root == "/tmp/source-controlled-openprover"
     assert args.max_iterations == 24
     assert args.min_task_families == 2
@@ -100222,6 +100232,14 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
 
     args.formalizer_candidate_lean_lsp_mcp = True
+    args.openprover_hlm = False
+    assert (
+        "capability eval preset full-live requires verifier-backed "
+        "OpenProver whole-theorem search; missing --openprover-hlm "
+        "or a discoverable --openprover-root"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.openprover_hlm = True
     args.formalization_gap_planner_live_route_planner = False
     assert (
         "capability eval preset full-live requires the integrated live "
@@ -100276,6 +100294,21 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         "Formalizer proof-state repair turn; set "
         "--max-formalizer-proof-state-repair-rounds > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
+
+
+def test_capability_eval_full_live_fails_closed_without_openprover(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli_module, "_default_openprover_root", lambda: "")
+    args = _capability_eval_preset_args("full-live")
+    args.llm_timeout_seconds = 240.0
+
+    _apply_research_agent_runtime_capability_eval_preset(args)
+
+    assert args.openprover_hlm is False
+    errors = _research_agent_runtime_capability_config_errors(args)
+    assert any("requires verifier-backed OpenProver" in error for error in errors)
+    assert any("requires --openprover-root" in error for error in errors)
 
 
 def test_capability_eval_full_live_preserves_explicit_gap_planner_timeout() -> None:

@@ -14055,6 +14055,9 @@ def _apply_research_agent_runtime_capability_eval_preset(
             discovered_openprover_root = _default_openprover_root()
             if discovered_openprover_root:
                 args.openprover_root = discovered_openprover_root
+        args.openprover_hlm = bool(
+            str(getattr(args, "openprover_root", "") or "").strip()
+        )
         args.formalization_gap_planner_live_route_planner = True
         if (
             int(
@@ -14656,6 +14659,17 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        if not bool(getattr(args, "openprover_hlm", False)):
+            errors.append(
+                "capability eval preset full-live requires verifier-backed "
+                "OpenProver whole-theorem search; missing --openprover-hlm "
+                "or a discoverable --openprover-root"
+            )
+        if not str(getattr(args, "openprover_root", "") or "").strip():
+            errors.append(
+                "capability eval preset full-live requires --openprover-root "
+                "so ProofEngineer can execute compiler-feedback proof search"
+            )
         if not bool(
             getattr(args, "formalization_gap_planner_live_route_planner", False)
         ):
@@ -22314,8 +22328,9 @@ def build_parser() -> argparse.ArgumentParser:
             "the scorecard gates. minimal-live enables live providers and the "
             "internal Lean/ProofEngineer paths; full-live requires at least two "
             "task families and enables the integrated generated-code repair, "
-            "Formalizer/Lean feedback, live Lean-LSP/MCP, PF/BV runtime, and "
-            "FormalizationGapPlanner route-planner paths. Optional standalone "
+            "Formalizer/Lean feedback, live Lean-LSP/MCP, verifier-backed "
+            "OpenProver whole-theorem search, PF/BV runtime, and bounded "
+            "FormalizationGapPlanner fallback paths. Optional standalone "
             "component calibration remains separate. "
             "Static fixtures never become capability evidence."
         ),
