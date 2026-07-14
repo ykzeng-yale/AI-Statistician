@@ -75,6 +75,15 @@ from .generated_code_semantic_reviewer_llm import (
     LLMGeneratedCodeSemanticReviewerAgent,
     validate_generated_code_semantic_review_packet,
 )
+from .formal_target_semantic_reviewer_llm import (
+    FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
+    LLMFormalTargetSemanticReviewerAgent,
+)
+from .formal_target_semantic_review_runtime import (
+    FORMAL_TARGET_SEMANTIC_REVIEWER_SUBSYSTEM,
+    FormalTargetSemanticReviewerRuntimeSubsystem,
+    _runtime_formal_target_semantic_review_dispatch,
+)
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
     _lean_command as _runtime_owned_lean_command,
@@ -7232,6 +7241,8 @@ class ResearchAgentRuntimeConfig:
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     generated_code_semantic_review_max_revisions: int = 1
+    formal_target_semantic_review_required: bool = False
+    formal_target_semantic_review_max_revisions: int = 2
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
     resume_through_architect: bool = False
     formal_verification_policy: str = "optional"
@@ -7403,6 +7414,7 @@ def _runtime_requested_evidence_contract(
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0,
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0,
+    formal_target_semantic_review_required: bool = False,
 ) -> dict[str, Any]:
     policy = _normalized_formal_verification_policy(formal_verification_policy)
     path = _normalized_recommended_research_path(
@@ -7418,6 +7430,9 @@ def _runtime_requested_evidence_contract(
         "capability_eval_requires_generated_algorithm_code": capability_eval,
         "capability_eval_requires_generated_simulation_code": capability_eval,
         "capability_eval_requires_generated_code_semantic_review": capability_eval,
+        "capability_eval_requires_formal_target_semantic_review": bool(
+            capability_eval and formal_target_semantic_review_required
+        ),
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
         "formal_targets": (
             ["source theorem or required subclaims kernel verified"]
@@ -7480,6 +7495,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0,
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0,
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0,
+    formal_target_semantic_review_required: bool = False,
 ) -> dict[str, Any]:
     payload = dict(context or {})
     requested_contract = _runtime_requested_evidence_contract(
@@ -7494,6 +7510,9 @@ def _runtime_architect_context_with_requested_evidence_contract(
         ),
         formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=(
             formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
+        ),
+        formal_target_semantic_review_required=(
+            formal_target_semantic_review_required
         ),
     )
     existing_contract = payload.get("runtime_requested_evidence_contract", {})
@@ -9122,6 +9141,8 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "algorithm": "AlgorithmEngineer",
         "generatedcodesemanticreviewer": "GeneratedCodeSemanticReviewer",
         "codesemanticreviewer": "GeneratedCodeSemanticReviewer",
+        "formaltargetsemanticreviewer": "FormalTargetSemanticReviewer",
+        "theoremsemanticreviewer": "FormalTargetSemanticReviewer",
         "formalizationevaluator": "FormalizationEvaluator",
         "formalizationgapplanner": "FormalizationGapPlanner",
         "formalizationgap": "FormalizationGapPlanner",
@@ -9167,6 +9188,7 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "SimulationEvaluator",
         "AlgorithmEngineer",
         "GeneratedCodeSemanticReviewer",
+        "FormalTargetSemanticReviewer",
         "FormalizationEvaluator",
         "FormalizationGapPlanner",
         "ProofEngineer",
@@ -12237,6 +12259,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
 
 
+
+
 class SimulationEvaluatorRuntimeSubsystem:
     name = "SimulationEvaluator"
 
@@ -14952,6 +14976,17 @@ def _runtime_external_proof_search_request(
         )
         else {}
     )
+    semantic_review_status = str(
+        repair_context.get("formalizer_candidate_semantic_review_status", "")
+        or ""
+    ).strip()
+    accepted_semantic_review_status = (
+        "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
+    )
+    if semantic_review_status and (
+        semantic_review_status != accepted_semantic_review_status
+    ):
+        return {}
     if (
         "external_proof_search_dispatch_eligible" in repair_context
         and not _bool_like(
@@ -14972,6 +15007,77 @@ def _runtime_external_proof_search_request(
     ).strip()
     if not target_statement or not target_declaration:
         return {}
+    if semantic_review_status == accepted_semantic_review_status:
+        candidate_path = str(
+            repair_context.get("candidate_artifact_path", "")
+            or repair_context.get("source_candidate_artifact_path", "")
+            or ""
+        ).strip()
+        current_candidate_hash = str(
+            repair_context.get("lineage_candidate_artifact_hash", "")
+            or repair_context.get("target_declaration_source_hash", "")
+            or ""
+        ).strip()
+        current_target_hash = str(
+            repair_context.get("target_theorem_statement_hash", "") or ""
+        ).strip()
+        reviewed_candidate_hash = str(
+            repair_context.get(
+                "formalizer_candidate_semantic_review_candidate_source_hash",
+                "",
+            )
+            or ""
+        ).strip()
+        reviewed_target_hash = str(
+            repair_context.get(
+                "formalizer_candidate_semantic_review_target_statement_hash",
+                "",
+            )
+            or ""
+        ).strip()
+        review_execution_id = str(
+            repair_context.get(
+                "formalizer_candidate_semantic_review_execution_id",
+                "",
+            )
+            or ""
+        ).strip()
+        review_packet_id = str(
+            repair_context.get(
+                "formalizer_candidate_semantic_review_packet_id",
+                "",
+            )
+            or ""
+        ).strip()
+        review_packet_hash = str(
+            repair_context.get(
+                "formalizer_candidate_semantic_review_packet_hash",
+                "",
+            )
+            or ""
+        ).strip()
+        current_candidate_source = ""
+        if candidate_path:
+            try:
+                current_candidate_source = Path(candidate_path).expanduser().read_text(
+                    encoding="utf-8"
+                )
+            except OSError:
+                current_candidate_source = ""
+        if (
+            not candidate_path
+            or not current_candidate_hash
+            or not current_candidate_source
+            or stable_hash(current_candidate_source) != current_candidate_hash
+            or not current_target_hash
+            or stable_hash(target_statement) != current_target_hash
+            or reviewed_candidate_hash != current_candidate_hash
+            or reviewed_target_hash != current_target_hash
+            or not review_execution_id
+            or not review_packet_id
+            or not review_packet_hash
+        ):
+            return {}
     compiler_feedback = (
         dict(repair_context.get("compiler_feedback", {}) or {})
         if isinstance(repair_context.get("compiler_feedback", {}), Mapping)
@@ -15137,6 +15243,49 @@ def _runtime_external_proof_search_request(
             for value in repair_context.get("semantic_alignment_blockers", []) or []
             if str(value).strip()
         ][:12],
+        "formal_target_semantic_review": (
+            {
+                "status": semantic_review_status,
+                "execution_id": str(
+                    repair_context.get(
+                        "formalizer_candidate_semantic_review_execution_id",
+                        "",
+                    )
+                    or ""
+                ),
+                "review_packet_id": str(
+                    repair_context.get(
+                        "formalizer_candidate_semantic_review_packet_id",
+                        "",
+                    )
+                    or ""
+                ),
+                "review_packet_hash": str(
+                    repair_context.get(
+                        "formalizer_candidate_semantic_review_packet_hash",
+                        "",
+                    )
+                    or ""
+                ),
+                "candidate_source_hash": str(
+                    repair_context.get(
+                        "formalizer_candidate_semantic_review_candidate_source_hash",
+                        "",
+                    )
+                    or ""
+                ),
+                "target_theorem_statement_hash": str(
+                    repair_context.get(
+                        "formalizer_candidate_semantic_review_target_statement_hash",
+                        "",
+                    )
+                    or ""
+                ),
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+            if semantic_review_status == accepted_semantic_review_status
+            else {}
+        ),
         "lean_header": _runtime_external_proof_search_lean_header(repair_context),
         "proof_evidence_status": "PROOF_SEARCH_REQUEST_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
@@ -17772,6 +17921,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
         lean_candidate_lean_timeout: int = 30,
         architect_coordinator_available: bool = False,
         pseudo_formal_block_verifier_available: bool = False,
+        formal_target_semantic_reviewer_available: bool = False,
+        formal_target_semantic_review_max_revisions: int = 2,
         runtime_config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
     ) -> None:
         self.proposal_agent = proposal_agent
@@ -17783,6 +17934,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
         self.architect_coordinator_available = architect_coordinator_available
         self.pseudo_formal_block_verifier_available = bool(
             pseudo_formal_block_verifier_available
+        )
+        self.formal_target_semantic_reviewer_available = bool(
+            formal_target_semantic_reviewer_available
+        )
+        self.formal_target_semantic_review_max_revisions = max(
+            0,
+            int(formal_target_semantic_review_max_revisions or 0),
         )
         self.runtime_config = runtime_config
         self.formal_source_retriever = formal_source_retriever
@@ -20361,6 +20519,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
         exact_semantic_definition_dispatch_evidence: EvidenceLedgerEntry | None = None
         source_semantic_dispatch_evidence: EvidenceLedgerEntry | None = None
         source_theorem_promotion_dispatch_evidence: EvidenceLedgerEntry | None = None
+        formal_target_semantic_review_dispatch_evidence: (
+            EvidenceLedgerEntry | None
+        ) = None
         if lean_candidate_repair_feedback is not None:
             observations.append(
                 EnvironmentObservation(
@@ -20643,20 +20804,75 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     acceptance_gate=next_acceptance_gate,
                     stop_condition=next_stop_condition,
                 )
-                result_status = "REVISE"
-                result_rationale = (
-                    "Runtime checked the LLM Formalizer Lean candidate and found "
-                    "local Lean/precheck failures; diagnostics are routed to the "
-                    "internal ProofEngineer repair loop before CriticEvaluator "
-                    "summarization."
-                )
-                failure_classification = str(
-                    lean_candidate_repair_feedback.get(
-                        "failure_classification",
-                        "formalizer_lean_candidate_local_lean_failed",
+                formal_target_review_dispatch = (
+                    _runtime_formal_target_semantic_review_dispatch(
+                        task=task,
+                        question=question,
+                        source_subsystem=subsystem_name,
+                        candidate_materialization=(
+                            lean_candidate_materialization
+                            if isinstance(
+                                lean_candidate_materialization, Mapping
+                            )
+                            else {}
+                        ),
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        proposal_packet=(
+                            proposal_packet
+                            if isinstance(proposal_packet, Mapping)
+                            else {}
+                        ),
+                        repair_feedback=lean_candidate_repair_feedback,
+                        architect_context=context,
+                        deferred_next_task=next_task,
+                        max_revisions=(
+                            self.formal_target_semantic_review_max_revisions
+                        ),
                     )
-                    or "formalizer_lean_candidate_local_lean_failed"
+                    if self.formal_target_semantic_reviewer_available
+                    else None
                 )
+                if formal_target_review_dispatch is not None:
+                    formal_target_review_work_order_id = str(
+                        formal_target_review_dispatch.get("work_order_id", "")
+                        or ""
+                    )
+                    produced_artifacts[formal_target_review_work_order_id] = dict(
+                        formal_target_review_dispatch["work_order"]
+                    )
+                    observations.append(
+                        formal_target_review_dispatch["observation"]
+                    )
+                    formal_target_semantic_review_dispatch_evidence = (
+                        formal_target_review_dispatch["evidence"]
+                    )
+                    next_task = formal_target_review_dispatch["next_task"]
+                    result_status = "REROUTE"
+                    result_rationale = (
+                        "Runtime materialized a hash-bound exact theorem target; "
+                        "independent mathematical semantic review must accept the "
+                        "statement before ProofEngineer or OpenProver may search it."
+                    )
+                    failure_classification = (
+                        "formal_target_semantic_review_required_before_proof_search"
+                    )
+                else:
+                    result_status = "REVISE"
+                    result_rationale = (
+                        "Runtime checked the LLM Formalizer Lean candidate and found "
+                        "local Lean/precheck failures; diagnostics are routed to the "
+                        "internal ProofEngineer repair loop before CriticEvaluator "
+                        "summarization."
+                    )
+                    failure_classification = str(
+                        lean_candidate_repair_feedback.get(
+                            "failure_classification",
+                            "formalizer_lean_candidate_local_lean_failed",
+                        )
+                        or "formalizer_lean_candidate_local_lean_failed"
+                    )
         elif proof_state_routing_task is not None:
             routing_decision = (
                 proof_state_routing_manifest.get("decision", {})
@@ -20715,6 +20931,75 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ),
                 stop_condition="critic agenda and learning rows recorded",
             )
+            compiled_exact_review_feedback = (
+                _formalizer_compiled_exact_candidate_semantic_review_feedback(
+                    lean_candidate_materialization
+                )
+                if self.formal_target_semantic_reviewer_available
+                and isinstance(lean_candidate_materialization, Mapping)
+                else None
+            )
+            compiled_exact_review_dispatch: dict[str, Any] | None = None
+            if compiled_exact_review_feedback is not None:
+                compiled_next_inputs = dict(task.inputs)
+                compiled_next_inputs["environment_feedback"] = (
+                    compiled_exact_review_feedback
+                )
+                compiled_exact_proofengineer_task = AgentTask(
+                    task_id=(
+                        f"compiled-exact-target-proofengineer:{question.id}:"
+                        f"{stable_hash([manifest_id, compiled_exact_review_feedback])[:8]}"
+                    ),
+                    owner_subsystem="ProofEngineer",
+                    objective=(
+                        "Consume an independently reviewed, already-compiling exact "
+                        "theorem target through the typed source-proof gate."
+                    ),
+                    inputs=compiled_next_inputs,
+                    allowed_tools=tuple(
+                        dict.fromkeys(
+                            (
+                                *task.allowed_tools,
+                                "model_backend",
+                                "local_lean",
+                                "lean_lsp_mcp",
+                                "formal_source_retrieval",
+                                "proof_search",
+                            )
+                        )
+                    ),
+                    expected_artifacts=task.expected_artifacts,
+                    acceptance_gate=(
+                        "independent semantic acceptance plus an exact runtime-owned "
+                        "kernel rerun is required for source-theorem promotion"
+                    ),
+                    stop_condition=(
+                        "exact source theorem is kernel verified or an explicit "
+                        "formal blocker is recorded"
+                    ),
+                )
+                compiled_exact_review_dispatch = (
+                    _runtime_formal_target_semantic_review_dispatch(
+                        task=task,
+                        question=question,
+                        source_subsystem=subsystem_name,
+                        candidate_materialization=lean_candidate_materialization,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        proposal_packet=(
+                            proposal_packet
+                            if isinstance(proposal_packet, Mapping)
+                            else {}
+                        ),
+                        repair_feedback=compiled_exact_review_feedback,
+                        architect_context=context,
+                        deferred_next_task=compiled_exact_proofengineer_task,
+                        max_revisions=(
+                            self.formal_target_semantic_review_max_revisions
+                        ),
+                    )
+                )
             exact_semantic_definition_runtime_dispatch_ready = bool(
                 exact_semantic_definition_work_orders
                 and self.runtime_config.source_theorem_exact_semantic_definition_proofengineer_bridge
@@ -20742,7 +21027,24 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 and self.proposal_agent is not None
                 and pending_pseudo_formal_block_verifier_rows
             )
-            if pseudo_formal_block_verifier_runtime_dispatch_ready:
+            if compiled_exact_review_dispatch is not None:
+                compiled_review_work_order_id = str(
+                    compiled_exact_review_dispatch.get("work_order_id", "") or ""
+                )
+                produced_artifacts[compiled_review_work_order_id] = dict(
+                    compiled_exact_review_dispatch["work_order"]
+                )
+                observations.append(compiled_exact_review_dispatch["observation"])
+                formal_target_semantic_review_dispatch_evidence = (
+                    compiled_exact_review_dispatch["evidence"]
+                )
+                next_task = compiled_exact_review_dispatch["next_task"]
+                result_rationale = (
+                    "Runtime observed an already-compiling exact theorem artifact, "
+                    "but routed it through independent whole-target mathematical "
+                    "review before source-proof promotion or further prover work."
+                )
+            elif pseudo_formal_block_verifier_runtime_dispatch_ready:
                 formalizer_config = getattr(self.proposal_agent, "config", None)
                 verifier_provider_name = str(
                     getattr(formalizer_config, "provider_name", "") or ""
@@ -21278,6 +21580,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     exact_semantic_definition_dispatch_evidence,
                     source_semantic_dispatch_evidence,
                     source_theorem_promotion_dispatch_evidence,
+                    formal_target_semantic_review_dispatch_evidence,
                     source_theorem_promotion_generation_response_binding_evidence,
                 )
                 if row is not None
@@ -27616,7 +27919,11 @@ def _formalizer_candidate_exact_proof_search_context(
         return {
             **context,
             "formalizer_candidate_exact_search_eligible": True,
-            "external_proof_search_dispatch_eligible": True,
+            "external_proof_search_dispatch_eligible": False,
+            "external_proof_search_dispatch_blockers": [
+                "Independent whole-target semantic review must accept this exact "
+                "hash-bound statement before external prover search."
+            ],
             "formalizer_candidate_semantic_review_status": (
                 "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED"
             ),
@@ -27630,6 +27937,63 @@ def _formalizer_candidate_exact_proof_search_context(
             ),
         }
     return {}
+
+
+def _formalizer_compiled_exact_candidate_semantic_review_feedback(
+    manifest: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Bind an already-compiling exact candidate to whole-target review.
+
+    Local Lean establishes only that the generated artifact compiles. The same
+    immutable target must still pass independent mathematical review before it
+    can enter source-theorem proof promotion or external prover search.
+    """
+
+    compiled_exact_rows = [
+        dict(row)
+        for row in manifest.get("candidate_rows", []) or []
+        if isinstance(row, Mapping)
+        and _bool_like(row.get("local_lean_compiled", False))
+        and _bool_like(
+            row.get("source_theorem_candidate_evidence_eligible", False)
+        )
+        and not _bool_like(
+            row.get("diagnostic_helper_not_source_theorem", False)
+        )
+        and not _bool_like(row.get("support_candidate_not_source_theorem", False))
+    ]
+    if not compiled_exact_rows:
+        return None
+    context = _formalizer_candidate_exact_proof_search_context(
+        manifest=manifest,
+        diagnostics=compiled_exact_rows,
+    )
+    if not context:
+        return None
+    context["external_proof_search_dispatch_eligible"] = False
+    context["external_proof_search_dispatch_blockers"] = [
+        "The exact candidate compiles, but independent whole-target semantic "
+        "review must accept its mathematical meaning before prover search or "
+        "source-theorem promotion."
+    ]
+    return {
+        "feedback_type": "formal_target_semantic_review_required_feedback",
+        "failure_classification": (
+            "formal_target_semantic_review_required_before_proof_search"
+        ),
+        "source_manifest_id": str(manifest.get("manifest_id", "") or ""),
+        "repair_owner_agent": "FormalTargetSemanticReviewer",
+        "proofengineer_repair_context": context,
+        "required_review": (
+            "Independently compare the exact theorem statement and full Lean "
+            "source with the question, TheoryDeveloper derivation, assumptions, "
+            "quantifiers, conclusion, and semantic constraints."
+        ),
+        "proof_evidence_status": (
+            "COMPILED_FORMAL_TARGET_REQUIRES_SEMANTIC_REVIEW_NOT_SOURCE_PROOF"
+        ),
+        "proof_evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
+    }
 
 
 def _proofengineer_repair_context_with_route_feedback(
@@ -34403,6 +34767,9 @@ def run_research_agent_runtime(
     generated_code_semantic_reviewer: (
         LLMGeneratedCodeSemanticReviewerAgent | None
     ) = None,
+    formal_target_semantic_reviewer: (
+        LLMFormalTargetSemanticReviewerAgent | None
+    ) = None,
     proof_verifier: ProofVerifier | None = None,
     proof_state_provider: ProofStateFeedbackProvider | None = None,
     formal_source_retriever: Any | None = None,
@@ -34419,6 +34786,14 @@ def run_research_agent_runtime(
         raise ValueError(
             "capability_eval requires an independent "
             "GeneratedCodeSemanticReviewer"
+        )
+    if (
+        config.formal_target_semantic_review_required
+        and formal_target_semantic_reviewer is None
+    ):
+        raise ValueError(
+            "formal_target_semantic_review_required requires an independent "
+            "FormalTargetSemanticReviewer"
         )
     formal_verification_policy = _normalized_formal_verification_policy(
         config.formal_verification_policy
@@ -34445,6 +34820,9 @@ def run_research_agent_runtime(
             ),
             formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=(
                 config.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
+            ),
+            formal_target_semantic_review_required=(
+                config.formal_target_semantic_review_required
             ),
         )
     )
@@ -34491,6 +34869,7 @@ def run_research_agent_runtime(
         formalizer=formalizer,
         critic_evaluator=critic_evaluator,
         generated_code_semantic_reviewer=generated_code_semantic_reviewer,
+        formal_target_semantic_reviewer=formal_target_semantic_reviewer,
         proof_state_provider=proof_state_provider,
     )
     if llm_topology["policy_status"] != "OK":
@@ -34560,6 +34939,12 @@ def run_research_agent_runtime(
                 config.pseudo_formal_block_verifier_runtime
                 and formalizer is not None
             ),
+            formal_target_semantic_reviewer_available=(
+                formal_target_semantic_reviewer is not None
+            ),
+            formal_target_semantic_review_max_revisions=(
+                config.formal_target_semantic_review_max_revisions
+            ),
             runtime_config=config,
         )
         proofengineer_subsystem = ProofEngineerRuntimeSubsystem(
@@ -34588,6 +34973,12 @@ def run_research_agent_runtime(
             pseudo_formal_block_verifier_available=bool(
                 config.pseudo_formal_block_verifier_runtime
                 and formalizer is not None
+            ),
+            formal_target_semantic_reviewer_available=(
+                formal_target_semantic_reviewer is not None
+            ),
+            formal_target_semantic_review_max_revisions=(
+                config.formal_target_semantic_review_max_revisions
             ),
             runtime_config=config,
         )
@@ -34769,6 +35160,15 @@ def run_research_agent_runtime(
                     reviewer=generated_code_semantic_reviewer,
                     max_revisions=(
                         config.generated_code_semantic_review_max_revisions
+                    ),
+                )
+            )
+        if formal_target_semantic_reviewer is not None:
+            subsystems[FORMAL_TARGET_SEMANTIC_REVIEWER_SUBSYSTEM] = (
+                FormalTargetSemanticReviewerRuntimeSubsystem(
+                    reviewer=formal_target_semantic_reviewer,
+                    max_revisions=(
+                        config.formal_target_semantic_review_max_revisions
                     ),
                 )
             )
@@ -52291,6 +52691,9 @@ def _runtime_llm_topology(
     generated_code_semantic_reviewer: (
         LLMGeneratedCodeSemanticReviewerAgent | None
     ) = None,
+    formal_target_semantic_reviewer: (
+        LLMFormalTargetSemanticReviewerAgent | None
+    ) = None,
     proof_state_provider: ProofStateFeedbackProvider | None,
 ) -> dict[str, Any]:
     agents = [
@@ -52325,6 +52728,14 @@ def _runtime_llm_topology(
             role=(
                 "independent semantic review of exact executed generated code, "
                 "runtime arguments, metrics, theory, and frozen protocols"
+            ),
+        ),
+        _llm_agent_topology_row(
+            "FormalTargetSemanticReviewer",
+            formal_target_semantic_reviewer,
+            role=(
+                "independent mathematical review of exact theorem statements "
+                "against the question, derivation, assumptions, and constraints"
             ),
         ),
         _llm_agent_topology_row(
@@ -52427,6 +52838,9 @@ def _runtime_llm_topology(
         "generated_code_semantic_reviewer_provider": _subsystem_field(
             "GeneratedCodeSemanticReviewer", "provider_name"
         ),
+        "formal_target_semantic_reviewer_provider": _subsystem_field(
+            "FormalTargetSemanticReviewer", "provider_name"
+        ),
         "architect_model": _subsystem_field("ArchitectCoordinator", "model"),
         "theory_developer_model": _subsystem_field("TheoryDeveloper", "model"),
         "simulation_engineer_model": _subsystem_field("SimulationEngineer", "model"),
@@ -52435,6 +52849,9 @@ def _runtime_llm_topology(
         "critic_evaluator_model": _subsystem_field("CriticEvaluator", "model"),
         "generated_code_semantic_reviewer_model": _subsystem_field(
             "GeneratedCodeSemanticReviewer", "model"
+        ),
+        "formal_target_semantic_reviewer_model": _subsystem_field(
+            "FormalTargetSemanticReviewer", "model"
         ),
         "architect_model_tier": _subsystem_field("ArchitectCoordinator", "model_tier"),
         "theory_developer_model_tier": _subsystem_field("TheoryDeveloper", "model_tier"),
@@ -52452,6 +52869,9 @@ def _runtime_llm_topology(
         ),
         "generated_code_semantic_reviewer_model_tier": _subsystem_field(
             "GeneratedCodeSemanticReviewer", "model_tier"
+        ),
+        "formal_target_semantic_reviewer_model_tier": _subsystem_field(
+            "FormalTargetSemanticReviewer", "model_tier"
         ),
         "policy_status": "OK" if not violations else "POLICY_VIOLATION",
         "policy_violations": violations,

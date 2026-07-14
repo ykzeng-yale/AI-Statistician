@@ -17914,15 +17914,21 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
         > 0
     ]
 
-    assert subsystems[:5] == [
+    assert subsystems[:4] == [
         "ArchitectCoordinator",
         "AlgorithmEngineer",
-        "ArchitectCoordinator",
         "GeneratedCodeSemanticReviewer",
         "SimulationEvaluator",
     ]
     assert len(algorithm_engineer.feedbacks) == 1
-    assert len(simulation_engineer.feedbacks) == 1
+    assert len(simulation_engineer.feedbacks) == 2
+    assert all(
+        feedback["runtime_requested_evidence_contract"][
+            "capability_eval_requires_generated_simulation_code"
+        ]
+        is True
+        for feedback in simulation_engineer.feedbacks
+    )
     assert manifest["n_generated_code_sandbox_passed"] == 1
     assert generated_simulation_artifacts
     assert generated_simulation_artifacts[-1][
@@ -31053,7 +31059,7 @@ def _generic_failed_exact_formalizer_manifest(
     }
 
 
-def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
+def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
     tmp_path: Path,
 ) -> None:
     candidate = tmp_path / "ExactSource.lean"
@@ -31068,7 +31074,7 @@ def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
         "theorem exact_source (p : Prop) (hp : p) : p"
     )
     assert context["formalizer_candidate_exact_search_eligible"] is True
-    assert context["external_proof_search_dispatch_eligible"] is True
+    assert context["external_proof_search_dispatch_eligible"] is False
     assert context["source_theorem_kernel_evidence_eligible"] is False
     assert context["formalizer_candidate_semantic_review_status"] == (
         "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED"
@@ -31094,13 +31100,51 @@ def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
             "architect_context": {},
         },
     )
-    request = runtime_module._runtime_external_proof_search_request(
+    assert runtime_module._runtime_external_proof_search_request(
         task=task,
         question=question,
         environment_feedback=feedback,
+    ) == {}
+
+    accepted_context = dict(context)
+    accepted_context.update(
+        {
+            "formalizer_candidate_semantic_review_status": (
+                "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
+            ),
+            "formalizer_candidate_semantic_review_execution_id": (
+                "formal_target_semantic_review_execution:fixture"
+            ),
+            "formalizer_candidate_semantic_review_packet_id": (
+                "formal_target_semantic_review:fixture"
+            ),
+            "formalizer_candidate_semantic_review_packet_hash": "review-hash",
+            "formalizer_candidate_semantic_review_candidate_source_hash": context[
+                "lineage_candidate_artifact_hash"
+            ],
+            "formalizer_candidate_semantic_review_target_statement_hash": context[
+                "target_theorem_statement_hash"
+            ],
+            "external_proof_search_dispatch_eligible": True,
+            "source_theorem_kernel_evidence_eligible": True,
+        }
+    )
+    accepted_feedback = copy.deepcopy(feedback)
+    accepted_feedback["proofengineer_repair_context"] = accepted_context
+    accepted_task = replace(
+        task,
+        inputs={**task.inputs, "environment_feedback": accepted_feedback},
+    )
+    request = runtime_module._runtime_external_proof_search_request(
+        task=accepted_task,
+        question=question,
+        environment_feedback=accepted_feedback,
     )
     assert request["target_lean_declaration"] == "exact_source"
-    assert request["source_theorem_kernel_evidence_eligible"] is False
+    assert request["source_theorem_kernel_evidence_eligible"] is True
+    assert request["formal_target_semantic_review"]["review_packet_hash"] == (
+        "review-hash"
+    )
 
     class ProviderMustRunInDedicatedWorker:
         name = "fixture_verifier_backed_search"
@@ -31114,7 +31158,7 @@ def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
         max_proof_obligations=0,
     )
     result = subsystem.run(
-        task,
+        accepted_task,
         BlackboardState(project_id="generic", artifacts={}),
     )
 
@@ -31123,11 +31167,144 @@ def test_failed_formalizer_exact_candidate_dispatches_typed_prover_before_llm(
     assert result.next_task.owner_subsystem == "ExactSourceTheoremProver"
     work_order = next(iter(result.produced_artifacts.values()))
     assert work_order["request"]["target_theorem_statement"] == (
-        context["target_theorem_statement"]
+        accepted_context["target_theorem_statement"]
     )
     assert work_order["request"]["source_lineage_id"] == (
-        context["source_lineage_id"]
+        accepted_context["source_lineage_id"]
     )
+
+
+def test_formalization_evaluator_routes_exact_target_to_semantic_reviewer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    candidate = tmp_path / "ExactSource.lean"
+    candidate_manifest = _generic_failed_exact_formalizer_manifest(candidate)
+    candidate_manifest["question"] = {
+        "id": question.id,
+        "title": question.title,
+    }
+    candidate_row = candidate_manifest["candidate_rows"][0]
+    candidate_row["source_theorem_target_provenance"] = {
+        "source_theorem_target_known": True,
+        "source_theorem_question_id": question.id,
+        "source_theorem_goal_id": "generic_exact_goal",
+        "target_lean_declaration": "exact_source",
+        "semantic_alignment_constraints": [
+            "Preserve the exact proposition and hypotheses."
+        ],
+    }
+
+    class StaticFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            packet = copy.deepcopy(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:generic_exact",
+                    "source_agent": "StaticFormalizer",
+                    "provider": "anthropic",
+                    "model": "source-sonnet-model",
+                    "model_tier": "sonnet",
+                    "proof_evidence_status": (
+                        "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+                    ),
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                    "formal_targets": [
+                        {
+                            "id": "generic_exact_source",
+                            "informal_source": (
+                                "Hash-bound exact theorem target for reviewer routing."
+                            ),
+                            "lean_statement_sketch": candidate.read_text(
+                                encoding="utf-8"
+                            ),
+                            "target_lean_declaration": "exact_source",
+                            "source_theorem_target_provenance": dict(
+                                candidate_row[
+                                    "source_theorem_target_provenance"
+                                ]
+                            ),
+                            "semantic_alignment_constraints": [
+                                "Preserve the exact proposition and hypotheses."
+                            ],
+                            "expected_status": "NEEDS_KERNEL_CHECK",
+                        }
+                    ],
+                    "proof_bank_obligation_requests": [],
+                }
+            )
+            return packet
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_materialize_formalizer_lean_candidate_artifacts",
+        lambda **_kwargs: copy.deepcopy(candidate_manifest),
+    )
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticFormalizer(),  # type: ignore[arg-type]
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+        lean_candidate_root=tmp_path / "formalizer_lean_candidates",
+        formal_target_semantic_reviewer_available=True,
+        formal_target_semantic_review_max_revisions=2,
+    )
+    theory_packet = _runtime_sample_response()
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            str(theory_packet["packet_id"]): theory_packet,
+            "simulation_manifest:test": {
+                "manifest_id": "simulation_manifest:test"
+            },
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="formalize:semantic-review-routing",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Generate and review an exact theorem target.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": str(theory_packet["packet_id"]),
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+            "architect_context": {
+                "runtime_requested_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "capability_eval_requires_formal_target_semantic_review": True,
+                }
+            },
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalTargetSemanticReviewer"
+    assert result.failure_classification == (
+        "formal_target_semantic_review_required_before_proof_search"
+    )
+    work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalTargetSemanticReviewWorkOrder"
+    )
+    assert work_order["candidate_source_hash"] == candidate_row["source_hash"]
+    assert work_order["target_theorem_statement_hash"]
+    assert work_order["deferred_next_task"]["owner_subsystem"] == "ProofEngineer"
+    assert not [
+        call
+        for call in result.tool_calls
+        if call.tool_name == "LeanProofSearchProvider.run"
+    ]
 
 
 def test_formalizer_exact_candidate_hash_drift_fails_closed(

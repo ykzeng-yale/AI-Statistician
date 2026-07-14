@@ -14,6 +14,9 @@ from .fresh_start_cross_task_e2e import audit_fresh_start_cross_task_e2e
 from .generated_code_semantic_reviewer_llm import (
     validate_generated_code_semantic_review_packet,
 )
+from .formal_target_semantic_reviewer_llm import (
+    validate_formal_target_semantic_review_packet,
+)
 from .exact_source_theorem_proof_body_executor import (
     ARTIFACT_KERNEL_NOT_SOURCE_STATUS as EXACT_PROOF_BODY_ARTIFACT_KERNEL_NOT_SOURCE_STATUS,
     PROOF_EVIDENCE_STATUS as EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
@@ -146,6 +149,7 @@ REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 ROUTEABLE_RUNTIME_SUBSYSTEMS = (
     *REQUIRED_ARCHITECT_SUBSYSTEMS,
     "GeneratedCodeSemanticReviewer",
+    "FormalTargetSemanticReviewer",
     "ProofEngineer",
     "PseudoFormalBlockVerifier",
 )
@@ -3336,6 +3340,11 @@ class RuntimeAuditRow:
     n_generated_algorithm_semantic_review_accepted: int
     n_generated_simulation_semantic_review_accepted: int
     n_generated_code_semantic_review_independent_opus: int
+    n_formal_target_semantic_review_work_orders: int
+    n_formal_target_semantic_review_executions: int
+    n_formal_target_semantic_review_accepted: int
+    n_formal_target_semantic_review_revision_required: int
+    n_formal_target_semantic_review_independent_opus: int
     n_formalization_manifests: int
     n_critic_manifests: int
     n_kernel_verified_subclaims: int
@@ -6810,6 +6819,21 @@ def audit_research_agent_runtime(
         ),
         "n_generated_code_semantic_review_independent_opus": sum(
             row.n_generated_code_semantic_review_independent_opus for row in rows
+        ),
+        "n_formal_target_semantic_review_work_orders": sum(
+            row.n_formal_target_semantic_review_work_orders for row in rows
+        ),
+        "n_formal_target_semantic_review_executions": sum(
+            row.n_formal_target_semantic_review_executions for row in rows
+        ),
+        "n_formal_target_semantic_review_accepted": sum(
+            row.n_formal_target_semantic_review_accepted for row in rows
+        ),
+        "n_formal_target_semantic_review_revision_required": sum(
+            row.n_formal_target_semantic_review_revision_required for row in rows
+        ),
+        "n_formal_target_semantic_review_independent_opus": sum(
+            row.n_formal_target_semantic_review_independent_opus for row in rows
         ),
         "n_generated_code_sandbox_metric_gate_failed": sum(
             row.n_generated_code_sandbox_metric_gate_failed for row in rows
@@ -12312,6 +12336,7 @@ def audit_research_agent_runtime(
         "all_ok only means runtime artifacts satisfy the audit contract. "
         "capability_ready_for_full_ai_statistician is the stricter gate for the "
         "original goal: live Architect orchestration, executable algorithm feedback, "
+        "independent whole-formal-target semantic acceptance before prover search, "
         "live Lean LSP/MCP proof-state interaction, aggregate primary/retry/late "
         "exact semantic-definition authoring with live backend provenance whenever "
         "authoring is required, zero unresolved AgentRuntime/Architect deferred "
@@ -13268,6 +13293,158 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 n_generated_code_semantic_review_revision_required += 1
             if independent_opus:
                 n_generated_code_semantic_review_independent_opus += 1
+    formal_target_review_work_orders = _artifacts_with_prefix(
+        artifacts,
+        "formal_target_semantic_review_work_order:",
+    )
+    formal_target_review_executions = _artifacts_with_prefix(
+        artifacts,
+        "formal_target_semantic_review_execution:",
+    )
+    n_formal_target_semantic_review_accepted = 0
+    n_formal_target_semantic_review_revision_required = 0
+    n_formal_target_semantic_review_independent_opus = 0
+    for execution in formal_target_review_executions:
+        execution_error_count_before = len(errors)
+        execution_id = str(execution.get("execution_id", "") or "")
+        work_order_id = str(execution.get("work_order_id", "") or "")
+        work_order = artifacts.get(work_order_id, {})
+        if not isinstance(work_order, Mapping):
+            errors.append(
+                f"formal-target review execution missing work order: {execution_id}"
+            )
+            continue
+        if stable_hash(work_order) != str(
+            execution.get("work_order_hash", "") or ""
+        ):
+            errors.append(
+                "formal-target review execution work-order hash mismatch: "
+                + execution_id
+            )
+        for provenance_field in (
+            "source_subsystem",
+            "candidate_materialization_id",
+            "candidate_id",
+            "candidate_source_hash",
+            "target_theorem_statement_hash",
+            "source_agent",
+            "source_model",
+            "source_model_tier",
+        ):
+            if str(execution.get(provenance_field, "") or "") != str(
+                work_order.get(provenance_field, "") or ""
+            ):
+                errors.append(
+                    "formal-target review execution provenance mismatch for "
+                    f"{provenance_field}: {execution_id}"
+                )
+        for id_field, hash_field in (
+            ("candidate_materialization_id", "candidate_materialization_hash"),
+            ("materialization_id", "materialization_hash"),
+            ("review_packet_id", "review_packet_hash"),
+        ):
+            artifact_id = str(execution.get(id_field, "") or "")
+            artifact = artifacts.get(artifact_id, {})
+            if not isinstance(artifact, Mapping):
+                errors.append(
+                    f"formal-target review execution missing {id_field}: "
+                    + execution_id
+                )
+                continue
+            expected_hash = str(
+                execution.get(hash_field, "")
+                or work_order.get(hash_field, "")
+                or ""
+            )
+            if stable_hash(artifact) != expected_hash:
+                errors.append(
+                    "formal-target review execution artifact hash mismatch for "
+                    f"{id_field}: {execution_id}"
+                )
+        review_packet = artifacts.get(
+            str(execution.get("review_packet_id", "") or ""),
+            {},
+        )
+        if isinstance(review_packet, Mapping):
+            for packet_error in validate_formal_target_semantic_review_packet(
+                review_packet
+            ):
+                errors.append(
+                    f"formal-target review packet invalid for {execution_id}: "
+                    + packet_error
+                )
+            for packet_field, expected_value in (
+                ("work_order_id", work_order_id),
+                (
+                    "work_order_hash",
+                    str(execution.get("work_order_hash", "") or ""),
+                ),
+                (
+                    "candidate_materialization_id",
+                    str(execution.get("candidate_materialization_id", "") or ""),
+                ),
+                (
+                    "candidate_source_hash",
+                    str(execution.get("candidate_source_hash", "") or ""),
+                ),
+                (
+                    "target_theorem_statement_hash",
+                    str(
+                        execution.get("target_theorem_statement_hash", "") or ""
+                    ),
+                ),
+                (
+                    "review_input_fingerprint",
+                    str(execution.get("review_input_fingerprint", "") or ""),
+                ),
+                (
+                    "source_agent",
+                    str(execution.get("reviewer_agent", "") or ""),
+                ),
+                ("model", str(execution.get("reviewer_model", "") or "")),
+                (
+                    "model_tier",
+                    str(execution.get("reviewer_model_tier", "") or ""),
+                ),
+            ):
+                if str(review_packet.get(packet_field, "") or "") != expected_value:
+                    errors.append(
+                        "formal-target review packet lineage mismatch for "
+                        f"{packet_field}: {execution_id}"
+                    )
+        accepted = execution.get("semantic_review_accepted") is True
+        if accepted != (
+            str(execution.get("overall_verdict", "") or "") == "ACCEPT"
+        ):
+            errors.append(
+                f"formal-target review execution acceptance mismatch: {execution_id}"
+            )
+        source_agent = str(execution.get("source_agent", "") or "")
+        reviewer_agent = str(execution.get("reviewer_agent", "") or "")
+        source_model = str(execution.get("source_model", "") or "")
+        reviewer_model = str(execution.get("reviewer_model", "") or "")
+        independent_opus = bool(
+            source_agent
+            and reviewer_agent == "LLMFormalTargetSemanticReviewerAgent"
+            and source_agent != reviewer_agent
+            and source_model
+            and reviewer_model
+            and source_model != reviewer_model
+            and str(execution.get("reviewer_model_tier", "") or "") == "opus"
+        )
+        if work_order.get("capability_eval") is True and not independent_opus:
+            errors.append(
+                "capability-eval formal-target review was not independent Opus "
+                "review: "
+                + execution_id
+            )
+        if len(errors) == execution_error_count_before:
+            if accepted:
+                n_formal_target_semantic_review_accepted += 1
+            else:
+                n_formal_target_semantic_review_revision_required += 1
+            if independent_opus:
+                n_formal_target_semantic_review_independent_opus += 1
     n_critic_reroutes = sum(
         1
         for row in critic
@@ -13490,6 +13667,21 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         ),
         n_generated_code_semantic_review_independent_opus=(
             n_generated_code_semantic_review_independent_opus
+        ),
+        n_formal_target_semantic_review_work_orders=len(
+            formal_target_review_work_orders
+        ),
+        n_formal_target_semantic_review_executions=len(
+            formal_target_review_executions
+        ),
+        n_formal_target_semantic_review_accepted=(
+            n_formal_target_semantic_review_accepted
+        ),
+        n_formal_target_semantic_review_revision_required=(
+            n_formal_target_semantic_review_revision_required
+        ),
+        n_formal_target_semantic_review_independent_opus=(
+            n_formal_target_semantic_review_independent_opus
         ),
         n_formalization_manifests=len(formalization),
         n_critic_manifests=len(critic),
@@ -20512,6 +20704,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     semantic_review_independent_opus = int(
         payload.get("n_generated_code_semantic_review_independent_opus", 0) or 0
     )
+    formal_target_review_work_orders = int(
+        payload.get("n_formal_target_semantic_review_work_orders", 0) or 0
+    )
+    formal_target_review_executions = int(
+        payload.get("n_formal_target_semantic_review_executions", 0) or 0
+    )
+    formal_target_review_accepted = int(
+        payload.get("n_formal_target_semantic_review_accepted", 0) or 0
+    )
+    formal_target_review_independent_opus = int(
+        payload.get("n_formal_target_semantic_review_independent_opus", 0) or 0
+    )
     attached_repair_eval_algorithm_sequences = int(
         payload.get(
             "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
@@ -25642,6 +25846,88 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "n_generated_code_semantic_review_independent_opus covers "
                     "all accepted semantic reviews"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formal_target_semantic_review_executed",
+            (
+                formal_target_review_work_orders > 0
+                and formal_target_review_executions
+                == formal_target_review_work_orders
+            ),
+            (
+                "formal_target_review_work_orders="
+                f"{formal_target_review_work_orders} executions="
+                f"{formal_target_review_executions} accepted="
+                f"{formal_target_review_accepted}"
+            ),
+            (
+                "an exact formal target reached ProofEngineer/prover work without "
+                "a lineage-bound independent mathematical semantic review"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalTargetSemanticReviewer",
+                target_behavior=(
+                    "Review the exact hash-bound Lean statement against the "
+                    "question, derivation, assumptions, quantifiers, conclusion, "
+                    "and semantic constraints before proof search."
+                ),
+                success_metric=(
+                    "n_formal_target_semantic_review_executions equals positive "
+                    "n_formal_target_semantic_review_work_orders"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "formal_target_semantic_review_accepted",
+            formal_target_review_accepted > 0,
+            (
+                "formal_target_review_accepted="
+                f"{formal_target_review_accepted} executions="
+                f"{formal_target_review_executions}"
+            ),
+            (
+                "no exact theorem statement passed independent question/theory/"
+                "assumption/quantifier/non-vacuity semantic review"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalizationEvaluator",
+                target_behavior=(
+                    "Use whole-target semantic findings to generate a fresh exact "
+                    "statement, then obtain independent ACCEPT before prover search."
+                ),
+                success_metric="n_formal_target_semantic_review_accepted>0",
+            ),
+        ),
+        _scorecard_row(
+            "formal_target_semantic_review_independent_opus",
+            (
+                formal_target_review_accepted > 0
+                and formal_target_review_independent_opus
+                >= formal_target_review_accepted
+            ),
+            (
+                "formal_target_review_accepted="
+                f"{formal_target_review_accepted} independent_opus="
+                f"{formal_target_review_independent_opus}"
+            ),
+            (
+                "accepted exact theorem semantics were not reviewed by a "
+                "separate Opus-tier agent/model from the Sonnet formalizer"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="FormalTargetSemanticReviewer",
+                target_behavior=(
+                    "Run the independent Opus whole-target reviewer on every exact "
+                    "theorem statement admitted to typed prover search."
+                ),
+                success_metric=(
+                    "n_formal_target_semantic_review_independent_opus covers all "
+                    "accepted formal-target reviews"
                 ),
             ),
         ),

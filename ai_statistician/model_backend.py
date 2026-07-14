@@ -52,6 +52,7 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "SimulatorEngineer": "sonnet",
     "AlgorithmEngineer": "sonnet",
     "GeneratedCodeSemanticReviewer": "opus",
+    "FormalTargetSemanticReviewer": "opus",
     "CriticEvaluator": "haiku",
     "bounded_route_triage": "haiku",
 }
@@ -188,7 +189,10 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
             "CriticEvaluator",
             "bounded_route_triage",
         ],
-        "opus": ["GeneratedCodeSemanticReviewer"],
+        "opus": [
+            "GeneratedCodeSemanticReviewer",
+            "FormalTargetSemanticReviewer",
+        ],
     },
 }
 

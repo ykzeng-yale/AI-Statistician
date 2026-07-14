@@ -43,6 +43,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "SimulationEvaluator",
     "AlgorithmEngineer",
     "GeneratedCodeSemanticReviewer",
+    "FormalTargetSemanticReviewer",
     "FormalizationEvaluator",
     "TheoremReductionClosureProofEngineer",
     "ExactSourceTheoremProofBodyExecutor",
@@ -282,6 +283,15 @@ def build_architect_coordinator_prompt(
         "generation and execution; do not replace this with execution-only checks or "
         "task-specific runtime rules. Its verdict is empirical/implementation review, "
         "never theorem proof evidence. "
+        "Treat FormalTargetSemanticReviewer as an independent typed child after "
+        "FormalizationEvaluator materializes a hash-bound exact theorem statement "
+        "and before ProofEngineer or ExactSourceTheoremProver searches it. It must "
+        "compare the exact statement and full source against the research question, "
+        "TheoryDeveloper derivation, assumptions, quantifiers, conclusion, and "
+        "semantic constraints. REVISE returns to the formalization owner; BLOCK "
+        "returns to TheoryDeveloper. ACCEPT only opens proof-search eligibility and "
+        "is never Lean/kernel proof evidence. Do not replace it with task-specific "
+        "Python rules, keyword matching, or compiler success. "
         "Treat TheoremReductionClosureProofEngineer as another typed child stage: "
         "schedule it only after FormalizationEvaluator emits an immutable closure "
         "work order. Missing candidates return to the LLM ProofEngineer; existing "
@@ -1379,6 +1389,13 @@ def _required_architect_plan_subsystems(
             is True
         ):
             required.add("GeneratedCodeSemanticReviewer")
+        if (
+            evidence_contract.get(
+                "capability_eval_requires_formal_target_semantic_review"
+            )
+            is True
+        ):
+            required.add("FormalTargetSemanticReviewer")
         if evidence_contract.get("capability_eval_requires_formalizer_lean_candidate") is True:
             required.add("FormalizationEvaluator")
         if (

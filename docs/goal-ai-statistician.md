@@ -68,13 +68,29 @@ lineage-valid independent Opus acceptance. This closes the specific
 "runnable-but-vacuous experiment" design gap exposed by the frozen survival and
 sequential development panel; it does not close S14 or establish theorem proof.
 
+The analogous whole-formal-target review loop is now also part of the typed
+AgentRuntime path. A Formalizer-generated exact theorem is bound to its complete
+Lean source, exact statement, question, TheoryDeveloper packet, Formalizer
+proposal, semantic constraints, and immutable hashes. An independent Opus-tier
+reviewer must accept its mathematical faithfulness, plausibility, quantifiers,
+assumptions, conclusion, and non-vacuity before ProofEngineer or OpenProver can
+search it. Rejection returns typed feedback to Formalizer or TheoryDeveloper;
+acceptance opens proof-search eligibility only and remains non-proof evidence.
+Full-live evaluation requires this stage and audits its independent lineage.
+
+This closes the design hole exposed by the first survival live run, where a
+syntactically concrete but false and semantically weakened fixed-constant target
+reached prover search. It is not yet cross-family success evidence: survival and
+sequential must both pass fresh end-to-end runs under the same configuration,
+after which PCA and extreme-tail remain untouched held-out transfer tests.
+
 The next central gaps remain: demote the named-family `research_lab` registry to
 an optional baseline provider; add serious long-form equation/lemma-DAG theory
 development with critic revision; provide broad scientific Python and R coding
-environments; bind formal targets to immutable semantic claims with independent
-review; and complete iterative exact-source Lean proof search with local
-compiler/LSP/kernel feedback on both development families before touching the
-held-out panel.
+environments; exercise the whole-target review/revision loop on fresh exact
+targets from both development families; and complete iterative exact-source Lean
+proof search with local compiler/LSP/kernel feedback on both development families before touching
+the held-out panel.
 
 For the operational multi-worker contract, see
 [`docs/ai_statistician_multi_codex_blueprint.md`](ai_statistician_multi_codex_blueprint.md).

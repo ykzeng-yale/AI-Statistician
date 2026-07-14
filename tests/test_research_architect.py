@@ -12,6 +12,7 @@ from ai_statistician.cli import (
     _build_architect_coordinator_agent_from_args,
     _build_critic_evaluator_agent_from_args,
     _build_generated_code_semantic_reviewer_agent_from_args,
+    _build_formal_target_semantic_reviewer_agent_from_args,
     _build_formalizer_agent_from_args,
     _build_simulation_engineer_agent_from_args,
     _build_theory_generator_backend,
@@ -622,6 +623,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert runtime_args.provider == "anthropic"
     assert runtime_args.architect_coordinator_provider == "same"
     assert runtime_args.generated_code_semantic_reviewer_provider == "none"
+    assert runtime_args.formal_target_semantic_reviewer_provider == "none"
     assert runtime_args.llm_model == ""
     assert default_generator_model(
         runtime_args.provider,
@@ -656,6 +658,16 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert semantic_reviewer is not None
     assert semantic_reviewer.config.model == "claude-opus-4-8"
     assert semantic_reviewer.config.model_tier == "opus"
+    runtime_args.formal_target_semantic_reviewer_provider = "same"
+    formal_target_reviewer = (
+        _build_formal_target_semantic_reviewer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        )
+    )
+    assert formal_target_reviewer is not None
+    assert formal_target_reviewer.config.model == "claude-opus-4-8"
+    assert formal_target_reviewer.config.model_tier == "opus"
 
 
 def test_live_llm_backend_rejects_codex_provider_for_main_cli() -> None:

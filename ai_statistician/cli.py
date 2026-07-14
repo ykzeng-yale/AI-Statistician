@@ -491,6 +491,10 @@ from .generated_code_semantic_reviewer_llm import (
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
 )
+from .formal_target_semantic_reviewer_llm import (
+    FormalTargetSemanticReviewerConfig,
+    LLMFormalTargetSemanticReviewerAgent,
+)
 from .cross_family_eval_protocol import (
     load_cross_family_eval_protocol,
     resolve_cross_family_eval_panel,
@@ -5050,6 +5054,63 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
             temperature=getattr(
                 args,
                 "generated_code_semantic_reviewer_temperature",
+                0.0,
+            ),
+            provider_name=provider_name,
+        ),
+    )
+
+
+def _build_formal_target_semantic_reviewer_agent_from_args(
+    args: argparse.Namespace,
+    *,
+    default_model: str,
+):
+    provider_choice = getattr(
+        args,
+        "formal_target_semantic_reviewer_provider",
+        "none",
+    )
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(
+        args,
+        "formal_target_semantic_reviewer_static_response_file",
+        "",
+    )
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(
+            args,
+            "formal_target_semantic_reviewer_llm_model",
+            "",
+        ),
+        args=args,
+        default_model=default_model,
+        model_tier="opus",
+    )
+    return LLMFormalTargetSemanticReviewerAgent(
+        provider=provider,
+        config=FormalTargetSemanticReviewerConfig(
+            model=model,
+            model_tier="opus",
+            max_tokens=getattr(
+                args,
+                "formal_target_semantic_reviewer_max_tokens",
+                8000,
+            ),
+            temperature=getattr(
+                args,
+                "formal_target_semantic_reviewer_temperature",
                 0.0,
             ),
             provider_name=provider_name,
@@ -11723,6 +11784,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             default_model=model,
         )
     )
+    formal_target_semantic_reviewer = (
+        _build_formal_target_semantic_reviewer_agent_from_args(
+            args,
+            default_model=model,
+        )
+    )
     try:
         formal_source_retriever = _formal_source_retriever_from_runtime_args(args)
         proof_search_provider = _proof_search_provider_from_runtime_args(
@@ -11767,6 +11834,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         formalizer=formalizer,
         critic_evaluator=critic_evaluator,
         generated_code_semantic_reviewer=generated_code_semantic_reviewer,
+        formal_target_semantic_reviewer=formal_target_semantic_reviewer,
         proof_verifier=verifier,
         proof_state_provider=proof_state_provider,
         formal_source_retriever=formal_source_retriever,
@@ -11817,6 +11885,17 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "generated_code_semantic_review_max_revisions",
                     1,
+                )
+                or 0
+            ),
+            formal_target_semantic_review_required=bool(
+                getattr(args, "formal_target_semantic_review_required", False)
+            ),
+            formal_target_semantic_review_max_revisions=int(
+                getattr(
+                    args,
+                    "formal_target_semantic_review_max_revisions",
+                    2,
                 )
                 or 0
             ),
@@ -13970,6 +14049,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         "formalizer_provider",
         "critic_evaluator_provider",
         "generated_code_semantic_reviewer_provider",
+        "formal_target_semantic_reviewer_provider",
     ):
         if str(getattr(args, field_name, "") or "") in {"", "none", "static"}:
             setattr(args, field_name, "same")
@@ -14042,6 +14122,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
     args.source_theorem_exact_semantic_definition_source_root = roots
     if preset == "full-live":
         args.formal_verification_policy = "required"
+        args.formal_target_semantic_review_required = True
         args.max_iterations = max(
             FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS,
             int(getattr(args, "max_iterations", 0) or 0),
@@ -14107,6 +14188,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             <= 0
         ):
             args.generated_code_semantic_review_max_revisions = 1
+        if (
+            int(
+                getattr(
+                    args,
+                    "formal_target_semantic_review_max_revisions",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.formal_target_semantic_review_max_revisions = 2
         if (
             int(
                 getattr(
@@ -14346,6 +14439,12 @@ def _research_agent_runtime_static_subsystem_config_errors(
             "GeneratedCodeSemanticReviewer",
             "--generated-code-semantic-reviewer-static-response-file",
         ),
+        (
+            "formal_target_semantic_reviewer_provider",
+            "formal_target_semantic_reviewer_static_response_file",
+            "FormalTargetSemanticReviewer",
+            "--formal-target-semantic-reviewer-static-response-file",
+        ),
     )
     main_provider = str(getattr(args, "provider", "") or "")
     for provider_field, static_file_field, subsystem, flag in subsystem_static_files:
@@ -14485,6 +14584,18 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 f"capability eval requires live {subsystem}; "
                 f"{field_name}={provider_choice}"
+            )
+    if bool(
+        getattr(args, "formal_target_semantic_review_required", False)
+    ) or str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        reviewer_provider = str(
+            getattr(args, "formal_target_semantic_reviewer_provider", "none")
+            or "none"
+        )
+        if reviewer_provider in {"none", "static"}:
+            errors.append(
+                "capability eval requires live FormalTargetSemanticReviewer; "
+                "formal_target_semantic_reviewer_provider=" + reviewer_provider
             )
     component_eval_provider_fields = (
         (
@@ -14770,6 +14881,30 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires bounded independent "
                 "generated-code semantic-review repair; set "
                 "--generated-code-semantic-review-max-revisions > 0"
+            )
+        if not bool(
+            getattr(args, "formal_target_semantic_review_required", False)
+        ):
+            errors.append(
+                "capability eval preset full-live requires independent whole-target "
+                "semantic review before proof search; missing "
+                "--formal-target-semantic-review-required"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "formal_target_semantic_review_max_revisions",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires bounded formal-target "
+                "semantic-review repair; set "
+                "--formal-target-semantic-review-max-revisions > 0"
             )
         if (
             int(
@@ -21680,6 +21815,58 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum fresh coding-agent regenerations after independent semantic "
             "review rejects otherwise runnable generated code"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-reviewer-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="none",
+        help=(
+            "independent generator backend for mathematical review of exact Lean "
+            "theorem targets before proof search; full-live enables Opus review"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-reviewer-static-response-file",
+        default="",
+        help=(
+            "JSON formal-target review response to replay when "
+            "--formal-target-semantic-reviewer-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-reviewer-llm-model",
+        default="",
+        help=(
+            "model for independent whole-target semantic review; Anthropic "
+            "defaults to the configured Claude Opus tier"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-reviewer-max-tokens",
+        type=int,
+        default=8000,
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-reviewer-temperature",
+        type=float,
+        default=0.0,
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-review-required",
+        action="store_true",
+        help=(
+            "require an independent semantic verdict for each hash-bound exact "
+            "theorem target before typed prover search"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--formal-target-semantic-review-max-revisions",
+        type=int,
+        default=2,
+        help=(
+            "maximum fresh Formalizer or TheoryDeveloper revisions after an "
+            "independent whole-target semantic rejection"
         ),
     )
     research_agent_runtime.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for registered proof-bank subclaims")
