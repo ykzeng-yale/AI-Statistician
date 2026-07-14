@@ -9,8 +9,11 @@ from .fingerprint import stable_hash
 from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    generated_metric_requirement_json_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_prompt_schema,
+    generated_metric_requirement_target_namespace_contract,
     generated_sandbox_runtime_replicates,
     validate_generated_metric_requirements,
 )
@@ -242,6 +245,9 @@ def build_architect_coordinator_prompt(
         "runtime_capability_gap_routing_agenda": capability_gap_routing_agenda,
         "long_horizon_research_guidance": LONG_HORIZON_RESEARCH_GUIDANCE,
         "requested_evidence_contract": requested_evidence_contract,
+        "generated_metric_requirement_target_namespace": (
+            generated_metric_requirement_target_namespace_contract()
+        ),
         "required_output_contract": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT,
         "boundary": ARCHITECT_COORDINATOR_BOUNDARY,
     }
@@ -250,7 +256,10 @@ def build_architect_coordinator_prompt(
         "Return ONLY one compact JSON object matching required_output_contract. The object "
         "must contain exactly the required top-level fields unless a field is needed for "
         "schema repair. Keep non-plan lists to at most 2 short strings or 1 short "
-        "object. subsystem_execution_plan is exempt: include compact objects for the "
+        "object. subsystem_execution_plan is exempt. In capability_eval, "
+        "empirical_metric_requirements is also exempt and must contain the minimum "
+        "rows needed to cover both generated-code author subsystems. Include compact "
+        "objects for the "
         "workers you select and any mandatory stages whose objective or ordering you "
         "want to specialize. AgentRuntime will append provenance-marked empty shells "
         "for omitted mandatory evidence stages and use its typed defaults; it will not "
@@ -343,7 +352,11 @@ def build_architect_coordinator_prompt(
         "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
         "is true, author empirical_metric_requirements before either coding agent "
         "runs. Include at least one required row targeting AlgorithmEngineer and "
-        "one targeting SimulationEngineer. Give every row an immutable requirement "
+        "one targeting SimulationEngineer. target_subsystems is the generated-code "
+        "author namespace, not the runtime execution-owner namespace: every entry "
+        "must be exactly AlgorithmEngineer or SimulationEngineer. SimulationEvaluator "
+        "executes SimulationEngineer output but is not a valid target_subsystems "
+        "value. Give every row an immutable requirement "
         "id, precise metric semantics and measurement protocol, numeric comparison, "
         "aggregation/quorum, and source anchors. Copy "
         "requested_evidence_contract.generated_sandbox_runtime_replicates exactly "
@@ -639,7 +652,8 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
             "architect_authored_coding_agent_bound_preferred"
         ),
         "empirical_metric_requirements": [
-            generated_metric_requirement_prompt_schema()
+            generated_metric_requirement_prompt_schema(target_subsystem=target)
+            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
         ],
         "formal_targets": ["one short string"],
         "simulation_targets": ["one short string"],
@@ -734,7 +748,15 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
             },
         },
-        "evidence_contract": {"type": "object"},
+        "evidence_contract": {
+            "type": "object",
+            "properties": {
+                "empirical_metric_requirements": {
+                    "type": "array",
+                    "items": generated_metric_requirement_json_schema(),
+                }
+            },
+        },
         "subsystem_execution_plan": {
             "type": "array",
             "minItems": 1,
@@ -866,6 +888,13 @@ def _architect_packet_repair_context(
         "empirical_metric_requirement_schema": (
             generated_metric_requirement_prompt_schema()
         ),
+        "empirical_metric_requirement_target_namespace": (
+            generated_metric_requirement_target_namespace_contract()
+        ),
+        "empirical_metric_requirement_target_examples": [
+            generated_metric_requirement_prompt_schema(target_subsystem=target)
+            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+        ],
         "repair_prompt_priority_instructions": [
             "Return every required top-level field, even when only one row is needed.",
             "Every array named in required_array_item_shapes must contain JSON objects with exactly that shape, never strings.",
@@ -875,6 +904,12 @@ def _architect_packet_repair_context(
                 "In capability_eval, author required empirical_metric_requirements "
                 "for both coding subsystems on the first plan; on replans, preserve "
                 "any runtime-owned frozen requirement set unchanged."
+            ),
+            (
+                "In empirical_metric_requirements.target_subsystems, use only the "
+                "exact generated-code author values AlgorithmEngineer or "
+                "SimulationEngineer. SimulationEvaluator is a runtime execution "
+                "owner and is invalid in this field."
             ),
         ],
     }

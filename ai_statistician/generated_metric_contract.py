@@ -75,12 +75,68 @@ def generated_sandbox_runtime_replicates(n_runs: int) -> int:
     return max(5, min(int(n_runs), GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES))
 
 
-def generated_metric_requirement_prompt_schema() -> dict[str, Any]:
-    """Return the domain-neutral requirement shape authored upstream."""
+def generated_metric_requirement_target_namespace_contract() -> dict[str, Any]:
+    """Describe coding-agent targets separately from runtime execution owners."""
 
     return {
-        "requirement_id": "stable unique string",
-        "target_subsystems": ["AlgorithmEngineer|SimulationEngineer"],
+        "namespace": "generated_code_author_subsystems",
+        "field": "target_subsystems",
+        "allowed_exact_values": list(
+            GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+        ),
+        "entry_rule": (
+            "every array entry must equal one allowed value exactly; do not use "
+            "a runtime execution-owner name in this coding-agent author namespace"
+        ),
+        "capability_eval_required_coverage": [
+            {"target_subsystems": [target]}
+            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+        ],
+        "runtime_execution_owner_by_author_subsystem": {
+            "AlgorithmEngineer": "AlgorithmEngineer",
+            "SimulationEngineer": "SimulationEvaluator",
+        },
+    }
+
+
+def generated_metric_requirement_json_schema() -> dict[str, Any]:
+    """Return the machine-readable domain-neutral requirement schema."""
+
+    return {
+        "type": "object",
+        "additionalProperties": True,
+        "required": ["target_subsystems"],
+        "properties": {
+            "target_subsystems": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": True,
+                "items": {
+                    "type": "string",
+                    "enum": list(
+                        GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+                    ),
+                },
+            }
+        },
+    }
+
+
+def generated_metric_requirement_prompt_schema(
+    *,
+    target_subsystem: str | None = None,
+) -> dict[str, Any]:
+    """Return the domain-neutral requirement shape authored upstream."""
+
+    target = target_subsystem or GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS[0]
+    if target not in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS:
+        raise ValueError(
+            "target_subsystem must be an exact generated-code author subsystem"
+        )
+
+    return {
+        "requirement_id": f"stable unique string for {target}",
+        "target_subsystems": [target],
         "metric_semantics": (
             "precise quantity the generated artifact must return; when a target "
             "varies by scenario, define a scalar deviation or ratio to that target"

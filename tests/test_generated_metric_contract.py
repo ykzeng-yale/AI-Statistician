@@ -5,12 +5,16 @@ import pytest
 from ai_statistician.generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
     generated_metric_authority_repair_context,
     generated_metric_contract_set_id,
     generated_metric_contracts_for_artifact,
+    generated_metric_requirement_json_schema,
+    generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
+    generated_metric_requirement_target_namespace_contract,
     validate_generated_metric_requirements,
     validate_generated_metric_contracts,
 )
@@ -51,6 +55,48 @@ def _requirement(**overrides: object) -> dict[str, object]:
     }
     row.update(overrides)
     return row
+
+
+def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() -> None:
+    namespace = generated_metric_requirement_target_namespace_contract()
+    schema = generated_metric_requirement_json_schema()
+
+    assert namespace["allowed_exact_values"] == list(
+        GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+    )
+    assert namespace["runtime_execution_owner_by_author_subsystem"] == {
+        "AlgorithmEngineer": "AlgorithmEngineer",
+        "SimulationEngineer": "SimulationEvaluator",
+    }
+    assert namespace["capability_eval_required_coverage"] == [
+        {"target_subsystems": ["AlgorithmEngineer"]},
+        {"target_subsystems": ["SimulationEngineer"]},
+    ]
+    assert schema["properties"]["target_subsystems"]["items"]["enum"] == [
+        "AlgorithmEngineer",
+        "SimulationEngineer",
+    ]
+    assert generated_metric_requirement_prompt_schema(
+        target_subsystem="SimulationEngineer"
+    )["target_subsystems"] == ["SimulationEngineer"]
+    assert "|" not in generated_metric_requirement_prompt_schema()[
+        "target_subsystems"
+    ][0]
+
+
+def test_metric_requirement_validator_does_not_silently_alias_runtime_owner() -> None:
+    invalid = _requirement(target_subsystems=["SimulationEvaluator"])
+
+    errors = validate_generated_metric_requirements(
+        [invalid],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+    )
+
+    assert any(
+        "unsupported values: SimulationEvaluator" in error for error in errors
+    )
+    assert any("missing: SimulationEngineer" in error for error in errors)
 
 
 def test_generated_metric_contract_validator_is_artifact_bound() -> None:

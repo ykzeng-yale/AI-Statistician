@@ -20133,6 +20133,16 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"source_semantic_proofengineer_required":true' in prompt
     assert '"source_theorem_promotion_proofengineer_required":true' in prompt
     assert '"required_subsystems":["RetrievalMemory","TheoryDeveloper"' in prompt
+    assert (
+        '"allowed_exact_values":["AlgorithmEngineer","SimulationEngineer"]'
+        in prompt
+    )
+    assert (
+        '"runtime_execution_owner_by_author_subsystem":'
+        '{"AlgorithmEngineer":"AlgorithmEngineer",'
+        '"SimulationEngineer":"SimulationEvaluator"}' in prompt
+    )
+    assert '"target_subsystems":["AlgorithmEngineer|SimulationEngineer"]' not in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
     assert contract["capability_eval_requires_generated_algorithm_code"] is True
@@ -20241,6 +20251,29 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
     ]["candidate_source_family"] == "one short string"
     assert any(
         "never strings" in instruction
+        for instruction in repair_context["repair_prompt_priority_instructions"]
+    )
+    target_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
+        "evidence_contract"
+    ]["properties"]["empirical_metric_requirements"]["items"]["properties"][
+        "target_subsystems"
+    ]
+    assert target_schema["items"]["enum"] == [
+        "AlgorithmEngineer",
+        "SimulationEngineer",
+    ]
+    assert repair_context[
+        "empirical_metric_requirement_target_namespace"
+    ]["allowed_exact_values"] == [
+        "AlgorithmEngineer",
+        "SimulationEngineer",
+    ]
+    assert [
+        row["target_subsystems"]
+        for row in repair_context["empirical_metric_requirement_target_examples"]
+    ] == [["AlgorithmEngineer"], ["SimulationEngineer"]]
+    assert any(
+        "SimulationEvaluator is a runtime execution owner" in instruction
         for instruction in repair_context["repair_prompt_priority_instructions"]
     )
 
