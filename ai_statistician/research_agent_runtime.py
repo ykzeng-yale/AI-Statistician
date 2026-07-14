@@ -100,6 +100,7 @@ from .formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
 from .exact_source_theorem_proof_body_executor import (
+    EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
     SOURCE_KERNEL_STATUS,
     _exact_target_statement_span as _external_exact_target_statement_span,
     _external_candidate_source_evidence_blockers as _external_exact_source_evidence_blockers,
@@ -110,6 +111,7 @@ from .exact_source_theorem_proof_body_executor import (
     _normalize_external_proof_body as _normalize_external_exact_proof_body,
     _normalized_lean_signature as _normalized_external_lean_signature,
     _proofengineer_whole_proof_repair_context as _external_exact_whole_proof_repair_context,
+    exact_target_statement_hash as _external_exact_target_statement_hash,
     execute_external_exact_source_theorem_proof_candidates,
     export_exact_source_theorem_proof_body_execution_results,
     materialize_external_exact_source_candidate,
@@ -15021,6 +15023,10 @@ def _runtime_external_proof_search_request(
         current_target_hash = str(
             repair_context.get("target_theorem_statement_hash", "") or ""
         ).strip()
+        current_target_hash_algorithm = str(
+            repair_context.get("target_theorem_statement_hash_algorithm", "")
+            or ""
+        ).strip()
         reviewed_candidate_hash = str(
             repair_context.get(
                 "formalizer_candidate_semantic_review_candidate_source_hash",
@@ -15031,6 +15037,13 @@ def _runtime_external_proof_search_request(
         reviewed_target_hash = str(
             repair_context.get(
                 "formalizer_candidate_semantic_review_target_statement_hash",
+                "",
+            )
+            or ""
+        ).strip()
+        reviewed_target_hash_algorithm = str(
+            repair_context.get(
+                "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
                 "",
             )
             or ""
@@ -15070,9 +15083,13 @@ def _runtime_external_proof_search_request(
             or not current_candidate_source
             or stable_hash(current_candidate_source) != current_candidate_hash
             or not current_target_hash
-            or stable_hash(target_statement) != current_target_hash
+            or current_target_hash_algorithm
+            != EXACT_TARGET_STATEMENT_HASH_ALGORITHM
+            or _external_exact_target_statement_hash(target_statement)
+            != current_target_hash
             or reviewed_candidate_hash != current_candidate_hash
             or reviewed_target_hash != current_target_hash
+            or reviewed_target_hash_algorithm != current_target_hash_algorithm
             or not review_execution_id
             or not review_packet_id
             or not review_packet_hash
@@ -15128,6 +15145,10 @@ def _runtime_external_proof_search_request(
         ),
         "target_theorem_statement_hash": str(
             repair_context.get("target_theorem_statement_hash", "") or ""
+        ),
+        "target_theorem_statement_hash_algorithm": str(
+            repair_context.get("target_theorem_statement_hash_algorithm", "")
+            or ""
         ),
         "proof_body_signature_probe_artifact_path": str(
             repair_context.get(
@@ -15277,6 +15298,13 @@ def _runtime_external_proof_search_request(
                 "target_theorem_statement_hash": str(
                     repair_context.get(
                         "formalizer_candidate_semantic_review_target_statement_hash",
+                        "",
+                    )
+                    or ""
+                ),
+                "target_theorem_statement_hash_algorithm": str(
+                    repair_context.get(
+                        "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
                         "",
                     )
                     or ""
@@ -15666,6 +15694,7 @@ def _runtime_validated_external_exact_candidate_rerun_result(
                 "lineage_candidate_artifact_hash",
                 "target_declaration_source_hash",
                 "target_theorem_statement_hash",
+                "target_theorem_statement_hash_algorithm",
                 "proof_body_signature_probe_artifact_path",
                 "proof_body_signature_probe_artifact_hash",
                 "expected_target_lean_declaration",
@@ -15833,7 +15862,16 @@ def _runtime_validated_external_exact_candidate_rerun_result(
                     request.get("target_declaration_source_hash", "") or ""
                 ):
                     errors.append("rerun target declaration source hash mismatch")
-                if stable_hash(target_statement) != str(
+                if str(
+                    request.get(
+                        "target_theorem_statement_hash_algorithm", ""
+                    )
+                    or ""
+                ) != EXACT_TARGET_STATEMENT_HASH_ALGORITHM:
+                    errors.append(
+                        "rerun target theorem statement hash algorithm mismatch"
+                    )
+                if _external_exact_target_statement_hash(target_statement) != str(
                     request.get("target_theorem_statement_hash", "") or ""
                 ):
                     errors.append("rerun target theorem statement hash mismatch")
@@ -20835,6 +20873,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     else None
                 )
                 if formal_target_review_dispatch is not None:
+                    review_dispatch_blocked = str(
+                        formal_target_review_dispatch.get(
+                            "dispatch_status", "READY"
+                        )
+                        or "READY"
+                    ) == "BLOCKED"
                     formal_target_review_work_order_id = str(
                         formal_target_review_dispatch.get("work_order_id", "")
                         or ""
@@ -20850,14 +20894,25 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     )
                     next_task = formal_target_review_dispatch["next_task"]
                     result_status = "REROUTE"
-                    result_rationale = (
-                        "Runtime materialized a hash-bound exact theorem target; "
-                        "independent mathematical semantic review must accept the "
-                        "statement before ProofEngineer or OpenProver may search it."
-                    )
-                    failure_classification = (
-                        "formal_target_semantic_review_required_before_proof_search"
-                    )
+                    if review_dispatch_blocked:
+                        result_rationale = (
+                            "Independent exact-target review is required, but its "
+                            "lineage contract is incomplete or inconsistent; the "
+                            "typed reviewer task will fail closed before any prover "
+                            "search."
+                        )
+                        failure_classification = (
+                            "formal_target_semantic_review_dispatch_input_invalid"
+                        )
+                    else:
+                        result_rationale = (
+                            "Runtime materialized a hash-bound exact theorem target; "
+                            "independent mathematical semantic review must accept the "
+                            "statement before ProofEngineer or OpenProver may search it."
+                        )
+                        failure_classification = (
+                            "formal_target_semantic_review_required_before_proof_search"
+                        )
                 else:
                     result_status = "REVISE"
                     result_rationale = (
@@ -21028,6 +21083,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 and pending_pseudo_formal_block_verifier_rows
             )
             if compiled_exact_review_dispatch is not None:
+                compiled_review_dispatch_blocked = str(
+                    compiled_exact_review_dispatch.get(
+                        "dispatch_status", "READY"
+                    )
+                    or "READY"
+                ) == "BLOCKED"
                 compiled_review_work_order_id = str(
                     compiled_exact_review_dispatch.get("work_order_id", "") or ""
                 )
@@ -21040,9 +21101,14 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 )
                 next_task = compiled_exact_review_dispatch["next_task"]
                 result_rationale = (
-                    "Runtime observed an already-compiling exact theorem artifact, "
-                    "but routed it through independent whole-target mathematical "
-                    "review before source-proof promotion or further prover work."
+                    "Independent exact-target review is required, but its lineage "
+                    "contract is incomplete or inconsistent; the reviewer task "
+                    "will fail closed before source-proof promotion."
+                    if compiled_review_dispatch_blocked
+                    else "Runtime observed an already-compiling exact theorem "
+                    "artifact, but routed it through independent whole-target "
+                    "mathematical review before source-proof promotion or further "
+                    "prover work."
                 )
             elif pseudo_formal_block_verifier_runtime_dispatch_ready:
                 formalizer_config = getattr(self.proposal_agent, "config", None)
@@ -27260,6 +27326,7 @@ def _formalizer_lean_candidate_repair_feedback(
             "target_declaration_source_hash",
             "target_theorem_statement",
             "target_theorem_statement_hash",
+            "target_theorem_statement_hash_algorithm",
             "proof_body_signature_probe_artifact_path",
             "proof_body_signature_probe_artifact_hash",
             "source_lineage_id",

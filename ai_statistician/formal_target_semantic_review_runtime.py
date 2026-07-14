@@ -14,6 +14,10 @@ from .agent_runtime import (
     ToolCallRecord,
 )
 from .fingerprint import stable_hash
+from .exact_source_theorem_proof_body_executor import (
+    EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
+    exact_target_statement_hash,
+)
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
@@ -140,14 +144,26 @@ def _runtime_formal_target_semantic_review_dispatch(
     target_statement_hash = str(
         repair_context.get("target_theorem_statement_hash", "") or ""
     ).strip()
-    if (
-        not candidate_path
-        or not candidate_source_hash
-        or not target_statement
-        or not target_statement_hash
-        or stable_hash(target_statement) != target_statement_hash
-    ):
-        return None
+    target_statement_hash_algorithm = str(
+        repair_context.get("target_theorem_statement_hash_algorithm", "") or ""
+    ).strip()
+    dispatch_validation_errors: list[str] = []
+    if not candidate_path:
+        dispatch_validation_errors.append("candidate_artifact_path missing")
+    if not candidate_source_hash:
+        dispatch_validation_errors.append("candidate_source_hash missing")
+    if not target_statement:
+        dispatch_validation_errors.append("target_theorem_statement missing")
+    if not target_statement_hash:
+        dispatch_validation_errors.append("target_theorem_statement_hash missing")
+    elif exact_target_statement_hash(target_statement) != target_statement_hash:
+        dispatch_validation_errors.append(
+            "target_theorem_statement_hash does not match the shared exact-target identity"
+        )
+    if target_statement_hash_algorithm != EXACT_TARGET_STATEMENT_HASH_ALGORITHM:
+        dispatch_validation_errors.append(
+            "target_theorem_statement_hash_algorithm mismatch"
+        )
 
     candidate_row: dict[str, Any] = {}
     for raw_row in candidate_materialization.get("candidate_rows", []) or []:
@@ -161,7 +177,9 @@ def _runtime_formal_target_semantic_review_dispatch(
         candidate_row = row
         break
     if not candidate_row:
-        return None
+        dispatch_validation_errors.append(
+            "candidate descriptor is not bound to the exact path and source hash"
+        )
 
     candidate_materialization_id = str(
         candidate_materialization.get("manifest_id", "") or ""
@@ -169,15 +187,14 @@ def _runtime_formal_target_semantic_review_dispatch(
     theory_packet_id = str(theory_packet.get("packet_id", "") or "").strip()
     proposal_packet_id = str(proposal_packet.get("packet_id", "") or "").strip()
     candidate_id = str(candidate_row.get("candidate_id", "") or "").strip()
-    if not all(
-        (
-            candidate_materialization_id,
-            theory_packet_id,
-            proposal_packet_id,
-            candidate_id,
-        )
+    for field_name, field_value in (
+        ("candidate_materialization_id", candidate_materialization_id),
+        ("theory_packet_id", theory_packet_id),
+        ("proposal_packet_id", proposal_packet_id),
+        ("candidate_id", candidate_id),
     ):
-        return None
+        if not field_value:
+            dispatch_validation_errors.append(f"{field_name} missing")
 
     review_revision_count = max(
         0,
@@ -202,6 +219,9 @@ def _runtime_formal_target_semantic_review_dispatch(
         "candidate_id": candidate_id,
         "candidate_source_hash": candidate_source_hash,
         "target_theorem_statement_hash": target_statement_hash,
+        "target_theorem_statement_hash_algorithm": (
+            target_statement_hash_algorithm
+        ),
         "review_revision_count": review_revision_count,
     }
     work_order_id = "formal_target_semantic_review_work_order:" + stable_hash(
@@ -230,6 +250,9 @@ def _runtime_formal_target_semantic_review_dispatch(
         ),
         "target_theorem_statement": target_statement,
         "target_theorem_statement_hash": target_statement_hash,
+        "target_theorem_statement_hash_algorithm": (
+            target_statement_hash_algorithm
+        ),
         "target_ids": list(repair_context.get("target_ids", []) or []),
         "source_theorem_target_provenance": dict(
             repair_context.get("source_theorem_target_provenance", {}) or {}
@@ -271,6 +294,12 @@ def _runtime_formal_target_semantic_review_dispatch(
         "capability_eval": capability_eval,
         "review_revision_count": review_revision_count,
         "max_revisions": max(0, int(max_revisions or 0)),
+        "dispatch_status": (
+            "BLOCKED" if dispatch_validation_errors else "READY"
+        ),
+        "dispatch_validation_errors": sorted(
+            set(dispatch_validation_errors)
+        ),
         "repair_task": asdict(task),
         "deferred_next_task": asdict(deferred_next_task),
         "proof_evidence_status": (
@@ -322,6 +351,9 @@ def _runtime_formal_target_semantic_review_dispatch(
             "candidate_materialization_id": candidate_materialization_id,
             "candidate_id": candidate_id,
             "target_theorem_statement_hash": target_statement_hash,
+            "target_theorem_statement_hash_algorithm": (
+                target_statement_hash_algorithm
+            ),
             "next_owner_subsystem": FORMAL_TARGET_SEMANTIC_REVIEWER_SUBSYSTEM,
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         },
@@ -338,10 +370,19 @@ def _runtime_formal_target_semantic_review_dispatch(
             "candidate_id": candidate_id,
             "candidate_source_hash": candidate_source_hash,
             "target_theorem_statement_hash": target_statement_hash,
+            "target_theorem_statement_hash_algorithm": (
+                target_statement_hash_algorithm
+            ),
+            "dispatch_validation_errors": sorted(
+                set(dispatch_validation_errors)
+            ),
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         },
     )
     return {
+        "dispatch_status": (
+            "BLOCKED" if dispatch_validation_errors else "READY"
+        ),
         "work_order_id": work_order_id,
         "work_order": work_order,
         "next_task": review_task,
@@ -390,7 +431,12 @@ def _runtime_formal_target_semantic_review_material(
     target_statement = str(
         work_order.get("target_theorem_statement", "") or ""
     ).strip()
-    if not target_statement or stable_hash(target_statement) != str(
+    target_statement_hash_algorithm = str(
+        work_order.get("target_theorem_statement_hash_algorithm", "") or ""
+    )
+    if target_statement_hash_algorithm != EXACT_TARGET_STATEMENT_HASH_ALGORITHM:
+        errors.append("formal-target theorem statement hash algorithm mismatch")
+    if not target_statement or exact_target_statement_hash(target_statement) != str(
         work_order.get("target_theorem_statement_hash", "") or ""
     ):
         errors.append("formal-target theorem statement hash mismatch")
@@ -406,6 +452,9 @@ def _runtime_formal_target_semantic_review_material(
             "target_theorem_statement": target_statement,
             "target_theorem_statement_hash": str(
                 work_order.get("target_theorem_statement_hash", "") or ""
+            ),
+            "target_theorem_statement_hash_algorithm": (
+                target_statement_hash_algorithm
             ),
             "exact_lean_source": source,
             "exact_lean_source_hash": candidate_source_hash,
@@ -454,6 +503,11 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             dict(raw_work_order) if isinstance(raw_work_order, Mapping) else {}
         )
         validation_errors: list[str] = []
+        validation_errors.extend(
+            str(error)
+            for error in work_order.get("dispatch_validation_errors", []) or []
+            if str(error)
+        )
         if not work_order_id or not work_order:
             validation_errors.append("formal-target semantic review work order missing")
         if str(work_order.get("artifact_kind", "") or "") != (
@@ -586,6 +640,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "candidate_source_hash",
                 "target_lean_declaration",
                 "target_theorem_statement_hash",
+                "target_theorem_statement_hash_algorithm",
                 "source_agent",
                 "source_model",
                 "source_model_tier",
@@ -702,6 +757,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "target_theorem_statement_hash": str(
                 work_order.get("target_theorem_statement_hash", "") or ""
             ),
+            "target_theorem_statement_hash_algorithm": str(
+                work_order.get("target_theorem_statement_hash_algorithm", "") or ""
+            ),
             "materialization_id": materialization_id,
             "materialization_hash": stable_hash(materialization),
             "review_packet_id": review_packet_id,
@@ -742,6 +800,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             ),
             "target_theorem_statement_hash": str(
                 work_order.get("target_theorem_statement_hash", "") or ""
+            ),
+            "target_theorem_statement_hash_algorithm": str(
+                work_order.get("target_theorem_statement_hash_algorithm", "") or ""
             ),
             "semantic_review_execution_id": execution_id,
             "semantic_review_packet_id": review_packet_id,
@@ -794,6 +855,12 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     "formalizer_candidate_semantic_review_target_statement_hash": str(
                         work_order.get("target_theorem_statement_hash", "") or ""
                     ),
+                    "formalizer_candidate_semantic_review_target_statement_hash_algorithm": str(
+                        work_order.get(
+                            "target_theorem_statement_hash_algorithm", ""
+                        )
+                        or ""
+                    ),
                     "external_proof_search_dispatch_eligible": True,
                     "source_theorem_kernel_evidence_eligible": True,
                     "source_theorem_promotion_blockers": [],
@@ -816,6 +883,10 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 ),
                 "target_theorem_statement_hash": str(
                     work_order.get("target_theorem_statement_hash", "") or ""
+                ),
+                "target_theorem_statement_hash_algorithm": str(
+                    work_order.get("target_theorem_statement_hash_algorithm", "")
+                    or ""
                 ),
             }
             next_inputs["architect_context"] = next_context

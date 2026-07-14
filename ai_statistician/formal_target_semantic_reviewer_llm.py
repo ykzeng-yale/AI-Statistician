@@ -330,6 +330,7 @@ def validate_formal_target_semantic_review_packet(
         "candidate_id",
         "candidate_source_hash",
         "target_theorem_statement_hash",
+        "target_theorem_statement_hash_algorithm",
         "review_input_fingerprint",
     ):
         if not str(packet.get(field, "") or "").strip():
@@ -370,6 +371,7 @@ def _normalize_formal_target_semantic_review_packet(
         "candidate_source_hash",
         "target_lean_declaration",
         "target_theorem_statement_hash",
+        "target_theorem_statement_hash_algorithm",
         "source_model",
         "source_model_tier",
     ):

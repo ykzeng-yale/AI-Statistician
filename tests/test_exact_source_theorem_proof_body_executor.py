@@ -135,8 +135,11 @@ def _external_candidate_request(candidate: Path) -> dict[str, object]:
         "lineage_candidate_artifact_path": str(candidate),
         "lineage_candidate_artifact_hash": stable_hash(source),
         "target_declaration_source_hash": stable_hash(declaration_source),
-        "target_theorem_statement_hash": stable_hash(
-            executor_module._normalized_lean_signature(target_statement)
+        "target_theorem_statement_hash": (
+            executor_module.exact_target_statement_hash(target_statement)
+        ),
+        "target_theorem_statement_hash_algorithm": (
+            executor_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
         ),
         "proof_body_signature_probe_artifact_path": str(candidate),
         "proof_body_signature_probe_artifact_hash": stable_hash(source),

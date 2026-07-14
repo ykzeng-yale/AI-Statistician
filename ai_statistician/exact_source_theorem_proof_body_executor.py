@@ -211,6 +211,7 @@ def execute_external_exact_source_theorem_proof_candidates(
                     "lineage_candidate_artifact_hash",
                     "target_declaration_source_hash",
                     "target_theorem_statement_hash",
+                    "target_theorem_statement_hash_algorithm",
                     "proof_body_signature_probe_artifact_path",
                 )
             },
@@ -2227,6 +2228,17 @@ def _normalized_lean_signature(source: str) -> str:
     return re.sub(r"\s+", " ", str(source or "").strip())
 
 
+EXACT_TARGET_STATEMENT_HASH_ALGORITHM = (
+    "stable_hash:lean_whitespace_normalized_signature:v1"
+)
+
+
+def exact_target_statement_hash(source: str) -> str:
+    """Return the shared identity hash for an exact Lean declaration signature."""
+
+    return stable_hash(_normalized_lean_signature(source))
+
+
 def _external_source_lineage_id(payload: Mapping[str, Any]) -> str:
     return "source_theorem_lineage:" + stable_hash(dict(payload))[:20]
 
@@ -2299,12 +2311,13 @@ def _external_candidate_lineage_errors(
     expected_statement_hash = str(
         request.get("target_theorem_statement_hash", "") or ""
     )
-    observed_statement_hash = stable_hash(
-        _normalized_lean_signature(observed_statement)
+    statement_hash_algorithm = str(
+        request.get("target_theorem_statement_hash_algorithm", "") or ""
     )
-    requested_statement_hash = stable_hash(
-        _normalized_lean_signature(target_statement)
-    )
+    observed_statement_hash = exact_target_statement_hash(observed_statement)
+    requested_statement_hash = exact_target_statement_hash(target_statement)
+    if statement_hash_algorithm != EXACT_TARGET_STATEMENT_HASH_ALGORITHM:
+        errors.append("target_theorem_statement_hash_algorithm mismatch")
     if not expected_statement_hash:
         errors.append("target_theorem_statement_hash missing")
     elif expected_statement_hash not in {
@@ -2355,6 +2368,7 @@ def _external_candidate_lineage_errors(
             "lineage_candidate_artifact_hash",
             "target_declaration_source_hash",
             "target_theorem_statement_hash",
+            "target_theorem_statement_hash_algorithm",
             "proof_body_signature_probe_artifact_path",
             "proof_body_signature_probe_artifact_hash",
             "expected_target_lean_declaration",
@@ -3170,9 +3184,7 @@ def _proofengineer_whole_proof_repair_context(
         target_declaration_source_hash
         or (stable_hash(declaration_source) if declaration_source else "")
     )
-    target_theorem_statement_hash = stable_hash(
-        _normalized_lean_signature(target_statement)
-    )
+    target_theorem_statement_hash = exact_target_statement_hash(target_statement)
     proof_body_probe_path = str(
         proof_body_signature_probe_artifact_path
         or source_theorem_signature_probe_artifact_path
@@ -3197,6 +3209,9 @@ def _proofengineer_whole_proof_repair_context(
         "lineage_candidate_artifact_hash": lineage_candidate_artifact_hash,
         "target_declaration_source_hash": target_declaration_source_hash,
         "target_theorem_statement_hash": target_theorem_statement_hash,
+        "target_theorem_statement_hash_algorithm": (
+            EXACT_TARGET_STATEMENT_HASH_ALGORITHM
+        ),
         "proof_body_signature_probe_artifact_path": proof_body_probe_path,
         "proof_body_signature_probe_artifact_hash": (
             proof_body_signature_probe_artifact_hash

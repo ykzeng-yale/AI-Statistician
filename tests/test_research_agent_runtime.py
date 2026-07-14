@@ -31125,6 +31125,9 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
             "formalizer_candidate_semantic_review_target_statement_hash": context[
                 "target_theorem_statement_hash"
             ],
+            "formalizer_candidate_semantic_review_target_statement_hash_algorithm": context[
+                "target_theorem_statement_hash_algorithm"
+            ],
             "external_proof_search_dispatch_eligible": True,
             "source_theorem_kernel_evidence_eligible": True,
         }
@@ -104719,8 +104722,11 @@ def test_proofengineer_skips_llm_after_exact_external_candidate_kernel_rerun(
         "target_declaration_source_hash": runtime_module.stable_hash(
             declaration_source
         ),
-        "target_theorem_statement_hash": runtime_module.stable_hash(
-            exact_executor_module._normalized_lean_signature(target_statement)
+        "target_theorem_statement_hash": (
+            exact_executor_module.exact_target_statement_hash(target_statement)
+        ),
+        "target_theorem_statement_hash_algorithm": (
+            exact_executor_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
         ),
         "proof_body_signature_probe_artifact_path": str(candidate),
         "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
@@ -104839,8 +104845,11 @@ def _dedicated_exact_prover_test_task(
         "target_declaration_source_hash": runtime_module.stable_hash(
             declaration_source
         ),
-        "target_theorem_statement_hash": runtime_module.stable_hash(
-            exact_executor_module._normalized_lean_signature(target_statement)
+        "target_theorem_statement_hash": (
+            exact_executor_module.exact_target_statement_hash(target_statement)
+        ),
+        "target_theorem_statement_hash_algorithm": (
+            exact_executor_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
         ),
         "proof_body_signature_probe_artifact_path": str(candidate),
         "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
@@ -105668,8 +105677,11 @@ def test_runtime_owned_lean_rejects_self_attested_invalid_rerunner(
                 "exact_source",
             )
         ),
-        "target_theorem_statement_hash": runtime_module.stable_hash(
-            exact_executor_module._normalized_lean_signature(target_statement)
+        "target_theorem_statement_hash": (
+            exact_executor_module.exact_target_statement_hash(target_statement)
+        ),
+        "target_theorem_statement_hash_algorithm": (
+            exact_executor_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
         ),
         "proof_body_signature_probe_artifact_path": str(source_path),
         "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
@@ -105894,8 +105906,11 @@ def test_runtime_rejects_forged_candidate_environment(
         "target_declaration_source_hash": runtime_module.stable_hash(
             declaration_source
         ),
-        "target_theorem_statement_hash": runtime_module.stable_hash(
-            exact_executor_module._normalized_lean_signature(target_statement)
+        "target_theorem_statement_hash": (
+            exact_executor_module.exact_target_statement_hash(target_statement)
+        ),
+        "target_theorem_statement_hash_algorithm": (
+            exact_executor_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
         ),
         "proof_body_signature_probe_artifact_path": str(source_path),
         "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(
@@ -106016,8 +106031,11 @@ def test_runtime_clears_rows_that_fail_its_owned_lean_check(
                 "exact_source",
             )
         ),
-        "target_theorem_statement_hash": runtime_module.stable_hash(
-            exact_executor_module._normalized_lean_signature(target_statement)
+        "target_theorem_statement_hash": (
+            exact_executor_module.exact_target_statement_hash(target_statement)
+        ),
+        "target_theorem_statement_hash_algorithm": (
+            exact_executor_module.EXACT_TARGET_STATEMENT_HASH_ALGORITHM
         ),
         "proof_body_signature_probe_artifact_path": str(source_path),
         "proof_body_signature_probe_artifact_hash": runtime_module.stable_hash(

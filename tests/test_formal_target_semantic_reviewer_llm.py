@@ -8,6 +8,10 @@ from ai_statistician.architect_coordinator_llm import (
     _required_architect_plan_subsystems,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.exact_source_theorem_proof_body_executor import (
+    EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
+    exact_target_statement_hash,
+)
 from ai_statistician.formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS,
     FormalTargetSemanticReviewerConfig,
@@ -95,16 +99,29 @@ def _reviewer(verdict: str) -> LLMFormalTargetSemanticReviewerAgent:
     )
 
 
-def _runtime_fixture(tmp_path: Path, verdict: str):
+def _runtime_fixture(
+    tmp_path: Path,
+    verdict: str,
+    *,
+    target_hash_algorithm: str = EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
+):
     question = _question()
     source = (
         "import Mathlib\n\n"
-        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "theorem exact_source\n"
+        "    (p : Prop)\n"
+        "    (hp : p) :\n"
+        "    p := by\n"
         "  exact hp\n"
     )
-    target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
+    target_statement = (
+        "theorem exact_source\n"
+        "    (p : Prop)\n"
+        "    (hp : p) :\n"
+        "    p"
+    )
     source_hash = stable_hash(source)
-    target_hash = stable_hash(target_statement)
+    target_hash = exact_target_statement_hash(target_statement)
     artifact_path = tmp_path / "exact_source.lean"
     artifact_path.write_text(source, encoding="utf-8")
     theory_packet = {
@@ -199,6 +216,9 @@ def _runtime_fixture(tmp_path: Path, verdict: str):
         "target_lean_declaration": "exact_source",
         "target_theorem_statement": target_statement,
         "target_theorem_statement_hash": target_hash,
+        "target_theorem_statement_hash_algorithm": (
+            target_hash_algorithm
+        ),
         "target_ids": ["exact_source"],
         "source_theorem_target_provenance": {
             "source_theorem_target_known": True
@@ -334,6 +354,30 @@ def test_formal_target_semantic_review_fails_closed_on_source_hash_drift(
     assert not result.tool_calls
 
 
+def test_required_review_dispatch_fails_closed_on_target_hash_contract_drift(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "ACCEPT",
+        target_hash_algorithm="legacy_raw_statement_hash",
+    )
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+
+    assert work_order["dispatch_status"] == "BLOCKED"
+    assert work_order["dispatch_validation_errors"] == [
+        "target_theorem_statement_hash_algorithm mismatch"
+    ]
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "formal_target_semantic_review_input_invalid"
+    )
+    assert not result.tool_calls
+
+
 def test_accepted_formal_target_review_cannot_be_replayed_after_source_drift(
     tmp_path: Path,
 ) -> None:
@@ -386,6 +430,9 @@ def test_formal_target_review_validator_rejects_failed_dimension_acceptance() ->
         "candidate_id": "candidate",
         "candidate_source_hash": "source-hash",
         "target_theorem_statement_hash": "target-hash",
+        "target_theorem_statement_hash_algorithm": (
+            EXACT_TARGET_STATEMENT_HASH_ALGORITHM
+        ),
         "review_input_fingerprint": "input-hash",
     }
 
