@@ -58,6 +58,21 @@ def test_cross_family_protocol_rejects_family_overlap() -> None:
     assert "development and held_out task families must be disjoint" in errors
 
 
+def test_cross_family_protocol_requires_generated_code_semantic_review() -> None:
+    protocol = load_cross_family_eval_protocol(PROTOCOL_PATH)
+    bad_protocol = copy.deepcopy(protocol)
+    bad_protocol["run_contract"][
+        "generated_code_semantic_review_required"
+    ] = False
+
+    errors = validate_cross_family_eval_protocol(bad_protocol)
+
+    assert (
+        "run_contract.generated_code_semantic_review_required must be true"
+        in errors
+    )
+
+
 def test_cross_family_protocol_rejects_question_family_drift() -> None:
     protocol = load_cross_family_eval_protocol(PROTOCOL_PATH)
     bad_protocol = copy.deepcopy(protocol)

@@ -98,6 +98,11 @@ from ai_statistician.critic_evaluator_llm import (
     LLMCriticEvaluatorAgent,
     build_critic_evaluator_prompt,
 )
+from ai_statistician.generated_code_semantic_reviewer_llm import (
+    GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
+    GeneratedCodeSemanticReviewerConfig,
+    LLMGeneratedCodeSemanticReviewerAgent,
+)
 from ai_statistician.formalizer_llm import (
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
@@ -16736,6 +16741,9 @@ def test_runtime_manifest_surfaces_deferred_meta_gap_top_level(
         tmp_path / "runtime",
         theory_developer=theory_developer,
         architect_coordinator=architect,
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         architect_context=architect_context,
         config=ResearchAgentRuntimeConfig(
             max_iterations=1,
@@ -17089,6 +17097,9 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
             ] is True
             return {
                 "packet_id": "simulation_proposal:direct_gap",
+                "source_agent": "LLMSimulationEngineerAgent",
+                "model": "static-simulation-model",
+                "model_tier": "sonnet",
                 "simulation_code_drafts": [
                     {
                         "simulation_id": "direct_gap_generated_simulation",
@@ -17129,6 +17140,9 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
         theory_developer=theory_developer,
         architect_coordinator=architect,
         simulation_engineer=simulation_engineer,  # type: ignore[arg-type]
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         architect_context=architect_context,
         config=ResearchAgentRuntimeConfig(
             n_runs=6,
@@ -17520,13 +17534,16 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
             ] is True
             return {
                 "packet_id": "algorithm_engineer_proposal:direct_gap",
+                "source_agent": "LLMAlgorithmEngineerAgent",
+                "model": "static-algorithm-model",
+                "model_tier": "sonnet",
                 "implementation_targets": [
                     {
                         "estimator_id": "custom_estimator",
                         "registered_template_hint": "none",
                     }
                 ],
-                    "sandbox_code_drafts": [
+                "sandbox_code_drafts": [
                         {
                         "estimator_id": "custom_estimator",
                         "language": "python",
@@ -17571,6 +17588,9 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
         theory_developer=theory_developer,
         architect_coordinator=architect,
         algorithm_engineer=algorithm_engineer,  # type: ignore[arg-type]
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         architect_context=architect_context,
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
@@ -17709,6 +17729,9 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
             assert contract["capability_eval_requires_generated_simulation_code"] is True
             return {
                 "packet_id": "algorithm_engineer_proposal:combined_gap",
+                "source_agent": "LLMAlgorithmEngineerAgent",
+                "model": "static-algorithm-model",
+                "model_tier": "sonnet",
                 "implementation_targets": [
                     {
                         "estimator_id": "custom_estimator",
@@ -17796,11 +17819,14 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
         architect_coordinator=architect,
         algorithm_engineer=algorithm_engineer,  # type: ignore[arg-type]
         simulation_engineer=simulation_engineer,  # type: ignore[arg-type]
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         architect_context=architect_context,
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
             seed=20260704,
-            max_iterations=3,
+            max_iterations=5,
             evaluation_mode="capability_eval",
         ),
         initial_blackboard_artifacts={
@@ -17827,9 +17853,11 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
         > 0
     ]
 
-    assert subsystems[:3] == [
+    assert subsystems[:5] == [
         "ArchitectCoordinator",
         "AlgorithmEngineer",
+        "ArchitectCoordinator",
+        "GeneratedCodeSemanticReviewer",
         "SimulationEvaluator",
     ]
     assert len(algorithm_engineer.feedbacks) == 1
@@ -18597,6 +18625,9 @@ def test_runtime_executes_architect_routed_gap_planner_gap(
         tmp_path / "runtime",
         theory_developer=theory_developer,
         architect_coordinator=architect,
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         architect_context=architect_context,
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
@@ -21053,7 +21084,12 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
     )
 
     merged_context = _runtime_architect_context_with_requested_evidence_contract(
-        {"runtime_requested_evidence_contract": {"existing_context_flag": "keep"}},
+        {
+            "runtime_requested_evidence_contract": {
+                "existing_context_flag": "keep",
+                "capability_eval_requires_generated_code_semantic_review": False,
+            }
+        },
         formal_verification_policy="advisory",
         recommended_research_path="simulation_first",
         evaluation_mode="capability_eval",
@@ -21063,6 +21099,10 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
     )
     merged_contract = merged_context["runtime_requested_evidence_contract"]
     assert merged_contract["existing_context_flag"] == "keep"
+    assert (
+        merged_contract["capability_eval_requires_generated_code_semantic_review"]
+        is True
+    )
     assert (
         merged_contract[
             "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
@@ -41918,7 +41958,7 @@ def test_algorithm_success_routes_to_required_generated_simulation_before_formal
     ] is True
 
 
-def test_algorithm_success_formalizes_after_generated_simulation_already_passed(
+def test_algorithm_success_routes_semantic_review_before_formalization(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -41993,6 +42033,8 @@ def test_algorithm_success_formalizes_after_generated_simulation_already_passed(
         seed=20260630,
         proposal_agent=PassingAlgorithmEngineer(),  # type: ignore[arg-type]
         timeout_s=20,
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=1,
     ).run(
         AgentTask(
             task_id="algorithm:formalize-after-generated-simulation",
@@ -42031,11 +42073,25 @@ def test_algorithm_success_formalizes_after_generated_simulation_already_passed(
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert result.next_task.inputs["simulation_manifest_id"] == simulation_manifest_id
+    assert result.next_task.owner_subsystem == "GeneratedCodeSemanticReviewer"
+    work_order = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("generated_code_semantic_review_work_order:")
+    )
+    assert work_order["source_subsystem"] == "AlgorithmEngineer"
+    assert work_order["capability_eval"] is True
+    assert work_order["reviewed_artifacts"][0]["runtime_seed"] == 20260630
+    assert work_order["reviewed_artifacts"][0]["runtime_replicates"] == 12
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    assert work_order["deferred_next_task"]["inputs"]["simulation_manifest_id"] == (
+        simulation_manifest_id
+    )
 
 
-def test_simulation_pass_uses_existing_generated_algorithm_evidence_for_gap(
+def test_simulation_pass_routes_semantic_review_before_formalization(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -42119,6 +42175,8 @@ def test_simulation_pass_uses_existing_generated_algorithm_evidence_for_gap(
     result = SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=PassingSimulationEngineer(),
         sandbox_root=tmp_path / "generated_simulation_sandbox",
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=1,
     ).run(
         AgentTask(
             task_id="simulation:after-generated-algorithm",
@@ -42156,11 +42214,22 @@ def test_simulation_pass_uses_existing_generated_algorithm_evidence_for_gap(
     assert result.status == "REROUTE"
     assert manifest["n_generated_simulation_sandbox_passed"] == 1
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert (
-        result.next_task.inputs["algorithm_sandbox_manifest_id"]
-        == algorithm_manifest_id
+    assert result.next_task.owner_subsystem == "GeneratedCodeSemanticReviewer"
+    work_order = next(
+        artifact
+        for key, artifact in result.produced_artifacts.items()
+        if key.startswith("generated_code_semantic_review_work_order:")
     )
+    assert work_order["source_subsystem"] == "SimulationEvaluator"
+    assert work_order["capability_eval"] is True
+    assert work_order["reviewed_artifacts"][0]["runtime_seed"] == 20260701
+    assert work_order["reviewed_artifacts"][0]["runtime_replicates"] == 12
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    assert work_order["deferred_next_task"]["inputs"][
+        "algorithm_sandbox_manifest_id"
+    ] == algorithm_manifest_id
     assert any(
         row.observation_type
         == "implementation_gap_covered_by_generated_algorithm_sandbox"
@@ -52521,6 +52590,9 @@ def test_runtime_materializes_formalizer_pf_exact_rows_from_learning_memory(
                 model="static-theory-model",
             ),
         ),
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         architect_context=architect_context,
         config=ResearchAgentRuntimeConfig(
             n_runs=1,
@@ -60173,6 +60245,9 @@ def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(
         [question],
         tmp_path / "runtime",
         theory_developer=developer,
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
@@ -61177,6 +61252,9 @@ def test_capability_eval_auto_runs_exact_semantic_source_lookup_for_work_orders(
         [question],
         tmp_path / "runtime",
         theory_developer=developer,
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
             seed=20260528,
@@ -81355,6 +81433,35 @@ def _architect_sample_response(
     }
 
 
+def _static_generated_code_semantic_reviewer() -> (
+    LLMGeneratedCodeSemanticReviewerAgent
+):
+    return LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticArchitectLLMProvider(
+            {
+                "dimension_reviews": [
+                    {
+                        "dimension": dimension,
+                        "status": "PASS",
+                        "rationale": "Static fixture accepts exact bound inputs.",
+                        "evidence_refs": ["exact_executed_artifacts"],
+                    }
+                    for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+                ],
+                "findings": [],
+                "overall_verdict": "ACCEPT",
+                "repair_owner": "AlgorithmEngineer",
+                "repair_instructions": [],
+            }
+        ),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model="static-opus-reviewer-model",
+            model_tier="opus",
+        ),
+    )
+
+
 def _runtime_sample_response() -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -98460,6 +98567,9 @@ def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> No
         out_dir,
         theory_developer=developer,
         architect_coordinator=architect_coordinator,
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
         config=ResearchAgentRuntimeConfig(
             n_runs=10,
             seed=20260528,
@@ -99050,6 +99160,7 @@ def test_capability_eval_requires_formalizer_candidate_local_lean() -> None:
         algorithm_engineer_provider="anthropic",
         formalizer_provider="anthropic",
         critic_evaluator_provider="anthropic",
+        generated_code_semantic_reviewer_provider="anthropic",
         local_lean=True,
         real_lean=False,
         proof_obligation_id=[],
@@ -99956,6 +100067,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.algorithm_engineer_provider == "same"
     assert args.simulation_engineer_provider == "same"
     assert args.formalizer_provider == "same"
+    assert args.generated_code_semantic_reviewer_provider == "same"
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_lsp_mcp is True
     assert args.openprover_root == "/tmp/source-controlled-openprover"
@@ -99977,6 +100089,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         args.simulation_evaluator_generated_code_repair_yield_after_attempts
         == 1
     )
+    assert args.generated_code_semantic_review_max_revisions == 1
     assert (
         args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
         == 1
@@ -100054,6 +100167,14 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
 
     args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
+    args.generated_code_semantic_review_max_revisions = 0
+    assert (
+        "capability eval preset full-live requires bounded independent "
+        "generated-code semantic-review repair; set "
+        "--generated-code-semantic-review-max-revisions > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.generated_code_semantic_review_max_revisions = 1
     args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = 0
     assert (
         "capability eval preset full-live requires bounded "

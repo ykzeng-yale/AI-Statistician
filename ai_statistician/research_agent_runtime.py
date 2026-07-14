@@ -68,6 +68,13 @@ from .generated_metric_contract import (
     generated_sandbox_runtime_replicates,
     validate_generated_metric_contracts,
 )
+from .generated_code_semantic_reviewer_llm import (
+    GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+    GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
+    GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
+    LLMGeneratedCodeSemanticReviewerAgent,
+    validate_generated_code_semantic_review_packet,
+)
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
     _lean_command as _runtime_owned_lean_command,
@@ -7222,6 +7229,7 @@ class ResearchAgentRuntimeConfig:
     coding_agent_packet_validation_replan_after_attempts: int = 0
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
+    generated_code_semantic_review_max_revisions: int = 1
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
     resume_through_architect: bool = False
     formal_verification_policy: str = "optional"
@@ -7407,6 +7415,7 @@ def _runtime_requested_evidence_contract(
         "evaluation_mode": str(evaluation_mode or "debug"),
         "capability_eval_requires_generated_algorithm_code": capability_eval,
         "capability_eval_requires_generated_simulation_code": capability_eval,
+        "capability_eval_requires_generated_code_semantic_review": capability_eval,
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
         "formal_targets": (
             ["source theorem or required subclaims kernel verified"]
@@ -7488,6 +7497,14 @@ def _runtime_architect_context_with_requested_evidence_contract(
     existing_contract = payload.get("runtime_requested_evidence_contract", {})
     if isinstance(existing_contract, Mapping):
         requested_contract = {**requested_contract, **dict(existing_contract)}
+    if str(evaluation_mode or "") == "capability_eval":
+        for field in (
+            "capability_eval_requires_generated_algorithm_code",
+            "capability_eval_requires_generated_simulation_code",
+            "capability_eval_requires_generated_code_semantic_review",
+            "capability_eval_requires_formalizer_lean_candidate",
+        ):
+            requested_contract[field] = True
     yield_after_attempts = max(
         0,
         int(algorithm_engineer_generated_code_repair_yield_after_attempts or 0),
@@ -11246,6 +11263,836 @@ def _runtime_missing_formalization_handoff_result_if_needed(
     )
 
 
+GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
+
+
+def _runtime_generated_code_semantic_review_rows(
+    manifest: Mapping[str, Any],
+    *,
+    source_subsystem: str,
+) -> list[dict[str, Any]]:
+    if source_subsystem == "SimulationEvaluator":
+        raw_rows = manifest.get("generated_simulation_sandbox_prototypes", [])
+        id_key = "simulation_id"
+    elif source_subsystem == "AlgorithmEngineer":
+        raw_rows = manifest.get("prototypes", [])
+        id_key = "estimator_id"
+    else:
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_row in raw_rows or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = dict(raw_row)
+        if row.get("smoke_passed") is not True:
+            continue
+        if not str(row.get("script_path", "") or "").strip():
+            continue
+        if not str(row.get("script_hash", "") or "").strip():
+            continue
+        artifact_id = str(row.get(id_key, "") or "").strip()
+        if not artifact_id:
+            continue
+        row["semantic_review_artifact_id"] = artifact_id
+        rows.append(row)
+    return rows
+
+
+def _runtime_generated_code_semantic_review_dispatch(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    source_subsystem: str,
+    source_manifest: Mapping[str, Any],
+    theory_packet: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any] | None,
+    architect_context: Mapping[str, Any],
+    deferred_next_task: AgentTask,
+    max_revisions: int,
+) -> dict[str, Any] | None:
+    review_rows = _runtime_generated_code_semantic_review_rows(
+        source_manifest,
+        source_subsystem=source_subsystem,
+    )
+    if not review_rows:
+        return None
+    manifest_id = str(source_manifest.get("manifest_id", "") or "").strip()
+    theory_packet_id = str(theory_packet.get("packet_id", "") or "").strip()
+    proposal = dict(proposal_packet or {})
+    proposal_packet_id = str(proposal.get("packet_id", "") or "").strip()
+    review_revision_count = max(
+        0,
+        int(task.inputs.get("generated_code_semantic_review_revision_count", 0) or 0),
+    )
+    reviewed_artifacts = [
+        {
+            "artifact_id": str(row["semantic_review_artifact_id"]),
+            "row_hash": stable_hash(row),
+            "script_path": str(row.get("script_path", "") or ""),
+            "script_hash": str(row.get("script_hash", "") or ""),
+            "result_path": str(row.get("result_path", "") or ""),
+            "result_hash": str(row.get("result_hash", "") or ""),
+            "runtime_seed": row.get("runtime_seed"),
+            "runtime_replicates": row.get("runtime_replicates"),
+            "metric_contract_set_id": str(
+                row.get("metric_contract_set_id", "") or ""
+            ),
+            "metric_requirement_set_id": str(
+                row.get("metric_requirement_set_id", "") or ""
+            ),
+        }
+        for row in review_rows
+    ]
+    evidence_contract = _architect_control_payload(
+        architect_context,
+        source_subsystem,
+    ).get("evidence_contract", {})
+    runtime_contract = architect_context.get(
+        "runtime_requested_evidence_contract",
+        {},
+    )
+    if not isinstance(runtime_contract, Mapping):
+        runtime_contract = {}
+    capability_eval = bool(
+        (
+            isinstance(evidence_contract, Mapping)
+            and str(evidence_contract.get("evaluation_mode", "") or "")
+            == "capability_eval"
+        )
+        or str(runtime_contract.get("evaluation_mode", "") or "")
+        == "capability_eval"
+        or str(architect_context.get("runtime_evaluation_mode", "") or "")
+        == "capability_eval"
+    )
+    work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
+        [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
+    )[:20]
+    work_order = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder",
+        "work_order_id": work_order_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_subsystem": source_subsystem,
+        "target_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+        "source_manifest_id": manifest_id,
+        "source_manifest_hash": stable_hash(source_manifest),
+        "theory_packet_id": theory_packet_id,
+        "theory_packet_hash": stable_hash(theory_packet),
+        "proposal_packet_id": proposal_packet_id,
+        "proposal_packet_hash": stable_hash(proposal) if proposal else "",
+        "source_agent": str(proposal.get("source_agent", "") or ""),
+        "source_model": str(proposal.get("model", "") or ""),
+        "source_model_tier": str(proposal.get("model_tier", "") or ""),
+        "reviewed_artifacts": reviewed_artifacts,
+        "architect_evidence_contract": (
+            dict(evidence_contract) if isinstance(evidence_contract, Mapping) else {}
+        ),
+        "capability_eval": capability_eval,
+        "review_revision_count": review_revision_count,
+        "max_revisions": max(0, int(max_revisions or 0)),
+        "repair_task": asdict(task),
+        "deferred_next_task": asdict(deferred_next_task),
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
+        ),
+        "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+    }
+    work_order_hash = stable_hash(work_order)
+    review_task = AgentTask(
+        task_id=(
+            f"semantic-review:{question.id}:"
+            f"{stable_hash([work_order_id, work_order_hash])[:10]}"
+        ),
+        owner_subsystem=GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+        objective=(
+            "Independently review the statistical and experimental semantics of "
+            "the exact generated code, actual runtime arguments, returned metrics, "
+            "theory derivation, and Architect-frozen measurement protocol."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": dict(architect_context),
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+        },
+        allowed_tools=("model_backend", "filesystem", "blackboard"),
+        expected_artifacts=(
+            "generated_code_semantic_review_materialization",
+            "generated_code_semantic_review_packet",
+            "generated_code_semantic_review_execution_manifest",
+        ),
+        acceptance_gate=(
+            "an independent lineage-bound semantic review accepts every exact "
+            "generated artifact or routes concrete feedback to its coding agent"
+        ),
+        stop_condition=(
+            "semantic review is accepted, a fresh coding-agent revision is "
+            "scheduled, or the bounded semantic-review loop records a blocker"
+        ),
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, work_order_id])[:20],
+        task_id=task.task_id,
+        artifact_id=work_order_id,
+        evidence_type="generated_code_semantic_review_work_order",
+        status="WORK_ORDER_RECORDED_NOT_SEMANTIC_ACCEPTANCE",
+        boundary=GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+        payload={
+            "source_subsystem": source_subsystem,
+            "source_manifest_id": manifest_id,
+            "n_reviewed_artifacts": len(reviewed_artifacts),
+            "next_owner_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+    )
+    observation = EnvironmentObservation(
+        observation_type="generated_code_semantic_review_dispatched",
+        summary=(
+            f"{len(reviewed_artifacts)} exact generated artifact(s) routed to "
+            "an independent semantic reviewer"
+        ),
+        payload={
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+            "source_subsystem": source_subsystem,
+            "source_manifest_id": manifest_id,
+            "reviewed_artifact_ids": [
+                str(row.get("artifact_id", "")) for row in reviewed_artifacts
+            ],
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+    )
+    return {
+        "work_order_id": work_order_id,
+        "work_order": work_order,
+        "next_task": review_task,
+        "evidence": evidence,
+        "observation": observation,
+    }
+
+
+def _runtime_generated_code_semantic_review_material(
+    *,
+    work_order: Mapping[str, Any],
+    source_manifest: Mapping[str, Any],
+    theory_packet: Mapping[str, Any],
+    proposal_packet: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    source_subsystem = str(work_order.get("source_subsystem", "") or "")
+    source_rows = _runtime_generated_code_semantic_review_rows(
+        source_manifest,
+        source_subsystem=source_subsystem,
+    )
+    rows_by_hash = {stable_hash(row): row for row in source_rows}
+    errors: list[str] = []
+    exact_artifacts: list[dict[str, Any]] = []
+    for descriptor in work_order.get("reviewed_artifacts", []) or []:
+        if not isinstance(descriptor, Mapping):
+            errors.append("reviewed_artifacts descriptor is not an object")
+            continue
+        row_hash = str(descriptor.get("row_hash", "") or "")
+        row = rows_by_hash.get(row_hash)
+        artifact_id = str(descriptor.get("artifact_id", "") or "")
+        if row is None:
+            errors.append(f"reviewed artifact row hash mismatch: {artifact_id}")
+            continue
+        if str(row.get("semantic_review_artifact_id", "") or "") != artifact_id:
+            errors.append(f"reviewed artifact identity mismatch: {artifact_id}")
+            continue
+        script_path = Path(str(row.get("script_path", "") or ""))
+        result_path = Path(str(row.get("result_path", "") or ""))
+        if not script_path.is_file():
+            errors.append(f"reviewed source file missing: {artifact_id}")
+            continue
+        source_code = script_path.read_text(encoding="utf-8")
+        script_hash = stable_hash(source_code)
+        if script_hash != str(row.get("script_hash", "") or ""):
+            errors.append(f"reviewed source hash mismatch: {artifact_id}")
+        result_payload: dict[str, Any] = {}
+        if not result_path.is_file():
+            errors.append(f"reviewed result file missing: {artifact_id}")
+        else:
+            try:
+                raw_result = json.loads(result_path.read_text(encoding="utf-8"))
+                if isinstance(raw_result, Mapping):
+                    result_payload = dict(raw_result)
+                else:
+                    errors.append(f"reviewed result is not an object: {artifact_id}")
+            except Exception as exc:
+                errors.append(
+                    f"reviewed result JSON invalid for {artifact_id}: {exc!r}"
+                )
+        result_hash = stable_hash(result_payload) if result_payload else ""
+        if result_hash != str(row.get("result_hash", "") or ""):
+            errors.append(f"reviewed result hash mismatch: {artifact_id}")
+        if stable_hash(result_payload) != stable_hash(row.get("metrics", {})):
+            errors.append(f"reviewed result does not match manifest metrics: {artifact_id}")
+        exact_artifacts.append(
+            {
+                "artifact_id": artifact_id,
+                "source_row": {
+                    key: value
+                    for key, value in row.items()
+                    if key != "code_excerpt"
+                },
+                "exact_source_code": source_code,
+                "exact_source_hash": script_hash,
+                "exact_result": result_payload,
+                "exact_result_hash": result_hash,
+                "actual_runtime_arguments": {
+                    "seed": row.get("runtime_seed"),
+                    "replicates": row.get("runtime_replicates"),
+                },
+            }
+        )
+    material = {
+        "source_subsystem": source_subsystem,
+        "source_manifest_id": str(
+            work_order.get("source_manifest_id", "") or ""
+        ),
+        "source_manifest_summary": {
+            key: value
+            for key, value in source_manifest.items()
+            if key
+            not in {"generated_simulation_sandbox_prototypes", "prototypes"}
+        },
+        "theory_packet": dict(theory_packet),
+        "coding_agent_proposal_packet": dict(proposal_packet),
+        "architect_frozen_evidence_contract": dict(
+            work_order.get("architect_evidence_contract", {}) or {}
+        ),
+        "exact_executed_artifacts": exact_artifacts,
+        "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+    }
+    return material, sorted(set(errors))
+
+
+class GeneratedCodeSemanticReviewerRuntimeSubsystem:
+    name = GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+
+    def __init__(
+        self,
+        *,
+        reviewer: LLMGeneratedCodeSemanticReviewerAgent,
+        max_revisions: int = 1,
+    ) -> None:
+        self.reviewer = reviewer
+        self.max_revisions = max(0, int(max_revisions or 0))
+
+    def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+        question = _question_from_payload(task.inputs["question"])
+        work_order_id = str(task.inputs.get("work_order_id", "") or "")
+        work_order_hash = str(task.inputs.get("work_order_hash", "") or "")
+        raw_work_order = blackboard.artifacts.get(work_order_id, {})
+        work_order = (
+            dict(raw_work_order) if isinstance(raw_work_order, Mapping) else {}
+        )
+        validation_errors: list[str] = []
+        if not work_order_id or not work_order:
+            validation_errors.append("semantic review work order missing")
+        if str(work_order.get("artifact_kind", "") or "") != (
+            "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        ):
+            validation_errors.append("semantic review work-order kind mismatch")
+        if str(work_order.get("work_order_id", "") or "") != work_order_id:
+            validation_errors.append("semantic review work-order identity mismatch")
+        if not work_order_hash or stable_hash(work_order) != work_order_hash:
+            validation_errors.append("semantic review immutable work-order hash mismatch")
+        if str(work_order.get("question_id", "") or "") != question.id:
+            validation_errors.append("semantic review question identity mismatch")
+        source_subsystem = str(work_order.get("source_subsystem", "") or "")
+        if source_subsystem not in GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS:
+            validation_errors.append("semantic review source subsystem is invalid")
+        if work_order.get("capability_eval") is True and not all(
+            str(work_order.get(field, "") or "").strip()
+            for field in ("source_agent", "source_model", "source_model_tier")
+        ):
+            validation_errors.append(
+                "capability-eval semantic review requires complete source-agent provenance"
+            )
+
+        def bound_artifact(
+            *,
+            id_field: str,
+            hash_field: str,
+            required: bool = True,
+        ) -> dict[str, Any]:
+            artifact_id = str(work_order.get(id_field, "") or "")
+            expected_hash = str(work_order.get(hash_field, "") or "")
+            if not artifact_id:
+                if required:
+                    validation_errors.append(f"{id_field} missing")
+                return {}
+            raw_artifact = blackboard.artifacts.get(artifact_id, {})
+            if not isinstance(raw_artifact, Mapping):
+                validation_errors.append(f"{id_field} missing from blackboard")
+                return {}
+            artifact = dict(raw_artifact)
+            if not expected_hash or stable_hash(artifact) != expected_hash:
+                validation_errors.append(f"{id_field} immutable hash mismatch")
+            return artifact
+
+        source_manifest = bound_artifact(
+            id_field="source_manifest_id",
+            hash_field="source_manifest_hash",
+        )
+        theory_packet = bound_artifact(
+            id_field="theory_packet_id",
+            hash_field="theory_packet_hash",
+        )
+        proposal_packet = bound_artifact(
+            id_field="proposal_packet_id",
+            hash_field="proposal_packet_hash",
+        )
+        expected_manifest_kind = (
+            "RuntimeSimulationManifest"
+            if source_subsystem == "SimulationEvaluator"
+            else "RuntimeAlgorithmSandboxManifest"
+        )
+        if str(source_manifest.get("artifact_kind", "") or "") != (
+            expected_manifest_kind
+        ):
+            validation_errors.append("semantic review source manifest kind mismatch")
+        repair_task_payload = (
+            work_order.get("repair_task", {})
+            if isinstance(work_order.get("repair_task", {}), Mapping)
+            else {}
+        )
+        deferred_task_payload = (
+            work_order.get("deferred_next_task", {})
+            if isinstance(work_order.get("deferred_next_task", {}), Mapping)
+            else {}
+        )
+        if str(repair_task_payload.get("owner_subsystem", "") or "") != (
+            source_subsystem
+        ):
+            validation_errors.append("semantic review repair task owner mismatch")
+        if str(repair_task_payload.get("task_id", "") or "") != str(
+            work_order.get("source_task_id", "") or ""
+        ):
+            validation_errors.append("semantic review repair task identity mismatch")
+        if not str(deferred_task_payload.get("owner_subsystem", "") or ""):
+            validation_errors.append("semantic review deferred task missing")
+
+        review_material: dict[str, Any] = {}
+        if not validation_errors:
+            review_material, material_errors = (
+                _runtime_generated_code_semantic_review_material(
+                    work_order=work_order,
+                    source_manifest=source_manifest,
+                    theory_packet=theory_packet,
+                    proposal_packet=proposal_packet,
+                )
+            )
+            validation_errors.extend(material_errors)
+        if validation_errors:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "GeneratedCodeSemanticReviewer rejected changed, missing, or "
+                    "cross-task review inputs before calling the reviewer model."
+                ),
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="generated_code_semantic_review_input_rejected",
+                        summary="; ".join(validation_errors)[:500],
+                        payload={
+                            "work_order_id": work_order_id,
+                            "validation_errors": validation_errors,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                failure_classification="generated_code_semantic_review_input_invalid",
+            )
+
+        materialization_id = (
+            "generated_code_semantic_review_materialization:"
+            + stable_hash([work_order_id, review_material])[:20]
+        )
+        materialization = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewMaterialization",
+            "materialization_id": materialization_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question.id,
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+            "review_input_fingerprint": stable_hash(review_material),
+            "review_material": review_material,
+            "proof_evidence_status": (
+                "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE"
+            ),
+            "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+        }
+        trusted_lineage = {
+            key: work_order.get(key, "")
+            for key in (
+                "work_order_id",
+                "source_task_id",
+                "source_subsystem",
+                "source_manifest_id",
+                "source_manifest_hash",
+                "theory_packet_id",
+                "theory_packet_hash",
+                "proposal_packet_id",
+                "proposal_packet_hash",
+                "source_agent",
+                "source_model",
+                "source_model_tier",
+            )
+        }
+        trusted_lineage["work_order_hash"] = work_order_hash
+        trusted_lineage["reviewed_artifacts"] = list(
+            work_order.get("reviewed_artifacts", []) or []
+        )
+        try:
+            review_packet = self.reviewer.review(
+                question=question,
+                review_material=review_material,
+                trusted_lineage=trusted_lineage,
+            )
+        except PacketValidationError as exc:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "The independent semantic reviewer exhausted typed packet "
+                    "repair without a contract-valid verdict."
+                ),
+                produced_artifacts={materialization_id: materialization},
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="generated_code_semantic_review_packet_invalid",
+                        summary=str(exc)[:500],
+                        payload={
+                            "work_order_id": work_order_id,
+                            "validation_errors": list(exc.errors),
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                failure_classification="generated_code_semantic_review_packet_invalid",
+            )
+
+        runtime_review_errors = validate_generated_code_semantic_review_packet(
+            review_packet
+        )
+        if str(review_packet.get("review_input_fingerprint", "") or "") != stable_hash(
+            review_material
+        ):
+            runtime_review_errors.append("semantic review input fingerprint mismatch")
+        capability_eval = bool(work_order.get("capability_eval", False))
+        source_agent = str(work_order.get("source_agent", "") or "")
+        reviewer_model = str(review_packet.get("model", "") or "")
+        reviewer_tier = str(review_packet.get("model_tier", "") or "")
+        reviewer_agent = str(review_packet.get("source_agent", "") or "")
+        source_model = str(work_order.get("source_model", "") or "")
+        source_tier = str(work_order.get("source_model_tier", "") or "")
+        if capability_eval and not all((source_agent, source_model, source_tier)):
+            runtime_review_errors.append(
+                "capability-eval semantic review requires complete source-agent provenance"
+            )
+        if capability_eval and source_agent and reviewer_agent == source_agent:
+            runtime_review_errors.append(
+                "capability-eval reviewer agent must differ from source generator agent"
+            )
+        if capability_eval and reviewer_tier != "opus":
+            runtime_review_errors.append(
+                "capability-eval semantic reviewer must use the Opus tier"
+            )
+        if capability_eval and source_model and reviewer_model == source_model:
+            runtime_review_errors.append(
+                "capability-eval reviewer model must differ from source generator model"
+            )
+        if capability_eval and source_tier and reviewer_tier == source_tier:
+            runtime_review_errors.append(
+                "capability-eval reviewer tier must differ from source generator tier"
+            )
+        if runtime_review_errors:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "GeneratedCodeSemanticReviewer rejected a non-independent or "
+                    "lineage-inconsistent semantic verdict."
+                ),
+                produced_artifacts={materialization_id: materialization},
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="generated_code_semantic_review_verdict_rejected",
+                        summary="; ".join(sorted(set(runtime_review_errors)))[:500],
+                        payload={
+                            "work_order_id": work_order_id,
+                            "validation_errors": sorted(set(runtime_review_errors)),
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                failure_classification="generated_code_semantic_review_verdict_invalid",
+            )
+
+        review_packet_id = str(review_packet.get("packet_id", "") or "")
+        review_packet_hash = stable_hash(review_packet)
+        verdict = str(review_packet.get("overall_verdict", "") or "")
+        execution_id = "generated_code_semantic_review_execution:" + stable_hash(
+            [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
+        )[:20]
+        execution_manifest = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewExecutionManifest",
+            "execution_id": execution_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question.id,
+            "task_id": task.task_id,
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+            "source_subsystem": source_subsystem,
+            "source_manifest_id": str(
+                work_order.get("source_manifest_id", "") or ""
+            ),
+            "source_manifest_hash": str(
+                work_order.get("source_manifest_hash", "") or ""
+            ),
+            "materialization_id": materialization_id,
+            "materialization_hash": stable_hash(materialization),
+            "review_packet_id": review_packet_id,
+            "review_packet_hash": review_packet_hash,
+            "review_input_fingerprint": stable_hash(review_material),
+            "source_agent": source_agent,
+            "source_model": source_model,
+            "source_model_tier": source_tier,
+            "reviewer_agent": reviewer_agent,
+            "reviewer_model": reviewer_model,
+            "reviewer_model_tier": reviewer_tier,
+            "independent_agent": bool(
+                source_agent
+                and reviewer_agent
+                and reviewer_agent != source_agent
+            ),
+            "independent_model": bool(
+                source_model
+                and reviewer_model
+                and reviewer_model != source_model
+            ),
+            "overall_verdict": verdict,
+            "semantic_review_accepted": verdict == "ACCEPT",
+            "review_revision_count": int(
+                work_order.get("review_revision_count", 0) or 0
+            ),
+            "proof_evidence_status": (
+                GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE
+            ),
+            "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+        }
+        produced_artifacts = {
+            materialization_id: materialization,
+            review_packet_id: review_packet,
+            execution_id: execution_manifest,
+        }
+        feedback = {
+            "feedback_type": "generated_code_semantic_review_feedback",
+            "feedback_source": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+            "source_subsystem": source_subsystem,
+            "source_manifest_id": str(
+                work_order.get("source_manifest_id", "") or ""
+            ),
+            "semantic_review_execution_id": execution_id,
+            "semantic_review_packet_id": review_packet_id,
+            "semantic_review_packet_hash": review_packet_hash,
+            "overall_verdict": verdict,
+            "dimension_reviews": list(
+                review_packet.get("dimension_reviews", []) or []
+            ),
+            "findings": list(review_packet.get("findings", []) or []),
+            "repair_instructions": list(
+                review_packet.get("repair_instructions", []) or []
+            ),
+            "required_repair": (
+                "Generate fresh code and rerun it under the same frozen Architect "
+                "measurement protocol while addressing every semantic finding."
+            ),
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+        }
+        revision_count = int(work_order.get("review_revision_count", 0) or 0)
+        max_revisions = max(
+            self.max_revisions,
+            int(work_order.get("max_revisions", 0) or 0),
+        )
+        if verdict == "ACCEPT":
+            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
+            next_inputs = dict(deferred_task.inputs)
+            accepted_reviews = [
+                dict(row)
+                for row in next_inputs.get(
+                    "accepted_generated_code_semantic_reviews", []
+                )
+                or []
+                if isinstance(row, Mapping)
+            ]
+            accepted_reviews.append(
+                {
+                    "execution_id": execution_id,
+                    "review_packet_id": review_packet_id,
+                    "review_packet_hash": review_packet_hash,
+                    "source_subsystem": source_subsystem,
+                    "source_manifest_id": str(
+                        work_order.get("source_manifest_id", "") or ""
+                    ),
+                    "overall_verdict": "ACCEPT",
+                }
+            )
+            next_inputs["accepted_generated_code_semantic_reviews"] = accepted_reviews
+            next_context = dict(next_inputs.get("architect_context", {}) or {})
+            next_context["accepted_generated_code_semantic_reviews"] = (
+                accepted_reviews
+            )
+            next_inputs["architect_context"] = next_context
+            next_task = replace(
+                deferred_task,
+                task_id=(
+                    f"semantic-review-accepted:{question.id}:"
+                    f"{stable_hash([execution_id, deferred_task.task_id])[:8]}"
+                ),
+                inputs=next_inputs,
+            )
+            status = "REROUTE"
+            rationale = (
+                "Independent semantic review accepted the exact executed generated "
+                "artifacts and the runtime is resuming the deferred task."
+            )
+            failure_classification = ""
+        elif revision_count < max_revisions:
+            repair_task = _agent_task_from_runtime_payload(repair_task_payload)
+            next_inputs = dict(repair_task.inputs)
+            prior_feedback = (
+                dict(next_inputs.get("environment_feedback", {}) or {})
+                if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
+                else {}
+            )
+            next_inputs["environment_feedback"] = {**prior_feedback, **feedback}
+            next_inputs["generated_code_semantic_review_revision_count"] = (
+                revision_count + 1
+            )
+            next_context = dict(next_inputs.get("architect_context", {}) or {})
+            next_context["environment_feedback"] = next_inputs[
+                "environment_feedback"
+            ]
+            next_context["runtime_feedback_loop"] = {
+                **(
+                    dict(next_context.get("runtime_feedback_loop", {}) or {})
+                    if isinstance(
+                        next_context.get("runtime_feedback_loop", {}), Mapping
+                    )
+                    else {}
+                ),
+                "source_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+                "handoff": "generated_code_semantic_review_repair",
+                "semantic_review_execution_id": execution_id,
+                "generated_code_semantic_review_revision_count": (
+                    revision_count + 1
+                ),
+            }
+            next_inputs["architect_context"] = next_context
+            next_task = replace(
+                repair_task,
+                task_id=(
+                    f"semantic-review-revise:{question.id}:"
+                    f"{stable_hash([execution_id, revision_count + 1])[:8]}"
+                ),
+                inputs=next_inputs,
+            )
+            status = "REVISE"
+            rationale = (
+                "Independent semantic review rejected runnable generated code and "
+                "is routing exact findings to the source coding agent for fresh "
+                "generation and execution."
+            )
+            failure_classification = "generated_code_semantic_review_revise"
+        else:
+            next_task = None
+            status = "BLOCKED"
+            rationale = (
+                "Generated code still failed independent semantic review after the "
+                "bounded revision budget; the runtime kept the capability blocker "
+                "open instead of accepting execution-only evidence."
+            )
+            failure_classification = (
+                "generated_code_semantic_review_revision_budget_exhausted"
+            )
+
+        evidence = EvidenceLedgerEntry(
+            evidence_id="evidence:" + stable_hash([task.task_id, execution_id])[:20],
+            task_id=task.task_id,
+            artifact_id=execution_id,
+            evidence_type="generated_code_semantic_review",
+            status=(
+                "SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
+                if verdict == "ACCEPT"
+                else "SEMANTIC_REVIEW_REVISION_REQUIRED_NOT_PROOF_EVIDENCE"
+            ),
+            boundary=GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+            payload={
+                "source_subsystem": source_subsystem,
+                "source_manifest_id": str(
+                    work_order.get("source_manifest_id", "") or ""
+                ),
+                "overall_verdict": verdict,
+                "reviewer_model": reviewer_model,
+                "reviewer_model_tier": reviewer_tier,
+                "n_findings": len(review_packet.get("findings", []) or []),
+                "kernel_verified": False,
+            },
+        )
+        return AgentStepResult(
+            status=status,
+            rationale=rationale,
+            produced_artifacts=produced_artifacts,
+            observations=(
+                EnvironmentObservation(
+                    observation_type="generated_code_semantic_review_result",
+                    summary=(
+                        f"source={source_subsystem} verdict={verdict} "
+                        f"findings={len(review_packet.get('findings', []) or [])}"
+                    ),
+                    payload={
+                        "execution_id": execution_id,
+                        "review_packet_id": review_packet_id,
+                        "source_manifest_id": str(
+                            work_order.get("source_manifest_id", "") or ""
+                        ),
+                        "overall_verdict": verdict,
+                        "next_owner_subsystem": (
+                            next_task.owner_subsystem if next_task else ""
+                        ),
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                ),
+            ),
+            tool_calls=(
+                ToolCallRecord(
+                    tool_name="LLMGeneratedCodeSemanticReviewerAgent.review",
+                    inputs={
+                        "work_order_id": work_order_id,
+                        "review_input_fingerprint": stable_hash(review_material),
+                        "source_subsystem": source_subsystem,
+                    },
+                    input_hash=stable_hash(review_material),
+                    output_hash=review_packet_hash,
+                    exit_status="0",
+                    stdout_summary=(
+                        f"verdict={verdict} reviewer_model={reviewer_model}"
+                    ),
+                    safety_boundary=GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+                ),
+            ),
+            evidence_entries=(evidence,),
+            next_task=next_task,
+            failure_classification=failure_classification,
+        )
+
+
 class SimulationEvaluatorRuntimeSubsystem:
     name = "SimulationEvaluator"
 
@@ -11255,12 +12102,19 @@ class SimulationEvaluatorRuntimeSubsystem:
         proposal_agent: LLMSimulationEngineerAgent | None = None,
         sandbox_root: Path = Path("runs") / "generated_simulation_sandbox",
         packet_validation_replan_after_attempts: int = 0,
+        semantic_reviewer_available: bool = False,
+        semantic_review_max_revisions: int = 1,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
         self.packet_validation_replan_after_attempts = max(
             0,
             int(packet_validation_replan_after_attempts or 0),
+        )
+        self.semantic_reviewer_available = bool(semantic_reviewer_available)
+        self.semantic_review_max_revisions = max(
+            0,
+            int(semantic_review_max_revisions or 0),
         )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
@@ -11797,6 +12651,13 @@ class SimulationEvaluatorRuntimeSubsystem:
             "n_generated_simulation_typed_metric_contracts_failed": (
                 n_generated_simulation_typed_metric_contracts_failed
             ),
+            "generated_code_semantic_reviewer_available": (
+                self.semantic_reviewer_available
+            ),
+            "generated_code_semantic_review_pending": bool(
+                self.semantic_reviewer_available
+                and n_generated_simulation_passed > 0
+            ),
             "typed_metric_contract_proof_evidence_status": (
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
             ),
@@ -12209,6 +13070,33 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ),
                     architect_context=effective_context,
                 )
+            semantic_review_evidence: EvidenceLedgerEntry | None = None
+            if self.semantic_reviewer_available:
+                semantic_review_dispatch = (
+                    _runtime_generated_code_semantic_review_dispatch(
+                        task=task,
+                        question=question,
+                        source_subsystem="SimulationEvaluator",
+                        source_manifest=manifest,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        proposal_packet=proposal_packet,
+                        architect_context=effective_context,
+                        deferred_next_task=next_task,
+                        max_revisions=self.semantic_review_max_revisions,
+                    )
+                )
+                if semantic_review_dispatch is not None:
+                    work_order_id = str(
+                        semantic_review_dispatch["work_order_id"]
+                    )
+                    produced_artifacts[work_order_id] = (
+                        semantic_review_dispatch["work_order"]
+                    )
+                    observations.append(semantic_review_dispatch["observation"])
+                    semantic_review_evidence = semantic_review_dispatch["evidence"]
+                    next_task = semantic_review_dispatch["next_task"]
             return AgentStepResult(
                 status="REROUTE",
                 rationale=(
@@ -12227,7 +13115,15 @@ class SimulationEvaluatorRuntimeSubsystem:
                     ),
                     *generated_simulation_tool_calls,
                 ),
-                evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
+                evidence_entries=tuple(
+                    row
+                    for row in (
+                        proposal_evidence,
+                        evidence,
+                        semantic_review_evidence,
+                    )
+                    if row is not None
+                ),
                 next_task=next_task,
             )
         feedback = {
@@ -12289,6 +13185,8 @@ class AlgorithmEngineerRuntimeSubsystem:
         proposal_agent: LLMAlgorithmEngineerAgent | None = None,
         timeout_s: int = 60,
         packet_validation_replan_after_attempts: int = 0,
+        semantic_reviewer_available: bool = False,
+        semantic_review_max_revisions: int = 1,
     ) -> None:
         self.out_dir = out_dir
         self.n_runs = n_runs
@@ -12298,6 +13196,11 @@ class AlgorithmEngineerRuntimeSubsystem:
         self.packet_validation_replan_after_attempts = max(
             0,
             int(packet_validation_replan_after_attempts or 0),
+        )
+        self.semantic_reviewer_available = bool(semantic_reviewer_available)
+        self.semantic_review_max_revisions = max(
+            0,
+            int(semantic_review_max_revisions or 0),
         )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
@@ -12833,6 +13736,17 @@ class AlgorithmEngineerRuntimeSubsystem:
             "n_typed_metric_contracts_evaluated": n_typed_metric_contracts_evaluated,
             "n_typed_metric_contracts_passed": n_typed_metric_contracts_passed,
             "n_typed_metric_contracts_failed": n_typed_metric_contracts_failed,
+            "generated_code_semantic_reviewer_available": (
+                self.semantic_reviewer_available
+            ),
+            "generated_code_semantic_review_pending": bool(
+                self.semantic_reviewer_available
+                and any(
+                    row.get("executor") == "generated_python_sandbox"
+                    and row.get("smoke_passed") is True
+                    for row in prototype_rows
+                )
+            ),
             "typed_metric_contract_proof_evidence_status": (
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
             ),
@@ -13082,6 +13996,27 @@ class AlgorithmEngineerRuntimeSubsystem:
                 algorithm_sandbox_manifest_id=manifest_id,
                 architect_context=effective_context,
             )
+        semantic_review_evidence: EvidenceLedgerEntry | None = None
+        if not revision_required and self.semantic_reviewer_available:
+            semantic_review_dispatch = _runtime_generated_code_semantic_review_dispatch(
+                task=task,
+                question=question,
+                source_subsystem="AlgorithmEngineer",
+                source_manifest=manifest,
+                theory_packet=packet if isinstance(packet, Mapping) else {},
+                proposal_packet=proposal_packet,
+                architect_context=effective_context,
+                deferred_next_task=next_task,
+                max_revisions=self.semantic_review_max_revisions,
+            )
+            if semantic_review_dispatch is not None:
+                work_order_id = str(semantic_review_dispatch["work_order_id"])
+                produced_artifacts[work_order_id] = semantic_review_dispatch[
+                    "work_order"
+                ]
+                observations.append(semantic_review_dispatch["observation"])
+                semantic_review_evidence = semantic_review_dispatch["evidence"]
+                next_task = semantic_review_dispatch["next_task"]
         observations.append(
             EnvironmentObservation(
                 observation_type="algorithm_sandbox_result",
@@ -13107,7 +14042,15 @@ class AlgorithmEngineerRuntimeSubsystem:
                 },
             )
         )
-        evidence_entries = [row for row in (proposal_evidence, evidence) if row is not None]
+        evidence_entries = [
+            row
+            for row in (
+                proposal_evidence,
+                evidence,
+                semantic_review_evidence,
+            )
+            if row is not None
+        ]
         if revision_required:
             if next_task.owner_subsystem == "ArchitectCoordinator":
                 algorithm_rationale = (
@@ -33032,6 +33975,9 @@ def run_research_agent_runtime(
     algorithm_engineer: LLMAlgorithmEngineerAgent | None = None,
     formalizer: LLMFormalizerProofEngineerAgent | None = None,
     critic_evaluator: LLMCriticEvaluatorAgent | None = None,
+    generated_code_semantic_reviewer: (
+        LLMGeneratedCodeSemanticReviewerAgent | None
+    ) = None,
     proof_verifier: ProofVerifier | None = None,
     proof_state_provider: ProofStateFeedbackProvider | None = None,
     formal_source_retriever: Any | None = None,
@@ -33041,6 +33987,14 @@ def run_research_agent_runtime(
     initial_task_overrides: Mapping[str, AgentTask] | None = None,
     initial_blackboard_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    if (
+        str(config.evaluation_mode or "").strip() == "capability_eval"
+        and generated_code_semantic_reviewer is None
+    ):
+        raise ValueError(
+            "capability_eval requires an independent "
+            "GeneratedCodeSemanticReviewer"
+        )
     formal_verification_policy = _normalized_formal_verification_policy(
         config.formal_verification_policy
     )
@@ -33111,6 +34065,7 @@ def run_research_agent_runtime(
         algorithm_engineer=algorithm_engineer,
         formalizer=formalizer,
         critic_evaluator=critic_evaluator,
+        generated_code_semantic_reviewer=generated_code_semantic_reviewer,
         proof_state_provider=proof_state_provider,
     )
     if llm_topology["policy_status"] != "OK":
@@ -33240,6 +34195,12 @@ def run_research_agent_runtime(
                 packet_validation_replan_after_attempts=(
                     config.coding_agent_packet_validation_replan_after_attempts
                 ),
+                semantic_reviewer_available=(
+                    generated_code_semantic_reviewer is not None
+                ),
+                semantic_review_max_revisions=(
+                    config.generated_code_semantic_review_max_revisions
+                ),
             ),
             "AlgorithmEngineer": AlgorithmEngineerRuntimeSubsystem(
                 out_dir=out_dir / "algorithm_sandbox",
@@ -33248,6 +34209,12 @@ def run_research_agent_runtime(
                 proposal_agent=algorithm_engineer,
                 packet_validation_replan_after_attempts=(
                     config.coding_agent_packet_validation_replan_after_attempts
+                ),
+                semantic_reviewer_available=(
+                    generated_code_semantic_reviewer is not None
+                ),
+                semantic_review_max_revisions=(
+                    config.generated_code_semantic_review_max_revisions
                 ),
             ),
             "FormalizationEvaluator": formalization_subsystem,
@@ -33371,6 +34338,15 @@ def run_research_agent_runtime(
                 runtime_config=config,
             ),
         }
+        if generated_code_semantic_reviewer is not None:
+            subsystems[GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM] = (
+                GeneratedCodeSemanticReviewerRuntimeSubsystem(
+                    reviewer=generated_code_semantic_reviewer,
+                    max_revisions=(
+                        config.generated_code_semantic_review_max_revisions
+                    ),
+                )
+            )
         if config.pseudo_formal_block_verifier_runtime and formalizer is not None:
             formalizer_config = getattr(formalizer, "config", None)
             pseudo_formal_block_verifier_max_packets = max(
@@ -50887,6 +51863,9 @@ def _runtime_llm_topology(
     algorithm_engineer: LLMAlgorithmEngineerAgent | None,
     formalizer: LLMFormalizerProofEngineerAgent | None,
     critic_evaluator: LLMCriticEvaluatorAgent | None,
+    generated_code_semantic_reviewer: (
+        LLMGeneratedCodeSemanticReviewerAgent | None
+    ) = None,
     proof_state_provider: ProofStateFeedbackProvider | None,
 ) -> dict[str, Any]:
     agents = [
@@ -50914,6 +51893,14 @@ def _runtime_llm_topology(
             "FormalizerProofEngineer",
             formalizer,
             role="Lean/formal-target/proof-search proposal before kernel gates",
+        ),
+        _llm_agent_topology_row(
+            "GeneratedCodeSemanticReviewer",
+            generated_code_semantic_reviewer,
+            role=(
+                "independent semantic review of exact executed generated code, "
+                "runtime arguments, metrics, theory, and frozen protocols"
+            ),
         ),
         _llm_agent_topology_row(
             "CriticEvaluator",
@@ -51012,12 +51999,18 @@ def _runtime_llm_topology(
         "critic_evaluator_provider": _subsystem_field(
             "CriticEvaluator", "provider_name"
         ),
+        "generated_code_semantic_reviewer_provider": _subsystem_field(
+            "GeneratedCodeSemanticReviewer", "provider_name"
+        ),
         "architect_model": _subsystem_field("ArchitectCoordinator", "model"),
         "theory_developer_model": _subsystem_field("TheoryDeveloper", "model"),
         "simulation_engineer_model": _subsystem_field("SimulationEngineer", "model"),
         "algorithm_engineer_model": _subsystem_field("AlgorithmEngineer", "model"),
         "formalizer_model": _subsystem_field("FormalizerProofEngineer", "model"),
         "critic_evaluator_model": _subsystem_field("CriticEvaluator", "model"),
+        "generated_code_semantic_reviewer_model": _subsystem_field(
+            "GeneratedCodeSemanticReviewer", "model"
+        ),
         "architect_model_tier": _subsystem_field("ArchitectCoordinator", "model_tier"),
         "theory_developer_model_tier": _subsystem_field("TheoryDeveloper", "model_tier"),
         "simulation_engineer_model_tier": _subsystem_field(
@@ -51031,6 +52024,9 @@ def _runtime_llm_topology(
         ),
         "critic_evaluator_model_tier": _subsystem_field(
             "CriticEvaluator", "model_tier"
+        ),
+        "generated_code_semantic_reviewer_model_tier": _subsystem_field(
+            "GeneratedCodeSemanticReviewer", "model_tier"
         ),
         "policy_status": "OK" if not violations else "POLICY_VIOLATION",
         "policy_violations": violations,
@@ -98120,6 +99116,8 @@ def _run_generated_python_sandbox(
             "result_path": "",
             "script_hash": stable_hash(code),
             "code_excerpt": code[:2000],
+            "runtime_seed": seed,
+            "runtime_replicates": generated_sandbox_runtime_replicates(n_runs),
             "safety_errors": safety_errors,
             "metrics": {},
             "metric_contracts": typed_metric_contracts,
@@ -98253,6 +99251,9 @@ def _run_generated_python_sandbox(
         "result_path": str(result_path),
         "script_hash": stable_hash(code),
         "code_excerpt": code[:2000],
+        "runtime_seed": seed,
+        "runtime_replicates": replicates,
+        "result_hash": stable_hash(metrics) if metrics else "",
         "returncode": returncode,
         "subprocess_environment_keys": sorted(sandbox_environment),
         "stdout_summary": stdout_summary,
@@ -98260,7 +99261,6 @@ def _run_generated_python_sandbox(
         "result_parse_error": result_parse_error,
         "safety_errors": [],
         "metrics": metrics,
-        "runtime_replicates": replicates,
         "metric_gate_targets": metric_gate_targets,
         "metric_contracts": typed_metric_contracts,
         "metric_contract_set_id": metric_contract_set_id,

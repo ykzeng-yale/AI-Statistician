@@ -16,9 +16,11 @@ subsystems are built. It should not be mistaken for the final autonomous
 statistical research environment.
 
 The live LLM default is Anthropic Claude API, with a cost-aware tier split:
-Sonnet for Architect/TheoryDeveloper/Formalizer and formalization route planning,
-Haiku for lower-cost intake, simulation-design, algorithm-planning, and critic
-packets. Runtime topology validation records provider/model provenance and
+Sonnet for Architect, TheoryDeveloper, SimulationEngineer, AlgorithmEngineer,
+Formalizer, and substantive formalization route planning; Opus for independent
+semantic review of exact executed generated code; and Haiku for lower-cost
+intake, bounded triage, and the broad end-of-loop Critic packet. Runtime topology
+validation records provider/model provenance and
 rejects recognized Anthropic family mismatches, so a Haiku-designated helper does
 not silently run on Sonnet or Opus unless the topology policy is intentionally
 changed. The topology manifest also records the request-time resolved Claude
@@ -97,12 +99,34 @@ AgentRuntime / Blackboard
   -> Architect subsystem
   -> ProblemFormalizer subsystem
   -> TheoryDeveloper subsystem
-  -> AlgorithmEngineer / SimulatorDesigner / SymbolicDeriver subsystems
+  -> AlgorithmEngineer / SimulationEngineer / SymbolicDeriver subsystems
+  -> GeneratedCodeSemanticReviewer over exact source + execution lineage
   -> PaperTheoryExtractor and RAG/SearchMemory subsystems
   -> Formalizer / ProofEngineer / LeanProver subsystems
   -> Critics, validators, and EvidenceLedger
   -> AgentRuntime observes failures and dispatches revised tasks
 ```
+
+The generated-code semantic reviewer is a typed AgentRuntime child, not a
+post-runtime audit and not a collection of Python/statistical special cases.
+After a Sonnet coding agent emits an algorithm or simulation and the runtime
+executes it, the runtime records an immutable work order binding the full source
+hash, result hash, actual seed and replicate arguments, TheoryDeveloper packet,
+coding-agent proposal, and Architect-frozen empirical requirements. A separate
+Opus agent reviews question alignment, assumption alignment, frozen-protocol
+alignment, execution-argument alignment, experiment non-vacuity/identifiability,
+and metric semantics. `REVISE` findings return to the originating coding agent
+and require fresh code plus a fresh sandbox run. `ACCEPT` resumes the deferred
+task. Runtime validators check only the typed verdict, identities, hashes,
+lineage, and reviewer independence; they contain no theorem-family formula,
+metric threshold, expected answer, or Lean grammar. The result remains
+empirical/implementation review evidence, never theorem proof evidence.
+
+The registry-backed `ProblemFormalizer`, `TheoryPlanner`, and
+`ResearchSimulator` described below remain legacy baseline providers. They are
+useful canaries and compatibility scaffolds, but they must be demoted from the
+fresh full-live authority path. A named FDR, conformal, causal, survival, or
+other registry branch cannot define general AI Statistician capability.
 
 Release audits, RAG package checks, frontier static coverage, and deterministic
 implementation traces are supporting evidence. They are not substitutes for a

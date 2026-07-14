@@ -39,6 +39,7 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "TheoryDeveloper",
     "SimulationEvaluator",
     "AlgorithmEngineer",
+    "GeneratedCodeSemanticReviewer",
     "FormalizationEvaluator",
     "TheoremReductionClosureProofEngineer",
     "ExactSourceTheoremProofBodyExecutor",
@@ -235,6 +236,7 @@ def build_architect_coordinator_prompt(
             "AgentRuntime owns shell/filesystem/simulation execution",
             "simulation evidence is empirical, not proof evidence",
             "algorithm sandbox evidence is not production promotion",
+            "runnable generated code requires independent semantic review before downstream acceptance",
             "AXLE/local Lean/kernel evidence is required for theorem proof claims",
         ],
         "runtime_capability_gap_routing_agenda": capability_gap_routing_agenda,
@@ -263,6 +265,14 @@ def build_architect_coordinator_prompt(
         "it only after ProofEngineer emits a lineage-bound exact-source work order. "
         "Its external Lean coding-agent output remains a proposal until the independent "
         "local Lean/kernel rerun accepts the preserved exact declaration. "
+        "Treat GeneratedCodeSemanticReviewer as an independent typed child after "
+        "AlgorithmEngineer or SimulationEvaluator executes generated code and "
+        "before downstream acceptance. It must inspect exact source, actual runtime "
+        "arguments, returned results, the theory packet, and the frozen empirical "
+        "protocol. REVISE returns typed findings to the source coding agent for fresh "
+        "generation and execution; do not replace this with execution-only checks or "
+        "task-specific runtime rules. Its verdict is empirical/implementation review, "
+        "never theorem proof evidence. "
         "Treat TheoremReductionClosureProofEngineer as another typed child stage: "
         "schedule it only after FormalizationEvaluator emits an immutable closure "
         "work order. Missing candidates return to the LLM ProofEngineer; existing "
@@ -617,6 +627,7 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         "evaluation_mode": "debug|capability_eval",
         "capability_eval_requires_generated_algorithm_code": "boolean",
         "capability_eval_requires_generated_simulation_code": "boolean",
+        "capability_eval_requires_generated_code_semantic_review": "boolean",
         "capability_eval_requires_typed_metric_contracts": "boolean",
         "capability_eval_requires_formalizer_lean_candidate": "boolean",
         "generated_sandbox_runtime_replicates": "positive integer",
@@ -990,10 +1001,15 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             or metric_policy != "typed_artifact_bound_required"
             or authority_policy
             != GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
+            or evidence_contract.get(
+                "capability_eval_requires_generated_code_semantic_review"
+            )
+            is not True
         ):
             errors.append(
                 "capability_eval requires typed artifact-bound contracts backed "
-                "by Architect-authored metric requirements"
+                "by Architect-authored metric requirements and independent "
+                "generated-code semantic review"
             )
         requirements = evidence_contract.get("empirical_metric_requirements", [])
         expected_runtime_replicates = evidence_contract.get(
@@ -1262,6 +1278,7 @@ def _architect_runtime_capability_eval_contract(
         "evaluation_mode": evaluation_mode,
         "capability_eval_requires_generated_algorithm_code": capability_eval,
         "capability_eval_requires_generated_simulation_code": capability_eval,
+        "capability_eval_requires_generated_code_semantic_review": capability_eval,
         "capability_eval_requires_typed_metric_contracts": capability_eval,
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
         "generated_sandbox_runtime_replicates": (
@@ -1320,6 +1337,13 @@ def _required_architect_plan_subsystems(
             required.add("SimulationEvaluator")
         if evidence_contract.get("capability_eval_requires_generated_algorithm_code") is True:
             required.add("AlgorithmEngineer")
+        if (
+            evidence_contract.get(
+                "capability_eval_requires_generated_code_semantic_review"
+            )
+            is True
+        ):
+            required.add("GeneratedCodeSemanticReviewer")
         if evidence_contract.get("capability_eval_requires_formalizer_lean_candidate") is True:
             required.add("FormalizationEvaluator")
         if (

@@ -487,6 +487,10 @@ from .research_system_audit import ResearchSystemAuditConfig, run_research_syste
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
 from .critic_evaluator_llm import CriticEvaluatorConfig, LLMCriticEvaluatorAgent
+from .generated_code_semantic_reviewer_llm import (
+    GeneratedCodeSemanticReviewerConfig,
+    LLMGeneratedCodeSemanticReviewerAgent,
+)
 from .cross_family_eval_protocol import (
     load_cross_family_eval_protocol,
     resolve_cross_family_eval_panel,
@@ -4991,6 +4995,63 @@ def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default
             model_tier="haiku",
             max_tokens=getattr(args, "critic_max_tokens", 5000),
             temperature=getattr(args, "critic_temperature", 0.1),
+            provider_name=provider_name,
+        ),
+    )
+
+
+def _build_generated_code_semantic_reviewer_agent_from_args(
+    args: argparse.Namespace,
+    *,
+    default_model: str,
+):
+    provider_choice = getattr(
+        args,
+        "generated_code_semantic_reviewer_provider",
+        "none",
+    )
+    if provider_choice == "none":
+        return None
+    if provider_choice == "same":
+        provider_choice = getattr(args, "provider", _default_live_generator_provider())
+    static_file = getattr(
+        args,
+        "generated_code_semantic_reviewer_static_response_file",
+        "",
+    )
+    if provider_choice == "static" and not static_file:
+        return None
+    provider, provider_name = _build_theory_generator_backend(
+        provider_name=provider_choice,
+        static_response_file=static_file,
+        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
+    )
+    model = _model_for_subsystem_provider(
+        provider_choice=provider_choice,
+        explicit_model=getattr(
+            args,
+            "generated_code_semantic_reviewer_llm_model",
+            "",
+        ),
+        args=args,
+        default_model=default_model,
+        model_tier="opus",
+    )
+    return LLMGeneratedCodeSemanticReviewerAgent(
+        provider=provider,
+        config=GeneratedCodeSemanticReviewerConfig(
+            model=model,
+            model_tier="opus",
+            max_tokens=getattr(
+                args,
+                "generated_code_semantic_reviewer_max_tokens",
+                7000,
+            ),
+            temperature=getattr(
+                args,
+                "generated_code_semantic_reviewer_temperature",
+                0.0,
+            ),
             provider_name=provider_name,
         ),
     )
@@ -11656,6 +11717,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     simulation_engineer = _build_simulation_engineer_agent_from_args(args, default_model=model)
     formalizer = _build_formalizer_agent_from_args(args, default_model=model)
     critic_evaluator = _build_critic_evaluator_agent_from_args(args, default_model=model)
+    generated_code_semantic_reviewer = (
+        _build_generated_code_semantic_reviewer_agent_from_args(
+            args,
+            default_model=model,
+        )
+    )
     try:
         formal_source_retriever = _formal_source_retriever_from_runtime_args(args)
         proof_search_provider = _proof_search_provider_from_runtime_args(
@@ -11699,6 +11766,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         algorithm_engineer=algorithm_engineer,
         formalizer=formalizer,
         critic_evaluator=critic_evaluator,
+        generated_code_semantic_reviewer=generated_code_semantic_reviewer,
         proof_verifier=verifier,
         proof_state_provider=proof_state_provider,
         formal_source_retriever=formal_source_retriever,
@@ -11741,6 +11809,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "simulation_evaluator_generated_code_repair_yield_after_attempts",
                     0,
+                )
+                or 0
+            ),
+            generated_code_semantic_review_max_revisions=int(
+                getattr(
+                    args,
+                    "generated_code_semantic_review_max_revisions",
+                    1,
                 )
                 or 0
             ),
@@ -13893,6 +13969,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         "algorithm_engineer_provider",
         "formalizer_provider",
         "critic_evaluator_provider",
+        "generated_code_semantic_reviewer_provider",
     ):
         if str(getattr(args, field_name, "") or "") in {"", "none", "static"}:
             setattr(args, field_name, "same")
@@ -14015,6 +14092,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             <= 0
         ):
             args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
+        if (
+            int(
+                getattr(
+                    args,
+                    "generated_code_semantic_review_max_revisions",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.generated_code_semantic_review_max_revisions = 1
         if (
             int(
                 getattr(
@@ -14248,6 +14337,12 @@ def _research_agent_runtime_static_subsystem_config_errors(
             "CriticEvaluator",
             "--critic-static-response-file",
         ),
+        (
+            "generated_code_semantic_reviewer_provider",
+            "generated_code_semantic_reviewer_static_response_file",
+            "GeneratedCodeSemanticReviewer",
+            "--generated-code-semantic-reviewer-static-response-file",
+        ),
     )
     main_provider = str(getattr(args, "provider", "") or "")
     for provider_field, static_file_field, subsystem, flag in subsystem_static_files:
@@ -14376,6 +14471,10 @@ def _research_agent_runtime_capability_config_errors(
         ("algorithm_engineer_provider", "AlgorithmEngineer"),
         ("formalizer_provider", "Formalizer"),
         ("critic_evaluator_provider", "CriticEvaluator"),
+        (
+            "generated_code_semantic_reviewer_provider",
+            "GeneratedCodeSemanticReviewer",
+        ),
     )
     for field_name, subsystem in subsystem_provider_fields:
         provider_choice = str(getattr(args, field_name, "none") or "none")
@@ -14641,6 +14740,22 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires bounded "
                 "SimulationEvaluator generated-simulation repair scheduling; set "
                 "--simulation-evaluator-generated-code-repair-yield-after-attempts > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "generated_code_semantic_review_max_revisions",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires bounded independent "
+                "generated-code semantic-review repair; set "
+                "--generated-code-semantic-review-max-revisions > 0"
             )
         if (
             int(
@@ -21509,6 +21624,50 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument("--critic-max-tokens", type=int, default=5000)
     research_agent_runtime.add_argument("--critic-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument(
+        "--generated-code-semantic-reviewer-provider",
+        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        default="none",
+        help=(
+            "independent generator backend for semantic review of exact executed "
+            "generated code; full-live enables same-provider Opus review"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--generated-code-semantic-reviewer-static-response-file",
+        default="",
+        help=(
+            "JSON semantic-review response to replay when "
+            "--generated-code-semantic-reviewer-provider static"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--generated-code-semantic-reviewer-llm-model",
+        default="",
+        help=(
+            "model for independent generated-code semantic review; Anthropic "
+            "defaults to the configured Claude Opus tier"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--generated-code-semantic-reviewer-max-tokens",
+        type=int,
+        default=7000,
+    )
+    research_agent_runtime.add_argument(
+        "--generated-code-semantic-reviewer-temperature",
+        type=float,
+        default=0.0,
+    )
+    research_agent_runtime.add_argument(
+        "--generated-code-semantic-review-max-revisions",
+        type=int,
+        default=1,
+        help=(
+            "maximum fresh coding-agent regenerations after independent semantic "
+            "review rejects otherwise runnable generated code"
+        ),
+    )
     research_agent_runtime.add_argument("--real-lean", action="store_true", help="use AXLE verify_proof for registered proof-bank subclaims")
     research_agent_runtime.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification for registered proof-bank subclaims")
     research_agent_runtime.add_argument("--lean-project", default="", help="local Lake project used by --local-lean")

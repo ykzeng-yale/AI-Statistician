@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-14T07:12:20Z",
+  "updated_at": "2026-07-14T09:28:16Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "domain-neutral AgentRuntime authority, cross-family evaluation, and exact theorem closure",
-  "latest_main_worker_patch": "The first accepted Architect empirical requirement set is now runtime-frozen across metric replans, so an easier post-hoc measurement protocol cannot replace a failed gate. Every required metric row copies one runtime-owned required_runtime_replicates value; the sandbox records and independently compares the actual subprocess replicate argument. Multi-round FormalizationGapPlanner reuse now strips prior runtime_revision_source_* metadata before source-attempt hashing. These are domain-neutral contract, execution, and lineage controls: no statistical formula, theorem name, metric name, output key, Lean grammar, or task-specific answer was added.",
+  "latest_main_worker_patch": "A domain-neutral GeneratedCodeSemanticReviewer is now a typed child of the single AgentRuntime. After AlgorithmEngineer or SimulationEvaluator executes generated code, an immutable work order binds the exact source and result hashes, actual seed/replicate arguments, theory packet, coding-agent proposal, and Architect-frozen empirical protocol. An independent Opus-tier reviewer must ACCEPT all six general semantic dimensions before the deferred task resumes; REVISE returns exact findings to the originating Sonnet coding agent for fresh generation and execution. Capability evaluation requires this reviewer and complete independent source/reviewer provenance. Offline audit independently revalidates the typed packet, materialization fingerprint, artifact hashes, provenance, verdict, and model independence before granting scorecard credit. No task-family formula, metric threshold, expected answer, Lean grammar, or theorem-specific repair was added.",
   "latest_main_worker_live_probe": "The latest frozen development-panel run is runs/main_worker_cross_family_development_20260713_v8_generic_feedback_repair. Both right_censored_survival_km and sequential_anytime_bernoulli ended BLOCKED under one fresh-start configuration. The scorecard was 95/118 with 72 kernel-verified support subclaims, 8 formal gaps, and zero full frontier/source-theorem closures. Survival exposed a multi-revision canonical hash defect. Sequential exercised coding-agent metric repair and Architect replan, but the replan rewrote the failed measurement protocol and the generated simulation passed a vacuous null-path calculation; bounded route-contract repair then exhausted. Held-out has not been run for this candidate.",
-  "latest_main_worker_design_issue": "The frozen cross-family probe proves that executable code plus scalar gates is not enough: a distinct LLM semantic reviewer must inspect generated code, frozen protocol, theory anchors, executed arguments, and metrics, then route typed findings back to the originating coding agent for a fresh run. Formalization likewise needs immutable semantic-claim identity plus independent review because survival declaration-name lineage still allowed a weaker coverage theorem to stand in for fixed-time asymptotic normality. The legacy research_lab registry still branches over named task families, theorem cards, registered simulators, thresholds, and Lean skeletons; it must be demoted to an optional baseline provider and cannot define fresh full-live or held-out evidence. Other central blockers remain serious TheoryDeveloper equation/lemma-DAG depth, route-planner JSON cost/reliability, exact source-theorem proof search and iterative Lean feedback, R and broader scientific Python execution, arbitrary-paper ingest, and fresh held-out exact closure. S14 remains false.",
+  "latest_main_worker_design_issue": "The generated-code semantic-review gap is closed at the implementation and local-regression level, but fresh live cross-family evidence is still pending and cannot be inferred from static fixtures. Formalization still needs immutable semantic-claim identity plus independent review because survival declaration-name lineage allowed a weaker coverage theorem to stand in for fixed-time asymptotic normality. The legacy research_lab registry still branches over named task families, theorem cards, registered simulators, thresholds, and Lean skeletons; it must be demoted to an optional baseline provider and cannot define fresh full-live or held-out evidence. Other central blockers remain serious TheoryDeveloper equation/lemma-DAG depth, route-planner JSON cost/reliability, exact source-theorem proof search and iterative Lean feedback, R and broader scientific Python execution, arbitrary-paper ingest, and fresh held-out exact closure. S14 remains false.",
   "latest_cross_family_evaluation_protocol": {
     "path": "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json",
-    "protocol_id": "s14-cross-family-generalization-20260713-v1",
+    "protocol_id": "s14-cross-family-generalization-20260713-v2",
     "split_frozen_at_base_commit": "507eb34d662f6ac8c4cbb48a7e7f4ceb640c4bfa",
     "development_question_ids": [
       "right_censored_survival_km",
@@ -67,16 +67,16 @@
     "runtime_replicate_budget_bound_into_every_required_metric": true,
     "actual_subprocess_replicates_checked_against_requirement": true,
     "multi_revision_attempt_hash_canonicalized": true,
-    "independent_generated_code_semantic_reviewer_integrated": false,
+    "independent_generated_code_semantic_reviewer_integrated": true,
     "immutable_formal_semantic_claim_reviewer_integrated": false,
     "held_out_run_allowed_before_open_review_gates_close": false,
     "boundary": "These corrections constrain authority, execution, and lineage only. They do not encode task-family mathematics or establish theorem proof evidence."
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1095 passed in 2827.19s (0:47:07)",
+    "result": "1095 passed in 2413.39s (0:40:13); tests/test_core.py: 291 passed, 3 skipped, 6 subtests passed in 1255.08s (0:20:55)",
     "failed": 0,
-    "validated_at": "2026-07-14T07:12:20Z",
+    "validated_at": "2026-07-14T09:28:16Z",
     "boundary": "Local regression validates runtime contracts and orchestration behavior; it is not live LLM, statistical-semantic, or theorem-proof evidence."
   },
   "latest_four_stage_route_planner_live_probe": {
@@ -133,7 +133,7 @@
     "fdr_v3_formal_gaps": 4,
     "source_theorem_kernel_verified": false,
     "full_frontier_theorem_proved": false,
-    "remaining_metric_contract_gap": "Typed path/operator/threshold/aggregation authority now exists, and post-v8 runtime replicate binding closes the declared-versus-executed work-budget gap. The remaining blocker is independent LLM semantic review of whether generated code actually implements the frozen mathematical experiment.",
+    "remaining_metric_contract_gap": "Typed path/operator/threshold/aggregation authority, runtime replicate binding, and the independent lineage-bound semantic-review loop now exist locally. The remaining evidence gap is a fresh live two-family development-panel run showing both generated algorithm and simulation lanes receive valid independent Opus ACCEPT decisions without weakening the frozen protocol.",
     "s14_satisfied": false
   },
   "latest_paper_and_open_source_reuse_audit": {

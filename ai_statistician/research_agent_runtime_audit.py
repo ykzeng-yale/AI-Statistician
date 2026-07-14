@@ -11,6 +11,9 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .fresh_start_cross_task_e2e import audit_fresh_start_cross_task_e2e
+from .generated_code_semantic_reviewer_llm import (
+    validate_generated_code_semantic_review_packet,
+)
 from .exact_source_theorem_proof_body_executor import (
     ARTIFACT_KERNEL_NOT_SOURCE_STATUS as EXACT_PROOF_BODY_ARTIFACT_KERNEL_NOT_SOURCE_STATUS,
     PROOF_EVIDENCE_STATUS as EXACT_PROOF_BODY_NOT_PROOF_EVIDENCE_STATUS,
@@ -141,6 +144,7 @@ REQUIRED_SUBSYSTEMS = (
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 ROUTEABLE_RUNTIME_SUBSYSTEMS = (
     *REQUIRED_ARCHITECT_SUBSYSTEMS,
+    "GeneratedCodeSemanticReviewer",
     "ProofEngineer",
     "PseudoFormalBlockVerifier",
 )
@@ -3324,6 +3328,13 @@ class RuntimeAuditRow:
     n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences: int
     n_unsafe_generated_code_rejected: int
     n_live_unsafe_generated_code_rejected: int
+    n_generated_code_semantic_review_work_orders: int
+    n_generated_code_semantic_review_executions: int
+    n_generated_code_semantic_review_accepted: int
+    n_generated_code_semantic_review_revision_required: int
+    n_generated_algorithm_semantic_review_accepted: int
+    n_generated_simulation_semantic_review_accepted: int
+    n_generated_code_semantic_review_independent_opus: int
     n_formalization_manifests: int
     n_critic_manifests: int
     n_kernel_verified_subclaims: int
@@ -6777,6 +6788,27 @@ def audit_research_agent_runtime(
         ),
         "n_live_generated_code_sandbox_executed": sum(
             row.n_live_generated_code_sandbox_executed for row in rows
+        ),
+        "n_generated_code_semantic_review_work_orders": sum(
+            row.n_generated_code_semantic_review_work_orders for row in rows
+        ),
+        "n_generated_code_semantic_review_executions": sum(
+            row.n_generated_code_semantic_review_executions for row in rows
+        ),
+        "n_generated_code_semantic_review_accepted": sum(
+            row.n_generated_code_semantic_review_accepted for row in rows
+        ),
+        "n_generated_code_semantic_review_revision_required": sum(
+            row.n_generated_code_semantic_review_revision_required for row in rows
+        ),
+        "n_generated_algorithm_semantic_review_accepted": sum(
+            row.n_generated_algorithm_semantic_review_accepted for row in rows
+        ),
+        "n_generated_simulation_semantic_review_accepted": sum(
+            row.n_generated_simulation_semantic_review_accepted for row in rows
+        ),
+        "n_generated_code_semantic_review_independent_opus": sum(
+            row.n_generated_code_semantic_review_independent_opus for row in rows
         ),
         "n_generated_code_sandbox_metric_gate_failed": sum(
             row.n_generated_code_sandbox_metric_gate_failed for row in rows
@@ -12984,6 +13016,210 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_live_unsafe_generated_code_rejected = int(
         algorithm_live_counts["unsafe_rejected"]
     )
+    semantic_review_work_orders = _artifacts_with_prefix(
+        artifacts,
+        "generated_code_semantic_review_work_order:",
+    )
+    semantic_review_executions = _artifacts_with_prefix(
+        artifacts,
+        "generated_code_semantic_review_execution:",
+    )
+    n_generated_code_semantic_review_accepted = 0
+    n_generated_code_semantic_review_revision_required = 0
+    n_generated_algorithm_semantic_review_accepted = 0
+    n_generated_simulation_semantic_review_accepted = 0
+    n_generated_code_semantic_review_independent_opus = 0
+    for execution in semantic_review_executions:
+        execution_error_count_before = len(errors)
+        execution_id = str(execution.get("execution_id", "") or "")
+        work_order_id = str(execution.get("work_order_id", "") or "")
+        work_order = artifacts.get(work_order_id, {})
+        if not isinstance(work_order, Mapping):
+            errors.append(
+                f"semantic review execution missing work order: {execution_id}"
+            )
+            continue
+        if stable_hash(work_order) != str(
+            execution.get("work_order_hash", "") or ""
+        ):
+            errors.append(
+                f"semantic review execution work-order hash mismatch: {execution_id}"
+            )
+        for provenance_field in (
+            "source_subsystem",
+            "source_manifest_id",
+            "source_agent",
+            "source_model",
+            "source_model_tier",
+        ):
+            if str(execution.get(provenance_field, "") or "") != str(
+                work_order.get(provenance_field, "") or ""
+            ):
+                errors.append(
+                    "semantic review execution provenance mismatch for "
+                    f"{provenance_field}: {execution_id}"
+                )
+        for id_field, hash_field in (
+            ("source_manifest_id", "source_manifest_hash"),
+            ("materialization_id", "materialization_hash"),
+            ("review_packet_id", "review_packet_hash"),
+        ):
+            artifact_id = str(execution.get(id_field, "") or "")
+            artifact = artifacts.get(artifact_id, {})
+            if not isinstance(artifact, Mapping):
+                errors.append(
+                    f"semantic review execution missing {id_field}: {execution_id}"
+                )
+                continue
+            if stable_hash(artifact) != str(execution.get(hash_field, "") or ""):
+                errors.append(
+                    f"semantic review execution {id_field} hash mismatch: {execution_id}"
+                )
+        review_packet = artifacts.get(
+            str(execution.get("review_packet_id", "") or ""),
+            {},
+        )
+        if isinstance(review_packet, Mapping):
+            for packet_error in validate_generated_code_semantic_review_packet(
+                review_packet
+            ):
+                errors.append(
+                    f"semantic review packet invalid for {execution_id}: "
+                    + packet_error
+                )
+            for packet_field, expected_value in (
+                ("work_order_id", work_order_id),
+                (
+                    "work_order_hash",
+                    str(execution.get("work_order_hash", "") or ""),
+                ),
+                (
+                    "source_manifest_id",
+                    str(execution.get("source_manifest_id", "") or ""),
+                ),
+                (
+                    "source_manifest_hash",
+                    str(execution.get("source_manifest_hash", "") or ""),
+                ),
+                (
+                    "source_subsystem",
+                    str(execution.get("source_subsystem", "") or ""),
+                ),
+                (
+                    "review_input_fingerprint",
+                    str(execution.get("review_input_fingerprint", "") or ""),
+                ),
+                (
+                    "source_agent",
+                    str(execution.get("reviewer_agent", "") or ""),
+                ),
+                ("model", str(execution.get("reviewer_model", "") or "")),
+                (
+                    "model_tier",
+                    str(execution.get("reviewer_model_tier", "") or ""),
+                ),
+            ):
+                if str(review_packet.get(packet_field, "") or "") != expected_value:
+                    errors.append(
+                        "semantic review packet lineage mismatch for "
+                        f"{packet_field}: {execution_id}"
+                    )
+            if str(review_packet.get("overall_verdict", "") or "") != str(
+                execution.get("overall_verdict", "") or ""
+            ):
+                errors.append(
+                    f"semantic review execution verdict mismatch: {execution_id}"
+                )
+        materialization = artifacts.get(
+            str(execution.get("materialization_id", "") or ""),
+            {},
+        )
+        if isinstance(materialization, Mapping):
+            material_fingerprint = stable_hash(
+                materialization.get("review_material", {})
+            )
+            for actual_value, expected_value, label in (
+                (
+                    str(materialization.get("work_order_id", "") or ""),
+                    work_order_id,
+                    "work_order_id",
+                ),
+                (
+                    str(materialization.get("work_order_hash", "") or ""),
+                    str(execution.get("work_order_hash", "") or ""),
+                    "work_order_hash",
+                ),
+                (
+                    str(
+                        materialization.get("review_input_fingerprint", "") or ""
+                    ),
+                    material_fingerprint,
+                    "materialization_fingerprint",
+                ),
+                (
+                    str(execution.get("review_input_fingerprint", "") or ""),
+                    material_fingerprint,
+                    "execution_fingerprint",
+                ),
+            ):
+                if actual_value != expected_value:
+                    errors.append(
+                        "semantic review materialization lineage mismatch for "
+                        f"{label}: {execution_id}"
+                    )
+        accepted = execution.get("semantic_review_accepted") is True
+        if accepted != (
+            str(execution.get("overall_verdict", "") or "") == "ACCEPT"
+        ):
+            errors.append(
+                f"semantic review execution acceptance mismatch: {execution_id}"
+            )
+        source_subsystem = str(execution.get("source_subsystem", "") or "")
+        source_agent = str(execution.get("source_agent", "") or "")
+        reviewer_agent = str(execution.get("reviewer_agent", "") or "")
+        source_model = str(execution.get("source_model", "") or "")
+        reviewer_model = str(execution.get("reviewer_model", "") or "")
+        computed_independent_agent = bool(
+            source_agent and reviewer_agent and source_agent != reviewer_agent
+        )
+        computed_independent_model = bool(
+            source_model and reviewer_model and source_model != reviewer_model
+        )
+        if (execution.get("independent_agent") is True) != (
+            computed_independent_agent
+        ):
+            errors.append(
+                f"semantic review execution agent independence mismatch: {execution_id}"
+            )
+        if (execution.get("independent_model") is True) != (
+            computed_independent_model
+        ):
+            errors.append(
+                f"semantic review execution model independence mismatch: {execution_id}"
+            )
+        independent_opus = bool(
+            computed_independent_agent
+            and computed_independent_model
+            and reviewer_agent == "LLMGeneratedCodeSemanticReviewerAgent"
+            and str(execution.get("reviewer_model_tier", "") or "") == "opus"
+        )
+        if work_order.get("capability_eval") is True and not independent_opus:
+            errors.append(
+                "capability-eval semantic review was not independent Opus review: "
+                + execution_id
+            )
+        execution_lineage_valid = len(errors) == execution_error_count_before
+        if execution_lineage_valid:
+            if accepted:
+                n_generated_code_semantic_review_accepted += 1
+                if source_subsystem == "AlgorithmEngineer":
+                    n_generated_algorithm_semantic_review_accepted += 1
+                elif source_subsystem == "SimulationEvaluator":
+                    n_generated_simulation_semantic_review_accepted += 1
+            else:
+                n_generated_code_semantic_review_revision_required += 1
+            if independent_opus:
+                n_generated_code_semantic_review_independent_opus += 1
     n_critic_reroutes = sum(
         1
         for row in critic
@@ -13186,6 +13422,27 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         ),
         n_unsafe_generated_code_rejected=n_unsafe_generated_code_rejected,
         n_live_unsafe_generated_code_rejected=n_live_unsafe_generated_code_rejected,
+        n_generated_code_semantic_review_work_orders=len(
+            semantic_review_work_orders
+        ),
+        n_generated_code_semantic_review_executions=len(
+            semantic_review_executions
+        ),
+        n_generated_code_semantic_review_accepted=(
+            n_generated_code_semantic_review_accepted
+        ),
+        n_generated_code_semantic_review_revision_required=(
+            n_generated_code_semantic_review_revision_required
+        ),
+        n_generated_algorithm_semantic_review_accepted=(
+            n_generated_algorithm_semantic_review_accepted
+        ),
+        n_generated_simulation_semantic_review_accepted=(
+            n_generated_simulation_semantic_review_accepted
+        ),
+        n_generated_code_semantic_review_independent_opus=(
+            n_generated_code_semantic_review_independent_opus
+        ),
         n_formalization_manifests=len(formalization),
         n_critic_manifests=len(critic),
         n_kernel_verified_subclaims=n_kernel,
@@ -20189,6 +20446,24 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    semantic_review_work_orders = int(
+        payload.get("n_generated_code_semantic_review_work_orders", 0) or 0
+    )
+    semantic_review_executions = int(
+        payload.get("n_generated_code_semantic_review_executions", 0) or 0
+    )
+    semantic_review_accepted = int(
+        payload.get("n_generated_code_semantic_review_accepted", 0) or 0
+    )
+    algorithm_semantic_review_accepted = int(
+        payload.get("n_generated_algorithm_semantic_review_accepted", 0) or 0
+    )
+    simulation_semantic_review_accepted = int(
+        payload.get("n_generated_simulation_semantic_review_accepted", 0) or 0
+    )
+    semantic_review_independent_opus = int(
+        payload.get("n_generated_code_semantic_review_independent_opus", 0) or 0
+    )
     attached_repair_eval_algorithm_sequences = int(
         payload.get(
             "internal_coding_agent_generated_code_repair_eval_algorithm_repair_sequences",
@@ -25210,6 +25485,115 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 ),
                 success_metric=(
                     "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_code_semantic_review_executed",
+            (
+                semantic_review_work_orders > 0
+                and semantic_review_executions == semantic_review_work_orders
+            ),
+            (
+                "semantic_review_work_orders="
+                f"{semantic_review_work_orders} executions="
+                f"{semantic_review_executions} accepted="
+                f"{semantic_review_accepted}"
+            ),
+            (
+                "runnable generated code reached downstream work without a "
+                "lineage-bound independent semantic review of exact source, "
+                "runtime arguments, results, theory, and frozen protocol"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="GeneratedCodeSemanticReviewer",
+                target_behavior=(
+                    "Materialize the exact generated source and result lineage, "
+                    "then run the independent semantic reviewer before resuming "
+                    "algorithm, simulation, or formalization work."
+                ),
+                success_metric=(
+                    "n_generated_code_semantic_review_executions equals positive "
+                    "n_generated_code_semantic_review_work_orders"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_algorithm_semantic_review_accepted",
+            algorithm_semantic_review_accepted > 0,
+            (
+                "n_generated_algorithm_semantic_review_accepted="
+                f"{algorithm_semantic_review_accepted} "
+                "n_live_generated_code_sandbox_executed="
+                f"{integrated_algorithm_code_executed}"
+            ),
+            (
+                "no exact executed generated algorithm passed independent "
+                "question/theory/protocol/non-vacuity/metric semantic review"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Use semantic-review findings to generate fresh algorithm "
+                    "code, rerun the sandbox, and obtain an independent ACCEPT."
+                ),
+                success_metric=(
+                    "n_generated_algorithm_semantic_review_accepted>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_semantic_review_accepted",
+            simulation_semantic_review_accepted > 0,
+            (
+                "n_generated_simulation_semantic_review_accepted="
+                f"{simulation_semantic_review_accepted} "
+                "n_live_generated_simulation_sandbox_executed="
+                f"{integrated_simulation_code_executed}"
+            ),
+            (
+                "no exact executed generated simulation passed independent "
+                "question/theory/protocol/non-vacuity/metric semantic review"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Use semantic-review findings to generate a fresh stress "
+                    "test, rerun it, and obtain an independent ACCEPT."
+                ),
+                success_metric=(
+                    "n_generated_simulation_semantic_review_accepted>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_code_semantic_review_independent_opus",
+            (
+                semantic_review_accepted > 0
+                and semantic_review_independent_opus >= semantic_review_accepted
+            ),
+            (
+                "semantic_review_accepted="
+                f"{semantic_review_accepted} independent_opus="
+                f"{semantic_review_independent_opus}"
+            ),
+            (
+                "accepted generated-code semantics were not reviewed by a "
+                "separate Opus-tier agent/model from the Sonnet coding agent"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="GeneratedCodeSemanticReviewer",
+                target_behavior=(
+                    "Run the independent Opus semantic reviewer on every exact "
+                    "generated algorithm and simulation accepted downstream."
+                ),
+                success_metric=(
+                    "n_generated_code_semantic_review_independent_opus covers "
+                    "all accepted semantic reviews"
                 ),
             ),
         ),

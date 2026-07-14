@@ -68,6 +68,8 @@ def validate_cross_family_eval_protocol(value: Any) -> list[str]:
             "task_learning_memory_forbidden",
             "component_eval_substitution_forbidden",
             "candidate_gate_independence_required",
+            "generated_code_semantic_review_required",
+            "semantic_review_source_and_execution_lineage_required",
         )
         for field in required_true_fields:
             if run_contract.get(field) is not True:

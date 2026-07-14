@@ -59,6 +59,23 @@ Every central change must therefore satisfy all of the following:
    independent review; matching a declaration name is not enough to preserve a
    theorem.
 
+## Current Milestone Status
+
+The domain-neutral generated-code semantic-review loop is now part of the one
+AgentRuntime. It is required by full capability evaluation and is scored only
+when both generated algorithm and generated simulation artifacts receive
+lineage-valid independent Opus acceptance. This closes the specific
+"runnable-but-vacuous experiment" design gap exposed by the frozen survival and
+sequential development panel; it does not close S14 or establish theorem proof.
+
+The next central gaps remain: demote the named-family `research_lab` registry to
+an optional baseline provider; add serious long-form equation/lemma-DAG theory
+development with critic revision; provide broad scientific Python and R coding
+environments; bind formal targets to immutable semantic claims with independent
+review; and complete iterative exact-source Lean proof search with local
+compiler/LSP/kernel feedback on both development families before touching the
+held-out panel.
+
 For the operational multi-worker contract, see
 [`docs/ai_statistician_multi_codex_blueprint.md`](ai_statistician_multi_codex_blueprint.md).
 The current frozen S14 split is machine-readable at
