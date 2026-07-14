@@ -13393,6 +13393,8 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert payload["n_standalone_replay_route_candidates"] == 1
     assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
     formal_stage_prompt = json.loads(calls[2].user_prompt)
+    assert calls[1].metadata["provider_structured_output"] is False
+    assert calls[2].metadata["provider_structured_output"] is True
     formal_search_contract = formal_stage_prompt["required_output_contract"][
         "search_tool_contract"
     ]
@@ -13417,6 +13419,22 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         and "cannot replace" in requirement
         for requirement in residual_stage_prompt["hard_requirements"]
     )
+    assert calls[3].metadata["provider_structured_output"] is True
+    residual_fragment_schema = calls[3].schema["properties"]["fragment"]
+    search_request_schema = residual_fragment_schema["properties"][
+        "search_requests"
+    ]["items"]
+    assert search_request_schema["properties"]["request_kind"]["enum"] == [
+        "literature",
+        "formal_library",
+    ]
+    assert set(search_request_schema["properties"]) == set(
+        search_request_schema["required"]
+    )
+    action_schema = residual_fragment_schema["properties"][
+        "planner_next_actions"
+    ]["items"]
+    assert "stop_conditions" not in action_schema["properties"]
     final_stage_prompt = json.loads(calls[4].user_prompt)
     assert [
         row["stage_id"]

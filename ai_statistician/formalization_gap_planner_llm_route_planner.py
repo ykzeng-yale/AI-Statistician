@@ -15694,6 +15694,9 @@ def _generate_staged_followup_stage_attempt(
                             "only; they are not adopted route plans or theorem "
                             "proof evidence."
                         ),
+                        "provider_structured_output": (
+                            stage_id != "route_core_compaction"
+                        ),
                     },
                 )
             )
@@ -16708,17 +16711,22 @@ def llm_route_planner_staged_followup_stage_response_schema(
     fragment_required = list(_staged_followup_stage_required_fragment_fields(stage_id))
     full_payload_schema = llm_route_planner_response_payload_schema()
     full_payload_properties = _dict_value(full_payload_schema, "properties")
-    fragment_properties = {
-        field_name: deepcopy(full_payload_properties[field_name])
-        for field_name in fragment_required
-        if field_name in full_payload_properties
-    }
+    if stage_id == "residual_batch_interpretation":
+        fragment_properties = _staged_followup_residual_fragment_schema()
+        schema_defs: dict[str, object] = {}
+    else:
+        fragment_properties = {
+            field_name: deepcopy(full_payload_properties[field_name])
+            for field_name in fragment_required
+            if field_name in full_payload_properties
+        }
+        schema_defs = deepcopy(_dict_value(full_payload_schema, "$defs"))
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_SCHEMA_ID,
         "title": "Formalization Gap Planner LLM Route Planner Staged Followup Stage Response",
         "type": "object",
-        "additionalProperties": True,
+        "additionalProperties": False,
         "required": [
             "stage_response_kind",
             "staged_followup_id",
@@ -16727,6 +16735,8 @@ def llm_route_planner_staged_followup_stage_response_schema(
             "stage_id",
             "stage_status",
             "fragment",
+            "assembler_notes",
+            "proof_evidence_status",
             "proof_evidence_boundary",
         ],
         "properties": {
@@ -16754,7 +16764,99 @@ def llm_route_planner_staged_followup_stage_response_schema(
                 "pattern": "not theorem proof evidence",
             },
         },
-        "$defs": deepcopy(_dict_value(full_payload_schema, "$defs")),
+        "$defs": schema_defs,
+    }
+
+
+def _staged_followup_residual_fragment_schema() -> dict[str, object]:
+    """Return the compact canonical API exposed to the residual planner."""
+
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "residual_interpretations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "residual_goal",
+                    "covered_residual_goal_indices",
+                    "interpretation",
+                    "route_repair",
+                    "target_primitives",
+                    "source_refs",
+                    "source_search_status",
+                    "formal_gap_boundary",
+                ],
+                "properties": {
+                    "residual_goal": {"type": "string"},
+                    "covered_residual_goal_indices": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                    },
+                    "interpretation": {"type": "string"},
+                    "route_repair": {"type": "string"},
+                    "target_primitives": string_array,
+                    "source_refs": string_array,
+                    "source_search_status": {
+                        "type": "string",
+                        "enum": [
+                            "SOURCE_BACKED",
+                            "SEARCH_REQUESTED",
+                            "FORMAL_GAP_BOUNDARY",
+                        ],
+                    },
+                    "formal_gap_boundary": {"type": "string"},
+                },
+            },
+        },
+        "search_requests": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "request_kind",
+                    "query",
+                    "reason",
+                    "target_primitives",
+                    "resource_id",
+                    "resource_contract_ids",
+                ],
+                "properties": {
+                    "request_kind": {
+                        "type": "string",
+                        "enum": ["literature", "formal_library"],
+                    },
+                    "query": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "target_primitives": string_array,
+                    "resource_id": {"type": "string"},
+                    "resource_contract_ids": string_array,
+                },
+            },
+        },
+        "planner_next_actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "owner",
+                    "action",
+                    "target_primitives",
+                    "resource_id",
+                    "resource_contract_ids",
+                ],
+                "properties": {
+                    "owner": {"type": "string"},
+                    "action": {"type": "string"},
+                    "target_primitives": string_array,
+                    "resource_id": {"type": "string"},
+                    "resource_contract_ids": string_array,
+                },
+            },
+        },
     }
 
 
