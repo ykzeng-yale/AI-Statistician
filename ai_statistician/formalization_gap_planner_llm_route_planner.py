@@ -15032,6 +15032,7 @@ def _staged_followup_stage_sequence(
                 "At most one primitive-scoped candidate_declaration_rows item per formal node",
                 "Copy declarations only from formal_declaration_support_by_primitive[primitive]",
                 "For every informal edge u -> v, add formal paths for every pair in align(u) x align(v)",
+                "Use SEARCH_REQUESTED only for missing literature/source grounding; use FORMAL_GAP_BOUNDARY for a missing Lean declaration, proof body, import, or formal environment",
                 "No notes/proof_obligation objects",
                 "Do not emit formal rows for opaque unselected request-baseline-only primitives",
             ],
@@ -15058,6 +15059,8 @@ def _staged_followup_stage_sequence(
                 "Use formal_gap_boundary for environment/tool blockers",
                 "Every residual_goal value must exactly copy a supplied request residual goal; route-adoption blockers are not residual goals",
                 "At most 4 search_requests and 4 planner_next_actions",
+                "A literature search_request may batch several SEARCH_REQUESTED source obligations when target_primitives covers their primitive scopes",
+                "Use request_kind=literature for source grounding and request_kind=formal_library for Lean/declaration retrieval; formal_library does not discharge a literature/source obligation",
                 "No copied Lean diagnostics; use covered_residual_goal_indices",
             ],
         },
@@ -15905,6 +15908,9 @@ def _staged_followup_stage_user_prompt(
             "canonical_field_contracts": (
                 _staged_followup_stage_canonical_field_contracts(stage_id)
             ),
+            "search_tool_contract": _staged_followup_search_tool_contract(
+                stage_id
+            ),
             "cross_stage_consistency_requirements": [
                 "Every referenced node, primitive, and route-option ID must resolve in the current fragment or accepted upstream fragments.",
                 "Formal attempt rows must be unique and follow the formal DAG in bottom-up topological order with exact immediate predecessors.",
@@ -15921,6 +15927,7 @@ def _staged_followup_stage_user_prompt(
                 "Planner action owner/resource IDs and resource_contract_ids must copy the exact IDs and mapping from the supplied component resource registry inventory.",
                 "Every residual_interpretations[].residual_goal, when present, must exactly copy one request_context.residual_goals item; encode route-adoption or workflow blockers as planner_next_actions or assembler_notes instead.",
                 "Every source_snippets item must exactly copy a snippet supplied by the request context; when no exact snippet is available, omit it and emit a bounded search_request instead.",
+                "Every SEARCH_REQUESTED source status must be paired with a matching literature/source search_request; a formal_library search_request is a separate Lean/library action and is not source evidence.",
             ],
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         },
@@ -16005,6 +16012,7 @@ def _staged_followup_stage_user_prompt(
                 "When route_contract_feedback.present is true, correct every "
                 "validator error assigned to this stage before returning."
             ),
+            *_staged_followup_stage_search_hard_requirements(stage_id),
             (
                 "Use only owner/resource IDs and their exact mapped contract IDs "
                 "from prompt_context_packet.component_resource_registry_inventory."
@@ -16016,6 +16024,59 @@ def _staged_followup_stage_user_prompt(
         ],
     }
     return json.dumps(payload, indent=2, default=str)
+
+
+def _staged_followup_search_tool_contract(stage_id: str) -> dict[str, object]:
+    """Expose the canonical search API semantics used by the validator."""
+
+    if stage_id not in {
+        "formal_realization_and_alignment",
+        "residual_batch_interpretation",
+    }:
+        return {}
+    return {
+        "canonical_request_kinds": {
+            "literature_or_source_grounding": "literature",
+            "lean_or_formal_library_retrieval": "formal_library",
+        },
+        "source_search_status_semantics": {
+            "SOURCE_BACKED": (
+                "Use only when exact source_refs or supplied source_snippets "
+                "already ground the row."
+            ),
+            "SEARCH_REQUESTED": (
+                "The row lacks literature/source grounding. The residual stage "
+                "must emit a matching request_kind=literature row."
+            ),
+            "FORMAL_GAP_BOUNDARY": (
+                "Use for a missing Lean declaration, proof body, import, typeclass, "
+                "tool result, or formal environment, with a substantive boundary."
+            ),
+        },
+        "matching_rule": (
+            "A literature request matches when target_primitives contains an "
+            "obligation primitive. One request may batch several obligations."
+        ),
+        "separation_rule": (
+            "request_kind=formal_library retrieves Lean/library material but does "
+            "not satisfy SEARCH_REQUESTED literature/source grounding."
+        ),
+    }
+
+
+def _staged_followup_stage_search_hard_requirements(
+    stage_id: str,
+) -> list[str]:
+    if stage_id == "formal_realization_and_alignment":
+        return [
+            "Follow required_output_contract.search_tool_contract when assigning source_search_status; do not label a purely formal Lean gap SEARCH_REQUESTED.",
+        ]
+    if stage_id == "residual_batch_interpretation":
+        return [
+            "For every accepted upstream or current SEARCH_REQUESTED row, emit a matching request_kind=literature search_request with the relevant target_primitives.",
+            "Use request_kind=formal_library only for Lean/declaration retrieval; it cannot replace the required literature request.",
+        ]
+    return []
 
 
 def _staged_followup_cross_stage_reference_contract(

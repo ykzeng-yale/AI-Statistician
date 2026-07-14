@@ -3,8 +3,10 @@ from __future__ import annotations
 import pytest
 
 from ai_statistician.generated_metric_contract import (
+    GENERATED_METRIC_CONTRACT_AGGREGATIONS,
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_CONTRACT_OPERATORS,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
@@ -76,6 +78,29 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
         "AlgorithmEngineer",
         "SimulationEngineer",
     ]
+    assert schema["properties"]["operator"]["enum"] == list(
+        GENERATED_METRIC_CONTRACT_OPERATORS
+    )
+    assert schema["properties"]["aggregation"]["enum"] == list(
+        GENERATED_METRIC_CONTRACT_AGGREGATIONS
+    )
+    assert {
+        "requirement_id",
+        "metric_semantics",
+        "measurement_protocol",
+        "required_runtime_replicates",
+        "operator",
+        "tolerance",
+        "aggregation",
+        "required",
+        "source_anchors",
+    } <= set(schema["required"])
+    assert schema["properties"]["required_runtime_replicates"]["minimum"] == 1
+    assert schema["properties"]["minimum_pass_fraction"] == {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+    }
     assert generated_metric_requirement_prompt_schema(
         target_subsystem="SimulationEngineer"
     )["target_subsystems"] == ["SimulationEngineer"]

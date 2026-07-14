@@ -83,7 +83,7 @@ class ArchitectCoordinatorConfig:
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 1
+    max_repair_attempts: int = 2
 
 
 class LLMArchitectCoordinatorAgent:

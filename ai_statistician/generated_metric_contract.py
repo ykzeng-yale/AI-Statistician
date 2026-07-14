@@ -100,13 +100,30 @@ def generated_metric_requirement_target_namespace_contract() -> dict[str, Any]:
 
 
 def generated_metric_requirement_json_schema() -> dict[str, Any]:
-    """Return the machine-readable domain-neutral requirement schema."""
+    """Return the machine-readable domain-neutral requirement schema.
+
+    Keep this schema aligned with ``validate_generated_metric_requirements``.
+    The provider sees this contract before generation, so semantic enums and
+    scalar shapes belong here rather than only in a post-generation validator.
+    """
 
     return {
         "type": "object",
         "additionalProperties": True,
-        "required": ["target_subsystems"],
+        "required": [
+            "requirement_id",
+            "target_subsystems",
+            "metric_semantics",
+            "measurement_protocol",
+            "required_runtime_replicates",
+            "operator",
+            "tolerance",
+            "aggregation",
+            "required",
+            "source_anchors",
+        ],
         "properties": {
+            "requirement_id": {"type": "string", "minLength": 1},
             "target_subsystems": {
                 "type": "array",
                 "minItems": 1,
@@ -117,7 +134,37 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
                         GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                     ),
                 },
-            }
+            },
+            "metric_semantics": {"type": "string", "minLength": 1},
+            "measurement_protocol": {"type": "string", "minLength": 1},
+            "required_runtime_replicates": {
+                "type": "integer",
+                "minimum": 1,
+            },
+            "operator": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
+            },
+            "threshold": {"type": "number"},
+            "lower": {"type": "number"},
+            "upper": {"type": "number"},
+            "tolerance": {"type": "number", "minimum": 0},
+            "aggregation": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_CONTRACT_AGGREGATIONS),
+            },
+            "minimum_pass_count": {"type": "integer", "minimum": 1},
+            "minimum_pass_fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+            },
+            "required": {"type": "boolean"},
+            "source_anchors": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "minLength": 1},
+            },
         },
     }
 

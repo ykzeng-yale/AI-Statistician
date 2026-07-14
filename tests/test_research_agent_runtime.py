@@ -20369,6 +20369,28 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         "AlgorithmEngineer",
         "SimulationEngineer",
     ]
+    metric_requirement_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
+        "evidence_contract"
+    ]["properties"]["empirical_metric_requirements"]["items"]
+    assert metric_requirement_schema["properties"]["aggregation"]["enum"] == [
+        "identity",
+        "mean",
+        "min",
+        "max",
+        "all",
+        "any",
+        "at_least_count",
+        "at_least_fraction",
+    ]
+    assert metric_requirement_schema["properties"]["operator"]["enum"] == [
+        "<=",
+        "<",
+        ">=",
+        ">",
+        "==",
+        "between",
+    ]
+    assert ArchitectCoordinatorConfig().max_repair_attempts == 2
     assert repair_context[
         "empirical_metric_requirement_target_namespace"
     ]["allowed_exact_values"] == [

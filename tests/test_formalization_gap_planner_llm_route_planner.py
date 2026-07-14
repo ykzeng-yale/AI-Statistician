@@ -13392,6 +13392,31 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert payload["standalone_replay_gate_ok"] is True
     assert payload["n_standalone_replay_route_candidates"] == 1
     assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
+    formal_stage_prompt = json.loads(calls[2].user_prompt)
+    formal_search_contract = formal_stage_prompt["required_output_contract"][
+        "search_tool_contract"
+    ]
+    assert formal_search_contract["canonical_request_kinds"] == {
+        "literature_or_source_grounding": "literature",
+        "lean_or_formal_library_retrieval": "formal_library",
+    }
+    assert "missing Lean declaration" in formal_search_contract[
+        "source_search_status_semantics"
+    ]["FORMAL_GAP_BOUNDARY"]
+    assert any(
+        "do not label a purely formal Lean gap SEARCH_REQUESTED" in requirement
+        for requirement in formal_stage_prompt["hard_requirements"]
+    )
+    residual_stage_prompt = json.loads(calls[3].user_prompt)
+    assert any(
+        "matching request_kind=literature" in requirement
+        for requirement in residual_stage_prompt["hard_requirements"]
+    )
+    assert any(
+        "formal_library" in requirement
+        and "cannot replace" in requirement
+        for requirement in residual_stage_prompt["hard_requirements"]
+    )
     final_stage_prompt = json.loads(calls[4].user_prompt)
     assert [
         row["stage_id"]
