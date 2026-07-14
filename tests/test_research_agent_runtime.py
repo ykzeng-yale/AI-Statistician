@@ -6641,6 +6641,60 @@ def test_architect_plan_guard_routes_unplanned_handoff_to_architect() -> None:
     assert row["has_architect_context"] is True
 
 
+def test_architect_plan_guard_allows_planned_semantic_reviewer_handoff() -> None:
+    next_task = AgentTask(
+        task_id="semantic-review:q1",
+        owner_subsystem="GeneratedCodeSemanticReviewer",
+        objective="review exact generated code",
+        inputs={
+            "question": {
+                "id": "q1",
+                "title": "planned reviewer",
+                "description": "exercise typed child plan alignment",
+                "tags": [],
+            },
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {
+                            "subsystem": "SimulationEvaluator",
+                            "objective": "execute generated simulation",
+                        },
+                        {
+                            "subsystem": "GeneratedCodeSemanticReviewer",
+                            "objective": "review exact executed artifacts",
+                        },
+                    ]
+                }
+            },
+        },
+    )
+    original = AgentStepResult(
+        status="REROUTE",
+        rationale="dispatch planned independent review",
+        next_task=next_task,
+    )
+
+    guarded = _architect_plan_guard_handoff_policy(
+        iteration=1,
+        task=AgentTask(
+            task_id="simulation:q1",
+            owner_subsystem="SimulationEvaluator",
+            objective="execute simulation",
+        ),
+        subsystem_name="SimulationEvaluator",
+        result=original,
+        blackboard=BlackboardState(project_id="planned-semantic-review"),
+    )
+
+    assert guarded is original
+    assert guarded.next_task is not None
+    assert guarded.next_task.owner_subsystem == (
+        "GeneratedCodeSemanticReviewer"
+    )
+    assert guarded.failure_classification == ""
+
+
 def test_architect_plan_guard_keeps_same_owner_feedback_inside_worker_loop() -> None:
     class FormalizerRepairSubsystem:
         name = "FormalizationEvaluator"

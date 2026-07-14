@@ -9118,6 +9118,8 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "simulation": "SimulationEvaluator",
         "algorithmengineer": "AlgorithmEngineer",
         "algorithm": "AlgorithmEngineer",
+        "generatedcodesemanticreviewer": "GeneratedCodeSemanticReviewer",
+        "codesemanticreviewer": "GeneratedCodeSemanticReviewer",
         "formalizationevaluator": "FormalizationEvaluator",
         "formalizationgapplanner": "FormalizationGapPlanner",
         "formalizationgap": "FormalizationGapPlanner",
@@ -9162,6 +9164,7 @@ def _canonical_architect_subsystem(value: Any) -> str:
         "TheoryDeveloper",
         "SimulationEvaluator",
         "AlgorithmEngineer",
+        "GeneratedCodeSemanticReviewer",
         "FormalizationEvaluator",
         "FormalizationGapPlanner",
         "ProofEngineer",
@@ -11264,6 +11267,78 @@ def _runtime_missing_formalization_handoff_result_if_needed(
 
 
 GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
+GENERATED_CODE_SEMANTIC_REVIEW_AUTHOR_SUBSYSTEM_BY_RUNTIME_SOURCE = {
+    "AlgorithmEngineer": "AlgorithmEngineer",
+    "SimulationEvaluator": "SimulationEngineer",
+}
+
+
+def _runtime_generated_code_semantic_review_source_responsibility_contract(
+    *,
+    source_subsystem: str,
+    architect_evidence_contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    author_subsystem = (
+        GENERATED_CODE_SEMANTIC_REVIEW_AUTHOR_SUBSYSTEM_BY_RUNTIME_SOURCE.get(
+            source_subsystem,
+            "",
+        )
+    )
+    raw_requirements = architect_evidence_contract.get(
+        "empirical_metric_requirements",
+        [],
+    )
+    all_requirements = [
+        dict(row)
+        for row in raw_requirements or []
+        if isinstance(row, Mapping)
+    ]
+    assigned_requirements = generated_metric_requirements_from_context(
+        all_requirements,
+        target_subsystem=author_subsystem,
+    )
+    assigned_ids = {
+        str(row.get("requirement_id", "") or "").strip()
+        for row in assigned_requirements
+        if str(row.get("requirement_id", "") or "").strip()
+    }
+    sibling_only_refs = [
+        {
+            "requirement_id": str(row.get("requirement_id", "") or ""),
+            "target_subsystems": [
+                str(value)
+                for value in row.get("target_subsystems", []) or []
+                if str(value).strip()
+            ],
+        }
+        for row in all_requirements
+        if str(row.get("requirement_id", "") or "").strip() not in assigned_ids
+    ]
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "runtime_source_subsystem": source_subsystem,
+        "generated_code_author_subsystem": author_subsystem,
+        "assigned_empirical_metric_requirements": assigned_requirements,
+        "assigned_requirement_ids": sorted(assigned_ids),
+        "sibling_only_requirement_refs": sibling_only_refs,
+        "artifact_review_rule": (
+            "Judge this artifact against its assigned empirical requirements, "
+            "its source proposal's explicit implementation claims, the supplied "
+            "theory assumptions, and the exact executed behavior. Do not require "
+            "one artifact to implement requirements assigned only to a sibling "
+            "generated-code author."
+        ),
+        "system_coverage_owner": "CriticEvaluator",
+        "system_coverage_rule": (
+            "Final cross-artifact question coverage is decided only after the "
+            "separately reviewed sibling artifacts are assembled by AgentRuntime "
+            "and audited by CriticEvaluator. This per-artifact review must still "
+            "reject unsupported claims made by its own proposal."
+        ),
+        "proof_evidence_status": (
+            "GENERATED_CODE_SOURCE_RESPONSIBILITY_CONTRACT_NOT_PROOF_EVIDENCE"
+        ),
+    }
 
 
 def _runtime_generated_code_semantic_review_rows(
@@ -11364,6 +11439,16 @@ def _runtime_generated_code_semantic_review_dispatch(
         or str(architect_context.get("runtime_evaluation_mode", "") or "")
         == "capability_eval"
     )
+    source_responsibility_contract = (
+        _runtime_generated_code_semantic_review_source_responsibility_contract(
+            source_subsystem=source_subsystem,
+            architect_evidence_contract=(
+                evidence_contract
+                if isinstance(evidence_contract, Mapping)
+                else {}
+            ),
+        )
+    )
     work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
         [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
     )[:20]
@@ -11388,6 +11473,10 @@ def _runtime_generated_code_semantic_review_dispatch(
         "reviewed_artifacts": reviewed_artifacts,
         "architect_evidence_contract": (
             dict(evidence_contract) if isinstance(evidence_contract, Mapping) else {}
+        ),
+        "source_responsibility_contract": source_responsibility_contract,
+        "source_responsibility_contract_fingerprint": stable_hash(
+            source_responsibility_contract
         ),
         "capability_eval": capability_eval,
         "review_revision_count": review_revision_count,
@@ -11563,6 +11652,9 @@ def _runtime_generated_code_semantic_review_material(
         "architect_frozen_evidence_contract": dict(
             work_order.get("architect_evidence_contract", {}) or {}
         ),
+        "source_responsibility_contract": dict(
+            work_order.get("source_responsibility_contract", {}) or {}
+        ),
         "exact_executed_artifacts": exact_artifacts,
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
@@ -11611,6 +11703,35 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         ):
             validation_errors.append(
                 "capability-eval semantic review requires complete source-agent provenance"
+            )
+        expected_responsibility_contract = (
+            _runtime_generated_code_semantic_review_source_responsibility_contract(
+                source_subsystem=source_subsystem,
+                architect_evidence_contract=(
+                    work_order.get("architect_evidence_contract", {})
+                    if isinstance(
+                        work_order.get("architect_evidence_contract", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+            )
+        )
+        if stable_hash(
+            work_order.get("source_responsibility_contract", {})
+        ) != stable_hash(expected_responsibility_contract):
+            validation_errors.append(
+                "semantic review source-responsibility contract mismatch"
+            )
+        if str(
+            work_order.get(
+                "source_responsibility_contract_fingerprint",
+                "",
+            )
+            or ""
+        ) != stable_hash(expected_responsibility_contract):
+            validation_errors.append(
+                "semantic review source-responsibility fingerprint mismatch"
             )
 
         def bound_artifact(
@@ -11721,6 +11842,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "work_order_id": work_order_id,
             "work_order_hash": work_order_hash,
             "review_input_fingerprint": stable_hash(review_material),
+            "source_responsibility_contract_fingerprint": str(
+                work_order.get(
+                    "source_responsibility_contract_fingerprint",
+                    "",
+                )
+                or ""
+            ),
             "review_material": review_material,
             "proof_evidence_status": (
                 "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE"
@@ -11859,6 +11987,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "review_packet_id": review_packet_id,
             "review_packet_hash": review_packet_hash,
             "review_input_fingerprint": stable_hash(review_material),
+            "source_responsibility_contract_fingerprint": str(
+                work_order.get(
+                    "source_responsibility_contract_fingerprint",
+                    "",
+                )
+                or ""
+            ),
             "source_agent": source_agent,
             "source_model": source_model,
             "source_model_tier": source_tier,
@@ -11941,6 +12076,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                         work_order.get("source_manifest_id", "") or ""
                     ),
                     "overall_verdict": "ACCEPT",
+                    "source_responsibility_contract_fingerprint": str(
+                        work_order.get(
+                            "source_responsibility_contract_fingerprint",
+                            "",
+                        )
+                        or ""
+                    ),
                 }
             )
             next_inputs["accepted_generated_code_semantic_reviews"] = accepted_reviews

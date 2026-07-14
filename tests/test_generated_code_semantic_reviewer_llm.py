@@ -9,6 +9,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
+    build_generated_code_semantic_review_prompt,
     validate_generated_code_semantic_review_packet,
 )
 from ai_statistician.model_backend import StaticJSONGeneratorBackend
@@ -140,7 +141,16 @@ def _runtime_fixture(
                     "capability_eval" if capability_eval else "debug"
                 ),
                 "empirical_metric_requirements": [
-                    {"requirement_id": "frozen:error", "metric_name": "estimated_error"}
+                    {
+                        "requirement_id": "frozen:algorithm-error",
+                        "target_subsystems": ["AlgorithmEngineer"],
+                        "metric_name": "estimated_error",
+                    },
+                    {
+                        "requirement_id": "frozen:simulation-calibration",
+                        "target_subsystems": ["SimulationEngineer"],
+                        "metric_name": "calibration",
+                    },
                 ],
             }
         }
@@ -221,6 +231,58 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     ]
     assert executions[0]["semantic_review_accepted"] is True
     assert executions[0]["reviewer_model_tier"] == "opus"
+    work_order = next(
+        row
+        for row in blackboard.artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+    )
+    responsibility = work_order["source_responsibility_contract"]
+    assert responsibility["generated_code_author_subsystem"] == (
+        "AlgorithmEngineer"
+    )
+    assert responsibility["assigned_requirement_ids"] == [
+        "frozen:algorithm-error"
+    ]
+    assert responsibility["sibling_only_requirement_refs"] == [
+        {
+            "requirement_id": "frozen:simulation-calibration",
+            "target_subsystems": ["SimulationEngineer"],
+        }
+    ]
+    assert executions[0][
+        "source_responsibility_contract_fingerprint"
+    ] == stable_hash(responsibility)
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    assert materialization["review_material"][
+        "source_responsibility_contract"
+    ] == responsibility
+
+
+def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -> None:
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material={
+            "source_responsibility_contract": {
+                "assigned_requirement_ids": ["algorithm:assigned"],
+                "sibling_only_requirement_refs": [
+                    {
+                        "requirement_id": "simulation:sibling",
+                        "target_subsystems": ["SimulationEngineer"],
+                    }
+                ],
+            }
+        },
+    )
+
+    assert "requirements assigned to its author subsystem" in prompt
+    assert "omitting a requirement assigned only to a sibling artifact" in prompt
+    assert "reject any current-source proposal claim" in prompt
 
 
 def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
@@ -412,3 +474,35 @@ def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> Non
         for error in invalid_packet_row.errors
     )
     assert invalid_packet_row.n_generated_code_semantic_review_accepted == 0
+
+    forged_responsibility_payload = json.loads(json.dumps(original_payload))
+    forged_artifacts = forged_responsibility_payload["blackboard"]["artifacts"]
+    forged_execution = next(
+        artifact
+        for key, artifact in forged_artifacts.items()
+        if key.startswith("generated_code_semantic_review_execution:")
+    )
+    forged_work_order = forged_artifacts[forged_execution["work_order_id"]]
+    forged_contract = forged_work_order["source_responsibility_contract"]
+    forged_contract["assigned_requirement_ids"] = [
+        "frozen:simulation-calibration"
+    ]
+    forged_fingerprint = stable_hash(forged_contract)
+    forged_work_order[
+        "source_responsibility_contract_fingerprint"
+    ] = forged_fingerprint
+    forged_execution[
+        "source_responsibility_contract_fingerprint"
+    ] = forged_fingerprint
+    result_path.write_text(
+        json.dumps(forged_responsibility_payload),
+        encoding="utf-8",
+    )
+
+    forged_responsibility_row = _audit_result_path(result_path)
+
+    assert any(
+        "semantic review source-responsibility contract mismatch" in error
+        for error in forged_responsibility_row.errors
+    )
+    assert forged_responsibility_row.n_generated_code_semantic_review_accepted == 0

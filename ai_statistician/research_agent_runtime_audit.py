@@ -112,6 +112,7 @@ from .research_agent_runtime import (
     _runtime_manifest_int_sum,
     _runtime_manifest_nonempty_entry_count,
     _runtime_research_path_execution_summary,
+    _runtime_generated_code_semantic_review_source_responsibility_contract,
     _runtime_source_theorem_target_bound_kernel_evidence_summary,
     _runtime_source_theorem_formal_environment_work_order_rows,
     _runtime_pseudo_formal_work_order_rows_from_formalizer,
@@ -13044,6 +13045,53 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         ):
             errors.append(
                 f"semantic review execution work-order hash mismatch: {execution_id}"
+            )
+        expected_responsibility_contract = (
+            _runtime_generated_code_semantic_review_source_responsibility_contract(
+                source_subsystem=str(
+                    work_order.get("source_subsystem", "") or ""
+                ),
+                architect_evidence_contract=(
+                    work_order.get("architect_evidence_contract", {})
+                    if isinstance(
+                        work_order.get("architect_evidence_contract", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+            )
+        )
+        expected_responsibility_fingerprint = stable_hash(
+            expected_responsibility_contract
+        )
+        if stable_hash(
+            work_order.get("source_responsibility_contract", {})
+        ) != expected_responsibility_fingerprint:
+            errors.append(
+                "semantic review source-responsibility contract mismatch: "
+                + execution_id
+            )
+        if str(
+            work_order.get(
+                "source_responsibility_contract_fingerprint",
+                "",
+            )
+            or ""
+        ) != expected_responsibility_fingerprint:
+            errors.append(
+                "semantic review source-responsibility fingerprint mismatch: "
+                + execution_id
+            )
+        if str(
+            execution.get(
+                "source_responsibility_contract_fingerprint",
+                "",
+            )
+            or ""
+        ) != expected_responsibility_fingerprint:
+            errors.append(
+                "semantic review execution source-responsibility mismatch: "
+                + execution_id
             )
         for provenance_field in (
             "source_subsystem",
