@@ -1,13 +1,84 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-13T20:07:52Z",
+  "updated_at": "2026-07-14T07:12:20Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "runtime/evaluation alignment and evidence-readiness",
-  "latest_main_worker_patch": "Generated Python coding agents now receive an execution contract instead of raw substring/method-name corner cases: AST capability validation, protected-binding and frame-reflection isolation, secret-free subprocess environments, a complete untruncated list of canonical Architect gap IDs with one target/draft required per gap, single-gap-only identity normalization, serialize-before-publish results, preserved final exceptions, and distinct execution versus metric-gate failure feedback. Coverage requirements now come only from explicit metric-contract/acceptance fields, never whole-blackboard keywords such as assumption coverage or formal-source coverage_status. No generated task output, statistical formula, Lean grammar/tactic rule, theorem-name exception, or validator relaxation was added.",
-  "latest_main_worker_live_probe": "The fresh two-family v2 run at runs/main_worker_fresh_cross_family_full_live_20260713_v2_generated_feedback_patch scored 94/112 with one BLOCKED and one MAX_ITERATIONS_REACHED result, one live generated algorithm pass, three live generated simulation executions, one simulation pass, 30 kernel-verified support subclaims, eight formal gaps, and zero exact theorem closures. It exposed a generic false coverage gate on the FDR task. After replacing whole-context keyword inference with explicit metric contracts, fresh FDR v3 at runs/main_worker_fdr_full_live_20260713_v3_explicit_metric_contract executed and passed its first generated simulation and generated algorithm with return code zero, empty parse errors, and empty metric-gate errors. V3 still ended MAX_ITERATIONS_REACHED at 91/112 with four formal gaps and zero exact theorem closure.",
-  "latest_main_worker_design_issue": "Executable generated-code feedback is now materially stronger, but sandbox execution success is still not equivalent to satisfying every statistical acceptance condition: many Simulator/Algorithm gates remain natural-language prose instead of typed metric-path/operator/threshold/tolerance/aggregation contracts. V2 also confirmed bounded simulation failure can starve AlgorithmEngineer; the false coverage fix removed that instance in fresh FDR v3, but scheduling fairness still needs an explicit Architect invariant. The late post-runtime proof plane is not fully Architect-owned, TheoryDeveloper lacks serious long-equation/lemma-DAG mode, R execution is missing, scientific Python breadth and arbitrary-paper ingest remain limited, and no fresh exact source theorem has closed. S14 remains false.",
+  "current_lane": "domain-neutral AgentRuntime authority, cross-family evaluation, and exact theorem closure",
+  "latest_main_worker_patch": "The first accepted Architect empirical requirement set is now runtime-frozen across metric replans, so an easier post-hoc measurement protocol cannot replace a failed gate. Every required metric row copies one runtime-owned required_runtime_replicates value; the sandbox records and independently compares the actual subprocess replicate argument. Multi-round FormalizationGapPlanner reuse now strips prior runtime_revision_source_* metadata before source-attempt hashing. These are domain-neutral contract, execution, and lineage controls: no statistical formula, theorem name, metric name, output key, Lean grammar, or task-specific answer was added.",
+  "latest_main_worker_live_probe": "The latest frozen development-panel run is runs/main_worker_cross_family_development_20260713_v8_generic_feedback_repair. Both right_censored_survival_km and sequential_anytime_bernoulli ended BLOCKED under one fresh-start configuration. The scorecard was 95/118 with 72 kernel-verified support subclaims, 8 formal gaps, and zero full frontier/source-theorem closures. Survival exposed a multi-revision canonical hash defect. Sequential exercised coding-agent metric repair and Architect replan, but the replan rewrote the failed measurement protocol and the generated simulation passed a vacuous null-path calculation; bounded route-contract repair then exhausted. Held-out has not been run for this candidate.",
+  "latest_main_worker_design_issue": "The frozen cross-family probe proves that executable code plus scalar gates is not enough: a distinct LLM semantic reviewer must inspect generated code, frozen protocol, theory anchors, executed arguments, and metrics, then route typed findings back to the originating coding agent for a fresh run. Formalization likewise needs immutable semantic-claim identity plus independent review because survival declaration-name lineage still allowed a weaker coverage theorem to stand in for fixed-time asymptotic normality. The legacy research_lab registry still branches over named task families, theorem cards, registered simulators, thresholds, and Lean skeletons; it must be demoted to an optional baseline provider and cannot define fresh full-live or held-out evidence. Other central blockers remain serious TheoryDeveloper equation/lemma-DAG depth, route-planner JSON cost/reliability, exact source-theorem proof search and iterative Lean feedback, R and broader scientific Python execution, arbitrary-paper ingest, and fresh held-out exact closure. S14 remains false.",
+  "latest_cross_family_evaluation_protocol": {
+    "path": "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json",
+    "protocol_id": "s14-cross-family-generalization-20260713-v1",
+    "split_frozen_at_base_commit": "507eb34d662f6ac8c4cbb48a7e7f4ceb640c4bfa",
+    "development_question_ids": [
+      "right_censored_survival_km",
+      "sequential_anytime_bernoulli"
+    ],
+    "development_task_families": [
+      "survival",
+      "sequential"
+    ],
+    "held_out_question_ids": [
+      "high_dimensional_spiked_pca",
+      "extreme_tail_quantile_hill"
+    ],
+    "held_out_task_families": [
+      "high_dimensional",
+      "extremes"
+    ],
+    "full_live_requires_minimum_task_families": 2,
+    "resume_and_task_learning_memory_forbidden": true,
+    "component_eval_substitution_forbidden": true,
+    "exact_source_theorem_closures": 0,
+    "s14_satisfied": false
+  },
+  "latest_frozen_development_panel_probe": {
+    "run": "runs/main_worker_cross_family_development_20260713_v8_generic_feedback_repair",
+    "question_ids": [
+      "right_censored_survival_km",
+      "sequential_anytime_bernoulli"
+    ],
+    "task_families": [
+      "survival",
+      "sequential"
+    ],
+    "fresh_start": true,
+    "question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "scorecard": "95/118",
+    "kernel_verified_support_subclaims": 72,
+    "formal_gaps": 8,
+    "full_frontier_theorems_proved": 0,
+    "survival_blocker": "second-round contract revision source stage-attempt hash mismatch",
+    "sequential_blocker": "bounded live route-planner response-contract repair exhausted",
+    "runtime_protocol_mismatch_observed": true,
+    "architect_post_hoc_requirement_rewrite_observed": true,
+    "generated_simulation_semantic_trivialization_observed": true,
+    "support_declarations_are_frontier_theorems": false,
+    "held_out_run_started": false,
+    "s14_satisfied": false
+  },
+  "post_v8_generic_corrections": {
+    "architect_first_requirement_set_frozen_across_replans": true,
+    "runtime_replicate_budget_bound_into_every_required_metric": true,
+    "actual_subprocess_replicates_checked_against_requirement": true,
+    "multi_revision_attempt_hash_canonicalized": true,
+    "independent_generated_code_semantic_reviewer_integrated": false,
+    "immutable_formal_semantic_claim_reviewer_integrated": false,
+    "held_out_run_allowed_before_open_review_gates_close": false,
+    "boundary": "These corrections constrain authority, execution, and lineage only. They do not encode task-family mathematics or establish theorem proof evidence."
+  },
+  "latest_local_regression": {
+    "runtime_test_file": "tests/test_research_agent_runtime.py",
+    "result": "1095 passed in 2827.19s (0:47:07)",
+    "failed": 0,
+    "validated_at": "2026-07-14T07:12:20Z",
+    "boundary": "Local regression validates runtime contracts and orchestration behavior; it is not live LLM, statistical-semantic, or theorem-proof evidence."
+  },
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",
     "task_family": "multiple_testing/multiple_testing_fdr_bh",
@@ -62,7 +133,7 @@
     "fdr_v3_formal_gaps": 4,
     "source_theorem_kernel_verified": false,
     "full_frontier_theorem_proved": false,
-    "remaining_metric_contract_gap": "Sandbox execution and absence of a false gate do not check every natural-language statistical acceptance inequality. Add typed metric path/operator/threshold/tolerance/aggregation contracts and preserve execution-versus-statistical-acceptance evidence classes.",
+    "remaining_metric_contract_gap": "Typed path/operator/threshold/aggregation authority now exists, and post-v8 runtime replicate binding closes the declared-versus-executed work-budget gap. The remaining blocker is independent LLM semantic review of whether generated code actually implements the frozen mathematical experiment.",
     "s14_satisfied": false
   },
   "latest_paper_and_open_source_reuse_audit": {

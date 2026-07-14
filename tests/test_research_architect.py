@@ -642,9 +642,9 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     ) == "claude-haiku-4-5-20251001"
     runtime_default_model = default_generator_model(runtime_args.provider, model_tier="sonnet")
     assert _build_architect_coordinator_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
-    assert _build_algorithm_engineer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-haiku-4-5-20251001"
+    assert _build_algorithm_engineer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
     assert _build_formalizer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
-    assert _build_simulation_engineer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-haiku-4-5-20251001"
+    assert _build_simulation_engineer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
     assert _build_critic_evaluator_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-haiku-4-5-20251001"
 
 

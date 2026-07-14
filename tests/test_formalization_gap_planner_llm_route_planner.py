@@ -31,8 +31,11 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
+    _prompt_token_budget_preflight_errors,
+    _prompt_token_budget_row,
     _prior_staged_followup_stage_dependencies_match,
     _route_adoption_readiness,
+    _staged_followup_incremental_contract_errors,
     _staged_followup_stage_prompt_context_packet,
     _target_compatible_formal_declaration_rows,
     export_formalization_gap_planner_llm_route_planner,
@@ -87,6 +90,36 @@ from ai_statistician.formalization_gap_planner_target_intake import (
 )
 from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.fingerprint import stable_hash
+
+
+def test_prompt_token_budget_uses_conservative_utf8_estimate() -> None:
+    row = _prompt_token_budget_row(
+        {
+            "request_id": "request:large-route",
+            "route_id": "route:large-route",
+            "display_name": "large route",
+            "provider_name": "anthropic",
+            "model": "claude-sonnet-4-6",
+            "model_tier": "sonnet",
+            "target_prover_family": "lean4",
+            "prompt_messages": {
+                "system": "",
+                "user": "x" * 135_001,
+            },
+        },
+        max_tokens=9_000,
+    )
+
+    assert row["estimated_input_tokens"] == 45_001
+    assert row["estimation_method"] == (
+        "ceil(prompt_utf8_bytes/3)+max_output_tokens"
+    )
+    errors = _prompt_token_budget_preflight_errors(
+        [row],
+        max_estimated_prompt_input_tokens=45_000,
+    )
+    assert len(errors) == 1
+    assert errors[0]["request_id"] == "request:large-route"
 
 
 def _write_input(root: Path) -> Path:
@@ -13485,6 +13518,59 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
     assert "Standalone seed source rows: 2 direct=1 staged-assembled=1" in report
 
 
+def test_staged_incremental_contract_attributes_new_unscoped_validator_errors(
+    tmp_path: Path,
+) -> None:
+    input_json = _write_input(tmp_path)
+    prompt_manifest = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        tmp_path / "prompt_only",
+        provider_name="prompt_only",
+        invoke_provider=False,
+    )
+    request = prompt_manifest["request_packets"][0]
+    valid_payload = _llm_response_payload()
+    route_core_fragment = {
+        "minimal_delta_plan": deepcopy(valid_payload["minimal_delta_plan"]),
+    }
+    formal_fragment = {
+        "informal_knowledge_dag_nodes": deepcopy(
+            valid_payload["informal_knowledge_dag_nodes"]
+        ),
+        "informal_knowledge_dag_edges": deepcopy(
+            valid_payload["informal_knowledge_dag_edges"]
+        ),
+        "formal_realization_dag_nodes": deepcopy(
+            valid_payload["lean_realization_dag_nodes"]
+        ),
+        "formal_realization_dag_edges": deepcopy(
+            valid_payload["formal_realization_dag_edges"]
+        ),
+        "route_alignment_edges": deepcopy(valid_payload["route_alignment_edges"]),
+    }
+    formal_fragment["informal_knowledge_dag_nodes"][1]["source_snippets"][0][
+        "excerpt"
+    ] = "A fabricated snippet absent from the request ledger."
+
+    errors = _staged_followup_incremental_contract_errors(
+        formal_fragment,
+        request,
+        stage_id="formal_realization_and_alignment",
+        prior_stage_fragments=(
+            {
+                "stage_id": "route_core_compaction",
+                "fragment": route_core_fragment,
+            },
+        ),
+    )
+
+    assert any("source_snippets" in error for error in errors)
+    assert not any(
+        "formal_attempt_queue" in error or "standalone_route" in error
+        for error in errors
+    )
+
+
 def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     tmp_path: Path,
 ) -> None:
@@ -13807,6 +13893,105 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     ]
     assert validate_llm_route_planner_manifest(feedback_revision) == []
 
+    stale_contract_path = tmp_path / "stale_contract_attempts.jsonl"
+    stale_contract_rows = deepcopy(initial["staged_followup_stage_attempt_rows"])
+    stale_formal_row = next(
+        row
+        for row in stale_contract_rows
+        if row["stage_id"] == "formal_realization_and_alignment"
+    )
+    stale_formal_row["fragment"]["informal_knowledge_dag_nodes"][1][
+        "source_snippets"
+    ][0]["excerpt"] = "A fabricated snippet absent from the request ledger."
+    stale_contract_path.write_text(
+        "\n".join(json.dumps(row) for row in stale_contract_rows) + "\n",
+        encoding="utf-8",
+    )
+
+    class CurrentContractRevisionBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.calls: list[object] = []
+
+        def generate(self, request):
+            self.calls.append(request)
+            if len(self.calls) == 1:
+                return GeneratorResponse(
+                    text='{"proof_evidence_boundary":"not theorem proof evidence",',
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={
+                        "generator_only": True,
+                        "tools_available": False,
+                        "provider_stop_reason": "max_tokens",
+                    },
+                )
+            stage_id = str(request.metadata["stage_id"])
+            assert stage_id == "formal_realization_and_alignment"
+            response = {
+                "stage_response_kind": (
+                    "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                ),
+                "staged_followup_id": request.metadata["staged_followup_id"],
+                "request_id": request.metadata["request_id"],
+                "route_id": request.metadata["route_id"],
+                "stage_id": stage_id,
+                "stage_status": "completed_fragment",
+                "fragment": stage_fragment(stage_id),
+                "assembler_notes": [
+                    "regenerated after the prior fragment failed the current contract"
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_stop_reason": "end_turn",
+                },
+            )
+
+    current_contract_backend = CurrentContractRevisionBackend()
+    current_contract_revision = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        tmp_path / "current_contract_revision",
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=current_contract_backend,
+        max_repair_attempts=0,
+        max_staged_followup_stage_calls=1,
+        prior_staged_followup_stage_attempts_jsonl=stale_contract_path,
+    )
+    assert len(current_contract_backend.calls) == 2
+    assert current_contract_revision[
+        "n_staged_followup_stage_reuse_blocked_by_current_contract"
+    ] == 1
+    regenerated_formal_row = next(
+        row
+        for row in current_contract_revision["staged_followup_stage_attempt_rows"]
+        if row["stage_id"] == "formal_realization_and_alignment"
+    )
+    assert regenerated_formal_row["prior_stage_attempt_reused"] is False
+    assert regenerated_formal_row[
+        "prior_stage_attempt_reuse_blocked_by_current_contract"
+    ] is True
+    assert any(
+        "source_snippets" in error
+        for error in regenerated_formal_row[
+            "prior_stage_attempt_reuse_current_contract_error_preview"
+        ]
+    )
+    assert not any(
+        "reusable staged followup fragment failed current contract" in error
+        for error in current_contract_revision["errors"]
+    )
+    assert validate_llm_route_planner_manifest(current_contract_revision) == []
+
     cross_family_path = tmp_path / "cross_family_attempts.jsonl"
     cross_family_rows = deepcopy(initial["staged_followup_stage_attempt_rows"])
     for row in cross_family_rows:
@@ -14040,6 +14225,19 @@ def test_llm_route_planner_prompt_budget_staged_assembly_drops_monolithic_budget
         for requirement in formal_stage_prompt["required_output_contract"][
             "cross_stage_consistency_requirements"
         ]
+    )
+    residual_stage_prompt = json.loads(calls[2].user_prompt)
+    cross_stage_requirements = residual_stage_prompt[
+        "required_output_contract"
+    ]["cross_stage_consistency_requirements"]
+    assert any(
+        "must exactly copy one request_context.residual_goals item"
+        in requirement
+        for requirement in cross_stage_requirements
+    )
+    assert any(
+        "Every source_snippets item must exactly copy" in requirement
+        for requirement in cross_stage_requirements
     )
     baseline_cost_floors = route_core_stage_prompt["stage"][
         "baseline_route_option_cost_floors"
@@ -15014,6 +15212,7 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
         generator_backend=CompactStagedBackend(),
         max_tokens=7300,
         max_estimated_prompt_input_tokens=1,
+        max_repair_attempts=0,
         max_staged_followup_stage_calls=2,
     )
 
@@ -15068,6 +15267,101 @@ def test_llm_route_planner_budget_preflight_executes_compact_staged_followup() -
     ).read_text(encoding="utf-8")
     assert "- Prompt token budget preflight blocks: 1 cap=1" in report
     assert "Staged followup stage attempts: 1 ok=0 budget-blocked=3" in report
+    assert validate_llm_route_planner_manifest(payload) == []
+
+
+def test_llm_route_planner_repairs_truncated_staged_fragment_with_validator_feedback() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_staged_repair"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    requests: list[object] = []
+    valid_delta = _llm_response_payload()["minimal_delta_plan"]
+
+    class RepairingStagedBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            requests.append(request)
+            repair_attempt = int(
+                request.metadata["staged_followup_stage_repair_attempt"]
+            )
+            if repair_attempt == 0:
+                text = '{"stage_response_kind":'
+                usage = {"input_tokens": 10, "output_tokens": 20}
+            else:
+                text = json.dumps(
+                    {
+                        "stage_response_kind": (
+                            "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
+                        ),
+                        "staged_followup_id": request.metadata[
+                            "staged_followup_id"
+                        ],
+                        "request_id": request.metadata["request_id"],
+                        "route_id": request.metadata["route_id"],
+                        "stage_id": request.metadata["stage_id"],
+                        "stage_status": "completed_fragment",
+                        "fragment": {"minimal_delta_plan": valid_delta},
+                        "assembler_notes": ["repaired from exact validator feedback"],
+                        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    }
+                )
+                usage = {"input_tokens": 11, "output_tokens": 21}
+            return GeneratorResponse(
+                text=text,
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_stop_reason": (
+                        "max_tokens" if repair_attempt == 0 else "end_turn"
+                    ),
+                    "provider_usage": usage,
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model_tier="sonnet",
+        invoke_provider=True,
+        generator_backend=RepairingStagedBackend(),
+        max_tokens=7300,
+        max_estimated_prompt_input_tokens=1,
+        max_repair_attempts=1,
+        max_staged_followup_stage_calls=1,
+    )
+
+    assert len(requests) == 2
+    assert payload["n_staged_followup_stage_attempt_rows"] == 1
+    assert payload["n_staged_followup_stage_provider_calls"] == 2
+    assert payload["n_staged_followup_stage_repair_attempts"] == 1
+    assert payload["n_staged_followup_stage_response_contract_ok"] == 1
+    assert payload["total_staged_followup_stage_provider_total_tokens"] == 62
+    row = payload["staged_followup_stage_attempt_rows"][0]
+    assert row["response_contract_ok"] is True
+    assert row["repair_attempts"] == 1
+    assert len(row["provider_attempt_metadata"]) == 2
+    assert len(row["repair_error_history"]) == 1
+    assert any(
+        "JSON extraction failed" in error
+        for error in row["repair_error_history"][0]["errors"]
+    )
+    assert requests[1].metadata["staged_followup_stage_repair_attempt"] == 1
+    repair_prompt = json.loads(requests[1].user_prompt)
+    assert repair_prompt["stage_id"] == "route_core_compaction"
+    assert any(
+        "JSON extraction failed" in error
+        for error in repair_prompt["local_validation_errors"]
+    )
+    assert repair_prompt["previous_response_text"] == '{"stage_response_kind":'
     assert validate_llm_route_planner_manifest(payload) == []
 
 

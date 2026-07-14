@@ -6,6 +6,14 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .generated_metric_contract import (
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    generated_metric_requirement_set_id,
+    generated_metric_requirement_prompt_schema,
+    generated_sandbox_runtime_replicates,
+    validate_generated_metric_requirements,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -127,6 +135,13 @@ class LLMArchitectCoordinatorAgent:
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
                 runtime_config=runtime_config,
+                architect_context=architect_context,
+            )
+
+        def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
+            return _architect_packet_repair_context(
+                architect_context=architect_context,
+                runtime_config=runtime_config,
             )
 
         return generate_validated_json_packet(
@@ -137,6 +152,7 @@ class LLMArchitectCoordinatorAgent:
             validate_packet=validate_architect_coordinator_packet,
             validation_label="LLM ArchitectCoordinator packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=build_repair_context,
         )
 
 
@@ -153,7 +169,10 @@ def build_architect_coordinator_prompt(
         runtime_config.get("formal_verification_policy", "optional") or "optional"
     )
     requested_evidence_contract = {
-        "formal_verification_policy": formal_verification_policy,
+        **_architect_runtime_owned_evidence_contract(
+            architect_context=architect_context,
+            runtime_config=runtime_config,
+        ),
         "requested_research_path": str(
             runtime_config.get("recommended_research_path", "") or ""
         ),
@@ -198,10 +217,13 @@ def build_architect_coordinator_prompt(
         "execution_plan_contract": {
             "required_subsystems": list(required_plan_subsystems),
             "planning_rule": (
-                "subsystem_execution_plan must contain one compact row for every "
-                "required subsystem plus any other anticipated worker; order rows "
-                "by intended execution and represent same-owner retries in "
-                "iteration_policy rather than duplicate stage rows"
+                "author compact rows for the research path and any anticipated "
+                "worker; AgentRuntime will append provenance-marked empty plan "
+                "shells for mandatory evidence stages omitted by the proposal, "
+                "without inventing objectives, artifacts, statistical content, "
+                "code, or proof content. Order authored rows by intended execution "
+                "and represent same-owner retries in iteration_policy rather than "
+                "duplicate stage rows"
             ),
             "resume_rule": (
                 "on plan repair or resume, return the complete amended remaining "
@@ -226,9 +248,11 @@ def build_architect_coordinator_prompt(
         "Return ONLY one compact JSON object matching required_output_contract. The object "
         "must contain exactly the required top-level fields unless a field is needed for "
         "schema repair. Keep non-plan lists to at most 2 short strings or 1 short "
-        "object. subsystem_execution_plan is exempt: include one compact object for "
-        "every execution_plan_contract.required_subsystems entry and any other worker "
-        "you anticipate, up to the available subsystem count. On resume or plan repair, "
+        "object. subsystem_execution_plan is exempt: include compact objects for the "
+        "workers you select and any mandatory stages whose objective or ordering you "
+        "want to specialize. AgentRuntime will append provenance-marked empty shells "
+        "for omitted mandatory evidence stages and use its typed defaults; it will not "
+        "invent research content. On resume or plan repair, "
         "return the complete amended remaining graph rather than only the pending worker. Do not "
         "include paragraphs, Markdown, LaTeX derivations, optional long-form analysis sections, "
         "or code. Choose the earliest feasible next subsystem from next_actions "
@@ -300,6 +324,32 @@ def build_architect_coordinator_prompt(
         "capability gaps are resolved; row-level retention_selection explains "
         "why a visible row survived prompt-context compression. Capability-gap routing is "
         "orchestration input, not proof evidence. "
+        "If architect_context.runtime_packet_validation_replan is present, treat its "
+        "exact validation_errors and fingerprints as the current coding-agent blocker. "
+        "Choose whether upstream theory/artifact interfaces need repair or whether a "
+        "better-context coding-agent retry is feasible; do not blindly resume the failed "
+        "task, weaken its validator, or invent code, statistical results, Lean, or proof "
+        "evidence in the Architect packet. "
+        "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
+        "is true, author empirical_metric_requirements before either coding agent "
+        "runs. Include at least one required row targeting AlgorithmEngineer and "
+        "one targeting SimulationEngineer. Give every row an immutable requirement "
+        "id, precise metric semantics and measurement protocol, numeric comparison, "
+        "aggregation/quorum, and source anchors. Copy "
+        "requested_evidence_contract.generated_sandbox_runtime_replicates exactly "
+        "into every row as required_runtime_replicates, and describe that same "
+        "executed replicate count in the measurement protocol. If the runtime-owned "
+        "contract already contains empirical_metric_requirements, they are frozen "
+        "from an earlier accepted Architect plan: preserve them byte-for-value and "
+        "repair the theory, DGP, measurement implementation, or generated code rather "
+        "than rewriting a failed gate. If a target varies by scenario, "
+        "require a returned deviation or ratio to that scenario-specific target so "
+        "the comparison remains explicit. Coding agents may bind only artifact IDs "
+        "and metric paths; they must copy all requirement fields unchanged and may "
+        "add only optional diagnostics. AgentRuntime must reject invented or weakened "
+        "required gates and must not infer a statistical gate from names or prose. "
+        "These Architect requirements remain orchestration proposals, and passing "
+        "their runtime contracts is empirical evidence only. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
@@ -567,7 +617,19 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         "evaluation_mode": "debug|capability_eval",
         "capability_eval_requires_generated_algorithm_code": "boolean",
         "capability_eval_requires_generated_simulation_code": "boolean",
+        "capability_eval_requires_typed_metric_contracts": "boolean",
         "capability_eval_requires_formalizer_lean_candidate": "boolean",
+        "generated_sandbox_runtime_replicates": "positive integer",
+        "generated_metric_contract_policy": (
+            "typed_artifact_bound_required|typed_artifact_bound_preferred"
+        ),
+        "generated_metric_requirement_authority_policy": (
+            "architect_authored_coding_agent_bound_required|"
+            "architect_authored_coding_agent_bound_preferred"
+        ),
+        "empirical_metric_requirements": [
+            generated_metric_requirement_prompt_schema()
+        ],
         "formal_targets": ["one short string"],
         "simulation_targets": ["one short string"],
         "acceptance_modes": ["one short string"],
@@ -629,16 +691,182 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "intake_assessment": {"type": "object"},
         "problem_analysis": {"type": "object"},
         "stat_knowledge_bank_plan": {"type": "object"},
-        "literature_fair_comparison_plan": {"type": "array", "minItems": 1},
+        "literature_fair_comparison_plan": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+                "type": "object",
+                "required": [
+                    "candidate_source_family",
+                    "must_match",
+                    "likely_mismatches",
+                    "unsafe_transfer_risks",
+                ],
+                "properties": {
+                    "candidate_source_family": {"type": "string"},
+                    "must_match": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string"},
+                    },
+                    "likely_mismatches": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string"},
+                    },
+                    "unsafe_transfer_risks": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
         "evidence_contract": {"type": "object"},
-        "subsystem_execution_plan": {"type": "array", "minItems": 1},
+        "subsystem_execution_plan": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "subsystem",
+                    "objective",
+                    "inputs_needed",
+                    "expected_artifacts",
+                    "acceptance_gate",
+                ],
+                "properties": {
+                    "subsystem": {"type": "string"},
+                    "objective": {"type": "string"},
+                    "inputs_needed": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "expected_artifacts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "acceptance_gate": {"type": "string"},
+                },
+            },
+        },
         "retrieval_strategy": {"type": "object"},
         "iteration_policy": {"type": "object"},
-        "evidence_gates": {"type": "array", "minItems": 1},
-        "risk_register": {"type": "array", "minItems": 1},
-        "next_actions": {"type": "array", "minItems": 1},
+        "evidence_gates": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["artifact_kind", "required_evidence", "not_evidence"],
+                "properties": {
+                    "artifact_kind": {"type": "string"},
+                    "required_evidence": {"type": "string"},
+                    "not_evidence": {"type": "string"},
+                },
+            },
+        },
+        "risk_register": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["risk", "mitigation", "owner_subsystem"],
+                "properties": {
+                    "risk": {"type": "string"},
+                    "mitigation": {"type": "string"},
+                    "owner_subsystem": {"type": "string"},
+                },
+            },
+        },
+        "next_actions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["owner_agent", "action", "acceptance_gate"],
+                "properties": {
+                    "owner_agent": {"type": "string"},
+                    "action": {"type": "string"},
+                    "acceptance_gate": {"type": "string"},
+                },
+            },
+        },
     },
 }
+
+
+def _architect_packet_repair_context(
+    *,
+    architect_context: Mapping[str, Any],
+    runtime_config: Mapping[str, Any],
+) -> dict[str, Any]:
+    runtime_contract = _architect_runtime_owned_evidence_contract(
+        architect_context=architect_context,
+        runtime_config=runtime_config,
+    )
+    return {
+        "required_top_level_fields": list(
+            ARCHITECT_COORDINATOR_JSON_SCHEMA["required"]
+        ),
+        "required_nested_fields": {
+            "problem_analysis": [
+                "theorem_family",
+                "statistical_objects",
+                "likely_analogy_classes",
+                "key_obstacles",
+                "missing_information",
+            ],
+            "stat_knowledge_bank_plan": [
+                "source_families_to_collect",
+                "assumption_dimensions",
+                "proof_skeletons_to_track",
+                "failed_attempt_memory_policy",
+            ],
+            "evidence_contract": list(
+                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT["evidence_contract"]
+            ),
+        },
+        "required_array_item_shapes": {
+            "literature_fair_comparison_plan": (
+                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
+                    "literature_fair_comparison_plan"
+                ][0]
+            ),
+            "subsystem_execution_plan": (
+                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
+                    "subsystem_execution_plan"
+                ][0]
+            ),
+            "evidence_gates": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
+                "evidence_gates"
+            ][0],
+            "risk_register": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
+                "risk_register"
+            ][0],
+            "next_actions": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
+                "next_actions"
+            ][0],
+        },
+        "runtime_owned_evidence_contract": runtime_contract,
+        "required_subsystems": list(
+            _required_architect_plan_subsystems(runtime_contract)
+        ),
+        "empirical_metric_requirement_schema": (
+            generated_metric_requirement_prompt_schema()
+        ),
+        "repair_prompt_priority_instructions": [
+            "Return every required top-level field, even when only one row is needed.",
+            "Every array named in required_array_item_shapes must contain JSON objects with exactly that shape, never strings.",
+            "Author subsystem_execution_plan rows for the intended research path; runtime-owned mandatory-stage shells are appended after generation.",
+            "Do not omit or rewrite runtime_owned_evidence_contract fields.",
+            (
+                "In capability_eval, author required empirical_metric_requirements "
+                "for both coding subsystems on the first plan; on replans, preserve "
+                "any runtime-owned frozen requirement set unchanged."
+            ),
+        ],
+    }
 
 
 def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -721,6 +949,89 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             errors.append(
                 "evidence_contract.formal_required_for_final must be a boolean"
             )
+        evaluation_mode = str(
+            evidence_contract.get("evaluation_mode", "") or ""
+        ).strip()
+        metric_policy = str(
+            evidence_contract.get("generated_metric_contract_policy", "") or ""
+        ).strip()
+        authority_policy = str(
+            evidence_contract.get(
+                "generated_metric_requirement_authority_policy", ""
+            )
+            or ""
+        ).strip()
+        if metric_policy and metric_policy not in {
+            "typed_artifact_bound_required",
+            "typed_artifact_bound_preferred",
+        }:
+            errors.append(
+                "evidence_contract.generated_metric_contract_policy must be "
+                "typed_artifact_bound_required or typed_artifact_bound_preferred"
+            )
+        typed_required = evidence_contract.get(
+            "capability_eval_requires_typed_metric_contracts"
+        )
+        if typed_required is not None and not isinstance(typed_required, bool):
+            errors.append(
+                "evidence_contract.capability_eval_requires_typed_metric_contracts "
+                "must be a boolean"
+            )
+        if authority_policy and authority_policy not in {
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
+        }:
+            errors.append(
+                "evidence_contract.generated_metric_requirement_authority_policy "
+                "must be architect-authored and coding-agent-bound"
+            )
+        if evaluation_mode == "capability_eval" and (
+            typed_required is not True
+            or metric_policy != "typed_artifact_bound_required"
+            or authority_policy
+            != GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
+        ):
+            errors.append(
+                "capability_eval requires typed artifact-bound contracts backed "
+                "by Architect-authored metric requirements"
+            )
+        requirements = evidence_contract.get("empirical_metric_requirements", [])
+        expected_runtime_replicates = evidence_contract.get(
+            "generated_sandbox_runtime_replicates"
+        )
+        if evaluation_mode == "capability_eval" and (
+            isinstance(expected_runtime_replicates, bool)
+            or not isinstance(expected_runtime_replicates, int)
+            or expected_runtime_replicates <= 0
+        ):
+            errors.append(
+                "capability_eval requires a positive runtime-owned "
+                "generated_sandbox_runtime_replicates value"
+            )
+        if requirements not in (None, [], {}):
+            errors.extend(
+                validate_generated_metric_requirements(
+                    requirements,
+                    required_target_subsystems=(
+                        "AlgorithmEngineer",
+                        "SimulationEngineer",
+                    )
+                    if evaluation_mode == "capability_eval"
+                    else (),
+                    expected_runtime_replicates=(
+                        expected_runtime_replicates
+                        if evaluation_mode == "capability_eval"
+                        and isinstance(expected_runtime_replicates, int)
+                        and not isinstance(expected_runtime_replicates, bool)
+                        else None
+                    ),
+                )
+            )
+        elif evaluation_mode == "capability_eval":
+            errors.append(
+                "capability_eval requires Architect-authored "
+                "empirical_metric_requirements"
+            )
         for field in (
             "formal_targets",
             "simulation_targets",
@@ -751,6 +1062,71 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
     return sorted(set(errors))
 
 
+def _architect_runtime_owned_evidence_contract(
+    *,
+    architect_context: Mapping[str, Any] | None,
+    runtime_config: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Preserve caller-owned gates without asking the LLM to transcribe them."""
+
+    context = architect_context or {}
+    config = runtime_config or {}
+    requested = context.get("runtime_requested_evidence_contract", {})
+    requested_contract = dict(requested) if isinstance(requested, Mapping) else {}
+    contract: dict[str, Any] = {}
+    for field in (
+        "formal_targets",
+        "simulation_targets",
+        "acceptance_modes",
+        "disclosure_requirements",
+    ):
+        value = requested_contract.get(field)
+        if value not in (None, "", [], {}):
+            contract[field] = value
+    prior_plan = context.get("architect_runtime_plan", {})
+    prior_contract = (
+        prior_plan.get("evidence_contract", {})
+        if isinstance(prior_plan, Mapping)
+        else {}
+    )
+    if not isinstance(prior_contract, Mapping):
+        prior_contract = {}
+    prior_requirements = prior_contract.get("empirical_metric_requirements", [])
+    if isinstance(prior_requirements, list) and prior_requirements:
+        contract["empirical_metric_requirements"] = [
+            dict(row) if isinstance(row, Mapping) else row
+            for row in prior_requirements
+        ]
+        contract["empirical_metric_requirement_set_id"] = (
+            generated_metric_requirement_set_id(
+                [
+                    dict(row)
+                    for row in prior_requirements
+                    if isinstance(row, Mapping)
+                ]
+            )
+        )
+        contract[
+            "empirical_metric_requirements_frozen_from_prior_architect_plan"
+        ] = True
+    policy = str(
+        config.get("formal_verification_policy", "")
+        or requested_contract.get("formal_verification_policy", "")
+        or "optional"
+    ).strip().lower()
+    contract["formal_verification_policy"] = policy
+    contract["formal_required_for_final"] = policy == "required"
+    requested_path = str(
+        requested_contract.get("recommended_research_path", "")
+        or config.get("recommended_research_path", "")
+        or ""
+    ).strip()
+    if requested_path:
+        contract["recommended_research_path"] = requested_path
+    contract.update(_architect_runtime_capability_eval_contract(config))
+    return contract
+
+
 def _normalize_architect_packet(
     payload: Mapping[str, Any],
     *,
@@ -760,6 +1136,7 @@ def _normalize_architect_packet(
     provider_name: str,
     raw_response: str,
     runtime_config: Mapping[str, Any] | None = None,
+    architect_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
     evidence_contract = body.get("evidence_contract", {})
@@ -767,11 +1144,30 @@ def _normalize_architect_packet(
         normalized_contract = dict(evidence_contract)
     else:
         normalized_contract = {}
-    for key, value in _architect_runtime_capability_eval_contract(
-        runtime_config or {}
+    for key, value in _architect_runtime_owned_evidence_contract(
+        architect_context=architect_context,
+        runtime_config=runtime_config,
     ).items():
-        normalized_contract.setdefault(key, value)
+        normalized_contract[key] = value
+    requirements = normalized_contract.get("empirical_metric_requirements", [])
+    if isinstance(requirements, list) and requirements:
+        normalized_contract["empirical_metric_requirement_set_id"] = (
+            generated_metric_requirement_set_id(
+                [dict(row) for row in requirements if isinstance(row, Mapping)]
+            )
+        )
+        normalized_contract.setdefault(
+            "empirical_metric_requirements_frozen_from_prior_architect_plan",
+            False,
+        )
     body["evidence_contract"] = normalized_contract
+    (
+        body["subsystem_execution_plan"],
+        body["subsystem_execution_plan_provenance"],
+    ) = _elaborate_architect_subsystem_execution_plan(
+        body.get("subsystem_execution_plan", []),
+        evidence_contract=normalized_contract,
+    )
     body["proof_evidence_status"] = ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE
     body["evidence_boundary"] = ARCHITECT_COORDINATOR_BOUNDARY
     body["runtime_executed"] = False
@@ -805,6 +1201,58 @@ def _normalize_architect_packet(
     }
 
 
+def _elaborate_architect_subsystem_execution_plan(
+    value: Any,
+    *,
+    evidence_contract: Mapping[str, Any],
+) -> tuple[list[Any], dict[str, Any]]:
+    """Compile mandatory evidence topology without synthesizing research content."""
+
+    source_rows = list(value) if isinstance(value, list) else []
+    plan_rows: list[Any] = [
+        dict(row) if isinstance(row, Mapping) else row for row in source_rows
+    ]
+    llm_authored_subsystems = [
+        str(row.get("subsystem", "") or "").strip()
+        for row in source_rows
+        if isinstance(row, Mapping)
+        and str(row.get("subsystem", "") or "").strip()
+    ]
+    planned_subsystems = set(llm_authored_subsystems)
+    runtime_elaborated_subsystems: list[str] = []
+    for subsystem in _required_architect_plan_subsystems(evidence_contract):
+        if subsystem in planned_subsystems:
+            continue
+        plan_rows.append(
+            {
+                "subsystem": subsystem,
+                "objective": "",
+                "inputs_needed": [],
+                "expected_artifacts": [],
+                "acceptance_gate": "",
+                "plan_row_source": "runtime_required_evidence_contract",
+                "llm_authored": False,
+                "runtime_defaults_required": True,
+            }
+        )
+        planned_subsystems.add(subsystem)
+        runtime_elaborated_subsystems.append(subsystem)
+    provenance = {
+        "artifact_kind": "ArchitectSubsystemExecutionPlanProvenance",
+        "llm_authored_subsystems": llm_authored_subsystems,
+        "runtime_elaborated_subsystems": runtime_elaborated_subsystems,
+        "runtime_elaboration_only_adds_empty_mandatory_stage_shells": True,
+        "runtime_elaboration_may_generate_research_content": False,
+        "evidence_contract_fingerprint": stable_hash(dict(evidence_contract)),
+        "boundary": (
+            "Runtime elaboration records mandatory typed evidence topology only. "
+            "It does not author statistical objectives, expected results, code, "
+            "Lean declarations, proof steps, or evidence claims."
+        ),
+    }
+    return plan_rows, provenance
+
+
 def _architect_runtime_capability_eval_contract(
     runtime_config: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -814,7 +1262,23 @@ def _architect_runtime_capability_eval_contract(
         "evaluation_mode": evaluation_mode,
         "capability_eval_requires_generated_algorithm_code": capability_eval,
         "capability_eval_requires_generated_simulation_code": capability_eval,
+        "capability_eval_requires_typed_metric_contracts": capability_eval,
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
+        "generated_sandbox_runtime_replicates": (
+            generated_sandbox_runtime_replicates(
+                int(runtime_config.get("n_runs", 100) or 100)
+            )
+        ),
+        "generated_metric_contract_policy": (
+            "typed_artifact_bound_required"
+            if capability_eval
+            else "typed_artifact_bound_preferred"
+        ),
+        "generated_metric_requirement_authority_policy": (
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
+            if capability_eval
+            else GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+        ),
         "capability_eval_requires_exact_source_theorem_prover": (
             capability_eval
             and bool(runtime_config.get("exact_source_theorem_prover_available", False))

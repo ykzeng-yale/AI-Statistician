@@ -22,13 +22,6 @@ TASK_FAMILY_FIELD_CANDIDATES = (
     "problem_class",
     "topic",
 )
-CROSS_TASK_GENERALIZATION_DEFAULT_FAMILIES = (
-    "experimental_design",
-    "multiple_testing",
-    "causal",
-)
-
-
 def compact_string_list(values: Any) -> list[str]:
     if values is None:
         return []
@@ -76,17 +69,16 @@ def explicit_task_family_list(values: Any) -> list[str]:
     ]
 
 
-def cross_task_generalization_family_pair(values: Any) -> tuple[str, str]:
+def cross_task_generalization_family_pair(values: Any) -> tuple[str, ...]:
+    """Return up to two explicit families without manufacturing eval coverage."""
+
     families: list[str] = []
-    for family in [
-        *explicit_task_family_list(values),
-        *CROSS_TASK_GENERALIZATION_DEFAULT_FAMILIES,
-    ]:
+    for family in explicit_task_family_list(values):
         if is_explicit_task_family(family) and family not in families:
             families.append(family)
         if len(families) >= 2:
             break
-    return families[0], families[1]
+    return tuple(families)
 
 
 def task_family_from_tags(tags: Any) -> str:

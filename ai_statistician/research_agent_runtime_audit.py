@@ -162,7 +162,7 @@ PROOF_STATE_FEEDBACK_ARTIFACT_PREFIXES = (
 )
 FORMAL_GAP_PLANNER_HANDOFF_AGENDA_ID = "formal_gap:gap_planner_handoff"
 FORMAL_GAP_PLANNER_HANDOFF_TRIGGER = "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED"
-FULL_LIVE_RERUN_MIN_ITERATIONS = 16
+FULL_LIVE_RERUN_MIN_ITERATIONS = 24
 ARCHITECT_DEFERRED_META_RESOLUTION_REQUIREMENT_ID = (
     "architect_deferred_meta_capability_gaps_resolved"
 )
@@ -3292,6 +3292,11 @@ class RuntimeAuditRow:
     n_live_generated_simulation_sandbox_passed: int
     n_generated_simulation_sandbox_metric_gate_failed: int
     n_live_generated_simulation_sandbox_metric_gate_failed: int
+    n_live_generated_simulation_typed_metric_contracts_evaluated: int
+    n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed: int
+    n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated: int
+    n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected: int
+    n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed: int
     n_generated_simulation_sandbox_failed_then_passed_repair_sequences: int
     n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences: int
     n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences: int
@@ -3306,6 +3311,11 @@ class RuntimeAuditRow:
     n_live_generated_code_sandbox_executed: int
     n_generated_code_sandbox_metric_gate_failed: int
     n_live_generated_code_sandbox_metric_gate_failed: int
+    n_live_generated_algorithm_typed_metric_contracts_evaluated: int
+    n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed: int
+    n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated: int
+    n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected: int
+    n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed: int
     n_generated_code_sandbox_failed_then_passed_repair_sequences: int
     n_live_generated_code_sandbox_failed_then_passed_repair_sequences: int
     n_generated_code_sandbox_metric_failed_then_passed_repair_sequences: int
@@ -3878,6 +3888,21 @@ def audit_research_agent_runtime(
     runtime_capability_gap_routing_supplied = (
         runtime_input_context.get("runtime_capability_gap_routing_supplied") is True
     )
+    raw_cross_family_evaluation_protocol = runtime_input_context.get(
+        "runtime_cross_family_evaluation_protocol",
+        {},
+    )
+    cross_family_evaluation_protocol = (
+        dict(raw_cross_family_evaluation_protocol)
+        if isinstance(raw_cross_family_evaluation_protocol, Mapping)
+        else {}
+    )
+    cross_family_evaluation_protocol_supplied = (
+        runtime_input_context.get(
+            "runtime_cross_family_evaluation_protocol_supplied"
+        )
+        is True
+    )
     if runtime_learning_memory_supplied and runtime_learning_memory_rows_loaded <= 0:
         errors.append("runtime input context declares learning memory but loaded zero rows")
     if runtime_learning_memory_rows_loaded > 0 and not any(
@@ -3898,6 +3923,69 @@ def audit_research_agent_runtime(
             "runtime input context capability gap routing rows were not propagated "
             "into per-question traces"
         )
+    if cross_family_evaluation_protocol_supplied:
+        protocol_question_ids = _compact_string_list(
+            cross_family_evaluation_protocol.get("question_ids", [])
+        )
+        manifest_question_ids = _compact_string_list(
+            manifest.get("question_ids", [])
+        )
+        manifest_question_families = manifest.get("question_task_families", {})
+        manifest_task_families = (
+            sorted(
+                {
+                    str(value).strip()
+                    for value in manifest_question_families.values()
+                    if str(value).strip()
+                }
+            )
+            if isinstance(manifest_question_families, Mapping)
+            else []
+        )
+        protocol_task_families = sorted(
+            set(
+                _compact_string_list(
+                    cross_family_evaluation_protocol.get("task_families", [])
+                )
+            )
+        )
+        if (
+            cross_family_evaluation_protocol.get("artifact_kind")
+            != "CrossFamilyEndToEndEvaluationPanelSelection"
+        ):
+            errors.append(
+                "runtime cross-family evaluation protocol has invalid artifact_kind"
+            )
+        if not str(
+            cross_family_evaluation_protocol.get("protocol_path", "") or ""
+        ).strip():
+            errors.append(
+                "runtime cross-family evaluation protocol is missing protocol_path"
+            )
+        if protocol_question_ids != manifest_question_ids:
+            errors.append(
+                "runtime cross-family protocol question IDs do not match manifest"
+            )
+        if protocol_task_families != manifest_task_families:
+            errors.append(
+                "runtime cross-family protocol task families do not match manifest"
+            )
+        for field in (
+            "fresh_start_required",
+            "resume_forbidden",
+            "task_learning_memory_forbidden",
+            "component_eval_substitution_forbidden",
+            "candidate_gate_independence_required",
+        ):
+            if cross_family_evaluation_protocol.get(field) is not True:
+                errors.append(
+                    f"runtime cross-family evaluation protocol {field} must be true"
+                )
+        if runtime_learning_memory_supplied or runtime_capability_gap_routing_supplied:
+            errors.append(
+                "fresh cross-family protocol runtime cannot consume learning-memory "
+                "or capability-gap-routing input"
+            )
     runtime_research_path_control = _runtime_research_path_control_from_results(
         result_paths=result_paths,
         manifest=manifest,
@@ -6209,6 +6297,41 @@ def audit_research_agent_runtime(
             )
             or 0
         ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_required": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_required",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_scheduled": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_scheduled",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_exhausted": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_exhausted",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_calls": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_calls",
+                0,
+            )
+            or 0
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_repair_attempts": int(
+            manifest.get(
+                "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_repair_attempts",
+                0,
+            )
+            or 0
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_response_manifests": int(
             manifest.get(
                 "n_runtime_formalization_gap_planner_live_route_planner_response_manifests",
@@ -6599,6 +6722,26 @@ def audit_research_agent_runtime(
             row.n_live_generated_simulation_sandbox_metric_gate_failed
             for row in rows
         ),
+        "n_live_generated_simulation_typed_metric_contracts_evaluated": sum(
+            row.n_live_generated_simulation_typed_metric_contracts_evaluated
+            for row in rows
+        ),
+        "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed": sum(
+            row.n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed
+            for row in rows
+        ),
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated": sum(
+            row.n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated
+            for row in rows
+        ),
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected": sum(
+            row.n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected
+            for row in rows
+        ),
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed": sum(
+            row.n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed
+            for row in rows
+        ),
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": sum(
             row.n_generated_simulation_sandbox_failed_then_passed_repair_sequences
             for row in rows
@@ -6640,6 +6783,26 @@ def audit_research_agent_runtime(
         ),
         "n_live_generated_code_sandbox_metric_gate_failed": sum(
             row.n_live_generated_code_sandbox_metric_gate_failed for row in rows
+        ),
+        "n_live_generated_algorithm_typed_metric_contracts_evaluated": sum(
+            row.n_live_generated_algorithm_typed_metric_contracts_evaluated
+            for row in rows
+        ),
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed": sum(
+            row.n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed
+            for row in rows
+        ),
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated": sum(
+            row.n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated
+            for row in rows
+        ),
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected": sum(
+            row.n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected
+            for row in rows
+        ),
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed": sum(
+            row.n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed
+            for row in rows
         ),
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": sum(
             row.n_generated_code_sandbox_failed_then_passed_repair_sequences
@@ -11569,6 +11732,12 @@ def audit_research_agent_runtime(
         "runtime_capability_gap_routing_input_supplied": (
             runtime_capability_gap_routing_supplied
         ),
+        "cross_family_evaluation_protocol_supplied": (
+            cross_family_evaluation_protocol_supplied
+        ),
+        "cross_family_evaluation_protocol": dict(
+            cross_family_evaluation_protocol
+        ),
         "n_results_with_problem_analysis": sum(1 for row in rows if row.has_problem_analysis),
         "n_results_with_stat_knowledge_bank_plan": sum(
             1 for row in rows if row.has_stat_knowledge_bank_plan
@@ -12658,6 +12827,29 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_live_generated_simulation_sandbox_metric_gate_failed = int(
         simulation_live_counts["metric_gate_failed"]
     )
+    n_live_generated_simulation_typed_metric_contracts_evaluated = int(
+        simulation_live_counts["typed_metric_contracts_evaluated"]
+    )
+    n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed = int(
+        simulation_live_counts[
+            "typed_metric_contract_artifacts_all_required_passed"
+        ]
+    )
+    n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated = int(
+        simulation_live_counts[
+            "typed_metric_contract_artifacts_authority_validated"
+        ]
+    )
+    n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected = int(
+        simulation_live_counts[
+            "typed_metric_contract_artifacts_authority_rejected"
+        ]
+    )
+    n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed = int(
+        simulation_live_counts[
+            "typed_metric_contract_artifacts_authority_validated_all_required_passed"
+        ]
+    )
     repair_sequences = _generated_sandbox_repair_sequence_counts(artifacts)
     n_generated_simulation_sandbox_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
@@ -12719,6 +12911,29 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     )
     n_live_generated_code_sandbox_metric_gate_failed = int(
         algorithm_live_counts["metric_gate_failed"]
+    )
+    n_live_generated_algorithm_typed_metric_contracts_evaluated = int(
+        algorithm_live_counts["typed_metric_contracts_evaluated"]
+    )
+    n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed = int(
+        algorithm_live_counts[
+            "typed_metric_contract_artifacts_all_required_passed"
+        ]
+    )
+    n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated = int(
+        algorithm_live_counts[
+            "typed_metric_contract_artifacts_authority_validated"
+        ]
+    )
+    n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected = int(
+        algorithm_live_counts[
+            "typed_metric_contract_artifacts_authority_rejected"
+        ]
+    )
+    n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed = int(
+        algorithm_live_counts[
+            "typed_metric_contract_artifacts_authority_validated_all_required_passed"
+        ]
     )
     n_generated_code_sandbox_failed_then_passed_repair_sequences = int(
         repair_sequences.get(
@@ -12889,6 +13104,21 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_live_generated_simulation_sandbox_metric_gate_failed=(
             n_live_generated_simulation_sandbox_metric_gate_failed
         ),
+        n_live_generated_simulation_typed_metric_contracts_evaluated=(
+            n_live_generated_simulation_typed_metric_contracts_evaluated
+        ),
+        n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed=(
+            n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed
+        ),
+        n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated=(
+            n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated
+        ),
+        n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected=(
+            n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected
+        ),
+        n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed=(
+            n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed
+        ),
         n_generated_simulation_sandbox_failed_then_passed_repair_sequences=(
             n_generated_simulation_sandbox_failed_then_passed_repair_sequences
         ),
@@ -12920,6 +13150,21 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_generated_code_sandbox_metric_gate_failed=n_generated_code_sandbox_metric_gate_failed,
         n_live_generated_code_sandbox_metric_gate_failed=(
             n_live_generated_code_sandbox_metric_gate_failed
+        ),
+        n_live_generated_algorithm_typed_metric_contracts_evaluated=(
+            n_live_generated_algorithm_typed_metric_contracts_evaluated
+        ),
+        n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed=(
+            n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed
+        ),
+        n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated=(
+            n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated
+        ),
+        n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected=(
+            n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected
+        ),
+        n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed=(
+            n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed
         ),
         n_generated_code_sandbox_failed_then_passed_repair_sequences=(
             n_generated_code_sandbox_failed_then_passed_repair_sequences
@@ -19847,6 +20092,44 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
+    integrated_algorithm_code_executed = int(
+        payload.get("n_live_generated_code_sandbox_executed", 0) or 0
+    )
+    integrated_algorithm_typed_metric_contracts_evaluated = int(
+        payload.get(
+            "n_live_generated_algorithm_typed_metric_contracts_evaluated",
+            0,
+        )
+        or 0
+    )
+    integrated_algorithm_typed_metric_contract_artifacts_all_required_passed = int(
+        payload.get(
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed",
+            0,
+        )
+        or 0
+    )
+    integrated_algorithm_metric_requirement_authority_validated = int(
+        payload.get(
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated",
+            0,
+        )
+        or 0
+    )
+    integrated_algorithm_metric_requirement_authority_rejected = int(
+        payload.get(
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected",
+            0,
+        )
+        or 0
+    )
+    integrated_algorithm_authority_validated_required_gates_passed = int(
+        payload.get(
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed",
+            0,
+        )
+        or 0
+    )
     integrated_simulation_repair_sequences = int(
         payload.get(
             "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences",
@@ -19864,6 +20147,44 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_simulation_unsafe_repair_sequences = int(
         payload.get(
             "n_live_generated_simulation_sandbox_unsafe_failed_then_passed_repair_sequences",
+            0,
+        )
+        or 0
+    )
+    integrated_simulation_code_executed = int(
+        payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
+    )
+    integrated_simulation_typed_metric_contracts_evaluated = int(
+        payload.get(
+            "n_live_generated_simulation_typed_metric_contracts_evaluated",
+            0,
+        )
+        or 0
+    )
+    integrated_simulation_typed_metric_contract_artifacts_all_required_passed = int(
+        payload.get(
+            "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed",
+            0,
+        )
+        or 0
+    )
+    integrated_simulation_metric_requirement_authority_validated = int(
+        payload.get(
+            "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated",
+            0,
+        )
+        or 0
+    )
+    integrated_simulation_metric_requirement_authority_rejected = int(
+        payload.get(
+            "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected",
+            0,
+        )
+        or 0
+    )
+    integrated_simulation_authority_validated_required_gates_passed = int(
+        payload.get(
+            "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed",
             0,
         )
         or 0
@@ -24546,6 +24867,92 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
+            "generated_algorithm_typed_metric_contracts_evaluated",
+            integrated_algorithm_typed_metric_contracts_evaluated > 0,
+            (
+                "n_live_generated_algorithm_typed_metric_contracts_evaluated="
+                f"{integrated_algorithm_typed_metric_contracts_evaluated} "
+                "n_live_generated_code_sandbox_executed="
+                f"{integrated_algorithm_code_executed}"
+            ),
+            (
+                "live generated algorithm code did not expose and evaluate an "
+                "artifact-bound typed metric contract; successful process exit "
+                "alone is not statistical capability evidence"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Generate a source-anchored typed metric contract for each "
+                    "algorithm artifact, execute the draft, and return the exact "
+                    "contract evaluation in sandbox feedback."
+                ),
+                success_metric=(
+                    "n_live_generated_algorithm_typed_metric_contracts_evaluated>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_algorithm_metric_requirement_authority_validated",
+            integrated_algorithm_metric_requirement_authority_validated > 0,
+            (
+                "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated="
+                f"{integrated_algorithm_metric_requirement_authority_validated} "
+                "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected="
+                f"{integrated_algorithm_metric_requirement_authority_rejected}"
+            ),
+            (
+                "no live algorithm artifact preserved an independent Architect-authored "
+                "metric requirement set; a coding agent's self-authored required gate "
+                "cannot establish capability"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Author typed empirical metric requirements before coding, then "
+                    "require AlgorithmEngineer to copy every required comparison and "
+                    "bind only artifact IDs and result paths."
+                ),
+                success_metric=(
+                    "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_algorithm_typed_metric_contract_required_gates_passed",
+            (
+                integrated_algorithm_authority_validated_required_gates_passed
+                > 0
+            ),
+            (
+                "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed="
+                f"{integrated_algorithm_typed_metric_contract_artifacts_all_required_passed} "
+                "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed="
+                f"{integrated_algorithm_authority_validated_required_gates_passed} "
+                "n_live_generated_algorithm_typed_metric_contracts_evaluated="
+                f"{integrated_algorithm_typed_metric_contracts_evaluated}"
+            ),
+            (
+                "no live generated algorithm artifact passed all required typed "
+                "metric contracts while preserving independent Architect authority; "
+                "self-authored, partial, or optional-contract success is not accepted"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="AlgorithmEngineer",
+                target_behavior=(
+                    "Use the exact failed contract rows and observed metric paths "
+                    "to revise the generated implementation until all required "
+                    "artifact-bound gates pass."
+                ),
+                success_metric=(
+                    "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
             "generated_algorithm_sandbox_clean",
             int(payload.get("n_live_unsafe_generated_code_rejected", 0) or 0) <= 0
             or integrated_algorithm_unsafe_repair_sequences > 0,
@@ -24717,6 +25124,92 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "n_live_generated_simulation_sandbox_executed>0 for an integrated "
                     "runtime SimulationEvaluator artifact"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_typed_metric_contracts_evaluated",
+            integrated_simulation_typed_metric_contracts_evaluated > 0,
+            (
+                "n_live_generated_simulation_typed_metric_contracts_evaluated="
+                f"{integrated_simulation_typed_metric_contracts_evaluated} "
+                "n_live_generated_simulation_sandbox_executed="
+                f"{integrated_simulation_code_executed}"
+            ),
+            (
+                "live generated simulation code did not expose and evaluate an "
+                "artifact-bound typed metric contract; successful process exit "
+                "alone is not empirical validation evidence"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Generate a source-anchored typed metric contract for each "
+                    "simulation artifact, execute the stress test, and return the "
+                    "exact contract evaluation in sandbox feedback."
+                ),
+                success_metric=(
+                    "n_live_generated_simulation_typed_metric_contracts_evaluated>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_metric_requirement_authority_validated",
+            integrated_simulation_metric_requirement_authority_validated > 0,
+            (
+                "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated="
+                f"{integrated_simulation_metric_requirement_authority_validated} "
+                "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected="
+                f"{integrated_simulation_metric_requirement_authority_rejected}"
+            ),
+            (
+                "no live simulation artifact preserved an independent Architect-authored "
+                "metric requirement set; a coding agent's self-authored required gate "
+                "cannot establish empirical capability"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="ArchitectCoordinator",
+                target_behavior=(
+                    "Author typed empirical metric requirements before coding, then "
+                    "require SimulationEngineer to copy every required comparison and "
+                    "bind only artifact IDs and result paths."
+                ),
+                success_metric=(
+                    "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated>0"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "generated_simulation_typed_metric_contract_required_gates_passed",
+            (
+                integrated_simulation_authority_validated_required_gates_passed
+                > 0
+            ),
+            (
+                "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed="
+                f"{integrated_simulation_typed_metric_contract_artifacts_all_required_passed} "
+                "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed="
+                f"{integrated_simulation_authority_validated_required_gates_passed} "
+                "n_live_generated_simulation_typed_metric_contracts_evaluated="
+                f"{integrated_simulation_typed_metric_contracts_evaluated}"
+            ),
+            (
+                "no live generated simulation artifact passed all required typed "
+                "metric contracts while preserving independent Architect authority; "
+                "self-authored, partial, or optional-contract success is not accepted"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Use the exact failed contract rows and observed metric paths "
+                    "to revise the generated stress test until all required "
+                    "artifact-bound gates pass."
+                ),
+                success_metric=(
+                    "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed>0"
                 ),
             ),
         ),
@@ -29534,20 +30027,39 @@ def _scorecard_row(
 def _cross_task_generalization_scorecard_routing(
     payload: Mapping[str, Any],
 ) -> dict[str, Any]:
-    first_family, second_family = cross_task_generalization_family_pair(
-        payload.get("task_families", [])
-    )
-    command = (
-        ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
-        f"--question-task-family {first_family} "
-        f"--question-task-family {second_family} "
-        "--min-task-families 2 "
-        "--provider anthropic "
-        "--capability-eval "
-        "--capability-eval-preset full-live "
-        f"--max-iterations {FULL_LIVE_RERUN_MIN_ITERATIONS} "
-        "--out runs/main_worker_cross_family_full_live"
-    )
+    protocol_selection = _cross_family_evaluation_protocol_selection(payload)
+    if protocol_selection:
+        command = _capability_full_live_rerun_command(
+            payload,
+            max_iterations=FULL_LIVE_RERUN_MIN_ITERATIONS,
+        )
+    else:
+        explicit_families = cross_task_generalization_family_pair(
+            payload.get("task_families", [])
+        )
+        if len(explicit_families) >= 2:
+            family_args = " ".join(
+                f"--question-task-family {family}" for family in explicit_families
+            )
+            command = (
+                ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
+                f"{family_args} --min-task-families 2 "
+                "--provider anthropic --capability-eval "
+                "--capability-eval-preset full-live "
+                f"--max-iterations {FULL_LIVE_RERUN_MIN_ITERATIONS} "
+                "--out runs/main_worker_cross_family_full_live"
+            )
+        else:
+            command = (
+                ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
+                "--provider anthropic --capability-eval "
+                "--capability-eval-preset full-live "
+                "--cross-family-eval-protocol "
+                "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json "
+                "--cross-family-eval-panel development "
+                f"--max-iterations {FULL_LIVE_RERUN_MIN_ITERATIONS} "
+                "--out runs/main_worker_cross_family_development"
+            )
     return {
         "next_owner_subsystem": "ArchitectCoordinator",
         "target_behavior": (
@@ -29585,6 +30097,46 @@ def _capability_rerun_out_dir(payload: Mapping[str, Any]) -> str:
         return "runs/main_worker_runtime_rerun_full_live"
     path = Path(runtime_dir)
     return str(path.with_name(f"{path.name}_rerun_full_live"))
+
+
+def _cross_family_evaluation_protocol_selection(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    raw_selection = payload.get("cross_family_evaluation_protocol", {})
+    if not isinstance(raw_selection, Mapping) or not raw_selection:
+        runtime_input_context = payload.get("runtime_input_context", {})
+        raw_selection = (
+            runtime_input_context.get(
+                "runtime_cross_family_evaluation_protocol",
+                {},
+            )
+            if isinstance(runtime_input_context, Mapping)
+            else {}
+        )
+    if not isinstance(raw_selection, Mapping):
+        return {}
+    selection = dict(raw_selection)
+    if (
+        selection.get("artifact_kind")
+        != "CrossFamilyEndToEndEvaluationPanelSelection"
+    ):
+        return {}
+    if not str(selection.get("protocol_path", "") or "").strip():
+        return {}
+    if not str(selection.get("protocol_panel", "") or "").strip():
+        return {}
+    if any(
+        selection.get(field) is not True
+        for field in (
+            "fresh_start_required",
+            "resume_forbidden",
+            "task_learning_memory_forbidden",
+            "component_eval_substitution_forbidden",
+            "candidate_gate_independence_required",
+        )
+    ):
+        return {}
+    return selection
 
 
 def _capability_gap_routing_command_args(payload: Mapping[str, Any]) -> str:
@@ -29818,27 +30370,20 @@ def _capability_full_live_rerun_command(
 ) -> str:
     effective_max_iterations = max(max_iterations, FULL_LIVE_RERUN_MIN_ITERATIONS)
     out_arg = _capability_rerun_out_dir(payload)
-    question_args = " ".join(
-        f"--question-id {shlex.quote(question_id)}"
-        for question_id in _compact_string_list(payload.get("question_ids", []))
-    )
-    learning_memory_path = str(
-        payload.get("runtime_learning_rows_jsonl", "") or ""
-    ).strip()
-    learning_memory_args = (
-        " "
-        + " ".join(
-            (
-                "--learning-memory-jsonl",
-                shlex.quote(learning_memory_path),
-                "--max-learning-memory-rows",
-                "40",
-            )
+    protocol_selection = _cross_family_evaluation_protocol_selection(payload)
+    if protocol_selection:
+        question_fragment = (
+            "--cross-family-eval-protocol "
+            f"{shlex.quote(str(protocol_selection['protocol_path']))} "
+            "--cross-family-eval-panel "
+            f"{shlex.quote(str(protocol_selection['protocol_panel']))} "
         )
-        if learning_memory_path
-        else ""
-    )
-    question_fragment = f"{question_args} " if question_args else ""
+    else:
+        question_args = " ".join(
+            f"--question-id {shlex.quote(question_id)}"
+            for question_id in _compact_string_list(payload.get("question_ids", []))
+        )
+        question_fragment = f"{question_args} " if question_args else ""
     return (
         ".venv/bin/python -m ai_statistician.cli research-agent-runtime "
         f"{question_fragment}"
@@ -29848,9 +30393,7 @@ def _capability_full_live_rerun_command(
         f"{_full_live_explicit_capability_args()} "
         f"--max-iterations {effective_max_iterations} "
         "--formalization-gap-planner-live-max-handoffs 1 "
-        "--formalization-gap-planner-live-max-route-requests-per-handoff 1"
-        f"{learning_memory_args} "
-        f"{_capability_gap_routing_command_args(payload)} "
+        "--formalization-gap-planner-live-max-route-requests-per-handoff 1 "
         f"--out {shlex.quote(out_arg)}"
     )
 
@@ -29860,7 +30403,10 @@ def _capability_feedback_command(
     *,
     max_iterations: int = 8,
 ) -> str:
-    if payload.get("runtime_resume_manifest_has_pending_task") is False:
+    if (
+        _cross_family_evaluation_protocol_selection(payload)
+        or payload.get("runtime_resume_manifest_has_pending_task") is False
+    ):
         return _capability_full_live_rerun_command(
             payload,
             max_iterations=max_iterations,

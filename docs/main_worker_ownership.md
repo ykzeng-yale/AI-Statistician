@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-07-12
+Updated: 2026-07-14
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -43,25 +43,25 @@ Reach a live, GitHub-reviewable AI Statistician capability milestone:
    materializing a repaired Lean candidate, and rerunning the verifier.
 6. Preserve the proof boundary: helper proofs and runtime `ACCEPTED` statuses
    do not prove the source theorem.
-7. Add a second task-family capability run beyond conformal prediction before
-   claiming generality. Use runtime family selection rather than editing the
-   question file, for example:
+7. Run the complete frozen cross-family panel rather than selecting a familiar
+   canary plus one additional task. The development panel contains survival and
+   sequential inference; the disjoint held-out panel contains high-dimensional
+   and extreme-value inference. The CLI must select the whole panel from the
+   preregistered protocol, for example:
 
    ```bash
    .venv/bin/python -m ai_statistician.cli research-agent-runtime \
-     --question-task-family conformal \
-     --question-task-family experimental_design \
-     --min-task-families 2 \
      --provider anthropic \
      --capability-eval \
      --capability-eval-preset full-live \
-     --max-iterations 8 \
-     --out runs/main_worker_cross_family_full_live
+     --cross-family-eval-protocol benchmarks/autonomous_cross_family_e2e_protocol_20260713.json \
+     --cross-family-eval-panel development \
+     --out runs/main_worker_cross_family_development
    ```
 
-   Passing `--min-task-families 2` is a selection guard only; L9 still requires
-   kernel-verified full source/frontier theorem evidence across the selected
-   families.
+   The protocol forbids resume state, task learning memory, partial question
+   selection, and component-eval substitution. A two-family run is an S14
+   integration gate only; it is not evidence that the general lab is complete.
 8. Keep current runtime handoffs target-complete: route-critical proof/formal
    agenda rows and bounded pending-task memory must carry explicit
    `target_ids`, and missing explicit artifact ids must route back to the
@@ -145,12 +145,14 @@ generated-code contracts now distinguish the literal packet entrypoint
 signature-shaped metadata before validation. This removed the live
 AlgorithmEngineer packet-validation stop caused by a prompt/schema mismatch.
 
-Fifth concrete change in this lane: Formalizer capability-eval prompts and
-validators now apply an initial coverage target-shape guard. Conformal source
-theorem `formal_targets` must preserve a probability/measure coverage
-conclusion instead of replacing the theorem with a rank-arithmetic helper.
-The runtime audit also now carries Formalizer local-Lean/proof-state counters
-from the manifest into the capability scorecard.
+Fifth historical change in this lane introduced a conformal coverage
+target-shape guard. It remains useful only as a regression canary for that
+registered task and must not define full-live theorem identity. The universal
+replacement is an immutable semantic-claim contract plus independent LLM
+review against the question, theory trace, source statement, and exact Lean
+declaration. The runtime audit separately carries Formalizer local-Lean and
+proof-state counters without treating either a declaration-name match or a
+support lemma as source-theorem closure.
 
 Sixth concrete change in this lane: external Lean capability is now a typed
 AgentRuntime provider boundary. `EmpericalProcessLeanRetrievalProvider` calls
@@ -1381,24 +1383,101 @@ hardening should reuse its scoped-path and secret-free environment contracts
 under the existing OpenProver typed provider rather than create another
 orchestration plane.
 
+## Independent Generated-Metric Requirement Authority
+
+The fresh typed-metric run exposed a control-plane error rather than a missing
+FDR special case: AlgorithmEngineer and SimulationEngineer generated the code
+and their own required gates. A typed self-authored test can still move its own
+goalposts. The current capability-eval path therefore makes
+ArchitectCoordinator author an immutable empirical requirement set before
+either coding agent runs.
+
+Each requirement is domain-neutral and fixes a stable requirement id, target
+subsystem, metric semantics, measurement protocol, numeric comparison,
+tolerance, aggregation or quorum, required status, and source anchors. Coding
+agents may attach an artifact id and metric path but must copy every authority
+field unchanged. AgentRuntime independently reopens the Architect packet,
+requires every artifact/requirement pair, recomputes fingerprints, and rejects
+missing, invented, or weakened required gates before generated code executes.
+The runtime audit and capability scorecard count authority-bound execution and
+all-required-pass evidence separately from ordinary typed-contract evidence.
+
+No statistical term, theorem family, Lean grammar, tactic, metric name, or
+default threshold is encoded in the runtime. This follows the evaluator
+separation and immutable-attempt lessons from DAP, Goedel-Prover V2,
+CodexProver, and evaluator-guided program-search systems while keeping the one
+Architect-owned AgentRuntime. It does not import their model clients,
+orchestrators, or result corpora.
+
+Architect requirements are still proposals. Their schema and lineage can be
+valid while their statistical meaning is poor. The next control-plane step is
+an independent Theory/Critic review whose accepted artifact identities and
+source anchors are bound into the requirement set. Until then, requirement
+pass is empirical evidence only and cannot promote a theory or Lean claim.
+
+## Frozen Cross-Family Correction
+
+The frozen development panel covers survival and sequential inference, not
+FDR. Its latest v8 evidence is intentionally negative: both tasks are
+`BLOCKED`, the scorecard is `95/118`, 72 kernel-verified support subclaims
+coexist with 8 formal gaps, and no exact source/frontier theorem is closed.
+Survival exposed a second-revision canonical hash defect. Sequential exercised
+metric failure, coding-agent repair, Architect replan, Formalizer compiler
+feedback, and staged route repair before the route-contract budget exhausted.
+The run also exposed post-hoc measurement-protocol rewriting and a semantically
+vacuous simulation that nevertheless passed its scalar gate.
+
+The correction is at the agent interface, not in either task's mathematics.
+Staged route fragments now receive bounded LLM repair turns containing the
+exact local validator errors and previous response. Response-free failures now
+create one immutable-lineage, same-target provider retry task; mutation,
+cross-question reuse, or exhausted retry budget fails before promotion. Both
+paths remain planning evidence and add no theorem names, statistical aliases,
+Lean grammar, tactics, or expected answers.
+
+The audit no longer manufactures `experimental_design`, `multiple_testing`, or
+any other family when fewer than two explicit families are present. It routes
+to the preregistered protocol instead. Typed metric tests likewise exercise the
+same contract over survival, optional-stopping, subspace, tail, and
+false-discovery metric names to ensure the evaluator uses paths and operators,
+not vocabulary. Held-out PCA/extremes evaluation remains sealed until this
+generic candidate is committed.
+
+S14 is a necessary cross-family integration milestone, not the original goal
+in miniature. Even a passing four-task protocol does not replace the canonical
+10-task suite, the 12-topic/60-question blind frontier suite, serious theory
+derivation, scientific Python and R, arbitrary-paper ingestion, or reusable
+exact theorem development.
+
+One central deviation remains explicit. `research_lab.py` still contains a
+legacy registry of task-family problem specifications, theorem cards,
+registered simulators, thresholds, and Lean skeletons. Those artifacts are
+historical baselines and regression fixtures, not a universal research engine.
+The next control-plane migration must expose that registry only as an optional
+baseline provider; fresh full-live problem analysis, theorem DAGs, experiments,
+and Lean targets must be authored by LLM agents from question, paper/RAG,
+critic, execution, and compiler feedback. No legacy registry branch may count
+toward held-out generalization or exact theorem closure.
+
 ## Optional Future Delegation
 
 No other Codex worker is currently active. The main worker owns the commit
 stream and must integrate any future parallel branch outputs into the runtime
 path. Useful bounded lanes, if parallel work is restarted, are:
 
-- Formalizer/ProofEngineer worker: repair the remaining semantic-anchor gap for
-  `hQuantileThreshold` and `hGoodRank`, and keep helper/adapter candidates out
-  of source-theorem proof evidence unless local Lean/AXLE verifies the intended
-  formal claim.
-- Algorithm/Simulation worker: promote the integrated generated
-  AlgorithmEngineer and SimulationEngineer repair evidence into registered
-  production algorithms only after registry tests and reruns pass.
+- Formalizer/ProofEngineer worker: implement immutable semantic-claim review
+  and exact target preservation across arbitrary theorem families; keep helper
+  and adapter candidates out of source-theorem evidence unless local Lean/AXLE
+  verifies the intended formal claim.
+- Algorithm/Simulation worker: add independent LLM semantic review of generated
+  experiments and code, then route typed findings back to the originating agent
+  for a fresh execution before any capability acceptance.
 - Proof-library worker: add reusable statistics kernels with local Lean/AXLE
   manifests.
 - RAG/OpenProver worker: feed source hits and prover diagnostics into
   Formalizer/ProofEngineer prompts without treating retrieval as proof.
-- Cross-task evaluation worker: add non-conformal task-family capability runs.
+- Cross-task evaluation worker: execute only complete preregistered panels and
+  preserve the development/held-out split without task-specific runtime edits.
 
 The main worker should not delegate away the integration burden: every lane
 must end in runtime artifacts, evidence ledger rows, tests, and a committed,

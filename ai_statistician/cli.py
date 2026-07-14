@@ -487,6 +487,10 @@ from .research_system_audit import ResearchSystemAuditConfig, run_research_syste
 from .research_trace_audit import audit_research_traces
 from .research_training_export import export_research_training_dataset
 from .critic_evaluator_llm import CriticEvaluatorConfig, LLMCriticEvaluatorAgent
+from .cross_family_eval_protocol import (
+    load_cross_family_eval_protocol,
+    resolve_cross_family_eval_panel,
+)
 from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
 from .formalizer_lean_candidate_repair_eval import (
     run_formalizer_lean_candidate_repair_eval,
@@ -518,6 +522,7 @@ _OPERATOR_DOTENV_FILENAMES = (
     "api_key_AI_statistician.md",
     "api_keys_AI_statistician.md",
 )
+FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 
 
 def _resolve_dotenv_path(path: Path | str | None) -> Path:
@@ -1117,6 +1122,80 @@ def _minimum_task_family_selection_errors(
         "statistics task families after question selection; selected "
         f"families={families} question_ids={question_ids}"
     ]
+
+
+def _cross_family_eval_protocol_selection(
+    args: argparse.Namespace,
+    questions: list[object],
+) -> tuple[list[str], dict[str, Any], list[str]]:
+    protocol_path_value = str(
+        getattr(args, "cross_family_eval_protocol", "") or ""
+    ).strip()
+    panel_id = str(getattr(args, "cross_family_eval_panel", "") or "").strip()
+    if not protocol_path_value and not panel_id:
+        return [], {}, []
+    errors: list[str] = []
+    if not protocol_path_value:
+        errors.append(
+            "--cross-family-eval-panel requires --cross-family-eval-protocol"
+        )
+    if not panel_id:
+        errors.append(
+            "--cross-family-eval-protocol requires --cross-family-eval-panel"
+        )
+    if errors:
+        return [], {}, errors
+    if not bool(getattr(args, "capability_eval", False)):
+        errors.append("cross-family protocol runs require --capability-eval")
+    if str(getattr(args, "capability_eval_preset", "") or "") != "full-live":
+        errors.append(
+            "cross-family protocol runs require --capability-eval-preset full-live"
+        )
+    forbidden_inputs = (
+        ("resume_runtime_manifest", "--resume-runtime-manifest"),
+        ("context_json", "--context-json"),
+        ("learning_memory_jsonl", "--learning-memory-jsonl"),
+        ("capability_gap_routing_jsonl", "--capability-gap-routing-jsonl"),
+        ("question_task_family", "--question-task-family"),
+    )
+    for field, flag in forbidden_inputs:
+        if getattr(args, field, None):
+            errors.append(f"fresh cross-family protocol runs forbid {flag}")
+    if int(getattr(args, "max_questions", 0) or 0) != 0:
+        errors.append("fresh cross-family protocol runs forbid --max-questions")
+    try:
+        protocol = load_cross_family_eval_protocol(Path(protocol_path_value))
+        expected_question_source = Path(str(protocol["question_source"])).resolve()
+        actual_question_source = Path(str(args.question_file)).resolve()
+        if expected_question_source != actual_question_source:
+            errors.append(
+                "cross-family protocol question source mismatch: expected "
+                f"{expected_question_source}, got {actual_question_source}"
+            )
+        selection = resolve_cross_family_eval_panel(
+            protocol,
+            panel_id=panel_id,
+            questions=questions,
+        )
+        selection["protocol_path"] = str(Path(protocol_path_value))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(str(exc))
+        return [], {}, sorted(set(errors))
+    requested_ids = [
+        str(item).strip()
+        for item in getattr(args, "question_id", []) or []
+        if str(item).strip()
+    ]
+    panel_question_ids = list(selection["question_ids"])
+    if requested_ids and (
+        len(requested_ids) != len(panel_question_ids)
+        or set(requested_ids) != set(panel_question_ids)
+    ):
+        errors.append(
+            "--question-id values must exactly match the frozen protocol panel; "
+            f"panel={panel_question_ids} requested={requested_ids}"
+        )
+    return panel_question_ids, selection, sorted(set(errors))
 
 
 def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> dict[str, object]:
@@ -4804,13 +4883,13 @@ def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, defau
         explicit_model=getattr(args, "algorithm_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="haiku",
+        model_tier="sonnet",
     )
     return LLMAlgorithmEngineerAgent(
         provider=provider,
         config=AlgorithmEngineerConfig(
             model=model,
-            model_tier="haiku",
+            model_tier="sonnet",
             max_tokens=getattr(args, "algorithm_max_tokens", 5000),
             temperature=getattr(args, "algorithm_temperature", 0.1),
             provider_name=provider_name,
@@ -4837,13 +4916,13 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
         explicit_model=getattr(args, "simulation_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="haiku",
+        model_tier="sonnet",
     )
     return LLMSimulationEngineerAgent(
         provider=provider,
         config=SimulationEngineerConfig(
             model=model,
-            model_tier="haiku",
+            model_tier="sonnet",
             max_tokens=getattr(args, "simulation_max_tokens", 5000),
             temperature=getattr(args, "simulation_temperature", 0.1),
             provider_name=provider_name,
@@ -5099,7 +5178,9 @@ def _proof_state_provider_from_args(args: argparse.Namespace):
     }
     if formalizer_candidate_lean_lsp_mcp_enabled:
         provider_kwargs["openprover_root"] = (
-            str(getattr(args, "openprover_root", "") or "").strip() or None
+            str(getattr(args, "openprover_root", "") or "").strip()
+            or _default_openprover_root()
+            or None
         )
     return provider_cls(**provider_kwargs)
 
@@ -11268,30 +11349,13 @@ async def _research_eval(args: argparse.Namespace) -> int:
         )
         for procedure_id, metrics in row["procedures"].items():
             metric_bits = []
-            labels = {
-                "coverage_95": "coverage95",
-                "rmse": "rmse",
-                "rmse_center": "rmse_center",
-                "empirical_fdr": "fdr",
-                "type1_error": "type1",
-                "power": "power",
-                "rejection_rate": "rej_rate",
-                "alt_mean_stop_time": "alt_stop",
-                "null_mean_stop_time": "null_stop",
-                "average_width": "avg_width",
-                "mean_alignment": "align",
-                "mean_subspace_error": "subspace_err",
-                "mean_angle_error_rad": "angle_rad",
-                "mean_top_eigenvalue": "top_eval",
-                "tail_index_rmse": "gamma_rmse",
-                "tail_index_coverage_95": "gamma_cov",
-                "quantile_relative_bias": "q_rel_bias",
-                "quantile_coverage_95": "q_cov",
-            }
-            for metric_key, label in labels.items():
-                value = metrics.get(metric_key, {}).get("mean")
-                if value is not None:
-                    metric_bits.append(f"{label}={value:.4f}")
+            for metric_key, summary in sorted(metrics.items()):
+                if not isinstance(summary, Mapping):
+                    continue
+                value = summary.get("mean")
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue
+                metric_bits.append(f"{metric_key}={float(value):.4f}")
             if metric_bits:
                 print(f"  {procedure_id}: " + " ".join(metric_bits))
     print(f"\nresearch evaluation manifest written to {(Path(args.out) / 'research_evaluation_manifest.json').resolve()}")
@@ -11488,7 +11552,22 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         resume_initial_tasks[resume_question_id] = resume_task
         resume_blackboard_artifacts[resume_question_id] = resume_artifacts
     questions = load_open_research_questions(Path(args.question_file))
-    requested_question_ids = list(getattr(args, "question_id", []) or [])
+    (
+        protocol_question_ids,
+        cross_family_protocol_selection,
+        protocol_selection_errors,
+    ) = _cross_family_eval_protocol_selection(args, questions)
+    if protocol_selection_errors:
+        print("\nAI Statistician Agent Runtime rejected evaluation protocol")
+        print("=" * 72)
+        for error in protocol_selection_errors:
+            print(f"- {error}")
+        return 2
+    requested_question_ids = (
+        protocol_question_ids
+        if protocol_question_ids
+        else list(getattr(args, "question_id", []) or [])
+    )
     if resume_question_id and not requested_question_ids:
         requested_question_ids = [resume_question_id]
     questions, missing_question_ids = _select_questions_by_id(
@@ -11513,6 +11592,15 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         return 2
     if args.max_questions:
         questions = questions[: args.max_questions]
+    if cross_family_protocol_selection:
+        args.min_task_families = max(
+            int(getattr(args, "min_task_families", 0) or 0),
+            int(
+                cross_family_protocol_selection[
+                    "minimum_distinct_task_families"
+                ]
+            ),
+        )
     task_family_selection_errors = _minimum_task_family_selection_errors(
         questions,
         min_task_families=int(getattr(args, "min_task_families", 0) or 0),
@@ -11541,6 +11629,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     context: dict[str, object] = {}
     if args.context_json:
         context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
+    if cross_family_protocol_selection:
+        context["cross_family_evaluation_protocol"] = dict(
+            cross_family_protocol_selection
+        )
     _attach_runtime_learning_memory(
         args,
         context,
@@ -11625,6 +11717,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "max_formalizer_proof_state_repair_rounds",
                     1,
+                )
+                or 0
+            ),
+            coding_agent_packet_validation_replan_after_attempts=int(
+                getattr(
+                    args,
+                    "coding_agent_packet_validation_replan_after_attempts",
+                    0,
                 )
                 or 0
             ),
@@ -12157,6 +12257,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "formalization_gap_planner_live_max_repair_attempts",
+                    1,
+                )
+            ),
+            formalization_gap_planner_live_max_provider_retries=int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_provider_retries",
                     1,
                 )
             ),
@@ -13857,8 +13964,33 @@ def _apply_research_agent_runtime_capability_eval_preset(
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
     if preset == "full-live":
+        args.formal_verification_policy = "required"
+        args.max_iterations = max(
+            FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS,
+            int(getattr(args, "max_iterations", 0) or 0),
+        )
+        args.min_task_families = max(
+            2,
+            int(getattr(args, "min_task_families", 0) or 0),
+        )
         args.formalizer_candidate_lean_lsp_mcp = True
+        if not str(getattr(args, "openprover_root", "") or "").strip():
+            discovered_openprover_root = _default_openprover_root()
+            if discovered_openprover_root:
+                args.openprover_root = discovered_openprover_root
         args.formalization_gap_planner_live_route_planner = True
+        if (
+            int(
+                getattr(
+                    args,
+                    "coding_agent_packet_validation_replan_after_attempts",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.coding_agent_packet_validation_replan_after_attempts = 1
         if (
             int(
                 getattr(
@@ -13932,6 +14064,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
         ):
             args.formalization_gap_planner_live_max_route_requests_per_handoff = 1
         if (
+            int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_provider_retries",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.formalization_gap_planner_live_max_provider_retries = 1
+        if (
             getattr(
                 args,
                 "formalization_gap_planner_live_timeout_seconds",
@@ -13956,8 +14100,6 @@ def _apply_research_agent_runtime_capability_eval_preset(
             or "same"
         ) in {"", "none", "static"}:
             args.formalization_gap_planner_live_provider = "same"
-        args.run_coding_agent_generated_code_repair_eval = True
-        args.run_formalizer_lean_candidate_repair_eval = True
         args.source_theorem_exact_semantic_definition_authoring_worker = True
         authoring_provider = str(
             getattr(
@@ -13983,13 +14125,11 @@ def _apply_research_agent_runtime_capability_eval_preset(
             getattr(args, "formalizer_repair_eval_provider", "same") or "same"
         ) in {"", "none", "static"}:
             args.formalizer_repair_eval_provider = "same"
-        args.run_formalizer_pseudo_formal_packet_eval = True
         if str(
             getattr(args, "formalizer_pseudo_formal_packet_eval_provider", "same")
             or "same"
         ) in {"", "none", "static"}:
             args.formalizer_pseudo_formal_packet_eval_provider = "same"
-        args.run_pseudo_formal_block_verifier_eval = True
         if str(
             getattr(args, "pseudo_formal_block_verifier_eval_provider", "same")
             or "same"
@@ -14151,6 +14291,19 @@ def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
         seen.add(key)
         unique.append(candidate)
     return tuple(unique)
+
+
+def _default_openprover_root() -> str:
+    """Return a source-controlled OpenProver adapter checkout when available."""
+
+    from .research_source_inventory import OPENPROVER_ROOT
+
+    root = Path(OPENPROVER_ROOT).expanduser().resolve()
+    required = (
+        root / "src" / "openprover" / "lean_lsp_mcp.py",
+        root / "src" / "openprover" / "controller.py",
+    )
+    return str(root) if all(path.is_file() for path in required) else ""
 
 
 def _is_lake_project(path: Path) -> bool:
@@ -14404,12 +14557,6 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
-        for enabled_field, _, _, component_name in component_eval_provider_fields:
-            if not bool(getattr(args, enabled_field, False)):
-                errors.append(
-                    "capability eval preset full-live requires attached live "
-                    f"{component_name}; missing --{enabled_field.replace('_', '-')}"
-                )
         if not bool(
             getattr(args, "formalization_gap_planner_live_route_planner", False)
         ):
@@ -14446,6 +14593,22 @@ def _research_agent_runtime_capability_config_errors(
             errors.append(
                 "capability eval preset full-live requires "
                 "--formalization-gap-planner-live-max-handoffs > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "coding_agent_packet_validation_replan_after_attempts",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires bounded coding-agent "
+                "packet-validation replanning; set "
+                "--coding-agent-packet-validation-replan-after-attempts > 0"
             )
         if (
             int(
@@ -14526,6 +14689,22 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires bounded live "
                 "FormalizationGapPlanner route-planner fanout; set "
                 "--formalization-gap-planner-live-max-route-requests-per-handoff > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "formalization_gap_planner_live_max_provider_retries",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires a bounded typed retry "
+                "after response-free FormalizationGapPlanner provider failures; "
+                "set --formalization-gap-planner-live-max-provider-retries > 0"
             )
         if (
             float(
@@ -20923,6 +21102,23 @@ def build_parser() -> argparse.ArgumentParser:
             "capability runs"
         ),
     )
+    research_agent_runtime.add_argument(
+        "--cross-family-eval-protocol",
+        default="",
+        help=(
+            "frozen domain-neutral fresh-start evaluation protocol; requires "
+            "--cross-family-eval-panel and full-live capability evaluation"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--cross-family-eval-panel",
+        choices=("development", "held_out"),
+        default="",
+        help=(
+            "select exactly one frozen protocol panel; protocol selection "
+            "forbids resume and task-learning-memory inputs"
+        ),
+    )
     research_agent_runtime.add_argument("--max-questions", type=int, default=0, help="optional cap for quick runs")
     research_agent_runtime.add_argument(
         "--provider",
@@ -21057,7 +21253,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--simulation-llm-model",
         default="",
-        help="model name for SimulatorEngineer proposals; Anthropic defaults to Claude Haiku 4.5",
+        help="model name for SimulatorEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
     )
     research_agent_runtime.add_argument("--simulation-max-tokens", type=int, default=5000)
     research_agent_runtime.add_argument("--simulation-temperature", type=float, default=0.1)
@@ -21078,7 +21274,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--algorithm-llm-model",
         default="",
-        help="model name for AlgorithmEngineer proposals; Anthropic defaults to Claude Haiku 4.5",
+        help="model name for AlgorithmEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
     )
     research_agent_runtime.add_argument("--algorithm-max-tokens", type=int, default=5000)
     research_agent_runtime.add_argument("--algorithm-temperature", type=float, default=0.1)
@@ -21811,6 +22007,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--coding-agent-packet-validation-replan-after-attempts",
+        type=int,
+        default=0,
+        help=(
+            "after this many consecutive locally invalid AlgorithmEngineer or "
+            "SimulationEngineer packets, route exact validator feedback through "
+            "ArchitectCoordinator for cross-subsystem replanning; full-live "
+            "defaults to 1 because each packet already receives an internal JSON "
+            "repair attempt; 0 keeps same-owner retries"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--algorithm-engineer-generated-code-repair-yield-after-attempts",
         type=int,
         default=0,
@@ -21826,9 +22034,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help=(
             "in capability-eval, route unresolved SimulationEvaluator "
-            "generated-simulation diagnostics to FormalizationEvaluator after "
-            "this many self-repair attempts; 0 keeps the legacy unbounded "
-            "self-repair routing"
+            "generated-simulation diagnostics after this many self-repair "
+            "attempts: open implementation gaps go to AlgorithmEngineer before "
+            "FormalizationEvaluator, otherwise formalization proceeds directly; "
+            "0 keeps the legacy unbounded self-repair routing"
         ),
     )
     research_agent_runtime.add_argument(
@@ -21902,6 +22111,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum JSON repair attempts for live gap-planner route-planner responses",
     )
     research_agent_runtime.add_argument(
+        "--formalization-gap-planner-live-max-provider-retries",
+        type=int,
+        default=1,
+        help=(
+            "maximum same-run typed retries after a live gap-planner provider "
+            "failure returns no usable response; separate from JSON/contract repair"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-max-contract-revisions",
         type=int,
         default=2,
@@ -21935,10 +22153,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "populate strict live capability-eval defaults without weakening "
             "the scorecard gates. minimal-live enables live providers and the "
-            "internal Lean/ProofEngineer paths; full-live also attaches the "
-            "coding-agent repair, Formalizer/Lean repair, live Lean-LSP/MCP, "
-            "PF/BV BlockVerifier, and integrated FormalizationGapPlanner live "
-            "route-planner gates. "
+            "internal Lean/ProofEngineer paths; full-live requires at least two "
+            "task families and enables the integrated generated-code repair, "
+            "Formalizer/Lean feedback, live Lean-LSP/MCP, PF/BV runtime, and "
+            "FormalizationGapPlanner route-planner paths. Optional standalone "
+            "component calibration remains separate. "
             "Static fixtures never become capability evidence."
         ),
     )

@@ -8,6 +8,7 @@ import json
 import shlex
 import shutil
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -79,8 +80,10 @@ from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker i
     validate_authoring_candidate_packet,
 )
 from ai_statistician.architect_coordinator_llm import (
+    ARCHITECT_COORDINATOR_JSON_SCHEMA,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
+    _architect_packet_repair_context,
     _normalize_architect_packet,
     architect_capability_gap_routing_agenda,
     build_architect_coordinator_prompt,
@@ -108,9 +111,6 @@ from ai_statistician.formalizer_llm import (
 )
 from ai_statistician.formalizer_repair_policy import (
     formalizer_validation_repair_policy,
-)
-from ai_statistician.generated_metric_repair_policy import (
-    generated_coverage_metric_required_error,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.pseudo_formalization import (
@@ -383,6 +383,57 @@ def _structured_theory_packet_fixture(
             "n_assumption_ledger_rows": 2,
             "has_formalization_handoff": True,
         },
+    }
+
+
+def _typed_metric_contract_fixture(
+    artifact_id: str,
+    *,
+    metric_path: list[str | int] | None = None,
+    required_runtime_replicates: int | None = None,
+) -> dict[str, object]:
+    row: dict[str, object] = {
+        "contract_id": f"metric-contract:{artifact_id}",
+        "requirement_id": "architect:empirical-coverage",
+        "artifact_id": artifact_id,
+        "metric_path": metric_path or ["empirical_coverage"],
+        "metric_semantics": "empirical coverage across bounded runtime replicates",
+        "measurement_protocol": (
+            "return the fraction of runtime replicates satisfying the declared "
+            "coverage event"
+        ),
+        "operator": ">=",
+        "threshold": 0.9,
+        "tolerance": 0.0,
+        "aggregation": "identity",
+        "required": True,
+        "source_anchors": ["architect:capability-eval"],
+    }
+    if required_runtime_replicates is not None:
+        row["required_runtime_replicates"] = required_runtime_replicates
+    return row
+
+
+def _typed_metric_requirement_fixture(
+    *target_subsystems: str,
+    threshold: float = 0.9,
+    required_runtime_replicates: int = 12,
+) -> dict[str, object]:
+    return {
+        "requirement_id": "architect:empirical-coverage",
+        "target_subsystems": list(target_subsystems),
+        "metric_semantics": "empirical coverage across bounded runtime replicates",
+        "measurement_protocol": (
+            "return the fraction of runtime replicates satisfying the declared "
+            "coverage event"
+        ),
+        "required_runtime_replicates": required_runtime_replicates,
+        "operator": ">=",
+        "threshold": threshold,
+        "tolerance": 0.0,
+        "aggregation": "identity",
+        "required": True,
+        "source_anchors": ["architect:capability-eval"],
     }
 
 
@@ -2458,6 +2509,104 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
     )
 
 
+@pytest.mark.parametrize("question_index", [2, 7])
+def test_formalization_gap_planner_runtime_schedules_each_cross_family_staged_budget_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    question_index: int,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[question_index]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(
+        project_id=f"gap-planner-staged-budget-{question.id}"
+    )
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id=f"gap-planner-handoff:{question.id}:staged-budget",
+        owner_subsystem="FormalizationGapPlanner",
+        objective=(
+            "Stage an over-budget route-planner prompt and schedule its live "
+            "per-question continuation."
+        ),
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "environment_feedback": {
+                "failure_classification": (
+                    "critic_requested_formalization_gap_planner_execution"
+                )
+            },
+        },
+    )
+    original_audit = (
+        runtime_module.audit_formalization_gap_planner_runtime_handoffs
+    )
+
+    def staged_budget_audit(*args, **kwargs):
+        payload = dict(original_audit(*args, **kwargs))
+        n_packets = int(payload.get("n_llm_prompt_packets", 0) or 0)
+        assert n_packets > 0
+        payload.update(
+            {
+                "n_llm_prompt_awaiting_response": 0,
+                "n_llm_prompt_staged_budget_routes_ready": n_packets,
+                "n_llm_prompt_staged_followups_required": n_packets,
+                "n_llm_prompt_staged_followups_due_to_prompt_budget": n_packets,
+            }
+        )
+        return payload
+
+    monkeypatch.setattr(
+        runtime_module,
+        "audit_formalization_gap_planner_runtime_handoffs",
+        staged_budget_audit,
+    )
+
+    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path / question.id,
+        runtime_config=ResearchAgentRuntimeConfig(
+            formalization_gap_planner_live_route_planner=True,
+            formalization_gap_planner_live_max_handoffs=1,
+            formalization_gap_planner_live_max_estimated_prompt_input_tokens=1,
+        ),
+    ).run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalization_gap_planner_live_route_planner_requested"
+    )
+    assert result.next_task is not None
+    assert result.next_task.inputs["question"]["id"] == question.id
+    selected_handoff_ids = result.next_task.inputs["environment_feedback"][
+        "selected_handoff_ids"
+    ]
+    assert selected_handoff_ids
+    current_handoff_ids = {
+        str(artifact.get("handoff_id", ""))
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeFormalizationGapPlannerHandoff"
+        and artifact.get("question_id") == question.id
+    }
+    assert set(selected_handoff_ids).issubset(current_handoff_ids)
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    assert manifest["live_route_planner_followup_required"] is True
+    assert manifest["counts"]["llm_prompt_awaiting_response"] == 0
+    assert manifest["counts"]["llm_prompt_staged_budget_routes_ready"] > 0
+    assert manifest["counts"]["llm_prompt_staged_followups_required"] > 0
+    assert (
+        manifest["counts"][
+            "llm_prompt_staged_followups_due_to_prompt_budget"
+        ]
+        > 0
+    )
+
+
 def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3487,6 +3636,103 @@ def test_formalization_gap_planner_contract_revision_scopes_handoffs_and_memory(
     assert revision_task.budget["same_run_contract_revision_limit"] == 2
 
 
+def test_formalization_gap_planner_second_revision_rehashes_canonical_attempt(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    accepted_attempt = {
+        "stage_attempt_id": "stage-attempt:canonical",
+        "stage_id": "route_core_compaction",
+        "target_prover_family": "lean4",
+        "response_present": True,
+        "response_contract_ok": True,
+        "provider_failure": False,
+        "fragment": {"minimal_delta_plan": {}},
+        "proof_evidence_boundary": (
+            runtime_module.FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY
+        ),
+        "ok": True,
+    }
+    feedback = {
+        "route_planner_contract_feedback_id": "feedback:first",
+        "formalization_gap_planner_handoff_id": "handoff:canonical",
+    }
+    first_manifest = {
+        "manifest_id": "live-route-manifest:first",
+        "question": runtime_module._question_to_payload(question),
+        "rows": [
+            {
+                "handoff_id": "handoff:canonical",
+                "bridge_id": "bridge:canonical",
+                "staged_followup_stage_attempt_rows": [accepted_attempt],
+            }
+        ],
+    }
+    first_artifact, _ = (
+        runtime_module._runtime_formalization_gap_planner_contract_revision_artifact(
+            schema_version=runtime_module.RUNTIME_SCHEMA_VERSION,
+            task_id="gap-planner:first",
+            live_manifest=first_manifest,
+            contract_feedback_rows=[feedback],
+            out_dir=tmp_path / "first",
+            revision_attempt=1,
+        )
+    )
+    first_bundle_path = Path(
+        first_artifact["reuse_bundles"][0][
+            "accepted_staged_followup_stage_attempts_jsonl"
+        ]
+    )
+    reused_attempt = json.loads(first_bundle_path.read_text(encoding="utf-8"))
+    second_feedback = {
+        "route_planner_contract_feedback_id": "feedback:second",
+        "formalization_gap_planner_handoff_id": "handoff:canonical",
+    }
+    second_manifest = {
+        "manifest_id": "live-route-manifest:second",
+        "question": runtime_module._question_to_payload(question),
+        "rows": [
+            {
+                "handoff_id": "handoff:canonical",
+                "bridge_id": "bridge:canonical",
+                "staged_followup_stage_attempt_rows": [reused_attempt],
+            }
+        ],
+    }
+    second_artifact, _ = (
+        runtime_module._runtime_formalization_gap_planner_contract_revision_artifact(
+            schema_version=runtime_module.RUNTIME_SCHEMA_VERSION,
+            task_id="gap-planner:second",
+            live_manifest=second_manifest,
+            contract_feedback_rows=[second_feedback],
+            out_dir=tmp_path / "second",
+            revision_attempt=2,
+        )
+    )
+    context = {
+        "revision_artifact_id": second_artifact["revision_artifact_id"],
+        "revision_artifact_hash": second_artifact["revision_artifact_hash"],
+        "revision_attempt": 2,
+        "max_same_run_contract_revisions": 2,
+    }
+
+    _validated, errors = runtime_module.validate_contract_revision_artifact(
+        context=context,
+        artifacts={
+            second_manifest["manifest_id"]: second_manifest,
+            second_artifact["revision_artifact_id"]: second_artifact,
+        },
+        question_id=question.id,
+        environment_feedback={
+            "selected_handoff_ids": ["handoff:canonical"],
+            "formalization_gap_planner_bridge_ids": ["bridge:canonical"],
+        },
+        learning_feedback_ids={"feedback:second"},
+    )
+
+    assert errors == []
+
+
 def test_formalization_gap_planner_contract_revision_tamper_fails_before_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3694,11 +3940,15 @@ def test_formalization_gap_planner_contract_revision_budget_exhaustion_fails_clo
     assert not result.traces[-1].next_task_id
 
 
-def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
+@pytest.mark.parametrize("question_index", [2, 7])
+def test_formalization_gap_planner_live_route_planner_timeout_schedules_bounded_provider_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    question_index: int,
 ) -> None:
-    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[question_index]
     bridge = _runtime_gap_planner_bridge_fixture(question)
     distractor_bridge = copy.deepcopy(bridge)
     distractor_bridge["bridge_id"] = f"{bridge['bridge_id']}:distractor"
@@ -3706,7 +3956,7 @@ def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
     blackboard.artifacts[str(bridge["bridge_id"])] = bridge
     blackboard.artifacts[str(distractor_bridge["bridge_id"])] = distractor_bridge
     task = AgentTask(
-        task_id="gap-planner-live-route:causal_ate_aipw:timeout",
+        task_id=f"gap-planner-live-route:{question.id}:timeout",
         owner_subsystem="FormalizationGapPlanner",
         objective="Execute bounded live route planner.",
         inputs={
@@ -3754,14 +4004,24 @@ def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
         lambda self, *, provider, generator_backend: False,
     )
 
-    result = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+    subsystem = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
         out_dir=tmp_path,
-    ).run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == (
-        "formalization_gap_planner_live_route_planner_blocked"
     )
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "formalization_gap_planner_live_route_planner_provider_retry_requested"
+    )
+    assert result.next_task is not None
+    assert result.next_task.task_id.startswith(
+        f"gap-planner-live-route-provider-retry:{question.id}:"
+    )
+    retry_artifact = result.next_task.inputs["route_planner_provider_retry"]
+    assert retry_artifact["question_id"] == question.id
+    assert retry_artifact["retry_attempt"] == 1
+    assert retry_artifact["max_provider_retries"] == 1
+    assert result.next_task.budget["provider_retry_attempt"] == 1
     assert timeout_calls == [
         {
             "timeout_s": 17.5,
@@ -3783,6 +4043,9 @@ def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
     )
     assert execution_manifest["counts"]["bridge_rows"] == 1
     assert execution_manifest["audit_payload"]["n_handoffs"] == 1
+    assert execution_manifest["live_route_planner_provider_failures"] == 1
+    assert execution_manifest["live_route_planner_provider_retry_scheduled"] is True
+    assert execution_manifest["live_route_planner_provider_retry_exhausted"] is False
     assert live_manifest["all_live_route_planner_responses_recorded"] is False
     assert live_manifest["feedback_loop_recorded"] is False
     assert live_manifest["counts"]["provider_failures"] == 1
@@ -3804,8 +4067,104 @@ def test_formalization_gap_planner_live_route_planner_timeout_fails_closed(
     )
     assert any(
         row.evidence_type == "formalization_gap_planner_runtime_execution"
-        and row.status == "LIVE_ROUTE_PLANNER_BLOCKED_NOT_PROOF_EVIDENCE"
+        and row.status
+        == "LIVE_ROUTE_PLANNER_PROVIDER_RETRY_SCHEDULED_NOT_PROOF_EVIDENCE"
         for row in result.evidence_entries
+    )
+
+    blackboard.artifacts.update(result.produced_artifacts)
+    exhausted = subsystem.run(result.next_task, blackboard)
+
+    assert exhausted.status == "BLOCKED"
+    assert exhausted.next_task is None
+    assert exhausted.failure_classification == (
+        "formalization_gap_planner_live_route_planner_provider_retry_exhausted"
+    )
+    assert len(timeout_calls) == 2
+    exhausted_manifest = next(
+        artifact
+        for artifact in exhausted.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalizationGapPlannerExecutionManifest"
+    )
+    assert exhausted_manifest["live_route_planner_provider_retry_scheduled"] is False
+    assert exhausted_manifest["live_route_planner_provider_retry_exhausted"] is True
+    assert any(
+        row.status
+        == "LIVE_ROUTE_PLANNER_PROVIDER_RETRY_EXHAUSTED_NOT_PROOF_EVIDENCE"
+        for row in exhausted.evidence_entries
+    )
+
+
+def test_formalization_gap_planner_provider_retry_tamper_fails_before_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[8]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    blackboard = BlackboardState(project_id="gap-planner-provider-retry-tamper")
+    blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    task = AgentTask(
+        task_id=f"gap-planner-live-route:{question.id}:provider-retry-tamper",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Create a bound provider retry after a response-free failure.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "invoke_live_route_planner": True,
+            "max_handoffs": 1,
+            "max_route_requests_per_handoff": 1,
+            "provider": "anthropic",
+            "max_repair_attempts": 0,
+            "max_provider_retries": 1,
+            "max_staged_followup_stage_calls": 0,
+            "timeout_seconds": 1.0,
+            "architect_context": {},
+            "environment_feedback": {},
+        },
+    )
+    calls = 0
+
+    def fake_wall_clock_timeout(call, *, timeout_s, provider_name, model):
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("provider unavailable")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_call_with_wall_clock_timeout",
+        fake_wall_clock_timeout,
+    )
+    monkeypatch.setattr(
+        runtime_module.FormalizationGapPlannerRuntimeSubsystem,
+        "_live_route_planner_use_subprocess_export",
+        lambda self, *, provider, generator_backend: False,
+    )
+    subsystem = runtime_module.FormalizationGapPlannerRuntimeSubsystem(
+        out_dir=tmp_path,
+    )
+    first = subsystem.run(task, blackboard)
+    assert first.status == "REVISE"
+    assert first.next_task is not None
+    blackboard.artifacts.update(first.produced_artifacts)
+    tampered_inputs = copy.deepcopy(first.next_task.inputs)
+    tampered_inputs["route_planner_provider_retry"]["question_id"] = (
+        "different-heldout-question"
+    )
+    tampered_task = replace(first.next_task, inputs=tampered_inputs)
+
+    rejected = subsystem.run(tampered_task, blackboard)
+
+    assert rejected.status == "BLOCKED"
+    assert rejected.failure_classification == (
+        "formalization_gap_planner_provider_retry_binding_invalid"
+    )
+    assert calls == 1
+    assert any(
+        "question_id does not match" in error
+        for artifact in rejected.produced_artifacts.values()
+        for error in artifact.get("errors", [])
     )
 
 
@@ -3906,6 +4265,7 @@ def test_formalization_gap_planner_live_route_planner_subprocess_timeout_fails_c
             "max_tokens": 9000,
             "temperature": 0.1,
             "max_repair_attempts": 1,
+            "max_provider_retries": 0,
             "max_staged_followup_stage_calls": 3,
             "timeout_seconds": 3.0,
             "architect_context": {},
@@ -4046,7 +4406,16 @@ def test_formalization_gap_planner_subprocess_consumes_nonzero_contract_manifest
     )
 
 
-def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_without_feedback() -> None:
+@pytest.mark.parametrize(
+    "failure_classification",
+    [
+        "formalization_gap_planner_live_route_planner_blocked",
+        "formalization_gap_planner_live_route_planner_provider_retry_exhausted",
+    ],
+)
+def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_without_feedback(
+    failure_classification: str,
+) -> None:
     results = [
         {
             "status": "BLOCKED",
@@ -4054,9 +4423,7 @@ def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_withou
                 {
                     "subsystem": "FormalizationGapPlanner",
                     "status": "BLOCKED",
-                    "failure_classification": (
-                        "formalization_gap_planner_live_route_planner_blocked"
-                    ),
+                    "failure_classification": failure_classification,
                 }
             ],
         }
@@ -4715,6 +5082,9 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                             "live_route_planner_requested": True,
                             "live_route_planner_followup_required": False,
                             "live_llm_invoked": True,
+                            "live_route_planner_provider_retry_required": True,
+                            "live_route_planner_provider_retry_scheduled": True,
+                            "live_route_planner_provider_retry_exhausted": False,
                             "live_route_planner_all_responses_recorded": True,
                             "live_route_planner_target_prover_replay_complete": True,
                             "live_route_planner_manifest_path": (
@@ -4745,6 +5115,8 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
                                 "staged_followups_due_to_prompt_token_budget_preflight": 1,
                                 "staged_followup_stage_attempt_rows": 2,
                                 "staged_followup_stage_response_contract_ok": 2,
+                                "staged_followup_stage_provider_calls": 3,
+                                "staged_followup_stage_repair_attempts": 1,
                                 "staged_followup_stage_provider_failures": 0,
                                 "staged_followup_stage_calls_blocked_by_budget": 1,
                                 "staged_followup_assembly_rows": 1,
@@ -4840,6 +5212,24 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
     )
     assert (
         summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_required"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_scheduled"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_exhausted"
+        ]
+        == 0
+    )
+    assert (
+        summary[
             "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded"
         ]
         == 1
@@ -4885,6 +5275,18 @@ def test_runtime_gap_planner_live_route_planner_summary_counts_execution_manifes
             "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_response_contract_ok"
         ]
         == 2
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_calls"
+        ]
+        == 3
+    )
+    assert (
+        summary[
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_repair_attempts"
+        ]
+        == 1
     )
     assert (
         summary[
@@ -6295,6 +6697,98 @@ def test_architect_plan_guard_keeps_same_owner_feedback_inside_worker_loop() -> 
         row.observation_type == "architect_plan_repair_handoff"
         for row in trace.observations
     )
+
+
+def test_architect_completion_guard_routes_intermediate_acceptance_to_final_critic() -> None:
+    class LocallyAcceptedGapPlanner:
+        name = "FormalizationGapPlanner"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="local route-planner contract completed",
+                produced_artifacts={
+                    "gap-plan:q1": {
+                        "artifact_kind": "RuntimeFormalizationGapPlannerManifest",
+                        "proof_evidence_status": "PLANNING_NOT_PROOF_EVIDENCE",
+                    }
+                },
+            )
+
+    architect_context = {
+        "architect_runtime_plan": {
+            "subsystem_execution_plan": [
+                {
+                    "subsystem": "FormalizationGapPlanner",
+                    "objective": "plan the remaining formalization delta",
+                },
+                {
+                    "subsystem": "CriticEvaluator",
+                    "objective": "make the final evidence-contract decision",
+                },
+            ]
+        }
+    }
+    runtime = AgentRuntime(
+        subsystems={"FormalizationGapPlanner": LocallyAcceptedGapPlanner()},
+        blackboard=BlackboardState(project_id="architect-completion-guard-test"),
+        handoff_policy=_architect_plan_guard_handoff_policy,
+    )
+
+    result = runtime.run(
+        AgentTask(
+            task_id="gap-planner:q1",
+            owner_subsystem="FormalizationGapPlanner",
+            objective="finish the local route plan",
+            inputs={
+                "question": {
+                    "id": "q1",
+                    "title": "completion guard test",
+                    "description": "require final Critic review",
+                    "tags": [],
+                },
+                "architect_context": architect_context,
+            },
+        ),
+        max_iterations=1,
+    )
+    trace = result.traces[0]
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert trace.status == "REROUTE"
+    assert trace.failure_classification == (
+        "architect_terminal_completion_review_required"
+    )
+    assert trace.next_task is not None
+    assert trace.next_task.owner_subsystem == "ArchitectCoordinator"
+    pending_critic = trace.next_task.inputs["resume_pending_task"]
+    assert pending_critic["owner_subsystem"] == "CriticEvaluator"
+    assert pending_critic["inputs"]["question"]["id"] == "q1"
+    assert trace.observations[-1].observation_type == (
+        "architect_terminal_acceptance_review"
+    )
+    review_artifacts = [
+        artifact
+        for artifact in result.blackboard.artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeIntermediateAcceptanceReviewFeedback"
+    ]
+    assert len(review_artifacts) == 1
+    assert review_artifacts[0]["required_final_owner_subsystem"] == (
+        "CriticEvaluator"
+    )
+    assert result.blackboard.handoff_ledger[0].to_subsystem == (
+        "ArchitectCoordinator"
+    )
+    transition_summary = _runtime_handoff_transition_summary([result.to_json()])
+    assert transition_summary["route_decision_sources"][
+        "architect_terminal_acceptance_review"
+    ] == 1
+    assert transition_summary["n_transitions_with_only_default_route_source"] == 0
 
 
 def test_runtime_capability_scorecard_flags_missing_task_handoff_ledger() -> None:
@@ -9194,7 +9688,7 @@ def test_runtime_capability_gap_routing_loader_pins_deferred_meta_resolution(
     assert context["counts"]["retention_policy"] == "priority_pinned_latest_rows"
 
 
-def test_capability_feedback_commands_carry_gap_routing_jsonl() -> None:
+def test_capability_feedback_commands_keep_fresh_rerun_free_of_prior_memory() -> None:
     payload = {
         "runtime_dir": "runs/current",
         "runtime_resumable_manifest_path": "runs/current/research_agent_runtime_manifest.json",
@@ -9224,14 +9718,9 @@ def test_capability_feedback_commands_carry_gap_routing_jsonl() -> None:
         "--source-theorem-exact-semantic-definition-candidate-synthesis",
     ]
 
-    assert "--learning-memory-jsonl runs/current/runtime_learning_rows.jsonl" in (
-        rerun_command
-    )
-    assert (
-        "--capability-gap-routing-jsonl "
-        "runs/current_audit/runtime_capability_gap_routing.jsonl"
-    ) in rerun_command
-    assert "--max-capability-gap-routing-rows 40" in rerun_command
+    assert "--learning-memory-jsonl" not in rerun_command
+    assert "--capability-gap-routing-jsonl" not in rerun_command
+    assert "--max-capability-gap-routing-rows" not in rerun_command
     assert (
         "--capability-gap-routing-jsonl "
         "runs/current_audit/runtime_capability_gap_routing.jsonl"
@@ -9771,12 +10260,37 @@ def test_runtime_capability_scorecard_requires_gap_planner_live_followthrough() 
     recommended_command = followthrough["recommended_capability_eval_command"]
     assert "--resume-runtime-manifest" not in recommended_command
     assert "--question-id causal_ate_aipw" in recommended_command
-    assert (
-        "--learning-memory-jsonl "
-        "runs/previous_capability_eval/runtime_learning_rows.jsonl"
-    ) in recommended_command
+    assert "--learning-memory-jsonl" not in recommended_command
+    assert "--capability-gap-routing-jsonl" not in recommended_command
     assert "--capability-eval-preset full-live" in recommended_command
-    assert "--max-iterations 16" in recommended_command
+    assert "--max-iterations 24" in recommended_command
+
+    protocol_payload = copy.deepcopy(payload)
+    protocol_payload["cross_family_evaluation_protocol"] = {
+        "artifact_kind": "CrossFamilyEndToEndEvaluationPanelSelection",
+        "protocol_path": "benchmarks/frozen_cross_family.json",
+        "protocol_panel": "development",
+        "fresh_start_required": True,
+        "resume_forbidden": True,
+        "task_learning_memory_forbidden": True,
+        "component_eval_substitution_forbidden": True,
+        "candidate_gate_independence_required": True,
+    }
+    protocol_scorecard = _runtime_capability_scorecard(protocol_payload)
+    protocol_rows = {
+        row["requirement_id"]: row for row in protocol_scorecard["rows"]
+    }
+    protocol_command = protocol_rows[
+        "formal_gap_planner_live_route_planner_followthrough"
+    ]["recommended_capability_eval_command"]
+    assert (
+        "--cross-family-eval-protocol benchmarks/frozen_cross_family.json"
+        in protocol_command
+    )
+    assert "--cross-family-eval-panel development" in protocol_command
+    assert "--question-id" not in protocol_command
+    assert "--learning-memory-jsonl" not in protocol_command
+    assert "--max-iterations 24" in protocol_command
 
     payload.update(
         {
@@ -16550,7 +17064,9 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
         ),
     )
     architect = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=6)
+        ),
         config=ArchitectCoordinatorConfig(
             provider_name="static",
             model="static-architect-model",
@@ -16591,6 +17107,13 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
                             "    }\n"
                         ),
                     }
+                ],
+                "metric_contracts": [
+                    _typed_metric_contract_fixture(
+                        "direct_gap_generated_simulation",
+                        metric_path=["mean_coverage"],
+                        required_runtime_replicates=6,
+                    )
                 ],
                 "simulation_evidence_status": (
                     "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
@@ -16636,6 +17159,12 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
     ] == 1
     assert manifest["n_generated_simulation_sandbox_executed"] == 1
     assert manifest["n_generated_simulation_sandbox_passed"] == 1
+    assert manifest[
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_validated"
+    ] == 1
+    assert manifest[
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+    ] == 1
     assert len(simulation_engineer.feedbacks) == 1
     assert simulation_artifacts[0]["n_generated_simulation_sandbox_executed"] == 1
     assert simulation_artifacts[0]["n_generated_simulation_sandbox_passed"] == 1
@@ -16961,7 +17490,9 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
         ),
     )
     architect = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=10)
+        ),
         config=ArchitectCoordinatorConfig(
             provider_name="static",
             model="static-architect-model",
@@ -16995,8 +17526,8 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
                         "registered_template_hint": "none",
                     }
                 ],
-                "sandbox_code_drafts": [
-                    {
+                    "sandbox_code_drafts": [
+                        {
                         "estimator_id": "custom_estimator",
                         "language": "python",
                         "entrypoint": "run_sandbox",
@@ -17019,6 +17550,12 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
                             "    }\n"
                         ),
                     }
+                ],
+                "metric_contracts": [
+                    _typed_metric_contract_fixture(
+                        "custom_estimator",
+                        required_runtime_replicates=10,
+                    )
                 ],
                 "execution_evidence_status": (
                     "LLM_ALGORITHM_PROPOSAL_NOT_EXECUTION_EVIDENCE"
@@ -17065,6 +17602,12 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
     ] == 1
     assert manifest["n_generated_code_sandbox_executed"] == 1
     assert manifest["n_generated_code_sandbox_passed"] == 1
+    assert manifest[
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated"
+    ] == 1
+    assert manifest[
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+    ] == 1
     assert len(algorithm_engineer.feedbacks) == 1
     assert algorithm_artifacts[0]["n_generated_code_executed"] == 1
     assert algorithm_artifacts[0]["n_passed"] == 1
@@ -17138,7 +17681,9 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
         ),
     )
     architect = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=10)
+        ),
         config=ArchitectCoordinatorConfig(
             provider_name="static",
             model="static-architect-model",
@@ -17194,6 +17739,12 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
                             "    }\n"
                         ),
                     }
+                ],
+                "metric_contracts": [
+                    _typed_metric_contract_fixture(
+                        "custom_estimator",
+                        required_runtime_replicates=10,
+                    )
                 ],
                 "execution_evidence_status": (
                     "LLM_ALGORITHM_PROPOSAL_NOT_EXECUTION_EVIDENCE"
@@ -17648,7 +18199,9 @@ def test_runtime_executes_architect_routed_formalizer_gap(
         ),
     )
     architect = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=10)
+        ),
         config=ArchitectCoordinatorConfig(
             provider_name="static",
             model="static-architect-model",
@@ -18030,7 +18583,9 @@ def test_runtime_executes_architect_routed_gap_planner_gap(
         ),
     )
     architect = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=10)
+        ),
         config=ArchitectCoordinatorConfig(
             provider_name="static",
             model="static-architect-model",
@@ -19448,6 +20003,12 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         runtime_config=runtime_config,
     )
     response = _architect_sample_response()
+    response["evidence_contract"][
+        "capability_eval_requires_typed_metric_contracts"
+    ] = False
+    response["evidence_contract"]["generated_metric_contract_policy"] = (
+        "typed_artifact_bound_preferred"
+    )
     base_plan = list(response["subsystem_execution_plan"])
     response["subsystem_execution_plan"] = [
         *base_plan[:-1],
@@ -19527,6 +20088,13 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"evaluation_mode":"capability_eval"' in prompt
     assert '"capability_eval_requires_generated_algorithm_code":true' in prompt
     assert '"capability_eval_requires_generated_simulation_code":true' in prompt
+    assert '"capability_eval_requires_typed_metric_contracts":true' in prompt
+    assert '"generated_sandbox_runtime_replicates":80' in prompt
+    assert '"generated_metric_contract_policy":"typed_artifact_bound_required"' in prompt
+    assert (
+        '"generated_metric_requirement_authority_policy":'
+        '"architect_authored_coding_agent_bound_required"' in prompt
+    )
     assert '"capability_eval_requires_formalizer_lean_candidate":true' in prompt
     assert '"capability_eval_requires_exact_source_theorem_prover":true' in prompt
     assert '"theorem_reduction_closure_proofengineer_required":true' in prompt
@@ -19538,6 +20106,20 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert contract["evaluation_mode"] == "capability_eval"
     assert contract["capability_eval_requires_generated_algorithm_code"] is True
     assert contract["capability_eval_requires_generated_simulation_code"] is True
+    assert contract["capability_eval_requires_typed_metric_contracts"] is True
+    assert contract["generated_sandbox_runtime_replicates"] == 80
+    assert contract["generated_metric_contract_policy"] == (
+        "typed_artifact_bound_required"
+    )
+    assert contract["generated_metric_requirement_authority_policy"] == (
+        "architect_authored_coding_agent_bound_required"
+    )
+    assert contract["empirical_metric_requirements"][0]["requirement_id"] == (
+        "architect:empirical-coverage"
+    )
+    assert contract["empirical_metric_requirements"][0][
+        "required_runtime_replicates"
+    ] == 80
     assert contract["capability_eval_requires_formalizer_lean_candidate"] is True
     assert contract["capability_eval_requires_exact_source_theorem_prover"] is True
     assert contract["theorem_reduction_closure_proofengineer_required"] is True
@@ -19545,6 +20127,91 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert contract["source_semantic_proofengineer_required"] is True
     assert contract["source_theorem_promotion_proofengineer_required"] is True
     assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    runtime_config = {
+        "evaluation_mode": "capability_eval",
+        "formal_verification_policy": "optional",
+        "n_runs": 100,
+    }
+    initial = _normalize_architect_packet(
+        _architect_sample_response(),
+        question=question,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        raw_response="initial",
+        runtime_config=runtime_config,
+    )
+    rewritten = json.loads(json.dumps(_architect_sample_response()))
+    rewritten_requirement = rewritten["evidence_contract"][
+        "empirical_metric_requirements"
+    ][0]
+    rewritten_requirement["metric_semantics"] = "post-hoc easier quantity"
+    rewritten_requirement["measurement_protocol"] = "report a constant"
+    rewritten_requirement["required_runtime_replicates"] = 5
+    rewritten_requirement["threshold"] = 0.1
+
+    replanned = _normalize_architect_packet(
+        rewritten,
+        question=question,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        raw_response="replan",
+        runtime_config=runtime_config,
+        architect_context={
+            "architect_runtime_plan": {
+                "evidence_contract": initial["evidence_contract"]
+            }
+        },
+    )
+
+    initial_contract = initial["evidence_contract"]
+    replanned_contract = replanned["evidence_contract"]
+    assert replanned_contract["empirical_metric_requirements"] == (
+        initial_contract["empirical_metric_requirements"]
+    )
+    assert replanned_contract[
+        "empirical_metric_requirement_set_id"
+    ] == initial_contract["empirical_metric_requirement_set_id"]
+    assert replanned_contract[
+        "empirical_metric_requirements_frozen_from_prior_architect_plan"
+    ] is True
+    assert validate_architect_coordinator_packet(replanned) == []
+
+
+def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
+    runtime_config = {
+        "evaluation_mode": "capability_eval",
+        "formal_verification_policy": "required",
+        "exact_source_theorem_prover_available": True,
+    }
+
+    repair_context = _architect_packet_repair_context(
+        architect_context={},
+        runtime_config=runtime_config,
+    )
+    literature_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
+        "literature_fair_comparison_plan"
+    ]
+
+    assert literature_schema["items"]["type"] == "object"
+    assert set(literature_schema["items"]["required"]) == {
+        "candidate_source_family",
+        "must_match",
+        "likely_mismatches",
+        "unsafe_transfer_risks",
+    }
+    assert repair_context["required_array_item_shapes"][
+        "literature_fair_comparison_plan"
+    ]["candidate_source_family"] == "one short string"
+    assert any(
+        "never strings" in instruction
+        for instruction in repair_context["repair_prompt_priority_instructions"]
+    )
 
 
 def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> None:
@@ -20055,7 +20722,7 @@ def test_promotion_generation_prompt_and_invalid_response_preserve_retry_lineage
     assert "exact requested targets" in result.next_task.objective
 
 
-def test_architect_coordinator_validator_requires_capability_worker_graph() -> None:
+def test_architect_coordinator_elaborates_required_capability_worker_graph() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     sample = _architect_sample_response()
     evidence_contract = dict(sample["evidence_contract"])
@@ -20091,24 +20758,29 @@ def test_architect_coordinator_validator_requires_capability_worker_graph() -> N
         },
     )
 
-    errors = validate_architect_coordinator_packet(packet)
-
-    assert (
-        "subsystem_execution_plan missing evidence-contract-required subsystem: "
-        "SimulationEvaluator"
-    ) in errors
-    assert (
-        "subsystem_execution_plan missing evidence-contract-required subsystem: "
-        "ProofEngineer"
-    ) in errors
-    assert (
-        "subsystem_execution_plan missing evidence-contract-required subsystem: "
-        "FormalizationGapPlanner"
-    ) in errors
-    assert (
-        "subsystem_execution_plan missing evidence-contract-required subsystem: "
-        "TheoremReductionClosureProofEngineer"
-    ) in errors
+    assert validate_architect_coordinator_packet(packet) == []
+    plan_by_subsystem = {
+        row["subsystem"]: row
+        for row in packet["subsystem_execution_plan"]
+        if isinstance(row, dict)
+    }
+    assert plan_by_subsystem["RetrievalMemory"]["objective"] == "retrieve context"
+    for subsystem in (
+        "SimulationEvaluator",
+        "ProofEngineer",
+        "FormalizationGapPlanner",
+        "TheoremReductionClosureProofEngineer",
+    ):
+        row = plan_by_subsystem[subsystem]
+        assert row["plan_row_source"] == "runtime_required_evidence_contract"
+        assert row["llm_authored"] is False
+        assert row["objective"] == ""
+        assert row["expected_artifacts"] == []
+        assert row["acceptance_gate"] == ""
+    provenance = packet["subsystem_execution_plan_provenance"]
+    assert provenance["llm_authored_subsystems"] == ["RetrievalMemory"]
+    assert "SimulationEvaluator" in provenance["runtime_elaborated_subsystems"]
+    assert provenance["runtime_elaboration_may_generate_research_content"] is False
 
 
 def test_architect_coordinator_validator_requires_research_control_fields() -> None:
@@ -20938,6 +21610,9 @@ def test_simulation_engineer_capability_eval_prompt_requires_generated_code() ->
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe simulation_code_drafts entry" in prompt
     assert "required for capability-eval simulation coding-agent evidence" in prompt
+    assert "typed metric_contracts row" in prompt
+    assert '"typed_metric_contract_schema"' in prompt
+    assert "Do not ask AgentRuntime to infer a metric" in prompt
 
 
 def test_simulation_engineer_prompt_uses_runtime_requested_capability_contract() -> None:
@@ -21117,6 +21792,9 @@ def test_algorithm_engineer_capability_eval_prompt_requires_generated_code() -> 
     assert "required for capability-eval coding-agent evidence" in prompt
     assert '"canonical_implementation_gap_ids":["E1"]' in prompt
     assert '"sandbox_code_drafts"' in prompt
+    assert '"metric_contracts"' in prompt
+    assert '"typed_metric_contract_schema"' in prompt
+    assert "Do not rely on metric-name or prose inference" in prompt
     assert "leave sandbox_code_drafts empty whenever a template matches" not in prompt
 
 
@@ -21236,6 +21914,7 @@ def test_algorithm_engineer_capability_eval_validator_accepts_generated_draft() 
                     "code": "def run_sandbox(seed, replicates):\n    return {'sandbox_failed': False}\n",
                 }
             ],
+            "metric_contracts": [_typed_metric_contract_fixture("E1")],
         },
         implementation_gaps=[{"estimator_id": "E1"}],
     )
@@ -21261,6 +21940,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
                     "code": "def run_sandbox(seed, replicates):\n    return {'empirical_coverage': 1.0, 'target_coverage': 0.95}\n",
                 }
             ],
+            "metric_contracts": [_typed_metric_contract_fixture("E1")],
             "next_actions": [{"owner": "AlgorithmEngineer", "action": "execute"}],
         },
         question=question,
@@ -21333,6 +22013,7 @@ def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None
                     ),
                 }
             ],
+            "metric_contracts": [_typed_metric_contract_fixture("E1")],
             "next_actions": [{"owner": "AlgorithmEngineer", "action": "execute"}],
         },
         question=question,
@@ -21394,6 +22075,9 @@ def test_algorithm_engineer_binds_single_generated_target_to_canonical_gap_id() 
                         "    return {'sandbox_failed': False, 'replicates': int(replicates)}\n"
                     ),
                 }
+            ],
+            "metric_contracts": [
+                _typed_metric_contract_fixture("clearer_generated_alias")
             ],
             "next_actions": [{"owner": "AlgorithmEngineer", "action": "execute"}],
         },
@@ -21510,6 +22194,12 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
                     "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
                     "code": "def run_sandbox(seed, replicates):\n    return {'mean_coverage': 1.0, 'target_coverage': 0.95}\n",
                 }
+            ],
+            "metric_contracts": [
+                _typed_metric_contract_fixture(
+                    "custom_stress",
+                    metric_path=["mean_coverage"],
+                )
             ],
         },
         question=question,
@@ -37563,7 +38253,7 @@ def test_generated_algorithm_sandbox_allows_safe_zip_builtin(tmp_path: Path) -> 
     assert tool_call.exit_status == "0"
 
 
-def test_generated_algorithm_sandbox_rejects_degenerate_coverage_metric(
+def test_generated_algorithm_sandbox_does_not_infer_gate_from_metric_name(
     tmp_path: Path,
 ) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
@@ -37586,35 +38276,16 @@ def test_generated_algorithm_sandbox_rejects_degenerate_coverage_metric(
         timeout_s=5,
     )
 
-    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert prototype["prototype_status"] == "EXECUTED"
     assert prototype["executor"] == "generated_python_sandbox"
     assert prototype["execution_smoke_passed"] is True
-    assert prototype["smoke_passed"] is False
-    assert "empirical_coverage is degenerate zero coverage" in prototype[
-        "metric_gate_errors"
-    ]
+    assert prototype["smoke_passed"] is True
+    assert prototype["metric_gate_errors"] == []
+    assert prototype["metric_gate_policy_mode"] == (
+        "execution_only_no_typed_contract"
+    )
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
     assert tool_call.exit_status == "0"
-
-    feedback = _algorithm_sandbox_revision_feedback(
-        manifest={
-            "manifest_id": "algorithm_sandbox_manifest:degenerate_coverage",
-            "prototypes": [prototype],
-            "n_prototypes": 1,
-            "n_executed": 1,
-            "n_passed": 0,
-            "n_metric_gate_failed": 1,
-            "n_generated_code_executed": 1,
-            "n_unsafe_generated_code_rejected": 0,
-        },
-        boundary="algorithm sandbox is not proof evidence",
-        failure_classification="generated_algorithm_sandbox_metric_gate_failed",
-    )
-    feedback_row = feedback["prototypes"][0]
-    assert feedback_row["metrics"]["empirical_coverage"] == 0.0
-    assert feedback_row["metrics"]["mean_width"] == 1.0
-    assert "def run_sandbox" in feedback_row["code_excerpt"]
-    assert "'empirical_coverage': 0.0" in feedback_row["code_excerpt"]
 
 
 def test_generated_algorithm_sandbox_allows_local_helper_function(
@@ -37655,7 +38326,7 @@ def test_generated_algorithm_sandbox_allows_local_helper_function(
     assert tool_call.exit_status == "0"
 
 
-def test_generated_algorithm_sandbox_requires_coverage_metric_for_coverage_context(
+def test_generated_algorithm_sandbox_does_not_infer_gate_from_context_prose(
     tmp_path: Path,
 ) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
@@ -37681,16 +38352,14 @@ def test_generated_algorithm_sandbox_requires_coverage_metric_for_coverage_conte
         timeout_s=5,
     )
 
-    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert prototype["prototype_status"] == "EXECUTED"
     assert prototype["execution_smoke_passed"] is True
-    assert prototype["smoke_passed"] is False
-    assert generated_coverage_metric_required_error() in prototype[
-        "metric_gate_errors"
-    ]
+    assert prototype["smoke_passed"] is True
+    assert prototype["metric_gate_errors"] == []
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
 
 
-def test_generated_algorithm_sandbox_uses_context_target_coverage(
+def test_generated_algorithm_sandbox_does_not_infer_numeric_target_from_context(
     tmp_path: Path,
 ) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
@@ -37718,17 +38387,15 @@ def test_generated_algorithm_sandbox_uses_context_target_coverage(
         timeout_s=5,
     )
 
-    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert prototype["prototype_status"] == "EXECUTED"
     assert prototype["execution_smoke_passed"] is True
-    assert prototype["smoke_passed"] is False
-    assert "empirical_coverage below target_coverage" in prototype[
-        "metric_gate_errors"
-    ]
+    assert prototype["smoke_passed"] is True
+    assert prototype["metric_gate_errors"] == []
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
     assert tool_call.exit_status == "0"
 
 
-def test_generated_algorithm_sandbox_extracts_question_text_coverage_target(
+def test_generated_algorithm_sandbox_does_not_parse_target_from_question_text(
     tmp_path: Path,
 ) -> None:
     prototype, tool_call = _run_generated_python_sandbox(
@@ -37767,14 +38434,14 @@ def test_generated_algorithm_sandbox_extracts_question_text_coverage_target(
         timeout_s=5,
     )
 
-    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
-    assert prototype["metric_gate_targets"]["target_coverage"] == 0.95
-    assert "coverage below target_coverage" in prototype["metric_gate_errors"]
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["metric_gate_targets"] == {}
+    assert prototype["metric_gate_errors"] == []
     assert tool_call.tool_name == "python.generated_algorithm_sandbox"
     assert tool_call.exit_status == "0"
 
 
-def test_generated_metric_gate_prefers_context_target_over_candidate_target() -> None:
+def test_generated_metric_gate_without_contract_is_execution_only() -> None:
     errors = _generated_sandbox_metric_gate_errors(
         {
             "sandbox_failed": False,
@@ -37785,7 +38452,7 @@ def test_generated_metric_gate_prefers_context_target_over_candidate_target() ->
         context={"target_coverage": 0.95},
     )
 
-    assert "coverage below target_coverage" in errors
+    assert errors == []
 
 
 def test_generated_metric_gate_ignores_candidate_draft_text_target() -> None:
@@ -37805,43 +38472,23 @@ def test_generated_metric_gate_ignores_candidate_draft_text_target() -> None:
     assert "coverage below target_coverage" not in errors
 
 
-def test_generated_metric_gate_policy_owns_domain_trigger_vocabulary() -> None:
-    coverage_source = inspect.getsource(
-        runtime_module._generated_sandbox_requires_coverage_metric
-    )
-    auxiliary_source = inspect.getsource(
-        runtime_module._is_generated_metric_auxiliary_name
-    )
-    oracle_source = inspect.getsource(
-        runtime_module._generated_simulation_oracle_truth_metric_gate_errors
-    )
+def test_generated_metric_gate_runtime_contains_no_domain_trigger_vocabulary() -> None:
+    gate_source = inspect.getsource(
+        runtime_module._generated_sandbox_metric_gate_result
+    ).lower()
 
-    assert "policy_generated_sandbox_requires_coverage_metric" in coverage_source
-    assert "conformal" not in coverage_source
-    assert "prediction interval" not in coverage_source
-    assert "policy_is_generated_metric_auxiliary_name" in auxiliary_source
-    assert "target_coverage" not in auxiliary_source
-    assert "generated_simulation_oracle_truth_names()" in oracle_source
-    assert "generated_simulation_oracle_truth_hardcoded_error()" in oracle_source
-    assert runtime_module._generated_sandbox_requires_coverage_metric(
-        {
-            "next_actions": [
-                {
-                    "acceptance_gate": (
-                        "Empirical coverage >= 0.93 while preserving interval width"
-                    )
-                }
-            ]
-        }
-    ) is True
-    assert runtime_module._generated_sandbox_requires_coverage_metric(
-        {
-            "question": {"tags": ["conformal", "coverage"]},
-            "objective": "review simulation evidence and assumption coverage",
-            "formal_source_rows": [{"coverage_status": "bridge_needed"}],
-            "simulation_targets": ["report empirical FDR and discovery power"],
-        }
-    ) is False
+    for forbidden in (
+        "coverage",
+        "conformal",
+        "prediction interval",
+        "fdr",
+        "benjamini",
+        "oracle_ate",
+        "true_effect",
+    ):
+        assert forbidden not in gate_source
+    assert "typed_metric_contracts" in gate_source
+    assert "execution_only_no_typed_contract" in gate_source
 
 
 def test_generated_metric_gate_does_not_invent_coverage_for_fdr_contract() -> None:
@@ -37864,6 +38511,244 @@ def test_generated_metric_gate_does_not_invent_coverage_for_fdr_contract() -> No
     )
 
     assert "coverage metric required by generated sandbox metric policy" not in errors
+
+
+def test_typed_generated_metric_contract_bypasses_legacy_domain_inference(
+    tmp_path: Path,
+) -> None:
+    metric_contract = {
+        "contract_id": "fdr-control",
+        "artifact_id": "bh_generated",
+        "metric_path": ["stress_cases", "independent", "fdr"],
+        "operator": "<=",
+        "threshold": 0.1,
+        "tolerance": 0.0,
+        "aggregation": "identity",
+        "required": True,
+        "source_anchors": ["architect:fdr-control"],
+    }
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="bh_generated",
+        spec={"id": "bh_generated"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    offset = (int(seed) % 2) * 0.0\n"
+                "    n = max(5, int(replicates))\n"
+                "    return {\n"
+                "        'sandbox_failed': False,\n"
+                "        'stress_cases': {'independent': {'fdr': 0.08 + offset}},\n"
+                "        'replicates': n,\n"
+                "    }\n"
+            )
+        },
+        metric_contracts=[metric_contract],
+        validation_context={
+            "runtime_evaluation_mode": "capability_eval",
+            "question": {"tags": ["conformal", "coverage", "causal"]},
+            "objective": "also mention 95% coverage and ATE bias in prose",
+        },
+        n_runs=10,
+        seed=20260622,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["smoke_passed"] is True
+    assert prototype["metric_gate_policy_mode"] == "typed_artifact_bound"
+    assert prototype["metric_contracts"] == [metric_contract]
+    assert prototype["metric_contract_evaluation"]["all_required_passed"] is True
+    assert prototype["metric_contract_evaluation"]["n_passed"] == 1
+    assert prototype["metric_contract_proof_evidence_status"] == (
+        "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE"
+    )
+    assert "target_coverage" not in prototype["metric_gate_targets"]
+    assert tool_call.exit_status == "0"
+    live_counts = runtime_module._generated_sandbox_live_counts_from_rows(
+        [
+            {
+                **prototype,
+                "source_llm_proposal_provider": "anthropic",
+                "source_llm_proposal_backend_provider": "anthropic",
+                "source_llm_proposal_live_generator": True,
+            }
+        ],
+        generated_executor="generated_python_sandbox",
+    )
+    assert live_counts["typed_metric_contracts_declared"] == 1
+    assert live_counts["typed_metric_contracts_evaluated"] == 1
+    assert live_counts["typed_metric_contracts_passed"] == 1
+    assert live_counts[
+        "typed_metric_contract_artifacts_all_required_passed"
+    ] == 1
+
+
+def test_typed_generated_metric_contract_failure_returns_exact_repair_feedback(
+    tmp_path: Path,
+) -> None:
+    metric_contract = {
+        **_typed_metric_contract_fixture(
+            "bh_generated",
+            metric_path=["fdr"],
+        ),
+        "contract_id": "strict-fdr-control",
+        "operator": "<=",
+        "threshold": 0.05,
+    }
+    prototype, _ = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="bh_generated",
+        spec={"id": "bh_generated"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    n = max(5, int(replicates))\n"
+                "    return {'sandbox_failed': False, 'fdr': 0.08 + "
+                "(int(seed) % 2) * 0.0, 'replicates': n}\n"
+            )
+        },
+        metric_contracts=[metric_contract],
+        validation_context={"runtime_evaluation_mode": "capability_eval"},
+        n_runs=10,
+        seed=20260622,
+        timeout_s=5,
+    )
+    manifest = {
+        "manifest_id": "algorithm_sandbox_manifest:typed-failure",
+        "prototypes": [prototype],
+        "n_prototypes": 1,
+        "n_executed": 1,
+        "n_passed": 0,
+        "n_metric_gate_failed": 1,
+        "n_generated_code_executed": 1,
+    }
+
+    feedback = _algorithm_sandbox_revision_feedback(
+        manifest=manifest,
+        boundary="implementation evidence only",
+        failure_classification="generated_algorithm_sandbox_metric_gate_failed",
+    )
+    feedback_prototype = feedback["prototypes"][0]
+
+    assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert "strict-fdr-control" in prototype["metric_gate_errors"][0]
+    assert feedback_prototype["metric_gate_policy_mode"] == (
+        "typed_artifact_bound"
+    )
+    assert feedback_prototype["metric_contracts"] == [metric_contract]
+    assert feedback_prototype["metric_contract_evaluation"][
+        "all_required_passed"
+    ] is False
+    assert "strict-fdr-control" in json.dumps(feedback)
+    assert "Keep every contract_id" in feedback["required_repair"]
+
+
+def test_capability_runtime_rejects_generated_code_without_typed_contract(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:typed-contract-required"
+    simulation_manifest_id = "simulation:typed-contract-required"
+    estimator_id = "uncontracted_estimator"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "estimator_specs": [{"id": estimator_id, "name": "custom"}],
+            },
+            simulation_manifest_id: {
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+        },
+    )
+
+    class UncontractedAlgorithmEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            return {
+                "packet_id": "algorithm_engineer_proposal:uncontracted",
+                "implementation_targets": [
+                    {
+                        "estimator_id": estimator_id,
+                        "registered_template_hint": "none",
+                    }
+                ],
+                    "sandbox_code_drafts": [
+                    {
+                        "estimator_id": estimator_id,
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return {'metric': 1.0, 'replicates': "
+                            "int(replicates), 'seed': int(seed)}\n"
+                        ),
+                    }
+                ],
+            }
+
+    subsystem = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        proposal_agent=UncontractedAlgorithmEngineer(),
+        n_runs=12,
+        seed=20260623,
+    )
+    task = AgentTask(
+        task_id="algorithm:typed-contract-required",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Reject capability code that has no pre-execution contract.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": [{"estimator_id": estimator_id}],
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_algorithm_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_contract_policy": (
+                        "typed_artifact_bound_required"
+                    ),
+                },
+            },
+        },
+        expected_artifacts=("algorithm_sandbox_manifest",),
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+    prototype = manifest["prototypes"][0]
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "generated_algorithm_typed_metric_contract_missing"
+    )
+    assert manifest["n_executed"] == 0
+    assert prototype["prototype_status"] == (
+        "TYPED_METRIC_CONTRACT_REQUIRED_BUT_MISSING"
+    )
+    assert prototype["metric_gate_policy_mode"] == (
+        "typed_artifact_bound_required_missing"
+    )
+    assert not any(
+        tool_call.tool_name == "python.generated_algorithm_sandbox"
+        for tool_call in result.tool_calls
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
 
 
 def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> None:
@@ -38354,17 +39239,15 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
     assert '"empirical_coverage":"0.0"' in prompt
     assert '"target_coverage":"0.9"' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
-    assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "Keep every contract_id" in prompt
+    assert "Do not rename the required result path" in prompt
     assert (
-        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
-        "and code_excerpt"
+        "Read metric_contracts, metric_contract_evaluation, metric_gate_errors"
     ) in prompt
-    assert "target/DGP/estimator alignment" in prompt
-    assert "wrong center" in prompt
-    assert "oracle truth from the DGP" in prompt
-    assert "do not hard-code true_ate" in prompt
-    assert "vacuous all-covering" in prompt
-    assert "utility diagnostics" in prompt
+    assert "lower or remove a threshold" in prompt
+    assert "empirical execution evidence only" in prompt
+    assert "do not hard-code true_ate" not in prompt
+    assert "vacuous all-covering" not in prompt
     assert "mean_width" in prompt
     assert "widen the half-width" not in prompt
 
@@ -38458,7 +39341,8 @@ def test_algorithm_sandbox_failure_memory_replays_to_algorithm_prompt(
     assert "empirical_coverage is degenerate zero coverage" in prompt
     assert "def run_sandbox" in prompt
     assert "metric gate failed after local execution" in prompt
-    assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "Keep every contract_id" in prompt
+    assert "Do not rename the required result path" in prompt
 
 
 def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompts(
@@ -39175,18 +40059,244 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert '"mean_coverage":"0.0"' in prompt
     assert '"target_coverage":"0.9"' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
-    assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "Keep every contract_id" in prompt
+    assert "Do not rename the required result path" in prompt
     assert (
-        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
-        "and code_excerpt"
+        "Read metric_contracts, metric_contract_evaluation, metric_gate_errors"
     ) in prompt
-    assert "target/DGP/estimator alignment" in prompt
-    assert "oracle truth from the DGP" in prompt
-    assert "do not hard-code true_ate" in prompt
-    assert "vacuous all-covering" in prompt
-    assert "utility diagnostics" in prompt
+    assert "lower or remove a threshold" in prompt
+    assert "empirical execution evidence only" in prompt
+    assert "do not hard-code true_ate" not in prompt
+    assert "vacuous all-covering" not in prompt
     assert "mean_width" in prompt
     assert "widen the half-width" not in prompt
+
+
+def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-packet-validation"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [],
+                "simulation_ademp_spec": {"aim": "validate generated packet"},
+            }
+        },
+    )
+
+    class InvalidSimulationEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM SimulatorEngineer packet",
+                attempts=2,
+                errors=[
+                    "metric_contracts must bind every required artifact_id; "
+                    "missing: custom_stress"
+                ],
+                history=[
+                    {
+                        "attempt_index": 1,
+                        "ok": False,
+                        "errors": ["missing typed metric contract"],
+                    }
+                ],
+            )
+
+    subsystem = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=InvalidSimulationEngineer(),
+        sandbox_root=tmp_path / "generated_simulation_sandbox",
+    )
+    task = AgentTask(
+        task_id="simulation:packet-validation",
+        owner_subsystem="SimulationEvaluator",
+        objective="Repair a locally invalid generated simulation packet.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 12,
+            "seed": 20260623,
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_simulation_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_contract_policy": (
+                        "typed_artifact_bound_required"
+                    ),
+                },
+            },
+        },
+        expected_artifacts=("simulation_manifest",),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.failure_classification == (
+        "simulation_engineer_packet_validation_failed"
+    )
+    failure = next(iter(result.produced_artifacts.values()))
+    assert failure["artifact_kind"] == (
+        "RuntimeSimulationEngineerValidationFailure"
+    )
+    assert failure["proof_evidence_status"] == "NOT_PROOF_EVIDENCE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["failure_classification"] == (
+        "simulation_engineer_packet_validation_failed"
+    )
+    assert "custom_stress" in feedback["validation_errors"][0]
+    assert "metric_contracts" in feedback["required_repair"]
+    assert (
+        result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
+            "handoff"
+        ]
+        == "simulation_engineer_packet_validation_repair"
+    )
+    assert feedback["consecutive_packet_validation_round"] == 1
+    assert feedback["packet_validation_replan_required"] is False
+
+
+def test_coding_packet_validation_feedback_is_scoped_and_routes_to_architect() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    authority_rows = [
+        {
+            "requirement_id": "algorithm_gate",
+            "target_subsystems": ["AlgorithmEngineer"],
+            "metric_semantics": "algorithm metric",
+            "measurement_protocol": "algorithm protocol",
+            "required_runtime_replicates": 8,
+            "operator": ">=",
+            "threshold": 0.7,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.0,
+            "aggregation": "identity",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": ["architect:algorithm"],
+        },
+        {
+            "requirement_id": "simulation_gate",
+            "target_subsystems": ["SimulationEngineer"],
+            "metric_semantics": "simulation metric",
+            "measurement_protocol": "simulation protocol",
+            "required_runtime_replicates": 8,
+            "operator": "<=",
+            "threshold": 0.2,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.01,
+            "aggregation": "mean",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": ["architect:simulation"],
+        },
+    ]
+    evidence_contract = {
+        "capability_eval_requires_generated_algorithm_code": True,
+        "capability_eval_requires_generated_simulation_code": True,
+        "generated_metric_requirement_authority_policy": (
+            "architect_authored_coding_agent_bound_required"
+        ),
+        "empirical_metric_requirements": authority_rows,
+    }
+    validation_error = (
+        "metric_contracts must bind every authoritative required metric "
+        "requirement; missing: simulation_gate"
+    )
+    simulation_prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:scoped", "theorem_cards": []},
+        registered_problem={"problem_class": "generic", "estimand": "target"},
+        registered_procedures=[],
+        n_runs=8,
+        seed=17,
+        environment_feedback={
+            "feedback_type": "simulation_engineer_packet_validation_feedback",
+            "failure_classification": "simulation_engineer_packet_validation_failed",
+            "validation_errors": [validation_error],
+            "architect_evidence_contract": evidence_contract,
+        },
+    )
+    algorithm_prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:scoped", "theorem_cards": []},
+        simulation_manifest={"manifest_id": "simulation:scoped"},
+        implementation_gaps=[{"estimator_id": "generated_estimator"}],
+        environment_feedback={
+            "feedback_type": "algorithm_engineer_packet_validation_feedback",
+            "failure_classification": "algorithm_engineer_packet_validation_failed",
+            "validation_errors": [
+                "metric_contracts missing authoritative requirement algorithm_gate"
+            ],
+            "architect_evidence_contract": evidence_contract,
+        },
+    )
+
+    assert "Local packet-validator feedback is active" in simulation_prompt
+    assert validation_error in simulation_prompt
+    assert "simulation_gate" in simulation_prompt
+    assert "algorithm_gate" not in simulation_prompt
+    assert "Local packet-validator feedback is active" in algorithm_prompt
+    assert "algorithm_gate" in algorithm_prompt
+    assert "simulation_gate" not in algorithm_prompt
+
+    task = AgentTask(
+        task_id="simulation:architect-replan",
+        owner_subsystem="SimulationEvaluator",
+        objective="repair invalid packet",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": "theory:scoped",
+            "architect_context": {},
+        },
+    )
+    result = runtime_module._simulation_engineer_packet_validation_failure_result(
+        task=task,
+        question=question,
+        theory_packet_id="theory:scoped",
+        context={},
+        exc=PacketValidationError(
+            validation_label="LLM SimulatorEngineer packet",
+            attempts=2,
+            errors=[validation_error],
+            history=[],
+        ),
+        n_runs=8,
+        seed=17,
+        replan_after_attempts=1,
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    replan = result.next_task.inputs["architect_context"][
+        "runtime_packet_validation_replan"
+    ]
+    assert replan["source_subsystem"] == "SimulationEvaluator"
+    assert replan["validation_errors"] == [validation_error]
+    assert replan["proof_evidence_status"] == (
+        "CODING_AGENT_PACKET_VALIDATION_REPLAN_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_generated_simulation_failure_memory_replays_to_simulator_prompt(
@@ -39656,6 +40766,8 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert "entrypoint field exactly to run_sandbox" in feedback["required_repair"]
     assert "estimator_id" in feedback["required_repair"]
     assert "registered_template_hint=\"none\"" in feedback["required_repair"]
+    assert "metric_contracts" in feedback["required_repair"]
+    assert "source anchors" in feedback["required_repair"]
     assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
     assert "draft estimator_id" in feedback["target_behavior"]
 
@@ -39953,6 +41065,17 @@ def test_algorithm_engineer_revises_after_generated_code_metric_gate_failure(
                         ),
                     }
                 ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "custom_estimator",
+                            metric_path=["empirical_coverage"],
+                        ),
+                        "contract_id": "nondegenerate-algorithm-metric",
+                        "operator": ">",
+                        "threshold": 0.0,
+                    }
+                ],
             }
 
     subsystem = AlgorithmEngineerRuntimeSubsystem(
@@ -40003,14 +41126,13 @@ def test_algorithm_engineer_revises_after_generated_code_metric_gate_failure(
     assert feedback["failure_classification"] == "generated_algorithm_sandbox_metric_gate_failed"
     assert feedback["n_metric_gate_failed"] == 1
     assert feedback["prototypes"][0]["prototype_status"] == "FAILED_METRIC_GATE"
-    assert "empirical_coverage is degenerate zero coverage" in feedback["prototypes"][0][
+    assert "nondegenerate-algorithm-metric" in feedback["prototypes"][0][
         "metric_gate_errors"
-    ]
+    ][0]
     assert "metric-failing draft" in feedback["required_repair"]
     assert "Runtime metric-gate repair is active" in feedback["required_repair"]
     assert (
-        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
-        "and code_excerpt"
+        "Read metric_contracts, metric_contract_evaluation, metric_gate_errors"
     ) in feedback["required_repair"]
 
 
@@ -40076,7 +41198,7 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
                 assert isinstance(prototypes, list)
                 assert prototypes[0]["prototype_status"] == "FAILED_METRIC_GATE"
                 assert any(
-                    "degenerate zero coverage" in error
+                    "algorithm-repair-contract" in error
                     for error in prototypes[0]["metric_gate_errors"]
                 )
                 code = (
@@ -40112,6 +41234,18 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
                         "language": "python",
                         "entrypoint": "run_sandbox",
                         "code": code,
+                    }
+                ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "custom_estimator",
+                            metric_path=["empirical_coverage"],
+                            required_runtime_replicates=12,
+                        ),
+                        "contract_id": "algorithm-repair-contract",
+                        "operator": ">=",
+                        "threshold": 0.8,
                     }
                 ],
             }
@@ -40153,8 +41287,24 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
             "seed": 20260623,
             "architect_context": {
                 "runtime_evaluation_mode": "capability_eval",
+                "architect_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
+                    "empirical_metric_requirements": [
+                        _typed_metric_requirement_fixture(
+                            "AlgorithmEngineer",
+                            threshold=0.8,
+                        )
+                    ],
+                },
                 "runtime_requested_evidence_contract": {
                     "capability_eval_requires_generated_algorithm_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
                 },
             },
         },
@@ -40163,8 +41313,40 @@ def test_agent_runtime_repairs_generated_algorithm_metric_gate_failure(
 
     result = runtime.run(initial_task, max_iterations=2)
 
-    assert result.status == "MAX_ITERATIONS_REACHED"
-    assert proposal_agent.calls == 2
+    assert result.status == "MAX_ITERATIONS_REACHED", {
+        "traces": [
+            (
+                trace.subsystem,
+                trace.status,
+                trace.failure_classification,
+                trace.rationale,
+            )
+            for trace in result.traces
+        ],
+        "prototype_diagnostics": [
+            (
+                prototype.get("prototype_status"),
+                prototype.get("metric_requirement_authority_errors"),
+                prototype.get("reason"),
+            )
+            for artifact in result.blackboard.artifacts.values()
+            if isinstance(artifact, dict)
+            and artifact.get("artifact_kind")
+            == "RuntimeAlgorithmSandboxManifest"
+            for prototype in artifact.get("prototypes", [])
+            if isinstance(prototype, dict)
+        ],
+    }
+    assert proposal_agent.calls == 2, [
+        (
+            trace.subsystem,
+            trace.status,
+            trace.failure_classification,
+            trace.rationale,
+            trace.next_task.owner_subsystem if trace.next_task is not None else "",
+        )
+        for trace in result.traces
+    ]
     assert result.traces[0].status == "REVISE"
     assert (
         result.traces[0].failure_classification
@@ -40297,6 +41479,16 @@ def test_algorithm_engineer_refreshes_stale_generated_metric_gate_failure(
                             "coverage.0.mean_width must be in [0, 1]",
                             "coverage.0.n_calib must be in [0, 1]",
                         ],
+                        "metric_contracts": [
+                            _typed_metric_contract_fixture(
+                                "custom_estimator",
+                                metric_path=[
+                                    "coverage",
+                                    1,
+                                    "empirical_coverage",
+                                ],
+                            )
+                        ],
                         "metrics": stale_metrics,
                         "code_excerpt": (
                             "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -40395,7 +41587,7 @@ def test_algorithm_engineer_refreshes_stale_generated_metric_gate_failure(
     )
 
 
-def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
+def test_agent_runtime_routes_exhausted_algorithm_metric_gate_to_architect(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -40454,10 +41646,19 @@ def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
                         ),
                     }
                 ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "custom_estimator",
+                            required_runtime_replicates=12,
+                        ),
+                        "contract_id": "algorithm-yield-contract",
+                    }
+                ],
             }
 
-    class RecordingFormalizationSubsystem:
-        name = "FormalizationEvaluator"
+    class RecordingArchitectSubsystem:
+        name = "ArchitectCoordinator"
 
         def __init__(self) -> None:
             self.tasks: list[AgentTask] = []
@@ -40470,11 +41671,11 @@ def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
             self.tasks.append(task)
             return AgentStepResult(
                 status="ACCEPTED",
-                rationale="recorded formalization work after algorithm yield",
+                rationale="recorded cross-subsystem metric-gate replan",
             )
 
     proposal_agent = AlwaysFailingAlgorithmEngineer()
-    formalizer = RecordingFormalizationSubsystem()
+    architect = RecordingArchitectSubsystem()
     runtime = AgentRuntime(
         blackboard=blackboard,
         subsystems={
@@ -40485,7 +41686,7 @@ def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
                 proposal_agent=proposal_agent,
                 timeout_s=20,
             ),
-            "FormalizationEvaluator": formalizer,
+            "ArchitectCoordinator": architect,
         },
     )
     initial_task = AgentTask(
@@ -40512,8 +41713,21 @@ def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
             "seed": 20260623,
             "architect_context": {
                 "runtime_evaluation_mode": "capability_eval",
+                "architect_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
+                    "empirical_metric_requirements": [
+                        _typed_metric_requirement_fixture("AlgorithmEngineer")
+                    ],
+                },
                 "runtime_requested_evidence_contract": {
                     "capability_eval_requires_generated_algorithm_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
                     "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts": 1,
                 },
             },
@@ -40523,42 +41737,47 @@ def test_agent_runtime_yields_algorithm_repair_budget_to_formalization(
 
     result = runtime.run(initial_task, max_iterations=3)
 
-    assert result.status == "ACCEPTED"
+    assert result.status == "ACCEPTED", [
+        (
+            trace.subsystem,
+            trace.status,
+            trace.failure_classification,
+            trace.rationale,
+            trace.next_task.owner_subsystem
+            if trace.next_task is not None
+            else "",
+        )
+        for trace in result.traces
+    ]
     assert proposal_agent.calls == 2
     assert result.traces[0].status == "REVISE"
     assert result.traces[0].next_task is not None
     assert result.traces[0].next_task.owner_subsystem == "AlgorithmEngineer"
-    assert result.traces[1].status == "REVISE"
+    assert result.traces[1].status == "REROUTE"
     assert result.traces[1].next_task is not None
-    assert result.traces[1].next_task.owner_subsystem == "FormalizationEvaluator"
-    assert (
-        "bounded repair budget"
-        in result.traces[1].rationale
-    )
-    assert result.traces[2].subsystem == "FormalizationEvaluator"
-    assert len(formalizer.tasks) == 1
+    assert result.traces[1].next_task.owner_subsystem == "ArchitectCoordinator"
+    assert "cross-subsystem diagnosis" in result.traces[1].rationale
+    assert result.traces[2].subsystem == "ArchitectCoordinator"
+    assert len(architect.tasks) == 1
 
-    yielded_task = formalizer.tasks[0]
-    feedback = yielded_task.inputs["environment_feedback"]
-    assert feedback["feedback_type"] == (
-        "algorithm_engineer_repair_budget_yield_feedback"
-    )
+    replan_task = architect.tasks[0]
+    feedback = replan_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == "algorithm_sandbox_execution_feedback"
     assert feedback["failure_classification"] == (
         "generated_algorithm_sandbox_metric_gate_failed"
     )
-    assert feedback["algorithm_repair_attempts_used"] == 1
-    assert feedback["algorithm_repair_yield_after_attempts"] == 1
-    assert feedback["execution_evidence_status"] == (
-        "ALGORITHM_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_CODE_GATE"
+    replan = replan_task.inputs["architect_context"][
+        "runtime_metric_gate_replan"
+    ]
+    assert replan["source_subsystem"] == "AlgorithmEngineer"
+    assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert replan["metric_evaluations"]
+    assert replan["metric_evaluations"][0]["passed"] is False
+    assert "Do not weaken, delete, or post-hoc reinterpret" in (
+        replan["gate_revision_policy"]
     )
-    assert feedback["proof_evidence_status"] == (
-        "ALGORITHM_REPAIR_YIELD_NOT_PROOF_EVIDENCE"
-    )
-    assert (
-        yielded_task.inputs["architect_context"]["runtime_feedback_loop"][
-            "handoff"
-        ]
-        == "algorithm_engineer_repair_budget_yield_to_formalization"
+    assert replan["proof_evidence_status"] == (
+        "CODING_AGENT_METRIC_GATE_REPLAN_NOT_PROOF_EVIDENCE"
     )
 
 
@@ -41590,7 +42809,7 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
                 assert isinstance(prototypes, list)
                 assert prototypes[0]["prototype_status"] == "FAILED_METRIC_GATE"
                 assert any(
-                    "degenerate zero coverage" in error
+                    "simulation-repair-contract" in error
                     for error in prototypes[0]["metric_gate_errors"]
                 )
                 code = (
@@ -41647,6 +42866,18 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
                         "code": code,
                     }
                 ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "coverage_stress_repair",
+                            metric_path=["empirical_coverage"],
+                            required_runtime_replicates=12,
+                        ),
+                        "contract_id": "simulation-repair-contract",
+                        "operator": ">=",
+                        "threshold": 0.8,
+                    }
+                ],
                 "simulation_evidence_status": (
                     "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
                 ),
@@ -41680,8 +42911,24 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
             "seed": 20260623,
             "architect_context": {
                 "runtime_evaluation_mode": "capability_eval",
+                "architect_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
+                    "empirical_metric_requirements": [
+                        _typed_metric_requirement_fixture(
+                            "SimulationEngineer",
+                            threshold=0.8,
+                        )
+                    ],
+                },
                 "runtime_requested_evidence_contract": {
                     "capability_eval_requires_generated_simulation_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
                 },
             },
         },
@@ -41690,7 +42937,31 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
 
     result = runtime.run(initial_task, max_iterations=2)
 
-    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.status == "MAX_ITERATIONS_REACHED", {
+        "traces": [
+            (
+                trace.subsystem,
+                trace.status,
+                trace.failure_classification,
+                trace.rationale,
+            )
+            for trace in result.traces
+        ],
+        "prototype_diagnostics": [
+            (
+                prototype.get("prototype_status"),
+                prototype.get("metric_requirement_authority_errors"),
+                prototype.get("reason"),
+            )
+            for artifact in result.blackboard.artifacts.values()
+            if isinstance(artifact, dict)
+            and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+            for prototype in artifact.get(
+                "generated_simulation_sandbox_prototypes", []
+            )
+            if isinstance(prototype, dict)
+        ],
+    }
     assert proposal_agent.calls == 2
     assert result.traces[0].status == "REVISE"
     assert (
@@ -41772,7 +43043,7 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
     )
 
 
-def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
+def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -41829,6 +43100,15 @@ def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
                         ),
                     }
                 ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "coverage_stress_yield",
+                            required_runtime_replicates=12,
+                        ),
+                        "contract_id": "simulation-yield-contract",
+                    }
+                ],
                 "simulation_evidence_status": (
                     "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
                 ),
@@ -41836,8 +43116,8 @@ def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
                 "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             }
 
-    class RecordingFormalizationSubsystem:
-        name = "FormalizationEvaluator"
+    class RecordingArchitectSubsystem:
+        name = "ArchitectCoordinator"
 
         def __init__(self) -> None:
             self.tasks: list[AgentTask] = []
@@ -41850,11 +43130,11 @@ def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
             self.tasks.append(task)
             return AgentStepResult(
                 status="ACCEPTED",
-                rationale="recorded formalization work after simulation yield",
+                rationale="recorded cross-subsystem metric-gate replan",
             )
 
     proposal_agent = AlwaysFailingSimulationEngineer()
-    formalizer = RecordingFormalizationSubsystem()
+    architect = RecordingArchitectSubsystem()
     runtime = AgentRuntime(
         blackboard=blackboard,
         subsystems={
@@ -41862,7 +43142,7 @@ def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
                 proposal_agent=proposal_agent,
                 sandbox_root=tmp_path / "generated_simulation_sandbox",
             ),
-            "FormalizationEvaluator": formalizer,
+            "ArchitectCoordinator": architect,
         },
     )
     initial_task = AgentTask(
@@ -41881,8 +43161,213 @@ def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
             "seed": 20260623,
             "architect_context": {
                 "runtime_evaluation_mode": "capability_eval",
+                "architect_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
+                    "empirical_metric_requirements": [
+                        _typed_metric_requirement_fixture("SimulationEngineer")
+                    ],
+                },
                 "runtime_requested_evidence_contract": {
                     "capability_eval_requires_generated_simulation_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
+                    "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+                },
+            },
+        },
+        expected_artifacts=("simulation_manifest",),
+    )
+
+    result = runtime.run(initial_task, max_iterations=3)
+
+    assert result.status == "ACCEPTED", [
+        (
+            trace.subsystem,
+            trace.status,
+            trace.failure_classification,
+            trace.rationale,
+            trace.next_task.owner_subsystem
+            if trace.next_task is not None
+            else "",
+        )
+        for trace in result.traces
+    ]
+    assert proposal_agent.calls == 2
+    assert result.traces[0].status == "REVISE"
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.traces[1].status == "REROUTE"
+    assert result.traces[1].next_task is not None
+    assert result.traces[1].next_task.owner_subsystem == "ArchitectCoordinator"
+    assert "cross-subsystem diagnosis" in result.traces[1].rationale
+    assert result.traces[2].subsystem == "ArchitectCoordinator"
+    assert len(architect.tasks) == 1
+
+    replan_task = architect.tasks[0]
+    feedback = replan_task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == (
+        "generated_simulation_sandbox_execution_feedback"
+    )
+    assert feedback["failure_classification"] == (
+        "generated_simulation_sandbox_metric_gate_failed"
+    )
+    replan = replan_task.inputs["architect_context"][
+        "runtime_metric_gate_replan"
+    ]
+    assert replan["source_subsystem"] == "SimulationEvaluator"
+    assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert replan["metric_evaluations"]
+    assert replan["metric_evaluations"][0]["passed"] is False
+    assert "Do not weaken, delete, or post-hoc reinterpret" in (
+        replan["gate_revision_policy"]
+    )
+    assert replan["proof_evidence_status"] == (
+        "CODING_AGENT_METRIC_GATE_REPLAN_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_exhausted_simulation_metric_gate_replan_preserves_algorithm_route(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-yield-open-algorithm-gap"
+    estimator_id = "unregistered_generated_estimator"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [
+                    {
+                        "id": estimator_id,
+                        "name": "unregistered generated estimator",
+                    }
+                ],
+                "simulation_ademp_spec": {
+                    "aim": "preserve algorithm work after simulation repair yield"
+                },
+            }
+        },
+    )
+
+    class AlwaysFailingTypedSimulationEngineer:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            simulation_id = "typed_simulation_yield"
+            return {
+                "packet_id": f"simulation_engineer_proposal:typed:{self.calls}",
+                "simulation_targets": [
+                    {
+                        "procedure_id": "split_conformal_interval",
+                        "estimand": "coverage",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260623,
+                },
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": simulation_id,
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    n = max(5, int(replicates))\n"
+                            "    return {'sandbox_failed': False, "
+                            "'calibration': 0.1 + (int(seed) % 2) * 0.0, "
+                            "'replicates': n}\n"
+                        ),
+                    }
+                ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            simulation_id,
+                            metric_path=["calibration"],
+                            required_runtime_replicates=12,
+                        ),
+                        "contract_id": "required-calibration",
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    class RecordingArchitectSubsystem:
+        name = "ArchitectCoordinator"
+
+        def __init__(self) -> None:
+            self.tasks: list[AgentTask] = []
+
+        def run(
+            self,
+            task: AgentTask,
+            _blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.tasks.append(task)
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="recorded cross-subsystem metric-gate replan",
+            )
+
+    proposal_agent = AlwaysFailingTypedSimulationEngineer()
+    architect = RecordingArchitectSubsystem()
+    runtime = AgentRuntime(
+        blackboard=blackboard,
+        subsystems={
+            "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
+                proposal_agent=proposal_agent,
+                sandbox_root=tmp_path / "generated_simulation_sandbox",
+            ),
+            "ArchitectCoordinator": architect,
+        },
+    )
+    initial_task = AgentTask(
+        task_id="simulation:typed-yield-to-algorithm",
+        owner_subsystem="SimulationEvaluator",
+        objective="Do not starve open algorithm work after simulation failure.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 12,
+            "seed": 20260623,
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "architect_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "generated_metric_requirement_authority_policy": (
+                        "architect_authored_coding_agent_bound_required"
+                    ),
+                    "empirical_metric_requirements": [
+                        _typed_metric_requirement_fixture("SimulationEngineer")
+                    ],
+                },
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_simulation_code": True,
+                    "capability_eval_requires_generated_algorithm_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                    "generated_metric_contract_policy": (
+                        "typed_artifact_bound_required"
+                    ),
                     "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
                 },
             },
@@ -41894,38 +43379,23 @@ def test_agent_runtime_yields_simulation_repair_budget_to_formalization(
 
     assert result.status == "ACCEPTED"
     assert proposal_agent.calls == 2
-    assert result.traces[0].status == "REVISE"
     assert result.traces[0].next_task is not None
     assert result.traces[0].next_task.owner_subsystem == "SimulationEvaluator"
-    assert result.traces[1].status == "REVISE"
     assert result.traces[1].next_task is not None
-    assert result.traces[1].next_task.owner_subsystem == "FormalizationEvaluator"
-    assert "bounded repair budget" in result.traces[1].rationale
-    assert result.traces[2].subsystem == "FormalizationEvaluator"
-    assert len(formalizer.tasks) == 1
-
-    yielded_task = formalizer.tasks[0]
-    feedback = yielded_task.inputs["environment_feedback"]
-    assert feedback["feedback_type"] == (
-        "simulation_evaluator_repair_budget_yield_feedback"
-    )
+    assert result.traces[1].next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.traces[2].subsystem == "ArchitectCoordinator"
+    assert len(architect.tasks) == 1
+    replan_task = architect.tasks[0]
+    feedback = replan_task.inputs["environment_feedback"]
     assert feedback["failure_classification"] == (
         "generated_simulation_sandbox_metric_gate_failed"
     )
-    assert feedback["simulation_repair_attempts_used"] == 1
-    assert feedback["simulation_repair_yield_after_attempts"] == 1
-    assert feedback["execution_evidence_status"] == (
-        "SIMULATION_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_SIMULATION_GATE"
-    )
-    assert feedback["proof_evidence_status"] == (
-        "SIMULATION_REPAIR_YIELD_NOT_PROOF_EVIDENCE"
-    )
-    assert (
-        yielded_task.inputs["architect_context"]["runtime_feedback_loop"][
-            "handoff"
-        ]
-        == "simulation_evaluator_repair_budget_yield_to_formalization"
-    )
+    replan = replan_task.inputs["architect_context"][
+        "runtime_metric_gate_replan"
+    ]
+    assert replan["deferred_next_owner_subsystem"] == "AlgorithmEngineer"
+    assert replan["metric_evaluations"][0]["passed"] is False
+    assert replan["pending_artifact_ids"]["theory_packet_id"] == theory_packet_id
 
 
 def test_generated_simulation_sandbox_accepts_nested_coverage_metrics() -> None:
@@ -41978,7 +43448,7 @@ def test_generated_simulation_sandbox_accepts_coverage_parent_metric_grids() -> 
     assert errors == []
 
 
-def test_generated_simulation_sandbox_rejects_degenerate_coverage_parent_grid() -> None:
+def test_generated_simulation_sandbox_does_not_infer_parent_grid_gate() -> None:
     errors = _generated_sandbox_metric_gate_errors(
         {
             "sandbox_failed": False,
@@ -41990,7 +43460,7 @@ def test_generated_simulation_sandbox_rejects_degenerate_coverage_parent_grid() 
         context={"question": {"tags": ["conformal", "coverage"]}},
     )
 
-    assert "coverage_by_alpha.sin_alpha_0.1 is degenerate zero coverage" in errors
+    assert errors == []
 
 
 def test_generated_sandbox_coverage_record_lists_ignore_noncoverage_siblings() -> None:
@@ -42020,7 +43490,7 @@ def test_generated_sandbox_coverage_record_lists_ignore_noncoverage_siblings() -
     assert errors == []
 
 
-def test_generated_simulation_sandbox_rejects_nested_degenerate_coverage_metric() -> None:
+def test_generated_simulation_sandbox_does_not_infer_nested_metric_gate() -> None:
     errors = _generated_sandbox_metric_gate_errors(
         {
             "sandbox_failed": False,
@@ -42034,13 +43504,13 @@ def test_generated_simulation_sandbox_rejects_nested_degenerate_coverage_metric(
         context={"question": {"tags": ["conformal", "coverage"]}},
     )
 
-    assert "stress_grid.alpha0.1.coverage is degenerate zero coverage" in errors
+    assert errors == []
 
 
-def test_generated_simulation_metric_gate_flags_hardcoded_oracle_truth() -> None:
+def test_generated_simulation_metric_gate_does_not_inspect_variable_names() -> None:
     code = (
         "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-        "    n = max(5, int(replicates))\n"
+        "    n = max(5, int(replicates) + int(seed) * 0)\n"
         "    true_ate = 0.3\n"
         "    mu1_true = [0.5 * i + 0.2 * i * i + 0.3 for i in range(n)]\n"
         "    mu0_true = [0.1 * i - 0.1 * i * i for i in range(n)]\n"
@@ -42067,8 +43537,7 @@ def test_generated_simulation_metric_gate_flags_hardcoded_oracle_truth() -> None
         code=code,
     )
 
-    assert "coverage_95 below target_coverage" in errors
-    assert any("oracle truth appears hard-coded" in error for error in errors)
+    assert errors == []
 
 
 def test_generated_sandbox_capability_eval_requires_seed_and_replicates_use() -> None:
@@ -42123,10 +43592,19 @@ def test_generated_sandbox_capability_eval_accepts_seeded_stress_code() -> None:
     assert not any("must use the replicates argument" in error for error in errors)
 
 
-def test_generated_algorithm_feedback_carries_context_metric_gate_targets(
+def test_generated_algorithm_feedback_carries_typed_metric_contract(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    metric_contract = {
+        **_typed_metric_contract_fixture(
+            "target_probe",
+            metric_path=["empirical_coverage"],
+        ),
+        "contract_id": "explicit-target-probe",
+        "operator": ">=",
+        "threshold": 0.9,
+    }
     prototype, _tool_call = _run_generated_python_sandbox(
         sandbox_dir=tmp_path,
         estimator_id="target_probe",
@@ -42148,18 +43626,16 @@ def test_generated_algorithm_feedback_carries_context_metric_gate_targets(
         },
         validation_context={
             "runtime_evaluation_mode": "capability_eval",
-            "target_coverage": 0.9,
         },
+        metric_contracts=[metric_contract],
         n_runs=10,
         seed=20260701,
         timeout_s=5,
     )
 
     assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
-    assert prototype["metric_gate_targets"]["target_coverage"] == 0.9
-    assert "empirical_coverage below target_coverage" in prototype[
-        "metric_gate_errors"
-    ]
+    assert prototype["metric_gate_targets"]["n_metric_contracts"] == 1
+    assert "explicit-target-probe" in prototype["metric_gate_errors"][0]
 
     feedback = _algorithm_sandbox_revision_feedback(
         manifest={
@@ -42176,7 +43652,7 @@ def test_generated_algorithm_feedback_carries_context_metric_gate_targets(
         failure_classification="generated_algorithm_sandbox_metric_gate_failed",
     )
 
-    assert feedback["prototypes"][0]["metric_gate_targets"]["target_coverage"] == 0.9
+    assert feedback["prototypes"][0]["metric_contracts"] == [metric_contract]
     prompt = build_algorithm_engineer_prompt(
         question=question,
         theory_packet={
@@ -42201,8 +43677,8 @@ def test_generated_algorithm_feedback_carries_context_metric_gate_targets(
         environment_feedback=feedback,
     )
 
-    assert "metric_gate_targets" in prompt
-    assert '"target_coverage":"0.9"' in prompt
+    assert "metric_contracts" in prompt
+    assert "explicit-target-probe" in prompt
 
 
 def test_generated_python_sandbox_capability_eval_fails_shallow_seedless_draft(
@@ -42382,6 +43858,17 @@ def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(
                         ),
                     }
                 ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "degenerate_coverage",
+                            metric_path=["mean_coverage"],
+                        ),
+                        "contract_id": "nondegenerate-generated-metric",
+                        "operator": ">",
+                        "threshold": 0.0,
+                    }
+                ],
                 "simulation_evidence_status": "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE",
                 "simulations_executed": False,
                 "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -42425,16 +43912,15 @@ def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(
     assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
     assert prototype["execution_smoke_passed"] is True
     assert prototype["smoke_passed"] is False
-    assert "mean_coverage is degenerate zero coverage" in prototype["metric_gate_errors"]
+    assert "nondegenerate-generated-metric" in prototype["metric_gate_errors"][0]
     feedback = result.next_task.inputs["environment_feedback"]
     assert "Runtime metric-gate repair is active" in feedback["required_repair"]
     assert (
-        "Read the previous metric_gate_errors, metrics, metric_gate_targets, "
-        "and code_excerpt"
+        "Read metric_contracts, metric_contract_evaluation, metric_gate_errors"
     ) in feedback["required_repair"]
 
 
-def test_generated_simulation_sandbox_requires_coverage_metric_for_coverage_target(
+def test_generated_simulation_sandbox_requires_explicit_metric_path(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -42495,6 +43981,17 @@ def test_generated_simulation_sandbox_requires_coverage_metric_for_coverage_targ
                         ),
                     }
                 ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            "custom_stress",
+                            metric_path=["empirical_coverage"],
+                        ),
+                        "contract_id": "required-result-path",
+                        "operator": ">=",
+                        "threshold": 0.9,
+                    }
+                ],
                 "simulation_evidence_status": "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE",
                 "simulations_executed": False,
                 "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -42536,9 +44033,8 @@ def test_generated_simulation_sandbox_requires_coverage_metric_for_coverage_targ
     assert manifest["n_generated_simulation_sandbox_passed"] == 0
     assert manifest["n_generated_simulation_sandbox_metric_gate_failed"] == 1
     assert prototype["prototype_status"] == "FAILED_METRIC_GATE"
-    assert generated_coverage_metric_required_error() in prototype[
-        "metric_gate_errors"
-    ]
+    assert "required-result-path" in prototype["metric_gate_errors"][0]
+    assert "resolved no values" in prototype["metric_gate_errors"][0]
 
 
 def test_generated_sandbox_repair_sequence_counts_require_explicit_artifact_lineage() -> None:
@@ -45382,14 +46878,17 @@ def test_algorithm_engineer_repair_eval_feedback_requires_design_safe_metric_rep
     )
     feedback = _algorithm_prior_metric_gate_feedback(
         manifest=prior_failure,
-        target_coverage=0.9,
     )
 
     required_repair = feedback["required_repair"]
-    assert "statistically meaningful DGP, estimator, uncertainty" in required_repair
-    assert "vacuous all-covering output" in required_repair
-    assert "coverage-utility tradeoffs" in required_repair
-    assert "widen the half-width" not in required_repair
+    assert (
+        "Repair the generated estimator, simulation, DGP, or metric calculation"
+        in required_repair
+    )
+    assert "substitute an easier proxy" in required_repair
+    assert "lower or remove a threshold" in required_repair
+    assert "If the safe subset cannot express a meaningful repair" in required_repair
+    assert "target_coverage" not in required_repair
     assert "implementation evidence only, not theorem proof" in feedback["boundary"]
 
 
@@ -45540,14 +47039,17 @@ def test_simulation_engineer_repair_eval_feedback_requires_design_safe_metric_re
     )
     feedback = _simulation_prior_metric_gate_feedback(
         manifest=prior_failure,
-        target_coverage=0.9,
     )
 
     required_repair = feedback["required_repair"]
-    assert "statistically meaningful DGP, estimator, uncertainty" in required_repair
-    assert "vacuous all-covering output" in required_repair
-    assert "coverage-utility tradeoffs" in required_repair
-    assert "widen the half-width" not in required_repair
+    assert (
+        "Repair the generated estimator, simulation, DGP, or metric calculation"
+        in required_repair
+    )
+    assert "substitute an easier proxy" in required_repair
+    assert "lower or remove a threshold" in required_repair
+    assert "If the safe subset cannot express a meaningful repair" in required_repair
+    assert "target_coverage" not in required_repair
     assert "not proof evidence" in feedback["boundary"]
 
 
@@ -46028,6 +47530,27 @@ def _write_algorithm_repair_static_response(tmp_path: Path) -> Path:
                 ),
             }
         ],
+        "metric_contracts": [
+            {
+                "contract_id": "repair-eval-coverage",
+                "requirement_id": "repair-eval:coverage",
+                "artifact_id": "generated_split_conformal_repair_probe",
+                "metric_path": ["empirical_coverage"],
+                "metric_semantics": (
+                    "empirical coverage across bounded component-eval replicates"
+                ),
+                "measurement_protocol": (
+                    "return the fraction of replicates satisfying the declared "
+                    "coverage event"
+                ),
+                "operator": ">=",
+                "threshold": 0.9,
+                "tolerance": 0.0,
+                "aggregation": "identity",
+                "required": True,
+                "source_anchors": ["repair-eval:target-coverage"],
+            }
+        ],
         "promotion_gate": {
             "required_tests": ["generated sandbox metric gate"],
             "required_reproducibility_evidence": ["fixed seed"],
@@ -46321,6 +47844,21 @@ def _write_simulation_repair_static_response(tmp_path: Path) -> Path:
                     "        'replicates': int(replicates),\n"
                     "    }\n"
                 ),
+            }
+        ],
+        "metric_contracts": [
+            {
+                "contract_id": "simulation-repair-eval-coverage",
+                "artifact_id": (
+                    "generated_split_conformal_stress_repair_probe"
+                ),
+                "metric_path": ["empirical_coverage"],
+                "operator": ">=",
+                "threshold": 0.9,
+                "tolerance": 0.0,
+                "aggregation": "identity",
+                "required": True,
+                "source_anchors": ["repair-eval:target-coverage"],
             }
         ],
         "simulation_evidence_status": "LLM_SIMULATION_PROPOSAL_NOT_EXECUTION_EVIDENCE",
@@ -79661,7 +81199,10 @@ def test_theorem_reduction_closure_learning_export_keeps_closure_memory_separate
     ] == [closure_artifact.read_text(encoding="utf-8")]
 
 
-def _architect_sample_response() -> dict[str, object]:
+def _architect_sample_response(
+    *,
+    required_runtime_replicates: int = 80,
+) -> dict[str, object]:
     return {
         "intake_assessment": {
             "problem_type": "frontier semiparametric causal inference theory",
@@ -79750,6 +81291,32 @@ def _architect_sample_response() -> dict[str, object]:
             "formal_verification_policy": "optional",
             "recommended_research_path": "dual_track",
             "formal_required_for_final": False,
+            "generated_metric_requirement_authority_policy": (
+                "architect_authored_coding_agent_bound_preferred"
+            ),
+            "empirical_metric_requirements": [
+                {
+                    "requirement_id": "architect:empirical-coverage",
+                    "target_subsystems": [
+                        "AlgorithmEngineer",
+                        "SimulationEngineer",
+                    ],
+                    "metric_semantics": (
+                        "empirical coverage across bounded runtime replicates"
+                    ),
+                    "measurement_protocol": (
+                        "return the fraction of runtime replicates satisfying the "
+                        "declared coverage event"
+                    ),
+                    "required_runtime_replicates": required_runtime_replicates,
+                    "operator": ">=",
+                    "threshold": 0.9,
+                    "tolerance": 0.0,
+                    "aggregation": "identity",
+                    "required": True,
+                    "source_anchors": ["architect:capability-eval"],
+                }
+            ],
             "formal_targets": ["orthogonal score algebra", "asymptotic CLT subclaims"],
             "simulation_targets": ["finite-sample bias and coverage stress tests"],
             "acceptance_modes": [
@@ -80048,12 +81615,20 @@ def _algorithm_sample_response() -> dict[str, object]:
                     "        'n_runs': n,\n"
                     "        'mean_bias_probe': mean,\n"
                     "        'rmse': math.sqrt(variance + mean * mean),\n"
+                    "        'empirical_coverage': 1.0,\n"
                     "        'sandbox_failed': False,\n"
                     "    }\n"
                 ),
                 "intended_metrics": ["mean_bias_probe", "rmse", "n_runs"],
                 "safety_notes": ["no imports", "no filesystem access", "AgentRuntime executes if static guard passes"],
             }
+        ],
+        "metric_contracts": [
+            _typed_metric_contract_fixture(
+                "generated_bias_probe",
+                metric_path=["empirical_coverage"],
+                required_runtime_replicates=80,
+            )
         ],
         "promotion_gate": {
             "required_tests": ["sandbox smoke passes", "registered algorithm audit passes"],
@@ -80425,7 +82000,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
     )
     architect_coordinator = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=80)
+        ),
         config=ArchitectCoordinatorConfig(provider_name="static", model="static-architect-model"),
     )
     simulation_engineer = LLMSimulationEngineerAgent(
@@ -80612,10 +82189,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     topology = manifest["llm_runtime_topology"]
     assert topology["artifact_kind"] == "RuntimeLLMTopologyManifest"
     assert topology["counts"]["llm_agents_enabled"] == 6
-    assert topology["counts"]["enabled_by_model_tier"] == {"haiku": 3, "sonnet": 3}
+    assert topology["counts"]["enabled_by_model_tier"] == {"haiku": 1, "sonnet": 5}
     assert topology["counts"]["enabled_by_provider"] == {"static": 6}
     assert topology["provider_counts"] == {"static": 6}
-    assert topology["model_tier_counts"] == {"haiku": 3, "sonnet": 3}
+    assert topology["model_tier_counts"] == {"haiku": 1, "sonnet": 5}
     assert topology["unsupported_provider_count"] == 0
     assert topology["generator_only_all_enabled"] is True
     assert topology["default_provider"] == "anthropic"
@@ -80633,8 +82210,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert topology["critic_evaluator_model"] == "static-critic-model"
     assert topology["architect_model_tier"] == "sonnet"
     assert topology["theory_developer_model_tier"] == "sonnet"
-    assert topology["simulation_engineer_model_tier"] == "haiku"
-    assert topology["algorithm_engineer_model_tier"] == "haiku"
+    assert topology["simulation_engineer_model_tier"] == "sonnet"
+    assert topology["algorithm_engineer_model_tier"] == "sonnet"
     assert topology["formalizer_model_tier"] == "sonnet"
     assert topology["critic_evaluator_model_tier"] == "haiku"
     assert topology["counts"]["unsupported_generator_backends_enabled"] == 0
@@ -81299,7 +82876,17 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_llm_prompt_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_packets"] >= 2
     assert runtime_handoff_audit["n_llm_prompt_report_only_prompt_budget_caps"] == 2
-    assert runtime_handoff_audit["n_llm_prompt_prompt_budget_preflight_blocked"] == 0
+    assert runtime_handoff_audit["n_llm_prompt_prompt_budget_preflight_blocked"] > 0
+    assert (
+        runtime_handoff_audit["n_llm_prompt_prompt_budget_preflight_blocked"]
+        == runtime_handoff_audit[
+            "n_llm_prompt_staged_followups_due_to_prompt_budget"
+        ]
+    )
+    assert (
+        runtime_handoff_audit["n_llm_prompt_staged_budget_routes_ready"]
+        == runtime_handoff_audit["n_handoffs"]
+    )
     assert (
         runtime_handoff_audit["n_llm_prompt_requests_with_target_intake_rows"]
         == runtime_handoff_audit["n_llm_prompt_packets"]
@@ -81334,7 +82921,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         for summary in runtime_handoff_audit["smoke_summaries"]
     )
     assert all(
-        summary["llm_prompt_prompt_budget_preflight_blocked"] == 0
+        summary["llm_prompt_prompt_budget_preflight_blocked"]
+        == summary["llm_prompt_staged_followups_due_to_prompt_budget"]
+        and summary["llm_prompt_staged_budget_route_ready"] == 1
         for summary in runtime_handoff_audit["smoke_summaries"]
     )
     assert all(
@@ -85343,6 +86932,17 @@ def test_runtime_evidence_summary_recomputes_live_generated_counts_from_rows() -
                     "source_llm_proposal_provider": "anthropic",
                     "source_llm_proposal_backend_provider": "static",
                     "source_llm_proposal_live_generator": True,
+                    "metric_contracts": [
+                        _typed_metric_contract_fixture("static_counter")
+                    ],
+                    "metric_contract_evaluation": {
+                        "n_contracts": 1,
+                        "n_passed": 1,
+                        "n_failed": 0,
+                        "all_required_passed": True,
+                    },
+                    "metric_requirement_authority_required": True,
+                    "metric_requirement_authority_validated": True,
                 }
             ],
         },
@@ -85357,6 +86957,17 @@ def test_runtime_evidence_summary_recomputes_live_generated_counts_from_rows() -
                     "source_llm_proposal_provider": "anthropic",
                     "source_llm_proposal_backend_provider": "anthropic",
                     "source_llm_proposal_live_generator": True,
+                    "metric_contracts": [
+                        _typed_metric_contract_fixture("live_row")
+                    ],
+                    "metric_contract_evaluation": {
+                        "n_contracts": 1,
+                        "n_passed": 1,
+                        "n_failed": 0,
+                        "all_required_passed": True,
+                    },
+                    "metric_requirement_authority_required": True,
+                    "metric_requirement_authority_validated": True,
                 }
             ],
         },
@@ -85368,8 +86979,29 @@ def test_runtime_evidence_summary_recomputes_live_generated_counts_from_rows() -
 
     assert summary["algorithm"]["n_generated_code_sandbox_executed"] == 1
     assert summary["algorithm"]["n_live_generated_code_sandbox_executed"] == 0
+    assert summary["algorithm"][
+        "n_generated_algorithm_typed_metric_contracts_evaluated"
+    ] == 1
+    assert summary["algorithm"][
+        "n_live_generated_algorithm_typed_metric_contracts_evaluated"
+    ] == 0
+    assert summary["algorithm"][
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated"
+    ] == 1
     assert summary["simulation"]["n_generated_simulation_sandbox_executed"] == 1
     assert summary["simulation"]["n_live_generated_simulation_sandbox_executed"] == 1
+    assert summary["simulation"][
+        "n_live_generated_simulation_typed_metric_contracts_evaluated"
+    ] == 1
+    assert summary["simulation"][
+        "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed"
+    ] == 1
+    assert summary["simulation"][
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated"
+    ] == 1
+    assert summary["simulation"][
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+    ] == 1
 
 
 def _algorithm_repair_provenance_artifacts(
@@ -85551,6 +87183,11 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_live_generated_code_sandbox_executed": 1,
         "n_generated_code_sandbox_metric_gate_failed": 0,
         "n_live_generated_code_sandbox_metric_gate_failed": 0,
+        "n_live_generated_algorithm_typed_metric_contracts_evaluated": 1,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed": 1,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated": 1,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected": 0,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed": 1,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 1,
         "n_unsafe_generated_code_rejected": 0,
@@ -85561,6 +87198,11 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_live_generated_simulation_sandbox_passed": 1,
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_live_generated_simulation_sandbox_metric_gate_failed": 0,
+        "n_live_generated_simulation_typed_metric_contracts_evaluated": 1,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed": 1,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated": 1,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected": 0,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed": 1,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 1,
         **_live_generated_code_metric_repair_payload(),
@@ -85682,12 +87324,30 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows["downstream_theory_trace_consumption_observed"]["passed"] is True
     assert rows["downstream_theory_trace_alignment_observed"]["passed"] is True
     assert rows["generated_algorithm_code_executed"]["passed"] is True
+    assert rows[
+        "generated_algorithm_typed_metric_contracts_evaluated"
+    ]["passed"] is True
+    assert rows[
+        "generated_algorithm_typed_metric_contract_required_gates_passed"
+    ]["passed"] is True
+    assert rows[
+        "generated_algorithm_metric_requirement_authority_validated"
+    ]["passed"] is True
     assert rows["generated_algorithm_metric_gate_clean"]["passed"] is True
     assert rows["generated_algorithm_repair_loop_observed"]["passed"] is True
     assert rows[
         "generated_algorithm_metric_repair_loop_observed"
     ]["passed"] is True
     assert rows["generated_simulation_code_executed"]["passed"] is True
+    assert rows[
+        "generated_simulation_typed_metric_contracts_evaluated"
+    ]["passed"] is True
+    assert rows[
+        "generated_simulation_typed_metric_contract_required_gates_passed"
+    ]["passed"] is True
+    assert rows[
+        "generated_simulation_metric_requirement_authority_validated"
+    ]["passed"] is True
     assert rows["generated_simulation_metric_gate_clean"]["passed"] is True
     assert rows["generated_simulation_repair_loop_observed"]["passed"] is True
     assert rows[
@@ -85717,6 +87377,50 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     ]["passed"] is True
     assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
     assert rows["formalizer_live_prover_tool_call_observed"]["passed"] is True
+
+    missing_typed_contract_payload = dict(payload)
+    missing_typed_contract_payload[
+        "n_live_generated_algorithm_typed_metric_contracts_evaluated"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_simulation_typed_metric_contracts_evaluated"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated"
+    ] = 0
+    missing_typed_contract_payload[
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+    ] = 0
+    missing_typed_contract_rows = {
+        row["requirement_id"]: row
+        for row in _runtime_capability_scorecard(
+            missing_typed_contract_payload
+        )["rows"]
+    }
+    assert missing_typed_contract_rows[
+        "generated_algorithm_typed_metric_contracts_evaluated"
+    ]["passed"] is False
+    assert missing_typed_contract_rows[
+        "generated_algorithm_typed_metric_contract_required_gates_passed"
+    ]["next_owner_subsystem"] == "AlgorithmEngineer"
+    assert missing_typed_contract_rows[
+        "generated_simulation_typed_metric_contracts_evaluated"
+    ]["passed"] is False
+    assert missing_typed_contract_rows[
+        "generated_simulation_typed_metric_contract_required_gates_passed"
+    ]["next_owner_subsystem"] == "SimulationEvaluator"
 
     uncompiled_repair_payload = dict(payload)
     uncompiled_repair_payload["n_formalizer_lean_candidate_local_lean_compiled"] = 0
@@ -86906,13 +88610,9 @@ def test_runtime_audit_recomputes_stale_research_path_control(
 
 
 def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization() -> None:
-    assert cross_task_generalization_family_pair([]) == (
-        "experimental_design",
-        "multiple_testing",
-    )
+    assert cross_task_generalization_family_pair([]) == ()
     assert cross_task_generalization_family_pair(["experimental_design"]) == (
         "experimental_design",
-        "multiple_testing",
     )
     payload = {
         "n_results": 1,
@@ -86942,15 +88642,16 @@ def test_runtime_capability_scorecard_requires_cross_task_theorem_generalization
         "cross_task_full_theorem_generalization_demonstrated"
     ]["blocker"]
     assert cross_task_row["next_owner_subsystem"] == "ArchitectCoordinator"
-    assert "--question-task-family conformal" in cross_task_row[
-        "recommended_capability_eval_command"
-    ]
-    assert "--question-task-family experimental_design" in cross_task_row[
-        "recommended_capability_eval_command"
-    ]
-    assert "--min-task-families 2" in cross_task_row[
-        "recommended_capability_eval_command"
-    ]
+    generalization_command = cross_task_row["recommended_capability_eval_command"]
+    assert (
+        "--cross-family-eval-protocol "
+        "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json"
+        in generalization_command
+    )
+    assert "--cross-family-eval-panel development" in generalization_command
+    assert "--question-task-family" not in generalization_command
+    assert "experimental_design" not in generalization_command
+    assert "multiple_testing" not in generalization_command
     assert cross_task_row["proof_evidence_status"] == (
         "CAPABILITY_SCORECARD_ROUTING_NOT_PROOF_EVIDENCE"
     )
@@ -87305,8 +89006,13 @@ def test_runtime_audit_l9_uses_recovered_task_family_not_only_question_id(
     assert "family=conformal" in report
     assert "target_bound_kernel=True" in report
     assert "## Capability Routing" in report
-    assert "--question-task-family conformal" in report
-    assert "--question-task-family experimental_design" in report
+    assert (
+        "--cross-family-eval-protocol "
+        "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json"
+        in report
+    )
+    assert "--cross-family-eval-panel development" in report
+    assert "--question-task-family experimental_design" not in report
     assert "evaluation routing metadata" in report
     assert ladder_rows[9]["passed"] is False
 
@@ -96430,7 +98136,6 @@ def test_runtime_topology_resolves_empty_config_model_from_tier(
     row = _llm_agent_topology_row(
         "TheoryDeveloper",
         developer,
-        model_tier="sonnet",
         role="deductive statistical theory discovery",
     )
 
@@ -96715,8 +98420,8 @@ def test_runtime_topology_audit_rejects_subsystem_model_tier_drift() -> None:
                 "enabled": True,
                 "provider_name": "static",
                 "backend_provider_name": "static",
-                "model_tier": "sonnet",
-                "expected_model_tier": "haiku",
+                "model_tier": "haiku",
+                "expected_model_tier": "sonnet",
                 "generator_only": True,
                 "acts_in_environment": False,
             }
@@ -96726,7 +98431,7 @@ def test_runtime_topology_audit_rejects_subsystem_model_tier_drift() -> None:
     errors = _audit_topology({"llm_runtime_topology": topology})
 
     assert any(
-        "SimulationEngineer expected model_tier haiku" in error
+        "SimulationEngineer expected model_tier sonnet" in error
         for error in errors
     )
     assert any(
@@ -96744,7 +98449,9 @@ def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> No
         config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
     )
     architect_coordinator = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        provider=StaticArchitectLLMProvider(
+            _architect_sample_response(required_runtime_replicates=10)
+        ),
         config=ArchitectCoordinatorConfig(provider_name="static", model="static-architect-model"),
     )
 
@@ -96984,11 +98691,22 @@ def test_runtime_gap_planner_scopes_kernel_verified_subclaim_declaration() -> No
     kernel_hit = next(
         row for row in scoped_hits if row["primitive"] == "support_bridge"
     )
-    assert kernel_hit["kernel_verified"] is True
+    assert "kernel_verified" not in kernel_hit
+    assert kernel_hit["upstream_verification_claim_references"] == [
+        {
+            "source_path": "kernel_verified",
+            "claim_kind": "kernel_verified",
+            "source_value": True,
+        }
+    ]
+    assert "do not make this FormalizationGapPlanner input proof evidence" in (
+        kernel_hit["upstream_verification_reference_boundary"]
+    )
     assert kernel_hit["supported_target_primitives"] == ["support_bridge"]
     assert kernel_hit["source_field"] == (
         "runtime_kernel_verified_declaration_hits"
     )
+    assert validate_standalone_input_payload(bridge["standalone_seed"]) == []
 
 
 def test_runtime_target_intake_payload_preserves_mixed_route_targets() -> None:
@@ -97134,13 +98852,13 @@ def test_research_agent_runtime_rejects_anthropic_model_tier_mismatch() -> None:
         provider=StaticArchitectLLMProvider(_simulation_sample_response()),
         config=SimulationEngineerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
         ),
     )
 
     with pytest.raises(
         ValueError,
-        match="SimulationEngineer expected Claude haiku tier",
+        match="SimulationEngineer expected Claude sonnet tier",
     ):
         run_research_agent_runtime(
             [question],
@@ -97485,7 +99203,14 @@ def test_exact_semantic_definition_lean_repair_records_local_tool_trace(
     ][0]["line"] == 1
 
 
-def test_formalizer_candidate_local_lean_enables_proof_state_provider() -> None:
+def test_formalizer_candidate_local_lean_enables_proof_state_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "_default_openprover_root",
+        lambda: "/tmp/source-controlled-openprover",
+    )
     args = argparse.Namespace(
         local_lean=False,
         formalizer_candidate_local_lean=True,
@@ -97509,6 +99234,9 @@ def test_formalizer_candidate_local_lean_enables_proof_state_provider() -> None:
     assert isinstance(provider, LeanLspMcpProofStateFeedbackProvider)
     assert provider.project_root == Path("/tmp/formalizer_candidate_project").resolve()
     assert provider.timeout_s == 17
+    assert provider.openprover_root == Path(
+        "/tmp/source-controlled-openprover"
+    ).resolve()
 
     args.formalizer_candidate_local_lean = False
     provider = _proof_state_provider_from_args(args)
@@ -97892,6 +99620,7 @@ def test_local_lean_proof_state_provider_routes_placeholder_to_authoring_not_tac
 def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
     return argparse.Namespace(
         capability_eval_preset=preset,
+        max_iterations=12,
         provider="static",
         architect_coordinator_provider="none",
         simulation_engineer_provider="static",
@@ -97954,6 +99683,8 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalization_gap_planner_live_max_route_requests_per_handoff=0,
         formalization_gap_planner_live_provider="same",
         formalization_gap_planner_live_timeout_seconds=0.0,
+        coding_agent_packet_validation_replan_after_attempts=0,
+        algorithm_engineer_generated_code_repair_yield_after_attempts=0,
         simulation_evaluator_generated_code_repair_yield_after_attempts=0,
         formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts=0,
         run_coding_agent_generated_code_repair_eval=False,
@@ -98206,7 +99937,14 @@ def test_live_runtime_lean_defaults_respect_static_or_explicit_configuration() -
     )
 
 
-def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> None:
+def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "_default_openprover_root",
+        lambda: "/tmp/source-controlled-openprover",
+    )
     args = _capability_eval_preset_args("full-live")
     args.llm_timeout_seconds = 240.0
     args.formalization_gap_planner_live_timeout_seconds = None
@@ -98220,11 +99958,17 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     assert args.formalizer_provider == "same"
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_lsp_mcp is True
+    assert args.openprover_root == "/tmp/source-controlled-openprover"
+    assert args.max_iterations == 24
+    assert args.min_task_families == 2
+    assert args.formal_verification_policy == "required"
     assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
+    assert args.formalization_gap_planner_live_max_provider_retries == 1
     assert args.formalization_gap_planner_live_provider == "same"
     assert args.formalization_gap_planner_live_timeout_seconds == 240.0
+    assert args.coding_agent_packet_validation_replan_after_attempts == 1
     assert (
         args.algorithm_engineer_generated_code_repair_yield_after_attempts
         == 1
@@ -98238,10 +99982,10 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
         == 1
     )
     assert args.max_formalizer_proof_state_repair_rounds == 1
-    assert args.run_coding_agent_generated_code_repair_eval is True
-    assert args.run_formalizer_lean_candidate_repair_eval is True
-    assert args.run_formalizer_pseudo_formal_packet_eval is True
-    assert args.run_pseudo_formal_block_verifier_eval is True
+    assert args.run_coding_agent_generated_code_repair_eval is False
+    assert args.run_formalizer_lean_candidate_repair_eval is False
+    assert args.run_formalizer_pseudo_formal_packet_eval is False
+    assert args.run_pseudo_formal_block_verifier_eval is False
     assert args.pseudo_formal_block_verifier_runtime is True
     assert args.coding_agent_repair_eval_provider == "same"
     assert args.formalizer_repair_eval_provider == "same"
@@ -98286,6 +100030,14 @@ def test_capability_eval_full_live_preset_attaches_component_repair_gates() -> N
     ) in _research_agent_runtime_capability_config_errors(args)
 
     args.formalization_gap_planner_live_route_planner = True
+    args.coding_agent_packet_validation_replan_after_attempts = 0
+    assert (
+        "capability eval preset full-live requires bounded coding-agent "
+        "packet-validation replanning; set "
+        "--coding-agent-packet-validation-replan-after-attempts > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.coding_agent_packet_validation_replan_after_attempts = 1
     args.algorithm_engineer_generated_code_repair_yield_after_attempts = 0
     assert (
         "capability eval preset full-live requires bounded "

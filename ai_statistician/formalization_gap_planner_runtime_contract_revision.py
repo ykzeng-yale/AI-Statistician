@@ -430,7 +430,11 @@ def _reuse_bundle(
     for attempt in live_row.get("staged_followup_stage_attempt_rows", []) or []:
         if not isinstance(attempt, Mapping) or not _accepted_stage_attempt(attempt):
             continue
-        source_attempt = dict(attempt)
+        source_attempt = {
+            key: value
+            for key, value in attempt.items()
+            if not str(key).startswith("runtime_revision_source_")
+        }
         accepted_rows.append(
             {
                 **source_attempt,

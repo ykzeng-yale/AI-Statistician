@@ -1266,6 +1266,7 @@ resuming task-specific runtime memory?
 Sources:
 
 - `fresh_start_cross_task_e2e` inside `research-agent-runtime-audit`
+- `benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`
 - at least two per-question AgentRuntime result artifacts from one fresh-start
   capability evaluation
 - exact external ProofEngineer candidate rerun manifests attached to each
@@ -1292,6 +1293,97 @@ counts, two question ids in one family, component-gate results, resumed traces,
 fixture providers, or a proof target that does not match the current
 formalization target all fail closed. The S14 audit composes capability
 evidence; the underlying local Lean/AXLE rows remain the theorem-proof evidence.
+
+The 2026-07-13 frozen transfer protocol is stricter than the two-family minimum:
+
+- development panel: `right_censored_survival_km` and
+  `sequential_anytime_bernoulli`;
+- held-out panel: `high_dimensional_spiked_pca` and
+  `extreme_tail_quantile_hill`.
+
+The panels have disjoint question IDs and disjoint primary task families. The
+protocol contains no expected answer, theorem proof, metric threshold, or Lean
+syntax. `research-agent-runtime` validates the protocol before any provider
+call, selects the complete panel, records its fingerprint in Architect context,
+and rejects resume manifests, prior learning memory, task-family overrides,
+question caps, or a partial `--question-id` override. Full-live also requires at
+least two selected task families. Standalone component calibrations remain
+explicit optional commands and are not automatically appended to a full-live
+run.
+
+Development command:
+
+```bash
+PYTHONPATH=$PWD .venv/bin/python -m ai_statistician.cli research-agent-runtime \
+  --capability-eval --capability-eval-preset full-live --provider anthropic \
+  --cross-family-eval-protocol benchmarks/autonomous_cross_family_e2e_protocol_20260713.json \
+  --cross-family-eval-panel development \
+  --env-file /Users/yukangzengcmac/Downloads/api_key_AI_statistician.md \
+  --out runs/main_worker_cross_family_development_20260713_v1
+```
+
+Held-out command, run only after the candidate implementation is committed:
+
+```bash
+PYTHONPATH=$PWD .venv/bin/python -m ai_statistician.cli research-agent-runtime \
+  --capability-eval --capability-eval-preset full-live --provider anthropic \
+  --cross-family-eval-protocol benchmarks/autonomous_cross_family_e2e_protocol_20260713.json \
+  --cross-family-eval-panel held_out \
+  --env-file /Users/yukangzengcmac/Downloads/api_key_AI_statistician.md \
+  --out runs/main_worker_cross_family_held_out_20260713_v1
+```
+
+Every task in both panels must retain its own evidence DAG and exact theorem
+verdict. Aggregate scorecards cannot hide a failed held-out task.
+
+Latest frozen development-panel result (completed 2026-07-14 UTC):
+
+- `runs/main_worker_cross_family_development_20260713_v8_generic_feedback_repair`
+  ran the complete survival and sequential panel from a fresh start under one
+  configuration;
+- both tasks ended `BLOCKED`, the capability scorecard was `95/118`, there were
+  72 kernel-verified support subclaims and 8 open formal gaps, and exact
+  full-frontier/source-theorem closure remained `0/2`;
+- the survival task reached two live contract-revision rounds and then exposed
+  a canonical-lineage defect: prior `runtime_revision_source_*` metadata was
+  accidentally included in the next source-attempt hash;
+- the sequential task exercised metric failure, coding-agent repair, Architect
+  replan, Formalizer compiler feedback, and bounded staged route repair, then
+  failed closed after the route-response contract budget was exhausted;
+- survival requirements claimed 1000 replicates and sequential requirements
+  claimed 10000, while the generated sandbox executed the runtime cap of 80;
+  the old scalar gate did not bind that executed work budget;
+- after the sequential algorithm failed its original conditional-expectation
+  diagnostic, the replan rewrote the measurement protocol into an analytic
+  constant-ratio check. This is post-hoc gate rewriting even though the numeric
+  threshold stayed unchanged;
+- the sequential simulation also obtained a vacuous type-I-error result by
+  multiplying the null path by `p0/p0`. Successful execution and scalar output
+  therefore did not establish semantic alignment with the requested experiment.
+
+The generic correction freezes the first accepted Architect requirement set
+across replans, copies one runtime-owned `required_runtime_replicates` value
+through Architect and coding-agent contracts, compares it against the actual
+subprocess argument, and canonicalizes reused route attempts before hashing.
+No statistical formula, family name, theorem name, metric name, output key, or
+Lean grammar is encoded by those controls.
+
+One important gate remains open: an independent LLM semantic reviewer must
+inspect each generated algorithm/simulation against the question, theory trace,
+immutable experiment contract, source code, executed arguments, and returned
+metrics before a scalar metric pass can route onward. Its typed findings must
+return to the original coding agent and trigger a fresh execution. The runtime
+should validate reviewer schema and lineage, not implement Bernoulli, survival,
+FDR, or conformal mathematics itself. Formalization needs the analogous
+immutable semantic-claim contract plus independent review so declaration-name
+identity cannot hide a weaker theorem. The held-out panel remains unrun until
+these development-panel defects are fixed and committed.
+
+Even a future `2/2` development and `2/2` held-out result would establish the
+S14 integration milestone, not completion of the whole AI Statistical Theory
+Lab. Broader readiness still requires S1 breadth, all-topic blind frontier
+evaluation, scientific Python and R execution, arbitrary-paper ingestion, and
+reusable exact theorem development under the same evidence rules.
 
 ### Typed Exact-Source Prover Execution
 

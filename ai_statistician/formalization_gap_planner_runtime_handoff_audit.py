@@ -267,6 +267,25 @@ def audit_formalization_gap_planner_runtime_handoffs(
             )
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_staged_budget_routes_ready": sum(
+            1
+            for summary in smoke_summaries
+            if summary.get("llm_prompt_staged_budget_route_ready")
+        ),
+        "n_llm_prompt_staged_followups_required": sum(
+            int(summary.get("llm_prompt_staged_followups_required", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_staged_followups_due_to_prompt_budget": sum(
+            int(
+                summary.get(
+                    "llm_prompt_staged_followups_due_to_prompt_budget",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
         "n_llm_prompt_requests_with_minimal_delta_cost_hints": sum(
             int(
                 summary.get(
@@ -1382,7 +1401,7 @@ def _audit_handoff_row(
                 "llm_prompt_smoke",
                 handoff_id,
                 bridge_id,
-                "prompt-only Anthropic route planner stages awaiting requests",
+                "prompt-only route planner is monolithic-ready or staged-budget-ready",
                 llm_observed,
                 llm_ok,
             )
@@ -1498,7 +1517,7 @@ def _audit_handoff_row(
                     "llm_prompt_smoke",
                     handoff_id,
                     bridge_id,
-                    "prompt-only Anthropic route planner stages awaiting requests",
+                    "prompt-only route planner is monolithic-ready or staged-budget-ready",
                     "skipped because seed schema invalid",
                     False,
                 ),
@@ -1769,6 +1788,9 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_by_model_tier_decision_basis": {},
                 "llm_prompt_max_estimated_prompt_input_tokens": 0,
                 "llm_prompt_prompt_budget_preflight_blocked": 0,
+                "llm_prompt_staged_budget_route_ready": 0,
+                "llm_prompt_staged_followups_required": 0,
+                "llm_prompt_staged_followups_due_to_prompt_budget": 0,
                 "llm_prompt_component_resource_registry_components": 0,
                 "llm_prompt_component_resource_registry_resources": 0,
                 "llm_prompt_component_resource_registry_contracts": 0,
@@ -1829,6 +1851,23 @@ def _run_llm_prompt_smoke(
     n_prompt_budget_preflight_blocked = int(
         payload.get("n_prompt_token_budget_preflight_blocked", 0) or 0
     )
+    n_request_schema_valid = int(payload.get("n_request_schema_valid", 0) or 0)
+    n_generation_preflight_blocked = int(
+        payload.get("n_generation_preflight_blocked", 0) or 0
+    )
+    n_staged_followups_required = int(
+        payload.get("n_staged_followups_required", 0) or 0
+    )
+    n_staged_followups_due_to_prompt_budget = int(
+        payload.get(
+            "n_staged_followups_due_to_prompt_token_budget_preflight",
+            0,
+        )
+        or 0
+    )
+    n_staged_followup_assembly_incomplete = int(
+        payload.get("n_staged_followup_assembly_incomplete", 0) or 0
+    )
     by_tier_decision_basis = _int_counter_payload(
         payload.get("by_request_model_tier_decision_basis", {})
     )
@@ -1837,10 +1876,29 @@ def _run_llm_prompt_smoke(
         + n_tier_decision_sonnet
         + n_tier_decision_operator_override
     )
-    ok = (
+    monolithic_prompt_ready = (
         bool(payload.get("all_ok", False))
-        and n_packets > 0
         and n_awaiting == n_packets
+        and n_prompt_budget_preflight_blocked == 0
+    )
+    staged_budget_route_ready = (
+        not bool(payload.get("all_ok", False))
+        and n_packets > 0
+        and n_prompt_budget_preflight_blocked > 0
+        and n_awaiting + n_prompt_budget_preflight_blocked == n_packets
+        and n_request_schema_valid == n_packets
+        and n_generation_preflight_blocked
+        == n_prompt_budget_preflight_blocked
+        and n_staged_followups_required == n_prompt_budget_preflight_blocked
+        and n_staged_followups_due_to_prompt_budget
+        == n_prompt_budget_preflight_blocked
+        and n_staged_followup_assembly_incomplete
+        == n_prompt_budget_preflight_blocked
+        and not payload.get("errors")
+    )
+    ok = (
+        n_packets > 0
+        and (monolithic_prompt_ready or staged_budget_route_ready)
         and bool(payload.get("invoke_provider", True)) is False
         and str(payload.get("provider_name", "")) == "anthropic"
         and str(payload.get("model_tier_selection_mode", "")) == "auto"
@@ -1859,7 +1917,6 @@ def _run_llm_prompt_smoke(
         and n_tier_decision_evidence == n_packets
         and n_tier_decision_invalid == 0
         and n_tier_decision_accounted == n_packets
-        and n_prompt_budget_preflight_blocked == 0
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
@@ -1879,6 +1936,9 @@ def _run_llm_prompt_smoke(
         f"model_tier_decision_invalid={n_tier_decision_invalid} "
         f"prompt_budget_cap={max_estimated_prompt_input_tokens} "
         f"prompt_budget_blocks={n_prompt_budget_preflight_blocked} "
+        f"staged_budget_route_ready={staged_budget_route_ready} "
+        f"staged_followups={n_staged_followups_required} "
+        f"staged_prompt_budget_followups={n_staged_followups_due_to_prompt_budget} "
         f"registry_components={n_registry_components} "
         f"registry_resources={n_registry_resources} "
         f"registry_contracts={n_registry_contracts} "
@@ -1915,6 +1975,11 @@ def _run_llm_prompt_smoke(
         ),
         "llm_prompt_prompt_budget_preflight_blocked": (
             n_prompt_budget_preflight_blocked
+        ),
+        "llm_prompt_staged_budget_route_ready": int(staged_budget_route_ready),
+        "llm_prompt_staged_followups_required": n_staged_followups_required,
+        "llm_prompt_staged_followups_due_to_prompt_budget": (
+            n_staged_followups_due_to_prompt_budget
         ),
         "llm_prompt_component_resource_registry_components": n_registry_components,
         "llm_prompt_component_resource_registry_resources": n_registry_resources,
@@ -2359,6 +2424,11 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
             f"- LLM prompt budget caps report-only/blocks: "
             f"{payload.get('n_llm_prompt_report_only_prompt_budget_caps')}/"
             f"{payload.get('n_llm_prompt_prompt_budget_preflight_blocked')}"
+        ),
+        (
+            f"- Staged prompt-budget routes ready/followups: "
+            f"{payload.get('n_llm_prompt_staged_budget_routes_ready')}/"
+            f"{payload.get('n_llm_prompt_staged_followups_due_to_prompt_budget')}"
         ),
         (
             f"- Minimal-delta cost hints in prompts: "

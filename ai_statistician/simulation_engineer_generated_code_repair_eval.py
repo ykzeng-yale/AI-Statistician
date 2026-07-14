@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
 from .generated_metric_repair_policy import (
-    generated_coverage_metric_component_feedback,
+    generated_metric_gate_repair_instruction,
     generated_python_sandbox_guard_repair_instruction,
 )
 from .model_backend import (
@@ -15,6 +15,7 @@ from .model_backend import (
     default_generator_model,
     generator_backend_provider_name,
     is_live_generator_backend,
+    llm_subsystem_expected_model_tier,
 )
 from .research_agent_runtime import (
     SimulationEvaluatorRuntimeSubsystem,
@@ -74,17 +75,18 @@ def run_simulation_engineer_generated_code_repair_eval(
         llm_timeout_seconds=llm_timeout_seconds,
     )
     backend_provider_name = generator_backend_provider_name(provider, provider_name)
+    model_tier = llm_subsystem_expected_model_tier("SimulationEngineer")
     resolved_model = default_generator_model(
         provider_name,
         model,
-        model_tier="haiku",
+        model_tier=model_tier,
     )
     simulation_engineer = LLMSimulationEngineerAgent(
         provider=provider,
         config=SimulationEngineerConfig(
             provider_name=provider_name,
             model=resolved_model,
-            model_tier="haiku",
+            model_tier=model_tier,
             max_tokens=max_tokens,
             temperature=temperature,
         ),
@@ -128,7 +130,6 @@ def run_simulation_engineer_generated_code_repair_eval(
     )
     feedback = _prior_metric_gate_feedback(
         manifest=prior_failure_manifest,
-        target_coverage=target_coverage,
     )
     subsystem = SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=simulation_engineer,
@@ -545,7 +546,6 @@ def _prior_metric_gate_failure_manifest(
 def _prior_metric_gate_feedback(
     *,
     manifest: Mapping[str, Any],
-    target_coverage: float,
 ) -> dict[str, Any]:
     feedback_type = "generated_simulation_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", ""))
@@ -571,14 +571,8 @@ def _prior_metric_gate_feedback(
         "n_generated_simulation_sandbox_metric_gate_failed": 1,
         "n_unsafe_generated_simulation_code_rejected": 0,
         "generated_simulation_prototypes": prototypes,
-        "required_repair": generated_coverage_metric_component_feedback(
+        "required_repair": generated_metric_gate_repair_instruction(
             artifact_label="generated simulation sandbox",
-            target_coverage=target_coverage,
-            return_fields=(
-                "target_coverage",
-                "mean_width",
-                "sandbox_failed=False",
-            ),
         )
         + " "
         + generated_python_sandbox_guard_repair_instruction(

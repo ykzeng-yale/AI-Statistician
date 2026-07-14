@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "CrossFamilyEndToEndEvaluationProtocol",
+  "protocol_id": "s14-cross-family-generalization-20260713-v1",
+  "split_frozen_at": "2026-07-13T21:30:00Z",
+  "split_frozen_at_base_commit": "507eb34d662f6ac8c4cbb48a7e7f4ceb640c4bfa",
+  "question_source": "examples/research_questions.json",
+  "minimum_distinct_task_families_per_panel": 2,
+  "run_contract": {
+    "capability_eval_required": true,
+    "capability_eval_preset": "full-live",
+    "fresh_start_required": true,
+    "resume_forbidden": true,
+    "task_learning_memory_forbidden": true,
+    "component_eval_substitution_forbidden": true,
+    "candidate_gate_independence_required": true
+  },
+  "panels": {
+    "development": {
+      "role": "development",
+      "tasks": [
+        {
+          "question_id": "right_censored_survival_km",
+          "task_family": "survival"
+        },
+        {
+          "question_id": "sequential_anytime_bernoulli",
+          "task_family": "sequential"
+        }
+      ]
+    },
+    "held_out": {
+      "role": "held_out",
+      "tasks": [
+        {
+          "question_id": "high_dimensional_spiked_pca",
+          "task_family": "high_dimensional"
+        },
+        {
+          "question_id": "extreme_tail_quantile_hill",
+          "task_family": "extremes"
+        }
+      ]
+    }
+  },
+  "required_per_task_evidence": [
+    "fresh live Architect plan",
+    "live rigorous TheoryDeveloper derivation and Critic revision",
+    "LLM-generated algorithm and simulation artifacts executed locally",
+    "Architect-authored empirical requirements independently enforced",
+    "formal-source RAG bound to the current task",
+    "LLM-generated Lean candidate with compiler or proof-state feedback",
+    "exact source-theorem target preserved through immutable lineage",
+    "exact source theorem accepted by local Lean or AXLE",
+    "zero acceptance-gating formal gaps"
+  ],
+  "completion_policy": {
+    "aggregate_score_cannot_substitute_for_per_task_closure": true,
+    "all_tasks_in_both_panels_required": true,
+    "support_lemma_kernel_checks_do_not_count_as_source_theorem_closure": true,
+    "held_out_failure_remains_visible": true,
+    "task_specific_runtime_or_validator_patch_after_held_out_start_forbidden": true
+  },
+  "boundary": "This protocol freezes task selection and evidence requirements. It contains no expected statistical answer, theorem proof, metric threshold, Lean grammar rule, or task-specific runtime behavior."
+}

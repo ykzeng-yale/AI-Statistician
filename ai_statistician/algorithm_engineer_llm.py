@@ -11,6 +11,20 @@ from .generated_metric_repair_policy import (
     generated_python_sandbox_guard_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
 )
+from .generated_metric_contract import (
+    GENERATED_METRIC_CONTRACT_BOUNDARY,
+    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    bind_generated_metric_contract_authority,
+    generated_metric_authority_repair_context,
+    generated_metric_contract_prompt_schema,
+    generated_metric_contract_set_id,
+    generated_metric_requirement_authority_policy_from_context,
+    generated_metric_requirements_for_subsystem,
+    generated_metric_requirement_set_id,
+    generated_metric_requirements_from_context,
+    validate_generated_metric_contracts,
+)
 from .algorithm_template_registry import (
     registered_algorithm_template_hint_contract,
     registered_algorithm_template_ids,
@@ -39,7 +53,7 @@ ALGORITHM_ENGINEER_BOUNDARY = (
 @dataclass(frozen=True)
 class AlgorithmEngineerConfig:
     model: str = ""
-    model_tier: str = "haiku"
+    model_tier: str = "sonnet"
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
@@ -71,12 +85,30 @@ class LLMAlgorithmEngineerAgent:
         implementation_gaps: list[Mapping[str, Any]],
         environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        feedback = environment_feedback or {}
+        requires_generated_code = _feedback_requires_generated_algorithm_code(
+            feedback
+        )
+        authoritative_metric_requirements = (
+            generated_metric_requirements_from_context(
+                feedback,
+                target_subsystem="AlgorithmEngineer",
+            )
+        )
+        metric_requirement_authority_policy = (
+            generated_metric_requirement_authority_policy_from_context(feedback)
+        )
+        require_authoritative_requirements = bool(
+            requires_generated_code
+            and metric_requirement_authority_policy
+            == GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
+        )
         user_prompt = build_algorithm_engineer_prompt(
             question=question,
             theory_packet=theory_packet,
             simulation_manifest=simulation_manifest,
             implementation_gaps=implementation_gaps,
-            environment_feedback=environment_feedback or {},
+            environment_feedback=feedback,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -99,10 +131,6 @@ class LLMAlgorithmEngineerAgent:
             },
         )
 
-        requires_generated_code = _feedback_requires_generated_algorithm_code(
-            environment_feedback or {}
-        )
-
         def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
             return _normalize_algorithm_packet(
                 payload,
@@ -115,6 +143,12 @@ class LLMAlgorithmEngineerAgent:
                 theory_packet=theory_packet,
                 implementation_gaps=implementation_gaps,
                 requires_generated_code=requires_generated_code,
+                authoritative_metric_requirements=(
+                    authoritative_metric_requirements
+                ),
+                metric_requirement_authority_policy=(
+                    metric_requirement_authority_policy
+                ),
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -124,9 +158,24 @@ class LLMAlgorithmEngineerAgent:
                     _validate_capability_eval_generated_algorithm_packet(
                         packet,
                         implementation_gaps=implementation_gaps,
+                        authoritative_metric_requirements=(
+                            authoritative_metric_requirements
+                        ),
+                        require_authoritative_requirements=(
+                            require_authoritative_requirements
+                        ),
                     )
                 )
             return sorted(set(errors))
+
+        def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
+            return generated_metric_authority_repair_context(
+                authoritative_metric_requirements,
+                target_subsystem="AlgorithmEngineer",
+                artifact_id_label=(
+                    "canonical implementation-gap estimator_id from the corrected packet"
+                ),
+            )
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -136,6 +185,7 @@ class LLMAlgorithmEngineerAgent:
             validate_packet=validate_packet,
             validation_label="LLM AlgorithmEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=build_repair_context,
         )
 
 
@@ -152,6 +202,15 @@ def build_algorithm_engineer_prompt(
     )
     requires_generated_code = _feedback_requires_generated_algorithm_code(
         runtime_environment_feedback
+    )
+    authoritative_metric_requirements = generated_metric_requirements_from_context(
+        runtime_environment_feedback,
+        target_subsystem="AlgorithmEngineer",
+    )
+    metric_requirement_authority_policy = (
+        generated_metric_requirement_authority_policy_from_context(
+            runtime_environment_feedback
+        )
     )
     payload = {
         "question": {
@@ -171,6 +230,19 @@ def build_algorithm_engineer_prompt(
         "implementation_gaps": _compact_implementation_gaps(implementation_gaps),
         "canonical_implementation_gap_ids": _canonical_implementation_gap_ids(
             implementation_gaps
+        ),
+        "typed_metric_contract_schema": (
+            generated_metric_contract_prompt_schema(
+                artifact_id_label="canonical implementation-gap estimator_id"
+            )
+            if requires_generated_code
+            else {}
+        ),
+        "authoritative_empirical_metric_requirements": (
+            authoritative_metric_requirements if requires_generated_code else []
+        ),
+        "metric_requirement_authority_policy": (
+            metric_requirement_authority_policy
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
@@ -209,6 +281,15 @@ def build_algorithm_engineer_prompt(
         "Capability-eval mode is active: for every ID in "
         "canonical_implementation_gap_ids, include exactly one matching "
         "implementation_targets row and one safe sandbox_code_drafts row with "
+        "at least one metric_contracts row bound to the same artifact ID. "
+        "For every row in authoritative_empirical_metric_requirements, emit a "
+        "contract for every generated artifact. Copy requirement_id, metric_semantics, "
+        "measurement_protocol, operator, numeric threshold/bounds, tolerance, "
+        "aggregation/quorum, required, and source_anchors exactly; add only the "
+        "artifact_id, metric_path, and a stable contract_id. Optional extra "
+        "diagnostics must use required=false and must not claim authority lineage. "
+        "Do not rely on metric-name or prose inference; AgentRuntime rejects invented "
+        "or weakened required gates and evaluates only the typed contract. "
         "entrypoint exactly \"run_sandbox\" and code defining "
         "def run_sandbox(seed: int, replicates: int) -> dict. Set every "
         "implementation_targets row registered_template_hint to none so AgentRuntime "
@@ -253,13 +334,29 @@ def build_algorithm_engineer_prompt(
     capability_feedback_instruction = (
         "Integrated coding-agent capability feedback is active: consume "
         "runtime_environment_feedback as the current capability gap to close. "
-        "Produce exactly one bounded safe algorithm run_sandbox draft, expose it "
-        "through sandbox_code_drafts, and let AgentRuntime execute and score the "
-        "draft for this run. Do not satisfy this with a registered template, "
+        "Produce one bounded safe algorithm run_sandbox draft and typed metric "
+        "contract for every canonical implementation-gap ID, expose them through "
+        "sandbox_code_drafts and metric_contracts, and let AgentRuntime execute "
+        "and score each draft for this run. Do not satisfy this with a registered template, "
         "static replay, or component-gate artifact. "
         if _feedback_reports_coding_capability_feedback(
             payload["runtime_environment_feedback"]
         )
+        else ""
+    )
+    packet_validation_instruction = (
+        "Local packet-validator feedback is active: read every exact "
+        "runtime_environment_feedback.validation_errors row and rebuild the full "
+        "packet. Bind only the authoritative_empirical_metric_requirements rows "
+        "shown in this prompt for AlgorithmEngineer. Copy their authority fields "
+        "unchanged, including nulls, aggregation, quorum fields, and source_anchors; "
+        "author only contract_id, the canonical estimator_id artifact binding, and "
+        "a metric_path that resolves against run_sandbox output. Do not reuse a "
+        "contract from another subsystem or prior attempt. "
+        if str(
+            payload["runtime_environment_feedback"].get("feedback_type", "") or ""
+        )
+        == "algorithm_engineer_packet_validation_feedback"
         else ""
     )
     theory_trace_alignment_instruction = (
@@ -277,13 +374,16 @@ def build_algorithm_engineer_prompt(
     )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
-        "Return ONLY one compact JSON object matching required_output_contract. Keep each list to "
-        "exactly 1 short object or 1 short string. Include only required fields. "
+        "Return ONLY one compact JSON object matching required_output_contract. Keep "
+        "descriptive lists short, but include one implementation target, generated "
+        "draft, and typed metric contract for every canonical gap ID. Include only "
+        "required fields. "
         + generated_code_instruction
         + metric_gate_instruction
         + sandbox_guard_instruction
         + component_gate_instruction
         + capability_feedback_instruction
+        + packet_validation_instruction
         + theory_trace_alignment_instruction
         + "You may "
         "propose code and tests, but "
@@ -300,7 +400,8 @@ def build_algorithm_engineer_prompt(
         "For sandbox_code_drafts, obey the generated_code_sandbox_contract safe_subset exactly: do not "
         "use imports other than plain import math/statistics/random; do not use from-import helper aliases, "
         "NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
-        "operations, method calls, or attribute access except math.*, statistics.*, random.*, and list append/sort. "
+        "operations or private/dunder/reflection access. Public operations on sandbox-local "
+        "collections and objects returned by allowed modules are available. "
         "Do not call bare helpers such as mean(), stdev(), or sqrt(); use sum(values) / len(values), explicit "
         "variance/std loops, or module-qualified calls such as statistics.mean(values), statistics.stdev(values), "
         "and math.sqrt(x). If runtime_environment_feedback.forbidden_generated_code_calls is nonempty, do not reuse "
@@ -400,10 +501,12 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
     )
     return {
         "architect_evidence_contract": _compact_architect_evidence_contract(
-            feedback.get("architect_evidence_contract", {})
+            feedback.get("architect_evidence_contract", {}),
+            target_subsystem="AlgorithmEngineer",
         ),
         "runtime_requested_evidence_contract": _compact_architect_evidence_contract(
-            feedback.get("runtime_requested_evidence_contract", {})
+            feedback.get("runtime_requested_evidence_contract", {}),
+            target_subsystem="AlgorithmEngineer",
         ),
         "architect_recommended_research_path": _truncate_text(
             feedback.get("architect_recommended_research_path", ""),
@@ -477,6 +580,26 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             feedback.get("failure_classification", ""),
             limit=180,
         ),
+        "validation_label": _truncate_text(
+            feedback.get("validation_label", ""),
+            limit=180,
+        ),
+        "validation_errors": _compact_string_list(
+            feedback.get("validation_errors", []),
+            limit=12,
+            char_limit=420,
+        ),
+        "validation_error_fingerprint": _truncate_text(
+            feedback.get("validation_error_fingerprint", ""),
+            limit=120,
+        ),
+        "same_error_runtime_round": feedback.get("same_error_runtime_round"),
+        "packet_validation_replan_after_attempts": feedback.get(
+            "packet_validation_replan_after_attempts"
+        ),
+        "packet_validation_replan_required": feedback.get(
+            "packet_validation_replan_required"
+        ),
         "forbidden_generated_code_calls": _compact_string_list(
             feedback.get("forbidden_generated_code_calls", []),
             limit=6,
@@ -511,6 +634,25 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
                 "metric_gate_targets": _compact_mapping(
                     row.get("metric_gate_targets", {}),
                     limit=4,
+                ),
+                "metric_gate_policy_mode": _truncate_text(
+                    row.get("metric_gate_policy_mode", ""),
+                    limit=80,
+                ),
+                "metric_contract_set_id": _truncate_text(
+                    row.get("metric_contract_set_id", ""),
+                    limit=120,
+                ),
+                "metric_contracts": [
+                    dict(contract)
+                    for contract in _first_mapping_rows(
+                        row.get("metric_contracts", []),
+                        limit=4,
+                    )
+                ],
+                "metric_contract_evaluation": _compact_mapping(
+                    row.get("metric_contract_evaluation", {}),
+                    limit=8,
                 ),
                 "code_excerpt": _truncate_text(
                     row.get("code_excerpt", ""),
@@ -647,7 +789,11 @@ def _feedback_reports_theory_trace_downstream_alignment(
     return isinstance(nested, Mapping) and bool(nested)
 
 
-def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:
+def _compact_architect_evidence_contract(
+    value: Any,
+    *,
+    target_subsystem: str,
+) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
     keys = (
@@ -661,13 +807,22 @@ def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:
         "evaluation_mode",
         "capability_eval_requires_generated_algorithm_code",
         "capability_eval_requires_generated_simulation_code",
+        "capability_eval_requires_typed_metric_contracts",
+        "generated_metric_contract_policy",
+        "generated_metric_requirement_authority_policy",
+        "empirical_metric_requirements",
     )
     compact: dict[str, Any] = {}
     for key in keys:
         if key not in value:
             continue
         row = value.get(key)
-        if isinstance(row, list):
+        if key == "empirical_metric_requirements" and isinstance(row, list):
+            compact[key] = generated_metric_requirements_for_subsystem(
+                row,
+                target_subsystem=target_subsystem,
+            )[:8]
+        elif isinstance(row, list):
             compact[key] = _compact_string_list(row, limit=3, char_limit=180)
         elif isinstance(row, bool):
             compact[key] = row
@@ -781,6 +936,11 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
                 ),
             }
         ]
+        contract["metric_contracts"] = [
+            generated_metric_contract_prompt_schema(
+                artifact_id_label="canonical implementation-gap estimator_id"
+            )
+        ]
     return contract
 
 
@@ -794,6 +954,7 @@ ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     ],
     "properties": {
         "implementation_targets": {"type": "array", "minItems": 1},
+        "metric_contracts": {"type": "array"},
         "sandbox_plan": {"type": "object"},
         "code_generation_plan": {"type": "object"},
         "sandbox_code_drafts": {"type": "array"},
@@ -844,6 +1005,19 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append("sandbox_code_drafts entry missing code")
         if len(code) > 12000:
             errors.append("sandbox_code_drafts code exceeds 12000 characters")
+    metric_contracts = packet.get("metric_contracts", [])
+    if metric_contracts not in (None, [], {}):
+        errors.extend(
+            validate_generated_metric_contracts(
+                metric_contracts,
+                expected_artifact_ids=tuple(
+                    str(row.get("estimator_id", "") or "").strip()
+                    for row in packet.get("implementation_targets", []) or []
+                    if isinstance(row, Mapping)
+                    and str(row.get("estimator_id", "") or "").strip()
+                ),
+            )
+        )
     return sorted(set(errors))
 
 
@@ -885,6 +1059,8 @@ def _validate_capability_eval_generated_algorithm_packet(
     packet: Mapping[str, Any],
     *,
     implementation_gaps: list[Mapping[str, Any]],
+    authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
+    require_authoritative_requirements: bool = False,
 ) -> list[str]:
     """Capability eval must exercise Claude-generated code, not a template path."""
 
@@ -925,6 +1101,18 @@ def _validate_capability_eval_generated_algorithm_packet(
             "implementation-gap estimator_id; missing: "
             + ", ".join(sorted(missing_ids))
         )
+    errors.extend(
+        validate_generated_metric_contracts(
+            packet.get("metric_contracts", []),
+            expected_artifact_ids=tuple(sorted(expected_ids)),
+            required_artifact_ids=tuple(sorted(expected_ids)),
+            authoritative_requirements=authoritative_metric_requirements,
+            target_subsystem="AlgorithmEngineer",
+            require_authoritative_requirements=(
+                require_authoritative_requirements
+            ),
+        )
+    )
     return errors
 
 
@@ -940,6 +1128,8 @@ def _normalize_algorithm_packet(
     theory_packet: Mapping[str, Any],
     implementation_gaps: list[Mapping[str, Any]],
     requires_generated_code: bool = False,
+    authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
+    metric_requirement_authority_policy: str = "",
 ) -> dict[str, Any]:
     body = dict(payload)
     _normalize_algorithm_implementation_targets(
@@ -951,6 +1141,44 @@ def _normalize_algorithm_packet(
         body,
         implementation_gaps=implementation_gaps,
     )
+    _normalize_algorithm_metric_contract_artifact_ids(
+        body,
+        implementation_gaps=implementation_gaps,
+    )
+    raw_metric_contracts = body.get("metric_contracts", [])
+    metric_contract_values = (
+        raw_metric_contracts if isinstance(raw_metric_contracts, list) else []
+    )
+    metric_contract_rows = [
+        dict(row)
+        for row in metric_contract_values
+        if isinstance(row, Mapping)
+    ]
+    authority_rows = [
+        dict(row)
+        for row in authoritative_metric_requirements or []
+        if isinstance(row, Mapping)
+    ]
+    metric_contract_rows = bind_generated_metric_contract_authority(
+        metric_contract_rows,
+        authoritative_requirements=authority_rows,
+        target_subsystem="AlgorithmEngineer",
+    )
+    body["metric_contracts"] = metric_contract_rows
+    body["metric_contract_set_id"] = generated_metric_contract_set_id(
+        metric_contract_rows
+    )
+    body["empirical_metric_requirements"] = authority_rows
+    body["metric_requirement_set_id"] = generated_metric_requirement_set_id(
+        authority_rows
+    )
+    body["metric_requirement_authority_policy"] = (
+        metric_requirement_authority_policy
+    )
+    body["metric_contract_proof_evidence_status"] = (
+        GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+    )
+    body["metric_contract_boundary"] = GENERATED_METRIC_CONTRACT_BOUNDARY
     body["execution_evidence_status"] = ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
     body["execution_evidence_boundary"] = ALGORITHM_ENGINEER_BOUNDARY
     body["proof_evidence_status"] = "NOT_PROOF_EVIDENCE"
@@ -1054,6 +1282,37 @@ def _normalize_algorithm_sandbox_code_drafts(
             normalized["entrypoint"] = "run_sandbox"
         normalized_drafts.append(normalized)
     body["sandbox_code_drafts"] = normalized_drafts
+
+
+def _normalize_algorithm_metric_contract_artifact_ids(
+    body: dict[str, Any],
+    *,
+    implementation_gaps: list[Mapping[str, Any]],
+) -> None:
+    raw_contracts = body.get("metric_contracts", [])
+    if not isinstance(raw_contracts, list):
+        return
+    canonical_gap_id = _single_algorithm_gap_estimator_id(implementation_gaps)
+    if not canonical_gap_id:
+        return
+    normalized_contracts: list[Any] = []
+    for row in raw_contracts:
+        if not isinstance(row, Mapping):
+            normalized_contracts.append(row)
+            continue
+        normalized = dict(row)
+        source_artifact_id = str(
+            normalized.get("artifact_id", "") or ""
+        ).strip()
+        if source_artifact_id != canonical_gap_id:
+            normalized["artifact_id"] = canonical_gap_id
+            normalized["artifact_id_binding"] = {
+                "source_artifact_id": source_artifact_id,
+                "canonical_artifact_id": canonical_gap_id,
+                "binding_strategy": "single_gap_task_contract",
+            }
+        normalized_contracts.append(normalized)
+    body["metric_contracts"] = normalized_contracts
 
 
 def _normalize_algorithm_implementation_targets(

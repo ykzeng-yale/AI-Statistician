@@ -51,13 +51,22 @@ from .lean_proof_agent_contract import (
     without_legacy_python_lean_strategy_fields,
 )
 from .generated_metric_repair_policy import (
-    generated_coverage_metric_required_error,
     generated_metric_gate_repair_instruction,
     generated_python_sandbox_guard_repair_instruction,
-    generated_sandbox_requires_coverage_metric as policy_generated_sandbox_requires_coverage_metric,
-    generated_simulation_oracle_truth_hardcoded_error,
-    generated_simulation_oracle_truth_names,
-    is_generated_metric_auxiliary_name as policy_is_generated_metric_auxiliary_name,
+)
+from .generated_metric_contract import (
+    GENERATED_METRIC_CONTRACT_BOUNDARY,
+    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    bind_generated_metric_contract_authority,
+    evaluate_generated_metric_contracts,
+    generated_metric_contract_set_id,
+    generated_metric_contracts_for_artifact,
+    generated_metric_requirement_authority_policy_from_context,
+    generated_metric_requirement_set_id,
+    generated_metric_requirements_from_context,
+    generated_sandbox_runtime_replicates,
+    validate_generated_metric_contracts,
 )
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
@@ -256,6 +265,7 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
 from .task_family import (
+    compact_string_list,
     primary_task_family_from_mapping,
     primary_task_family_from_question,
 )
@@ -7209,6 +7219,7 @@ class ResearchAgentRuntimeConfig:
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
     max_formalizer_proof_state_repair_rounds: int = 1
+    coding_agent_packet_validation_replan_after_attempts: int = 0
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
@@ -7297,6 +7308,7 @@ class ResearchAgentRuntimeConfig:
     )
     formalization_gap_planner_live_temperature: float = 0.1
     formalization_gap_planner_live_max_repair_attempts: int = 1
+    formalization_gap_planner_live_max_provider_retries: int = 1
     formalization_gap_planner_live_max_contract_revisions: int = (
         RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS
     )
@@ -7960,6 +7972,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
         )
         context["architect_runtime_plan"] = {
             "subsystem_execution_plan": packet.get("subsystem_execution_plan", []),
+            "subsystem_execution_plan_provenance": packet.get(
+                "subsystem_execution_plan_provenance", {}
+            ),
             "problem_analysis": packet.get("problem_analysis", {}),
             "stat_knowledge_bank_plan": packet.get("stat_knowledge_bank_plan", {}),
             "literature_fair_comparison_plan": packet.get("literature_fair_comparison_plan", []),
@@ -7982,6 +7997,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
             boundary=ARCHITECT_COORDINATOR_BOUNDARY,
             payload={
                 "n_subsystem_steps": len(packet.get("subsystem_execution_plan", []) or []),
+                "subsystem_execution_plan_provenance": packet.get(
+                    "subsystem_execution_plan_provenance", {}
+                ),
                 "evidence_contract": packet.get("evidence_contract", {}),
                 "runtime_executed": False,
                 "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
@@ -8037,6 +8055,9 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     payload={
                         "packet_id": packet_id,
                         "n_subsystem_steps": len(packet.get("subsystem_execution_plan", []) or []),
+                        "subsystem_execution_plan_provenance": packet.get(
+                            "subsystem_execution_plan_provenance", {}
+                        ),
                         "evidence_contract": packet.get("evidence_contract", {}),
                         "resume_review": bool(resume_pending_task_payload),
                         "resume_pending_task_id": str(
@@ -9135,6 +9156,187 @@ def _canonical_architect_subsystem(value: Any) -> str:
     return ""
 
 
+def _architect_terminal_acceptance_review_policy(
+    *,
+    iteration: int,
+    task: AgentTask,
+    subsystem_name: str,
+    result: AgentStepResult,
+) -> AgentStepResult:
+    if result.status != "ACCEPTED" or subsystem_name == "CriticEvaluator":
+        return result
+    inputs = task.inputs if isinstance(task.inputs, Mapping) else {}
+    architect_context = (
+        inputs.get("architect_context", {})
+        if isinstance(inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    plan = (
+        architect_context.get("architect_runtime_plan", {})
+        if isinstance(
+            architect_context.get("architect_runtime_plan", {}), Mapping
+        )
+        else {}
+    )
+    stages = plan.get("subsystem_execution_plan", [])
+    planned_subsystems = [
+        _canonical_architect_subsystem(stage.get("subsystem"))
+        for stage in stages
+        if isinstance(stage, Mapping)
+    ]
+    planned_subsystems = [item for item in planned_subsystems if item]
+    if "CriticEvaluator" not in planned_subsystems:
+        return result
+    question_payload = (
+        inputs.get("question", {})
+        if isinstance(inputs.get("question", {}), Mapping)
+        else {}
+    )
+    question_id = str(question_payload.get("id", "") or "").strip()
+    if not question_id:
+        question_id = stable_hash([task.task_id, subsystem_name])[:12]
+    review_id = (
+        "architect_terminal_acceptance_review:"
+        + stable_hash(
+            [
+                iteration,
+                task.task_id,
+                subsystem_name,
+                result.rationale,
+                sorted(result.produced_artifacts),
+                planned_subsystems,
+            ]
+        )[:20]
+    )
+    completion_feedback = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeIntermediateAcceptanceReviewFeedback",
+        "review_id": review_id,
+        "accepted_intermediate_task_id": task.task_id,
+        "accepted_intermediate_subsystem": subsystem_name,
+        "accepted_intermediate_artifact_ids": list(result.produced_artifacts),
+        "accepted_intermediate_rationale": result.rationale,
+        "required_final_owner_subsystem": "CriticEvaluator",
+        "failure_classification": (
+            "architect_terminal_completion_review_required"
+        ),
+        "proof_evidence_status": (
+            "INTERMEDIATE_SUBSYSTEM_ACCEPTANCE_NOT_FINAL_RESEARCH_EVIDENCE"
+        ),
+        "boundary": (
+            "An intermediate worker completed its local acceptance gate. Only "
+            "CriticEvaluator may issue final research-candidate acceptance after "
+            "reviewing the complete Architect evidence contract."
+        ),
+    }
+    context = dict(architect_context)
+    context["runtime_intermediate_acceptance_review"] = completion_feedback
+    critic_task = AgentTask(
+        task_id=(
+            f"critic-completion-review:{question_id}:"
+            f"{stable_hash([review_id, task.task_id])[:8]}"
+        ),
+        owner_subsystem="CriticEvaluator",
+        objective=(
+            "Review all current theory, generated code, simulation, retrieval, "
+            "formalization, compiler/proof-state, and source-theorem evidence "
+            "against the Architect contract before any terminal acceptance."
+        ),
+        inputs={
+            "question": dict(question_payload),
+            "architect_context": context,
+            "environment_feedback": completion_feedback,
+            "n_runs": inputs.get("n_runs", 100),
+            "seed": inputs.get("seed", 20260528),
+        },
+        allowed_tools=("model_backend", "blackboard"),
+        expected_artifacts=("RuntimeCriticEvaluatorManifest",),
+        acceptance_gate=(
+            "CriticEvaluator applies the complete Architect evidence contract; "
+            "required formal evidence must fail closed when absent."
+        ),
+        stop_condition=(
+            "CriticEvaluator accepts, blocks, or emits a typed revision task."
+        ),
+    )
+    review_artifact = {
+        **completion_feedback,
+        "artifact_id": review_id,
+        "source_iteration": iteration,
+        "architect_plan_subsystems": list(dict.fromkeys(planned_subsystems)),
+        "pending_critic_task_id": critic_task.task_id,
+    }
+    review_task = AgentTask(
+        task_id=(
+            f"architect-completion-review:{question_id}:"
+            f"{stable_hash([review_id, critic_task.task_id])[:8]}"
+        ),
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Review an intermediate subsystem's local acceptance and route the "
+            "complete evidence state to CriticEvaluator before final acceptance."
+        ),
+        inputs={
+            "question": dict(question_payload),
+            "architect_context": context,
+            "resume_pending_task": asdict(critic_task),
+            "terminal_acceptance_review_contract": review_artifact,
+        },
+        allowed_tools=("model_backend", "blackboard"),
+        expected_artifacts=(
+            "architect_coordinator_proposal",
+            "architect_terminal_acceptance_review",
+        ),
+        acceptance_gate=(
+            "ArchitectCoordinator refreshes the evidence contract and routes to "
+            "CriticEvaluator before terminal acceptance."
+        ),
+        stop_condition="coordinator routes the pending CriticEvaluator task",
+    )
+    observation = EnvironmentObservation(
+        observation_type="architect_terminal_acceptance_review",
+        summary=(
+            f"{subsystem_name} satisfied a local gate; Architect review is "
+            "routing the full evidence state to CriticEvaluator."
+        ),
+        payload=review_artifact,
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, review_id])[:20],
+        task_id=task.task_id,
+        artifact_id=review_id,
+        evidence_type="architect_terminal_acceptance_review",
+        status="INTERMEDIATE_ACCEPTANCE_ROUTED_TO_FINAL_CRITIC",
+        boundary=str(completion_feedback["boundary"]),
+        payload={
+            "source_subsystem": subsystem_name,
+            "pending_critic_task_id": critic_task.task_id,
+            "proof_evidence_status": completion_feedback[
+                "proof_evidence_status"
+            ],
+        },
+    )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            f"Architect completion guard intercepted terminal ACCEPTED from "
+            f"{subsystem_name}; routing to ArchitectCoordinator and then "
+            "CriticEvaluator for the complete evidence-contract decision."
+        ),
+        produced_artifacts={
+            **dict(result.produced_artifacts),
+            review_id: review_artifact,
+        },
+        observations=result.observations + (observation,),
+        tool_calls=result.tool_calls,
+        evidence_entries=result.evidence_entries + (evidence,),
+        next_task=review_task,
+        failure_classification=(
+            "architect_terminal_completion_review_required"
+        ),
+    )
+
+
 def _architect_plan_guard_handoff_policy(
     *,
     iteration: int,
@@ -9145,7 +9347,12 @@ def _architect_plan_guard_handoff_policy(
 ) -> AgentStepResult:
     next_task = result.next_task
     if next_task is None:
-        return result
+        return _architect_terminal_acceptance_review_policy(
+            iteration=iteration,
+            task=task,
+            subsystem_name=subsystem_name,
+            result=result,
+        )
     if subsystem_name == "ArchitectCoordinator":
         return result
     if next_task.owner_subsystem == "ArchitectCoordinator":
@@ -11047,9 +11254,14 @@ class SimulationEvaluatorRuntimeSubsystem:
         *,
         proposal_agent: LLMSimulationEngineerAgent | None = None,
         sandbox_root: Path = Path("runs") / "generated_simulation_sandbox",
+        packet_validation_replan_after_attempts: int = 0,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
+        self.packet_validation_replan_after_attempts = max(
+            0,
+            int(packet_validation_replan_after_attempts or 0),
+        )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -11122,21 +11334,37 @@ class SimulationEvaluatorRuntimeSubsystem:
                 environment_feedback,
                 subsystem="SimulationEvaluator",
             )
-            proposal_packet = self.proposal_agent.propose(
-                question=question,
-                theory_packet=packet if isinstance(packet, Mapping) else {},
-                registered_problem=_problem_to_json(problem),
-                registered_procedures=[_procedure_to_json(row) for row in procedures],
-                n_runs=n_runs,
-                seed=seed,
-                environment_feedback=(
-                    _runtime_environment_feedback_with_architect_directive(
-                        context=effective_context,
-                        subsystem="SimulationEvaluator",
-                        feedback=environment_feedback,
-                    )
-                ),
-            )
+            try:
+                proposal_packet = self.proposal_agent.propose(
+                    question=question,
+                    theory_packet=packet if isinstance(packet, Mapping) else {},
+                    registered_problem=_problem_to_json(problem),
+                    registered_procedures=[
+                        _procedure_to_json(row) for row in procedures
+                    ],
+                    n_runs=n_runs,
+                    seed=seed,
+                    environment_feedback=(
+                        _runtime_environment_feedback_with_architect_directive(
+                            context=effective_context,
+                            subsystem="SimulationEvaluator",
+                            feedback=environment_feedback,
+                        )
+                    ),
+                )
+            except PacketValidationError as exc:
+                return _simulation_engineer_packet_validation_failure_result(
+                    task=task,
+                    question=question,
+                    theory_packet_id=packet_id,
+                    context=effective_context,
+                    exc=exc,
+                    n_runs=n_runs,
+                    seed=seed,
+                    replan_after_attempts=(
+                        self.packet_validation_replan_after_attempts
+                    ),
+                )
             proposal_id = str(proposal_packet["packet_id"])
             theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
                 proposal_packet
@@ -11206,6 +11434,21 @@ class SimulationEvaluatorRuntimeSubsystem:
             effective_context,
             environment_feedback,
         )
+        requires_typed_metric_contracts = _runtime_requires_typed_metric_contracts(
+            effective_context,
+            environment_feedback,
+            subsystem="SimulationEvaluator",
+        )
+        (
+            simulation_metric_requirements,
+            simulation_metric_authority_policy,
+            simulation_metric_authority_required,
+        ) = _runtime_generated_metric_requirement_authority(
+            effective_context,
+            environment_feedback,
+            architect_subsystem="SimulationEvaluator",
+            target_subsystem="SimulationEngineer",
+        )
         simulation_code_drafts = _simulation_code_drafts(proposal_packet)
         if (
             requires_generated_simulation_code
@@ -11238,15 +11481,136 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
         for draft in simulation_code_drafts:
             simulation_id = str(draft.get("simulation_id", "") or "simulation_draft")
+            simulation_metric_contracts = generated_metric_contracts_for_artifact(
+                (proposal_packet or {}).get("metric_contracts", []),
+                artifact_id=simulation_id,
+            )
+            if requires_typed_metric_contracts and not simulation_metric_contracts:
+                generated_simulation_rows.append(
+                    _annotate_generated_sandbox_prototype_provenance(
+                        {
+                            "simulation_id": simulation_id,
+                            "prototype_status": (
+                                "TYPED_METRIC_CONTRACT_REQUIRED_BUT_MISSING"
+                            ),
+                            "executor": "generated_simulation_sandbox",
+                            "reason": (
+                                "Capability evaluation requires at least one "
+                                "validated typed metric contract bound to this "
+                                "generated simulation_id before execution."
+                            ),
+                            "metric_contracts": [],
+                            "metric_contract_set_id": "",
+                            "metric_contract_evaluation": {},
+                            "metric_contract_proof_evidence_status": (
+                                GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+                            ),
+                            "metric_contract_boundary": (
+                                GENERATED_METRIC_CONTRACT_BOUNDARY
+                            ),
+                            "metric_gate_policy_mode": (
+                                "typed_artifact_bound_required_missing"
+                            ),
+                            "smoke_passed": False,
+                            "execution_smoke_passed": False,
+                            "simulation_evidence_status": (
+                                "GENERATED_SIMULATION_TYPED_METRIC_CONTRACT_MISSING"
+                            ),
+                        },
+                        proposal_packet=proposal_packet,
+                        repair_feedback=environment_feedback,
+                    )
+                )
+                continue
+            (
+                simulation_metric_contracts,
+                metric_authority_errors,
+            ) = _runtime_bind_and_validate_generated_metric_authority(
+                simulation_metric_contracts,
+                artifact_id=simulation_id,
+                authoritative_requirements=simulation_metric_requirements,
+                target_subsystem="SimulationEngineer",
+                require_authoritative_requirements=(
+                    simulation_metric_authority_required
+                ),
+            )
+            if metric_authority_errors:
+                generated_simulation_rows.append(
+                    _annotate_generated_sandbox_prototype_provenance(
+                        {
+                            "simulation_id": simulation_id,
+                            "prototype_status": (
+                                "METRIC_REQUIREMENT_AUTHORITY_REJECTED"
+                            ),
+                            "executor": "generated_simulation_sandbox",
+                            "reason": (
+                                "Generated required metric contracts did not "
+                                "preserve the independent Architect requirement set."
+                            ),
+                            "metric_contracts": simulation_metric_contracts,
+                            "metric_contract_set_id": (
+                                generated_metric_contract_set_id(
+                                    simulation_metric_contracts
+                                )
+                            ),
+                            "metric_requirement_set_id": (
+                                generated_metric_requirement_set_id(
+                                    simulation_metric_requirements
+                                )
+                            ),
+                            "metric_requirement_authority_policy": (
+                                simulation_metric_authority_policy
+                            ),
+                            "metric_requirement_authority_required": (
+                                simulation_metric_authority_required
+                            ),
+                            "metric_requirement_authority_errors": (
+                                metric_authority_errors
+                            ),
+                            "metric_requirement_authority_validated": False,
+                            "metric_contract_evaluation": {},
+                            "metric_contract_proof_evidence_status": (
+                                GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+                            ),
+                            "metric_contract_boundary": (
+                                GENERATED_METRIC_CONTRACT_BOUNDARY
+                            ),
+                            "metric_gate_policy_mode": (
+                                "architect_requirement_authority_rejected"
+                            ),
+                            "smoke_passed": False,
+                            "execution_smoke_passed": False,
+                            "simulation_evidence_status": (
+                                "GENERATED_SIMULATION_METRIC_REQUIREMENT_AUTHORITY_REJECTED"
+                            ),
+                        },
+                        proposal_packet=proposal_packet,
+                        repair_feedback=environment_feedback,
+                    )
+                )
+                continue
             prototype, tool_call = _run_generated_simulation_sandbox(
                 sandbox_dir=generated_simulation_dir,
                 simulation_id=simulation_id,
                 code_draft=draft,
                 proposal_packet=proposal_packet or {},
+                metric_contracts=simulation_metric_contracts,
                 validation_context={
                     "question": _question_to_payload(question),
                     "architect_context": effective_context,
                     "environment_feedback": dict(environment_feedback),
+                    "authoritative_metric_requirements": (
+                        simulation_metric_requirements
+                    ),
+                    "metric_requirement_authority_policy": (
+                        simulation_metric_authority_policy
+                    ),
+                    "require_authoritative_metric_requirements": (
+                        simulation_metric_authority_required
+                    ),
+                    "metric_requirement_target_subsystem": (
+                        "SimulationEngineer"
+                    ),
                 },
                 n_runs=n_runs,
                 seed=seed,
@@ -11323,6 +11687,22 @@ class SimulationEvaluatorRuntimeSubsystem:
             for row in generated_simulation_rows
             if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
             and _generated_sandbox_row_live_generated(row)
+        )
+        n_generated_simulation_typed_metric_contracts_declared = sum(
+            len(row.get("metric_contracts", []) or [])
+            for row in generated_simulation_rows
+        )
+        n_generated_simulation_typed_metric_contracts_evaluated = sum(
+            _generated_metric_contract_evaluation_count(row, "n_contracts")
+            for row in generated_simulation_rows
+        )
+        n_generated_simulation_typed_metric_contracts_passed = sum(
+            _generated_metric_contract_evaluation_count(row, "n_passed")
+            for row in generated_simulation_rows
+        )
+        n_generated_simulation_typed_metric_contracts_failed = sum(
+            _generated_metric_contract_evaluation_count(row, "n_failed")
+            for row in generated_simulation_rows
         )
         generated_simulation_revision_required = bool(
             self.proposal_agent is not None
@@ -11405,6 +11785,21 @@ class SimulationEvaluatorRuntimeSubsystem:
             "n_live_unsafe_generated_simulation_code_rejected": (
                 n_live_unsafe_generated_simulation_rejected
             ),
+            "n_generated_simulation_typed_metric_contracts_declared": (
+                n_generated_simulation_typed_metric_contracts_declared
+            ),
+            "n_generated_simulation_typed_metric_contracts_evaluated": (
+                n_generated_simulation_typed_metric_contracts_evaluated
+            ),
+            "n_generated_simulation_typed_metric_contracts_passed": (
+                n_generated_simulation_typed_metric_contracts_passed
+            ),
+            "n_generated_simulation_typed_metric_contracts_failed": (
+                n_generated_simulation_typed_metric_contracts_failed
+            ),
+            "typed_metric_contract_proof_evidence_status": (
+                GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+            ),
             "simulation_passed": simulation_passed,
             "implementation_gaps": implementation_gaps,
             "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
@@ -11432,6 +11827,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                         n_generated_simulation_metric_gate_failed
                     ),
                     "n_unsafe_generated_simulation_code_rejected": n_unsafe_generated_simulation_rejected,
+                    "n_generated_simulation_typed_metric_contracts_evaluated": (
+                        n_generated_simulation_typed_metric_contracts_evaluated
+                    ),
+                    "n_generated_simulation_typed_metric_contracts_failed": (
+                        n_generated_simulation_typed_metric_contracts_failed
+                    ),
                 },
             )
         )
@@ -11455,6 +11856,18 @@ class SimulationEvaluatorRuntimeSubsystem:
                 ),
                 "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
                 "n_unsafe_generated_simulation_code_rejected": n_unsafe_generated_simulation_rejected,
+                "n_generated_simulation_typed_metric_contracts_evaluated": (
+                    n_generated_simulation_typed_metric_contracts_evaluated
+                ),
+                "n_generated_simulation_typed_metric_contracts_passed": (
+                    n_generated_simulation_typed_metric_contracts_passed
+                ),
+                "n_generated_simulation_typed_metric_contracts_failed": (
+                    n_generated_simulation_typed_metric_contracts_failed
+                ),
+                "typed_metric_contract_proof_evidence_status": (
+                    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+                ),
                 "architect_acceptance_gate": simulation_control.get("acceptance_gate", ""),
             },
         )
@@ -11462,6 +11875,12 @@ class SimulationEvaluatorRuntimeSubsystem:
             generated_simulation_failure_classification = (
                 "generated_simulation_sandbox_metric_gate_failed"
                 if n_generated_simulation_metric_gate_failed > 0
+                else "generated_simulation_typed_metric_contract_missing"
+                if any(
+                    row.get("prototype_status")
+                    == "TYPED_METRIC_CONTRACT_REQUIRED_BUT_MISSING"
+                    for row in generated_simulation_rows
+                )
                 else "generated_simulation_sandbox_execution_failed"
                 if n_generated_simulation_execution_failed > 0
                 else "generated_simulation_sandbox_no_executable_draft"
@@ -11490,32 +11909,110 @@ class SimulationEvaluatorRuntimeSubsystem:
                 algorithm_sandbox_manifest_id = str(
                     task.inputs.get("algorithm_sandbox_manifest_id", "") or ""
                 ).strip()
-                next_task = (
-                    _simulation_evaluator_repair_budget_yield_to_formalization_task(
-                        question=question,
+                passed_algorithm_sandbox_manifest_id = (
+                    _runtime_generated_algorithm_sandbox_passed_manifest_id(
+                        blackboard,
+                        question_id=question.id,
                         theory_packet_id=packet_id,
-                        simulation_manifest_id=manifest_id,
-                        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-                        architect_context=effective_context,
-                        simulation_feedback=feedback,
-                        failure_classification=(
-                            generated_simulation_failure_classification
+                        required_estimator_ids=_implementation_gap_estimator_ids(
+                            implementation_gaps
                         ),
-                        repair_attempts_used=repair_attempts_used,
-                        yield_after_attempts=yield_after_attempts,
                     )
+                    if implementation_gaps
+                    else ""
                 )
+                if passed_algorithm_sandbox_manifest_id:
+                    algorithm_sandbox_manifest_id = (
+                        passed_algorithm_sandbox_manifest_id
+                    )
+                route_to_algorithm_engineer = bool(
+                    implementation_gaps
+                    and not passed_algorithm_sandbox_manifest_id
+                )
+                if route_to_algorithm_engineer:
+                    next_task = (
+                        _simulation_evaluator_repair_budget_yield_to_algorithm_task(
+                            question=question,
+                            theory_packet_id=packet_id,
+                            simulation_manifest_id=manifest_id,
+                            implementation_gaps=implementation_gaps,
+                            architect_context=effective_context,
+                            simulation_feedback=feedback,
+                            failure_classification=(
+                                generated_simulation_failure_classification
+                            ),
+                            repair_attempts_used=repair_attempts_used,
+                            yield_after_attempts=yield_after_attempts,
+                            n_runs=n_runs,
+                            seed=seed,
+                        )
+                    )
+                    yield_observation_type = (
+                        "simulation_evaluator_repair_budget_yield_to_algorithm"
+                    )
+                    yield_summary = (
+                        "SimulationEvaluator generated-code repair budget was "
+                        "exhausted; routing the still-open implementation gaps "
+                        "to AlgorithmEngineer before formalization."
+                    )
+                else:
+                    next_task = (
+                        _simulation_evaluator_repair_budget_yield_to_formalization_task(
+                            question=question,
+                            theory_packet_id=packet_id,
+                            simulation_manifest_id=manifest_id,
+                            algorithm_sandbox_manifest_id=(
+                                algorithm_sandbox_manifest_id
+                            ),
+                            architect_context=effective_context,
+                            simulation_feedback=feedback,
+                            failure_classification=(
+                                generated_simulation_failure_classification
+                            ),
+                            repair_attempts_used=repair_attempts_used,
+                            yield_after_attempts=yield_after_attempts,
+                        )
+                    )
+                    yield_observation_type = (
+                        "simulation_evaluator_repair_budget_yield_to_formalization"
+                    )
+                    yield_summary = (
+                        "SimulationEvaluator generated-code repair budget was "
+                        "exhausted; routing diagnostics to FormalizationEvaluator "
+                        "while keeping the generated simulation blocker open."
+                    )
+                if (
+                    generated_simulation_failure_classification
+                    == "generated_simulation_sandbox_metric_gate_failed"
+                ):
+                    deferred_next_task = next_task
+                    next_task = _coding_agent_metric_gate_architect_task(
+                        task=task,
+                        question=question,
+                        context={
+                            **effective_context,
+                            "theory_packet_id": packet_id,
+                            "simulation_manifest_id": manifest_id,
+                        },
+                        metric_feedback=feedback,
+                        source_manifest_id=manifest_id,
+                        deferred_next_owner_subsystem=(
+                            deferred_next_task.owner_subsystem
+                        ),
+                    )
+                    yield_observation_type = (
+                        "simulation_metric_gate_architect_replan"
+                    )
+                    yield_summary = (
+                        "SimulationEvaluator exhausted its local metric repair "
+                        "budget; exact empirical failures are routed to "
+                        "ArchitectCoordinator to choose theory, measurement, or "
+                        "implementation work without weakening the frozen gate."
+                    )
                 observations.append(
                     EnvironmentObservation(
-                        observation_type=(
-                            "simulation_evaluator_repair_budget_yield_to_formalization"
-                        ),
-                        summary=(
-                            "SimulationEvaluator generated-code repair budget "
-                            "was exhausted; routing diagnostics to "
-                            "FormalizationEvaluator while keeping the generated "
-                            "simulation blocker open."
-                        ),
+                        observation_type=yield_observation_type,
+                        summary=yield_summary,
                         payload={
                             "simulation_manifest_id": manifest_id,
                             "failure_classification": (
@@ -11523,15 +12020,23 @@ class SimulationEvaluatorRuntimeSubsystem:
                             ),
                             "repair_attempts_used": repair_attempts_used,
                             "yield_after_attempts": yield_after_attempts,
+                            "next_owner_subsystem": next_task.owner_subsystem,
+                            "n_open_implementation_gaps": len(
+                                implementation_gaps
+                            ),
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     )
                 )
                 simulation_rationale = (
-                    "Generated simulation sandbox did not satisfy the required "
-                    "generated-simulation evidence after the bounded repair "
-                    "budget; runtime is routing the blocker to "
-                    "FormalizationEvaluator so proof and formal-gap feedback are "
+                    "Generated simulation sandbox repeatedly missed an "
+                    "independent empirical gate; exact evaluations are routed "
+                    "to ArchitectCoordinator for cross-subsystem diagnosis."
+                    if next_task.owner_subsystem == "ArchitectCoordinator"
+                    else "Generated simulation sandbox did not satisfy the "
+                    "required generated-simulation evidence after the bounded "
+                    f"repair budget; runtime is routing the blocker to "
+                    f"{next_task.owner_subsystem} so remaining subsystem work is "
                     "not starved."
                 )
             else:
@@ -11590,7 +12095,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "SimulatorEngineer."
                 )
             return AgentStepResult(
-                status="REVISE",
+                status=(
+                    "REROUTE"
+                    if next_task.owner_subsystem == "ArchitectCoordinator"
+                    else "REVISE"
+                ),
                 rationale=simulation_rationale,
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
@@ -11779,12 +12288,17 @@ class AlgorithmEngineerRuntimeSubsystem:
         seed: int,
         proposal_agent: LLMAlgorithmEngineerAgent | None = None,
         timeout_s: int = 60,
+        packet_validation_replan_after_attempts: int = 0,
     ) -> None:
         self.out_dir = out_dir
         self.n_runs = n_runs
         self.seed = seed
         self.proposal_agent = proposal_agent
         self.timeout_s = timeout_s
+        self.packet_validation_replan_after_attempts = max(
+            0,
+            int(packet_validation_replan_after_attempts or 0),
+        )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -11901,6 +12415,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                     implementation_gaps=implementation_gaps,
                     context=effective_context,
                     exc=exc,
+                    replan_after_attempts=(
+                        self.packet_validation_replan_after_attempts
+                    ),
                 )
             proposal_id = str(proposal_packet["packet_id"])
             theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
@@ -11964,6 +12481,21 @@ class AlgorithmEngineerRuntimeSubsystem:
             effective_context,
             environment_feedback,
         )
+        requires_typed_metric_contracts = _runtime_requires_typed_metric_contracts(
+            effective_context,
+            environment_feedback,
+            subsystem="AlgorithmEngineer",
+        )
+        (
+            algorithm_metric_requirements,
+            algorithm_metric_authority_policy,
+            algorithm_metric_authority_required,
+        ) = _runtime_generated_metric_requirement_authority(
+            effective_context,
+            environment_feedback,
+            architect_subsystem="AlgorithmEngineer",
+            target_subsystem="AlgorithmEngineer",
+        )
         for gap in implementation_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
             spec = _estimator_spec(packet, estimator_id)
@@ -11975,16 +12507,137 @@ class AlgorithmEngineerRuntimeSubsystem:
                 question=question,
             )
             if code_draft:
+                estimator_metric_contracts = generated_metric_contracts_for_artifact(
+                    (proposal_packet or {}).get("metric_contracts", []),
+                    artifact_id=estimator_id,
+                )
+                if requires_typed_metric_contracts and not estimator_metric_contracts:
+                    prototype_rows.append(
+                        _annotate_generated_sandbox_prototype_provenance(
+                            {
+                                "estimator_id": estimator_id,
+                                "prototype_status": (
+                                    "TYPED_METRIC_CONTRACT_REQUIRED_BUT_MISSING"
+                                ),
+                                "executor": "generated_python_sandbox",
+                                "spec": dict(spec),
+                                "reason": (
+                                    "Capability evaluation requires at least one "
+                                    "validated typed metric contract bound to this "
+                                    "canonical estimator_id before execution."
+                                ),
+                                "metric_contracts": [],
+                                "metric_contract_set_id": "",
+                                "metric_contract_evaluation": {},
+                                "metric_contract_proof_evidence_status": (
+                                    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+                                ),
+                                "metric_contract_boundary": (
+                                    GENERATED_METRIC_CONTRACT_BOUNDARY
+                                ),
+                                "metric_gate_policy_mode": (
+                                    "typed_artifact_bound_required_missing"
+                                ),
+                                "smoke_passed": False,
+                                "execution_smoke_passed": False,
+                                "promotion_ready": False,
+                                "llm_algorithm_engineer_target": proposal_target,
+                            },
+                            proposal_packet=proposal_packet,
+                            repair_feedback=environment_feedback,
+                        )
+                    )
+                    continue
+                (
+                    estimator_metric_contracts,
+                    metric_authority_errors,
+                ) = _runtime_bind_and_validate_generated_metric_authority(
+                    estimator_metric_contracts,
+                    artifact_id=estimator_id,
+                    authoritative_requirements=algorithm_metric_requirements,
+                    target_subsystem="AlgorithmEngineer",
+                    require_authoritative_requirements=(
+                        algorithm_metric_authority_required
+                    ),
+                )
+                if metric_authority_errors:
+                    prototype_rows.append(
+                        _annotate_generated_sandbox_prototype_provenance(
+                            {
+                                "estimator_id": estimator_id,
+                                "prototype_status": (
+                                    "METRIC_REQUIREMENT_AUTHORITY_REJECTED"
+                                ),
+                                "executor": "generated_python_sandbox",
+                                "spec": dict(spec),
+                                "reason": (
+                                    "Generated required metric contracts did not "
+                                    "preserve the independent Architect requirement set."
+                                ),
+                                "metric_contracts": estimator_metric_contracts,
+                                "metric_contract_set_id": (
+                                    generated_metric_contract_set_id(
+                                        estimator_metric_contracts
+                                    )
+                                ),
+                                "metric_requirement_set_id": (
+                                    generated_metric_requirement_set_id(
+                                        algorithm_metric_requirements
+                                    )
+                                ),
+                                "metric_requirement_authority_policy": (
+                                    algorithm_metric_authority_policy
+                                ),
+                                "metric_requirement_authority_required": (
+                                    algorithm_metric_authority_required
+                                ),
+                                "metric_requirement_authority_errors": (
+                                    metric_authority_errors
+                                ),
+                                "metric_requirement_authority_validated": False,
+                                "metric_contract_evaluation": {},
+                                "metric_contract_proof_evidence_status": (
+                                    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+                                ),
+                                "metric_contract_boundary": (
+                                    GENERATED_METRIC_CONTRACT_BOUNDARY
+                                ),
+                                "metric_gate_policy_mode": (
+                                    "architect_requirement_authority_rejected"
+                                ),
+                                "smoke_passed": False,
+                                "execution_smoke_passed": False,
+                                "promotion_ready": False,
+                                "llm_algorithm_engineer_target": proposal_target,
+                            },
+                            proposal_packet=proposal_packet,
+                            repair_feedback=environment_feedback,
+                        )
+                    )
+                    continue
                 prototype, tool_call = _run_generated_python_sandbox(
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
                     spec=spec,
                     code_draft=code_draft,
+                    metric_contracts=estimator_metric_contracts,
                     validation_context={
                         "question": _question_to_payload(question),
                         "architect_context": effective_context,
                         "environment_feedback": dict(environment_feedback),
                         "implementation_gap": dict(gap),
+                        "authoritative_metric_requirements": (
+                            algorithm_metric_requirements
+                        ),
+                        "metric_requirement_authority_policy": (
+                            algorithm_metric_authority_policy
+                        ),
+                        "require_authoritative_metric_requirements": (
+                            algorithm_metric_authority_required
+                        ),
+                        "metric_requirement_target_subsystem": (
+                            "AlgorithmEngineer"
+                        ),
                     },
                     n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
                     seed=int(task.inputs.get("seed", self.seed) or self.seed),
@@ -12086,6 +12739,22 @@ class AlgorithmEngineerRuntimeSubsystem:
             and row.get("prototype_status") == "FAILED"
             and _generated_sandbox_row_live_generated(row)
         )
+        n_typed_metric_contracts_declared = sum(
+            len(row.get("metric_contracts", []) or [])
+            for row in prototype_rows
+        )
+        n_typed_metric_contracts_evaluated = sum(
+            _generated_metric_contract_evaluation_count(row, "n_contracts")
+            for row in prototype_rows
+        )
+        n_typed_metric_contracts_passed = sum(
+            _generated_metric_contract_evaluation_count(row, "n_passed")
+            for row in prototype_rows
+        )
+        n_typed_metric_contracts_failed = sum(
+            _generated_metric_contract_evaluation_count(row, "n_failed")
+            for row in prototype_rows
+        )
         manifest_id = "algorithm_sandbox_manifest:" + stable_hash([task.task_id, prototype_rows])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -12160,6 +12829,13 @@ class AlgorithmEngineerRuntimeSubsystem:
                 if row.get("prototype_status") == "REJECTED_UNSAFE_GENERATED_CODE"
                 and _generated_sandbox_row_live_generated(row)
             ),
+            "n_typed_metric_contracts_declared": n_typed_metric_contracts_declared,
+            "n_typed_metric_contracts_evaluated": n_typed_metric_contracts_evaluated,
+            "n_typed_metric_contracts_passed": n_typed_metric_contracts_passed,
+            "n_typed_metric_contracts_failed": n_typed_metric_contracts_failed,
+            "typed_metric_contract_proof_evidence_status": (
+                GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+            ),
             "promotion_ready": False,
             "boundary": (
                 "Algorithm sandbox prototypes are executable engineering evidence. "
@@ -12185,6 +12861,18 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "n_generated_code_execution_failed"
                 ],
                 "n_unsafe_generated_code_rejected": manifest["n_unsafe_generated_code_rejected"],
+                "n_typed_metric_contracts_evaluated": manifest[
+                    "n_typed_metric_contracts_evaluated"
+                ],
+                "n_typed_metric_contracts_passed": manifest[
+                    "n_typed_metric_contracts_passed"
+                ],
+                "n_typed_metric_contracts_failed": manifest[
+                    "n_typed_metric_contracts_failed"
+                ],
+                "typed_metric_contract_proof_evidence_status": (
+                    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+                ),
                 "promotion_ready": False,
                 "architect_acceptance_gate": algorithm_control.get("acceptance_gate", ""),
             },
@@ -12215,6 +12903,12 @@ class AlgorithmEngineerRuntimeSubsystem:
         revision_failure_classification = (
             "generated_algorithm_sandbox_metric_gate_failed"
             if int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
+            else "generated_algorithm_typed_metric_contract_missing"
+            if any(
+                row.get("prototype_status")
+                == "TYPED_METRIC_CONTRACT_REQUIRED_BUT_MISSING"
+                for row in prototype_rows
+            )
             else "generated_algorithm_sandbox_execution_failed"
             if int(manifest.get("n_generated_code_execution_failed", 0) or 0) > 0
             else "generated_algorithm_sandbox_required_not_executed"
@@ -12246,7 +12940,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
             ):
-                next_task = (
+                deferred_next_task = (
                     _algorithm_engineer_repair_budget_yield_to_formalization_task(
                         question=question,
                         theory_packet_id=packet_id,
@@ -12259,15 +12953,45 @@ class AlgorithmEngineerRuntimeSubsystem:
                         yield_after_attempts=yield_after_attempts,
                     )
                 )
+                next_task = (
+                    _coding_agent_metric_gate_architect_task(
+                        task=task,
+                        question=question,
+                        context={
+                            **effective_context,
+                            "theory_packet_id": packet_id,
+                            "simulation_manifest_id": simulation_manifest_id,
+                            "algorithm_sandbox_manifest_id": manifest_id,
+                        },
+                        metric_feedback=feedback,
+                        source_manifest_id=manifest_id,
+                        deferred_next_owner_subsystem=(
+                            deferred_next_task.owner_subsystem
+                        ),
+                    )
+                    if revision_failure_classification
+                    == "generated_algorithm_sandbox_metric_gate_failed"
+                    else deferred_next_task
+                )
                 observations.append(
                     EnvironmentObservation(
                         observation_type=(
-                            "algorithm_engineer_repair_budget_yield_to_formalization"
+                            "algorithm_metric_gate_architect_replan"
+                            if next_task.owner_subsystem
+                            == "ArchitectCoordinator"
+                            else "algorithm_engineer_repair_budget_yield_to_formalization"
                         ),
                         summary=(
-                            "AlgorithmEngineer generated-code repair budget was "
-                            "exhausted; routing diagnostics to FormalizationEvaluator "
-                            "while keeping the algorithm blocker open."
+                            "AlgorithmEngineer exhausted its local metric repair "
+                            "budget; routing exact empirical failures to "
+                            "ArchitectCoordinator without weakening the frozen "
+                            "gate."
+                            if next_task.owner_subsystem
+                            == "ArchitectCoordinator"
+                            else "AlgorithmEngineer generated-code repair budget "
+                            "was exhausted; routing diagnostics to "
+                            "FormalizationEvaluator while keeping the algorithm "
+                            "blocker open."
                         ),
                         payload={
                             "algorithm_sandbox_manifest_id": manifest_id,
@@ -12385,7 +13109,13 @@ class AlgorithmEngineerRuntimeSubsystem:
         )
         evidence_entries = [row for row in (proposal_evidence, evidence) if row is not None]
         if revision_required:
-            if next_task.owner_subsystem == "FormalizationEvaluator":
+            if next_task.owner_subsystem == "ArchitectCoordinator":
+                algorithm_rationale = (
+                    "AlgorithmEngineer repeatedly missed an independent "
+                    "empirical gate; exact evaluations are routed to "
+                    "ArchitectCoordinator for cross-subsystem diagnosis."
+                )
+            elif next_task.owner_subsystem == "FormalizationEvaluator":
                 algorithm_rationale = (
                     "AlgorithmEngineer did not satisfy the required generated-code "
                     "sandbox evidence after the bounded repair budget; runtime is "
@@ -12414,7 +13144,13 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "LLM estimator specs and is routing to formalization/proof feedback."
                 )
         return AgentStepResult(
-            status="REVISE" if revision_required else "REROUTE",
+            status=(
+                "REROUTE"
+                if next_task.owner_subsystem == "ArchitectCoordinator"
+                else "REVISE"
+                if revision_required
+                else "REROUTE"
+            ),
             rationale=algorithm_rationale,
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
@@ -12429,6 +13165,431 @@ class AlgorithmEngineerRuntimeSubsystem:
         )
 
 
+def _coding_agent_packet_validation_state(
+    *,
+    task: AgentTask,
+    feedback_type: str,
+    validation_label: str,
+    validation_errors: Sequence[str],
+    replan_after_attempts: int,
+) -> dict[str, Any]:
+    previous = (
+        task.inputs.get("environment_feedback", {})
+        if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    family_fingerprint = stable_hash(
+        [task.owner_subsystem, feedback_type, validation_label]
+    )
+    error_fingerprint = stable_hash(
+        [validation_label, sorted({str(error) for error in validation_errors})]
+    )
+    previous_family = str(
+        previous.get("packet_validation_family_fingerprint", "") or ""
+    )
+    previous_round = int(
+        previous.get("consecutive_packet_validation_round", 0) or 0
+    )
+    consecutive_round = (
+        previous_round + 1 if previous_family == family_fingerprint else 1
+    )
+    threshold = max(0, int(replan_after_attempts or 0))
+    return {
+        "packet_validation_family_fingerprint": family_fingerprint,
+        "validation_error_fingerprint": error_fingerprint,
+        "consecutive_packet_validation_round": consecutive_round,
+        "same_error_runtime_round": (
+            int(previous.get("same_error_runtime_round", 0) or 0) + 1
+            if str(previous.get("validation_error_fingerprint", "") or "")
+            == error_fingerprint
+            else 1
+        ),
+        "packet_validation_replan_after_attempts": threshold,
+        "packet_validation_replan_required": bool(
+            threshold > 0 and consecutive_round >= threshold
+        ),
+    }
+
+
+def _coding_agent_packet_validation_architect_task(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    repair_feedback: Mapping[str, Any],
+) -> AgentTask:
+    replan_context = dict(context)
+    replan_context["environment_feedback"] = dict(repair_feedback)
+    replan_context["runtime_packet_validation_replan"] = {
+        "artifact_kind": "RuntimeCodingAgentPacketValidationReplanContext",
+        "source_task_id": task.task_id,
+        "source_subsystem": task.owner_subsystem,
+        "failure_classification": str(
+            repair_feedback.get("failure_classification", "") or ""
+        ),
+        "validation_label": str(
+            repair_feedback.get("validation_label", "") or ""
+        ),
+        "validation_errors": list(
+            repair_feedback.get("validation_errors", []) or []
+        ),
+        "packet_validation_family_fingerprint": str(
+            repair_feedback.get(
+                "packet_validation_family_fingerprint", ""
+            )
+            or ""
+        ),
+        "validation_error_fingerprint": str(
+            repair_feedback.get("validation_error_fingerprint", "") or ""
+        ),
+        "consecutive_packet_validation_round": int(
+            repair_feedback.get("consecutive_packet_validation_round", 0) or 0
+        ),
+        "pending_artifact_ids": {
+            str(key): str(value)
+            for key, value in task.inputs.items()
+            if str(key).endswith("_id") and str(value).strip()
+        },
+        "routing_contract": (
+            "ArchitectCoordinator must choose whether to amend upstream theory, "
+            "artifact interfaces, or the coding-agent retry. It must not declare "
+            "the invalid packet executed or synthesize statistical, code, Lean, "
+            "or proof evidence."
+        ),
+        "proof_evidence_status": (
+            "CODING_AGENT_PACKET_VALIDATION_REPLAN_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return AgentTask(
+        task_id=(
+            f"architect-packet-replan:{question.id}:"
+            f"{stable_hash([task.task_id, repair_feedback])[:8]}"
+        ),
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Replan the research worker graph from exact repeated coding-agent "
+            "packet-validator feedback, selecting an upstream repair or a "
+            "better-context retry without weakening runtime evidence gates."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": replan_context,
+            "environment_feedback": dict(repair_feedback),
+        },
+        allowed_tools=("model_backend", "evidence_ledger"),
+        expected_artifacts=("architect_coordinator_proposal",),
+        acceptance_gate=(
+            "validated Architect proposal explicitly routes the unresolved packet "
+            "validation blocker while preserving all evidence contracts"
+        ),
+        stop_condition=(
+            "amended route selects an upstream repair, a context-improved retry, "
+            "or records a typed blocker"
+        ),
+    )
+
+
+def _coding_agent_metric_gate_architect_task(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    metric_feedback: Mapping[str, Any],
+    source_manifest_id: str,
+    deferred_next_owner_subsystem: str,
+) -> AgentTask:
+    """Escalate repeated empirical failures without post-hoc gate weakening."""
+
+    replan_context = dict(context)
+    replan_context["environment_feedback"] = dict(metric_feedback)
+    prototype_rows = [
+        dict(row)
+        for key in (
+            "generated_simulation_prototypes",
+            "generated_algorithm_prototypes",
+            "prototypes",
+        )
+        for row in metric_feedback.get(key, []) or []
+        if isinstance(row, Mapping)
+    ]
+    metric_evaluations = [
+        dict(evaluation)
+        for row in prototype_rows
+        for evaluation in (
+            row.get("metric_contract_evaluation", {}).get("evaluations", [])
+            if isinstance(row.get("metric_contract_evaluation", {}), Mapping)
+            else []
+        )
+        if isinstance(evaluation, Mapping)
+    ]
+    replan_context["runtime_metric_gate_replan"] = {
+        "artifact_kind": "RuntimeCodingAgentMetricGateReplanContext",
+        "source_task_id": task.task_id,
+        "source_subsystem": task.owner_subsystem,
+        "source_manifest_id": source_manifest_id,
+        "failure_classification": str(
+            metric_feedback.get("failure_classification", "") or ""
+        ),
+        "feedback_id": str(metric_feedback.get("feedback_id", "") or ""),
+        "metric_evaluations": metric_evaluations,
+        "deferred_next_owner_subsystem": deferred_next_owner_subsystem,
+        "pending_artifact_ids": {
+            str(key): str(value)
+            for key, value in {
+                **{
+                    key: value
+                    for key, value in task.inputs.items()
+                    if str(key).endswith("_id")
+                },
+                **{
+                    key: value
+                    for key, value in context.items()
+                    if str(key).endswith("_id")
+                },
+            }.items()
+            if str(value).strip()
+        },
+        "gate_revision_policy": (
+            "Do not weaken, delete, or post-hoc reinterpret an Architect-authored "
+            "requirement to pass the current artifact. Route theory, DGP, "
+            "measurement, or implementation repair. If the frozen requirement "
+            "itself is malformed, record EVALUATION_PROTOCOL_REVISION_REQUIRED "
+            "and require a fresh candidate run; the current artifact remains "
+            "failed."
+        ),
+        "routing_contract": (
+            "ArchitectCoordinator must select the next evidence-producing "
+            "subsystem from the exact empirical diagnostics. Continuing another "
+            "lane is allowed, but the unresolved metric blocker must remain "
+            "visible and cannot be converted into proof or acceptance evidence."
+        ),
+        "proof_evidence_status": (
+            "CODING_AGENT_METRIC_GATE_REPLAN_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return AgentTask(
+        task_id=(
+            f"architect-metric-replan:{question.id}:"
+            f"{stable_hash([task.task_id, source_manifest_id, metric_feedback])[:8]}"
+        ),
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Diagnose repeated generated-code empirical gate failures across "
+            "theory, measurement protocol, simulation design, and implementation; "
+            "choose the next typed worker without weakening frozen evidence gates."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": replan_context,
+            "environment_feedback": dict(metric_feedback),
+        },
+        allowed_tools=("model_backend", "evidence_ledger"),
+        expected_artifacts=("architect_coordinator_proposal",),
+        acceptance_gate=(
+            "validated Architect proposal routes an evidence-producing repair or "
+            "records a fresh-run protocol blocker while preserving original "
+            "requirement fingerprints"
+        ),
+        stop_condition=(
+            "next subsystem selected, unresolved metric blocker retained, and no "
+            "current failed artifact promoted"
+        ),
+    )
+
+
+def _simulation_engineer_packet_validation_failure_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    context: Mapping[str, Any],
+    exc: PacketValidationError,
+    n_runs: int,
+    seed: int,
+    replan_after_attempts: int = 0,
+) -> AgentStepResult:
+    validation_errors = [str(error) for error in exc.errors]
+    validation_state = _coding_agent_packet_validation_state(
+        task=task,
+        feedback_type="simulation_engineer_packet_validation_feedback",
+        validation_label=exc.validation_label,
+        validation_errors=validation_errors,
+        replan_after_attempts=replan_after_attempts,
+    )
+    failure_id = "simulation_engineer_validation_failure:" + stable_hash(
+        [task.task_id, theory_packet_id, validation_errors, exc.history]
+    )[:20]
+    repair_feedback = {
+        "feedback_type": "simulation_engineer_packet_validation_feedback",
+        "failure_classification": "simulation_engineer_packet_validation_failed",
+        "validation_label": exc.validation_label,
+        "validation_errors": validation_errors,
+        "last_attempt_summary": exc.history[-1] if exc.history else {},
+        **validation_state,
+        "target_behavior": (
+            "Return a locally valid SimulationEngineer packet. In capability-"
+            "evaluation mode, include a safe simulation_code_drafts row and at "
+            "least one artifact-bound metric_contracts row for every generated "
+            "simulation_id. Preserve the runtime-owned simulator and evidence "
+            "boundaries."
+        ),
+        "required_repair": (
+            "Use the exact validator errors above. Each generated draft must use "
+            "language=python, entrypoint=run_sandbox, and define "
+            "run_sandbox(seed:int, replicates:int)->dict. Each metric_contracts "
+            "row must preserve a stable contract_id, copy the generated "
+            "simulation_id as artifact_id, name a nonempty result metric_path, "
+            "declare an operator, numeric threshold or between bounds, finite "
+            "nonnegative tolerance, aggregation, required boolean, and source "
+            "anchors. Do not replace a missing contract with prose or weaken a "
+            "reported failed contract."
+        ),
+        "execution_evidence_status": (
+            "SIMULATION_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
+        ),
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": SIMULATION_ENGINEER_BOUNDARY,
+    }
+    failure_artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeSimulationEngineerValidationFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question": _question_to_payload(question),
+        "task_id": task.task_id,
+        "theory_packet_id": theory_packet_id,
+        "validation_label": exc.validation_label,
+        "failure_classification": "simulation_engineer_packet_validation_failed",
+        "validation_errors": validation_errors,
+        "llm_json_repair_history": exc.history,
+        **validation_state,
+        "recommended_next_action": repair_feedback["required_repair"],
+        "execution_evidence_status": repair_feedback[
+            "execution_evidence_status"
+        ],
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": SIMULATION_ENGINEER_BOUNDARY,
+    }
+    revision_context = dict(context)
+    revision_context["environment_feedback"] = repair_feedback
+    revision_context["runtime_feedback_loop"] = {
+        **(
+            dict(revision_context.get("runtime_feedback_loop", {}))
+            if isinstance(
+                revision_context.get("runtime_feedback_loop", {}), Mapping
+            )
+            else {}
+        ),
+        "source_subsystem": "SimulationEvaluator",
+        "handoff": (
+            "simulation_engineer_packet_validation_architect_replan"
+            if validation_state["packet_validation_replan_required"]
+            else "simulation_engineer_packet_validation_repair"
+        ),
+        "simulation_engineer_validation_failure_id": failure_id,
+    }
+    revision_context = _runtime_context_with_environment_feedback_contract(
+        revision_context,
+        repair_feedback,
+        subsystem="SimulationEvaluator",
+    )
+    next_inputs = dict(task.inputs)
+    next_inputs.update(
+        {
+            "architect_context": revision_context,
+            "environment_feedback": repair_feedback,
+            "n_runs": int(n_runs),
+            "seed": int(seed),
+        }
+    )
+    same_owner_next_task = AgentTask(
+        task_id=(
+            f"simulation-packet-revise:{question.id}:"
+            f"{stable_hash([failure_id, repair_feedback])[:8]}"
+        ),
+        owner_subsystem="SimulationEvaluator",
+        objective=(
+            "Repair the SimulationEngineer packet from exact local validator "
+            "feedback before any generated or registered simulation execution."
+        ),
+        inputs=next_inputs,
+        allowed_tools=task.allowed_tools,
+        expected_artifacts=task.expected_artifacts,
+        acceptance_gate=(
+            "repaired SimulationEngineer packet passes local validation and "
+            "AgentRuntime owns all subsequent execution"
+        ),
+        stop_condition=(
+            "repaired simulation packet or explicit simulation-design blocker "
+            "recorded"
+        ),
+    )
+    next_task = (
+        _coding_agent_packet_validation_architect_task(
+            task=task,
+            question=question,
+            context=revision_context,
+            repair_feedback=repair_feedback,
+        )
+        if validation_state["packet_validation_replan_required"]
+        else same_owner_next_task
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+        task_id=task.task_id,
+        artifact_id=failure_id,
+        evidence_type="simulation_engineer_packet_validation_failure",
+        status="VALIDATION_FAILED_RECORDED_NOT_EXECUTION_EVIDENCE",
+        boundary=SIMULATION_ENGINEER_BOUNDARY,
+        payload={
+            "failure_classification": (
+                "simulation_engineer_packet_validation_failed"
+            ),
+            "validation_errors": validation_errors,
+            "attempts": exc.attempts,
+            **validation_state,
+            "execution_evidence_status": repair_feedback[
+                "execution_evidence_status"
+            ],
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+    )
+    return AgentStepResult(
+        status=(
+            "REROUTE"
+            if validation_state["packet_validation_replan_required"]
+            else "REVISE"
+        ),
+        rationale=(
+            "LLM SimulationEngineer packet repeatedly failed local validation; "
+            "exact validator feedback was routed to ArchitectCoordinator for "
+            "cross-subsystem replanning before execution."
+            if validation_state["packet_validation_replan_required"]
+            else "LLM SimulationEngineer packet failed local validation; exact "
+            "validator feedback was recorded and routed back before execution."
+        ),
+        produced_artifacts={failure_id: failure_artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type="simulation_engineer_packet_validation_failure",
+                summary="; ".join(validation_errors)[:500],
+                payload={
+                    "failure_id": failure_id,
+                    "validation_errors": validation_errors,
+                    **validation_state,
+                    "execution_evidence_status": repair_feedback[
+                        "execution_evidence_status"
+                    ],
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+        failure_classification="simulation_engineer_packet_validation_failed",
+    )
+
+
 def _algorithm_engineer_packet_validation_failure_result(
     *,
     task: AgentTask,
@@ -12438,8 +13599,16 @@ def _algorithm_engineer_packet_validation_failure_result(
     implementation_gaps: list[Mapping[str, Any]],
     context: Mapping[str, Any],
     exc: PacketValidationError,
+    replan_after_attempts: int = 0,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
+    validation_state = _coding_agent_packet_validation_state(
+        task=task,
+        feedback_type="algorithm_engineer_packet_validation_feedback",
+        validation_label=exc.validation_label,
+        validation_errors=validation_errors,
+        replan_after_attempts=replan_after_attempts,
+    )
     failure_id = (
         "algorithm_engineer_validation_failure:"
         + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
@@ -12459,6 +13628,7 @@ def _algorithm_engineer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             "last_attempt_summary": exc.history[-1] if exc.history else {},
+            **validation_state,
         },
         "target_behavior": (
             "rerun AlgorithmEngineer with a locally valid packet: for capability "
@@ -12466,7 +13636,8 @@ def _algorithm_engineer_packet_validation_failure_result(
             "registered_template_hint to none for every implementation target; each "
             "sandbox_code_drafts entrypoint field must be exactly run_sandbox and "
             "each draft estimator_id must copy the Architect-supplied canonical "
-            "implementation-gap estimator_id exactly"
+            "implementation-gap estimator_id exactly; emit at least one typed "
+            "metric_contracts row bound to every canonical estimator_id"
         ),
         "acceptance_gate": (
             "AlgorithmEngineer packet passes local validation; AgentRuntime then "
@@ -12490,6 +13661,7 @@ def _algorithm_engineer_packet_validation_failure_result(
         "failure_classification": "algorithm_engineer_packet_validation_failed",
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
+        **validation_state,
         "learning_rows": [learning_row],
         "recommended_next_action": learning_row["target_behavior"],
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
@@ -12506,6 +13678,7 @@ def _algorithm_engineer_packet_validation_failure_result(
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
+        **validation_state,
         "target_behavior": learning_row["target_behavior"],
         "required_repair": (
             "Return a locally valid AlgorithmEngineer packet. In capability-eval "
@@ -12517,14 +13690,42 @@ def _algorithm_engineer_packet_validation_failure_result(
             "implementation_targets[0].registered_template_hint=\"none\" and "
             "sandbox_code_drafts[0]={\"estimator_id\":\"<matching id>\","
             "\"language\":\"python\",\"entrypoint\":\"run_sandbox\","
-            "\"code\":\"def run_sandbox(seed: int, replicates: int) -> dict: ...\"}."
+            "\"code\":\"def run_sandbox(seed: int, replicates: int) -> dict: ...\"}. "
+            "Also include metric_contracts with the same estimator_id as "
+            "artifact_id, a stable contract_id, nonempty metric_path, operator, "
+            "numeric threshold or between bounds, finite nonnegative tolerance, "
+            "aggregation, required boolean, and source anchors."
         ),
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
+    revision_context = dict(context)
+    revision_context["environment_feedback"] = repair_feedback
+    revision_context["runtime_feedback_loop"] = {
+        **(
+            dict(revision_context.get("runtime_feedback_loop", {}))
+            if isinstance(
+                revision_context.get("runtime_feedback_loop", {}), Mapping
+            )
+            else {}
+        ),
+        "source_subsystem": "AlgorithmEngineer",
+        "handoff": (
+            "algorithm_engineer_packet_validation_architect_replan"
+            if validation_state["packet_validation_replan_required"]
+            else "algorithm_engineer_packet_validation_repair"
+        ),
+        "algorithm_engineer_validation_failure_id": failure_id,
+    }
+    revision_context = _runtime_context_with_environment_feedback_contract(
+        revision_context,
+        repair_feedback,
+        subsystem="AlgorithmEngineer",
+    )
     next_inputs = dict(task.inputs)
+    next_inputs["architect_context"] = revision_context
     next_inputs["environment_feedback"] = repair_feedback
-    next_task = AgentTask(
+    same_owner_next_task = AgentTask(
         task_id=f"algorithm-revise:{question.id}:{stable_hash([failure_id, repair_feedback])[:8]}",
         owner_subsystem="AlgorithmEngineer",
         objective=(
@@ -12540,6 +13741,16 @@ def _algorithm_engineer_packet_validation_failure_result(
         ),
         stop_condition="repaired algorithm packet or explicit implementation blocker recorded",
     )
+    next_task = (
+        _coding_agent_packet_validation_architect_task(
+            task=task,
+            question=question,
+            context=revision_context,
+            repair_feedback=repair_feedback,
+        )
+        if validation_state["packet_validation_replan_required"]
+        else same_owner_next_task
+    )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -12551,6 +13762,7 @@ def _algorithm_engineer_packet_validation_failure_result(
             "failure_classification": "algorithm_engineer_packet_validation_failed",
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
+            **validation_state,
             "execution_evidence_status": (
                 "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
             ),
@@ -12558,9 +13770,17 @@ def _algorithm_engineer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status="REVISE",
+        status=(
+            "REROUTE"
+            if validation_state["packet_validation_replan_required"]
+            else "REVISE"
+        ),
         rationale=(
-            "LLM AlgorithmEngineer packet failed local validation; structured "
+            "LLM AlgorithmEngineer packet repeatedly failed local validation; "
+            "exact validator feedback was routed to ArchitectCoordinator for "
+            "cross-subsystem replanning before execution."
+            if validation_state["packet_validation_replan_required"]
+            else "LLM AlgorithmEngineer packet failed local validation; structured "
             "feedback was recorded and routed back to AlgorithmEngineer."
         ),
         produced_artifacts={failure_id: failure_artifact},
@@ -12572,6 +13792,7 @@ def _algorithm_engineer_packet_validation_failure_result(
                     "failure_id": failure_id,
                     "failure_classification": "algorithm_engineer_packet_validation_failed",
                     "validation_errors": validation_errors,
+                    **validation_state,
                     "execution_evidence_status": (
                         "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
                     ),
@@ -27361,6 +28582,243 @@ def _runtime_formalization_gap_planner_contract_revision_binding_failure(
     )
 
 
+def _runtime_formalization_gap_planner_provider_retry_artifact(
+    *,
+    task: AgentTask,
+    question_id: str,
+    live_manifest: Mapping[str, Any],
+    retry_attempt: int,
+    max_provider_retries: int,
+) -> dict[str, Any]:
+    parent_manifest_id = str(live_manifest.get("manifest_id", "") or "")
+    payload = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizationGapPlannerProviderRetry",
+        "question_id": question_id,
+        "parent_task_id": task.task_id,
+        "parent_manifest_id": parent_manifest_id,
+        "parent_manifest_fingerprint": stable_hash(dict(live_manifest)),
+        "retry_attempt": max(1, int(retry_attempt)),
+        "max_provider_retries": max(0, int(max_provider_retries)),
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_PROVIDER_RETRY_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This artifact authorizes one bounded retry of the same provider-bound "
+            "planning task after a response-free provider failure. It cannot alter "
+            "the theorem target, handoff lineage, acceptance contract, or proof status."
+        ),
+    }
+    retry_id = (
+        "runtime_formalization_gap_planner_provider_retry:"
+        + stable_hash(payload)[:20]
+    )
+    artifact = {**payload, "provider_retry_id": retry_id}
+    artifact["binding_fingerprint"] = stable_hash(artifact)
+    return artifact
+
+
+def _runtime_formalization_gap_planner_validated_provider_retry_artifact(
+    task: AgentTask,
+    blackboard: BlackboardState,
+    *,
+    question_id: str,
+) -> tuple[dict[str, Any], list[str]]:
+    raw = task.inputs.get("route_planner_provider_retry", {})
+    if raw in (None, {}, []):
+        return {}, []
+    if not isinstance(raw, Mapping):
+        return {}, ["route_planner_provider_retry must be an object"]
+    artifact = dict(raw)
+    errors: list[str] = []
+    retry_id = str(artifact.get("provider_retry_id", "") or "")
+    binding_fingerprint = str(artifact.get("binding_fingerprint", "") or "")
+    fingerprint_payload = dict(artifact)
+    fingerprint_payload.pop("binding_fingerprint", None)
+    if artifact.get("artifact_kind") != "RuntimeFormalizationGapPlannerProviderRetry":
+        errors.append("provider retry artifact_kind is invalid")
+    if str(artifact.get("question_id", "") or "") != question_id:
+        errors.append("provider retry question_id does not match current task")
+    retry_attempt = int(artifact.get("retry_attempt", 0) or 0)
+    max_retries = int(artifact.get("max_provider_retries", 0) or 0)
+    if retry_attempt <= 0 or retry_attempt > max_retries:
+        errors.append("provider retry attempt exceeds its bounded retry contract")
+    if not retry_id:
+        errors.append("provider retry artifact is missing provider_retry_id")
+    try:
+        task_max_retries = int(task.inputs.get("max_provider_retries", -1))
+    except (TypeError, ValueError):
+        task_max_retries = -1
+    if task_max_retries != max_retries:
+        errors.append("provider retry task changed its bounded retry limit")
+    if task.inputs.get("invoke_live_route_planner") is not True:
+        errors.append("provider retry task disabled the bound live route planner")
+    persisted = blackboard.artifacts.get(retry_id)
+    if not isinstance(persisted, Mapping) or stable_hash(dict(persisted)) != stable_hash(
+        artifact
+    ):
+        errors.append("provider retry artifact is missing or changed on the blackboard")
+    if not binding_fingerprint or binding_fingerprint != stable_hash(
+        fingerprint_payload
+    ):
+        errors.append("provider retry binding_fingerprint is invalid")
+    parent_manifest_id = str(artifact.get("parent_manifest_id", "") or "")
+    parent_manifest = blackboard.artifacts.get(parent_manifest_id)
+    if not isinstance(parent_manifest, Mapping):
+        errors.append("provider retry parent manifest is missing from the blackboard")
+    else:
+        if str(parent_manifest.get("task_id", "") or "") != str(
+            artifact.get("parent_task_id", "") or ""
+        ):
+            errors.append("provider retry parent task lineage changed")
+        if stable_hash(dict(parent_manifest)) != str(
+            artifact.get("parent_manifest_fingerprint", "") or ""
+        ):
+            errors.append("provider retry parent manifest fingerprint changed")
+        parent_question = (
+            parent_manifest.get("question", {})
+            if isinstance(parent_manifest.get("question", {}), Mapping)
+            else {}
+        )
+        if str(parent_question.get("id", "") or "") != question_id:
+            errors.append("provider retry parent manifest question changed")
+        for task_key, parent_key in (
+            ("provider", "provider_name"),
+            ("model", "model"),
+            ("model_tier", "model_tier"),
+            ("max_tokens", "max_tokens"),
+            (
+                "max_estimated_prompt_input_tokens",
+                "max_estimated_prompt_input_tokens",
+            ),
+            ("temperature", "temperature"),
+            ("max_repair_attempts", "max_repair_attempts"),
+            (
+                "max_staged_followup_stage_calls",
+                "max_staged_followup_stage_calls",
+            ),
+            (
+                "max_route_requests_per_handoff",
+                "max_route_requests_per_handoff",
+            ),
+            ("timeout_seconds", "timeout_seconds"),
+        ):
+            if stable_hash(task.inputs.get(task_key)) != stable_hash(
+                parent_manifest.get(parent_key)
+            ):
+                errors.append(
+                    f"provider retry task changed bound setting {task_key}"
+                )
+        parent_rows = [
+            row
+            for row in parent_manifest.get("rows", []) or []
+            if isinstance(row, Mapping)
+        ]
+        parent_bridge_ids = sorted(
+            {
+                str(row.get("bridge_id", "") or "").strip()
+                for row in parent_rows
+                if str(row.get("bridge_id", "") or "").strip()
+            }
+        )
+        parent_handoff_ids = sorted(
+            {
+                str(row.get("handoff_id", "") or "").strip()
+                for row in parent_rows
+                if str(row.get("handoff_id", "") or "").strip()
+            }
+        )
+        task_environment_feedback = (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        retry_bridge_ids = sorted(
+            {
+                str(value).strip()
+                for value in compact_string_list(
+                    task_environment_feedback.get(
+                        "formalization_gap_planner_bridge_ids",
+                        [],
+                    )
+                )
+                if str(value).strip()
+            }
+        )
+        retry_handoff_ids = sorted(
+            {
+                str(value).strip()
+                for value in compact_string_list(
+                    task_environment_feedback.get(
+                        "selected_handoff_ids",
+                        [],
+                    )
+                )
+                if str(value).strip()
+            }
+        )
+        if retry_bridge_ids != parent_bridge_ids:
+            errors.append("provider retry task changed bound bridge lineage")
+        if retry_handoff_ids != parent_handoff_ids:
+            errors.append("provider retry task changed bound handoff lineage")
+        counts = (
+            parent_manifest.get("counts", {})
+            if isinstance(parent_manifest.get("counts", {}), Mapping)
+            else {}
+        )
+        provider_failures = int(counts.get("provider_failures", 0) or 0) + int(
+            counts.get("staged_followup_stage_provider_failures", 0) or 0
+        )
+        if provider_failures <= 0:
+            errors.append("provider retry parent manifest records no provider failure")
+        if parent_manifest.get("feedback_loop_recorded") is True:
+            errors.append("provider retry parent already records a usable feedback loop")
+    return artifact, sorted(set(errors))
+
+
+def _runtime_formalization_gap_planner_provider_retry_binding_failure(
+    task: AgentTask,
+    *,
+    question: OpenResearchQuestion,
+    errors: Sequence[str],
+) -> AgentStepResult:
+    failure_id = (
+        "runtime_formalization_gap_planner_provider_retry_binding_failure:"
+        + stable_hash([task.task_id, question.id, list(errors)])[:20]
+    )
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFormalizationGapPlannerProviderRetryBindingFailure",
+        "failure_id": failure_id,
+        "task_id": task.task_id,
+        "question_id": question.id,
+        "errors": list(errors),
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_PROVIDER_RETRY_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "FormalizationGapPlanner rejected a missing, mutated, cross-target, or "
+            "unbounded provider-retry artifact before another provider call."
+        ),
+        produced_artifacts={failure_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "formalization_gap_planner_provider_retry_binding_failure"
+                ),
+                summary="; ".join(str(error) for error in errors[:4]),
+                payload={"errors": list(errors)},
+            ),
+        ),
+        failure_classification=(
+            "formalization_gap_planner_provider_retry_binding_invalid"
+        ),
+    )
+
+
 def _critic_agenda_has_formalization_gap_planner_handoff(
     agenda: Sequence[Mapping[str, Any]],
 ) -> bool:
@@ -27508,6 +28966,21 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 0,
                 int(
                     self.runtime_config.formalization_gap_planner_live_max_repair_attempts
+                ),
+            )
+
+    def _live_route_planner_max_provider_retries(self, task: AgentTask) -> int:
+        raw = task.inputs.get(
+            "max_provider_retries",
+            self.runtime_config.formalization_gap_planner_live_max_provider_retries,
+        )
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return max(
+                0,
+                int(
+                    self.runtime_config.formalization_gap_planner_live_max_provider_retries
                 ),
             )
 
@@ -28703,6 +30176,13 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             )
                             or 0
                         ),
+                        "n_staged_followup_stage_repair_attempts": int(
+                            payload.get(
+                                "n_staged_followup_stage_repair_attempts",
+                                0,
+                            )
+                            or 0
+                        ),
                         "n_staged_followup_stage_provider_failures": int(
                             payload.get(
                                 "n_staged_followup_stage_provider_failures",
@@ -29040,6 +30520,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "n_staged_followup_stage_attempts_reused": 0,
                         "n_staged_followup_stage_reuse_blocked_by_contract_feedback": 0,
                         "n_staged_followup_stage_provider_calls": 0,
+                        "n_staged_followup_stage_repair_attempts": 0,
                         "n_staged_followup_stage_provider_failures": 0,
                         "n_staged_followup_stage_calls_blocked_by_budget": 0,
                         "staged_followup_stage_attempt_rows": [],
@@ -29183,6 +30664,16 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ),
             "staged_followup_stage_provider_calls": sum(
                 int(row.get("n_staged_followup_stage_provider_calls", 0) or 0)
+                for row in rows
+            ),
+            "staged_followup_stage_repair_attempts": sum(
+                int(
+                    row.get(
+                        "n_staged_followup_stage_repair_attempts",
+                        0,
+                    )
+                    or 0
+                )
                 for row in rows
             ),
             "staged_followup_stage_provider_failures": sum(
@@ -29612,6 +31103,19 @@ class FormalizationGapPlannerRuntimeSubsystem:
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
+        provider_retry_artifact, provider_retry_binding_errors = (
+            _runtime_formalization_gap_planner_validated_provider_retry_artifact(
+                task,
+                blackboard,
+                question_id=question.id,
+            )
+        )
+        if provider_retry_binding_errors:
+            return _runtime_formalization_gap_planner_provider_retry_binding_failure(
+                task,
+                question=question,
+                errors=provider_retry_binding_errors,
+            )
         contract_revision_artifact, contract_revision_binding_errors = (
             _runtime_formalization_gap_planner_validated_contract_revision_artifact(
                 task,
@@ -29938,6 +31442,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         "max_repair_attempts": (
                             self._live_route_planner_max_repair_attempts(task)
                         ),
+                        "max_provider_retries": (
+                            self._live_route_planner_max_provider_retries(task)
+                        ),
                         "max_contract_revisions": (
                             self._live_route_planner_max_contract_revisions(task)
                         ),
@@ -29952,13 +31459,181 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     },
                 )
             )
+        live_route_planner_provider_failures = int(
+            live_counts.get("provider_failures", 0) or 0
+        ) + int(
+            live_counts.get("staged_followup_stage_provider_failures", 0) or 0
+        )
+        current_provider_retry_attempt = int(
+            provider_retry_artifact.get("retry_attempt", 0) or 0
+        )
+        max_provider_retries = self._live_route_planner_max_provider_retries(task)
+        provider_retry_task: AgentTask | None = None
+        provider_retry_artifact_for_step: dict[str, Any] = {}
+        live_route_planner_provider_retry_required = bool(
+            invoke_live_route_planner
+            and live_route_planner_provider_failures > 0
+            and not live_route_planner_feedback_loop_recorded
+            and not live_route_planner_contract_feedback_rows
+        )
+        if (
+            live_route_planner_provider_retry_required
+            and current_provider_retry_attempt < max_provider_retries
+        ):
+            next_provider_retry_attempt = current_provider_retry_attempt + 1
+            provider_retry_artifact_for_step = (
+                _runtime_formalization_gap_planner_provider_retry_artifact(
+                    task=task,
+                    question_id=question.id,
+                    live_manifest=live_route_planner_manifest,
+                    retry_attempt=next_provider_retry_attempt,
+                    max_provider_retries=max_provider_retries,
+                )
+            )
+            provider_retry_id = str(
+                provider_retry_artifact_for_step.get("provider_retry_id", "") or ""
+            )
+            produced_artifacts[provider_retry_id] = provider_retry_artifact_for_step
+            provider_retry_parent_rows = [
+                row
+                for row in live_route_planner_manifest.get("rows", []) or []
+                if isinstance(row, Mapping)
+            ]
+            provider_retry_bridge_ids = sorted(
+                {
+                    str(row.get("bridge_id", "") or "").strip()
+                    for row in provider_retry_parent_rows
+                    if str(row.get("bridge_id", "") or "").strip()
+                }
+            )
+            provider_retry_handoff_ids = sorted(
+                {
+                    str(row.get("handoff_id", "") or "").strip()
+                    for row in provider_retry_parent_rows
+                    if str(row.get("handoff_id", "") or "").strip()
+                }
+            )
+            provider_retry_environment_feedback = {
+                **dict(environment_feedback),
+                "failure_classification": (
+                    "formalization_gap_planner_live_route_planner_provider_retry_requested"
+                ),
+                "parent_live_route_planner_manifest_id": str(
+                    live_route_planner_manifest.get("manifest_id", "") or ""
+                ),
+                "provider_retry_attempt": next_provider_retry_attempt,
+                "max_provider_retries": max_provider_retries,
+                "formalization_gap_planner_bridge_ids": (
+                    provider_retry_bridge_ids
+                ),
+                "selected_handoff_ids": provider_retry_handoff_ids,
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_PROVIDER_RETRY_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            provider_retry_architect_context = dict(
+                task.inputs.get("architect_context", {})
+                if isinstance(task.inputs.get("architect_context", {}), Mapping)
+                else {}
+            )
+            provider_retry_architect_context["environment_feedback"] = dict(
+                provider_retry_environment_feedback
+            )
+            provider_retry_inputs = {
+                **dict(task.inputs),
+                "question": _question_to_payload(question),
+                "architect_context": provider_retry_architect_context,
+                "environment_feedback": provider_retry_environment_feedback,
+                "invoke_live_route_planner": True,
+                "route_planner_provider_retry": provider_retry_artifact_for_step,
+                "max_handoffs": self._live_route_planner_max_handoffs(task),
+                "max_route_requests_per_handoff": (
+                    self._live_route_planner_max_route_requests_per_handoff(task)
+                ),
+                "provider": self._live_route_planner_provider(task),
+                "model": self._live_route_planner_model(task),
+                "model_tier": self._live_route_planner_model_tier(task),
+                "max_tokens": self._live_route_planner_max_tokens(task),
+                "max_estimated_prompt_input_tokens": (
+                    self._live_route_planner_max_estimated_prompt_input_tokens(task)
+                ),
+                "temperature": self._live_route_planner_temperature(task),
+                "max_repair_attempts": (
+                    self._live_route_planner_max_repair_attempts(task)
+                ),
+                "max_provider_retries": max_provider_retries,
+                "max_contract_revisions": (
+                    self._live_route_planner_max_contract_revisions(task)
+                ),
+                "max_staged_followup_stage_calls": (
+                    self._live_route_planner_max_staged_followup_stage_calls(task)
+                ),
+                "timeout_seconds": self._live_route_planner_timeout_seconds(task),
+            }
+            provider_retry_budget = {
+                **dict(task.budget),
+                "provider_retry_attempt": next_provider_retry_attempt,
+                "max_provider_retries": max_provider_retries,
+                "live_llm_invocation_required": True,
+            }
+            provider_retry_task = replace(
+                task,
+                task_id=(
+                    "gap-planner-live-route-provider-retry:"
+                    + question.id
+                    + ":"
+                    + stable_hash(
+                        [
+                            task.task_id,
+                            provider_retry_id,
+                            next_provider_retry_attempt,
+                            max_provider_retries,
+                        ]
+                    )[:12]
+                ),
+                objective=(
+                    "Retry the same bounded live LLM formalization route-planning "
+                    "request after a response-free provider failure, preserving "
+                    "the exact target, handoff lineage, and validation contract."
+                ),
+                inputs=provider_retry_inputs,
+                budget=provider_retry_budget,
+                expected_artifacts=(
+                    "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+                ),
+                acceptance_gate=(
+                    "Record a contract-valid response or machine-readable "
+                    "validator feedback for the same bound handoff; provider "
+                    "retry artifacts remain non-proof evidence."
+                ),
+                stop_condition=(
+                    "Stop after this bounded provider attempt is recorded; do "
+                    "not change the theorem target or promote planner output as proof."
+                ),
+            )
+        live_route_planner_provider_retry_exhausted = bool(
+            live_route_planner_provider_retry_required
+            and provider_retry_task is None
+        )
         live_route_planner_followup_required = (
             all_ok
             and not invoke_live_route_planner
             and bool(self.runtime_config.formalization_gap_planner_live_route_planner)
             and int(audit_payload.get("n_llm_prompt_packets", 0) or 0) > 0
-            and int(audit_payload.get("n_llm_prompt_awaiting_response", 0) or 0)
-            > 0
+            and (
+                int(
+                    audit_payload.get("n_llm_prompt_awaiting_response", 0) or 0
+                )
+                > 0
+                or int(
+                    audit_payload.get(
+                        "n_llm_prompt_staged_followups_required",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+            )
         )
         live_route_planner_followup_task: AgentTask | None = None
         if live_route_planner_followup_required:
@@ -30011,6 +31686,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                             self.runtime_config.formalization_gap_planner_live_provider,
                             self.runtime_config.formalization_gap_planner_live_model,
                             self.runtime_config.formalization_gap_planner_live_model_tier,
+                            self.runtime_config.formalization_gap_planner_live_max_provider_retries,
                             self.runtime_config.formalization_gap_planner_live_max_contract_revisions,
                             self.runtime_config.formalization_gap_planner_live_max_staged_followup_stage_calls,
                         ]
@@ -30042,6 +31718,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     "max_repair_attempts": (
                         self.runtime_config.formalization_gap_planner_live_max_repair_attempts
                     ),
+                    "max_provider_retries": (
+                        self.runtime_config.formalization_gap_planner_live_max_provider_retries
+                    ),
                     "max_contract_revisions": (
                         self.runtime_config.formalization_gap_planner_live_max_contract_revisions
                     ),
@@ -30066,6 +31745,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                         self.runtime_config.formalization_gap_planner_live_max_estimated_prompt_input_tokens
                     ),
                     "live_llm_invocation_required": True,
+                    "max_provider_retries": (
+                        self.runtime_config.formalization_gap_planner_live_max_provider_retries
+                    ),
                 },
                 expected_artifacts=(
                     "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
@@ -30154,6 +31836,30 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "llm_prompt_packets": int(
                     audit_payload.get("n_llm_prompt_packets", 0) or 0
                 ),
+                "llm_prompt_awaiting_response": int(
+                    audit_payload.get("n_llm_prompt_awaiting_response", 0) or 0
+                ),
+                "llm_prompt_staged_budget_routes_ready": int(
+                    audit_payload.get(
+                        "n_llm_prompt_staged_budget_routes_ready",
+                        0,
+                    )
+                    or 0
+                ),
+                "llm_prompt_staged_followups_required": int(
+                    audit_payload.get(
+                        "n_llm_prompt_staged_followups_required",
+                        0,
+                    )
+                    or 0
+                ),
+                "llm_prompt_staged_followups_due_to_prompt_budget": int(
+                    audit_payload.get(
+                        "n_llm_prompt_staged_followups_due_to_prompt_budget",
+                        0,
+                    )
+                    or 0
+                ),
                 "reuse_smoke_cost_control_ok": int(
                     audit_payload.get("n_reuse_smoke_cost_control_ok", 0) or 0
                 ),
@@ -30202,6 +31908,30 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 if live_route_planner_followup_task is not None
                 else ""
             ),
+            "live_route_planner_provider_failures": (
+                live_route_planner_provider_failures
+            ),
+            "live_route_planner_provider_retry_required": (
+                live_route_planner_provider_retry_required
+            ),
+            "live_route_planner_provider_retry_scheduled": (
+                provider_retry_task is not None
+            ),
+            "live_route_planner_provider_retry_exhausted": (
+                live_route_planner_provider_retry_exhausted
+            ),
+            "live_route_planner_provider_retry_task_id": (
+                provider_retry_task.task_id
+                if provider_retry_task is not None
+                else ""
+            ),
+            "live_route_planner_provider_retry_attempt": int(
+                provider_retry_artifact_for_step.get("retry_attempt", 0) or 0
+            ),
+            "live_route_planner_provider_retry_artifact_id": str(
+                provider_retry_artifact_for_step.get("provider_retry_id", "") or ""
+            ),
+            "live_route_planner_max_provider_retries": max_provider_retries,
             "live_route_planner_contract_feedback_rows": len(
                 live_route_planner_contract_feedback_rows
             ),
@@ -30292,6 +32022,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 if contract_revision_task is not None
                 else "LIVE_ROUTE_PLANNER_CONTRACT_REVISION_EXHAUSTED_NOT_PROOF_EVIDENCE"
                 if live_route_planner_contract_feedback_rows
+                else "LIVE_ROUTE_PLANNER_PROVIDER_RETRY_SCHEDULED_NOT_PROOF_EVIDENCE"
+                if provider_retry_task is not None
+                else "LIVE_ROUTE_PLANNER_PROVIDER_RETRY_EXHAUSTED_NOT_PROOF_EVIDENCE"
+                if live_route_planner_provider_retry_exhausted
                 else "LIVE_ROUTE_PLANNER_RESPONSES_RECORDED_NOT_PROOF_EVIDENCE"
                 if invoke_live_route_planner
                 and live_route_planner_all_responses_recorded
@@ -30332,6 +32066,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "live_route_planner_contract_revision_scheduled": (
                     contract_revision_task is not None
                 ),
+                "live_route_planner_provider_failures": (
+                    live_route_planner_provider_failures
+                ),
+                "live_route_planner_provider_retry_scheduled": (
+                    provider_retry_task is not None
+                ),
+                "live_route_planner_provider_retry_exhausted": (
+                    live_route_planner_provider_retry_exhausted
+                ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
                 ),
@@ -30355,7 +32098,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 "route_revision_feedback="
                 f"{int(live_route_planner_route_revision_feedback_recorded)} "
                 "contract_revision_scheduled="
-                f"{int(contract_revision_task is not None)}"
+                f"{int(contract_revision_task is not None)} "
+                "provider_retry_scheduled="
+                f"{int(provider_retry_task is not None)}"
             ),
             payload={
                 **manifest["counts"],
@@ -30378,6 +32123,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 ),
                 "live_route_planner_contract_revision_scheduled": (
                     contract_revision_task is not None
+                ),
+                "live_route_planner_provider_failures": (
+                    live_route_planner_provider_failures
+                ),
+                "live_route_planner_provider_retry_scheduled": (
+                    provider_retry_task is not None
+                ),
+                "live_route_planner_provider_retry_exhausted": (
+                    live_route_planner_provider_retry_exhausted
                 ),
                 "live_llm_invoked": bool(
                     live_route_planner_manifest.get("live_llm_invoked", False)
@@ -30404,6 +32158,26 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 )
                 failure_classification = (
                     "formalization_gap_planner_live_route_planner_contract_repair_exhausted"
+                )
+            elif provider_retry_task is not None:
+                status = "REVISE"
+                rationale = (
+                    "FormalizationGapPlanner recorded a response-free provider "
+                    "failure and scheduled one lineage-bound retry of the same "
+                    "target and validation contract."
+                )
+                failure_classification = (
+                    "formalization_gap_planner_live_route_planner_provider_retry_requested"
+                )
+            elif live_route_planner_provider_retry_exhausted:
+                status = "BLOCKED"
+                rationale = (
+                    "FormalizationGapPlanner preserved the response-free provider "
+                    "failure after the bounded same-target retry budget was "
+                    "exhausted; no route or proof evidence was fabricated."
+                )
+                failure_classification = (
+                    "formalization_gap_planner_live_route_planner_provider_retry_exhausted"
                 )
             else:
                 status = (
@@ -30459,7 +32233,11 @@ class FormalizationGapPlannerRuntimeSubsystem:
             observations=(observation,),
             tool_calls=tuple(tool_calls),
             evidence_entries=(evidence,),
-            next_task=contract_revision_task or live_route_planner_followup_task,
+            next_task=(
+                contract_revision_task
+                or provider_retry_task
+                or live_route_planner_followup_task
+            ),
             failure_classification=failure_classification,
         )
 
@@ -31459,12 +33237,18 @@ def run_research_agent_runtime(
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
                 proposal_agent=simulation_engineer,
                 sandbox_root=out_dir / "generated_simulation_sandbox",
+                packet_validation_replan_after_attempts=(
+                    config.coding_agent_packet_validation_replan_after_attempts
+                ),
             ),
             "AlgorithmEngineer": AlgorithmEngineerRuntimeSubsystem(
                 out_dir=out_dir / "algorithm_sandbox",
                 n_runs=config.n_runs,
                 seed=config.seed,
                 proposal_agent=algorithm_engineer,
+                packet_validation_replan_after_attempts=(
+                    config.coding_agent_packet_validation_replan_after_attempts
+                ),
             ),
             "FormalizationEvaluator": formalization_subsystem,
             "ProofEngineer": proofengineer_subsystem,
@@ -32541,6 +34325,76 @@ def run_research_agent_runtime(
         "n_live_generated_simulation_sandbox_metric_gate_failed": evidence_summary[
             "simulation"
         ]["n_live_generated_simulation_sandbox_metric_gate_failed"],
+        "n_generated_simulation_typed_metric_contracts_declared": evidence_summary[
+            "simulation"
+        ]["n_generated_simulation_typed_metric_contracts_declared"],
+        "n_live_generated_simulation_typed_metric_contracts_declared": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_typed_metric_contracts_declared"],
+        "n_generated_simulation_typed_metric_contracts_evaluated": evidence_summary[
+            "simulation"
+        ]["n_generated_simulation_typed_metric_contracts_evaluated"],
+        "n_live_generated_simulation_typed_metric_contracts_evaluated": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_typed_metric_contracts_evaluated"],
+        "n_generated_simulation_typed_metric_contracts_passed": evidence_summary[
+            "simulation"
+        ]["n_generated_simulation_typed_metric_contracts_passed"],
+        "n_live_generated_simulation_typed_metric_contracts_passed": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_typed_metric_contracts_passed"],
+        "n_generated_simulation_typed_metric_contracts_failed": evidence_summary[
+            "simulation"
+        ]["n_generated_simulation_typed_metric_contracts_failed"],
+        "n_live_generated_simulation_typed_metric_contracts_failed": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_typed_metric_contracts_failed"],
+        "n_generated_simulation_typed_metric_contract_artifacts_all_required_passed": (
+            evidence_summary["simulation"][
+                "n_generated_simulation_typed_metric_contract_artifacts_all_required_passed"
+            ]
+        ),
+        "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed": (
+            evidence_summary["simulation"][
+                "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed"
+            ]
+        ),
+        "n_generated_simulation_typed_metric_contracts_authority_bound": evidence_summary[
+            "simulation"
+        ]["n_generated_simulation_typed_metric_contracts_authority_bound"],
+        "n_live_generated_simulation_typed_metric_contracts_authority_bound": evidence_summary[
+            "simulation"
+        ]["n_live_generated_simulation_typed_metric_contracts_authority_bound"],
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_validated": evidence_summary[
+            "simulation"
+        ][
+            "n_generated_simulation_typed_metric_contract_artifacts_authority_validated"
+        ],
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated": evidence_summary[
+            "simulation"
+        ][
+            "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated"
+        ],
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_rejected": evidence_summary[
+            "simulation"
+        ][
+            "n_generated_simulation_typed_metric_contract_artifacts_authority_rejected"
+        ],
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected": evidence_summary[
+            "simulation"
+        ][
+            "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected"
+        ],
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed": evidence_summary[
+            "simulation"
+        ][
+            "n_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+        ],
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed": evidence_summary[
+            "simulation"
+        ][
+            "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+        ],
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": (
             evidence_summary["simulation"][
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
@@ -32594,6 +34448,76 @@ def run_research_agent_runtime(
         "n_live_generated_code_sandbox_metric_gate_failed": evidence_summary[
             "algorithm"
         ]["n_live_generated_code_sandbox_metric_gate_failed"],
+        "n_generated_algorithm_typed_metric_contracts_declared": evidence_summary[
+            "algorithm"
+        ]["n_generated_algorithm_typed_metric_contracts_declared"],
+        "n_live_generated_algorithm_typed_metric_contracts_declared": evidence_summary[
+            "algorithm"
+        ]["n_live_generated_algorithm_typed_metric_contracts_declared"],
+        "n_generated_algorithm_typed_metric_contracts_evaluated": evidence_summary[
+            "algorithm"
+        ]["n_generated_algorithm_typed_metric_contracts_evaluated"],
+        "n_live_generated_algorithm_typed_metric_contracts_evaluated": evidence_summary[
+            "algorithm"
+        ]["n_live_generated_algorithm_typed_metric_contracts_evaluated"],
+        "n_generated_algorithm_typed_metric_contracts_passed": evidence_summary[
+            "algorithm"
+        ]["n_generated_algorithm_typed_metric_contracts_passed"],
+        "n_live_generated_algorithm_typed_metric_contracts_passed": evidence_summary[
+            "algorithm"
+        ]["n_live_generated_algorithm_typed_metric_contracts_passed"],
+        "n_generated_algorithm_typed_metric_contracts_failed": evidence_summary[
+            "algorithm"
+        ]["n_generated_algorithm_typed_metric_contracts_failed"],
+        "n_live_generated_algorithm_typed_metric_contracts_failed": evidence_summary[
+            "algorithm"
+        ]["n_live_generated_algorithm_typed_metric_contracts_failed"],
+        "n_generated_algorithm_typed_metric_contract_artifacts_all_required_passed": (
+            evidence_summary["algorithm"][
+                "n_generated_algorithm_typed_metric_contract_artifacts_all_required_passed"
+            ]
+        ),
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed": (
+            evidence_summary["algorithm"][
+                "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed"
+            ]
+        ),
+        "n_generated_algorithm_typed_metric_contracts_authority_bound": evidence_summary[
+            "algorithm"
+        ]["n_generated_algorithm_typed_metric_contracts_authority_bound"],
+        "n_live_generated_algorithm_typed_metric_contracts_authority_bound": evidence_summary[
+            "algorithm"
+        ]["n_live_generated_algorithm_typed_metric_contracts_authority_bound"],
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated": evidence_summary[
+            "algorithm"
+        ][
+            "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated"
+        ],
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated": evidence_summary[
+            "algorithm"
+        ][
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated"
+        ],
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_rejected": evidence_summary[
+            "algorithm"
+        ][
+            "n_generated_algorithm_typed_metric_contract_artifacts_authority_rejected"
+        ],
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected": evidence_summary[
+            "algorithm"
+        ][
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected"
+        ],
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed": evidence_summary[
+            "algorithm"
+        ][
+            "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+        ],
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed": evidence_summary[
+            "algorithm"
+        ][
+            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed"
+        ],
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": (
             evidence_summary["algorithm"][
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences"
@@ -48969,37 +50893,31 @@ def _runtime_llm_topology(
         _llm_agent_topology_row(
             "ArchitectCoordinator",
             architect_coordinator,
-            model_tier="sonnet",
             role="top-level research plan, evidence gates, and subsystem routing",
         ),
         _llm_agent_topology_row(
             "TheoryDeveloper",
             theory_developer,
-            model_tier="sonnet",
             role="deductive statistical theory discovery and theorem/procedure proposal",
         ),
         _llm_agent_topology_row(
             "SimulationEngineer",
             simulation_engineer,
-            model_tier="haiku",
             role="simulation and falsifier proposal under runtime execution gates",
         ),
         _llm_agent_topology_row(
             "AlgorithmEngineer",
             algorithm_engineer,
-            model_tier="haiku",
             role="algorithm prototype and stress-test implementation proposal",
         ),
         _llm_agent_topology_row(
             "FormalizerProofEngineer",
             formalizer,
-            model_tier="sonnet",
             role="Lean/formal-target/proof-search proposal before kernel gates",
         ),
         _llm_agent_topology_row(
             "CriticEvaluator",
             critic_evaluator,
-            model_tier="haiku",
             role="boundary audit, learning rows, and next-action triage",
         ),
     ]
@@ -49062,7 +50980,9 @@ def _runtime_llm_topology(
             "expected_subsystem_model_tiers": (
                 AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
             ),
-            "primary_cost_split": "sonnet_for_architect_theory_formalizer__haiku_for_simulation_algorithm_critic",
+            "model_tier_assignment_policy": (
+                "centralized_subsystem_policy_from_model_backend"
+            ),
             "backend_boundary": (
                 "LLM backends generate structured proposals only. AgentRuntime owns "
                 "tool use, filesystem changes, execution, tests, Lean checks, and evidence promotion."
@@ -51841,6 +53761,84 @@ def _generated_sandbox_live_counts_from_rows(
             "REJECTED_UNSAFE_GENERATED_CODE"
         ):
             counts["unsafe_rejected"] += 1
+        counts.update(
+            _generated_sandbox_metric_contract_counts_from_row(row)
+        )
+    return counts
+
+
+def _generated_sandbox_metric_contract_counts_from_row(
+    row: Mapping[str, Any],
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    contracts = row.get("metric_contracts", [])
+    if isinstance(contracts, list):
+        counts["typed_metric_contracts_declared"] += sum(
+            1 for contract in contracts if isinstance(contract, Mapping)
+        )
+        counts["typed_metric_contracts_authority_bound"] += sum(
+            1
+            for contract in contracts
+            if isinstance(contract, Mapping)
+            and str(
+                contract.get("authority_requirement_fingerprint", "") or ""
+            ).strip()
+        )
+    authority_required = bool(
+        row.get("metric_requirement_authority_required", False)
+    )
+    authority_validated = bool(
+        row.get("metric_requirement_authority_validated", False)
+    )
+    if authority_required:
+        counts["typed_metric_contract_artifacts_authority_required"] += 1
+    if authority_validated:
+        counts["typed_metric_contract_artifacts_authority_validated"] += 1
+    if str(row.get("prototype_status", "") or "") == (
+        "METRIC_REQUIREMENT_AUTHORITY_REJECTED"
+    ):
+        counts["typed_metric_contract_artifacts_authority_rejected"] += 1
+    evaluation = row.get("metric_contract_evaluation", {})
+    if not isinstance(evaluation, Mapping):
+        return counts
+    n_contracts = _generated_metric_contract_evaluation_count(row, "n_contracts")
+    if n_contracts <= 0:
+        return counts
+    counts["typed_metric_contract_artifacts_evaluated"] += 1
+    counts["typed_metric_contracts_evaluated"] += n_contracts
+    counts["typed_metric_contracts_passed"] += (
+        _generated_metric_contract_evaluation_count(row, "n_passed")
+    )
+    counts["typed_metric_contracts_failed"] += (
+        _generated_metric_contract_evaluation_count(row, "n_failed")
+    )
+    if evaluation.get("all_required_passed") is True:
+        counts["typed_metric_contract_artifacts_all_required_passed"] += 1
+        if authority_validated or evaluation.get(
+            "metric_requirement_authority_validated"
+        ) is True:
+            counts[
+                "typed_metric_contract_artifacts_authority_validated_all_required_passed"
+            ] += 1
+    else:
+        counts["typed_metric_contract_artifacts_with_required_failure"] += 1
+    return counts
+
+
+def _generated_sandbox_metric_contract_counts_from_rows(
+    rows: Any,
+    *,
+    generated_executor: str,
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    if not isinstance(rows, list):
+        return counts
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("executor", "") or "") != generated_executor:
+            continue
+        counts.update(_generated_sandbox_metric_contract_counts_from_row(row))
     return counts
 
 
@@ -51986,10 +53984,9 @@ def _llm_agent_topology_row(
     subsystem: str,
     agent: Any | None,
     *,
-    model_tier: str,
     role: str,
 ) -> dict[str, Any]:
-    expected_model_tier = llm_subsystem_expected_model_tier(subsystem) or model_tier
+    expected_model_tier = llm_subsystem_expected_model_tier(subsystem)
     if agent is None:
         return {
             "subsystem": subsystem,
@@ -51997,7 +53994,7 @@ def _llm_agent_topology_row(
             "provider_name": "",
             "backend_provider_name": "",
             "model": "",
-            "model_tier": model_tier,
+            "model_tier": expected_model_tier,
             "expected_model_tier": expected_model_tier,
             "role": role,
             "generator_only": True,
@@ -52006,7 +54003,9 @@ def _llm_agent_topology_row(
     config = getattr(agent, "config", None)
     provider = getattr(agent, "provider", None)
     provider_name = str(getattr(config, "provider_name", "") or getattr(provider, "provider_name", "") or "")
-    config_model_tier = str(getattr(config, "model_tier", "") or model_tier)
+    config_model_tier = str(
+        getattr(config, "model_tier", "") or expected_model_tier
+    )
     requested_model = str(getattr(config, "model", "") or "")
     resolved_model = resolve_generator_model(
         provider_name=provider_name,
@@ -55064,6 +57063,9 @@ def _runtime_environment_feedback_with_architect_directive(
     requested_contract = context.get("runtime_requested_evidence_contract", {})
     if isinstance(requested_contract, Mapping) and requested_contract:
         payload.setdefault("runtime_requested_evidence_contract", dict(requested_contract))
+    architect_contract = context.get("architect_evidence_contract", {})
+    if isinstance(architect_contract, Mapping) and architect_contract:
+        payload.setdefault("architect_evidence_contract", dict(architect_contract))
     control = _architect_control_payload(context, subsystem)
     if not control:
         return payload
@@ -55916,6 +57918,74 @@ def _runtime_requires_generated_algorithm_code(
         environment_feedback,
         flag="capability_eval_requires_generated_algorithm_code",
     )
+
+
+def _runtime_requires_typed_metric_contracts(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None = None,
+    *,
+    subsystem: str,
+) -> bool:
+    return _runtime_context_contract_flag(
+        context,
+        subsystem=subsystem,
+        flag="capability_eval_requires_typed_metric_contracts",
+    ) or _runtime_environment_feedback_contract_flag(
+        environment_feedback,
+        flag="capability_eval_requires_typed_metric_contracts",
+    )
+
+
+def _runtime_generated_metric_requirement_authority(
+    context: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any] | None,
+    *,
+    architect_subsystem: str,
+    target_subsystem: str,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    authority_context = _runtime_environment_feedback_with_architect_directive(
+        context=context,
+        subsystem=architect_subsystem,
+        feedback=environment_feedback,
+    )
+    requirements = generated_metric_requirements_from_context(
+        authority_context,
+        target_subsystem=target_subsystem,
+    )
+    policy = generated_metric_requirement_authority_policy_from_context(
+        authority_context
+    )
+    return (
+        requirements,
+        policy,
+        policy == GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    )
+
+
+def _runtime_bind_and_validate_generated_metric_authority(
+    contracts: Sequence[Mapping[str, Any]],
+    *,
+    artifact_id: str,
+    authoritative_requirements: Sequence[Mapping[str, Any]],
+    target_subsystem: str,
+    require_authoritative_requirements: bool,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    if not authoritative_requirements and not require_authoritative_requirements:
+        return [dict(contract) for contract in contracts], []
+    bound = bind_generated_metric_contract_authority(
+        contracts,
+        authoritative_requirements=authoritative_requirements,
+        target_subsystem=target_subsystem,
+    )
+    errors = validate_generated_metric_contracts(
+        bound,
+        expected_artifact_ids=(artifact_id,),
+        required_artifact_ids=(artifact_id,),
+        authoritative_requirements=list(authoritative_requirements),
+        target_subsystem=target_subsystem,
+        require_authoritative_requirements=require_authoritative_requirements,
+    )
+    return bound, errors
 
 
 def _runtime_contract_flag_for_subsystems(
@@ -88160,6 +90230,11 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         if isinstance(architect_context, Mapping)
         else {}
     )
+    cross_family_evaluation_protocol = (
+        architect_context.get("cross_family_evaluation_protocol", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
     memory_supplied = (
         isinstance(memory, Mapping)
         and memory.get("artifact_kind") == "RuntimeLearningMemoryContext"
@@ -88168,6 +90243,11 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         isinstance(capability_gap_routing, Mapping)
         and capability_gap_routing.get("artifact_kind")
         == "RuntimeCapabilityGapRoutingContext"
+    )
+    cross_family_evaluation_protocol_supplied = (
+        isinstance(cross_family_evaluation_protocol, Mapping)
+        and cross_family_evaluation_protocol.get("artifact_kind")
+        == "CrossFamilyEndToEndEvaluationPanelSelection"
     )
     counts = (
         memory.get("counts", {})
@@ -88278,11 +90358,20 @@ def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict
         "runtime_capability_gap_routing_rows_missing_retention_selection_boundary": int(
             gap_rows_missing_retention_selection_boundary
         ),
+        "runtime_cross_family_evaluation_protocol_supplied": bool(
+            cross_family_evaluation_protocol_supplied
+        ),
+        "runtime_cross_family_evaluation_protocol": (
+            dict(cross_family_evaluation_protocol)
+            if cross_family_evaluation_protocol_supplied
+            else {}
+        ),
         "runtime_requested_evidence_contract": dict(requested_contract),
         "boundary": (
             "Runtime input context is bounded prompt memory, capability-gap routing, "
-            "and orchestration guidance. It is not proof evidence, simulation "
-            "evidence, generated-code evidence, verifier evidence, or source authority."
+            "frozen evaluation selection, and orchestration guidance. It is not proof "
+            "evidence, simulation evidence, generated-code evidence, verifier evidence, "
+            "or source authority."
         ),
     }
 
@@ -88462,6 +90551,8 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "staged_followups_due_to_prompt_token_budget_preflight",
         "staged_followup_stage_attempt_rows",
         "staged_followup_stage_response_contract_ok",
+        "staged_followup_stage_provider_calls",
+        "staged_followup_stage_repair_attempts",
         "staged_followup_stage_provider_failures",
         "staged_followup_stage_calls_blocked_by_budget",
         "staged_followup_assembly_rows",
@@ -88512,6 +90603,9 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
     responses_recorded = 0
     target_prover_replay_complete = 0
     route_revision_feedback_recorded = 0
+    provider_retry_required = 0
+    provider_retry_scheduled = 0
+    provider_retry_exhausted = 0
     for execution_manifest in execution_manifests:
         manifest_id = str(execution_manifest.get("manifest_id", "") or "").strip()
         if manifest_id:
@@ -88522,6 +90616,12 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
             followups_required += 1
         if execution_manifest.get("live_llm_invoked") is True:
             invocations += 1
+        if execution_manifest.get("live_route_planner_provider_retry_required") is True:
+            provider_retry_required += 1
+        if execution_manifest.get("live_route_planner_provider_retry_scheduled") is True:
+            provider_retry_scheduled += 1
+        if execution_manifest.get("live_route_planner_provider_retry_exhausted") is True:
+            provider_retry_exhausted += 1
         if (
             execution_manifest.get("live_route_planner_all_responses_recorded")
             is True
@@ -88625,6 +90725,15 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         "n_runtime_formalization_gap_planner_live_route_planner_invocations": (
             invocations
         ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_required": (
+            provider_retry_required
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_scheduled": (
+            provider_retry_scheduled
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_retry_exhausted": (
+            provider_retry_exhausted
+        ),
         "n_runtime_formalization_gap_planner_live_route_planner_response_manifests": len(
             live_manifest_paths
         ),
@@ -88669,6 +90778,12 @@ def _runtime_formalization_gap_planner_live_route_planner_summary(
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_response_contract_ok": int(
             aggregate_counts["staged_followup_stage_response_contract_ok"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_calls": int(
+            aggregate_counts["staged_followup_stage_provider_calls"]
+        ),
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_repair_attempts": int(
+            aggregate_counts["staged_followup_stage_repair_attempts"]
         ),
         "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_stage_provider_failures": int(
             aggregate_counts["staged_followup_stage_provider_failures"]
@@ -88848,10 +90963,11 @@ def _runtime_has_live_route_planner_blocked_trace(
             failure_classification = str(
                 trace.get("failure_classification", "") or ""
             )
-            if (
-                failure_classification
-                == "formalization_gap_planner_live_route_planner_blocked"
-            ):
+            if failure_classification in {
+                "formalization_gap_planner_live_route_planner_blocked",
+                "formalization_gap_planner_live_route_planner_provider_retry_exhausted",
+                "formalization_gap_planner_live_route_planner_contract_repair_exhausted",
+            }:
                 return True
     return False
 
@@ -90424,16 +92540,20 @@ def _runtime_gap_formal_declaration_hits(
         ).strip()
         if subclaim.kernel_verified and subclaim_primitive:
             rows.append(
-                {
-                    "primitive": subclaim_primitive,
-                    "supported_target_primitives": [subclaim_primitive],
-                    "declaration": subclaim_primitive,
-                    "target_prover_family": target_prover_family,
-                    "source_field": "runtime_kernel_verified_declaration_hits",
-                    "kernel_verified": True,
-                    "verification_strength": subclaim.verification_strength,
-                    "subclaim_id": subclaim.id,
-                }
+                _runtime_gap_planner_nonproof_declaration_projection(
+                    {
+                        "primitive": subclaim_primitive,
+                        "supported_target_primitives": [subclaim_primitive],
+                        "declaration": subclaim_primitive,
+                        "target_prover_family": target_prover_family,
+                        "source_field": (
+                            "runtime_kernel_verified_declaration_hits"
+                        ),
+                        "kernel_verified": True,
+                        "verification_strength": subclaim.verification_strength,
+                        "subclaim_id": subclaim.id,
+                    }
+                )
             )
         for hit in subclaim.formal_source_hits:
             rows.append(
@@ -90455,7 +92575,82 @@ def _runtime_gap_formal_declaration_hits(
                         ),
                     }
                 )
-    return rows[:40]
+    deduplicated: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        fingerprint = stable_hash(row)
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        deduplicated.append(row)
+    return deduplicated[:40]
+
+
+def _runtime_gap_planner_nonproof_declaration_projection(
+    hit: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project upstream verification facts into a planner-safe reference.
+
+    FormalizationGapPlanner inputs are planning evidence, so they may reference
+    an upstream checked declaration but may not themselves carry a proof claim.
+    The original subclaim remains in the evidence ledger; this projection keeps
+    its source path and value without promoting the planner seed to proof.
+    """
+
+    claim_references: list[dict[str, Any]] = []
+
+    def project(value: Any, *, path: str) -> Any:
+        if isinstance(value, Mapping):
+            projected: dict[str, Any] = {}
+            for raw_key, item in value.items():
+                key = str(raw_key)
+                key_normalized = key.lower()
+                item_path = f"{path}.{key}" if path else key
+                is_boolean_proof_claim = (
+                    key_normalized
+                    in {
+                        "kernel_verified",
+                        "full_frontier_theorem_proved",
+                        "theorem_proved",
+                    }
+                    and item is True
+                )
+                item_upper = str(item).upper()
+                is_status_proof_claim = (
+                    key_normalized in {"proof_evidence_status", "claim_status"}
+                    and (
+                        "KERNEL_VERIFIED" in item_upper
+                        or "PROVED" in item_upper
+                    )
+                    and "NOT_PROOF_EVIDENCE" not in item_upper
+                )
+                if is_boolean_proof_claim or is_status_proof_claim:
+                    claim_references.append(
+                        {
+                            "source_path": item_path,
+                            "claim_kind": key,
+                            "source_value": item,
+                        }
+                    )
+                    continue
+                projected[key] = project(item, path=item_path)
+            return projected
+        if isinstance(value, (list, tuple)):
+            return [
+                project(item, path=f"{path}[{index}]")
+                for index, item in enumerate(value)
+            ]
+        return value
+
+    projected = project(dict(hit), path="")
+    if claim_references:
+        projected["upstream_verification_claim_references"] = claim_references
+        projected["upstream_verification_reference_boundary"] = (
+            "References describe verification recorded on upstream source "
+            "artifacts. They do not make this FormalizationGapPlanner input "
+            "proof evidence."
+        )
+    return projected
 
 
 def _runtime_gap_formal_declaration_hit_row(
@@ -90464,7 +92659,7 @@ def _runtime_gap_formal_declaration_hit_row(
     target_prover_family: str,
     source_field: str,
 ) -> dict[str, Any]:
-    row = dict(hit)
+    row = _runtime_gap_planner_nonproof_declaration_projection(hit)
     declaration = ""
     for key in ("declaration", "declaration_name", "name"):
         if str(hit.get(key, "")).strip():
@@ -91973,6 +94168,26 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_live_generated_simulation_sandbox_passed": 0,
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_live_generated_simulation_sandbox_metric_gate_failed": 0,
+        "n_generated_simulation_typed_metric_contracts_declared": 0,
+        "n_live_generated_simulation_typed_metric_contracts_declared": 0,
+        "n_generated_simulation_typed_metric_contracts_evaluated": 0,
+        "n_live_generated_simulation_typed_metric_contracts_evaluated": 0,
+        "n_generated_simulation_typed_metric_contracts_passed": 0,
+        "n_live_generated_simulation_typed_metric_contracts_passed": 0,
+        "n_generated_simulation_typed_metric_contracts_failed": 0,
+        "n_live_generated_simulation_typed_metric_contracts_failed": 0,
+        "n_generated_simulation_typed_metric_contracts_authority_bound": 0,
+        "n_live_generated_simulation_typed_metric_contracts_authority_bound": 0,
+        "n_generated_simulation_typed_metric_contract_artifacts_all_required_passed": 0,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed": 0,
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_required": 0,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_required": 0,
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_validated": 0,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated": 0,
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_rejected": 0,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_rejected": 0,
+        "n_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed": 0,
+        "n_live_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed": 0,
         "n_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
         "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences": 0,
         "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences": 0,
@@ -91994,6 +94209,26 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_live_generated_code_sandbox_passed": 0,
         "n_generated_code_sandbox_metric_gate_failed": 0,
         "n_live_generated_code_sandbox_metric_gate_failed": 0,
+        "n_generated_algorithm_typed_metric_contracts_declared": 0,
+        "n_live_generated_algorithm_typed_metric_contracts_declared": 0,
+        "n_generated_algorithm_typed_metric_contracts_evaluated": 0,
+        "n_live_generated_algorithm_typed_metric_contracts_evaluated": 0,
+        "n_generated_algorithm_typed_metric_contracts_passed": 0,
+        "n_live_generated_algorithm_typed_metric_contracts_passed": 0,
+        "n_generated_algorithm_typed_metric_contracts_failed": 0,
+        "n_live_generated_algorithm_typed_metric_contracts_failed": 0,
+        "n_generated_algorithm_typed_metric_contracts_authority_bound": 0,
+        "n_live_generated_algorithm_typed_metric_contracts_authority_bound": 0,
+        "n_generated_algorithm_typed_metric_contract_artifacts_all_required_passed": 0,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed": 0,
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_required": 0,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_required": 0,
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated": 0,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated": 0,
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_rejected": 0,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected": 0,
+        "n_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed": 0,
+        "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed": 0,
         "n_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
         "n_live_generated_code_sandbox_failed_then_passed_repair_sequences": 0,
         "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences": 0,
@@ -93085,6 +95320,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     ),
                 )
             elif kind == "RuntimeSimulationManifest":
+                simulation_metric_counts = (
+                    _generated_sandbox_metric_contract_counts_from_rows(
+                        artifact.get("generated_simulation_sandbox_prototypes", []),
+                        generated_executor="generated_simulation_sandbox",
+                    )
+                )
                 live_counts = _generated_sandbox_live_counts_from_rows(
                     artifact.get("generated_simulation_sandbox_prototypes", []),
                     generated_executor="generated_simulation_sandbox",
@@ -93117,6 +95358,70 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 ] += int(
                     live_counts["metric_gate_failed"]
                 )
+                for suffix in (
+                    "declared",
+                    "evaluated",
+                    "passed",
+                    "failed",
+                ):
+                    simulation[
+                        f"n_generated_simulation_typed_metric_contracts_{suffix}"
+                    ] += int(
+                        simulation_metric_counts[
+                            f"typed_metric_contracts_{suffix}"
+                        ]
+                    )
+                    simulation[
+                        f"n_live_generated_simulation_typed_metric_contracts_{suffix}"
+                    ] += int(
+                        live_counts[f"typed_metric_contracts_{suffix}"]
+                    )
+                simulation[
+                    "n_generated_simulation_typed_metric_contract_artifacts_all_required_passed"
+                ] += int(
+                    simulation_metric_counts[
+                        "typed_metric_contract_artifacts_all_required_passed"
+                    ]
+                )
+                simulation[
+                    "n_live_generated_simulation_typed_metric_contract_artifacts_all_required_passed"
+                ] += int(
+                    live_counts[
+                        "typed_metric_contract_artifacts_all_required_passed"
+                    ]
+                )
+                simulation[
+                    "n_generated_simulation_typed_metric_contracts_authority_bound"
+                ] += int(
+                    simulation_metric_counts[
+                        "typed_metric_contracts_authority_bound"
+                    ]
+                )
+                simulation[
+                    "n_live_generated_simulation_typed_metric_contracts_authority_bound"
+                ] += int(live_counts["typed_metric_contracts_authority_bound"])
+                for suffix in (
+                    "authority_required",
+                    "authority_validated",
+                    "authority_rejected",
+                    "authority_validated_all_required_passed",
+                ):
+                    simulation[
+                        "n_generated_simulation_typed_metric_contract_artifacts_"
+                        + suffix
+                    ] += int(
+                        simulation_metric_counts[
+                            "typed_metric_contract_artifacts_" + suffix
+                        ]
+                    )
+                    simulation[
+                        "n_live_generated_simulation_typed_metric_contract_artifacts_"
+                        + suffix
+                    ] += int(
+                        live_counts[
+                            "typed_metric_contract_artifacts_" + suffix
+                        ]
+                    )
                 simulation["n_unsafe_generated_simulation_code_rejected"] += int(
                     artifact.get("n_unsafe_generated_simulation_code_rejected", 0) or 0
                 )
@@ -93126,6 +95431,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 if artifact.get("simulation_passed") is True:
                     simulation["n_simulation_manifests_passed"] += 1
             elif kind == "RuntimeAlgorithmSandboxManifest":
+                algorithm_metric_counts = (
+                    _generated_sandbox_metric_contract_counts_from_rows(
+                        artifact.get("prototypes", []),
+                        generated_executor="generated_python_sandbox",
+                    )
+                )
                 live_counts = _generated_sandbox_live_counts_from_rows(
                     artifact.get("prototypes", []),
                     generated_executor="generated_python_sandbox",
@@ -93157,6 +95468,68 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 algorithm["n_live_generated_code_sandbox_metric_gate_failed"] += int(
                     live_counts["metric_gate_failed"]
                 )
+                for suffix in (
+                    "declared",
+                    "evaluated",
+                    "passed",
+                    "failed",
+                ):
+                    algorithm[
+                        f"n_generated_algorithm_typed_metric_contracts_{suffix}"
+                    ] += int(
+                        algorithm_metric_counts[f"typed_metric_contracts_{suffix}"]
+                    )
+                    algorithm[
+                        f"n_live_generated_algorithm_typed_metric_contracts_{suffix}"
+                    ] += int(
+                        live_counts[f"typed_metric_contracts_{suffix}"]
+                    )
+                algorithm[
+                    "n_generated_algorithm_typed_metric_contract_artifacts_all_required_passed"
+                ] += int(
+                    algorithm_metric_counts[
+                        "typed_metric_contract_artifacts_all_required_passed"
+                    ]
+                )
+                algorithm[
+                    "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed"
+                ] += int(
+                    live_counts[
+                        "typed_metric_contract_artifacts_all_required_passed"
+                    ]
+                )
+                algorithm[
+                    "n_generated_algorithm_typed_metric_contracts_authority_bound"
+                ] += int(
+                    algorithm_metric_counts[
+                        "typed_metric_contracts_authority_bound"
+                    ]
+                )
+                algorithm[
+                    "n_live_generated_algorithm_typed_metric_contracts_authority_bound"
+                ] += int(live_counts["typed_metric_contracts_authority_bound"])
+                for suffix in (
+                    "authority_required",
+                    "authority_validated",
+                    "authority_rejected",
+                    "authority_validated_all_required_passed",
+                ):
+                    algorithm[
+                        "n_generated_algorithm_typed_metric_contract_artifacts_"
+                        + suffix
+                    ] += int(
+                        algorithm_metric_counts[
+                            "typed_metric_contract_artifacts_" + suffix
+                        ]
+                    )
+                    algorithm[
+                        "n_live_generated_algorithm_typed_metric_contract_artifacts_"
+                        + suffix
+                    ] += int(
+                        live_counts[
+                            "typed_metric_contract_artifacts_" + suffix
+                        ]
+                    )
                 algorithm["n_unsafe_generated_code_rejected"] += int(
                     artifact.get("n_unsafe_generated_code_rejected", 0) or 0
                 )
@@ -93954,6 +96327,8 @@ def _runtime_transition_route_sources(
             or payload.get("architect_plan_repair") is True
         ):
             sources.append("architect_plan_repair")
+        if observation_type == "architect_terminal_acceptance_review":
+            sources.append("architect_terminal_acceptance_review")
         runtime_reroute_decision = payload.get("runtime_reroute_decision")
         if (
             isinstance(runtime_reroute_decision, Mapping)
@@ -94440,6 +96815,119 @@ def _simulation_evaluator_repair_budget_yield_to_formalization_task(
     )
 
 
+def _simulation_evaluator_repair_budget_yield_to_algorithm_task(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    implementation_gaps: Sequence[Mapping[str, Any]],
+    architect_context: Mapping[str, Any],
+    simulation_feedback: Mapping[str, Any],
+    failure_classification: str,
+    repair_attempts_used: int,
+    yield_after_attempts: int,
+    n_runs: int,
+    seed: int,
+) -> AgentTask:
+    gap_rows = [dict(row) for row in implementation_gaps]
+    feedback = {
+        "feedback_type": "simulation_evaluator_repair_budget_algorithm_handoff",
+        "source_feedback_type": str(simulation_feedback.get("feedback_type", "")),
+        "failure_classification": failure_classification,
+        "simulation_manifest_id": simulation_manifest_id,
+        "simulation_repair_attempts_used": int(repair_attempts_used),
+        "simulation_repair_yield_after_attempts": int(yield_after_attempts),
+        "generated_simulation_feedback": dict(simulation_feedback),
+        "implementation_gaps": gap_rows,
+        "target_behavior": (
+            "Implement and execute every open estimator gap while preserving the "
+            "failed generated-simulation diagnostics. AlgorithmEngineer must emit "
+            "artifact-bound typed metric contracts and AgentRuntime must evaluate "
+            "them; the simulation blocker remains open for later replanning."
+        ),
+        "acceptance_gate": (
+            "AlgorithmEngineer emits one generated sandbox draft and at least one "
+            "typed metric contract for every canonical implementation-gap id; "
+            "AgentRuntime records bounded execution and exact contract evaluation."
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_requires_generated_simulation_code": True,
+            "capability_eval_requires_typed_metric_contracts": True,
+            "generated_metric_contract_policy": "typed_artifact_bound_required",
+            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": int(
+                yield_after_attempts
+            ),
+        },
+        "proof_evidence_status": "SIMULATION_REPAIR_YIELD_NOT_PROOF_EVIDENCE",
+        "execution_evidence_status": (
+            "SIMULATION_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_SIMULATION_GATE"
+        ),
+        "boundary": (
+            "This is a scheduling and diagnostic handoff. It does not validate "
+            "the failed simulation, prove a theorem, or turn generated algorithm "
+            "sandbox output into production evidence."
+        ),
+    }
+    context = dict(architect_context)
+    context["previous_simulation_manifest_id"] = simulation_manifest_id
+    context["environment_feedback"] = feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": "SimulationEvaluator",
+        "handoff": "simulation_evaluator_repair_budget_yield_to_algorithm",
+        "simulation_manifest_id": simulation_manifest_id,
+        "simulation_evaluator_generated_code_repair_attempts_used": int(
+            repair_attempts_used
+        ),
+        "simulation_evaluator_generated_code_repair_yield_after_attempts": int(
+            yield_after_attempts
+        ),
+    }
+    context = _runtime_context_with_environment_feedback_contract(
+        context,
+        feedback,
+        subsystem="AlgorithmEngineer",
+    )
+    return AgentTask(
+        task_id=(
+            f"algorithm-simulation-yield:{question.id}:"
+            f"{stable_hash([simulation_manifest_id, gap_rows, repair_attempts_used])[:8]}"
+        ),
+        owner_subsystem="AlgorithmEngineer",
+        objective=(
+            "Run the open implementation work after the bounded generated-"
+            "simulation repair budget is exhausted, without closing the "
+            "simulation blocker."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": gap_rows,
+            "n_runs": int(n_runs),
+            "seed": int(seed),
+            "architect_context": context,
+            "environment_feedback": feedback,
+        },
+        allowed_tools=("python", "filesystem_sandbox"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "AlgorithmEngineer",
+            ("algorithm_sandbox_manifest",),
+        ),
+        acceptance_gate=feedback["acceptance_gate"],
+        stop_condition=(
+            "algorithm sandbox feedback recorded with the generated simulation "
+            "blocker kept open"
+        ),
+    )
+
+
 def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
     *,
     question: OpenResearchQuestion,
@@ -94597,6 +97085,16 @@ def _algorithm_sandbox_metric_gate_refresh_result_if_needed(
     ]
     if not prototypes:
         return None
+    (
+        metric_requirements,
+        _metric_authority_policy,
+        metric_authority_required,
+    ) = _runtime_generated_metric_requirement_authority(
+        context,
+        environment_feedback,
+        architect_subsystem="AlgorithmEngineer",
+        target_subsystem="AlgorithmEngineer",
+    )
 
     refreshed_prototypes: list[dict[str, Any]] = []
     refresh_rows: list[dict[str, Any]] = []
@@ -94609,6 +97107,39 @@ def _algorithm_sandbox_metric_gate_refresh_result_if_needed(
             or bool(prior_errors)
         )
         if needs_refresh:
+            typed_metric_contracts = [
+                dict(contract)
+                for contract in row.get("metric_contracts", []) or []
+                if isinstance(contract, Mapping)
+            ]
+            if not typed_metric_contracts:
+                missing_contract_error = (
+                    "metric-gate refresh requires at least one prior typed metric "
+                    "contract bound to the sandbox artifact"
+                )
+                refreshed_row["prototype_status"] = "FAILED_METRIC_GATE"
+                refreshed_row["smoke_passed"] = False
+                refreshed_row["metric_gate_errors"] = sorted(
+                    set([*prior_errors, missing_contract_error])
+                )
+                refresh_rows.append(
+                    {
+                        "estimator_id": str(row.get("estimator_id", "") or ""),
+                        "prototype_status_before": str(
+                            row.get("prototype_status", "") or ""
+                        ),
+                        "prior_metric_gate_errors": prior_errors[:10],
+                        "recomputed_metric_gate_errors": [missing_contract_error],
+                        "execution_smoke_passed": bool(
+                            row.get(
+                                "execution_smoke_passed",
+                                row.get("smoke_passed") is True,
+                            )
+                        ),
+                    }
+                )
+                refreshed_prototypes.append(refreshed_row)
+                continue
             recomputed_errors = _generated_sandbox_metric_gate_errors(
                 row.get("metrics", {}),
                 context={
@@ -94617,6 +97148,15 @@ def _algorithm_sandbox_metric_gate_refresh_result_if_needed(
                     "environment_feedback": dict(environment_feedback),
                     "estimator_id": str(row.get("estimator_id", "") or ""),
                     "spec": row.get("spec", {}) if isinstance(row.get("spec", {}), Mapping) else {},
+                    "typed_metric_contracts": typed_metric_contracts,
+                    "metric_contract_artifact_id": str(
+                        row.get("estimator_id", "") or ""
+                    ),
+                    "authoritative_metric_requirements": metric_requirements,
+                    "metric_requirement_target_subsystem": "AlgorithmEngineer",
+                    "require_authoritative_metric_requirements": (
+                        metric_authority_required
+                    ),
                 },
                 code=_generated_python_sandbox_code_excerpt(row),
             )
@@ -94873,6 +97413,20 @@ def _algorithm_sandbox_revision_feedback(
                 "metric_gate_targets": _compact_generated_sandbox_metrics(
                     row.get("metric_gate_targets", {})
                 ),
+                "metric_gate_policy_mode": str(
+                    row.get("metric_gate_policy_mode", "") or ""
+                ),
+                "metric_contract_set_id": str(
+                    row.get("metric_contract_set_id", "") or ""
+                ),
+                "metric_contracts": _compact_generated_metric_contracts(
+                    row.get("metric_contracts", [])
+                ),
+                "metric_contract_evaluation": (
+                    _compact_generated_metric_contract_evaluation(
+                        row.get("metric_contract_evaluation", {})
+                    )
+                ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
                 "stdout_summary": _generated_sandbox_diagnostic_excerpt(
@@ -94985,6 +97539,116 @@ def _compact_generated_sandbox_metrics(
     return compact
 
 
+def _compact_generated_metric_contracts(
+    value: Any,
+    *,
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    keys = (
+        "contract_id",
+        "requirement_id",
+        "artifact_id",
+        "metric_path",
+        "metric_semantics",
+        "measurement_protocol",
+        "operator",
+        "threshold",
+        "lower",
+        "upper",
+        "tolerance",
+        "aggregation",
+        "minimum_pass_count",
+        "minimum_pass_fraction",
+        "required",
+        "source_anchors",
+        "authority_requirement_fingerprint",
+        "authority_requirement_set_id",
+        "authority_source_subsystem",
+    )
+    return [
+        {key: row.get(key) for key in keys if key in row}
+        for row in value[:limit]
+        if isinstance(row, Mapping)
+    ]
+
+
+def _generated_metric_contract_evaluation_count(
+    row: Mapping[str, Any],
+    key: str,
+) -> int:
+    evaluation = row.get("metric_contract_evaluation", {})
+    if not isinstance(evaluation, Mapping):
+        return 0
+    try:
+        return max(0, int(evaluation.get(key, 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _compact_generated_metric_contract_evaluation(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    evaluation_rows = value.get("evaluations", [])
+    if not isinstance(evaluation_rows, list):
+        evaluation_rows = []
+    return {
+        "artifact_id": str(value.get("artifact_id", "") or ""),
+        "metric_contract_set_id": str(
+            value.get("metric_contract_set_id", "") or ""
+        ),
+        "metric_requirement_set_id": str(
+            value.get("metric_requirement_set_id", "") or ""
+        ),
+        "metric_requirement_authority_enforced": value.get(
+            "metric_requirement_authority_enforced"
+        ),
+        "metric_requirement_authority_validated": value.get(
+            "metric_requirement_authority_validated"
+        ),
+        "metric_contract_schema_valid": value.get("metric_contract_schema_valid"),
+        "n_contracts": int(value.get("n_contracts", 0) or 0),
+        "n_passed": int(value.get("n_passed", 0) or 0),
+        "n_failed": int(value.get("n_failed", 0) or 0),
+        "all_required_passed": value.get("all_required_passed"),
+        "required_failure_errors": list(
+            _str_tuple(value.get("required_failure_errors", []))
+        )[:6],
+        "evaluations": [
+            {
+                key: row.get(key)
+                for key in (
+                    "contract_id",
+                    "requirement_id",
+                    "artifact_id",
+                    "metric_path",
+                    "operator",
+                    "aggregation",
+                    "required",
+                    "n_resolved_values",
+                    "resolved_values_preview",
+                    "aggregate_value",
+                    "n_comparisons_passed",
+                    "n_comparisons",
+                    "passed",
+                    "errors",
+                    "source_anchors",
+                    "authority_requirement_fingerprint",
+                    "authority_requirement_set_id",
+                )
+                if key in row
+            }
+            for row in evaluation_rows[:6]
+            if isinstance(row, Mapping)
+        ],
+        "proof_evidence_status": str(
+            value.get("proof_evidence_status", "") or ""
+        ),
+        "boundary": str(value.get("boundary", "") or "")[:360],
+    }
+
+
 def _generated_python_sandbox_code_excerpt(
     row: Mapping[str, Any],
     *,
@@ -95045,6 +97709,20 @@ def _generated_simulation_revision_feedback(
                 ),
                 "metric_gate_targets": _compact_generated_sandbox_metrics(
                     row.get("metric_gate_targets", {})
+                ),
+                "metric_gate_policy_mode": str(
+                    row.get("metric_gate_policy_mode", "") or ""
+                ),
+                "metric_contract_set_id": str(
+                    row.get("metric_contract_set_id", "") or ""
+                ),
+                "metric_contracts": _compact_generated_metric_contracts(
+                    row.get("metric_contracts", [])
+                ),
+                "metric_contract_evaluation": (
+                    _compact_generated_metric_contract_evaluation(
+                        row.get("metric_contract_evaluation", {})
+                    )
                 ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
@@ -95140,11 +97818,20 @@ def _run_generated_simulation_sandbox(
     simulation_id: str,
     code_draft: Mapping[str, Any],
     proposal_packet: Mapping[str, Any] | None = None,
+    metric_contracts: Sequence[Mapping[str, Any]] | None = None,
     validation_context: Mapping[str, Any] | None = None,
     n_runs: int,
     seed: int,
     timeout_s: int,
 ) -> tuple[dict[str, Any], ToolCallRecord]:
+    selected_metric_contracts = (
+        [dict(row) for row in metric_contracts]
+        if metric_contracts is not None
+        else generated_metric_contracts_for_artifact(
+            (proposal_packet or {}).get("metric_contracts", []),
+            artifact_id=simulation_id,
+        )
+    )
     prototype, tool_call = _run_generated_python_sandbox(
         sandbox_dir=sandbox_dir,
         estimator_id=simulation_id,
@@ -95156,6 +97843,7 @@ def _run_generated_simulation_sandbox(
             ),
         },
         code_draft=code_draft,
+        metric_contracts=selected_metric_contracts,
         validation_context={
             "proposal_packet": proposal_packet or {},
             "simulation_id": simulation_id,
@@ -95181,15 +97869,6 @@ def _run_generated_simulation_sandbox(
         prototype.get("execution_smoke_passed", prototype.get("smoke_passed") is True)
     )
     metric_gate_errors = list(_str_tuple(prototype.get("metric_gate_errors", [])))
-    if execution_smoke_passed and not metric_gate_errors:
-        metric_gate_errors = _generated_sandbox_metric_gate_errors(
-            prototype.get("metrics", {}),
-            context={
-                "estimator_id": simulation_id,
-                "spec": prototype.get("spec", {}),
-                "code_draft": code_draft,
-            },
-        )
     prototype["execution_smoke_passed"] = execution_smoke_passed
     prototype["metric_gate_errors"] = metric_gate_errors
     prototype["smoke_passed"] = execution_smoke_passed and not metric_gate_errors
@@ -95223,65 +97902,68 @@ def _generated_sandbox_metric_gate_errors(
     context: Mapping[str, Any] | None = None,
     code: str = "",
 ) -> list[str]:
-    if not isinstance(metrics, Mapping):
-        return []
-
-    errors: list[str] = []
-    target_coverage = _generated_sandbox_target_coverage_from_context(
-        context or {}
-    )
-    if target_coverage is None:
-        target_coverage = _coerce_optional_float(metrics.get("target_coverage"))
-    if target_coverage is not None and not (0.0 <= target_coverage <= 1.0):
-        errors.append("target_coverage must be in [0, 1]")
-        target_coverage = None
-
-    coverage_metrics = _generated_sandbox_named_numeric_metrics(
+    errors, _, _ = _generated_sandbox_metric_gate_result(
         metrics,
-        name_predicate=_is_coverage_metric_name,
+        context=context,
+        code=code,
     )
-    for key, value in coverage_metrics:
-        if value is None:
-            continue
-        if not (0.0 <= value <= 1.0):
-            errors.append(f"{key} must be in [0, 1]")
-            continue
-        if value <= 0.0:
-            errors.append(f"{key} is degenerate zero coverage")
-        if target_coverage is not None and value + 1e-9 < target_coverage:
-            errors.append(f"{key} below target_coverage")
+    return errors
 
-    if _generated_sandbox_requires_coverage_metric(context or {}) and not coverage_metrics:
-        errors.append(generated_coverage_metric_required_error())
 
-    errors.extend(
+def _generated_sandbox_metric_gate_result(
+    metrics: Any,
+    *,
+    context: Mapping[str, Any] | None = None,
+    code: str = "",
+) -> tuple[list[str], dict[str, Any], str]:
+    metric_context = dict(context or {})
+    contracts = [
+        dict(row)
+        for row in metric_context.get("typed_metric_contracts", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if contracts:
+        artifact_id = str(
+            metric_context.get("metric_contract_artifact_id", "")
+            or metric_context.get("estimator_id", "")
+            or contracts[0].get("artifact_id", "")
+        ).strip()
+        evaluation = evaluate_generated_metric_contracts(
+            metrics,
+            contracts=contracts,
+            artifact_id=artifact_id,
+            runtime_replicates=metric_context.get("runtime_replicates"),
+            authoritative_requirements=metric_context.get(
+                "authoritative_metric_requirements"
+            ),
+            target_subsystem=str(
+                metric_context.get("metric_requirement_target_subsystem", "")
+                or ""
+            ),
+            require_authoritative_requirements=bool(
+                metric_context.get(
+                    "require_authoritative_metric_requirements", False
+                )
+            ),
+        )
+        errors = list(
+            _str_tuple(evaluation.get("required_failure_errors", []))
+        )
+        errors.extend(
+            _generated_sandbox_code_quality_gate_errors(
+                code=code,
+                context=metric_context,
+            )
+        )
+        return sorted(set(errors)), evaluation, "typed_artifact_bound"
+    return (
         _generated_sandbox_code_quality_gate_errors(
             code=code,
-            context=context or {},
-        )
+            context=metric_context,
+        ),
+        {},
+        "execution_only_no_typed_contract",
     )
-
-    for key, value in _generated_sandbox_named_numeric_metrics(
-        metrics,
-        name_predicate=lambda name: "miscoverage" in name.lower(),
-    ):
-        if value is None:
-            continue
-        if not (0.0 <= value <= 1.0):
-            errors.append(f"{key} must be in [0, 1]")
-        if target_coverage is not None and value > (1.0 - target_coverage) + 1e-9:
-            errors.append(f"{key} exceeds target miscoverage")
-
-    errors.extend(
-        _generated_simulation_oracle_truth_metric_gate_errors(
-            metrics,
-            context=context or {},
-            code=code,
-            existing_errors=errors,
-        )
-    )
-
-    return sorted(set(errors))
 
 
 def _generated_sandbox_code_quality_gate_errors(
@@ -95322,92 +98004,6 @@ def _generated_sandbox_code_quality_gate_errors(
     return errors
 
 
-def _generated_simulation_oracle_truth_metric_gate_errors(
-    metrics: Mapping[str, Any],
-    *,
-    context: Mapping[str, Any],
-    code: str,
-    existing_errors: Sequence[str],
-) -> list[str]:
-    if (
-        not code.strip()
-        or not _generated_sandbox_is_capability_eval(context)
-        or not _generated_sandbox_is_generated_simulation_context(context)
-    ):
-        return []
-    if not existing_errors and not _generated_sandbox_has_large_point_error(metrics):
-        return []
-    try:
-        tree = ast.parse(code)
-    except SyntaxError:
-        return []
-    constant_truth_names: set[str] = set()
-    truth_names = set(generated_simulation_oracle_truth_names())
-    for node in ast.walk(tree):
-        value: ast.AST | None = None
-        targets: list[ast.AST] = []
-        if isinstance(node, ast.Assign):
-            value = node.value
-            targets = list(node.targets)
-        elif isinstance(node, ast.AnnAssign):
-            value = node.value
-            targets = [node.target]
-        if value is None:
-            continue
-        if not (
-            isinstance(value, ast.Constant)
-            and isinstance(value.value, (int, float))
-            and not isinstance(value.value, bool)
-        ):
-            continue
-        for target in targets:
-            if isinstance(target, ast.Name) and target.id.lower() in truth_names:
-                constant_truth_names.add(target.id)
-    if not constant_truth_names:
-        return []
-    names = {
-        node.id.lower()
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Name)
-    }
-    has_sample_level_potential_outcomes = (
-        any("mu1" in name or "y1" in name for name in names)
-        and any("mu0" in name or "y0" in name for name in names)
-    )
-    if not has_sample_level_potential_outcomes:
-        return []
-    return [generated_simulation_oracle_truth_hardcoded_error()]
-
-
-def _generated_sandbox_is_generated_simulation_context(
-    context: Mapping[str, Any],
-) -> bool:
-    spec = context.get("spec")
-    if isinstance(spec, Mapping) and spec.get("artifact_kind") == (
-        "generated_simulation_sandbox"
-    ):
-        return True
-    try:
-        text = json.dumps(context, default=str).lower()
-    except Exception:
-        text = str(context).lower()
-    return "generated_simulation_sandbox" in text
-
-
-def _generated_sandbox_has_large_point_error(metrics: Mapping[str, Any]) -> bool:
-    for key, value in _generated_sandbox_named_numeric_metrics(
-        metrics,
-        name_predicate=lambda name: (
-            "bias" in name.lower()
-            or "rmse" in name.lower()
-            or "point_error" in name.lower()
-        ),
-    ):
-        if value is not None and abs(float(value)) > 0.05:
-            return True
-    return False
-
-
 def _generated_sandbox_is_capability_eval(context: Mapping[str, Any]) -> bool:
     if not isinstance(context, Mapping):
         return False
@@ -95416,189 +98012,6 @@ def _generated_sandbox_is_capability_eval(context: Mapping[str, Any]) -> bool:
     except Exception:
         text = str(context).lower()
     return "capability_eval" in text or "capability eval" in text
-
-
-def _generated_sandbox_named_numeric_metrics(
-    metrics: Mapping[str, Any],
-    *,
-    name_predicate: Callable[[str], bool],
-) -> list[tuple[str, float]]:
-    rows: list[tuple[str, float]] = []
-
-    def visit(value: Any, path: tuple[str, ...]) -> None:
-        if isinstance(value, Mapping):
-            direct_metric_leaf_present = any(
-                name_predicate(str(raw_key))
-                and _coerce_optional_float(raw_value) is not None
-                for raw_key, raw_value in value.items()
-            )
-            for raw_key, raw_value in value.items():
-                key = str(raw_key)
-                child_path = (*path, key)
-                numeric_value = _coerce_optional_float(raw_value)
-                inherits_metric_name = any(name_predicate(part) for part in path)
-                if (
-                    numeric_value is not None
-                    and (
-                        name_predicate(key)
-                        or (
-                            inherits_metric_name
-                            and not direct_metric_leaf_present
-                            and not _is_generated_metric_auxiliary_name(key)
-                        )
-                    )
-                ):
-                    rows.append((".".join(child_path), numeric_value))
-                if isinstance(raw_value, (Mapping, list, tuple)):
-                    visit(raw_value, child_path)
-        elif isinstance(value, (list, tuple)):
-            for index, raw_value in enumerate(value):
-                child_path = (*path, str(index))
-                numeric_value = _coerce_optional_float(raw_value)
-                if (
-                    numeric_value is not None
-                    and any(name_predicate(part) for part in path)
-                ):
-                    rows.append((".".join(child_path), numeric_value))
-                if isinstance(raw_value, (Mapping, list, tuple)):
-                    visit(raw_value, child_path)
-
-    visit(metrics, ())
-    return rows
-
-
-def _generated_sandbox_target_coverage_from_context(
-    context: Mapping[str, Any],
-) -> float | None:
-    if not isinstance(context, Mapping):
-        return None
-    text_target_keys = {
-        "acceptance_gate",
-        "description",
-        "evaluation_prompt",
-        "expected_outputs",
-        "expected_theoretical_behavior",
-        "objective",
-        "question",
-        "simulation_targets",
-        "summary",
-        "target_behavior",
-        "title",
-        "validation_metrics",
-    }
-    stack: list[Any] = [context]
-    while stack:
-        item = stack.pop()
-        if isinstance(item, Mapping):
-            for key, value in item.items():
-                key_text = str(key).strip().lower()
-                if key_text in {
-                    "code",
-                    "code_draft",
-                    "code_excerpt",
-                    "sandbox_code_drafts",
-                    "simulation_code_drafts",
-                }:
-                    continue
-                if key_text in {
-                    "target_coverage",
-                    "coverage_target",
-                    "nominal_coverage",
-                    "nominal_level",
-                    "required_coverage",
-                }:
-                    target = _coerce_optional_float(value)
-                    if target is not None:
-                        return target
-                if key_text in {"alpha", "nominal_alpha", "miscoverage_alpha"}:
-                    alpha = _coerce_optional_float(value)
-                    if alpha is not None and 0.0 <= alpha <= 1.0:
-                        return 1.0 - alpha
-                if (
-                    key_text in text_target_keys
-                    or key_text.endswith("_description")
-                    or key_text.endswith("_summary")
-                ):
-                    text_target = _generated_sandbox_target_coverage_from_text(value)
-                    if text_target is not None:
-                        return text_target
-                    if isinstance(value, (list, tuple)):
-                        for text_item in value:
-                            text_target = _generated_sandbox_target_coverage_from_text(
-                                text_item
-                            )
-                            if text_target is not None:
-                                return text_target
-                if isinstance(value, (Mapping, list, tuple)):
-                    stack.append(value)
-        elif isinstance(item, (list, tuple)):
-            stack.extend(item)
-    return None
-
-
-def _generated_sandbox_target_coverage_from_text(value: Any) -> float | None:
-    if not isinstance(value, str):
-        return None
-    text = value.lower()
-    if not any(
-        token in text
-        for token in (
-            "coverage",
-            "confidence",
-            "interval",
-            "prediction set",
-            "prediction-set",
-            "prediction interval",
-        )
-    ):
-        return None
-    for match in re.finditer(r"(?<![0-9.])([0-9]{1,2}(?:\.[0-9]+)?)\s*%", text):
-        try:
-            percentage = float(match.group(1))
-        except ValueError:
-            continue
-        candidate = percentage / 100.0
-        if 0.5 <= candidate <= 1.0:
-            return candidate
-    return None
-
-
-def _generated_sandbox_requires_coverage_metric(context: Mapping[str, Any]) -> bool:
-    return policy_generated_sandbox_requires_coverage_metric(context)
-
-
-def _coerce_optional_float(value: Any) -> float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, (int, float)):
-        value_float = float(value)
-        if math.isfinite(value_float):
-            return value_float
-    return None
-
-
-def _is_coverage_metric_name(name: str) -> bool:
-    lowered = name.lower()
-    if "coverage" not in lowered:
-        return False
-    return not any(
-        token in lowered
-        for token in (
-            "miscoverage",
-            "noncoverage",
-            "target",
-            "nominal",
-            "sd",
-            "std",
-            "stderr",
-            "_se",
-            " se",
-        )
-    )
-
-
-def _is_generated_metric_auxiliary_name(name: str) -> bool:
-    return policy_is_generated_metric_auxiliary_name(name)
 
 
 def _estimator_spec(packet: Any, estimator_id: str) -> dict[str, Any]:
@@ -95657,8 +98070,36 @@ def _run_generated_python_sandbox(
     n_runs: int,
     seed: int,
     timeout_s: int,
+    metric_contracts: Sequence[Mapping[str, Any]] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
     code = str(code_draft.get("code", "") or "")
+    validation_payload = dict(validation_context or {})
+    typed_metric_contracts = [dict(row) for row in metric_contracts]
+    metric_contract_set_id = generated_metric_contract_set_id(
+        typed_metric_contracts
+    )
+    metric_gate_policy_mode = (
+        "typed_artifact_bound"
+        if typed_metric_contracts
+        else "execution_only_no_typed_contract"
+    )
+    authoritative_metric_requirements = [
+        dict(row)
+        for row in validation_payload.get(
+            "authoritative_metric_requirements", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    metric_requirement_set_id = generated_metric_requirement_set_id(
+        authoritative_metric_requirements
+    )
+    metric_requirement_authority_policy = str(
+        validation_payload.get("metric_requirement_authority_policy", "") or ""
+    )
+    metric_requirement_authority_required = bool(
+        validation_payload.get("require_authoritative_metric_requirements", False)
+    )
     script_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_generated_draft.py"
     runner_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_generated_runner.py"
     result_path = sandbox_dir / f"{_safe_identifier(estimator_id)}_generated_result.json"
@@ -95681,6 +98122,32 @@ def _run_generated_python_sandbox(
             "code_excerpt": code[:2000],
             "safety_errors": safety_errors,
             "metrics": {},
+            "metric_contracts": typed_metric_contracts,
+            "metric_contract_set_id": metric_contract_set_id,
+            "metric_requirement_set_id": metric_requirement_set_id,
+            "metric_requirement_authority_policy": (
+                metric_requirement_authority_policy
+            ),
+            "metric_requirement_authority_required": (
+                metric_requirement_authority_required
+            ),
+            "metric_requirement_authority_validated": bool(
+                metric_requirement_authority_required
+                and typed_metric_contracts
+                and all(
+                    str(
+                        row.get("authority_requirement_fingerprint", "") or ""
+                    ).strip()
+                    for row in typed_metric_contracts
+                    if row.get("required") is True
+                )
+            ),
+            "metric_contract_evaluation": {},
+            "metric_contract_proof_evidence_status": (
+                GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+            ),
+            "metric_contract_boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
+            "metric_gate_policy_mode": metric_gate_policy_mode,
             "smoke_passed": False,
             "promotion_ready": False,
             "boundary": boundary,
@@ -95700,7 +98167,7 @@ def _run_generated_python_sandbox(
     script_path.write_text(code, encoding="utf-8")
     runner_path.write_text(_generated_python_sandbox_runner_script(), encoding="utf-8")
     result_path.unlink(missing_ok=True)
-    replicates = max(5, min(int(n_runs), 80))
+    replicates = generated_sandbox_runtime_replicates(n_runs)
     cmd = [
         sys.executable,
         "-I",
@@ -95749,23 +98216,29 @@ def _run_generated_python_sandbox(
     )
     metric_context = {
         "estimator_id": estimator_id,
+        "metric_contract_artifact_id": estimator_id,
+        "typed_metric_contracts": typed_metric_contracts,
+        "runtime_replicates": replicates,
         "spec": spec,
         "code_draft": code_draft,
-        **(dict(validation_context or {})),
+        **validation_payload,
     }
-    metric_gate_errors = (
-        _generated_sandbox_metric_gate_errors(
+    metric_gate_errors, metric_contract_evaluation, metric_gate_policy_mode = (
+        _generated_sandbox_metric_gate_result(
             metrics,
             context=metric_context,
             code=code,
         )
         if execution_smoke_passed
-        else []
+        else ([], {}, metric_gate_policy_mode)
     )
     metric_gate_targets: dict[str, Any] = {}
-    target_coverage = _generated_sandbox_target_coverage_from_context(metric_context)
-    if target_coverage is not None:
-        metric_gate_targets["target_coverage"] = target_coverage
+    if typed_metric_contracts:
+        metric_gate_targets = {
+            "metric_contract_set_id": metric_contract_set_id,
+            "n_metric_contracts": len(typed_metric_contracts),
+            "runtime_replicates": replicates,
+        }
     smoke_passed = execution_smoke_passed and not metric_gate_errors
     prototype_status = "FAILED"
     if execution_smoke_passed:
@@ -95787,7 +98260,28 @@ def _run_generated_python_sandbox(
         "result_parse_error": result_parse_error,
         "safety_errors": [],
         "metrics": metrics,
+        "runtime_replicates": replicates,
         "metric_gate_targets": metric_gate_targets,
+        "metric_contracts": typed_metric_contracts,
+        "metric_contract_set_id": metric_contract_set_id,
+        "metric_requirement_set_id": metric_requirement_set_id,
+        "metric_requirement_authority_policy": (
+            metric_requirement_authority_policy
+        ),
+        "metric_requirement_authority_required": (
+            metric_requirement_authority_required
+        ),
+        "metric_requirement_authority_validated": bool(
+            metric_contract_evaluation.get(
+                "metric_requirement_authority_validated", False
+            )
+        ),
+        "metric_contract_evaluation": metric_contract_evaluation,
+        "metric_contract_proof_evidence_status": (
+            GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+        ),
+        "metric_contract_boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
+        "metric_gate_policy_mode": metric_gate_policy_mode,
         "execution_smoke_passed": execution_smoke_passed,
         "metric_gate_errors": metric_gate_errors,
         "smoke_passed": smoke_passed,

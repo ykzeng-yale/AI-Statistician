@@ -140,6 +140,7 @@ from ai_statistician.formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
 from ai_statistician.model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     ANTHROPIC_MODEL_SOURCE_EVIDENCE,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
@@ -3730,16 +3731,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "Tier-specific Claude environment variables"
         in request_time_policy["tier_specific_env_overrides"]
     )
-    assert request_time_policy["worker_default_tiers"] == {
-        "TheoryIntake": "haiku",
-        "SimulationEngineer": "haiku",
-        "AlgorithmEngineer": "haiku",
-        "CriticEvaluator": "haiku",
-        "ArchitectCoordinator": "sonnet",
-        "TheoryDeveloper": "sonnet",
-        "FormalizerProofEngineer": "sonnet",
-        "formalization_gap_planner_route_synthesis": "auto",
-    }
+    assert (
+        request_time_policy["worker_default_tiers"]
+        == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+    )
     assert "codex" not in llm_model_policy["supported_live_generator_providers"]
     assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
     assert llm_model_policy["supported_live_generator_providers"] == [

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
     RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
+    _run_llm_prompt_smoke,
     audit_formalization_gap_planner_runtime_handoffs,
 )
 
@@ -329,3 +330,52 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     }
     assert seed_target_checks["row_seed_target_prover_family_present"]["ok"]
     assert seed_target_checks["row_seed_target_prover_family_matches_handoff"]["ok"]
+
+    audit_smoke_dir = (
+        Path(str(payload["smoke_root"]))
+        / "runtime_formalization_gap_planner_handoff_mixed_seed"
+    )
+    budget_ok, budget_observed, budget_counts = _run_llm_prompt_smoke(
+        seed_path,
+        handoff_id="budget_staged_route",
+        smoke_root=root / "budget_staged_smoke",
+        target_intake_dir=audit_smoke_dir / "target_intake",
+        component_resource_registry_dir=(
+            audit_smoke_dir / "component_resource_registry"
+        ),
+        max_estimated_prompt_input_tokens=1,
+    )
+    assert budget_ok, budget_observed
+    assert budget_counts["llm_prompt_prompt_budget_preflight_blocked"] == 2
+    assert budget_counts["llm_prompt_staged_budget_route_ready"] == 1
+    assert budget_counts["llm_prompt_staged_followups_required"] == 2
+    assert budget_counts[
+        "llm_prompt_staged_followups_due_to_prompt_budget"
+    ] == 2
+
+    prompt_budget_rows_path = (
+        audit_smoke_dir
+        / "llm_route_planner_prompt"
+        / "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl"
+    )
+    prompt_estimates = [
+        int(json.loads(line)["estimated_input_tokens"])
+        for line in prompt_budget_rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert min(prompt_estimates) < max(prompt_estimates)
+    mixed_ok, mixed_observed, mixed_counts = _run_llm_prompt_smoke(
+        seed_path,
+        handoff_id="mixed_direct_and_staged_route",
+        smoke_root=root / "mixed_direct_and_staged_smoke",
+        target_intake_dir=audit_smoke_dir / "target_intake",
+        component_resource_registry_dir=(
+            audit_smoke_dir / "component_resource_registry"
+        ),
+        max_estimated_prompt_input_tokens=min(prompt_estimates),
+    )
+    assert mixed_ok, mixed_observed
+    assert mixed_counts["llm_prompt_awaiting_response"] == 1
+    assert mixed_counts["llm_prompt_prompt_budget_preflight_blocked"] == 1
+    assert mixed_counts["llm_prompt_staged_budget_route_ready"] == 1
+    assert mixed_counts["llm_prompt_staged_followups_required"] == 1

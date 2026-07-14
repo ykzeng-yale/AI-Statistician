@@ -78,7 +78,7 @@ the core matrix.
 | EmpericalProcessLEAN | Clean signed RAG checkout `4a3b2856`; graph has 26,378 declarations and 75,497 edges | `formal_source_*`, `lean_rag_dependency.py`, proof bank, and full-live runtime retrieval | Keep retrieval non-proof and signature checked. Remote `main` at `94035519` and branches `696bbc0c`/`59f12db9` contain newer theorem sources, but they are not part of the signed graph until rebuilt and re-audited. |
 | Statistical Lean source set | Restored current-machine checkouts of FormalSLT `5fc12196`, lean-rademacher `f34ab4f0`, LML `b2fba433`, brownian-motion `bdf5ea0c`, kolmogorov_extension4 `bb869685`, SciLean `95f8119a`, and lean-stat-learning-theory `216e578c` | A targeted current-code inventory run reports 8/8 local-ready sources when LeanBlueprint `56e066d3` is included, spanning 903 matching source files. This repairs the stale prior-Mac paths. FormalSLT, Rademacher, and LML permit retrieval/training export; Brownian and SciLean retain retrieval-only policy. | Source availability is restored, but a multi-source graph must still be rebuilt, signed, and ablated before claiming live RAG use. Do not treat checkout presence or unsound/WIP declarations as theorem support. |
 | OpenProver | Clean `main` at `533b40d` | Bounded HLM provider, Lean LSP/MCP goal feedback, and proof-search diagnostics behind AgentRuntime flags | Keep as a typed worker/provider. Local Lean/AXLE remains final authority. Provider transport and target binding must remain scoped and secret-free. |
-| CodexProver | Remote coordination branch now at `d09e38d3` | Packet identity, runtime-read auditing, scoped MCP transport, target/hash binding, and episode-control ideas are reuse candidates | Do not merge its orchestrator or committed run corpus. Its v4 result did not identify an MCP effect. The v2.1 pool now has one valid no-MCP screening failure eligible for matched retry, but no paired MCP retry result, so the effect remains unidentified. Adapt the paired evaluation protocol for AI-Statistician's OpenProver/RAG escalation policy. |
+| CodexProver | Remote coordination branch now at `e75423cf` | Packet identity, runtime-read auditing, scoped MCP transport, target/hash binding, independent exact checks, and pre-registered episode-control ideas are reuse candidates | Do not merge its orchestrator or committed run corpus. Its v4 result did not identify an MCP effect. The v2.1 pool has screened 28/30 no-MCP targets with 16 exact successes and 12 exact failures, but its pre-registered minimum of 20 failures is now mathematically unreachable because at most 14 failures can remain. Finish the two frozen first attempts after the external CLI quota resets, then close the cohort as underpowered with no matched retries and no causal MCP claim. |
 | Slim205 pseudo-formalization / arXiv:2605.20531 | Clean `main` at `0aa51d2` | `pseudo_formalization.py`, typed work orders, faithfulness boundaries, and the AgentRuntime `PseudoFormalBlockVerifier` | Keep PF/BV as decomposition, calibration, and routing evidence only. Never promote an accepted block to Lean proof evidence. |
 | LeanDojo / ReProver | Clean source-study checkouts at LeanDojo-v2 `936ea0dd` and ReProver `fd6d99c0` | LeanDojo-style proof-state packets and retrieval concepts are present; no trained ReProver tactic-state policy is active | This remains a real prover gap. Add a typed tactic-state provider and held-out evaluation instead of hardcoding tactics or Lean syntax. |
 | Loogle, Lean premise selection, LeanHammer, Lean Finder-style retrieval | Reviewed in the formal-RAG collection | Loogle is optional; local hybrid retrieval and proof-bank search are active | Improve query generation, accessibility filtering, reranking, and proof-state feedback. A search hit is never proof evidence. |
@@ -93,7 +93,7 @@ connected GitHub application reports no open pull requests across them.
 | Repository | Remote branch state checked | Integration decision |
 | --- | --- | --- |
 | `AI-Statistician` | Current main-worker branch plus `codex/ai-stat-lab-sync-main-20260706`, `codex/ai-stat-lab-sync-20260625`, and default/main lineage | Current branch is the only active commit stream. The Mac Pro sync branch is a source-study snapshot, not an overlay candidate. |
-| `CodexProver` | Five remote branches; newest coordination tip `d09e38d3` | Fast-forwarded the clean source-study checkout and inspected the new screening episode. Reuse its matched protocol only after the paired retry exists. |
+| `CodexProver` | Five remote branches; newest coordination tip `e75423cf` | Inspected the 28-target screening checkpoint. Reuse its pre-registration, target isolation, runtime-read audit, independent exact check, and immutable failure lineage, but not the now-underpowered cohort as MCP-effect evidence. No matched retry may be dispatched from this cohort. |
 | `OpenProver` | Only `main`, tip `533b40d` | Existing bounded HLM/LSP provider remains the integration surface; there is no hidden branch with a stronger live engine to merge. |
 | `EmpericalProcessLEAN` | Signed integration branch `4a3b2856`, divergent `main`, two fresh theorem branches, and historical proof/RAG branches | Keep `4a3b2856` as the current signed RAG graph. Treat `696bbc0c` and `59f12db9` as theorem-source candidates for a future multi-source rebuild, not as automatically trusted additions. |
 
@@ -247,6 +247,70 @@ they do not establish that every natural-language FDR/utility acceptance
 inequality was checked. Converting those gates into typed metric-path/operator/
 threshold contracts is now an explicit remaining requirement.
 
+The next FDR full-live run,
+`runs/main_worker_fdr_full_live_20260713_v4_typed_metric_contract`, exercised
+those typed paths but exposed a deeper evaluator-design error. Simulation and
+AlgorithmEngineer authored both their generated code and their own required
+acceptance gates. The packets could therefore invent statistically false or
+irrelevant required conditions, including an all-null FDR-equals-zero condition,
+or use a metric key that their own generated artifact did not return. Typed
+syntax made these failures observable; it did not make self-authored gates
+independent.
+
+The current patch moves empirical requirement authority upstream. In capability
+evaluation, ArchitectCoordinator must emit an immutable, source-anchored,
+domain-neutral requirement set before either coding agent runs. A requirement
+fixes metric semantics, measurement protocol, comparison, tolerance,
+aggregation or quorum, target subsystem, and source anchors. Coding agents may
+bind only the generated artifact and result path; they cannot invent, omit, or
+weaken a required condition. AgentRuntime independently reopens the Architect
+plan, validates every artifact/requirement pair, recomputes fingerprints, and
+rejects the packet before sandbox execution when authority is missing or
+changed. Capability scorecards count only runtime-bound, authority-validated
+contracts whose required rows pass. A coding-agent packet cannot satisfy that
+row by agreeing with itself.
+
+This mechanism adapts, rather than imports, several mature source ideas: DAP's
+withheld-answer and matched-ablation discipline; Goedel-Prover V2's immutable
+initial/correction identities; CodexProver's pre-registration, packet binding,
+runtime-read audit, and independent exact evaluator; and ERA/AlphaEvolve-style
+separation between candidate generation and evaluator feedback. It remains one
+typed child path of the existing Architect/AgentRuntime control plane. No
+external model client, parser, benchmark score, run corpus, or second
+orchestrator is imported.
+
+This is still empirical-control infrastructure, not semantic authority or
+proof. Architect can propose a schema-valid but statistically poor requirement.
+A subsequent milestone must bind every requirement source anchor to accepted
+question/theory artifacts and obtain an independent Theory/Critic semantic
+review before the requirement becomes a capability acceptance gate. Local
+execution remains implementation/simulation evidence; exact theorem claims
+still require the target-bound Lean/AXLE kernel path.
+
+The subsequent FDR v5 invocation was stopped and is not capability evidence.
+Its first Architect response remained schema-invalid after bounded repair, and
+the CLI then began a detached coding-agent component calibration despite the
+integrated runtime failure. That diagnostic exposed two design errors rather
+than an FDR theorem problem: full-live still had a second post-runtime
+evaluation plane, and legacy metric refresh could discard typed-contract
+context. The current implementation removes automatic component calibration
+from full-live, preserves Architect requirement authority through repair and
+refresh, and permits execution-only debug checks only when no typed contract is
+required. Optional standalone component commands remain available as explicitly
+non-integrated calibration.
+
+FDR is now classified only as a historical canary. The next evaluation is
+pre-registered in
+`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`: survival and
+sequential inference form the development panel; high-dimensional PCA and
+extreme-value inference form the disjoint held-out panel. The CLI rejects a
+partial panel, a one-family full-live selection, resume state, or prior task
+learning memory before making a model call. The development panel has now run
+through v8: both survival and sequential tasks ended `BLOCKED`, with a
+`95/118` capability scorecard, 72 kernel-verified support subclaims, 8 formal
+gaps, and zero exact source-theorem closures. The held-out panel remains unrun,
+and no panel result has been promoted to exact source-theorem evidence.
+
 ## Reuse Rules
 
 An external mechanism may enter the default runtime only when all of the
@@ -265,15 +329,16 @@ following hold:
 
 ## Next Integration Order
 
-1. Replace natural-language simulation/algorithm acceptance prose with typed
-   metric-path, operator, threshold, tolerance, and aggregation contracts;
-   require AlgorithmEngineer to remain schedulable after bounded simulation
-   failure. Passing sandbox execution must remain distinct from satisfying the
-   statistical metric contract.
-2. Complete CodexProver's currently unpaired `screen_moment_001` MCP retry, then
-   adapt the matched exact-feedback-only versus exact-feedback-plus-MCP protocol
-   to evaluate when OpenProver/LSP escalation helps, without importing its
-   orchestrator or run corpus.
+1. Bind Architect-authored empirical requirements to real question/theory
+   artifact identities and add an independent Theory/Critic semantic-review
+   result before they can gate capability evaluation. Keep sandbox execution,
+   contract satisfaction, semantic acceptance, and theorem proof as separate
+   evidence classes.
+2. Preserve CodexProver's 30-target frozen cohort through its final two first
+   attempts, then close it as underpowered without replacement targets or
+   matched retries. Pre-register a better-powered exact-feedback-only versus
+   exact-feedback-plus-MCP study before adapting any OpenProver/LSP escalation
+   policy; do not import its orchestrator or run corpus.
 3. Add a real tactic-state prover provider using OpenProver and
    LeanDojo/ReProver-style state/retrieval/search contracts; retain local Lean as
    final authority. Evaluate Kimina separately as a throughput transport on the

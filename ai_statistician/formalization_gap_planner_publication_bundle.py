@@ -151,6 +151,7 @@ from .formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
 from .model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     ANTHROPIC_MODEL_SOURCE_EVIDENCE,
@@ -3271,32 +3272,12 @@ def _llm_model_policy_payload() -> dict[str, object]:
                 "model-tier mismatches by runtime and route-planner audits."
             ),
             "worker_default_tiers": {
-                "TheoryIntake": "haiku",
-                "SimulationEngineer": "haiku",
-                "AlgorithmEngineer": "haiku",
-                "CriticEvaluator": "haiku",
-                "ArchitectCoordinator": "sonnet",
-                "TheoryDeveloper": "sonnet",
-                "FormalizerProofEngineer": "sonnet",
-                "formalization_gap_planner_route_synthesis": "auto",
+                **AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
             },
         },
-        "cost_aware_runtime_tiers": {
-            "sonnet": (
-                "ArchitectCoordinator",
-                "TheoryDeveloper",
-                "FormalizerProofEngineer",
-                "formalization_gap_planner_route_synthesis",
-            ),
-            "haiku": (
-                "theory_intake",
-                "SimulationEngineer",
-                "AlgorithmEngineer",
-                "CriticEvaluator",
-                "bounded_route_triage",
-            ),
-            "opus": ("operator_explicit_only",),
-        },
+        "cost_aware_runtime_tiers": dict(
+            ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("cost_split", {})
+        ),
         "generator_boundary": (
             "Claude/OpenAI providers are live generator-only backends; static is "
             "a replay-only generator backend. "

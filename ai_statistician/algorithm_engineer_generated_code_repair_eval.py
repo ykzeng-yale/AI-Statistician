@@ -8,13 +8,14 @@ from typing import Any, Mapping
 from .agent_runtime import AgentTask, BlackboardState
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from .generated_metric_repair_policy import (
-    generated_coverage_metric_component_feedback,
+    generated_metric_gate_repair_instruction,
 )
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
     generator_backend_provider_name,
     is_live_generator_backend,
+    llm_subsystem_expected_model_tier,
 )
 from .research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
@@ -69,17 +70,18 @@ def run_algorithm_engineer_generated_code_repair_eval(
         llm_timeout_seconds=llm_timeout_seconds,
     )
     backend_provider_name = generator_backend_provider_name(provider, provider_name)
+    model_tier = llm_subsystem_expected_model_tier("AlgorithmEngineer")
     resolved_model = default_generator_model(
         provider_name,
         model,
-        model_tier="haiku",
+        model_tier=model_tier,
     )
     algorithm_engineer = LLMAlgorithmEngineerAgent(
         provider=provider,
         config=AlgorithmEngineerConfig(
             provider_name=provider_name,
             model=resolved_model,
-            model_tier="haiku",
+            model_tier=model_tier,
             max_tokens=max_tokens,
             temperature=temperature,
         ),
@@ -136,7 +138,6 @@ def run_algorithm_engineer_generated_code_repair_eval(
     )
     feedback = _prior_metric_gate_feedback(
         manifest=prior_failure_manifest,
-        target_coverage=target_coverage,
     )
     subsystem = AlgorithmEngineerRuntimeSubsystem(
         out_dir=out_dir / "algorithm_sandbox",
@@ -559,7 +560,6 @@ def _prior_metric_gate_failure_manifest(
 def _prior_metric_gate_feedback(
     *,
     manifest: Mapping[str, Any],
-    target_coverage: float,
 ) -> dict[str, Any]:
     feedback_type = "algorithm_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", ""))
@@ -586,15 +586,8 @@ def _prior_metric_gate_feedback(
         "n_generated_code_executed": 1,
         "n_unsafe_generated_code_rejected": 0,
         "prototypes": prototypes,
-        "required_repair": generated_coverage_metric_component_feedback(
+        "required_repair": generated_metric_gate_repair_instruction(
             artifact_label="generated Python sandbox",
-            target_coverage=target_coverage,
-            return_fields=(
-                "target_coverage",
-                "mean_width",
-                "sandbox_failed=False",
-                "registered_template_hint=none",
-            ),
         ),
         "boundary": (
             "Injected feedback is a component eval signal. Passing the repair "

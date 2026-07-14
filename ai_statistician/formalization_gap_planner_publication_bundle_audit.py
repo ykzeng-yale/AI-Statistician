@@ -176,6 +176,7 @@ from .formalization_gap_planner_target_summary import (
     target_prover_key,
 )
 from .model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
@@ -4844,17 +4845,8 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                     "",
                 )
             )
-            and worker_default_tiers.get("TheoryIntake") == "haiku"
-            and worker_default_tiers.get("SimulationEngineer") == "haiku"
-            and worker_default_tiers.get("AlgorithmEngineer") == "haiku"
-            and worker_default_tiers.get("CriticEvaluator") == "haiku"
-            and worker_default_tiers.get("ArchitectCoordinator") == "sonnet"
-            and worker_default_tiers.get("TheoryDeveloper") == "sonnet"
-            and worker_default_tiers.get("FormalizerProofEngineer") == "sonnet"
-            and worker_default_tiers.get(
-                "formalization_gap_planner_route_synthesis"
-            )
-            == "auto",
+            and worker_default_tiers
+            == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
         ),
         _check(
             "portable_contract_has_llm_model_policy_contract",

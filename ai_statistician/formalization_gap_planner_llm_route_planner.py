@@ -46,6 +46,7 @@ from .model_backend import (
 
 FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION = 1
 LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS = 9000
+PROMPT_TOKEN_ESTIMATE_UTF8_BYTES_PER_TOKEN = 3
 LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-request:1"
@@ -1393,6 +1394,7 @@ def export_formalization_gap_planner_llm_route_planner(
             model=model,
             max_tokens=max_tokens,
             temperature=temperature,
+            max_repair_attempts=max_repair_attempts,
             max_stage_calls=max_staged_followup_stage_calls,
             errors=errors,
         )
@@ -2910,8 +2912,19 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             is True
         ),
-        "n_staged_followup_stage_provider_calls": sum(
+        "n_staged_followup_stage_reuse_blocked_by_current_contract": sum(
             1
+            for row in staged_followup_stage_attempt_rows
+            if row.get("prior_stage_attempt_reuse_blocked_by_current_contract")
+            is True
+        ),
+        "n_staged_followup_stage_provider_calls": sum(
+            1 + _nonnegative_int(row.get("repair_attempts", 0))
+            for row in staged_followup_stage_attempt_rows
+            if row.get("prior_stage_attempt_reused") is not True
+        ),
+        "n_staged_followup_stage_repair_attempts": sum(
+            _nonnegative_int(row.get("repair_attempts", 0))
             for row in staged_followup_stage_attempt_rows
             if row.get("prior_stage_attempt_reused") is not True
         ),
@@ -6500,6 +6513,12 @@ def validate_llm_route_planner_manifest(
         if row.get("prior_stage_attempt_reuse_blocked_by_contract_feedback")
         is True
     )
+    current_contract_blocked_reuse_rows = tuple(
+        row
+        for row in staged_followup_stage_attempt_rows
+        if row.get("prior_stage_attempt_reuse_blocked_by_current_contract")
+        is True
+    )
     staged_attempt_count_checks = (
         (
             "n_staged_followup_stage_attempt_rows",
@@ -6522,8 +6541,24 @@ def validate_llm_route_planner_manifest(
             len(feedback_blocked_reuse_rows),
         ),
         (
+            "n_staged_followup_stage_reuse_blocked_by_current_contract",
+            len(current_contract_blocked_reuse_rows),
+        ),
+        (
             "n_staged_followup_stage_provider_calls",
-            len(staged_followup_stage_attempt_rows) - len(reused_stage_attempt_rows),
+            sum(
+                1 + _nonnegative_int(row.get("repair_attempts", 0))
+                for row in staged_followup_stage_attempt_rows
+                if row.get("prior_stage_attempt_reused") is not True
+            ),
+        ),
+        (
+            "n_staged_followup_stage_repair_attempts",
+            sum(
+                _nonnegative_int(row.get("repair_attempts", 0))
+                for row in staged_followup_stage_attempt_rows
+                if row.get("prior_stage_attempt_reused") is not True
+            ),
         ),
         (
             "n_staged_followup_stage_calls_blocked_by_budget",
@@ -6574,6 +6609,20 @@ def validate_llm_route_planner_manifest(
         ):
             errors.append(
                 "contract-feedback-blocked staged attempt must preserve feedback errors"
+            )
+    for row in current_contract_blocked_reuse_rows:
+        if row.get("prior_stage_attempt_reused") is True:
+            errors.append(
+                "current-contract-blocked staged attempt must not claim reuse"
+            )
+        if not _str_tuple(
+            row.get(
+                "prior_stage_attempt_reuse_current_contract_error_preview",
+                [],
+            )
+        ):
+            errors.append(
+                "current-contract-blocked staged attempt must preserve validator errors"
             )
     staged_followup_assembly_rows = _dict_tuple(
         manifest.get("staged_followup_assembly_rows", [])
@@ -14379,7 +14428,9 @@ def _prompt_token_budget_row(
         "estimated_input_tokens": estimated_input_tokens,
         "max_output_tokens": max_output_tokens,
         "estimated_total_token_budget": estimated_input_tokens + max_output_tokens,
-        "estimation_method": "ceil(prompt_chars/4)+max_output_tokens",
+        "estimation_method": (
+            "ceil(prompt_utf8_bytes/3)+max_output_tokens"
+        ),
         "budget_boundary": (
             "Prompt token budget rows are pre-invocation cost-control estimates. "
             "They are not provider billing records, provider usage metadata, "
@@ -14393,7 +14444,9 @@ def _prompt_token_budget_row(
 def _estimated_text_tokens(text: str) -> int:
     if not text:
         return 0
-    return max(1, (len(text) + 3) // 4)
+    prompt_bytes = len(text.encode("utf-8"))
+    divisor = PROMPT_TOKEN_ESTIMATE_UTF8_BYTES_PER_TOKEN
+    return max(1, (prompt_bytes + divisor - 1) // divisor)
 
 
 def _prompt_token_budget_summary(
@@ -14434,7 +14487,9 @@ def _prompt_token_budget_summary(
         "by_provider": dict(sorted(by_provider.items())),
         "by_model_tier": dict(sorted(by_model_tier.items())),
         "by_model": dict(sorted(by_model.items())),
-        "estimation_method": "ceil(prompt_chars/4)+max_output_tokens",
+        "estimation_method": (
+            "ceil(prompt_utf8_bytes/3)+max_output_tokens"
+        ),
         "budget_boundary": (
             "Prompt token budget rows are deterministic pre-invocation "
             "cost-control estimates. They are not provider billing records, "
@@ -14526,28 +14581,31 @@ def _provider_usage_rows(
     usage_rows: list[dict[str, object]] = []
     for row in rows:
         generator_metadata = _dict_value(row, "generator_metadata")
-        usage = _provider_usage_from_metadata(generator_metadata)
-        if not usage:
-            continue
         request_id = str(row.get("request_id", "") or "")
         route_id = str(row.get("route_id", "") or "")
         provider_name = str(row.get("provider_name", "") or "")
         model = str(row.get("model", "") or "")
         model_tier = str(row.get("model_tier", "") or "")
-        usage_rows.append(
-            {
+        attempt_metadata = _dict_tuple(row.get("provider_attempt_metadata", []))
+        metadata_rows = attempt_metadata or (generator_metadata,)
+        for attempt_index, metadata in enumerate(metadata_rows):
+            usage = _provider_usage_from_metadata(metadata)
+            if not usage:
+                continue
+            usage_identity: list[object] = [
+                request_id,
+                route_id,
+                provider_name,
+                model,
+                model_tier,
+                usage,
+            ]
+            if len(metadata_rows) > 1:
+                usage_identity.append(attempt_index)
+            usage_rows.append({
                 "usage_row_id": (
                     "formalization_gap_planner_llm_route_planner_provider_usage:"
-                    + stable_hash(
-                        [
-                            request_id,
-                            route_id,
-                            provider_name,
-                            model,
-                            model_tier,
-                            usage,
-                        ]
-                    )[:20]
+                    + stable_hash(usage_identity)[:20]
                 ),
                 "request_id": request_id,
                 "route_id": route_id,
@@ -14563,7 +14621,8 @@ def _provider_usage_rows(
                 "route_adoption_status": str(
                     row.get("route_adoption_status", "") or ""
                 ),
-                "provider_usage": _dict_value(generator_metadata, "provider_usage"),
+                "provider_attempt_index": attempt_index,
+                "provider_usage": _dict_value(metadata, "provider_usage"),
                 "input_tokens": usage["input_tokens"],
                 "output_tokens": usage["output_tokens"],
                 "cache_creation_input_tokens": usage[
@@ -14573,8 +14632,7 @@ def _provider_usage_rows(
                 "total_tokens": usage["total_tokens"],
                 "proof_evidence_status": PROOF_EVIDENCE_STATUS,
                 "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
-            }
-        )
+            })
     return tuple(usage_rows)
 
 
@@ -14980,6 +15038,7 @@ def _staged_followup_stage_sequence(
                 "Prefer one row per residual class, not one row per diagnostic",
                 "Each row has interpretation, route_repair, target_primitives",
                 "Use formal_gap_boundary for environment/tool blockers",
+                "Every residual_goal value must exactly copy a supplied request residual goal; route-adoption blockers are not residual goals",
                 "At most 4 search_requests and 4 planner_next_actions",
                 "No copied Lean diagnostics; use covered_residual_goal_indices",
             ],
@@ -15017,6 +15076,7 @@ def _generate_staged_followup_stage_attempts(
     model: str,
     max_tokens: int,
     temperature: float,
+    max_repair_attempts: int,
     max_stage_calls: int,
     errors: list[str],
 ) -> tuple[dict[str, object], ...]:
@@ -15059,6 +15119,7 @@ def _generate_staged_followup_stage_attempts(
                 request,
                 stage,
             )
+            reuse_validation_errors: list[str] = []
             reused_attempt = None
             if not (
                 reusable_candidates and feedback_blocking_output_fields
@@ -15072,6 +15133,7 @@ def _generate_staged_followup_stage_attempts(
                     prior_stage_fragments=prior_stage_fragments,
                     used_prior_attempt_ids=used_prior_attempt_ids,
                     candidates=reusable_candidates,
+                    reuse_validation_errors=reuse_validation_errors,
                     errors=errors,
                 )
             if reused_attempt is not None:
@@ -15092,6 +15154,7 @@ def _generate_staged_followup_stage_attempts(
                 model=model,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                max_repair_attempts=max_repair_attempts,
                 errors=errors,
             )
             if reusable_candidates and feedback_blocking_output_fields:
@@ -15104,6 +15167,17 @@ def _generate_staged_followup_stage_attempts(
                 generated_attempt[
                     "prior_stage_attempt_reuse_feedback_error_preview"
                 ] = list(feedback_error_preview)
+            if reuse_validation_errors:
+                generated_attempt[
+                    "prior_stage_attempt_reuse_blocked_by_current_contract"
+                ] = True
+                generated_attempt[
+                    "prior_stage_attempt_reuse_current_contract_error_preview"
+                ] = list(
+                    reuse_validation_errors[
+                        :LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_FEEDBACK_ERROR_LIMIT
+                    ]
+                )
             attempts.append(generated_attempt)
             remaining -= 1
             if generated_attempt.get("response_contract_ok") is not True:
@@ -15268,6 +15342,7 @@ def _rebound_prior_staged_followup_stage_attempt(
     prior_stage_fragments: tuple[dict[str, object], ...] = tuple(),
     used_prior_attempt_ids: set[str],
     candidates: tuple[dict[str, Any], ...] | None = None,
+    reuse_validation_errors: list[str] | None = None,
     errors: list[str],
 ) -> dict[str, object] | None:
     route_id = str(request.get("route_id", "") or "")
@@ -15335,10 +15410,14 @@ def _rebound_prior_staged_followup_stage_attempt(
         prior_stage_fragments=prior_stage_fragments,
     )
     if validation_errors:
-        errors.extend(
+        messages = [
             "reusable staged followup fragment failed current contract: " + error
             for error in validation_errors
-        )
+        ]
+        if reuse_validation_errors is None:
+            errors.extend(messages)
+        else:
+            reuse_validation_errors.extend(messages)
         return None
 
     system_prompt = _staged_followup_stage_system_prompt()
@@ -15423,6 +15502,8 @@ def _rebound_prior_staged_followup_stage_attempt(
         "prior_stage_attempt_reuse_blocked_by_contract_feedback": False,
         "prior_stage_attempt_reuse_blocking_output_fields": [],
         "prior_stage_attempt_reuse_feedback_error_preview": [],
+        "prior_stage_attempt_reuse_blocked_by_current_contract": False,
+        "prior_stage_attempt_reuse_current_contract_error_preview": [],
         "reused_from_stage_attempt_id": source_attempt_id,
         "reused_from_stage_attempt_hash": actual_source_hash,
         **runtime_source_metadata,
@@ -15465,6 +15546,7 @@ def _generate_staged_followup_stage_attempt(
     model: str,
     max_tokens: int,
     temperature: float,
+    max_repair_attempts: int,
     errors: list[str],
 ) -> dict[str, object]:
     stage_id = str(stage.get("stage_id", "") or "")
@@ -15539,49 +15621,93 @@ def _generate_staged_followup_stage_attempt(
         "prior_stage_attempt_reuse_blocked_by_contract_feedback": False,
         "prior_stage_attempt_reuse_blocking_output_fields": [],
         "prior_stage_attempt_reuse_feedback_error_preview": [],
+        "prior_stage_attempt_reuse_blocked_by_current_contract": False,
+        "prior_stage_attempt_reuse_current_contract_error_preview": [],
         "fragment": {},
         "assembler_notes": [],
         "raw_response_text": "",
         "raw_response_fingerprint": "",
         "generator_metadata": {},
+        "provider_attempt_metadata": [],
+        "repair_attempts": 0,
+        "repair_error_history": [],
         "errors": [],
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "ok": False,
     }
-    try:
-        generated = generator_backend.generate(
-            GeneratorRequest(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                model=request_model,
-                max_tokens=stage_max_tokens,
-                temperature=temperature,
-                schema=llm_route_planner_staged_followup_stage_response_schema(
-                    stage_id=stage_id
-                ),
-                metadata={
-                    "component": LLM_ROUTE_PLANNER_COMPONENT,
-                    "request_id": request_id,
-                    "route_id": route_id,
-                    "staged_followup_id": staged_followup_id,
-                    "stage_id": stage_id,
-                    "stage_index": max(0, int(stage_index)),
-                    "staged_followup_stage_call": True,
-                    "n_prior_stage_fragments": len(prior_stage_fragments),
-                    "prior_stage_fragment_fingerprint": stable_hash(
-                        list(prior_stage_fragments)
+    repair_budget = max(0, int(max_repair_attempts))
+    original_user_prompt = user_prompt
+    repair_history: list[dict[str, object]] = []
+    provider_attempt_metadata: list[dict[str, object]] = []
+    for repair_attempt in range(repair_budget + 1):
+        try:
+            generated = generator_backend.generate(
+                GeneratorRequest(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    model=request_model,
+                    max_tokens=stage_max_tokens,
+                    temperature=temperature,
+                    schema=llm_route_planner_staged_followup_stage_response_schema(
+                        stage_id=stage_id
                     ),
-                    "requested_model_tier": model_tier,
-                    "model_tier": model_tier,
-                    "max_stage_calls_boundary": (
-                        "Staged followup calls produce planning fragments "
-                        "only; they are not adopted route plans or theorem "
-                        "proof evidence."
-                    ),
-                },
+                    metadata={
+                        "component": LLM_ROUTE_PLANNER_COMPONENT,
+                        "request_id": request_id,
+                        "route_id": route_id,
+                        "staged_followup_id": staged_followup_id,
+                        "stage_id": stage_id,
+                        "stage_index": max(0, int(stage_index)),
+                        "staged_followup_stage_call": True,
+                        "staged_followup_stage_repair_attempt": repair_attempt,
+                        "max_repair_attempts": repair_budget,
+                        "n_prior_stage_fragments": len(prior_stage_fragments),
+                        "prior_stage_fragment_fingerprint": stable_hash(
+                            list(prior_stage_fragments)
+                        ),
+                        "requested_model_tier": model_tier,
+                        "model_tier": model_tier,
+                        "max_stage_calls_boundary": (
+                            "Staged followup calls produce planning fragments "
+                            "only; they are not adopted route plans or theorem "
+                            "proof evidence."
+                        ),
+                    },
+                )
             )
-        )
+        except Exception as exc:
+            message = f"{type(exc).__name__}: {exc}"
+            errors.append(
+                "LLM route planner staged followup provider failed for "
+                f"{request_id}/{stage_id}: {message}"
+            )
+            metadata = _generator_metadata_with_model_tier(
+                {
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_failure": True,
+                    "exception_type": type(exc).__name__,
+                    "exception_message": str(exc)[:1000],
+                    "staged_followup_stage_call": True,
+                    "staged_followup_stage_repair_attempt": repair_attempt,
+                },
+                requested_model_tier=model_tier,
+                effective_model_tier=model_tier,
+                model_tier_escalated=False,
+                model_tier_escalation_reason="",
+            )
+            provider_attempt_metadata.append(_jsonable_mapping(metadata))
+            return {
+                **base_row,
+                "provider_failure": True,
+                "generator_metadata": _jsonable_mapping(metadata),
+                "provider_attempt_metadata": provider_attempt_metadata,
+                "repair_attempts": repair_attempt,
+                "repair_error_history": repair_history,
+                "errors": [f"provider exception: {message}"],
+            }
+
         generation_errors: list[str] = []
         try:
             payload = _extract_json_object(generated.text)
@@ -15594,30 +15720,37 @@ def _generate_staged_followup_stage_attempt(
             payload,
             stage_status_inferred,
             proof_evidence_metadata_inferred,
-        ) = (
-            _normalized_staged_followup_stage_response_payload(
-                payload,
-                stage_id=stage_id,
+        ) = _normalized_staged_followup_stage_response_payload(
+            payload,
+            stage_id=stage_id,
+        )
+        validation_errors = list(
+            dict.fromkeys(
+                [
+                    *generation_errors,
+                    *_staged_followup_stage_response_errors(
+                        payload,
+                        followup,
+                        request,
+                        stage,
+                        prior_stage_fragments=prior_stage_fragments,
+                    ),
+                ]
             )
         )
-        validation_errors = [
-            *generation_errors,
-            *_staged_followup_stage_response_errors(
-                payload,
-                followup,
-                request,
-                stage,
-                prior_stage_fragments=prior_stage_fragments,
-            ),
-        ]
         metadata = _generator_metadata_with_model_tier(
-            generated.metadata,
+            {
+                **dict(generated.metadata),
+                "staged_followup_stage_repair_attempt": repair_attempt,
+                "staged_followup_stage_repair_budget": repair_budget,
+            },
             requested_model_tier=model_tier,
             effective_model_tier=model_tier,
             model_tier_escalated=False,
             model_tier_escalation_reason="",
         )
-        return {
+        provider_attempt_metadata.append(_jsonable_mapping(metadata))
+        candidate = {
             **base_row,
             "provider_name": generated.provider,
             "model": generated.model,
@@ -15633,35 +15766,66 @@ def _generate_staged_followup_stage_attempt(
             "raw_response_text": generated.text,
             "raw_response_fingerprint": stable_hash(generated.text),
             "generator_metadata": _jsonable_mapping(metadata),
+            "provider_attempt_metadata": list(provider_attempt_metadata),
+            "repair_attempts": repair_attempt,
+            "repair_error_history": list(repair_history),
             "errors": list(sorted(set(validation_errors))),
             "ok": not validation_errors,
         }
-    except Exception as exc:
-        message = f"{type(exc).__name__}: {exc}"
-        errors.append(
-            "LLM route planner staged followup provider failed for "
-            f"{request_id}/{stage_id}: {message}"
-        )
-        metadata = _generator_metadata_with_model_tier(
+        if not validation_errors or repair_attempt >= repair_budget:
+            return candidate
+        repair_history.append(
             {
-                "generator_only": True,
-                "tools_available": False,
-                "provider_failure": True,
-                "exception_type": type(exc).__name__,
-                "exception_message": str(exc)[:1000],
-                "staged_followup_stage_call": True,
-            },
-            requested_model_tier=model_tier,
-            effective_model_tier=model_tier,
-            model_tier_escalated=False,
-            model_tier_escalation_reason="",
+                "attempt": repair_attempt,
+                "errors": list(sorted(set(validation_errors)))[:20],
+                "raw_response_fingerprint": stable_hash(generated.text),
+            }
         )
-        return {
-            **base_row,
-            "provider_failure": True,
-            "generator_metadata": _jsonable_mapping(metadata),
-            "errors": [f"provider exception: {message}"],
-        }
+        user_prompt = _staged_followup_stage_repair_user_prompt(
+            original_user_prompt=original_user_prompt,
+            previous_response_text=generated.text,
+            validation_errors=validation_errors,
+            repair_attempt=repair_attempt + 1,
+            stage=stage,
+        )
+    return base_row
+
+
+def _staged_followup_stage_repair_user_prompt(
+    *,
+    original_user_prompt: str,
+    previous_response_text: str,
+    validation_errors: Sequence[str],
+    repair_attempt: int,
+    stage: Mapping[str, object],
+) -> str:
+    """Build a stage-scoped repair turn from exact validator feedback."""
+
+    payload = {
+        "task": (
+            "Repair the previous staged route-planner fragment. Return one complete "
+            "JSON object for this stage only."
+        ),
+        "repair_attempt": max(1, int(repair_attempt)),
+        "stage_id": str(stage.get("stage_id", "") or ""),
+        "stage_required_output_fields": list(
+            _str_tuple(stage.get("required_output_fields", []))
+        ),
+        "stage_size_policy": list(_str_tuple(stage.get("size_policy", []))),
+        "local_validation_errors": list(
+            dict.fromkeys(str(error) for error in validation_errors if str(error))
+        )[:20],
+        "previous_response_text": previous_response_text[:40000],
+        "original_stage_request": _extract_json_object_or_text(original_user_prompt),
+        "hard_requirements": [
+            "Return only one complete JSON object for the requested stage.",
+            "Fix every local_validation_errors item without changing immutable IDs or target identity.",
+            "Keep all required witness rows, but make optional prose and rationales concise.",
+            "Use compact JSON formatting so the complete object fits the provider output ceiling.",
+            "Do not invent source material, tool results, kernel verification, or theorem proof evidence.",
+        ],
+    }
+    return json.dumps(payload, separators=(",", ":"), default=str)
 
 
 def _staged_followup_stage_system_prompt() -> str:
@@ -15737,6 +15901,8 @@ def _staged_followup_stage_user_prompt(
                 "Every primitive cost base_cost must exactly copy the supplied coverage-bucket policy or primitive cost hint, and each action-bearing cost bucket must have the matching actionable work-item field.",
                 "For every informal DAG edge u -> v and every formal-node pair (a, b) in align(u) x align(v), formal_realization_dag_edges must contain a directed path a ->* b.",
                 "Planner action owner/resource IDs and resource_contract_ids must copy the exact IDs and mapping from the supplied component resource registry inventory.",
+                "Every residual_interpretations[].residual_goal, when present, must exactly copy one request_context.residual_goals item; encode route-adoption or workflow blockers as planner_next_actions or assembler_notes instead.",
+                "Every source_snippets item must exactly copy a snippet supplied by the request context; when no exact snippet is available, omit it and emit a bounded search_request instead.",
             ],
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         },
@@ -16607,12 +16773,14 @@ def _staged_followup_incremental_contract_errors(
 ) -> list[str]:
     if stage_id not in LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS:
         return []
-    partial_payload: dict[str, Any] = {
+    prior_payload: dict[str, Any] = {
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
     for row in prior_stage_fragments:
-        partial_payload.update(deepcopy(_dict_value(row, "fragment")))
+        prior_payload.update(deepcopy(_dict_value(row, "fragment")))
+    prior_contract_errors = set(_response_contract_errors(prior_payload, request))
+    partial_payload = deepcopy(prior_payload)
     partial_payload.update(deepcopy(dict(fragment)))
     contract_errors = _response_contract_errors(partial_payload, request)
     stage_index = LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS.index(stage_id)
@@ -16631,9 +16799,12 @@ def _staged_followup_incremental_contract_errors(
     return [
         error
         for error in contract_errors
-        if any(
-            _contract_feedback_error_mentions_output_field(error, field_name)
-            for field_name in current_fields
+        if (
+            any(
+                _contract_feedback_error_mentions_output_field(error, field_name)
+                for field_name in current_fields
+            )
+            or error not in prior_contract_errors
         )
         and not any(
             _contract_feedback_error_mentions_output_field(error, field_name)
@@ -33893,7 +34064,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Staged followups required: {payload.get('n_staged_followups_required')} max-token={payload.get('n_staged_followups_due_to_max_tokens')}",
-        f"- Staged followup stage attempts: {payload.get('n_staged_followup_stage_attempt_rows')} ok={payload.get('n_staged_followup_stage_response_contract_ok')} budget-blocked={payload.get('n_staged_followup_stage_calls_blocked_by_budget')} reused={payload.get('n_staged_followup_stage_attempts_reused', 0)} feedback-invalidated={payload.get('n_staged_followup_stage_reuse_blocked_by_contract_feedback', 0)} provider-calls={payload.get('n_staged_followup_stage_provider_calls', 0)}",
+        f"- Staged followup stage attempts: {payload.get('n_staged_followup_stage_attempt_rows')} ok={payload.get('n_staged_followup_stage_response_contract_ok')} budget-blocked={payload.get('n_staged_followup_stage_calls_blocked_by_budget')} reused={payload.get('n_staged_followup_stage_attempts_reused', 0)} feedback-invalidated={payload.get('n_staged_followup_stage_reuse_blocked_by_contract_feedback', 0)} current-contract-invalidated={payload.get('n_staged_followup_stage_reuse_blocked_by_current_contract', 0)} provider-calls={payload.get('n_staged_followup_stage_provider_calls', 0)}",
         f"- Staged followup assemblies: {payload.get('n_staged_followup_assembly_rows')} full-contract-ok={payload.get('n_staged_followup_assembled_response_contract_ok')} route-ready={payload.get('n_staged_followup_assembled_route_adoption_ready')}",
         f"- Staged followup target-prover replay rows: {payload.get('n_staged_followup_target_prover_replay_rows')} candidates={payload.get('n_staged_followup_target_prover_replay_candidates')} route-blocked={payload.get('n_staged_followup_target_prover_replay_route_blocked')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",

@@ -11,6 +11,20 @@ from .generated_metric_repair_policy import (
     generated_python_sandbox_guard_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
 )
+from .generated_metric_contract import (
+    GENERATED_METRIC_CONTRACT_BOUNDARY,
+    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    bind_generated_metric_contract_authority,
+    generated_metric_authority_repair_context,
+    generated_metric_contract_prompt_schema,
+    generated_metric_contract_set_id,
+    generated_metric_requirement_authority_policy_from_context,
+    generated_metric_requirements_for_subsystem,
+    generated_metric_requirement_set_id,
+    generated_metric_requirements_from_context,
+    validate_generated_metric_contracts,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -34,7 +48,7 @@ SIMULATION_ENGINEER_BOUNDARY = (
 @dataclass(frozen=True)
 class SimulationEngineerConfig:
     model: str = ""
-    model_tier: str = "haiku"
+    model_tier: str = "sonnet"
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
@@ -64,6 +78,24 @@ class LLMSimulationEngineerAgent:
         seed: int,
         environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        feedback = environment_feedback or {}
+        requires_generated_code = _feedback_requires_generated_simulation_code(
+            feedback
+        )
+        authoritative_metric_requirements = (
+            generated_metric_requirements_from_context(
+                feedback,
+                target_subsystem="SimulationEngineer",
+            )
+        )
+        metric_requirement_authority_policy = (
+            generated_metric_requirement_authority_policy_from_context(feedback)
+        )
+        require_authoritative_requirements = bool(
+            requires_generated_code
+            and metric_requirement_authority_policy
+            == GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
+        )
         user_prompt = build_simulation_engineer_prompt(
             question=question,
             theory_packet=theory_packet,
@@ -71,7 +103,7 @@ class LLMSimulationEngineerAgent:
             registered_procedures=registered_procedures,
             n_runs=n_runs,
             seed=seed,
-            environment_feedback=environment_feedback or {},
+            environment_feedback=feedback,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -106,17 +138,38 @@ class LLMSimulationEngineerAgent:
                 theory_packet=theory_packet,
                 n_runs=n_runs,
                 seed=seed,
+                authoritative_metric_requirements=(
+                    authoritative_metric_requirements
+                ),
+                metric_requirement_authority_policy=(
+                    metric_requirement_authority_policy
+                ),
             )
-
-        requires_generated_code = _feedback_requires_generated_simulation_code(
-            environment_feedback or {}
-        )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_simulation_engineer_packet(packet)
             if requires_generated_code:
-                errors.extend(_validate_capability_eval_generated_simulation_packet(packet))
+                errors.extend(
+                    _validate_capability_eval_generated_simulation_packet(
+                        packet,
+                        authoritative_metric_requirements=(
+                            authoritative_metric_requirements
+                        ),
+                        require_authoritative_requirements=(
+                            require_authoritative_requirements
+                        ),
+                    )
+                )
             return sorted(set(errors))
+
+        def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
+            return generated_metric_authority_repair_context(
+                authoritative_metric_requirements,
+                target_subsystem="SimulationEngineer",
+                artifact_id_label=(
+                    "simulation_code_drafts[*].simulation_id from the corrected packet"
+                ),
+            )
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -126,6 +179,7 @@ class LLMSimulationEngineerAgent:
             validate_packet=validate_packet,
             validation_label="LLM SimulatorEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=build_repair_context,
         )
 
 
@@ -139,6 +193,21 @@ def build_simulation_engineer_prompt(
     seed: int,
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> str:
+    compact_environment_feedback = _compact_simulation_environment_feedback(
+        environment_feedback or {}
+    )
+    requires_generated_code = _feedback_requires_generated_simulation_code(
+        compact_environment_feedback
+    )
+    authoritative_metric_requirements = generated_metric_requirements_from_context(
+        compact_environment_feedback,
+        target_subsystem="SimulationEngineer",
+    )
+    metric_requirement_authority_policy = (
+        generated_metric_requirement_authority_policy_from_context(
+            compact_environment_feedback
+        )
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -155,9 +224,7 @@ def build_simulation_engineer_prompt(
         ),
         "registered_problem": dict(registered_problem),
         "registered_procedures": [dict(row) for row in registered_procedures],
-        "runtime_environment_feedback": _compact_simulation_environment_feedback(
-            environment_feedback or {}
-        ),
+        "runtime_environment_feedback": compact_environment_feedback,
         "runtime_execution_budget": {"n_runs": n_runs, "seed": seed},
         "registered_execution_owner": "AgentRuntime ResearchSimulator.run",
         "generated_simulation_code_contract": {
@@ -172,25 +239,47 @@ def build_simulation_engineer_prompt(
                 "returned as environment feedback for repair."
             ),
         },
-        "required_output_contract": SIMULATION_ENGINEER_OUTPUT_CONTRACT,
+        "typed_metric_contract_schema": (
+            generated_metric_contract_prompt_schema(
+                artifact_id_label="generated simulation_code_drafts simulation_id"
+            )
+            if requires_generated_code
+            else {}
+        ),
+        "authoritative_empirical_metric_requirements": (
+            authoritative_metric_requirements if requires_generated_code else []
+        ),
+        "metric_requirement_authority_policy": (
+            metric_requirement_authority_policy
+        ),
+        "required_output_contract": _simulation_engineer_output_contract(
+            requires_generated_code=requires_generated_code
+        ),
         "boundary": SIMULATION_ENGINEER_BOUNDARY,
     }
-    requires_generated_code = _feedback_requires_generated_simulation_code(
-        payload["runtime_environment_feedback"]
-    )
     if requires_generated_code:
         payload["generated_simulation_code_contract"]["status"] = (
             "required for capability-eval simulation coding-agent evidence"
         )
         payload["generated_simulation_code_contract"]["capability_eval_default"] = (
             "include one safe simulation_code_drafts entry with entrypoint exactly "
-            "run_sandbox and code defining def run_sandbox(seed: int, replicates: int) -> dict"
+            "run_sandbox and code defining def run_sandbox(seed: int, replicates: int) -> dict; "
+            "include metric_contracts rows bound to the same simulation_id and to "
+            "every authoritative empirical requirement"
         )
     generated_simulation_instruction = (
         "Capability-eval mode is active: include exactly one safe "
         "simulation_code_drafts entry with entrypoint exactly \"run_sandbox\" and code "
         "defining def run_sandbox(seed: int, replicates: int) -> dict so AgentRuntime "
-        "can execute and evaluate your custom stress-test code. "
+        "can execute and evaluate your custom stress-test code. For every row in "
+        "authoritative_empirical_metric_requirements, emit a typed metric_contracts row "
+        "bound to that exact simulation_id. Copy requirement_id, metric_semantics, "
+        "measurement_protocol, operator, numeric threshold/bounds, tolerance, "
+        "aggregation/quorum, required, and source_anchors exactly; add only "
+        "artifact_id, metric_path, and a stable contract_id. Optional extra "
+        "diagnostics must use required=false and must not claim authority lineage. "
+        "AgentRuntime rejects invented or weakened required gates. Do not ask "
+        "AgentRuntime to infer a metric from prose or metric names. "
         if requires_generated_code
         else ""
     )
@@ -232,6 +321,21 @@ def build_simulation_engineer_prompt(
         )
         else ""
     )
+    packet_validation_instruction = (
+        "Local packet-validator feedback is active: read every exact "
+        "runtime_environment_feedback.validation_errors row and rebuild the full "
+        "packet. Bind only the authoritative_empirical_metric_requirements rows "
+        "shown in this prompt for SimulationEngineer. Copy their authority fields "
+        "unchanged, including nulls, aggregation, quorum fields, and source_anchors; "
+        "author only contract_id, the generated simulation_id artifact binding, and "
+        "a metric_path that resolves against run_sandbox output. Do not reuse a "
+        "contract from another subsystem or prior attempt. "
+        if str(
+            payload["runtime_environment_feedback"].get("feedback_type", "") or ""
+        )
+        == "simulation_engineer_packet_validation_feedback"
+        else ""
+    )
     theory_trace_alignment_instruction = (
         "Runtime theory-trace downstream alignment feedback is active: treat "
         "runtime_environment_feedback.theory_trace_downstream_alignment_feedback "
@@ -249,8 +353,9 @@ def build_simulation_engineer_prompt(
     return (
         "Design a simulation and stress-test plan for the SimulatorEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Include "
-        "only the required fields. Keep each list to exactly 1 short object or 1 short "
-        "string. You may name one runtime diagnostic, but do not claim that simulations "
+        "only the required fields. Keep descriptive lists short; capability-eval mode "
+        "must include every required generated-code and metric-contract row. You may "
+        "name one runtime diagnostic, but do not claim that simulations "
         "were run or passed. Execution is owned by AgentRuntime. Use "
         "theory_packet_summary.theory_derivation_trace to align DGPs, estimands, "
         "metrics, and stress tests with the derivation assumptions and equation-chain "
@@ -263,6 +368,7 @@ def build_simulation_engineer_prompt(
         + sandbox_guard_instruction
         + component_gate_instruction
         + capability_feedback_instruction
+        + packet_validation_instruction
         + theory_trace_alignment_instruction
         + "If runtime_environment_feedback reports a rejected generated simulation "
         "draft or metric-gate failure, repair that concrete draft or omit "
@@ -332,10 +438,12 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
     )
     return {
         "architect_evidence_contract": _compact_architect_evidence_contract(
-            feedback.get("architect_evidence_contract", {})
+            feedback.get("architect_evidence_contract", {}),
+            target_subsystem="SimulationEngineer",
         ),
         "runtime_requested_evidence_contract": _compact_architect_evidence_contract(
-            feedback.get("runtime_requested_evidence_contract", {})
+            feedback.get("runtime_requested_evidence_contract", {}),
+            target_subsystem="SimulationEngineer",
         ),
         "architect_recommended_research_path": _truncate_text(
             feedback.get("architect_recommended_research_path", ""),
@@ -404,6 +512,26 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             feedback.get("failure_classification", ""),
             limit=180,
         ),
+        "validation_label": _truncate_text(
+            feedback.get("validation_label", ""),
+            limit=180,
+        ),
+        "validation_errors": _compact_string_list(
+            feedback.get("validation_errors", []),
+            limit=12,
+            char_limit=420,
+        ),
+        "validation_error_fingerprint": _truncate_text(
+            feedback.get("validation_error_fingerprint", ""),
+            limit=120,
+        ),
+        "same_error_runtime_round": feedback.get("same_error_runtime_round"),
+        "packet_validation_replan_after_attempts": feedback.get(
+            "packet_validation_replan_after_attempts"
+        ),
+        "packet_validation_replan_required": feedback.get(
+            "packet_validation_replan_required"
+        ),
         "forbidden_generated_code_calls": _compact_string_list(
             feedback.get("forbidden_generated_code_calls", []),
             limit=6,
@@ -443,6 +571,25 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
                 "metric_gate_targets": _compact_mapping(
                     row.get("metric_gate_targets", {}),
                     limit=4,
+                ),
+                "metric_gate_policy_mode": _truncate_text(
+                    row.get("metric_gate_policy_mode", ""),
+                    limit=80,
+                ),
+                "metric_contract_set_id": _truncate_text(
+                    row.get("metric_contract_set_id", ""),
+                    limit=120,
+                ),
+                "metric_contracts": [
+                    dict(contract)
+                    for contract in _first_mapping_rows(
+                        row.get("metric_contracts", []),
+                        limit=4,
+                    )
+                ],
+                "metric_contract_evaluation": _compact_mapping(
+                    row.get("metric_contract_evaluation", {}),
+                    limit=8,
                 ),
                 "code_excerpt": _truncate_text(
                     row.get("code_excerpt", ""),
@@ -579,7 +726,11 @@ def _feedback_reports_theory_trace_downstream_alignment(
     return isinstance(nested, Mapping) and bool(nested)
 
 
-def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:
+def _compact_architect_evidence_contract(
+    value: Any,
+    *,
+    target_subsystem: str,
+) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
     keys = (
@@ -593,13 +744,22 @@ def _compact_architect_evidence_contract(value: Any) -> dict[str, Any]:
         "evaluation_mode",
         "capability_eval_requires_generated_algorithm_code",
         "capability_eval_requires_generated_simulation_code",
+        "capability_eval_requires_typed_metric_contracts",
+        "generated_metric_contract_policy",
+        "generated_metric_requirement_authority_policy",
+        "empirical_metric_requirements",
     )
     compact: dict[str, Any] = {}
     for key in keys:
         if key not in value:
             continue
         row = value.get(key)
-        if isinstance(row, list):
+        if key == "empirical_metric_requirements" and isinstance(row, list):
+            compact[key] = generated_metric_requirements_for_subsystem(
+                row,
+                target_subsystem=target_subsystem,
+            )[:8]
+        elif isinstance(row, list):
             compact[key] = _compact_string_list(row, limit=3, char_limit=180)
         elif isinstance(row, bool):
             compact[key] = row
@@ -688,6 +848,20 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
 }
 
 
+def _simulation_engineer_output_contract(
+    *,
+    requires_generated_code: bool,
+) -> dict[str, Any]:
+    contract = dict(SIMULATION_ENGINEER_OUTPUT_CONTRACT)
+    if requires_generated_code:
+        contract["metric_contracts"] = [
+            generated_metric_contract_prompt_schema(
+                artifact_id_label="generated simulation_code_drafts simulation_id"
+            )
+        ]
+    return contract
+
+
 SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -705,6 +879,7 @@ SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
         "stress_tests": {"type": "array"},
         "failure_interpretation": {"type": "array"},
         "simulation_code_drafts": {"type": "array"},
+        "metric_contracts": {"type": "array"},
         "runtime_execution_plan": {"type": "object"},
         "critic_findings": {"type": "array", "minItems": 1},
         "next_actions": {"type": "array", "minItems": 1},
@@ -749,6 +924,26 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append("simulation_code_drafts entry missing code")
         if len(code) > 12000:
             errors.append("simulation_code_drafts code exceeds 12000 characters")
+    metric_artifact_ids = {
+        str(row.get("procedure_id", "") or "").strip()
+        for row in packet.get("simulation_targets", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("procedure_id", "") or "").strip()
+    }
+    metric_artifact_ids.update(
+        str(row.get("simulation_id", "") or "").strip()
+        for row in packet.get("simulation_code_drafts", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("simulation_id", "") or "").strip()
+    )
+    metric_contracts = packet.get("metric_contracts", [])
+    if metric_contracts not in (None, [], {}):
+        errors.extend(
+            validate_generated_metric_contracts(
+                metric_contracts,
+                expected_artifact_ids=tuple(sorted(metric_artifact_ids)),
+            )
+        )
     runtime_plan = packet.get("runtime_execution_plan", {})
     if isinstance(runtime_plan, Mapping):
         if str(runtime_plan.get("registered_simulator", "")) != "ResearchSimulator.run":
@@ -793,15 +988,41 @@ def _feedback_requires_generated_simulation_code(feedback: Mapping[str, Any]) ->
 
 def _validate_capability_eval_generated_simulation_packet(
     packet: Mapping[str, Any],
+    *,
+    authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
+    require_authoritative_requirements: bool = False,
 ) -> list[str]:
     """Capability eval must exercise generated stress-test code, not simulator-only rows."""
 
-    drafts = [row for row in packet.get("simulation_code_drafts", []) or [] if isinstance(row, Mapping)]
-    if drafts:
-        return []
-    return [
-        "capability_eval requires at least one Claude/OpenAI-generated simulation_code_drafts entry"
+    drafts = [
+        row
+        for row in packet.get("simulation_code_drafts", []) or []
+        if isinstance(row, Mapping)
     ]
+    errors: list[str] = []
+    if not drafts:
+        errors.append(
+            "capability_eval requires at least one Claude/OpenAI-generated "
+            "simulation_code_drafts entry"
+        )
+    draft_ids = {
+        str(row.get("simulation_id", "") or "").strip()
+        for row in drafts
+        if str(row.get("simulation_id", "") or "").strip()
+    }
+    errors.extend(
+        validate_generated_metric_contracts(
+            packet.get("metric_contracts", []),
+            expected_artifact_ids=tuple(sorted(draft_ids)),
+            required_artifact_ids=tuple(sorted(draft_ids)),
+            authoritative_requirements=authoritative_metric_requirements,
+            target_subsystem="SimulationEngineer",
+            require_authoritative_requirements=(
+                require_authoritative_requirements
+            ),
+        )
+    )
+    return sorted(set(errors))
 
 
 def _normalize_simulation_packet(
@@ -816,9 +1037,46 @@ def _normalize_simulation_packet(
     theory_packet: Mapping[str, Any],
     n_runs: int,
     seed: int,
+    authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
+    metric_requirement_authority_policy: str = "",
 ) -> dict[str, Any]:
     body = dict(payload)
     _normalize_simulation_code_draft_metadata(body)
+    _normalize_simulation_metric_contract_artifact_ids(body)
+    raw_metric_contracts = body.get("metric_contracts", [])
+    metric_contract_values = (
+        raw_metric_contracts if isinstance(raw_metric_contracts, list) else []
+    )
+    metric_contract_rows = [
+        dict(row)
+        for row in metric_contract_values
+        if isinstance(row, Mapping)
+    ]
+    authority_rows = [
+        dict(row)
+        for row in authoritative_metric_requirements or []
+        if isinstance(row, Mapping)
+    ]
+    metric_contract_rows = bind_generated_metric_contract_authority(
+        metric_contract_rows,
+        authoritative_requirements=authority_rows,
+        target_subsystem="SimulationEngineer",
+    )
+    body["metric_contracts"] = metric_contract_rows
+    body["metric_contract_set_id"] = generated_metric_contract_set_id(
+        metric_contract_rows
+    )
+    body["empirical_metric_requirements"] = authority_rows
+    body["metric_requirement_set_id"] = generated_metric_requirement_set_id(
+        authority_rows
+    )
+    body["metric_requirement_authority_policy"] = (
+        metric_requirement_authority_policy
+    )
+    body["metric_contract_proof_evidence_status"] = (
+        GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+    )
+    body["metric_contract_boundary"] = GENERATED_METRIC_CONTRACT_BOUNDARY
     runtime_plan = body.get("runtime_execution_plan", {})
     if not isinstance(runtime_plan, Mapping):
         runtime_plan = {}
@@ -906,6 +1164,42 @@ def _normalize_simulation_code_draft_metadata(body: dict[str, Any]) -> None:
             normalized["entrypoint"] = "run_sandbox"
         normalized_drafts.append(normalized)
     body["simulation_code_drafts"] = normalized_drafts
+
+
+def _normalize_simulation_metric_contract_artifact_ids(
+    body: dict[str, Any],
+) -> None:
+    raw_contracts = body.get("metric_contracts", [])
+    raw_drafts = body.get("simulation_code_drafts", [])
+    if not isinstance(raw_contracts, list) or not isinstance(raw_drafts, list):
+        return
+    draft_ids = {
+        str(row.get("simulation_id", "") or "").strip()
+        for row in raw_drafts
+        if isinstance(row, Mapping)
+        and str(row.get("simulation_id", "") or "").strip()
+    }
+    if len(draft_ids) != 1:
+        return
+    canonical_simulation_id = next(iter(draft_ids))
+    normalized_contracts: list[Any] = []
+    for row in raw_contracts:
+        if not isinstance(row, Mapping):
+            normalized_contracts.append(row)
+            continue
+        normalized = dict(row)
+        source_artifact_id = str(
+            normalized.get("artifact_id", "") or ""
+        ).strip()
+        if source_artifact_id != canonical_simulation_id:
+            normalized["artifact_id"] = canonical_simulation_id
+            normalized["artifact_id_binding"] = {
+                "source_artifact_id": source_artifact_id,
+                "canonical_artifact_id": canonical_simulation_id,
+                "binding_strategy": "single_generated_simulation_task_contract",
+            }
+        normalized_contracts.append(normalized)
+    body["metric_contracts"] = normalized_contracts
 
 
 def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:
