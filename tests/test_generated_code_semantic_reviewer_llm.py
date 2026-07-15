@@ -320,6 +320,73 @@ def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
     assert handoff["proof_evidence_status"] == "NOT_PROOF_EVIDENCE"
 
 
+def test_semantic_review_budget_exhaustion_resumes_deferred_architect_replan(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    deferred = dict(work_order["deferred_next_task"])
+    deferred["task_id"] = "architect-metric-replan:test"
+    deferred["owner_subsystem"] = "ArchitectCoordinator"
+    deferred["objective"] = "Diagnose the cross-subsystem metric failure."
+    deferred_inputs = dict(deferred["inputs"])
+    deferred_inputs["environment_feedback"] = {
+        "feedback_type": "runtime_metric_gate_feedback",
+        "feedback_id": "metric-feedback:prior",
+    }
+    deferred_inputs["architect_context"] = {
+        **dict(deferred_inputs.get("architect_context", {}) or {}),
+        "runtime_metric_gate_replan": {
+            "source_manifest_id": work_order["source_manifest_id"],
+            "source_artifact_remains_unaccepted": True,
+        },
+    }
+    deferred["inputs"] = deferred_inputs
+    work_order["deferred_next_task"] = deferred
+    work_order["review_revision_count"] = 1
+    task.inputs["work_order_hash"] = stable_hash(work_order)
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_revision_budget_escalated_to_architect"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.task_id.startswith(
+        "semantic-review-architect-replan:"
+    )
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_id"] == "metric-feedback:prior"
+    assert feedback["overall_verdict"] == "REVISE"
+    assert feedback["semantic_review_revision_budget"] == {
+        "revisions_used": 1,
+        "max_revisions": 1,
+        "source_artifact_remains_unaccepted": True,
+    }
+    context = result.next_task.inputs["architect_context"]
+    assert context["runtime_metric_gate_replan"][
+        "source_artifact_remains_unaccepted"
+    ] is True
+    handoff = context["runtime_feedback_loop"][
+        "direct_repair_handoff_contract"
+    ]
+    assert handoff["target_repair_subsystem"] == "ArchitectCoordinator"
+    assert handoff["target_task_id"] == result.next_task.task_id
+    assert handoff["feedback_artifact_id"] == feedback[
+        "semantic_review_packet_id"
+    ]
+    execution = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    assert execution["semantic_review_accepted"] is False
+    assert "accepted_generated_code_semantic_reviews" not in result.next_task.inputs
+
+
 def test_metric_failing_but_executed_code_is_independently_reviewed(
     tmp_path: Path,
 ) -> None:
@@ -402,7 +469,10 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         registered_procedures=[],
         n_runs=50,
         seed=11,
-        environment_feedback=feedback,
+        environment_feedback={
+            **feedback,
+            "source_subsystem": "SimulationEvaluator",
+        },
     )
 
     for prompt in (algorithm_prompt, simulation_prompt):
@@ -412,6 +482,9 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         assert "treat" in prompt
         assert "as binding" in prompt
         assert "do not respond by only changing metric paths" in prompt
+        assert '"metric_evaluation_semantics"' in prompt
+        assert "Never place a quorum in threshold" in prompt
+        assert "pre-thresholded 0/1 flags" in prompt
 
 
 def test_generated_code_semantic_reviewer_rejects_tampered_source_before_model_call(

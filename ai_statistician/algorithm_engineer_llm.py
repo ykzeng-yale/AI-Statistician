@@ -19,6 +19,7 @@ from .generated_metric_contract import (
     generated_metric_contract_binding_json_schema,
     generated_metric_contract_prompt_schema,
     generated_metric_contract_set_id,
+    generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_authority_policy_from_context,
     generated_metric_requirements_for_subsystem,
     generated_metric_requirement_set_id,
@@ -257,6 +258,11 @@ def build_algorithm_engineer_prompt(
             if requires_generated_code
             else {}
         ),
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+            if requires_generated_code
+            else {}
+        ),
         "authoritative_empirical_metric_requirements": (
             authoritative_metric_requirements if requires_generated_code else []
         ),
@@ -308,6 +314,13 @@ def build_algorithm_engineer_prompt(
         "operators, aggregation, quorum, semantics, or source anchors. "
         "Do not rely on metric-name or prose inference; AgentRuntime rejects invented "
         "or weakened required gates and evaluates only the typed contract. "
+        "Return raw finite measurements at every metric_path whenever an underlying "
+        "numeric quantity exists. For identity/mean/min/max, AgentRuntime aggregates "
+        "then compares once. For all/any/at_least_count/at_least_fraction, it applies "
+        "operator and threshold to each raw value, then applies the boolean aggregation "
+        "or quorum. Never place a quorum in threshold or return pre-thresholded 0/1 "
+        "flags for a measurable numeric quantity. Use 0/1 with operator == threshold 1 "
+        "only for an intrinsically boolean predicate. "
         "entrypoint exactly \"run_sandbox\" and code defining "
         "def run_sandbox(seed: int, replicates: int) -> dict. Set every "
         "implementation_targets row registered_template_hint to none so AgentRuntime "
@@ -1204,6 +1217,25 @@ def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> 
 
     if not isinstance(feedback, Mapping):
         return False
+    semantic_review = feedback.get("generated_code_semantic_review", {})
+    semantic_review = (
+        semantic_review if isinstance(semantic_review, Mapping) else {}
+    )
+    if (
+        str(
+            feedback.get("feedback_type", "")
+            or semantic_review.get("feedback_type", "")
+            or ""
+        )
+        == "generated_code_semantic_review_feedback"
+        and str(
+            feedback.get("source_subsystem", "")
+            or semantic_review.get("source_subsystem", "")
+            or ""
+        )
+        == "AlgorithmEngineer"
+    ):
+        return True
     failure = str(feedback.get("failure_classification", "") or "")
     if failure in {
         "generated_algorithm_sandbox_metric_gate_failed",

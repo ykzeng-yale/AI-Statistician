@@ -34,6 +34,7 @@ from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
     LLMArchitectCoordinatorAgent,
     architect_capability_gap_routing_agenda,
+    architect_formal_target_is_completion_placeholder,
 )
 from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_BOUNDARY,
@@ -2871,7 +2872,8 @@ def _runtime_source_theorem_target_names_from_manifest(
             add_many(value.get("target_theorem_goal_ids", []))
             add_many(value.get("candidate_lean_targets", []))
             return
-        add(value)
+        if not architect_formal_target_is_completion_placeholder(value):
+            add(value)
 
     def extend_from_target_context(value: Any, *, depth: int = 0) -> None:
         if depth > 4 or not isinstance(value, Mapping):
@@ -7445,16 +7447,17 @@ def _runtime_requested_evidence_contract(
             capability_eval and formal_target_semantic_review_required
         ),
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
-        "formal_targets": (
-            ["source theorem or required subclaims kernel verified"]
-            if policy == "required"
-            else ["formalize high-value kernels when feasible"]
+        "formal_target_authoring_required": bool(
+            policy == "required" or capability_eval
         ),
-        "simulation_targets": (
-            ["counterexample and stress-test diagnostics"]
+        "formal_target_completion_policy": (
+            "the task-specific mathematical target requires exact local "
+            "Lean/kernel closure before final acceptance"
             if policy == "required"
-            else ["DGP stress tests and empirical falsification"]
+            else "formal gaps must remain explicit when the task-specific target "
+            "is not kernel verified"
         ),
+        "simulation_target_authoring_required": True,
         "acceptance_modes": [
             "full source theorem kernel proof required"
             if policy == "required"
@@ -12259,6 +12262,95 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "generation and execution."
             )
             failure_classification = "generated_code_semantic_review_revise"
+        elif str(deferred_task_payload.get("owner_subsystem", "") or "") == (
+            "ArchitectCoordinator"
+        ):
+            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
+            next_inputs = dict(deferred_task.inputs)
+            prior_feedback = (
+                dict(next_inputs.get("environment_feedback", {}) or {})
+                if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
+                else {}
+            )
+            escalation_feedback = {
+                **prior_feedback,
+                **feedback,
+                "failure_classification": (
+                    "generated_code_semantic_review_revision_budget_escalated_to_architect"
+                ),
+                "semantic_review_revision_budget": {
+                    "revisions_used": revision_count,
+                    "max_revisions": max_revisions,
+                    "source_artifact_remains_unaccepted": True,
+                },
+            }
+            next_inputs["environment_feedback"] = escalation_feedback
+            next_inputs["generated_code_semantic_review_revision_count"] = (
+                revision_count
+            )
+            next_context = dict(next_inputs.get("architect_context", {}) or {})
+            next_context["environment_feedback"] = escalation_feedback
+            next_task_id = (
+                f"semantic-review-architect-replan:{question.id}:"
+                f"{stable_hash([execution_id, deferred_task.task_id])[:8]}"
+            )
+            handoff_revision_count = max(1, revision_count)
+            handoff_max_revisions = max(
+                handoff_revision_count,
+                max_revisions,
+            )
+            next_context["runtime_feedback_loop"] = {
+                **(
+                    dict(next_context.get("runtime_feedback_loop", {}) or {})
+                    if isinstance(
+                        next_context.get("runtime_feedback_loop", {}), Mapping
+                    )
+                    else {}
+                ),
+                "source_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+                "handoff": "generated_code_semantic_review_architect_replan",
+                "semantic_review_execution_id": execution_id,
+                "generated_code_semantic_review_revision_count": revision_count,
+                "direct_repair_handoff_contract": (
+                    build_typed_repair_handoff_contract(
+                        source_reviewer_subsystem=(
+                            GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+                        ),
+                        source_task_id=task.task_id,
+                        target_repair_subsystem=deferred_task.owner_subsystem,
+                        target_task_id=next_task_id,
+                        feedback_artifact_id=review_packet_id,
+                        feedback_artifact_kind=(
+                            "GeneratedCodeSemanticReviewPacket"
+                        ),
+                        feedback_execution_id=execution_id,
+                        feedback_execution_artifact_kind=(
+                            "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+                        ),
+                        feedback_type=(
+                            "generated_code_semantic_review_feedback"
+                        ),
+                        revision_count=handoff_revision_count,
+                        max_revisions=handoff_max_revisions,
+                    )
+                ),
+            }
+            next_inputs["architect_context"] = next_context
+            next_task = replace(
+                deferred_task,
+                task_id=next_task_id,
+                inputs=next_inputs,
+            )
+            status = "REROUTE"
+            rationale = (
+                "Generated code still failed independent semantic review after the "
+                "bounded local revision budget; the exact review and execution "
+                "lineage are routed to ArchitectCoordinator for cross-subsystem "
+                "replanning while the source artifact remains unaccepted."
+            )
+            failure_classification = (
+                "generated_code_semantic_review_revision_budget_escalated_to_architect"
+            )
         else:
             next_task = None
             status = "BLOCKED"
@@ -32936,15 +33028,15 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 for row in rows
             ),
         }
+        valid_response_coverage = min(
+            counts["request_packets"],
+            counts["response_contract_ok"]
+            + counts["staged_followup_assembled_response_contract_ok"],
+        )
         all_responses_recorded = (
             counts["selected_handoffs"] > 0
             and counts["request_packets"] > 0
-            and counts["response_present"] == counts["request_packets"]
-            and (
-                counts["response_contract_ok"]
-                + counts["staged_followup_assembled_response_contract_ok"]
-            )
-            >= counts["request_packets"]
+            and valid_response_coverage == counts["request_packets"]
             and counts["provider_failures"] == 0
             and counts["awaiting_llm_response"] == 0
             and not errors
@@ -32960,7 +33052,10 @@ class FormalizationGapPlannerRuntimeSubsystem:
         )
         route_revision_feedback_recorded = (
             target_prover_replay_complete
-            and counts["response_present"] > 0
+            and (
+                counts["response_present"] > 0
+                or valid_response_coverage > 0
+            )
             and counts["provider_failures"] == 0
             and counts["awaiting_llm_response"] == 0
             and counts["target_prover_replay_route_revision_proposals"] > 0
@@ -33016,6 +33111,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
             ],
             "live_llm_invoked": counts["selected_handoffs"] > 0,
             "all_live_route_planner_responses_recorded": all_responses_recorded,
+            "valid_response_coverage": valid_response_coverage,
             "target_prover_replay_complete": target_prover_replay_complete,
             "route_revision_feedback_recorded": (
                 route_revision_feedback_recorded
@@ -93400,6 +93496,13 @@ def _runtime_proof_postprocessing_suppression(
         )
         or 0
     )
+    staged_assembled_response_contract_ok = int(
+        summary.get(
+            "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_response_contract_ok",
+            0,
+        )
+        or 0
+    )
     provider_failures = int(
         summary.get(
             "n_runtime_formalization_gap_planner_live_route_planner_provider_failures",
@@ -93437,13 +93540,17 @@ def _runtime_proof_postprocessing_suppression(
     )
     no_usable_current_route = (
         response_contract_ok <= 0
+        and staged_assembled_response_contract_ok <= 0
         and route_adoption_ready <= 0
         and target_prover_replay_complete <= 0
     )
     no_feedback = route_revision_feedback_recorded <= 0
     no_response_or_provider_still_blocked = (
         responses_recorded <= 0
-        or response_present <= 0
+        or (
+            response_present <= 0
+            and staged_assembled_response_contract_ok <= 0
+        )
         or provider_failures > 0
         or awaiting_llm_response > 0
     )
@@ -93477,6 +93584,9 @@ def _runtime_proof_postprocessing_suppression(
             "responses_recorded": responses_recorded,
             "response_present": response_present,
             "response_contract_ok": response_contract_ok,
+            "staged_assembled_response_contract_ok": (
+                staged_assembled_response_contract_ok
+            ),
             "provider_failures": provider_failures,
             "awaiting_llm_response": awaiting_llm_response,
             "route_adoption_ready": route_adoption_ready,

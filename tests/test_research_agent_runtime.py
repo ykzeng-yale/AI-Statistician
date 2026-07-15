@@ -2730,7 +2730,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
             "n_routes_omitted_by_max_route_requests": 2,
             "omitted_route_ids_by_max_route_requests": ["route:b", "route:c"],
             "n_request_packets": 1,
-            "n_response_present": 1,
+            "n_response_present": 0,
             "n_response_contract_ok": 0,
             "n_provider_failures": 0,
             "n_staged_followups_required": 1,
@@ -2805,7 +2805,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
     assert manifest["live_llm_invoked"] is True
     assert manifest["live_route_planner_all_responses_recorded"] is True
     assert manifest["live_route_planner_target_prover_replay_complete"] is True
-    assert manifest["live_route_planner_counts"]["response_present"] == 1
+    assert manifest["live_route_planner_counts"]["response_present"] == 0
     assert manifest["live_route_planner_counts"]["response_contract_ok"] == 0
     assert (
         manifest["live_route_planner_counts"][
@@ -2900,6 +2900,7 @@ def test_formalization_gap_planner_runtime_subsystem_executes_live_followup_task
         == 2
     )
     assert live_manifest["all_live_route_planner_responses_recorded"] is True
+    assert live_manifest["valid_response_coverage"] == 1
     assert live_manifest["target_prover_replay_complete"] is True
     assert live_manifest["counts"]["provider_total_tokens"] == 168
     assert (
@@ -4512,6 +4513,20 @@ def test_runtime_proof_postprocessing_suppressed_after_live_route_timeout_withou
         )["runtime_proof_postprocessing_suppressed"]
         is False
     )
+    staged_summary = {
+        **live_route_summary,
+        "n_runtime_formalization_gap_planner_live_route_planner_responses_recorded": 1,
+        "n_runtime_formalization_gap_planner_live_route_planner_provider_failures": 0,
+        "n_runtime_formalization_gap_planner_live_route_planner_staged_followup_assembled_response_contract_ok": 1,
+    }
+    staged_suppression = runtime_module._runtime_proof_postprocessing_suppression(
+        results,
+        live_route_planner_summary=staged_summary,
+    )
+    assert staged_suppression["runtime_proof_postprocessing_suppressed"] is False
+    assert staged_suppression["runtime_proof_postprocessing_suppression_inputs"][
+        "staged_assembled_response_contract_ok"
+    ] == 1
 
 
 def test_runtime_gap_planner_live_route_planner_contract_failure_routes_repair_agenda() -> None:
@@ -20426,6 +20441,10 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
         '"SimulationEngineer":"SimulationEvaluator"}' in prompt
     )
     assert '"target_subsystems":["AlgorithmEngineer|SimulationEngineer"]' not in prompt
+    assert '"formal_target_authoring_contract"' in prompt
+    assert '"metric_evaluation_semantics"' in prompt
+    assert "separately describes the quorum" in prompt
+    assert "source theorem or required subclaims kernel verified" not in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
     assert contract["capability_eval_requires_generated_algorithm_code"] is True
@@ -20477,6 +20496,12 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
     rewritten_requirement["measurement_protocol"] = "report a constant"
     rewritten_requirement["required_runtime_replicates"] = 5
     rewritten_requirement["threshold"] = 0.1
+    rewritten["evidence_contract"]["formal_targets"] = [
+        "post-hoc easier formal target"
+    ]
+    rewritten["evidence_contract"]["simulation_targets"] = [
+        "post-hoc easier simulation target"
+    ]
 
     replanned = _normalize_architect_packet(
         rewritten,
@@ -20504,7 +20529,39 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
     assert replanned_contract[
         "empirical_metric_requirements_frozen_from_prior_architect_plan"
     ] is True
+    assert replanned_contract["formal_targets"] == initial_contract[
+        "formal_targets"
+    ]
+    assert replanned_contract["simulation_targets"] == initial_contract[
+        "simulation_targets"
+    ]
     assert validate_architect_coordinator_packet(replanned) == []
+
+
+def test_architect_validator_rejects_runtime_completion_policy_as_formal_target() -> None:
+    packet = _normalize_architect_packet(
+        _architect_sample_response(),
+        question=load_open_research_questions(
+            Path("examples/research_questions.json")
+        )[1],
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        raw_response="legacy-placeholder",
+        runtime_config={
+            "formal_verification_policy": "required",
+            "evaluation_mode": "debug",
+        },
+    )
+    packet["evidence_contract"]["formal_targets"] = [
+        "source theorem or required subclaims kernel verified"
+    ]
+
+    errors = validate_architect_coordinator_packet(packet)
+
+    assert any(
+        "task-specific mathematical claim" in error for error in errors
+    )
 
 
 def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
@@ -20566,6 +20623,13 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         "==",
         "between",
     ]
+    formal_target_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
+        "evidence_contract"
+    ]["properties"]["formal_targets"]
+    assert formal_target_schema["minItems"] == 1
+    assert "not a proof-completion" in formal_target_schema["items"][
+        "description"
+    ]
     assert ArchitectCoordinatorConfig().max_repair_attempts == 2
     assert ARCHITECT_COORDINATOR_JSON_SCHEMA["additionalProperties"] is False
     assert set(
@@ -20585,6 +20649,12 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         "SimulationEvaluator is a runtime execution owner" in instruction
         for instruction in repair_context["repair_prompt_priority_instructions"]
     )
+    assert repair_context["formal_target_authoring_contract"][
+        "content_owner"
+    ] == "ArchitectCoordinator"
+    assert "never the comparison threshold" in repair_context[
+        "metric_evaluation_semantics"
+    ]["quorum_rule"]
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
@@ -20683,6 +20753,16 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "exactly one independently compared scalar quantity" in hard_requirements
     assert "split them into separate requirement rows" in hard_requirements
     assert "Return exactly one required empirical metric row" not in hard_requirements
+    assert "threshold or bounds describe when one measurement passes" in (
+        hard_requirements
+    )
+    assert "operator == and threshold 1" in hard_requirements
+    assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
+        "threshold"
+    ] == 0.10
+    assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
+        "minimum_pass_count"
+    ] == 76
     assert packet["evidence_contract"]["empirical_metric_requirements"] == (
         metric_rows
     )
@@ -21529,6 +21609,13 @@ def test_runtime_requested_evidence_contract_reaches_subsystems() -> None:
     assert contract["formal_verification_policy"] == "advisory"
     assert contract["recommended_research_path"] == "simulation_first"
     assert contract["formal_required_for_final"] is False
+    assert "formal_targets" not in contract
+    assert "simulation_targets" not in contract
+    assert contract["formal_target_authoring_required"] is False
+    assert "formal gaps must remain explicit" in contract[
+        "formal_target_completion_policy"
+    ]
+    assert contract["simulation_target_authoring_required"] is True
     assert control["formal_verification_policy"] == "advisory"
     assert control["recommended_research_path"] == "simulation_first"
     assert control["formal_required_for_final"] is False
@@ -45986,10 +46073,7 @@ def test_runtime_feedback_recovers_targets_from_architect_evidence_contract() ->
         manifest=manifest
     )
 
-    expected_targets = [
-        "formalize high-value kernels when feasible",
-        *formal_targets,
-    ]
+    expected_targets = formal_targets
     assert len(learning_rows) == 1
     assert learning_rows[0]["target_ids"] == expected_targets
     assert learning_rows[0]["target_theorem_name"] == ""

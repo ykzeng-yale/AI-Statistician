@@ -11,6 +11,7 @@ from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_prompt_schema,
@@ -75,6 +76,43 @@ LONG_HORIZON_RESEARCH_GUIDANCE: dict[str, Any] = {
         "only Lean/AXLE/local kernel rows can promote theorem proof claims",
     ],
 }
+
+ARCHITECT_FORMAL_TARGET_AUTHORING_CONTRACT: dict[str, Any] = {
+    "content_owner": "ArchitectCoordinator",
+    "required_content": [
+        "task-specific mathematical object or estimand",
+        "assumptions and quantification needed to state the claim",
+        "mathematical conclusion to retrieve, derive, and formalize",
+    ],
+    "forbidden_substitutes": [
+        "proof-completion policy",
+        "kernel-verification status",
+        "generic evidence-gate prose",
+    ],
+    "initial_plan_rule": (
+        "author the mathematical target from the research question and current "
+        "theory analysis; runtime owns only how completion is verified"
+    ),
+    "replan_rule": (
+        "preserve formal_targets from the first accepted Architect plan unless an "
+        "explicit fresh evaluation protocol replaces the research target"
+    ),
+}
+
+_LEGACY_RUNTIME_FORMAL_TARGET_PLACEHOLDERS = frozenset(
+    {
+        "source theorem or required subclaims kernel verified",
+        "formalize high-value kernels when feasible",
+    }
+)
+
+
+def architect_formal_target_is_completion_placeholder(value: Any) -> bool:
+    """Identify legacy runtime policies that were incorrectly stored as targets."""
+
+    return str(value or "").strip().lower() in (
+        _LEGACY_RUNTIME_FORMAL_TARGET_PLACEHOLDERS
+    )
 
 
 @dataclass(frozen=True)
@@ -233,6 +271,9 @@ def _author_architect_metric_requirements(
         },
         "runtime_owned_replicates": runtime_replicates,
         "target_namespace": generated_metric_requirement_target_namespace_contract(),
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+        ),
         "requirement_schema": generated_metric_requirement_prompt_schema(),
         "required_target_rows": [
             generated_metric_requirement_prompt_schema(target_subsystem=target)
@@ -255,6 +296,22 @@ def _author_architect_metric_requirements(
                 "prose inside one row."
             ),
             "Use only operator and aggregation enum values from requirement_schema.",
+            (
+                "For identity/mean/min/max, operator and threshold compare the one "
+                "aggregate. For all/any/at_least_count/at_least_fraction, operator "
+                "and threshold compare every raw returned value before the boolean "
+                "results are aggregated."
+            ),
+            (
+                "Keep the comparison boundary and quorum separate: threshold or "
+                "bounds describe when one measurement passes; minimum_pass_count or "
+                "minimum_pass_fraction describes how many comparisons must pass."
+            ),
+            (
+                "Require raw measurements whenever they exist. Use bool/0/1 with "
+                "operator == and threshold 1 only for an intrinsically boolean "
+                "predicate."
+            ),
             "Copy runtime_owned_replicates into every required_runtime_replicates field and state that exact count in each measurement_protocol.",
             "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",
             "Define measurable returned quantities, not prose-only success claims or task-specific runtime code.",
@@ -499,6 +556,12 @@ def build_architect_coordinator_prompt(
         "runtime_capability_gap_routing_agenda": capability_gap_routing_agenda,
         "long_horizon_research_guidance": LONG_HORIZON_RESEARCH_GUIDANCE,
         "requested_evidence_contract": requested_evidence_contract,
+        "formal_target_authoring_contract": (
+            ARCHITECT_FORMAL_TARGET_AUTHORING_CONTRACT
+        ),
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+        ),
         "generated_metric_requirement_target_namespace": (
             generated_metric_requirement_target_namespace_contract()
         ),
@@ -536,6 +599,14 @@ def build_architect_coordinator_prompt(
         "generation and execution; do not replace this with execution-only checks or "
         "task-specific runtime rules. Its verdict is empirical/implementation review, "
         "never theorem proof evidence. "
+        "ArchitectCoordinator owns the mathematical content of evidence_contract."
+        "formal_targets on the initial plan. Author a task-specific claim precise "
+        "enough to drive retrieval and formalization: name the mathematical object "
+        "or estimand, assumptions and quantification, and conclusion. Runtime owns "
+        "the completion policy, so never substitute phrases about kernel verification, "
+        "proof completion, or required subclaims for the mathematical target. On a "
+        "replan, preserve the first accepted formal_targets supplied in "
+        "requested_evidence_contract. "
         "Treat FormalTargetSemanticReviewer as an independent typed child after "
         "FormalizationEvaluator materializes a hash-bound exact theorem statement "
         "and before ProofEngineer or ExactSourceTheoremProver searches it. It must "
@@ -643,6 +714,13 @@ def build_architect_coordinator_prompt(
         "or missing bindings rather than trusting coding-agent authority echoes. It must "
         "reject invented or weakened "
         "required gates and must not infer a statistical gate from names or prose. "
+        "For identity/mean/min/max, the runtime aggregates raw values and compares "
+        "once. For all/any/at_least_count/at_least_fraction, it compares each raw "
+        "value first and then applies the boolean aggregation or quorum. Therefore "
+        "threshold or bounds must describe one comparison, while minimum_pass_count "
+        "or minimum_pass_fraction separately describes the quorum. Require raw "
+        "measurements rather than pre-thresholded pass flags whenever the underlying "
+        "numeric quantity exists. "
         "These Architect requirements remain orchestration proposals, and passing "
         "their runtime contracts is empirical evidence only. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
@@ -927,7 +1005,12 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
             generated_metric_requirement_prompt_schema(target_subsystem=target)
             for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
         ],
-        "formal_targets": ["one short string"],
+        "formal_targets": [
+            (
+                "one precise task-specific mathematical claim naming its object, "
+                "assumptions or quantifiers, and conclusion"
+            )
+        ],
         "simulation_targets": ["one short string"],
         "acceptance_modes": ["one short string"],
         "disclosure_requirements": ["one short string"],
@@ -1156,7 +1239,16 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
                 "formal_targets": {
                     "type": "array",
-                    "items": {"type": "string"},
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": (
+                            "Task-specific mathematical claim with object, "
+                            "assumptions or quantifiers, and conclusion; not a "
+                            "proof-completion or kernel-status policy."
+                        ),
+                    },
                 },
                 "simulation_targets": {
                     "type": "array",
@@ -1355,6 +1447,12 @@ def _architect_packet_repair_context(
             generated_metric_requirement_prompt_schema(target_subsystem=target)
             for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
         ],
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+        ),
+        "formal_target_authoring_contract": (
+            ARCHITECT_FORMAL_TARGET_AUTHORING_CONTRACT
+        ),
         "repair_prompt_priority_instructions": [
             "Return every required top-level field, even when only one row is needed.",
             "Every array named in required_array_item_shapes must contain JSON objects with exactly that shape, never strings.",
@@ -1370,6 +1468,15 @@ def _architect_packet_repair_context(
                 "exact generated-code author values AlgorithmEngineer or "
                 "SimulationEngineer. SimulationEvaluator is a runtime execution "
                 "owner and is invalid in this field."
+            ),
+            (
+                "Author formal_targets as task-specific mathematical claims, never "
+                "as proof-completion, kernel-status, or generic evidence-gate prose."
+            ),
+            (
+                "For elementwise metric aggregations, threshold compares every raw "
+                "measurement and minimum_pass_count/minimum_pass_fraction separately "
+                "sets the quorum."
             ),
         ],
     }
@@ -1551,6 +1658,16 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         ):
             if evidence_contract.get(field) in (None, "", [], {}):
                 errors.append(f"evidence_contract missing or empty field: {field}")
+        formal_targets = evidence_contract.get("formal_targets", [])
+        if isinstance(formal_targets, list):
+            for index, target in enumerate(formal_targets):
+                target_text = str(target or "").strip()
+                if architect_formal_target_is_completion_placeholder(target_text):
+                    errors.append(
+                        "evidence_contract.formal_targets must contain a "
+                        "task-specific mathematical claim rather than the legacy "
+                        f"runtime completion placeholder at index {index}"
+                    )
     planned_subsystems: set[str] = set()
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
@@ -1578,7 +1695,7 @@ def _architect_runtime_owned_evidence_contract(
     architect_context: Mapping[str, Any] | None,
     runtime_config: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Preserve caller-owned gates without asking the LLM to transcribe them."""
+    """Preserve runtime gates and accepted task targets without content override."""
 
     context = architect_context or {}
     config = runtime_config or {}
@@ -1586,10 +1703,11 @@ def _architect_runtime_owned_evidence_contract(
     requested_contract = dict(requested) if isinstance(requested, Mapping) else {}
     contract: dict[str, Any] = {}
     for field in (
-        "formal_targets",
-        "simulation_targets",
         "acceptance_modes",
         "disclosure_requirements",
+        "formal_target_authoring_required",
+        "formal_target_completion_policy",
+        "simulation_target_authoring_required",
     ):
         value = requested_contract.get(field)
         if value not in (None, "", [], {}):
@@ -1602,6 +1720,14 @@ def _architect_runtime_owned_evidence_contract(
     )
     if not isinstance(prior_contract, Mapping):
         prior_contract = {}
+    for field in ("formal_targets", "simulation_targets"):
+        prior_value = prior_contract.get(field)
+        if prior_value not in (None, "", [], {}):
+            contract[field] = (
+                list(prior_value)
+                if isinstance(prior_value, (list, tuple))
+                else prior_value
+            )
     prior_requirements = prior_contract.get("empirical_metric_requirements", [])
     metric_authoring = context.get("architect_metric_requirement_authoring", {})
     authored_requirements = (

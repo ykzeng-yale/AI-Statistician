@@ -14,6 +14,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_contract_binding_json_schema,
     generated_metric_contract_set_id,
     generated_metric_contracts_for_artifact,
+    generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
@@ -98,9 +99,10 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
         "source_anchors",
     } <= set(schema["required"])
     assert schema["properties"]["required_runtime_replicates"]["minimum"] == 1
-    assert schema["properties"]["minimum_pass_fraction"] == {
-        "anyOf": [{"type": "number"}, {"type": "null"}],
-    }
+    assert schema["properties"]["minimum_pass_fraction"]["anyOf"] == [
+        {"type": "number"},
+        {"type": "null"},
+    ]
     assert {
         "threshold",
         "lower",
@@ -115,6 +117,31 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
     assert "|" not in generated_metric_requirement_prompt_schema()[
         "target_subsystems"
     ][0]
+
+
+def test_metric_evaluation_semantics_separates_comparison_from_quorum() -> None:
+    semantics = generated_metric_evaluation_semantics_contract()
+    schema = generated_metric_requirement_json_schema()["properties"]
+
+    assert semantics["scalar_aggregations"]["values"] == [
+        "identity",
+        "mean",
+        "min",
+        "max",
+    ]
+    assert semantics["elementwise_aggregations"]["values"] == [
+        "all",
+        "any",
+        "at_least_count",
+        "at_least_fraction",
+    ]
+    assert "never the comparison threshold" in semantics["quorum_rule"]
+    assert semantics["authoring_example"]["threshold"] == 0.10
+    assert semantics["authoring_example"]["minimum_pass_count"] == 76
+    assert "never place" in schema["threshold"]["description"]
+    assert "separate from threshold" in schema["minimum_pass_count"][
+        "description"
+    ]
 
 
 def test_metric_requirement_validator_does_not_silently_alias_runtime_owner() -> None:
@@ -185,6 +212,13 @@ def test_metric_authority_repair_context_is_complete_and_subsystem_scoped() -> N
     ]
     assert context["authority_materialization_mode"] == (
         "runtime_joined_frozen_requirement"
+    )
+    assert "never the comparison threshold" in context[
+        "metric_evaluation_semantics"
+    ]["quorum_rule"]
+    assert any(
+        "do not compare 0/1 flags to a quorum count" in instruction
+        for instruction in context["repair_prompt_priority_instructions"]
     )
 
 

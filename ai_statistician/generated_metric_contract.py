@@ -105,6 +105,50 @@ def generated_metric_requirement_target_namespace_contract() -> dict[str, Any]:
     }
 
 
+def generated_metric_evaluation_semantics_contract() -> dict[str, Any]:
+    """Describe the evaluator's comparison/aggregation order for LLM authors."""
+
+    return {
+        "resolved_value_rule": (
+            "metric_path must resolve to raw finite numeric measurements; do not "
+            "pre-threshold a measurable quantity merely to return pass/fail flags"
+        ),
+        "scalar_aggregations": {
+            "values": ["identity", "mean", "min", "max"],
+            "evaluation_order": (
+                "aggregate the resolved raw values first, then apply operator and "
+                "threshold or bounds once to the aggregate"
+            ),
+        },
+        "elementwise_aggregations": {
+            "values": ["all", "any", "at_least_count", "at_least_fraction"],
+            "evaluation_order": (
+                "apply operator and threshold or bounds independently to every "
+                "resolved raw value, then aggregate the resulting booleans"
+            ),
+        },
+        "quorum_rule": (
+            "minimum_pass_count and minimum_pass_fraction are quorum fields over "
+            "comparison results; they are never the comparison threshold"
+        ),
+        "boolean_predicate_rule": (
+            "only an intrinsically boolean predicate may return bool or 0/1 values; "
+            "bind those values with operator == and threshold 1"
+        ),
+        "authoring_example": {
+            "acceptance_goal": (
+                "at least 76 of 80 raw deviations are at most 0.10"
+            ),
+            "returned_metric": "a list of 80 raw deviation values",
+            "operator": "<=",
+            "threshold": 0.10,
+            "aggregation": "at_least_count",
+            "minimum_pass_count": 76,
+        },
+        "boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
+    }
+
+
 def generated_metric_requirement_json_schema() -> dict[str, Any]:
     """Return the machine-readable domain-neutral requirement schema.
 
@@ -147,8 +191,23 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
                     ),
                 },
             },
-            "metric_semantics": {"type": "string", "minLength": 1},
-            "measurement_protocol": {"type": "string", "minLength": 1},
+            "metric_semantics": {
+                "type": "string",
+                "minLength": 1,
+                "description": (
+                    "The raw scalar quantity returned at metric_path, before any "
+                    "runtime comparison or quorum aggregation."
+                ),
+            },
+            "measurement_protocol": {
+                "type": "string",
+                "minLength": 1,
+                "description": (
+                    "How raw measurements are produced for the declared runtime "
+                    "replicates or scenarios; do not describe a pre-thresholded "
+                    "pass-list when the underlying numeric measurement is available."
+                ),
+            },
             "required_runtime_replicates": {
                 "type": "integer",
                 "minimum": 1,
@@ -156,9 +215,18 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
             "operator": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
+                "description": (
+                    "For identity/mean/min/max, compare the aggregate once. For "
+                    "all/any/at_least_count/at_least_fraction, compare every raw "
+                    "resolved value before applying the aggregation."
+                ),
             },
             "threshold": {
                 "anyOf": [{"type": "number"}, {"type": "null"}],
+                "description": (
+                    "Numeric comparison boundary for each comparison; never place "
+                    "the required pass count or pass fraction here."
+                ),
             },
             "lower": {
                 "anyOf": [{"type": "number"}, {"type": "null"}],
@@ -170,12 +238,24 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
             "aggregation": {
                 "type": "string",
                 "enum": list(GENERATED_METRIC_CONTRACT_AGGREGATIONS),
+                "description": (
+                    "Scalar modes aggregate raw values before comparison; elementwise "
+                    "modes compare raw values before aggregating booleans."
+                ),
             },
             "minimum_pass_count": {
                 "anyOf": [{"type": "integer"}, {"type": "null"}],
+                "description": (
+                    "Quorum over successful elementwise comparisons for "
+                    "at_least_count; separate from threshold."
+                ),
             },
             "minimum_pass_fraction": {
                 "anyOf": [{"type": "number"}, {"type": "null"}],
+                "description": (
+                    "Quorum fraction over successful elementwise comparisons for "
+                    "at_least_fraction; separate from threshold."
+                ),
             },
             "required": {"type": "boolean"},
             "source_anchors": {
@@ -326,6 +406,9 @@ def generated_metric_authority_repair_context(
         ],
         "authority_copy_fields": list(GENERATED_METRIC_AUTHORITY_COPY_FIELDS),
         "authority_materialization_mode": "runtime_joined_frozen_requirement",
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+        ),
         "repair_prompt_priority_instructions": [
             (
                 "For every required_authority_binding_rows item and every generated "
@@ -339,6 +422,11 @@ def generated_metric_authority_repair_context(
             (
                 "Author only contract_id, requirement_id, artifact_id, and metric_path; "
                 "the metric_path must resolve against the generated run_sandbox result."
+            ),
+            (
+                "Return raw measurements at metric_path. For elementwise aggregation, "
+                "the runtime applies operator/threshold to each raw value and then "
+                "applies the quorum; do not compare 0/1 flags to a quorum count."
             ),
         ],
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
