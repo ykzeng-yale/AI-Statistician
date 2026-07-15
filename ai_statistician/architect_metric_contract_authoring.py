@@ -1,0 +1,429 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any, Mapping
+
+from .architect_metric_semantic_reviewer_llm import (
+    ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
+    LLMArchitectMetricSemanticReviewerAgent,
+)
+from .fingerprint import stable_hash
+from .generated_metric_contract import (
+    GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+    GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    generated_metric_evaluation_semantics_contract,
+    generated_metric_requirement_json_schema,
+    generated_metric_requirement_prompt_schema,
+    generated_metric_requirement_set_id,
+    generated_metric_requirement_target_namespace_contract,
+    validate_generated_metric_requirements,
+)
+from .llm_json_repair import (
+    PacketValidationError,
+    extract_json_object,
+    generate_validated_json_packet,
+)
+from .model_backend import GeneratorBackend, GeneratorRequest
+from .research_schema import OpenResearchQuestion
+
+
+ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ArchitectMetricContractAuthoringConfig:
+    max_tokens: int = 5000
+    model_tier: str = "sonnet"
+    provider_name: str = "anthropic"
+    max_repair_attempts: int = 2
+    metric_semantic_reviewer_max_revisions: int = 2
+
+
+def author_reviewed_architect_metric_requirements(
+    *,
+    provider: GeneratorBackend,
+    config: ArchitectMetricContractAuthoringConfig,
+    request_model: str,
+    semantic_reviewer: LLMArchitectMetricSemanticReviewerAgent | None,
+    question: OpenResearchQuestion,
+    runtime_contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    if (
+        runtime_contract.get("capability_eval_requires_typed_metric_contracts")
+        is not True
+        or runtime_contract.get("empirical_metric_requirements")
+        or str(getattr(provider, "provider_name", config.provider_name)).lower()
+        != "anthropic"
+    ):
+        return {}
+    if semantic_reviewer is None:
+        raise ValueError(
+            "capability-eval metric authoring requires an independent "
+            "ArchitectMetricSemanticReviewer"
+        )
+
+    runtime_replicates = int(
+        runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
+    )
+    response_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["empirical_metric_requirements"],
+        "properties": {
+            "empirical_metric_requirements": {
+                "type": "array",
+                "minItems": 1,
+                "items": generated_metric_requirement_json_schema(),
+            }
+        },
+    }
+    prompt_payload = {
+        "task": (
+            "Author the pre-execution empirical acceptance requirements used by "
+            "the AI Statistician coding and simulation agents."
+        ),
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+        },
+        "runtime_owned_replicates": runtime_replicates,
+        "target_namespace": generated_metric_requirement_target_namespace_contract(),
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+        ),
+        "requirement_schema": generated_metric_requirement_prompt_schema(),
+        "required_target_rows": [
+            generated_metric_requirement_prompt_schema(target_subsystem=target)
+            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+        ],
+        "hard_requirements": [
+            (
+                "Return at least one required empirical metric row for each "
+                "generated-code author subsystem; a row may correctly target both."
+            ),
+            (
+                "Each row must represent exactly one independently compared scalar "
+                "quantity, or one homogeneous collection whose members share this "
+                "row's one operator, bounds, tolerance, aggregation, and quorum."
+            ),
+            (
+                "When acceptance requires multiple quantities or different "
+                "operators, thresholds, bounds, aggregations, or quorums, split them "
+                "into separate requirement rows; never bundle independent gates in "
+                "prose inside one row."
+            ),
+            "Use only operator and aggregation enum values from requirement_schema.",
+            (
+                "For identity/mean/min/max, operator and threshold compare the one "
+                "aggregate. For all/any/at_least_count/at_least_fraction, operator "
+                "and threshold compare every raw returned value before the boolean "
+                "results are aggregated."
+            ),
+            (
+                "Keep the comparison boundary and quorum separate: threshold or "
+                "bounds describe when one measurement passes; minimum_pass_count or "
+                "minimum_pass_fraction describes how many comparisons must pass."
+            ),
+            (
+                "Before emitting any numeric constant, recompute it from the stated "
+                "definitions and assumptions instead of relying on a memorized "
+                "approximation; place a concise derivation or exact source anchor in "
+                "source_anchors."
+            ),
+            (
+                "Audit mathematical feasibility before freezing each row: the "
+                "comparison must be attainable for the named procedure, data-generating "
+                "regime, runtime budget, and estimand, and it must not contradict an "
+                "analytic bound or expectation stated by the same packet."
+            ),
+            (
+                "Translate the measurement_protocol into the evaluator's exact "
+                "operator-then-aggregation semantics and verify that its pass set is "
+                "equivalent to the prose, especially for upper versus lower limits "
+                "and at-most versus at-least counts."
+            ),
+            (
+                "Require raw measurements whenever they exist. Use bool/0/1 with "
+                "operator == and threshold 1 only for an intrinsically boolean "
+                "predicate."
+            ),
+            "Copy runtime_owned_replicates into every required_runtime_replicates field and state that exact count in each measurement_protocol.",
+            "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",
+            "Define measurable returned quantities, not prose-only success claims or task-specific runtime code.",
+            "These rows are empirical controls and never theorem proof evidence.",
+        ],
+        "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+    }
+    semantic_review_history: list[dict[str, Any]] = []
+    prior_authoring_packet: dict[str, Any] = {}
+    prior_review_packet: dict[str, Any] = {}
+    max_semantic_revisions = max(
+        0, int(config.metric_semantic_reviewer_max_revisions or 0)
+    )
+    for revision_index in range(max_semantic_revisions + 1):
+        candidate_prompt_payload = dict(prompt_payload)
+        if prior_review_packet:
+            candidate_prompt_payload["independent_semantic_review_repair"] = {
+                "revision_index": revision_index,
+                "rejected_authoring_packet_id": str(
+                    prior_authoring_packet.get("packet_id", "") or ""
+                ),
+                "rejected_requirement_set_id": str(
+                    prior_authoring_packet.get(
+                        "empirical_metric_requirement_set_id", ""
+                    )
+                    or ""
+                ),
+                "rejected_empirical_metric_requirements": [
+                    dict(row)
+                    for row in prior_authoring_packet.get(
+                        "empirical_metric_requirements", []
+                    )
+                    if isinstance(row, Mapping)
+                ],
+                "semantic_review_packet_id": str(
+                    prior_review_packet.get("packet_id", "") or ""
+                ),
+                "dimension_reviews": list(
+                    prior_review_packet.get("dimension_reviews", []) or []
+                ),
+                "findings": list(prior_review_packet.get("findings", []) or []),
+                "repair_instructions": list(
+                    prior_review_packet.get("repair_instructions", []) or []
+                ),
+                "revision_policy": (
+                    "Regenerate the complete contract before execution and address "
+                    "every independent finding. Do not merely relabel the old metric, "
+                    "drop a required author subsystem, or claim that execution passed."
+                ),
+            }
+        request = GeneratorRequest(
+            system_prompt=(
+                "You are the ArchitectMetricContractPlanner inside the AI Statistician. "
+                "Author domain-appropriate, executable empirical gates before either "
+                "coding agent sees the task. Return JSON only."
+            ),
+            user_prompt=json.dumps(
+                candidate_prompt_payload,
+                separators=(",", ":"),
+                default=str,
+            ),
+            model=request_model,
+            max_tokens=min(max(1, int(config.max_tokens)), 4000),
+            temperature=0.0,
+            schema=response_schema,
+            metadata={
+                "subsystem": "ArchitectMetricContractPlanner",
+                "agent": "LLMArchitectCoordinatorAgent",
+                "provider_name": config.provider_name,
+                "model_tier": config.model_tier,
+                "resolved_model": request_model,
+                "provider_structured_output": True,
+                "semantic_review_revision_index": revision_index,
+                "semantic_review_feedback_packet_id": str(
+                    prior_review_packet.get("packet_id", "") or ""
+                ),
+            },
+        )
+
+        def build_packet(
+            payload: Mapping[str, Any],
+            response: Any,
+            _raw_text: str,
+        ) -> dict[str, Any]:
+            requirements = payload.get("empirical_metric_requirements", [])
+            requirement_rows = [
+                dict(row) for row in requirements if isinstance(row, Mapping)
+            ]
+            parent_packet_id = str(
+                prior_authoring_packet.get("packet_id", "") or ""
+            )
+            return {
+                "schema_version": ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION,
+                "artifact_kind": "ArchitectMetricRequirementAuthoringPacket",
+                "packet_id": (
+                    "architect_metric_requirement_authoring:"
+                    + stable_hash(
+                        [
+                            question.id,
+                            requirement_rows,
+                            revision_index,
+                            parent_packet_id,
+                        ]
+                    )[:20]
+                ),
+                "question_id": question.id,
+                "source_agent": "ArchitectMetricContractPlanner",
+                "provider_name": response.provider,
+                "model": response.model or request_model,
+                "model_tier": config.model_tier,
+                "semantic_review_revision_index": revision_index,
+                "parent_authoring_packet_id": parent_packet_id,
+                "semantic_review_feedback_packet_id": str(
+                    prior_review_packet.get("packet_id", "") or ""
+                ),
+                "empirical_metric_requirements": requirement_rows,
+                "empirical_metric_requirement_set_id": (
+                    generated_metric_requirement_set_id(requirement_rows)
+                ),
+                "proof_evidence_status": (
+                    "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+            }
+
+        def validate_packet(packet: Mapping[str, Any]) -> list[str]:
+            return validate_generated_metric_requirements(
+                packet.get("empirical_metric_requirements", []),
+                required_target_subsystems=(
+                    GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+                ),
+                expected_runtime_replicates=runtime_replicates,
+            )
+
+        authoring_packet = generate_validated_json_packet(
+            provider=provider,
+            request=request,
+            extract_payload=extract_json_object,
+            build_packet=build_packet,
+            validate_packet=validate_packet,
+            validation_label="LLM Architect metric-requirement packet",
+            max_repair_attempts=config.max_repair_attempts,
+            repair_context_builder=lambda **_kwargs: {
+                "runtime_owned_replicates": runtime_replicates,
+                "target_namespace": (
+                    generated_metric_requirement_target_namespace_contract()
+                ),
+                "requirement_schema": generated_metric_requirement_prompt_schema(),
+                "required_target_rows": prompt_payload["required_target_rows"],
+                "repair_prompt_priority_instructions": prompt_payload[
+                    "hard_requirements"
+                ],
+                "independent_semantic_review_repair": (
+                    candidate_prompt_payload.get(
+                        "independent_semantic_review_repair", {}
+                    )
+                ),
+            },
+        )
+        authoring_packet_hash = stable_hash(authoring_packet)
+        review_material = {
+            "review_stage": "pre_execution_metric_contract_review",
+            "execution_results_available": False,
+            "runtime_owned_replicates": runtime_replicates,
+            "target_namespace": (
+                generated_metric_requirement_target_namespace_contract()
+            ),
+            "metric_evaluation_semantics": (
+                generated_metric_evaluation_semantics_contract()
+            ),
+            "empirical_metric_requirements": [
+                dict(row)
+                for row in authoring_packet.get(
+                    "empirical_metric_requirements", []
+                )
+                if isinstance(row, Mapping)
+            ],
+            "pre_execution_invariants": [
+                "No generated code, simulation output, metric result, or acceptance decision exists yet.",
+                "Review the candidate contract without proposing a post-result relaxation.",
+                "Every accepted target subsystem must remain covered by at least one required row.",
+            ],
+        }
+        semantic_review_packet = semantic_reviewer.review(
+            question=question,
+            review_material=review_material,
+            trusted_lineage={
+                "authoring_packet_id": str(authoring_packet["packet_id"]),
+                "authoring_packet_hash": authoring_packet_hash,
+                "empirical_metric_requirement_set_id": str(
+                    authoring_packet["empirical_metric_requirement_set_id"]
+                ),
+                "source_agent": str(authoring_packet["source_agent"]),
+                "source_model": str(authoring_packet["model"]),
+                "source_model_tier": str(authoring_packet["model_tier"]),
+            },
+        )
+        review_packet_hash = stable_hash(semantic_review_packet)
+        semantic_review_history.append(
+            {
+                "revision_index": revision_index,
+                "authoring_packet_id": str(authoring_packet["packet_id"]),
+                "authoring_packet_hash": authoring_packet_hash,
+                "empirical_metric_requirement_set_id": str(
+                    authoring_packet["empirical_metric_requirement_set_id"]
+                ),
+                "empirical_metric_requirements": [
+                    dict(row)
+                    for row in authoring_packet.get(
+                        "empirical_metric_requirements", []
+                    )
+                    if isinstance(row, Mapping)
+                ],
+                "semantic_review_packet_id": str(
+                    semantic_review_packet["packet_id"]
+                ),
+                "semantic_review_packet_hash": review_packet_hash,
+                "semantic_review_model": str(
+                    semantic_review_packet.get("model", "") or ""
+                ),
+                "semantic_review_model_tier": str(
+                    semantic_review_packet.get("model_tier", "") or ""
+                ),
+                "independent_agent": bool(
+                    semantic_review_packet.get("independent_agent")
+                ),
+                "independent_model": bool(
+                    semantic_review_packet.get("independent_model")
+                ),
+                "independent_model_tier": bool(
+                    semantic_review_packet.get("independent_model_tier")
+                ),
+                "overall_verdict": str(
+                    semantic_review_packet.get("overall_verdict", "") or ""
+                ),
+                "dimension_reviews": list(
+                    semantic_review_packet.get("dimension_reviews", []) or []
+                ),
+                "findings": list(
+                    semantic_review_packet.get("findings", []) or []
+                ),
+                "repair_instructions": list(
+                    semantic_review_packet.get("repair_instructions", []) or []
+                ),
+                "proof_evidence_status": (
+                    "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        if semantic_review_packet.get("overall_verdict") == "ACCEPT":
+            authoring_packet["semantic_review_status"] = "ACCEPT"
+            authoring_packet["semantic_review_packet"] = semantic_review_packet
+            authoring_packet["semantic_review_packet_hash"] = review_packet_hash
+            authoring_packet["semantic_review_revision_count"] = revision_index
+            authoring_packet["semantic_review_history"] = semantic_review_history
+            authoring_packet["semantic_review_boundary"] = (
+                ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY
+            )
+            return authoring_packet
+        prior_authoring_packet = authoring_packet
+        prior_review_packet = semantic_review_packet
+
+    last_review = semantic_review_history[-1] if semantic_review_history else {}
+    raise PacketValidationError(
+        validation_label="Architect pre-execution metric semantic review",
+        attempts=len(semantic_review_history),
+        errors=[
+            "independent semantic reviewer did not accept any metric contract "
+            f"candidate after {len(semantic_review_history)} attempt(s)",
+            *[
+                str(value)
+                for value in last_review.get("repair_instructions", [])
+                if str(value).strip()
+            ],
+        ],
+        history=semantic_review_history,
+    )

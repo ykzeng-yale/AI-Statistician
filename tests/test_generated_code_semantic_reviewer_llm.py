@@ -15,7 +15,9 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
 )
 from ai_statistician.model_backend import StaticJSONGeneratorBackend
 from ai_statistician.research_agent_runtime import (
+    ArchitectCoordinatorRuntimeSubsystem,
     GeneratedCodeSemanticReviewerRuntimeSubsystem,
+    ResearchAgentRuntimeConfig,
     _runtime_generated_code_semantic_review_dispatch,
 )
 from ai_statistician.research_agent_runtime_audit import (
@@ -305,8 +307,10 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "requirements assigned to its author subsystem" in prompt
     assert "omitting a requirement assigned only to a sibling artifact" in prompt
     assert "reject any current-source proposal claim" in prompt
-    assert "repair_scope=upstream_contract_or_theory" in prompt
-    assert "does not authorize post-result threshold relaxation" in prompt
+    assert "repair_scope=upstream_metric_contract" in prompt
+    assert "repair_scope=upstream_theory" in prompt
+    assert "legacy ambiguous upstream_contract_or_theory" in prompt
+    assert "do not authorize post-result threshold relaxation" in prompt
 
 
 def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
@@ -412,30 +416,107 @@ def test_upstream_semantic_finding_routes_directly_to_architect(
     subsystem, task, blackboard, _ = _runtime_fixture(
         tmp_path,
         accept=False,
-        repair_scope="upstream_contract_or_theory",
+        repair_scope="upstream_metric_contract",
     )
 
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REROUTE"
     assert result.failure_classification == (
-        "generated_code_semantic_review_upstream_repair_escalated_to_architect"
+        "generated_code_semantic_review_metric_protocol_revision_required"
     )
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "ArchitectCoordinator"
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["repair_scope"] == "upstream_contract_or_theory"
+    assert feedback["repair_scope"] == "upstream_metric_contract"
     assert feedback["repair_owner_agent"] == "ArchitectCoordinator"
     replan = result.next_task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_replan"
     ]
-    assert replan["repair_scope"] == "upstream_contract_or_theory"
+    assert replan["repair_scope"] == "upstream_metric_contract"
     assert replan["source_manifest_id"] == "algorithm_sandbox_manifest:test"
     assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
     assert "fresh candidate run" in replan["protocol_revision_policy"]
     assert result.next_task.inputs[
         "generated_code_semantic_review_revision_count"
     ] == 0
+
+
+def test_post_result_metric_protocol_revision_stops_current_candidate(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    review_result = subsystem.run(task, blackboard)
+    assert review_result.next_task is not None
+
+    class CoordinatorMustNotRun:
+        metric_semantic_reviewer = None
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs):
+            self.calls += 1
+            raise AssertionError("post-result protocol guard must run before replanning")
+
+    coordinator = CoordinatorMustNotRun()
+    guard = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=coordinator,
+        runtime_config=ResearchAgentRuntimeConfig(),
+    )
+
+    result = guard.run(review_result.next_task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert coordinator.calls == 0
+    assert result.failure_classification == "evaluation_protocol_revision_required"
+    manifest = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeEvaluationProtocolRevisionRequired"
+    )
+    assert manifest["disposition"] == "EVALUATION_PROTOCOL_REVISION_REQUIRED"
+    assert manifest["current_candidate_acceptance_eligible"] is False
+    assert manifest["post_result_protocol_mutation_allowed"] is False
+    assert manifest["fresh_candidate_required"] is True
+    assert manifest["source_requirement_set_id"]
+    assert manifest["source_semantic_review_packet_id"] == (
+        review_result.next_task.inputs["environment_feedback"][
+            "semantic_review_packet_id"
+        ]
+    )
+    assert manifest["pending_artifact_ids"]
+    assert result.evidence_entries[0].status == (
+        "CURRENT_CANDIDATE_BLOCKED_FRESH_PROTOCOL_RUN_REQUIRED"
+    )
+
+
+def test_upstream_theory_scope_remains_an_architect_replan_not_protocol_stop(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="upstream_theory",
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_upstream_theory_repair_escalated_to_architect"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["environment_feedback"]["repair_scope"] == (
+        "upstream_theory"
+    )
 
 
 def test_source_semantic_revision_budget_escalates_even_without_deferred_architect(
@@ -647,7 +728,7 @@ def test_semantic_review_validator_binds_upstream_scope_to_architect() -> None:
     packet = {
         **_review_response(
             accept=False,
-            repair_scope="upstream_contract_or_theory",
+            repair_scope="upstream_metric_contract",
         ),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"

@@ -73,12 +73,16 @@ from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
+    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES,
     LLMGeneratedCodeSemanticReviewerAgent,
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     build_generated_code_semantic_review_architect_replan_task,
+)
+from .evaluation_protocol_revision import (
+    _architect_post_result_metric_protocol_revision_result,
 )
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
@@ -8018,6 +8022,15 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     "evidence and does not imply that any theorem gap is closed."
                 ),
             }
+        protocol_revision_result = (
+            _architect_post_result_metric_protocol_revision_result(
+                task=task,
+                question=question,
+                architect_context=context,
+            )
+        )
+        if protocol_revision_result is not None:
+            return protocol_revision_result
         runtime_config_payload = asdict(self.runtime_config)
         runtime_config_payload["exact_source_theorem_prover_available"] = (
             self.exact_source_theorem_prover_available
@@ -12160,7 +12173,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "Route the exact findings to ArchitectCoordinator without changing "
                 "the frozen protocol in place; malformed requirements require a "
                 "versioned fresh candidate run."
-                if repair_scope == "upstream_contract_or_theory"
+                if repair_scope
+                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
                 else "Generate fresh code and rerun it under the same frozen "
                 "Architect measurement protocol while addressing every semantic "
                 "finding."
@@ -12305,8 +12319,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 if isinstance(task_feedback, Mapping):
                     prior_feedback.update(dict(task_feedback))
             escalation_classification = (
-                "generated_code_semantic_review_upstream_repair_escalated_to_architect"
-                if repair_scope == "upstream_contract_or_theory"
+                "generated_code_semantic_review_metric_protocol_revision_required"
+                if repair_scope == "upstream_metric_contract"
+                else "generated_code_semantic_review_upstream_theory_repair_escalated_to_architect"
+                if repair_scope == "upstream_theory"
+                else "generated_code_semantic_review_upstream_repair_escalated_to_architect"
+                if repair_scope
+                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
                 else "generated_code_semantic_review_revision_budget_escalated_to_architect"
             )
             escalation_feedback = {
@@ -12336,7 +12355,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "Independent semantic review found an upstream protocol or theory "
                 "blocker; exact findings and failed execution lineage are routed "
                 "to ArchitectCoordinator without post-result gate changes."
-                if repair_scope == "upstream_contract_or_theory"
+                if repair_scope
+                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
                 else "Generated code still failed independent semantic review "
                 "after the bounded local revision budget; exact review and "
                 "execution lineage are routed to ArchitectCoordinator while the "
@@ -53404,6 +53424,18 @@ def _runtime_llm_topology(
             role="top-level research plan, evidence gates, and subsystem routing",
         ),
         _llm_agent_topology_row(
+            "ArchitectMetricSemanticReviewer",
+            (
+                architect_coordinator.metric_semantic_reviewer
+                if architect_coordinator is not None
+                else None
+            ),
+            role=(
+                "independent pre-execution semantic and mathematical review of "
+                "Architect-authored typed empirical metric contracts"
+            ),
+        ),
+        _llm_agent_topology_row(
             "TheoryDeveloper",
             theory_developer,
             role="deductive statistical theory discovery and theorem/procedure proposal",
@@ -53523,6 +53555,9 @@ def _runtime_llm_topology(
         ),
         "default_provider": "anthropic",
         "architect_provider": _subsystem_field("ArchitectCoordinator", "provider_name"),
+        "architect_metric_semantic_reviewer_provider": _subsystem_field(
+            "ArchitectMetricSemanticReviewer", "provider_name"
+        ),
         "theory_developer_provider": _subsystem_field("TheoryDeveloper", "provider_name"),
         "simulation_engineer_provider": _subsystem_field(
             "SimulationEngineer", "provider_name"
@@ -53543,6 +53578,9 @@ def _runtime_llm_topology(
             "FormalTargetSemanticReviewer", "provider_name"
         ),
         "architect_model": _subsystem_field("ArchitectCoordinator", "model"),
+        "architect_metric_semantic_reviewer_model": _subsystem_field(
+            "ArchitectMetricSemanticReviewer", "model"
+        ),
         "theory_developer_model": _subsystem_field("TheoryDeveloper", "model"),
         "simulation_engineer_model": _subsystem_field("SimulationEngineer", "model"),
         "algorithm_engineer_model": _subsystem_field("AlgorithmEngineer", "model"),
@@ -53555,6 +53593,9 @@ def _runtime_llm_topology(
             "FormalTargetSemanticReviewer", "model"
         ),
         "architect_model_tier": _subsystem_field("ArchitectCoordinator", "model_tier"),
+        "architect_metric_semantic_reviewer_model_tier": _subsystem_field(
+            "ArchitectMetricSemanticReviewer", "model_tier"
+        ),
         "theory_developer_model_tier": _subsystem_field("TheoryDeveloper", "model_tier"),
         "simulation_engineer_model_tier": _subsystem_field(
             "SimulationEngineer", "model_tier"

@@ -5150,6 +5150,21 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
             max_tokens=getattr(args, "architect_max_tokens", 5000),
             temperature=getattr(args, "architect_temperature", 0.1),
             provider_name=provider_name,
+            metric_semantic_reviewer_model=getattr(
+                args,
+                "architect_metric_semantic_reviewer_llm_model",
+                "",
+            ),
+            metric_semantic_reviewer_max_tokens=getattr(
+                args,
+                "architect_metric_semantic_reviewer_max_tokens",
+                7000,
+            ),
+            metric_semantic_reviewer_max_revisions=getattr(
+                args,
+                "architect_metric_semantic_reviewer_max_revisions",
+                2,
+            ),
         ),
     )
 
@@ -21504,6 +21519,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument("--architect-max-tokens", type=int, default=5000)
     research_agent_runtime.add_argument("--architect-temperature", type=float, default=0.1)
+    research_agent_runtime.add_argument(
+        "--architect-metric-semantic-reviewer-llm-model",
+        default="",
+        help=(
+            "independent pre-execution metric-contract reviewer model; "
+            "Anthropic defaults to the configured Claude Opus tier"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-semantic-reviewer-max-tokens",
+        type=int,
+        default=7000,
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-semantic-reviewer-max-revisions",
+        type=int,
+        default=2,
+        help=(
+            "maximum full metric-contract rewrites after independent "
+            "pre-execution semantic review rejects a candidate"
+        ),
+    )
     research_agent_runtime.add_argument(
         "--simulation-engineer-provider",
         choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,

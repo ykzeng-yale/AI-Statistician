@@ -383,30 +383,33 @@ forbidden.
 
 The shared runtime correction now distinguishes independent semantic-review
 findings with a typed `repair_scope`. A defect resolvable entirely by fresh
-source code receives one bounded coding-agent revision. An internally
-inconsistent or infeasible frozen protocol, prose/operator conflict, or missing
-theory premise routes immediately to ArchitectCoordinator with the exact review
-packet, failed execution, pending artifact IDs, and immutable work-order
-lineage. Source-code review failures also escalate to Architect after the local
-budget even when the previously deferred task was formalization rather than an
-Architect task. Architect may route an upstream evidence producer or record
-`EVALUATION_PROTOCOL_REVISION_REQUIRED`; it may not mutate the failed frozen
-gate in place or promote the rejected artifact. The metric-authoring prompt also
-requires the LLM to recompute nontrivial constants, audit analytic feasibility,
-and translate prose through the exact comparison/aggregation semantics before
-freezing rows. This is a domain-general LLM reasoning and communication repair,
-not a sequential-test validator or a hardcoded numerical correction. A truly
-independent pre-execution metric-contract reviewer remains the stronger next
-architecture gate; prompt self-audit is useful but is not independent evidence.
-The pure typed Architect replan builder lives outside the central runtime in
-`generated_code_semantic_review_replan.py`, so this correction does not add
-another embedded orchestration policy block to the runtime monolith.
+source code receives one bounded coding-agent revision. `upstream_theory`
+routes exact findings through ArchitectCoordinator to theory repair.
+`upstream_metric_contract` deterministically records
+`EVALUATION_PROTOCOL_REVISION_REQUIRED`, preserves the failed execution and
+frozen requirement fingerprint, and stops the current candidate before another
+Retrieval -> Theory -> Simulation cycle. The legacy ambiguous scope remains
+replay-compatible but is not emitted by new reviews. Before execution, a
+separate Opus reviewer now checks every Sonnet-authored candidate across six
+domain-general semantic and mathematical dimensions; only an independently
+accepted, fingerprint-bound set can freeze. The author/reviewer loop lives in
+dedicated modules and contains no sequential-test validator, hardcoded
+numerical correction, task-family formula, or Lean grammar.
 
 Overall v26 ended `BLOCKED` 2/2 with a 94/125 scorecard, three generated
 simulation executions, one generated algorithm execution, zero kernel-verified
 subclaims, two formal gaps, and zero exact source-theorem closures. No legacy
 post-runtime theorem fallback ran, and the PCA/extremes held-out panel remains
 locked.
+
+The fresh v27 development run at commit `2d88881e` ended with both tasks at
+`MAX_ITERATIONS_REACHED`, scorecard 89/125, zero exact theorem closures, and no
+held-out unlock. It verified that source-code and upstream semantic findings
+reach typed owners, but it also showed three repeated Architect whole-chain
+replans per task with unchanged frozen requirement-set IDs. That negative
+evidence motivated the independent pre-execution reviewer and explicit
+post-result protocol disposition above. A new cross-family live run is still
+required; unit and replay evidence cannot establish E2E readiness.
 
 ## Reuse Rules
 
@@ -426,11 +429,12 @@ following hold:
 
 ## Next Integration Order
 
-1. Bind Architect-authored empirical requirements to real question/theory
-   artifact identities and add an independent Theory/Critic semantic-review
-   result before they can gate capability evaluation. Keep sandbox execution,
-   contract satisfaction, semantic acceptance, and theorem proof as separate
-   evidence classes.
+1. Run a fresh cross-family development evaluation with the independent metric
+   reviewer enabled. Require accepted pre-execution certificates for both task
+   families, no repeated whole-chain replan under an invalid frozen protocol,
+   and exact source-theorem kernel closure before held-out unlock. Then add
+   task-agenda/budget reservation so empirical repair cannot starve the proof
+   lane.
 2. Preserve CodexProver's 30-target frozen cohort through its final two first
    attempts, then close it as underpowered without replacement targets or
    matched retries. Pre-register a better-powered exact-feedback-only versus

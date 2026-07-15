@@ -97,6 +97,8 @@ environment iteration into the main runtime:
 ```text
 AgentRuntime / Blackboard
   -> Architect subsystem
+  -> ArchitectMetricContractPlanner (Sonnet proposal)
+  -> ArchitectMetricSemanticReviewer (independent Opus pre-execution gate)
   -> ProblemFormalizer subsystem
   -> TheoryDeveloper subsystem
   -> AlgorithmEngineer / SimulationEngineer / SymbolicDeriver subsystems
@@ -121,6 +123,21 @@ task. Runtime validators check only the typed verdict, identities, hashes,
 lineage, and reviewer independence; they contain no theorem-family formula,
 metric threshold, expected answer, or Lean grammar. The result remains
 empirical/implementation review evidence, never theorem proof evidence.
+
+Capability evaluation also separates metric-protocol authorship from protocol
+acceptance. The Sonnet Architect metric planner proposes a complete typed
+requirement set before any generated code or result exists. A separate Opus
+reviewer checks question/estimand alignment, identifiability, mathematical and
+numeric consistency, finite-sample attainability, exact evaluator semantics,
+and cross-requirement consistency. A rejected candidate is returned to the
+metric author with exact typed findings; rejected requirement rows and hashes
+remain in immutable revision history. Only an independently accepted set is
+frozen into the evidence contract. If post-execution review later identifies
+the frozen protocol itself as malformed, AgentRuntime records
+`EVALUATION_PROTOCOL_REVISION_REQUIRED` and blocks the current candidate. It
+does not mutate a threshold after seeing results or spend the remaining task
+budget rerunning the old research chain. This gate contains no task-family
+formula, expected answer, metric threshold, or Lean grammar.
 
 The registry-backed `ProblemFormalizer`, `TheoryPlanner`, and
 `ResearchSimulator` described below remain legacy baseline providers. They are

@@ -1409,11 +1409,15 @@ CodexProver, and evaluator-guided program-search systems while keeping the one
 Architect-owned AgentRuntime. It does not import their model clients,
 orchestrators, or result corpora.
 
-Architect requirements are still proposals. Their schema and lineage can be
-valid while their statistical meaning is poor. The next control-plane step is
-an independent Theory/Critic review whose accepted artifact identities and
-source anchors are bound into the requirement set. Until then, requirement
-pass is empirical evidence only and cannot promote a theory or Lean claim.
+Architect requirements remain proposals, but their statistical meaning now has
+an independent pre-execution authority gate. A Sonnet author emits a complete
+typed candidate and a separate Opus reviewer evaluates six domain-general
+dimensions before code or results exist. `REVISE` feeds exact findings and the
+rejected candidate back to the author for a bounded full-contract rewrite;
+`ACCEPT` is valid only with distinct agent, model, and model-tier provenance and
+an exact requirement-set fingerprint. Every rejected set remains in revision
+history. Requirement pass is still empirical evidence only and cannot promote
+a theory or Lean claim.
 
 ## Frozen Cross-Family Correction
 

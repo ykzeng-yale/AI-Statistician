@@ -20817,6 +20817,30 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         raw_response="initial",
         runtime_config=runtime_config,
     )
+    initial_requirement_set_id = initial["evidence_contract"][
+        "empirical_metric_requirement_set_id"
+    ]
+    initial["evidence_contract"][
+        "empirical_metric_requirements_preexecution_review"
+    ] = {
+        "artifact_kind": "ArchitectMetricPreExecutionReviewCertificate",
+        "overall_verdict": "ACCEPT",
+        "review_packet_id": "architect_metric_semantic_review:accepted",
+        "review_packet_hash": "review-hash",
+        "reviewed_empirical_metric_requirement_set_id": (
+            initial_requirement_set_id
+        ),
+        "reviewer_model": "claude-opus-4-8",
+        "reviewer_model_tier": "opus",
+        "independent_agent": True,
+        "independent_model": True,
+        "independent_model_tier": True,
+        "pre_execution_review": True,
+        "execution_results_observed": False,
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
+        ),
+    }
     rewritten = json.loads(json.dumps(_architect_sample_response()))
     rewritten_requirement = rewritten["evidence_contract"][
         "empirical_metric_requirements"
@@ -20858,6 +20882,9 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
     assert replanned_contract[
         "empirical_metric_requirements_frozen_from_prior_architect_plan"
     ] is True
+    assert replanned_contract[
+        "empirical_metric_requirements_preexecution_review"
+    ] == initial_contract["empirical_metric_requirements_preexecution_review"]
     assert replanned_contract["formal_targets"] == initial_contract[
         "formal_targets"
     ]
@@ -21033,6 +21060,37 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                     "provider_structured_output_applied": True,
                     "json_prompt_hint_used": False,
                 }
+            elif request.metadata.get("subsystem") == (
+                "ArchitectMetricSemanticReviewer"
+            ):
+                from ai_statistician.architect_metric_semantic_reviewer_llm import (
+                    ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+                )
+
+                payload = {
+                    "dimension_reviews": [
+                        {
+                            "dimension": dimension,
+                            "status": "PASS",
+                            "rationale": (
+                                "The pre-execution protocol is coherent and "
+                                "attainable under the supplied fixed budget."
+                            ),
+                            "evidence_refs": ["requirement:typed_gate"],
+                        }
+                        for dimension in (
+                            ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
+                        )
+                    ],
+                    "findings": [],
+                    "overall_verdict": "ACCEPT",
+                    "repair_instructions": [],
+                }
+                metadata = {
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                    "json_prompt_hint_used": False,
+                }
             else:
                 payload = _architect_sample_response(
                     required_runtime_replicates=17
@@ -21070,13 +21128,18 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         },
     )
 
-    assert len(backend.requests) == 2
-    metric_request, architect_request = backend.requests
+    assert len(backend.requests) == 3
+    metric_request, review_request, architect_request = backend.requests
     assert metric_request.metadata["provider_structured_output"] is True
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
     assert "provider_structured_output" not in architect_request.metadata
+    assert review_request.metadata["subsystem"] == (
+        "ArchitectMetricSemanticReviewer"
+    )
+    assert review_request.metadata["model_tier"] == "opus"
+    assert review_request.model != metric_request.model
     metric_prompt = json.loads(metric_request.user_prompt)
     hard_requirements = " ".join(metric_prompt["hard_requirements"])
     assert "exactly one independently compared scalar quantity" in hard_requirements
@@ -21110,6 +21173,200 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert packet["metric_requirement_authoring"][
         "llm_json_repair_attempts"
     ] == 0
+    assert packet["metric_requirement_authoring"][
+        "semantic_review_status"
+    ] == "ACCEPT"
+    assert packet["metric_requirement_authoring"][
+        "semantic_review_independent_model"
+    ] is True
+    review_certificate = packet["evidence_contract"][
+        "empirical_metric_requirements_preexecution_review"
+    ]
+    assert review_certificate["overall_verdict"] == "ACCEPT"
+    assert review_certificate[
+        "reviewed_empirical_metric_requirement_set_id"
+    ] == packet["evidence_contract"]["empirical_metric_requirement_set_id"]
+    assert review_certificate["execution_results_observed"] is False
+    assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> None:
+    from ai_statistician.architect_metric_semantic_reviewer_llm import (
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+    )
+
+    question = next(
+        question
+        for question in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if question.id == "sequential_anytime_bernoulli"
+    )
+
+    def metric_rows(threshold: float) -> list[dict[str, object]]:
+        return [
+            {
+                "requirement_id": f"generic:{target.lower()}:gate",
+                "target_subsystems": [target],
+                "metric_semantics": "a directly measured finite-sample error",
+                "measurement_protocol": (
+                    "return the raw error over exactly 17 runtime replicates"
+                ),
+                "required_runtime_replicates": 17,
+                "operator": "<=",
+                "threshold": threshold,
+                "lower": None,
+                "upper": None,
+                "tolerance": 0.0,
+                "aggregation": "mean",
+                "minimum_pass_count": None,
+                "minimum_pass_fraction": None,
+                "required": True,
+                "source_anchors": ["question:generic_protocol"],
+                "boundary": "empirical control, not theorem proof evidence",
+            }
+            for target in ("AlgorithmEngineer", "SimulationEngineer")
+        ]
+
+    rejected_rows = metric_rows(1e-12)
+    accepted_rows = metric_rows(0.1)
+
+    class ReviewRepairBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.planner_calls = 0
+            self.review_calls = 0
+
+        def generate(self, request):
+            self.requests.append(request)
+            subsystem = request.metadata.get("subsystem")
+            if subsystem == "ArchitectMetricContractPlanner":
+                self.planner_calls += 1
+                payload = {
+                    "empirical_metric_requirements": (
+                        rejected_rows
+                        if self.planner_calls == 1
+                        else accepted_rows
+                    )
+                }
+            elif subsystem == "ArchitectMetricSemanticReviewer":
+                self.review_calls += 1
+                accepted = self.review_calls > 1
+                payload = {
+                    "dimension_reviews": [
+                        {
+                            "dimension": dimension,
+                            "status": (
+                                "PASS"
+                                if accepted
+                                or dimension
+                                != "finite_sample_attainability_and_calibration"
+                                else "FAIL"
+                            ),
+                            "rationale": (
+                                "The revised gate is justified before execution."
+                                if accepted
+                                else "The first threshold is not attainable at the fixed budget."
+                            ),
+                            "evidence_refs": ["requirement:generic_gate"],
+                        }
+                        for dimension in (
+                            ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
+                        )
+                    ],
+                    "findings": (
+                        []
+                        if accepted
+                        else [
+                            {
+                                "severity": "high",
+                                "category": "finite_sample_calibration",
+                                "summary": (
+                                    "The first candidate is not attainable under "
+                                    "the fixed runtime budget."
+                                ),
+                                "required_change": (
+                                    "Re-derive and regenerate the complete metric contract."
+                                ),
+                                "evidence_refs": ["requirement:generic_gate"],
+                            }
+                        ]
+                    ),
+                    "overall_verdict": "ACCEPT" if accepted else "REVISE",
+                    "repair_instructions": (
+                        []
+                        if accepted
+                        else [
+                            "Re-derive every finite-sample boundary before execution."
+                        ]
+                    ),
+                }
+            else:
+                payload = _architect_sample_response(
+                    required_runtime_replicates=17
+                )
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": bool(request.schema),
+                    "provider_structured_output_applied": bool(request.schema),
+                },
+            )
+
+    backend = ReviewRepairBackend()
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+            model_tier="sonnet",
+            max_tokens=8000,
+            metric_semantic_reviewer_max_revisions=1,
+        ),
+    ).propose(
+        question=question,
+        architect_context={},
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "required",
+            "recommended_research_path": "proof_first",
+            "n_runs": 17,
+            "exact_source_theorem_prover_available": True,
+        },
+    )
+
+    assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectMetricContractPlanner",
+        "ArchitectMetricSemanticReviewer",
+        "ArchitectMetricContractPlanner",
+        "ArchitectMetricSemanticReviewer",
+        "ArchitectCoordinator",
+    ]
+    repair_prompt = json.loads(backend.requests[2].user_prompt)
+    repair = repair_prompt["independent_semantic_review_repair"]
+    assert repair["rejected_empirical_metric_requirements"] == rejected_rows
+    assert repair["findings"][0]["severity"] == "high"
+    assert "execution" not in json.dumps(repair).lower() or (
+        "before execution" in json.dumps(repair).lower()
+    )
+    assert packet["evidence_contract"]["empirical_metric_requirements"] == (
+        accepted_rows
+    )
+    authoring = packet["metric_requirement_authoring"]
+    assert authoring["semantic_review_revision_count"] == 1
+    assert [
+        row["overall_verdict"] for row in authoring["semantic_review_history"]
+    ] == ["REVISE", "ACCEPT"]
+    assert authoring["semantic_review_history"][0][
+        "empirical_metric_requirements"
+    ] == rejected_rows
+    assert authoring["semantic_review_history"][1][
+        "empirical_metric_requirements"
+    ] == accepted_rows
     assert validate_architect_coordinator_packet(packet) == []
 
 
